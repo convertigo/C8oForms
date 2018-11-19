@@ -1,0 +1,2916 @@
+comment: FORMS CREATOR
+scriptContent: 
+  - xmlizable: 
+    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+      →: |
+        '/*Begin_c8o_PageImport*/
+        /*End_c8o_PageImport*/
+        /*Begin_c8o_PageDeclaration*/
+        	public formsList: Array<object> = [];
+        	public elemIndex: number = 0;
+         	/*End_c8o_PageDeclaration*/
+        /*Begin_c8o_PageConstructor*/
+        		/*End_c8o_PageConstructor*/
+        /*Begin_c8o_PageFunction*/
+        	
+        	/* Allow to switch highlight container position*/
+        	public switchHighlights(newEl){
+        	    //Check that element to highlight is different from the on that is already highlighted
+        	    if(newEl.id != this.local["currentHighlight"]){
+        	        // get older element and remove highlight from it
+        	        const oldElem = document.getElementById(this.local["currentHighlight"]);
+                    if(oldElem != null){
+                        oldElem.style["border-color"] = null;
+                        oldElem.style["border-style"] = null;
+                    }
+                    // set highlight on new element
+                    newEl.style["border-color"] = ''#bc0000'';
+                    newEl.style["border-style"] = "dashed";
+                    // register new element as old element
+                    this.local["currentHighlight"] = newEl.id;
+        	    }
+        	    else{
+        	        //register new element as old element
+        	        this.local["currentHighlight"] = newEl.id;
+        	    }  
+        	}
+        	
+        	/* Recursive search for parent container*/
+        	recursive(el:any, origin:string){
+        	    if(el == undefined){
+        	        this.c8o.log.debug("id context not found");
+        	    }
+        	    else if(el.id.indexOf("@prefixc8oitem") != -1 || el.id.indexOf("@prefixc8obeforeItem") != -1 || el.id.indexOf("@prefixc8oafterItem") != -1){
+        	        if(origin == "item"){
+        	            let start = el.id.indexOf("@prefixc8otype");
+        	            if(start == -1){
+        	               this.c8o.log.error("Error: Can''t drop since object has no property type"); 
+        	               return;
+        	            }
+        	            else{
+        	                start = start + 14;
+        	                const target = el.id.substring(start);
+        	            }
+        	            
+        	        }
+        	        else{
+        	            this.switchHighlights(el);   
+        	        }
+        	    }
+        	    else{
+        	        this.recursive(el.parentElement, origin);
+        	    }
+        	}
+        	
+        	/**
+        	 * Update fullsync database from main''s object(formsList) state
+        	 */
+        	updateState(){
+        	    let params = {};
+                params["formulaire"] = this.formsList;
+                params["_use_policy"] =  "override";
+                params["_id"]= this.global.formSelected._id;
+                
+                this.c8o.callJsonObject("fs://c8oforms_fs.post", params)
+                .then((response: any, params: any)=>{
+                  this.c8o.log.debug("updateState: " + JSON.stringify(response));
+                  return null;
+                })
+                .fail((err: any)=>{
+                    this.c8o.log.error("updateState: " + JSON.stringify(err));
+                })
+        	}
+        
+        	
+        	isElementIndexSwappable(dir, id){
+        	    return (dir == ''down'')?(this.formsList[this.getElementIndexById(id)+1] !== undefined):(this.formsList[this.getElementIndexById(id)-1] !== undefined);
+        	}
+        	
+        	getElementIndexById(id){
+        	    for(let i= 0; i< this.formsList.length; i++){
+                    if(this.formsList[i]["id"] == id){
+                        return i;
+                    }
+                }
+        	}
+        	
+        	moveElement(indexDest, indexOrigin){
+        	    let to = false;
+        	    let from = false;
+        	    
+        	    if(indexDest[1] != null){
+        	        to = true;
+        	        this.c8o.log.debug("MoveElement: to an ion-card");
+        	    }
+        	    if(indexOrigin[1] != null){
+        	        from = true;
+        	        this.c8o.log.debug("MoveElement: from an ion-card")
+                }
+        	    
+        	    let elemtomove;
+        	    // If the element to move is from an ion-card
+        	    if(from){
+        	        elemtomove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
+        	    }
+        	    // If the element to move is not from an ion-card
+        	    else{
+        	        elemtomove = this.formsList[+indexOrigin[0]];
+        	    }
+        	    // If the element to move is to an ion-card
+        	    if(to){
+        	        this.formsList[indexDest[0]]["children"].splice(+indexDest[1], 0, elemtomove);
+        	    }
+        	    else{
+        	        this.formsList.splice(indexDest[0], 0, elemtomove);
+        	    }
+        	    
+                if(from == true){
+                    if(from == to){
+        	            if(indexDest[1] < indexOrigin[1]){
+        	                indexOrigin[1] ++;
+        	            }
+                    }
+                    this.formsList[+indexOrigin[0]]["children"].splice(+indexOrigin[1], 1);
+                }
+                else{
+                    if(from == to){
+        	            if(indexDest[0] < indexOrigin[0]){
+                            indexOrigin[0] ++;
+                        }
+                    }
+                    this.formsList.splice(+indexOrigin[0], 1);
+                }
+        	    
+        	    
+        	    
+        	    
+        	    /*if( !from && !to){
+        	        this.formsList.splice(+indexDest, 0, this.formsList[+indexOrigin]);
+        	        if(indexDest < indexOrigin){
+        	            indexOrigin ++;
+        	        } 
+        	        this.formsList.splice(+indexOrigin, 1);
+        	        this.c8o.log.debug("MoveElement: from index [" + indexOrigin + "] to " + indexDest + " and delete at index ["+ indexOrigin +"]");
+        	    }
+        	    */
+        	    this.updateState();
+        	}
+        	
+        	addElement(typ, index = null, into= false){
+        	    if(this.formsList == undefined){
+        	        this.formsList = [];
+        	    }
+        	    const id = new Date().getTime();
+        	    let objToInsert;
+        	    switch (typ) {
+                	case "text":
+                	    objToInsert = {
+                                "type": typ,
+                                "config": {
+                                    "mandatory": false,
+                                    "placeholder": "Placeholder",
+                                    "label": "Label",
+                                    "label_color": "primary",
+                                    "position": ''unset'',
+                                    "type": ''text'',
+                                    "clearInput": false,
+                                },
+                                "id": id,
+                                "name": "inputText"+id
+                            };
+                		break;
+                		
+                	case "img":
+                	    objToInsert = {
+                                    "type": typ,
+                                    "config": {
+                                        "src": "assets/images/category.png",
+                                        "alt": "NO IMAGE",
+                                        "width": "128",
+                                        "height": "128"
+                                    },
+                                    "id": id,
+                                    "name": "imageFile"+id
+                                };
+                	    break;
+                	    
+                	case "checkbox":
+                	    objToInsert = {
+                                    "type": typ,
+                                    "config": {
+                                        "checked": false,
+                                        "disabled": false,
+                                        "color": "primary",
+                                        "label_color": "dark",
+                                        "label": "Label"
+                                    },
+                                    "id": id,
+                                    "name": "checkbox"+id
+                                };
+                        break;
+                        
+                	case "group":
+                	    objToInsert =
+                                {
+                                    "type": "ion-card",
+                                    "config": {
+                                        
+                                    },
+                                    "children":[],
+                                    "id": id,
+                                    "name": "ion-card"+id
+                                };
+                        break;
+                
+                	default:
+                		break;
+                }
+        	    if(index != null){
+                    if(index[1] != null){
+                        this.formsList[index[0]]["children"].splice(index[1], 0, objToInsert);
+                    }
+                    else{
+                        this.formsList.splice(index, 0, objToInsert);
+                    }
+                }
+                else{
+                    this.formsList.push(objToInsert);
+                }
+                // After having modifying Object, update its state with fs base
+                this.updateState();
+        	    
+        	}
+        	
+        	delElement(id){
+        	    this.formsList.splice(this.getElementIndexById(id), 1);
+        	    // After having modifying Object, update its state with fs base
+        	    this.updateState();
+        	}
+        	
+        	swapElement(from, to){
+                this.formsList.splice(to, 0, this.formsList.splice(from, 1)[0])
+                // After having modifying Object, update its state with fs base
+                this.updateState();
+        	}
+        	
+        	
+        	/*End_c8o_PageFunction*/
+        '
+segment: path-to-formscreator
+title: Editeur de formulaires
+↓Header [mobile.components.UIDynamicElement-1537437118444]: 
+  beanData: '{"ionBean":"Header"}'
+  comment: Page header
+  tagName: ion-header
+  ↓NavBar [mobile.components.UIDynamicElement-1537437118490]: 
+    beanData: '{"ionBean":"NavBar","IonColor":"plain:light"}'
+    tagName: ion-navbar
+    ↓BarTitle [mobile.components.UIDynamicElement-1537437118537]: 
+      beanData: '{"ionBean":"BarTitle"}'
+      tagName: ion-title
+      ↓TextFormat [mobile.components.UIDynamicElement-1537437118583]: 
+        beanData: '{"ionBean":"TextFormat","TextCenter":"plain:text-center"}'
+        tagName: div
+        ↓Text [mobile.components.UIText-1537437118639]: 
+          textValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:Convertigo Forms Builder
+    ↓Button [mobile.components.UIDynamicElement-1537437118702]: 
+      beanData: |
+        '{
+         "ionBean": "Button",
+         "ButtonFormType": "plain:false",
+         "MenuMode": "plain:menuToggle"
+        }'
+      comment: A button to toggle the menu
+      tagName: button
+      ↓Icon [mobile.components.UIDynamicElement-1537437118750]: 
+        beanData: '{"ionBean":"Icon","IconName":"plain:menu"}'
+        tagName: ion-icon
+↓Content [mobile.components.UIDynamicElement-1531326990208]: 
+  beanData: '{"ionBean":"Content","IonPadding":"plain:false"}'
+  tagName: ion-content
+  ↓Grid [mobile.components.UIDynamicElement-1531327826651]: 
+    beanData: '{"ionBean":"Grid","Height":"plain:height:100%"}'
+    tagName: ion-grid
+    ↓GridRow [mobile.components.UIDynamicElement-1531327830748]: 
+      beanData: '{"ionBean":"GridRow","Height":"plain:height:100%"}'
+      tagName: ion-row
+      ↓ComponentsCol [mobile.components.UIDynamicElement-1531327837621]: 
+        beanData: '{"ionBean":"GridCol","Columns":"plain:4"}'
+        tagName: ion-col
+        ↓Div [mobile.components.UIDynamicElement-1531328193320]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓Attr [mobile.components.UIAttribute-1531328193334]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:componentsView
+          ↓ListContainer [mobile.components.UIDynamicElement-1531328319756]: 
+            beanData: |
+              '{
+               "ionBean": "List",
+               "Nolines": "plain:no-lines",
+               "Inset": "plain:inset"
+              }'
+            tagName: ion-list
+            ↓ListHeader [mobile.components.UIDynamicElement-1531328395640]: 
+              beanData: '{"ionBean":"Listheader"}'
+              comment: COMPONENTS
+              tagName: ion-list-header
+              ↓Text [mobile.components.UIText-1531328443106]: 
+                textValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:COMPOSANTS
+            ↓ScrollArea [mobile.components.UIDynamicElement-1532077972278]: 
+              beanData: '{"ionBean":"Scroll","ScrollY":"plain:true"}'
+              tagName: ion-scroll
+              ↓Style [mobile.components.UIStyle-1532078050547]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '	height: 85vh;
+                        '
+              ↓DivItemText [mobile.components.UIDynamicElement-1537353175321]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓ListItem_Text [mobile.components.UIDynamicElement-1531328470085]: 
+                  beanData: '{"ionBean":"ListItem"}'
+                  tagName: ion-item
+                  ↓Tag [mobile.components.UIElement-1531329146309]: 
+                    tagName: i
+                    ↓Attr [mobile.components.UIAttribute-1531329160951]: 
+                      attrName: class
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:fa fa-font
+                    ↓Attr1 [mobile.components.UIAttribute-1531329822126]: 
+                      attrName: aria-hidden
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:true
+                  ↓Text [mobile.components.UIText-1531328546688]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:Input text
+                  ↓Icon [mobile.components.UIDynamicElement-1531385034167]: 
+                    beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                    tagName: ion-icon
+                  ↓Attr [mobile.components.UIAttribute-1531484466657]: 
+                    attrName: color
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:primary
+                  ↓Event [mobile.components.UIControlEvent-1531385688653]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1531385723039]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1531385814993]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:text
+                  ↓Style [mobile.components.UIStyle-1531385179091]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                ↓Attr1 [mobile.components.UIAttribute-1537352272586]: 
+                  attrName: draggable
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+                ↓Event1 [mobile.components.UIControlEvent-1537352294951]: 
+                  attrName: (dragstart)
+                  eventName: (dragstart)
+                  ↓addElementToList [mobile.components.UICustomAction-1537356057168]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '
+                            		    console.log("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("type", vars.type);
+                            		event.dataTransfer.setData("origin", "new");
+                            		event.dataTransfer.setData("dropEffect", "copy");
+                            		resolve();
+                            '
+                    ↓type [mobile.components.UIControlVariable-1537356177614]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:text
+              ↓DivItemImageFile [mobile.components.UIDynamicElement-1537359617712]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Attr1 [mobile.components.UIAttribute-1537359618360]: 
+                  attrName: draggable
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+                ↓Event1 [mobile.components.UIControlEvent-1537359618411]: 
+                  attrName: (dragstart)
+                  eventName: (dragstart)
+                  ↓addElementToList [mobile.components.UICustomAction-1537359618460]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '
+                            		    console.log("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("type", vars.type);
+                            	    event.dataTransfer.setData("origin", "new");
+                                    event.dataTransfer.setData("dropEffect", "copy");
+                            		resolve();
+                            '
+                    ↓type [mobile.components.UIControlVariable-1537359618513]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:img
+                ↓ListItemImage [mobile.components.UIDynamicElement-1537359774579]: 
+                  beanData: '{"ionBean":"ListItem"}'
+                  tagName: ion-item
+                  ↓Tag [mobile.components.UIElement-1537359774641]: 
+                    tagName: i
+                    ↓Attr [mobile.components.UIAttribute-1537359774697]: 
+                      attrName: class
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:fa fa-file-image-o
+                    ↓Attr1 [mobile.components.UIAttribute-1537359774751]: 
+                      attrName: aria-hidden
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:true
+                  ↓Text [mobile.components.UIText-1537359774822]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:Image file
+                  ↓Icon [mobile.components.UIDynamicElement-1537359774872]: 
+                    beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                    tagName: ion-icon
+                    ↓Style [mobile.components.UIStyle-1537359774923]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              '	cursor: pointer;
+                              
+                              '
+                  ↓Attr [mobile.components.UIAttribute-1537359775110]: 
+                    attrName: color
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:primary
+                  ↓Event [mobile.components.UIControlEvent-1537359774972]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1537359775021]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              
+                              		
+                              
+                              		this.addElement(vars.type);
+                              
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1537359775064]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:img
+              ↓DivItemCheckBox [mobile.components.UIDynamicElement-1537359642462]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Attr1 [mobile.components.UIAttribute-1537359643135]: 
+                  attrName: draggable
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+                ↓Event1 [mobile.components.UIControlEvent-1537359643230]: 
+                  attrName: (dragstart)
+                  eventName: (dragstart)
+                  ↓addElementToList [mobile.components.UICustomAction-1537359643282]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '
+                            		    console.log("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("type", vars.type);
+                            		    event.dataTransfer.setData("origin", "new");
+                            	        event.dataTransfer.setData("dropEffect", "copy");
+                            		resolve();
+                            '
+                    ↓type [mobile.components.UIControlVariable-1537359643334]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:checkbox
+                ↓ListItem_Checkbox [mobile.components.UIDynamicElement-1532074839713]: 
+                  beanData: '{"ionBean":"ListItem"}'
+                  tagName: ion-item
+                  ↓Tag [mobile.components.UIElement-1532074840185]: 
+                    tagName: i
+                    ↓Attr [mobile.components.UIAttribute-1532074840443]: 
+                      attrName: class
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:fa fa-check-square-o
+                    ↓Attr1 [mobile.components.UIAttribute-1532074840567]: 
+                      attrName: aria-hidden
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:true
+                  ↓Text [mobile.components.UIText-1532074840696]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:Checkbox
+                  ↓Icon [mobile.components.UIDynamicElement-1532074840805]: 
+                    beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                    tagName: ion-icon
+                    ↓Style [mobile.components.UIStyle-1532074840912]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              '	cursor: pointer;
+                              '
+                  ↓Attr [mobile.components.UIAttribute-1532074841417]: 
+                    attrName: color
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:primary
+                  ↓Event [mobile.components.UIControlEvent-1532074841027]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532074841112]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532074841314]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:checkbox
+              ↓DivItemGroup [mobile.components.UIDynamicElement-1540483388158]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓ListItem_Text [mobile.components.UIDynamicElement-1540483388239]: 
+                  beanData: '{"ionBean":"ListItem"}'
+                  tagName: ion-item
+                  ↓Tag [mobile.components.UIElement-1540483388319]: 
+                    tagName: i
+                    ↓Attr [mobile.components.UIAttribute-1540483388415]: 
+                      attrName: class
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:fa fa-object-group
+                    ↓Attr1 [mobile.components.UIAttribute-1540483388510]: 
+                      attrName: aria-hidden
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:true
+                  ↓Text [mobile.components.UIText-1540483388588]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:Group
+                  ↓Icon [mobile.components.UIDynamicElement-1540483388680]: 
+                    beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                    tagName: ion-icon
+                  ↓Attr [mobile.components.UIAttribute-1540483388776]: 
+                    attrName: color
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:primary
+                  ↓Event [mobile.components.UIControlEvent-1540483388857]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1540483388936]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1540483389015]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:group
+                  ↓Style [mobile.components.UIStyle-1540483389103]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                ↓Attr1 [mobile.components.UIAttribute-1540483389198]: 
+                  attrName: draggable
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+                ↓Event1 [mobile.components.UIControlEvent-1540483389269]: 
+                  attrName: (dragstart)
+                  eventName: (dragstart)
+                  ↓addElementToList [mobile.components.UICustomAction-1540483389357]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '
+                            		    console.log("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("type", vars.type);
+                            		    event.dataTransfer.setData("origin", "new");
+                            	        event.dataTransfer.setData("dropEffect", "copy");
+                            		resolve();
+                            '
+                    ↓type [mobile.components.UIControlVariable-1540483389452]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:group
+              ↓ListItem_RadioList [mobile.components.UIDynamicElement-1532075146068]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532075146100]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532075146132]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-dot-circle-o
+                  ↓Attr1 [mobile.components.UIAttribute-1532075146170]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532075146206]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Radio list
+                ↓Icon [mobile.components.UIDynamicElement-1532075146235]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532075146269]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532075146303]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532075146332]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532075146443]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:radiolist
+                ↓Attr [mobile.components.UIAttribute-1532075146482]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_RadioButton [mobile.components.UIDynamicElement-1532075280184]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532075280216]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532075280256]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-circle-o
+                  ↓Attr1 [mobile.components.UIAttribute-1532075280288]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532075280320]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Radio button
+                ↓Icon [mobile.components.UIDynamicElement-1532075280358]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532075280394]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532075280425]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532075280451]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532075280510]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:radiobtn
+                ↓Attr [mobile.components.UIAttribute-1532075280547]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_DateTime [mobile.components.UIDynamicElement-1532075359915]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532075359948]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532075359983]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-calendar
+                  ↓Attr1 [mobile.components.UIAttribute-1532075360013]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532075360042]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Date & Time
+                ↓Icon [mobile.components.UIDynamicElement-1532075360072]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532075360101]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532075360131]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532075360156]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532075360202]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:datetime
+                ↓Attr [mobile.components.UIAttribute-1532075360232]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_Textarea [mobile.components.UIDynamicElement-1532075513864]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532075513914]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532075513958]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-commenting-o
+                  ↓Attr1 [mobile.components.UIAttribute-1532075513989]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532075514020]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Text area
+                ↓Icon [mobile.components.UIDynamicElement-1532075514052]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532075514082]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532075514111]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532075514133]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532075514178]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:textarea
+                ↓Attr [mobile.components.UIAttribute-1532075514206]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_Signature [mobile.components.UIDynamicElement-1532075706647]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532075706680]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532075706718]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-pencil-square-o
+                  ↓Attr1 [mobile.components.UIAttribute-1532075706752]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532075706799]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Signature
+                ↓Icon [mobile.components.UIDynamicElement-1532075706836]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532075706865]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532075706892]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532075706915]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532075706961]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:signature
+                ↓Attr [mobile.components.UIAttribute-1532075706990]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_Photos [mobile.components.UIDynamicElement-1532075718597]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532075718635]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532075718674]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-camera
+                  ↓Attr1 [mobile.components.UIAttribute-1532075718708]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532075718748]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Photos
+                ↓Icon [mobile.components.UIDynamicElement-1532075718777]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532075718808]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532075718843]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532075718879]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532075718986]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:camera
+                ↓Attr [mobile.components.UIAttribute-1532075719023]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_NFC [mobile.components.UIDynamicElement-1532076160522]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532076160554]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532076160588]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-wifi
+                  ↓Attr1 [mobile.components.UIAttribute-1532076160621]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532076160652]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:NFC
+                ↓Icon [mobile.components.UIDynamicElement-1532076160685]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532076160739]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532076160774]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532076160796]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532076160855]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:nfc
+                ↓Attr [mobile.components.UIAttribute-1532076160895]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_Barcode [mobile.components.UIDynamicElement-1532076214234]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532076214268]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532076214300]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-barcode
+                  ↓Attr1 [mobile.components.UIAttribute-1532076214335]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532076214389]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Barcode
+                ↓Icon [mobile.components.UIDynamicElement-1532076214422]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532076214459]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532076214500]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532076214527]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532076214573]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:barcode
+                ↓Attr [mobile.components.UIAttribute-1532076214603]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_Title [mobile.components.UIDynamicElement-1532076378238]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532076378270]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532076378303]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-text-height
+                  ↓Attr1 [mobile.components.UIAttribute-1532076378339]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532076378377]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Title
+                ↓Icon [mobile.components.UIDynamicElement-1532076378406]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532076378437]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532076378480]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532076378518]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532076378572]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:heading
+                ↓Attr [mobile.components.UIAttribute-1532076378606]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_Slider [mobile.components.UIDynamicElement-1532076502340]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532076502380]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532076502419]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-sliders
+                  ↓Attr1 [mobile.components.UIAttribute-1532076502462]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532076502493]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Slider
+                ↓Icon [mobile.components.UIDynamicElement-1532076502524]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532076502555]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532076502587]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532076502610]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532076502657]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:slider
+                ↓Attr [mobile.components.UIAttribute-1532076502689]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓ListItem_Select [mobile.components.UIDynamicElement-1532102485614]: 
+                beanData: '{"ionBean":"ListItem"}'
+                tagName: ion-item
+                ↓Tag [mobile.components.UIElement-1532102485702]: 
+                  tagName: i
+                  ↓Attr [mobile.components.UIAttribute-1532102485754]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:fa fa-list-ul
+                  ↓Attr1 [mobile.components.UIAttribute-1532102485788]: 
+                    attrName: aria-hidden
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:true
+                ↓Text [mobile.components.UIText-1532102485821]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Select
+                ↓Icon [mobile.components.UIDynamicElement-1532102485856]: 
+                  beanData: '{"ionBean":"Icon","ItemPosition":"plain:item-right"}'
+                  tagName: ion-icon
+                  ↓Style [mobile.components.UIStyle-1532102485889]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	cursor: pointer;
+                            '
+                  ↓Event [mobile.components.UIControlEvent-1532102485945]: 
+                    ↓addElementToList [mobile.components.UICustomAction-1532102485971]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              		
+                              		this.addElement(vars.type);
+                              		
+                              		resolve();
+                              
+                      ↓type [mobile.components.UIControlVariable-1532102486022]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:select
+                ↓Attr [mobile.components.UIAttribute-1532102486053]: 
+                  attrName: color
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:primary
+              ↓GenericDraggable [mobile.components.UIDynamicElement-1537359729038]: 
+                beanData: '{"ionBean":"DivTag"}'
+                isEnabled: false
+                tagName: div
+                ↓Attr1 [mobile.components.UIAttribute-1537359729116]: 
+                  attrName: draggable
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+                ↓Event1 [mobile.components.UIControlEvent-1537359729192]: 
+                  attrName: (dragstart)
+                  eventName: (dragstart)
+                  ↓addElementToList [mobile.components.UICustomAction-1537359729290]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '
+                            		    console.log("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("type", vars.type);
+                            		resolve();
+                            '
+                    ↓type [mobile.components.UIControlVariable-1537359729374]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:text
+      ↓FormCol2 [mobile.components.UIDynamicElement-1541177140463]: 
+        beanData: '{"ionBean":"GridCol"}'
+        comment: FORM
+        tagName: ion-col
+        ↓Grid [mobile.components.UIDynamicElement-1541177140633]: 
+          beanData: '{"ionBean":"Grid"}'
+          tagName: ion-grid
+          ↓Attr [mobile.components.UIAttribute-1541177140801]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:formView
+          ↓ScrollArea [mobile.components.UIDynamicElement-1541177140961]: 
+            beanData: |
+              '{
+               "ionBean": "Scroll",
+               "ScrollY": "plain:true",
+               "Zoom": "plain:false"
+              }'
+            tagName: ion-scroll
+            ↓Style [mobile.components.UIStyle-1541177159401]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '	height: 100%;
+                      	width: 100%;
+                      '
+            ↓Directive [mobile.components.UIControlDirective-1541177775034]: 
+              directiveExpression: let i=index
+              directiveSource: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:let item of this.formsList
+              ↓BeforeItem [mobile.components.UIDynamicElement-1541177775235]: 
+                beanData: '{"ionBean":"GridRow"}'
+                tagName: ion-row
+                ↓GridCol [mobile.components.UIDynamicElement-1541177775393]: 
+                  beanData: '{"ionBean":"GridCol"}'
+                  tagName: ion-col
+                  ↓Tag [mobile.components.UIElement-1541177775549]: 
+                    selfClose: true
+                    tagName: br
+                ↓Attr [mobile.components.UIAttribute-1541177775706]: 
+                  attrName: id
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:'@prefixc8obeforeItem' + item.name
+                ↓Event [mobile.components.UIControlEvent-1541177775893]: 
+                  attrName: (dragover)
+                  eventName: (dragover)
+                  ↓allowDrop [mobile.components.UICustomAction-1541177776050]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		event.preventDefault();
+                            		this.recursive(event.target, "before");
+                            		resolve();
+                            
+                ↓Event1 [mobile.components.UIControlEvent-1541177776206]: 
+                  attrName: (drop)
+                  eventName: (drop)
+                  ↓drop [mobile.components.UICustomAction-1541177776376]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		event.preventDefault();
+                            		this.c8o.log.debug("Dropped before");
+                            		const origin = event.dataTransfer.getData("origin");
+                            		switch(origin){
+                            		case "new":
+                            		    this.c8o.log.debug("Object is new");
+                            		    this.addElement(event.dataTransfer.getData("type"), vars.index);
+                            		    break;
+                            		case "moved":
+                                        this.c8o.log.debug("Object has been moved");
+                                        let arr;
+                                        if(event.dataTransfer.getData("index").indexOf(",") != -1){
+                                             arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                        }
+                                        else{
+                                            arr = [+event.dataTransfer.getData("index")];
+                                        }
+                                        this.moveElement(vars.index, arr);
+                                        break;
+                            		case "copied":
+                                        this.c8o.log.debug("Object has been copied");
+                                        
+                                        break;
+                            		}
+                            		
+                            		
+                            		const oldElem = document.getElementById(this.local["currentHighlight"]);
+                                    if(oldElem != null){
+                                        oldElem.style["border-color"] = null;
+                                        oldElem.style["border-style"] = null;
+                                    }
+                            		resolve();
+                            
+                    ↓index [mobile.components.UIControlVariable-1541178617919]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:[i]
+              ↓Item [mobile.components.UIDynamicElement-1541177776532]: 
+                beanData: '{"ionBean":"GridRow"}'
+                tagName: ion-row
+                ↓GridCol [mobile.components.UIDynamicElement-1541177776721]: 
+                  beanData: '{"ionBean":"GridCol"}'
+                  tagName: ion-col
+                  ↓Div [mobile.components.UIDynamicElement-1541177776878]: 
+                    beanData: '{"ionBean":"DivTag"}'
+                    tagName: div
+                    ↓Attr [mobile.components.UIAttribute-1541177777034]: 
+                      attrName: class
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:elementView
+                    ↓Div3 [mobile.components.UIDynamicElement-1541177777204]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓Div [mobile.components.UIDynamicElement-1541177777362]: 
+                        beanData: '{"ionBean":"DivTag"}'
+                        tagName: div
+                        ↓Text [mobile.components.UIText-1541177777581]: 
+                          textValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034?.name"}
+                        ↓Attr1 [mobile.components.UIAttribute-1541177777737]: 
+                          attrName: class
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:col
+                      ↓Div1 [mobile.components.UIDynamicElement-1541177777907]: 
+                        beanData: '{"ionBean":"DivTag"}'
+                        tagName: div
+                        ↓ButtonSet [mobile.components.UIDynamicElement-1541177778065]: 
+                          beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:right"}'
+                          tagName: ion-buttons
+                          ↓DeleteButton [mobile.components.UIDynamicElement-1541177778266]: 
+                            beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                            tagName: button
+                            ↓Tag [mobile.components.UIElement-1541177778425]: 
+                              tagName: i
+                              ↓Attr [mobile.components.UIAttribute-1541177778595]: 
+                                attrName: class
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:fa fa-trash-o fa-lg
+                              ↓Attr1 [mobile.components.UIAttribute-1541177778767]: 
+                                attrName: aria-hidden
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:true
+                            ↓Event [mobile.components.UIControlEvent-1541177778944]: 
+                              ↓Alert [mobile.components.UIDynamicAction-1541177779145]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "AlertAction",
+                                   "title": "plain:Delete item",
+                                   "subTitle": "plain:Are you sure you want to delete this component?",
+                                   "message": "plain:",
+                                   "button1": "plain:CANCEL",
+                                   "button2": "plain:OK",
+                                   "value1": "plain:0",
+                                   "value2": "plain:1",
+                                   "cancel1": "plain:cancel"
+                                  }'
+                                ↓If [mobile.components.UIDynamicAction-1541177779301]: 
+                                  beanData: '{"ionBean":"IfAction","condition":"script:parent.out == 1"}'
+                                  ↓deleteItem [mobile.components.UICustomAction-1541177779459]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            '//		    page.c8o.log.debug(">>> ITEMS LIST: " + JSON.stringify(this.formsList));
+                                            //		    page.c8o.log.debug(">>> ITEM ID 2DEL: " + vars.id);
+                                            		    this.delElement(vars.id);
+                                            //		    page.c8o.log.debug(">>> NEW ITEMS LIST: " + JSON.stringify(this.formsList));
+                                            		    resolve();
+                                            '
+                                    ↓id [mobile.components.UIControlVariable-1541177779629]: 
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034?.id"}
+                          ↓EditButton [mobile.components.UIDynamicElement-1541177779819]: 
+                            beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                            tagName: button
+                            ↓Tag [mobile.components.UIElement-1541177779989]: 
+                              tagName: i
+                              ↓Attr [mobile.components.UIAttribute-1541177780147]: 
+                                attrName: class
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:fa fa-pencil-square-o fa-lg
+                              ↓Attr1 [mobile.components.UIAttribute-1541177780319]: 
+                                attrName: aria-hidden
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:true
+                            ↓Event [mobile.components.UIControlEvent-1541177780520]: 
+                              ↓Modal_Page [mobile.components.UIDynamicAction-1541177780678]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "ModalAction",
+                                   "page": "plain:C8Oforms.MobileApplication.Application.editElement",
+                                   "data": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"[item1541177775034, this]\"}",
+                                   "showBackdrop": "plain:true",
+                                   "enableBackdropDismiss": "plain:true"
+                                  }'
+                          ↓CopyButton [mobile.components.UIDynamicElement-1541177780848]: 
+                            beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                            tagName: button
+                            ↓Tag [mobile.components.UIElement-1541177781020]: 
+                              tagName: i
+                              ↓Attr [mobile.components.UIAttribute-1541177781192]: 
+                                attrName: class
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:fa fa-clone fa-lg
+                              ↓Attr1 [mobile.components.UIAttribute-1541177781381]: 
+                                attrName: aria-hidden
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:true
+                            ↓Event [mobile.components.UIControlEvent-1541177781551]: 
+                              ↓cloneElement [mobile.components.UICustomAction-1541177781709]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        		page.c8o.log.debug(JSON.stringify(vars.elm));
+                                        		let clone =  JSON.parse(JSON.stringify(vars.elm));
+                                        		let oldId = clone.id;
+                                        		clone.id = new Date().getTime();
+                                        		this.formsList.splice(this.getElementIndexById(oldId), 0, clone);
+                                        		resolve();
+                                        
+                                ↓elm [mobile.components.UIControlVariable-1541177781881]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034"}
+                          ↓DownButton [mobile.components.UIDynamicElement-1541177782080]: 
+                            beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                            tagName: button
+                            ↓Tag [mobile.components.UIElement-1541177782252]: 
+                              tagName: i
+                              ↓Attr [mobile.components.UIAttribute-1541177782408]: 
+                                attrName: class
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:fa fa-chevron-down fa-lg
+                              ↓Attr1 [mobile.components.UIAttribute-1541177782580]: 
+                                attrName: aria-hidden
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:true
+                            ↓Event [mobile.components.UIControlEvent-1541177782781]: 
+                              ↓swapItems [mobile.components.UICustomAction-1541177782939]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        		    this.swapElement(this.getElementIndexById(vars.id), (vars.direction == 'down')?this.getElementIndexById(vars.id)+1:this.getElementIndexById(vars.id)-1);
+                                        		    resolve();
+                                        
+                                ↓id [mobile.components.UIControlVariable-1541177783099]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034?.id"}
+                                ↓direction [mobile.components.UIControlVariable-1541177783271]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: plain:down
+                            ↓Attr [mobile.components.UIAttribute-1541177783472]: 
+                              attrName: '[disabled]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"!this.isElementIndexSwappable('down', item1541177775034?.id)"}
+                          ↓UpButton [mobile.components.UIDynamicElement-1541177783630]: 
+                            beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                            tagName: button
+                            ↓Tag [mobile.components.UIElement-1541177783802]: 
+                              tagName: i
+                              ↓Attr [mobile.components.UIAttribute-1541177783959]: 
+                                attrName: class
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:fa fa-chevron-up fa-lg
+                              ↓Attr1 [mobile.components.UIAttribute-1541177784162]: 
+                                attrName: aria-hidden
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:true
+                            ↓Attr [mobile.components.UIAttribute-1541177784318]: 
+                              attrName: '[disabled]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"!this.isElementIndexSwappable('up', item1541177775034?.id)"}
+                            ↓Event [mobile.components.UIControlEvent-1541177784490]: 
+                              ↓swapItems [mobile.components.UICustomAction-1541177784660]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        		    this.swapElement(this.getElementIndexById(vars.id), (vars.direction == 'down')?this.getElementIndexById(vars.id)+1:this.getElementIndexById(vars.id)-1);
+                                        
+                                        		    resolve();
+                                        
+                                ↓id [mobile.components.UIControlVariable-1541177784849]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034?.id"}
+                                ↓direction [mobile.components.UIControlVariable-1541177785019]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: plain:up
+                        ↓Attr1 [mobile.components.UIAttribute-1541177785177]: 
+                          attrName: class
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:col
+                      ↓Attr [mobile.components.UIAttribute-1541177785349]: 
+                        attrName: class
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:containcol
+                    ↓Div2 [mobile.components.UIDynamicElement-1541177785550]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓Directive [mobile.components.UIControlDirective-1541177785709]: 
+                        directiveName: If
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:item.type == "text"
+                        ↓GenericItem [mobile.components.UIDynamicElement-1541177785894]: 
+                          beanData: '{"ionBean":"GenericItem"}'
+                          tagName: ion-item
+                          ↓Label [mobile.components.UIDynamicElement-1541177786052]: 
+                            beanData: '{"ionBean":"Label"}'
+                            tagName: ion-label
+                            ↓Text [mobile.components.UIText-1541177786256]: 
+                              textValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:item.config.label
+                            ↓Attr [mobile.components.UIAttribute-1541177786443]: 
+                              attrName: '[attr.stacked]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.position == 'stacked')?'':null
+                            ↓Attr1 [mobile.components.UIAttribute-1541177786600]: 
+                              attrName: '[attr.floating]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.position == 'floating')?'':null
+                            ↓Attr2 [mobile.components.UIAttribute-1541177786771]: 
+                              attrName: '[attr.fixed]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.position == 'fixed')?'':null
+                            ↓Attr3 [mobile.components.UIAttribute-1541177786974]: 
+                              attrName: '[color]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.label_color != 'unset')?item.config.label_color:null
+                          ↓TextInput [mobile.components.UIDynamicElement-1541177787144]: 
+                            beanData: |
+                              '{
+                               "ionBean": "Input",
+                               "ClearInput": "script:item.config.clearInput",
+                               "ClearOnEdit": "script:item.config.clearEdit",
+                               "Placeholder": "script:item.config.placeholder",
+                               "Type": "script:item.config.type"
+                              }'
+                            tagName: ion-input
+                          ↓Attr [mobile.components.UIAttribute-1541177787303]: 
+                            attrName: 
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:no-lines
+                          ↓Attr1 [mobile.components.UIAttribute-1541177787474]: 
+                            attrName: '[class.item-label-stacked]'
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:(item.config.position == 'stacked')
+                          ↓Attr11 [mobile.components.UIAttribute-1541177787676]: 
+                            attrName: '[class.item-label-floating]'
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:(item.config.position == 'floating')
+                          ↓Attr12 [mobile.components.UIAttribute-1541177787834]: 
+                            attrName: '[class.item-label-fixed]'
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:(item.config.position == 'fixed')
+                      ↓Directive1 [mobile.components.UIControlDirective-1541177788006]: 
+                        directiveName: If
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:item.type == "img"
+                        ↓GenericItem [mobile.components.UIDynamicElement-1541177788176]: 
+                          beanData: '{"ionBean":"GenericItem"}'
+                          tagName: ion-item
+                          ↓Image [mobile.components.UIDynamicElement-1541177788365]: 
+                            beanData: |
+                              '{
+                               "ionBean": "Image",
+                               "url": "script:item.config.src",
+                               "width": "script:item.config.width",
+                               "height": "script:item.config.height",
+                               "alt": "script:item.config.alt"
+                              }'
+                            selfClose: true
+                            tagName: img
+                            ↓Attr [mobile.components.UIAttribute-1541177788537]: 
+                              attrName: title
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:item.config.alt
+                          ↓Icon [mobile.components.UIDynamicElement-1541177788693]: 
+                            beanData: |
+                              '{
+                               "ionBean": "Icon",
+                               "IconName": "plain:camera",
+                               "ItemPosition": "plain:item-right"
+                              }'
+                            tagName: ion-icon
+                            ↓Event [mobile.components.UIControlEvent-1541177788896]: 
+                              ↓Camera [mobile.components.UIDynamicAction-1541177789068]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "CameraAction",
+                                   "quality": "script:80",
+                                   "targetWidth": "script:800",
+                                   "targetHeight": "script:800"
+                                  }'
+                                ↓Toast [mobile.components.UIDynamicAction-1541177789238]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "ToastAction",
+                                     "message": "script:out",
+                                     "duration": "plain:30000"
+                                    }'
+                                  isEnabled: false
+                                ↓setImgSrc [mobile.components.UICustomAction-1541177789396]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          '		page.c8o.log.debug(">>> VARS ITEM: " + vars.item);
+                                          //		page.c8o.log.debug(">>> VARS SRC: " + vars.src);
+                                          		vars.item.config.src = vars.src;
+                                          		resolve();
+                                          '
+                                  ↓item [mobile.components.UIControlVariable-1541177789600]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034"}
+                                  ↓src [mobile.components.UIControlVariable-1541177789766]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:out
+                          ↓Attr [mobile.components.UIAttribute-1541177789938]: 
+                            attrName: 
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:no-lines
+                      ↓Directive2 [mobile.components.UIControlDirective-1541177790139]: 
+                        directiveName: If
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:item.type == "checkbox"
+                        ↓GenericItem [mobile.components.UIDynamicElement-1541177790311]: 
+                          beanData: '{"ionBean":"GenericItem"}'
+                          tagName: ion-item
+                          ↓Label [mobile.components.UIDynamicElement-1541177790469]: 
+                            beanData: '{"ionBean":"Label"}'
+                            tagName: ion-label
+                            ↓Text [mobile.components.UIText-1541177790641]: 
+                              textValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:item.config.label
+                            ↓Attr3 [mobile.components.UIAttribute-1541177790844]: 
+                              attrName: '[color]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.label_color != 'unset')?item.config.label_color:null
+                          ↓Attr [mobile.components.UIAttribute-1541177791016]: 
+                            attrName: 
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:no-lines
+                          ↓CheckBox [mobile.components.UIDynamicElement-1541177791188]: 
+                            beanData: |
+                              '{
+                               "ionBean": "CheckBox",
+                               "IonColor": "script:item.config.color",
+                               "Disabled": "script:item.config.disabled",
+                               "Checked": "script:item.config.checked"
+                              }'
+                            tagName: ion-checkbox
+                      ↓Directive21 [mobile.components.UIControlDirective-1541428543601]: 
+                        directiveName: If
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:item.type == "ion-card"
+                        ↓GenericItem [mobile.components.UIDynamicElement-1541428543759]: 
+                          beanData: '{"ionBean":"GenericItem"}'
+                          tagName: ion-item
+                          ↓Attr [mobile.components.UIAttribute-1541428544411]: 
+                            attrName: 
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:no-lines
+                          ↓CardContainer [mobile.components.UIDynamicElement-1541428682255]: 
+                            beanData: '{"ionBean":"Card"}'
+                            tagName: ion-card
+                            ↓CardContent [mobile.components.UIDynamicElement-1541428684854]: 
+                              beanData: '{"ionBean":"CardContent"}'
+                              tagName: ion-card-content
+                              ↓Directive [mobile.components.UIControlDirective-1541439944396]: 
+                                directiveExpression: let j = index
+                                directiveSource: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:let child of item.children
+                                ↓BeforeItem [mobile.components.UIDynamicElement-1541440279755]: 
+                                  beanData: '{"ionBean":"GridRow"}'
+                                  tagName: ion-row
+                                  ↓GridCol [mobile.components.UIDynamicElement-1541440279961]: 
+                                    beanData: '{"ionBean":"GridCol"}'
+                                    tagName: ion-col
+                                    ↓Tag [mobile.components.UIElement-1541440280127]: 
+                                      selfClose: true
+                                      tagName: br
+                                  ↓Attr [mobile.components.UIAttribute-1541440280293]: 
+                                    attrName: id
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:'@prefixc8obeforeItem' + item.name
+                                  ↓Event [mobile.components.UIControlEvent-1541440280460]: 
+                                    attrName: (dragover)
+                                    eventName: (dragover)
+                                    ↓allowDrop [mobile.components.UICustomAction-1541440280626]: 
+                                      actionValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              		event.preventDefault();
+                                              		this.recursive(event.target, "before");
+                                              		resolve();
+                                              
+                                  ↓Event1 [mobile.components.UIControlEvent-1541440280808]: 
+                                    attrName: (drop)
+                                    eventName: (drop)
+                                    ↓drop [mobile.components.UICustomAction-1541440280970]: 
+                                      actionValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              		event.preventDefault();
+                                              		this.c8o.log.debug("Dropped before");
+                                              		const origin = event.dataTransfer.getData("origin");
+                                              
+                                              		switch(origin){
+                                              
+                                              		case "new":
+                                              
+                                              		    this.c8o.log.debug("Object is new");
+                                              
+                                              		    this.addElement(event.dataTransfer.getData("type"), vars.index);
+                                              
+                                              		    break;
+                                              
+                                              		case "moved":
+                                              		    
+                                              		    
+                                              		    
+                                              		  /*  this.c8o.log.debug("Object has been moved");
+                                                          let arr0 = [vars.i,0];
+                                                          let arr;
+                                                          if(event.dataTransfer.getData("index").indexOf(",") != -1){
+                                                               arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                                          }
+                                                          else{
+                                                              arr = [+event.dataTransfer.getData("index")];
+                                                          }
+                                                          if(this.formsList[vars.i]["children"].length > 0){
+                                                              arr0[1] = this.formsList[vars.i]["children"].length;
+                                                          }
+                                                          console.log("arr0");
+                                                          console.log(arr0);
+                                                          console.log("arr");console.log(arr);
+                                                          
+                                                          this.moveElement(arr0, arr);
+                                                          console.log(this.formsList);
+                                                          */
+                                              
+                                                          this.c8o.log.debug("Object has been moved");
+                                                          let idx = event.dataTransfer.getData("index");
+                                                          let arr = [];
+                                                          if(idx.length > 1){
+                                                              arr[0] = +idx.substring(0,1);
+                                                              arr[1] = +idx.substring(2,3);
+                                                          }
+                                                          else{
+                                                              arr[0] = +idx;
+                                                          }
+                                              
+                                                          this.moveElement(vars.index,arr);
+                                                          break;
+                                              
+                                              		case "copied":
+                                              
+                                                          this.c8o.log.debug("Object has been copied");
+                                              
+                                                          
+                                              
+                                                          break;
+                                              
+                                              		}
+                                              
+                                              		
+                                              		
+                                              		const oldElem = document.getElementById(this.local["currentHighlight"]);
+                                                      if(oldElem != null){
+                                                          oldElem.style["border-color"] = null;
+                                                          oldElem.style["border-style"] = null;
+                                                      }
+                                              		resolve();
+                                              
+                                      ↓index [mobile.components.UIControlVariable-1541440281150]: 
+                                        varValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: script:[i,j]
+                                ↓Item [mobile.components.UIDynamicElement-1541440295018]: 
+                                  beanData: '{"ionBean":"GridRow"}'
+                                  tagName: ion-row
+                                  ↓GridCol [mobile.components.UIDynamicElement-1541440295188]: 
+                                    beanData: '{"ionBean":"GridCol"}'
+                                    tagName: ion-col
+                                    ↓Div [mobile.components.UIDynamicElement-1541440295356]: 
+                                      beanData: '{"ionBean":"DivTag"}'
+                                      tagName: div
+                                      ↓Attr [mobile.components.UIAttribute-1541440295520]: 
+                                        attrName: class
+                                        attrValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: plain:elementView
+                                      ↓Div3 [mobile.components.UIDynamicElement-1541440295683]: 
+                                        beanData: '{"ionBean":"DivTag"}'
+                                        tagName: div
+                                        ↓Div [mobile.components.UIDynamicElement-1541440295854]: 
+                                          beanData: '{"ionBean":"DivTag"}'
+                                          tagName: div
+                                          ↓Text [mobile.components.UIText-1541440296059]: 
+                                            textValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541439944396?.name"}
+                                          ↓Attr1 [mobile.components.UIAttribute-1541440296223]: 
+                                            attrName: class
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: plain:col
+                                        ↓Div1 [mobile.components.UIDynamicElement-1541440296388]: 
+                                          beanData: '{"ionBean":"DivTag"}'
+                                          tagName: div
+                                          ↓ButtonSet [mobile.components.UIDynamicElement-1541440296555]: 
+                                            beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:right"}'
+                                            tagName: ion-buttons
+                                            ↓DeleteButton [mobile.components.UIDynamicElement-1541440296724]: 
+                                              beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                              tagName: button
+                                              ↓Tag [mobile.components.UIElement-1541440296892]: 
+                                                tagName: i
+                                                ↓Attr [mobile.components.UIAttribute-1541440297063]: 
+                                                  attrName: class
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:fa fa-trash-o fa-lg
+                                                ↓Attr1 [mobile.components.UIAttribute-1541440297230]: 
+                                                  attrName: aria-hidden
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:true
+                                              ↓Event [mobile.components.UIControlEvent-1541440297396]: 
+                                                ↓Alert [mobile.components.UIDynamicAction-1541440297561]: 
+                                                  beanData: |
+                                                    '{
+                                                     "ionBean": "AlertAction",
+                                                     "title": "plain:Delete item",
+                                                     "subTitle": "plain:Are you sure you want to delete this component?",
+                                                     "message": "plain:",
+                                                     "button1": "plain:CANCEL",
+                                                     "button2": "plain:OK",
+                                                     "value1": "plain:0",
+                                                     "value2": "plain:1",
+                                                     "cancel1": "plain:cancel"
+                                                    }'
+                                                  ↓If [mobile.components.UIDynamicAction-1541440297742]: 
+                                                    beanData: '{"ionBean":"IfAction","condition":"script:parent.out == 1"}'
+                                                    ↓deleteItem [mobile.components.UICustomAction-1541440297925]: 
+                                                      actionValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                            →: |
+                                                              '//		    page.c8o.log.debug(">>> ITEMS LIST: " + JSON.stringify(this.formsList));
+                                                              //		    page.c8o.log.debug(">>> ITEM ID 2DEL: " + vars.id);
+                                                              		    this.delElement(vars.id);
+                                                              //		    page.c8o.log.debug(">>> NEW ITEMS LIST: " + JSON.stringify(this.formsList));
+                                                              		    resolve();
+                                                              '
+                                                      ↓id [mobile.components.UIControlVariable-1541440298111]: 
+                                                        varValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034?.id"}
+                                            ↓EditButton [mobile.components.UIDynamicElement-1541440298334]: 
+                                              beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                              tagName: button
+                                              ↓Tag [mobile.components.UIElement-1541440298509]: 
+                                                tagName: i
+                                                ↓Attr [mobile.components.UIAttribute-1541440298685]: 
+                                                  attrName: class
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:fa fa-pencil-square-o fa-lg
+                                                ↓Attr1 [mobile.components.UIAttribute-1541440298858]: 
+                                                  attrName: aria-hidden
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:true
+                                              ↓Event [mobile.components.UIControlEvent-1541440299031]: 
+                                                ↓Modal_Page [mobile.components.UIDynamicAction-1541440299213]: 
+                                                  beanData: |
+                                                    '{
+                                                     "ionBean": "ModalAction",
+                                                     "page": "plain:C8Oforms.MobileApplication.Application.editElement",
+                                                     "data": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"[item1541439944396, this, i, j]\"}",
+                                                     "showBackdrop": "plain:true",
+                                                     "enableBackdropDismiss": "plain:true"
+                                                    }'
+                                            ↓CopyButton [mobile.components.UIDynamicElement-1541440299413]: 
+                                              beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                              tagName: button
+                                              ↓Tag [mobile.components.UIElement-1541440299590]: 
+                                                tagName: i
+                                                ↓Attr [mobile.components.UIAttribute-1541440299766]: 
+                                                  attrName: class
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:fa fa-clone fa-lg
+                                                ↓Attr1 [mobile.components.UIAttribute-1541440299941]: 
+                                                  attrName: aria-hidden
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:true
+                                              ↓Event [mobile.components.UIControlEvent-1541440300115]: 
+                                                ↓cloneElement [mobile.components.UICustomAction-1541440300286]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		page.c8o.log.debug(JSON.stringify(vars.elm));
+                                                          		let clone =  JSON.parse(JSON.stringify(vars.elm));
+                                                          		let oldId = clone.id;
+                                                          		clone.id = new Date().getTime();
+                                                          		this.formsList.splice(this.getElementIndexById(oldId), 0, clone);
+                                                          		resolve();
+                                                          
+                                                  ↓elm [mobile.components.UIControlVariable-1541440300476]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034"}
+                                            ↓DownButton [mobile.components.UIDynamicElement-1541440300655]: 
+                                              beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                              tagName: button
+                                              ↓Tag [mobile.components.UIElement-1541440300887]: 
+                                                tagName: i
+                                                ↓Attr [mobile.components.UIAttribute-1541440301061]: 
+                                                  attrName: class
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:fa fa-chevron-down fa-lg
+                                                ↓Attr1 [mobile.components.UIAttribute-1541440301232]: 
+                                                  attrName: aria-hidden
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:true
+                                              ↓Event [mobile.components.UIControlEvent-1541440301405]: 
+                                                ↓swapItems [mobile.components.UICustomAction-1541440301575]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		    this.swapElement(this.getElementIndexById(vars.id), (vars.direction == 'down')?this.getElementIndexById(vars.id)+1:this.getElementIndexById(vars.id)-1);
+                                                          		    resolve();
+                                                          
+                                                  ↓id [mobile.components.UIControlVariable-1541440301766]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034?.id"}
+                                                  ↓direction [mobile.components.UIControlVariable-1541440301944]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: plain:down
+                                              ↓Attr [mobile.components.UIAttribute-1541440302120]: 
+                                                attrName: '[disabled]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"!this.isElementIndexSwappable('down', item1541177775034?.id)"}
+                                            ↓UpButton [mobile.components.UIDynamicElement-1541440302295]: 
+                                              beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                              tagName: button
+                                              ↓Tag [mobile.components.UIElement-1541440302476]: 
+                                                tagName: i
+                                                ↓Attr [mobile.components.UIAttribute-1541440302663]: 
+                                                  attrName: class
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:fa fa-chevron-up fa-lg
+                                                ↓Attr1 [mobile.components.UIAttribute-1541440302837]: 
+                                                  attrName: aria-hidden
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:true
+                                              ↓Attr [mobile.components.UIAttribute-1541440303009]: 
+                                                attrName: '[disabled]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"!this.isElementIndexSwappable('up', item1541177775034?.id)"}
+                                              ↓Event [mobile.components.UIControlEvent-1541440303182]: 
+                                                ↓swapItems [mobile.components.UICustomAction-1541440303397]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		    this.swapElement(this.getElementIndexById(vars.id), (vars.direction == 'down')?this.getElementIndexById(vars.id)+1:this.getElementIndexById(vars.id)-1);
+                                                          
+                                                          		    resolve();
+                                                          
+                                                  ↓id [mobile.components.UIControlVariable-1541440303586]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034?.id"}
+                                                  ↓direction [mobile.components.UIControlVariable-1541440303766]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: plain:up
+                                          ↓Attr1 [mobile.components.UIAttribute-1541440303944]: 
+                                            attrName: class
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: plain:col
+                                        ↓Attr [mobile.components.UIAttribute-1541440304122]: 
+                                          attrName: class
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: plain:containcol
+                                      ↓Div2 [mobile.components.UIDynamicElement-1541440304295]: 
+                                        beanData: '{"ionBean":"DivTag"}'
+                                        tagName: div
+                                        ↓Directive [mobile.components.UIControlDirective-1541440304478]: 
+                                          directiveName: If
+                                          directiveSource: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:child.type== "text"
+                                          ↓GenericItem [mobile.components.UIDynamicElement-1541440304659]: 
+                                            beanData: '{"ionBean":"GenericItem"}'
+                                            tagName: ion-item
+                                            ↓Label [mobile.components.UIDynamicElement-1541440304834]: 
+                                              beanData: '{"ionBean":"Label"}'
+                                              isEnabled: false
+                                              tagName: ion-label
+                                              ↓Text [mobile.components.UIText-1541440305007]: 
+                                                isEnabled: false
+                                                textValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:child.config.label
+                                              ↓Attr [mobile.components.UIAttribute-1541440305180]: 
+                                                attrName: '[attr.stacked]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:(child.config.position == 'stacked')?'':null
+                                                isEnabled: false
+                                              ↓Attr1 [mobile.components.UIAttribute-1541440305352]: 
+                                                attrName: '[attr.floating]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:(child.config.position == 'floating')?'':null
+                                                isEnabled: false
+                                              ↓Attr2 [mobile.components.UIAttribute-1541440305526]: 
+                                                attrName: '[attr.fixed]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:(child.config.position == 'fixed')?'':null
+                                                isEnabled: false
+                                              ↓Attr3 [mobile.components.UIAttribute-1541440305737]: 
+                                                attrName: '[color]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:(child.config.label_color != 'unset')?child.config.label_color:null
+                                                isEnabled: false
+                                            ↓TextInput [mobile.components.UIDynamicElement-1541440305911]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "Input",
+                                                 "ClearInput": "script:child.config.clearInput",
+                                                 "ClearOnEdit": "script:child.config.clearEdit",
+                                                 "Placeholder": "script:child.config.placeholder",
+                                                 "Type": "script:child.config.type"
+                                                }'
+                                              tagName: ion-input
+                                            ↓Attr [mobile.components.UIAttribute-1541440306087]: 
+                                              attrName: 
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:no-lines
+                                            ↓Attr1 [mobile.components.UIAttribute-1541440306261]: 
+                                              attrName: '[class.item-label-stacked]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:(child.config.position == 'stacked')
+                                            ↓Attr11 [mobile.components.UIAttribute-1541440306439]: 
+                                              attrName: '[class.item-label-floating]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:(child.config.position == 'floating')
+                                            ↓Attr12 [mobile.components.UIAttribute-1541440306616]: 
+                                              attrName: '[class.item-label-fixed]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:(child.config.position == 'fixed')
+                                        ↓Directive1 [mobile.components.UIControlDirective-1541440306797]: 
+                                          directiveName: If
+                                          directiveSource: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:child.type== "img"
+                                          ↓GenericItem [mobile.components.UIDynamicElement-1541440306974]: 
+                                            beanData: '{"ionBean":"GenericItem"}'
+                                            tagName: ion-item
+                                            ↓Image [mobile.components.UIDynamicElement-1541440307150]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "Image",
+                                                 "url": "script:child.config.src",
+                                                 "width": "script:child.config.width",
+                                                 "height": "script:child.config.height",
+                                                 "alt": "script:child.config.alt"
+                                                }'
+                                              selfClose: true
+                                              tagName: img
+                                              ↓Attr [mobile.components.UIAttribute-1541440307330]: 
+                                                attrName: title
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:child.config.alt
+                                            ↓Icon [mobile.components.UIDynamicElement-1541440307510]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "Icon",
+                                                 "IconName": "plain:camera",
+                                                 "ItemPosition": "plain:item-right"
+                                                }'
+                                              tagName: ion-icon
+                                              ↓Event [mobile.components.UIControlEvent-1541440307695]: 
+                                                ↓Camera [mobile.components.UIDynamicAction-1541440307875]: 
+                                                  beanData: |
+                                                    '{
+                                                     "ionBean": "CameraAction",
+                                                     "quality": "script:80",
+                                                     "targetWidth": "script:800",
+                                                     "targetHeight": "script:800"
+                                                    }'
+                                                  ↓Toast [mobile.components.UIDynamicAction-1541440308068]: 
+                                                    beanData: |
+                                                      '{
+                                                       "ionBean": "ToastAction",
+                                                       "message": "script:out",
+                                                       "duration": "plain:30000"
+                                                      }'
+                                                    isEnabled: false
+                                                  ↓setImgSrc [mobile.components.UICustomAction-1541440308284]: 
+                                                    actionValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                          →: |
+                                                            '		page.c8o.log.debug(">>> VARS ITEM: " + vars.item);
+                                                            //		page.c8o.log.debug(">>> VARS SRC: " + vars.src);
+                                                            		vars.item.config.src = vars.src;
+                                                            		resolve();
+                                                            '
+                                                    ↓item [mobile.components.UIControlVariable-1541440308475]: 
+                                                      varValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541439944396"}
+                                                    ↓src [mobile.components.UIControlVariable-1541440308668]: 
+                                                      varValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                          - MobileSmartSourceType: script:out
+                                            ↓Attr [mobile.components.UIAttribute-1541440308864]: 
+                                              attrName: 
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:no-lines
+                                        ↓Directive2 [mobile.components.UIControlDirective-1541440309045]: 
+                                          directiveName: If
+                                          directiveSource: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:child.type == "checkbox"
+                                          ↓GenericItem [mobile.components.UIDynamicElement-1541440309223]: 
+                                            beanData: '{"ionBean":"GenericItem"}'
+                                            tagName: ion-item
+                                            ↓Label [mobile.components.UIDynamicElement-1541440309401]: 
+                                              beanData: '{"ionBean":"Label"}'
+                                              isEnabled: false
+                                              tagName: ion-label
+                                              ↓Text [mobile.components.UIText-1541440309578]: 
+                                                textValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:child.config.label
+                                              ↓Attr3 [mobile.components.UIAttribute-1541440309757]: 
+                                                attrName: '[color]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:(child.config.label_color != 'unset')?child.config.label_color:null
+                                            ↓Attr [mobile.components.UIAttribute-1541440309935]: 
+                                              attrName: 
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:no-lines
+                                            ↓CheckBox [mobile.components.UIDynamicElement-1541440310121]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "CheckBox",
+                                                 "IonColor": "script:child.config.color",
+                                                 "Disabled": "script:child.config.disabled",
+                                                 "Checked": "script:child.config.checked"
+                                                }'
+                                              tagName: ion-checkbox
+                                      ↓Attr1 [mobile.components.UIAttribute-1541440313720]: 
+                                        attrName: id
+                                        attrValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: script:'c8o'+child.type
+                                  ↓Style [mobile.components.UIStyle-1541440313904]: 
+                                    styleContent: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            ' margin-top: 0px;
+                                            '
+                                  ↓Attr [mobile.components.UIAttribute-1541440314090]: 
+                                    attrName: id
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:'@prefixc8oitem'+child.name+'@prefixc8otype'+child.type+'c8o_child'
+                                  ↓Attr1 [mobile.components.UIAttribute-1541440315821]: 
+                                    attrName: draggable
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: plain:true
+                                  ↓Event11 [mobile.components.UIControlEvent-1542050086083]: 
+                                    attrName: (dragstart)
+                                    eventName: (dragstart)
+                                    ↓addElementToList [mobile.components.UICustomAction-1542050086144]: 
+                                      actionValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              
+                                              		console.log("dragstart2");
+                                              		console.log(vars.index);
+                                              		event.dataTransfer.setData("origin", "moved");
+                                              		event.dataTransfer.setData("index", vars.index);
+                                              		event.dataTransfer.setData("dropEffect", "copy");
+                                              		resolve();
+                                              
+                                      ↓index [mobile.components.UIControlVariable-1542050086217]: 
+                                        varValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: script:[i,j]
+                              ↓AfterItem [mobile.components.UIDynamicElement-1541440345331]: 
+                                beanData: '{"ionBean":"GridRow","Height":"plain:height:100%"}'
+                                tagName: ion-row
+                                ↓GridCol [mobile.components.UIDynamicElement-1541440345517]: 
+                                  beanData: '{"ionBean":"GridCol"}'
+                                  tagName: ion-col
+                                  ↓Tag [mobile.components.UIElement-1541440345691]: 
+                                    selfClose: true
+                                    tagName: br
+                                ↓Attr [mobile.components.UIAttribute-1541440345877]: 
+                                  attrName: id
+                                  attrValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:'@prefixc8oafterItem'
+                                ↓Event [mobile.components.UIControlEvent-1541440346050]: 
+                                  attrName: (dragover)
+                                  eventName: (dragover)
+                                  ↓allowDrop [mobile.components.UICustomAction-1541440346222]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            		event.preventDefault();
+                                            		this.recursive(event.target, "before");
+                                            		resolve();
+                                            
+                                ↓Event1 [mobile.components.UIControlEvent-1541440346425]: 
+                                  attrName: (drop)
+                                  eventName: (drop)
+                                  ↓drop [mobile.components.UICustomAction-1541440346644]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            		event.preventDefault();
+                                            		this.c8o.log.debug("Dropped before");
+                                            		const origin = event.dataTransfer.getData("origin");
+                                            
+                                            		switch(origin){
+                                            
+                                            		case "new":
+                                            
+                                            		    this.c8o.log.debug("Object is new");
+                                            
+                                            		    let array = [vars.i,0];
+                                            		    if(this.formsList[vars.i]["children"].length > 0){
+                                            		        array[1] = this.formsList[vars.i]["children"].length;
+                                                        }
+                                            		    
+                                            		    this.addElement(event.dataTransfer.getData("type"), array);
+                                            
+                                            		    break;
+                                            
+                                            		case "moved":
+                                            
+                                                        this.c8o.log.debug("Object has been moved");
+                                                        let arr0 = [vars.i,0];
+                                                        let arr;
+                                                        if(event.dataTransfer.getData("index").indexOf(",") != -1){
+                                                             arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                                        }
+                                                        else{
+                                                            arr = [+event.dataTransfer.getData("index")];
+                                                        }
+                                                        if(this.formsList[vars.i]["children"].length > 0){
+                                                            arr0[1] = this.formsList[vars.i]["children"].length;
+                                                        }
+                                                        console.log("arr0");
+                                                        console.log(arr0);
+                                                        console.log("arr");console.log(arr);
+                                                        
+                                                        this.moveElement(arr0, arr);
+                                                        console.log(this.formsList);
+                                                        break;
+                                            
+                                            		case "copied":
+                                            
+                                                        this.c8o.log.debug("Object has been copied");
+                                            
+                                                        
+                                            
+                                                        break;
+                                            
+                                            		}
+                                            
+                                            		
+                                            		
+                                            		const oldElem = document.getElementById(this.local["currentHighlight"]);
+                                                    if(oldElem != null){
+                                                        oldElem.style["border-color"] = null;
+                                                        oldElem.style["border-style"] = null;
+                                                    }
+                                            		resolve();
+                                            
+                                    ↓i [mobile.components.UIControlVariable-1542040419914]: 
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:i
+                    ↓Event [mobile.components.UIControlEvent-1541177791358]: 
+                      attrName: (dragover)
+                      eventName: (dragover)
+                      isEnabled: false
+                      ↓If [mobile.components.UIDynamicAction-1541177791561]: 
+                        beanData: '{"ionBean":"IfAction","condition":"source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1541177775034?.type ==\\\"text\\\"\"}"}'
+                        ↓denyDrop [mobile.components.UICustomAction-1541177791719]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →:  resolve(false); 
+                    ↓Attr1 [mobile.components.UIAttribute-1541177791891]: 
+                      attrName: id
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:'c8o'+item.type
+                ↓Style [mobile.components.UIStyle-1541177792094]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          ' margin-top: 0px;
+                          '
+                ↓Attr [mobile.components.UIAttribute-1541177792266]: 
+                  attrName: id
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:'@prefixc8oitem'+item.name+'@prefixc8otype'+item.type
+                ↓Event1 [mobile.components.UIControlEvent-1541177792969]: 
+                  attrName: (drop)
+                  eventName: (drop)
+                  ↓drop [mobile.components.UICustomAction-1541177793139]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                                    event.preventDefault();
+                                    this.c8o.log.debug("Dropped into ion-card");
+                                    const origin = event.dataTransfer.getData("origin");
+                                    switch(origin){
+                                    case "new":
+                                        this.c8o.log.debug("Object is new");
+                                        this.addElement(event.dataTransfer.getData("type"), vars.index, true);
+                                        break;
+                                    case "moved":
+                                        this.c8o.log.debug("Object has been moved");
+                                        let arr;
+                                        if(event.dataTransfer.getData("index").indexOf(",") != -1){
+                                             arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                        }
+                                        else{
+                                            arr = [+event.dataTransfer.getData("index")];
+                                        }
+                                        this.moveElement(vars.index, arr);
+                                        break;
+                                    case "copied":
+                                        this.c8o.log.debug("Object has been copied");
+                                        
+                                        break;
+                                    }
+                                    
+                            		const oldElem = document.getElementById(this.local["currentHighlight"]);
+                                    if(oldElem != null){
+                                        oldElem.style["border-color"] = null;
+                                        oldElem.style["border-style"] = null;
+                                    }
+                            		resolve();
+                            
+                    isEnabled: false
+                ↓Event11 [mobile.components.UIControlEvent-1541181398988]: 
+                  attrName: (dragstart)
+                  eventName: (dragstart)
+                  ↓addElementToList [mobile.components.UICustomAction-1541181399142]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		   
+                            		if(event.srcElement.id.indexOf("c8o_child") != -1){
+                            		    this.c8o.log.debug("dargstart concerns child");
+                            		}
+                            		else{
+                            		    console.log("dragstart");
+                            	        console.log(vars.index);
+                            	        event.dataTransfer.setData("origin", "moved");
+                            	        event.dataTransfer.setData("index", vars.index);
+                            	        event.dataTransfer.setData("dropEffect", "copy");
+                            	        resolve();
+                            		    
+                            		}
+                            		
+                            
+                    ↓index [mobile.components.UIControlVariable-1541181434273]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:[i]
+                ↓Attr1 [mobile.components.UIAttribute-1541181654911]: 
+                  attrName: draggable
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+              ↓Style [mobile.components.UIStyle-1541177793342]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '	height: 100%;
+                        	width: 100%;
+                        '
+            ↓ButtonSet [mobile.components.UIDynamicElement-1541177793672]: 
+              beanData: '{"ionBean":"ButtonSet"}'
+              tagName: ion-buttons
+            ↓AfterItem [mobile.components.UIDynamicElement-1541177793876]: 
+              beanData: '{"ionBean":"GridRow","Height":"plain:height:100%"}'
+              tagName: ion-row
+              ↓GridCol [mobile.components.UIDynamicElement-1541177794045]: 
+                beanData: '{"ionBean":"GridCol"}'
+                tagName: ion-col
+                ↓Tag [mobile.components.UIElement-1541177794217]: 
+                  selfClose: true
+                  tagName: br
+              ↓Attr [mobile.components.UIAttribute-1541177794377]: 
+                attrName: id
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'@prefixc8oafterItem'
+              ↓Event [mobile.components.UIControlEvent-1541177794580]: 
+                attrName: (dragover)
+                eventName: (dragover)
+                ↓allowDrop [mobile.components.UICustomAction-1541177794752]: 
+                  actionValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          		event.preventDefault();
+                          		this.recursive(event.target, "before");
+                          		resolve();
+                          
+              ↓Event1 [mobile.components.UIControlEvent-1541428252719]: 
+                attrName: (drop)
+                eventName: (drop)
+                ↓drop [mobile.components.UICustomAction-1541428252893]: 
+                  actionValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          		event.preventDefault();
+                          		this.c8o.log.debug("Dropped before");
+                          		const origin = event.dataTransfer.getData("origin");
+                          
+                          		switch(origin){
+                          
+                          		case "new":
+                          
+                          		    this.c8o.log.debug("Object is new");
+                          
+                          		    this.addElement(event.dataTransfer.getData("type"), vars.index);
+                          
+                          		    break;
+                          
+                          		case "moved":
+                          
+                                      this.c8o.log.debug("Object has been moved");
+                                      let arr;
+                                      if(event.dataTransfer.getData("index").indexOf(",") != -1){
+                                           arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                      }
+                                      else{
+                                          arr = [+event.dataTransfer.getData("index")];
+                                      }
+                                      this.moveElement(vars.index, arr);
+                                      break;
+                          
+                          		case "copied":
+                          
+                                      this.c8o.log.debug("Object has been copied");
+                          
+                                      
+                          
+                                      break;
+                          
+                          		}
+                          
+                          		
+                          		
+                          		const oldElem = document.getElementById(this.local["currentHighlight"]);
+                                  if(oldElem != null){
+                                      oldElem.style["border-color"] = null;
+                                      oldElem.style["border-style"] = null;
+                                  }
+                          		resolve();
+                          
+                  ↓index [mobile.components.UIControlVariable-1541428253069]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:[this.formsList.length]
+          ↓Attr1 [mobile.components.UIAttribute-1541177159986]: 
+            attrName: 
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:no-padding
+        ↓Event2 [mobile.components.UIControlEvent-1541177160955]: 
+          attrName: (dragleave)
+          eventName: (dragleave)
+          ↓dragleave [mobile.components.UICustomAction-1541177161134]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    		    const oldElem = document.getElementById(this.local["currentHighlight"]);
+                    	        if(oldElem != null){
+                    	            oldElem.style["border-color"] = null;
+                    	            oldElem.style["border-style"] = null;
+                    	        }
+                    	        this.local["currentHighlight"] = "";
+                    	        console.log("dragleave")
+                    
+↓PageEvent [mobile.components.UIPageEvent-1537361744228]: 
+  ↓If [mobile.components.UIDynamicAction-1537539877850]: 
+    beanData: '{"ionBean":"IfAction","condition":"script:this.global.user == '''' || this.global.user == undefined"}'
+    ↓RootPage [mobile.components.UIDynamicAction-1537539932779]: 
+      beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.login"}'
+  ↓CallViewLiveAndFillFormList [mobile.components.UICustomAction-1537363498223]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '		
+            		    // Calling view live
+            		    this.c8o.callJsonObject("fs://c8oforms_fs.view",{
+            		        "ddoc": "Design_document",
+            		        "view": "view",
+            		        "__live": "view",
+            		        "key": this.global.formSelected._id
+            		        })
+            		        .then((response: any, parameters)=>{
+            		          // will be call now and after each database update
+            		            if(response.rows != undefined){
+            		                if(response.rows[0] != undefined){
+            		                    this.formsList = response.rows[0].value.doc.formulaire;
+            		                    this.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
+            	                        resolve();
+            		                }
+            		             }
+            		            return null;
+            		            
+            		        })
+            		        .fail((err)=>{
+            		            this.c8o.log.error("CallViewLiveAndFillFormList: " + JSON.stringify(err));
+            		        });
+            		
+            		
+            		
+            		
+            		
+            '
