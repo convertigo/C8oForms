@@ -16,12 +16,12 @@ scriptContent:
         	
         	/* Allow to switch highlight container position*/
         	public switchHighlights(newEl){
-        		console.log("switchhoghlights");
+        		this.c8o.log.debug("switchhoghlights function called");
         	    //Check that element to highlight is different from the on that is already highlighted
         	    if(newEl.id != this.local["currentHighlight"]){
         	        // get older element and remove highlight from it
-        	    	console.log(this.local["currentHighlight"]);
-        	    	console.log("id ="+ newEl.id);
+        	    	this.c8o.log.debug("Current element highlighted is " + this.local["currentHighlight"]);
+        	    	this.c8o.log.debug("the new  element to be  highlighted is " + newEl.id);
         	        const oldElem = document.getElementById(this.local["currentHighlight"]);
                     if(oldElem != null){
                         oldElem.style["border-color"] = null;
@@ -77,6 +77,7 @@ scriptContent:
                 
                 this.c8o.callJsonObject("fs://c8oforms_fs.post", params)
                 .then((response: any, params: any)=>{
+                	this.tick();
                   this.c8o.log.debug("updateState: " + JSON.stringify(response));
                   return null;
                 })
@@ -90,14 +91,23 @@ scriptContent:
         	    return (dir == ''down'')?(this.formsList[this.getElementIndexById(id)+1] !== undefined):(this.formsList[this.getElementIndexById(id)-1] !== undefined);
         	}
         	
-        	getElementIndexById(id, id2 = null){
+        	getElementIndexById(id, id2=null, id3=null){
         	    for(let i= 0; i< this.formsList.length; i++){
                     if(this.formsList[i]["id"] == id){
                     	if(id2!= null)
                     	{
                     		for(let j= 0; i< this.formsList[i]["children"].length; j++){
                     			if(this.formsList[i]["children"][j]["id"] == id2){
-                    				return j;
+                    				if(id3!= null){
+                    					for(let k= 0; k< this.formsList[i]["children"][j]["children"].length; k++){
+                    						if(this.formsList[i]["children"][j]["children"][k]["id"] == id3){
+                    							return k;
+                    						}
+                    					}
+                    				}
+                    				else{
+                    					return j;
+                    				}
                     			}
                     		}
                     	}
@@ -112,20 +122,36 @@ scriptContent:
         	moveElement(indexDest, indexOrigin){
         	    let to = false;
         	    let from = false;
+        	    let toInto =false;
+        	    let fromInto = false;
         	    
         	    if(indexDest[1] != null){
         	        to = true;
-        	        this.c8o.log.debug("MoveElement: to an ion-card");
+        	        this.c8o.log.debug("MoveElement: to an ion-card, or radiolist");
+        	        if(indexDest[2] != null){
+        	        	toInto = true;
+        	        	this.c8o.log.debug("MoveElement: into an ioncard, into a radiolist");
+        	        }
         	    }
         	    if(indexOrigin[1] != null){
         	        from = true;
-        	        this.c8o.log.debug("MoveElement: from an ion-card")
+        	        this.c8o.log.debug("MoveElement: from an ion-card");
+        	        if(indexOrigin[2] != null){
+        	        	fromInto = true;
+        	        	this.c8o.log.debug("MoveElement: from an ioncard, into a radiolist");
+        	        }
                 }
         	    
         	    let elemtomove;
         	    // If the element to move is from an ion-card
         	    if(from){
-        	        elemtomove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
+        	    	if(fromInto){
+        	    		elemtomove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]]["children"][indexOrigin[2]];
+        	    	}
+        	    	else{
+        	    		elemtomove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
+        	    	}
+        	        
         	    }
         	    // If the element to move is not from an ion-card
         	    else{
@@ -133,25 +159,41 @@ scriptContent:
         	    }
         	    // If the element to move is to an ion-card
         	    if(to){
-        	        this.formsList[indexDest[0]]["children"].splice(+indexDest[1], 0, elemtomove);
+        	    	if(toInto){
+        	    		this.formsList[indexDest[0]]["children"][indexDest[1]]["children"].splice(+indexDest[2], 0, elemtomove);
+        	    	}
+        	    	else{
+        	    		this.formsList[indexDest[0]]["children"].splice(+indexDest[1], 0, elemtomove);
+        	    	}
         	    }
         	    else{
         	        this.formsList.splice(indexDest[0], 0, elemtomove);
         	    }
         	    
                 if(from == true){
-                    if(from == to){
+                	if(fromInto== toInto){
+                    	if(indexDest[0] == indexOrigin[0] && indexDest[1] == indexOrigin[1]){
+                    		if(indexDest[2] <= indexOrigin[2]){
+        	                	indexOrigin[2] ++;
+        	            	}
+                    	}
+                	}
+                	else if(from == to){
                     	if(indexDest[0] == indexOrigin[0]){
                     		if(indexDest[1] <= indexOrigin[1]){
         	                	indexOrigin[1] ++;
         	            	}
                     	}	
                     }
-                    else if(indexDest[0]<=indexOrigin[0]){
-                    		indexOrigin[0]++;
-                    	}
-                    this.formsList[+indexOrigin[0]]["children"].splice(+indexOrigin[1], 1);
-                    //this.formsList.splice(+indexOrigin[0], 1);
+                	else if(indexDest[0]<=indexOrigin[0]){
+                		indexOrigin[0]++;
+                	}
+        	        if(fromInto){
+        	        	this.formsList[+indexOrigin[0]]["children"][+indexOrigin[1]]["children"].splice(+indexOrigin[2], 1);
+        	        }
+        	        else {
+        	        	this.formsList[+indexOrigin[0]]["children"].splice(+indexOrigin[1], 1);
+        	        }
                 }
                 else{
                     if(from == to){
@@ -161,19 +203,6 @@ scriptContent:
                     }
                     this.formsList.splice(+indexOrigin[0], 1);
                 }
-        	    
-        	    
-        	    
-        	    
-        	    /*if( !from && !to){
-        	        this.formsList.splice(+indexDest, 0, this.formsList[+indexOrigin]);
-        	        if(indexDest < indexOrigin){
-        	            indexOrigin ++;
-        	        } 
-        	        this.formsList.splice(+indexOrigin, 1);
-        	        this.c8o.log.debug("MoveElement: from index [" + indexOrigin + "] to " + indexDest + " and delete at index ["+ indexOrigin +"]");
-        	    }
-        	    */
         	    this.updateState();
         	}
         	
@@ -306,7 +335,12 @@ scriptContent:
                 }
         	    if(index != null){
                     if(index[1] != null){
-                        this.formsList[index[0]]["children"].splice(index[1], 0, objToInsert);
+                    	if(index[2]!= null){
+                    		this.formsList[index[0]]["children"][index[1]]["children"].splice(index[2], 0, objToInsert);
+                    	}
+                    	else{
+                        	this.formsList[index[0]]["children"].splice(index[1], 0, objToInsert);
+                    	}
                     }
                     else{
                         this.formsList.splice(index, 0, objToInsert);
@@ -320,9 +354,11 @@ scriptContent:
         	    
         	}
         	
-        	delElementIndex(i,j= null){
-        		
-        		if(j != null){
+        	delElementIndex(i,j= null, k=null){
+        		if(k != null){
+        			this.formsList[this.getElementIndexById(i.id)]["children"][this.getElementIndexById(i.id,j.id)]["children"].splice(this.getElementIndexById(i.id,j.id,k.id),1);
+        		}
+        		else if(j != null){
         			this.formsList[this.getElementIndexById(i.id)]["children"].splice(this.getElementIndexById(i.id,j.id),1);
         		}
         		else{
@@ -472,12 +508,20 @@ title: Title for editor
                           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                             →: |
-                              		page.c8o.log.debug(event ? event.toString():'no event');
+                              '		page.c8o.log.debug(event ? event.toString():''no event'');
                               		
-                              		this.addElement(vars.type);
+                              
+                              	
+                              		this.c8o.log.debug("dragstart: " + vars.type)
+                              		event.dataTransfer.setData("__c8oformsdrag", true);
+                              		event.dataTransfer.setData(vars.type, true);
+                              		event.dataTransfer.setData("type", vars.type);
+                              		event.dataTransfer.setData("origin", "new");
+                              		event.dataTransfer.setData("dropEffect", "copy");
+                              		resolve();
                               		
                               		resolve();
-                              
+                              '
                       ↓type [mobile.components.UIControlVariable-1531385814993]: 
                         varValue: 
                           - xmlizable: 
@@ -507,8 +551,10 @@ title: Title for editor
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
                             '
-                            		    console.log("dragstart: " + vars.type, )
-                            		event.dataTransfer.setData("type", vars.type, vars.type);
+                            		this.c8o.log.debug("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, true);
+                            		event.dataTransfer.setData("type", vars.type);
                             		event.dataTransfer.setData("origin", "new");
                             		event.dataTransfer.setData("dropEffect", "copy");
                             		resolve();
@@ -537,7 +583,9 @@ title: Title for editor
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
                             '
-                            		    console.log("dragstart: " + vars.type)
+                            		this.c8o.log.debug("dragstart: " + vars.type, )
+                            		event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, null);
                             		event.dataTransfer.setData("type", vars.type);
                             	    event.dataTransfer.setData("origin", "new");
                                     event.dataTransfer.setData("dropEffect", "copy");
@@ -628,7 +676,9 @@ title: Title for editor
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
                             '
-                            		    console.log("dragstart: " + vars.type)
+                            		    this.c8o.log.debug("dragstart: " + vars.type)
+                            		    event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, null);
                             		event.dataTransfer.setData("type", vars.type);
                             		    event.dataTransfer.setData("origin", "new");
                             	        event.dataTransfer.setData("dropEffect", "copy");
@@ -772,7 +822,9 @@ title: Title for editor
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
                             '
-                            		    console.log("dragstart: " + vars.type)
+                            		 this.c8o.log.debug("dragstart: " + vars.type)
+                            		 event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, null);
                             		event.dataTransfer.setData("type", vars.type);
                             		    event.dataTransfer.setData("origin", "new");
                             	        event.dataTransfer.setData("dropEffect", "copy");
@@ -803,8 +855,9 @@ title: Title for editor
                           →: |
                             '
                             
-                            		    console.log("dragstart: " + vars.type)
-                            
+                            		    this.c8o.log.debug("dragstart: " + vars.type)
+                            		    event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, null);
                             		event.dataTransfer.setData("type", vars.type);
                             
                             		    event.dataTransfer.setData("origin", "new");
@@ -902,8 +955,9 @@ title: Title for editor
                           →: |
                             '
                             
-                            		    console.log("dragstart: " + vars.type)
-                            
+                            		this.c8o.log.debug("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, null);
                             		event.dataTransfer.setData("type", vars.type);
                             
                             		    event.dataTransfer.setData("origin", "new");
@@ -1001,8 +1055,9 @@ title: Title for editor
                           →: |
                             '
                             
-                            		    console.log("dragstart: " + vars.type)
-                            
+                            		this.c8o.log.debug("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, null);
                             		event.dataTransfer.setData("type", vars.type);
                             
                             		    event.dataTransfer.setData("origin", "new");
@@ -1098,30 +1153,13 @@ title: Title for editor
                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
-                            '
-                            
-                            
-                            
-                            		    console.log("dragstart: " + vars.type)
-                            
-                            
-                            
+                            '		this.c8o.log.debug("dragstart: " + vars.type)
+                            		event.dataTransfer.setData("__c8oformsdrag", true);
+                            		event.dataTransfer.setData(vars.type, null);
                             		event.dataTransfer.setData("type", vars.type);
-                            
-                            
-                            
-                            		    event.dataTransfer.setData("origin", "new");
-                            
-                            
-                            
-                            	        event.dataTransfer.setData("dropEffect", "copy");
-                            
-                            
-                            
+                            		event.dataTransfer.setData("origin", "new");
+                            		event.dataTransfer.setData("dropEffect", "copy");
                             		resolve();
-                            
-                            
-                            
                             '
                     ↓type [mobile.components.UIControlVariable-1542994000538]: 
                       varValue: 
@@ -1750,8 +1788,10 @@ title: Title for editor
                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
-                            		event.preventDefault();
-                            		this.recursive(event.target, "before");
+                            		if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                            					event.preventDefault();
+                            					this.recursive(event.target, "before");
+                            			}
                             		resolve();
                             
                 ↓Event1 [mobile.components.UIControlEvent-1541177776206]: 
@@ -1764,18 +1804,23 @@ title: Title for editor
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
                             		event.preventDefault();
-                            		this.c8o.log.debug("Dropped before");
+                            		this.c8o.log.debug("Dropped into before level0");
                             		const origin = event.dataTransfer.getData("origin");
                             		switch(origin){
                             		case "new":
-                            		    this.c8o.log.debug("Object is new");
+                            		    this.c8o.log.debug("Origin is new");
                             		    this.addElement(event.dataTransfer.getData("type"), vars.index);
                             		    break;
                             		case "moved":
-                                        this.c8o.log.debug("Object has been moved");
+                                        this.c8o.log.debug("Origin is moved");
                                         let arr;
                                         if(event.dataTransfer.getData("index").indexOf(",") != -1){
-                                             arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                        	if(event.dataTransfer.getData("index").length == 5){
+                                        		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3),+event.dataTransfer.getData("index").substring(4,5)];
+                                        	}
+                                        	else{
+                                        		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                        	}
                                         }
                                         else{
                                             arr = [+event.dataTransfer.getData("index")];
@@ -2264,8 +2309,8 @@ title: Title for editor
                                 beanData: '{"ionBean":"DivTag"}'
                                 tagName: div
                                 ↓Directive [mobile.components.UIControlDirective-1542981369606]: 
-                                  directiveName: If
                                   directiveExpression: item.config.title.position == 'text-center'
+                                  directiveName: If
                                   ↓Div [mobile.components.UIDynamicElement-1542983115900]: 
                                     beanData: '{"ionBean":"DivTag"}'
                                     tagName: div
@@ -2284,8 +2329,8 @@ title: Title for editor
                                             - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                             - MobileSmartSourceType: script:item.config.title.text
                                 ↓Directive1 [mobile.components.UIControlDirective-1542983010717]: 
-                                  directiveName: If
                                   directiveExpression: item.config.title.position == 'text-left'
+                                  directiveName: If
                                   ↓Div [mobile.components.UIDynamicElement-1542983133437]: 
                                     beanData: '{"ionBean":"DivTag"}'
                                     tagName: div
@@ -2304,8 +2349,8 @@ title: Title for editor
                                             - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                             - MobileSmartSourceType: script:item.config.title.text
                                 ↓Directive2 [mobile.components.UIControlDirective-1542983013250]: 
-                                  directiveName: If
                                   directiveExpression: item.config.title.position == 'text-right'
+                                  directiveName: If
                                   ↓Div [mobile.components.UIDynamicElement-1542983140436]: 
                                     beanData: '{"ionBean":"DivTag"}'
                                     tagName: div
@@ -2350,14 +2395,22 @@ title: Title for editor
                                 ↓Event [mobile.components.UIControlEvent-1541440280460]: 
                                   attrName: (dragover)
                                   eventName: (dragover)
-                                  ↓allowDrop [mobile.components.UICustomAction-1541440280626]: 
+                                  ↓allowDrop [mobile.components.UICustomAction-1543001764975]: 
                                     actionValue: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                           →: |
-                                            		event.preventDefault();
-                                            		this.recursive(event.target, "before");
+                                            			if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                                            				if(event.dataTransfer.types.includes("group")){
+                                            					this.c8o.log.debug("dropping  card into another card is not authorized");
+                                            				}
+                                            				else{
+                                            					event.preventDefault();
+                                            					this.recursive(event.target, "before");
+                                            				}
+                                            			}
+                                            
                                             		resolve();
                                             
                                 ↓Event1 [mobile.components.UIControlEvent-1541440280808]: 
@@ -2370,49 +2423,25 @@ title: Title for editor
                                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                           →: |
                                             		event.preventDefault();
-                                            		this.c8o.log.debug("Dropped before");
+                                            		this.c8o.log.debug("Dropped into before level1 into a card");
                                             		const origin = event.dataTransfer.getData("origin");
-                                            
                                             		switch(origin){
                                             
                                             		case "new":
-                                            
-                                            		    this.c8o.log.debug("Object is new");
-                                            
+                                            		    this.c8o.log.debug("Origin is new");
                                             		    this.addElement(event.dataTransfer.getData("type"), vars.index);
-                                            
                                             		    break;
                                             
                                             		case "moved":
-                                            		    
-                                            		    
-                                            		    
-                                            		  /*  this.c8o.log.debug("Object has been moved");
-                                                        let arr0 = [vars.i,0];
-                                                        let arr;
-                                                        if(event.dataTransfer.getData("index").indexOf(",") != -1){
-                                                             arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
-                                                        }
-                                                        else{
-                                                            arr = [+event.dataTransfer.getData("index")];
-                                                        }
-                                                        if(this.formsList[vars.i]["children"].length > 0){
-                                                            arr0[1] = this.formsList[vars.i]["children"].length;
-                                                        }
-                                                        console.log("arr0");
-                                                        console.log(arr0);
-                                                        console.log("arr");console.log(arr);
-                                                        
-                                                        this.moveElement(arr0, arr);
-                                                        console.log(this.formsList);
-                                                        */
-                                            
-                                                        this.c8o.log.debug("Object has been moved");
+                                                        this.c8o.log.debug("Origin is moved");
                                                         let idx = event.dataTransfer.getData("index");
                                                         let arr = [];
                                                         if(idx.length > 1){
                                                             arr[0] = +idx.substring(0,1);
                                                             arr[1] = +idx.substring(2,3);
+                                                            if(idx.length == 5){
+                                            						arr[2] = +idx.substring(4,5)
+                                            					}
                                                         }
                                                         else{
                                                             arr[0] = +idx;
@@ -2422,11 +2451,7 @@ title: Title for editor
                                                         break;
                                             
                                             		case "copied":
-                                            
                                                         this.c8o.log.debug("Object has been copied");
-                                            
-                                                        
-                                            
                                                         break;
                                             
                                             		}
@@ -2913,8 +2938,8 @@ title: Title for editor
                                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                 - MobileSmartSourceType: plain:no-lines
                                           ↓Directive [mobile.components.UIControlDirective-1542983751023]: 
-                                            directiveName: If
                                             directiveExpression: child.config.position == 'text-center'
+                                            directiveName: If
                                             ↓Div [mobile.components.UIDynamicElement-1542983751026]: 
                                               beanData: '{"ionBean":"DivTag"}'
                                               tagName: div
@@ -2933,8 +2958,8 @@ title: Title for editor
                                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                       - MobileSmartSourceType: script:child.config.text
                                           ↓Directive1 [mobile.components.UIControlDirective-1542983751038]: 
-                                            directiveName: If
                                             directiveExpression: child.config.position == 'text-left'
+                                            directiveName: If
                                             ↓Div [mobile.components.UIDynamicElement-1542983751041]: 
                                               beanData: '{"ionBean":"DivTag"}'
                                               tagName: div
@@ -2953,8 +2978,8 @@ title: Title for editor
                                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                       - MobileSmartSourceType: script:child.config.text
                                           ↓Directive2 [mobile.components.UIControlDirective-1542983751053]: 
-                                            directiveName: If
                                             directiveExpression: child.config.position == 'text-right'
+                                            directiveName: If
                                             ↓Div [mobile.components.UIDynamicElement-1542983751056]: 
                                               beanData: '{"ionBean":"DivTag"}'
                                               tagName: div
@@ -3019,12 +3044,592 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:(child.config.position == 'fixed')?'':null
+                                      ↓Directive211 [mobile.components.UIControlDirective-1543002924042]: 
+                                        directiveName: If
+                                        directiveSource: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: script:child.type == "radio"
+                                        ↓RadioList [mobile.components.UIDynamicElement-1543002924045]: 
+                                          beanData: '{"ionBean":"RadioList"}'
+                                          tagName: ion-list
+                                          ↓Directive [mobile.components.UIControlDirective-1543002924048]: 
+                                            directiveExpression: let k = index
+                                            directiveSource: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: script:let child2 of child.children
+                                            ↓BeforeItem [mobile.components.UIDynamicElement-1543002924051]: 
+                                              beanData: '{"ionBean":"GridRow"}'
+                                              tagName: ion-row
+                                              ↓GridCol [mobile.components.UIDynamicElement-1543002924054]: 
+                                                beanData: '{"ionBean":"GridCol"}'
+                                                tagName: ion-col
+                                                ↓Tag [mobile.components.UIElement-1543002924057]: 
+                                                  selfClose: true
+                                                  tagName: br
+                                              ↓Attr [mobile.components.UIAttribute-1543002924060]: 
+                                                attrName: id
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:'@prefixc8obeforeItem' + child2.name
+                                              ↓Event [mobile.components.UIControlEvent-1543002924063]: 
+                                                attrName: (dragover)
+                                                eventName: (dragover)
+                                                ↓allowDrop [mobile.components.UICustomAction-1543002924066]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          			if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                                                          				if(event.dataTransfer.types.includes("radiobt")){
+                                                          					event.preventDefault();
+                                                          					this.recursive(event.target, "before");
+                                                          				}
+                                                          				else{
+                                                          					this.c8o.log.debug("Only dropping  radio button is authorised there");
+                                                          					}
+                                                          
+                                                          			}
+                                                          
+                                                          		resolve();
+                                                          
+                                              ↓Event1 [mobile.components.UIControlEvent-1543002924069]: 
+                                                attrName: (drop)
+                                                eventName: (drop)
+                                                ↓drop [mobile.components.UICustomAction-1543002924072]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		event.preventDefault();
+                                                          		this.c8o.log.debug("Dropped into before level2 into a radio list");
+                                                          		const origin = event.dataTransfer.getData("origin");
+                                                          		switch(origin){
+                                                          			case "new":
+                                                          		    	this.c8o.log.debug("Origin is new");
+                                                          				this.addElement(event.dataTransfer.getData("type"), vars.index);
+                                                          			break;
+                                                          			case "moved":
+                                                                      	this.c8o.log.debug("Origin is moved");
+                                                          				let idx = event.dataTransfer.getData("index");
+                                                          				let arr = [];
+                                                          				if(idx.length > 1){	
+                                                          					arr[0] = +idx.substring(0,1);
+                                                          					arr[1] = +idx.substring(2,3);
+                                                          					if(idx.length == 5){
+                                                          						arr[2] = +idx.substring(4,5)
+                                                          					}
+                                                          				}
+                                                          				else{
+                                                          					arr[0] = +idx;
+                                                          				}
+                                                          				this.moveElement(vars.index,arr);
+                                                          			break;
+                                                          				case "copied":
+                                                          					this.c8o.log.debug("Object has been copied");
+                                                          			break;
+                                                          		}
+                                                          		const oldElem = document.getElementById(this.local["currentHighlight"]);
+                                                          		if(oldElem != null){
+                                                          			oldElem.style["border-color"] = null;
+                                                          			oldElem.style["border-style"] = null;
+                                                          		}
+                                                          		resolve();
+                                                          
+                                                  ↓index [mobile.components.UIControlVariable-1543002924075]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: script:[i,j,k]
+                                            ↓Item [mobile.components.UIDynamicElement-1543002924078]: 
+                                              beanData: '{"ionBean":"GridRow"}'
+                                              tagName: ion-row
+                                              ↓Div [mobile.components.UIDynamicElement-1543002924081]: 
+                                                beanData: '{"ionBean":"DivTag"}'
+                                                tagName: div
+                                                ↓Attr [mobile.components.UIAttribute-1543002924084]: 
+                                                  attrName: class
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: plain:elementView
+                                                ↓HeaderDiv [mobile.components.UIDynamicElement-1543002924087]: 
+                                                  beanData: '{"ionBean":"DivTag"}'
+                                                  tagName: div
+                                                  ↓Div [mobile.components.UIDynamicElement-1543002924090]: 
+                                                    beanData: '{"ionBean":"DivTag"}'
+                                                    tagName: div
+                                                    ↓Text [mobile.components.UIText-1543002924093]: 
+                                                      textValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                          - MobileSmartSourceType: script:child2.name
+                                                    ↓Attr1 [mobile.components.UIAttribute-1543002924096]: 
+                                                      attrName: class
+                                                      attrValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                          - MobileSmartSourceType: plain:col
+                                                  ↓Div1 [mobile.components.UIDynamicElement-1543002924099]: 
+                                                    beanData: '{"ionBean":"DivTag"}'
+                                                    tagName: div
+                                                    ↓ButtonSet [mobile.components.UIDynamicElement-1543002924102]: 
+                                                      beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:right"}'
+                                                      tagName: ion-buttons
+                                                      ↓DeleteButton [mobile.components.UIDynamicElement-1543002924105]: 
+                                                        beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                                        tagName: button
+                                                        ↓Tag [mobile.components.UIElement-1543002924108]: 
+                                                          tagName: i
+                                                          ↓Attr [mobile.components.UIAttribute-1543002924111]: 
+                                                            attrName: class
+                                                            attrValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: plain:fa fa-trash-o fa-lg
+                                                          ↓Attr1 [mobile.components.UIAttribute-1543002924114]: 
+                                                            attrName: aria-hidden
+                                                            attrValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: plain:true
+                                                        ↓Event [mobile.components.UIControlEvent-1543002924117]: 
+                                                          ↓Alert [mobile.components.UIDynamicAction-1543002924120]: 
+                                                            beanData: |
+                                                              '{
+                                                               "ionBean": "AlertAction",
+                                                               "title": "plain:Delete item",
+                                                               "subTitle": "plain:Are you sure you want to delete this component?",
+                                                               "message": "plain:",
+                                                               "button1": "plain:CANCEL",
+                                                               "button2": "plain:OK",
+                                                               "value1": "plain:0",
+                                                               "value2": "plain:1",
+                                                               "cancel1": "plain:cancel"
+                                                              }'
+                                                            ↓If [mobile.components.UIDynamicAction-1543002924123]: 
+                                                              beanData: '{"ionBean":"IfAction","condition":"script:parent.out == 1"}'
+                                                              ↓deleteItem [mobile.components.UICustomAction-1543002924126]: 
+                                                                actionValue: 
+                                                                  - xmlizable: 
+                                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                                      →: |
+                                                                        		    this.delElementIndex(vars.i, vars.j, vars.k);
+                                                                        
+                                                                        
+                                                                        
+                                                                        		    resolve();
+                                                                        
+                                                                        
+                                                                        
+                                                                        
+                                                                ↓i [mobile.components.UIControlVariable-1543002924129]: 
+                                                                  varValue: 
+                                                                    - xmlizable: 
+                                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034"}
+                                                                ↓j [mobile.components.UIControlVariable-1543002924132]: 
+                                                                  varValue: 
+                                                                    - xmlizable: 
+                                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541439944396"}
+                                                                ↓k [mobile.components.UIControlVariable-1543003147578]: 
+                                                                  varValue: 
+                                                                    - xmlizable: 
+                                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1543002924048"}
+                                                      ↓EditButton [mobile.components.UIDynamicElement-1543002924135]: 
+                                                        beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                                        tagName: button
+                                                        ↓Tag [mobile.components.UIElement-1543002924138]: 
+                                                          tagName: i
+                                                          ↓Attr [mobile.components.UIAttribute-1543002924141]: 
+                                                            attrName: class
+                                                            attrValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: plain:fa fa-pencil-square-o fa-lg
+                                                          ↓Attr1 [mobile.components.UIAttribute-1543002924144]: 
+                                                            attrName: aria-hidden
+                                                            attrValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: plain:true
+                                                        ↓Event [mobile.components.UIControlEvent-1543002924147]: 
+                                                          ↓Modal_Page [mobile.components.UIDynamicAction-1543002924150]: 
+                                                            beanData: |
+                                                              '{
+                                                               "ionBean": "ModalAction",
+                                                               "page": "plain:C8Oforms.MobileApplication.Application.editElementPage",
+                                                               "data": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"[item1543002924048, this, i, j,k]\"}",
+                                                               "showBackdrop": "plain:true",
+                                                               "enableBackdropDismiss": "plain:true"
+                                                              }'
+                                                      ↓CopyButton [mobile.components.UIDynamicElement-1543002924153]: 
+                                                        beanData: '{"ionBean":"Button","IonClear":"plain:clear"}'
+                                                        tagName: button
+                                                        ↓Tag [mobile.components.UIElement-1543002924156]: 
+                                                          tagName: i
+                                                          ↓Attr [mobile.components.UIAttribute-1543002924159]: 
+                                                            attrName: class
+                                                            attrValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: plain:fa fa-clone fa-lg
+                                                          ↓Attr1 [mobile.components.UIAttribute-1543002924162]: 
+                                                            attrName: aria-hidden
+                                                            attrValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: plain:true
+                                                        ↓Event [mobile.components.UIControlEvent-1543002924165]: 
+                                                          ↓cloneElement [mobile.components.UICustomAction-1543002924168]: 
+                                                            actionValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                                  →: |
+                                                                    		page.c8o.log.debug(JSON.stringify(vars.elm));
+                                                                    
+                                                                    
+                                                                    
+                                                                    		let clone =  JSON.parse(JSON.stringify(vars.elm));
+                                                                    
+                                                                    
+                                                                    
+                                                                    		let oldId = clone.id;
+                                                                    
+                                                                    
+                                                                    
+                                                                    		clone.id = new Date().getTime();
+                                                                    
+                                                                    
+                                                                    
+                                                                    		this.formsList.splice(this.getElementIndexById(oldId), 0, clone);
+                                                                    
+                                                                    
+                                                                    
+                                                                    		resolve();
+                                                                    
+                                                                    
+                                                                    
+                                                                    
+                                                            ↓elm [mobile.components.UIControlVariable-1543002924171]: 
+                                                              varValue: 
+                                                                - xmlizable: 
+                                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                                  - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1541177775034"}
+                                                    ↓Attr1 [mobile.components.UIAttribute-1543002924228]: 
+                                                      attrName: class
+                                                      attrValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                          - MobileSmartSourceType: plain:col
+                                                  ↓Attr [mobile.components.UIAttribute-1543002924231]: 
+                                                    attrName: class
+                                                    attrValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: plain:containcol
+                                                ↓ContentDiv [mobile.components.UIDynamicElement-1543002924234]: 
+                                                  beanData: '{"ionBean":"DivTag"}'
+                                                  tagName: div
+                                                  ↓GenericItem [mobile.components.UIDynamicElement-1543002924237]: 
+                                                    beanData: '{"ionBean":"GenericItem"}'
+                                                    tagName: ion-item
+                                                    ↓Label [mobile.components.UIDynamicElement-1543002924240]: 
+                                                      beanData: '{"ionBean":"Label"}'
+                                                      tagName: ion-label
+                                                      ↓Text [mobile.components.UIText-1543002924243]: 
+                                                        textValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:child2.config.text
+                                                      ↓Attr3 [mobile.components.UIAttribute-1543002924246]: 
+                                                        attrName: '[color]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:(child2.config.label_color != 'unset')?child2.config.label_color:null
+                                                      ↓Attr [mobile.components.UIAttribute-1543002924249]: 
+                                                        attrName: '[attr.stacked]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:(child2.config.position == 'stacked')?'':null
+                                                      ↓Attr2 [mobile.components.UIAttribute-1543002924252]: 
+                                                        attrName: '[attr.fixed]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:(child2.config.position == 'fixed')?'':null
+                                                      ↓Attr1 [mobile.components.UIAttribute-1543002924255]: 
+                                                        attrName: '[attr.floating]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:(child2.config.position == 'floating')?'':null
+                                                    ↓RadioButton [mobile.components.UIDynamicElement-1543002924258]: 
+                                                      beanData: '{"ionBean":"RadioButton"}'
+                                                      tagName: ion-radio
+                                                      ↓Attr [mobile.components.UIAttribute-1543002924261]: 
+                                                        attrName: disabled
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:child2.config.disabled
+                                                      ↓Attr2 [mobile.components.UIAttribute-1543002924264]: 
+                                                        attrName: value
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:child2.config.value
+                                                      ↓Attr3 [mobile.components.UIAttribute-1543002924267]: 
+                                                        attrName: checked
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: script:child2.config.checked
+                                                ↓Attr1 [mobile.components.UIAttribute-1543002924270]: 
+                                                  attrName: id
+                                                  attrValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: script:'c8o'+child2.name
+                                                ↓Style [mobile.components.UIStyle-1543002924273]: 
+                                                  styleContent: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          width:100%;
+                                                          
+                                                          margin-left:2px;
+                                                          
+                                                          margin-right:2px;
+                                                          
+                                                          
+                                              ↓Event11 [mobile.components.UIControlEvent-1543002924276]: 
+                                                attrName: (dragstart)
+                                                eventName: (dragstart)
+                                                ↓addElementToList [mobile.components.UICustomAction-1543002924279]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		this.c8o.log.debug("dragstart at level2, index of target to move is "+vars.index);
+                                                          		event.dataTransfer.setData("__c8oformsdrag", true);
+                                                          		event.dataTransfer.setData(vars.item.type, true);
+                                                          		event.dataTransfer.setData("origin", "moved");
+                                                          		event.dataTransfer.setData("index", vars.index+"");
+                                                          		event.dataTransfer.setData("dropEffect", "copy");
+                                                          		resolve();
+                                                          
+                                                  ↓index [mobile.components.UIControlVariable-1543002924282]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: script:[i,j,k]
+                                                  ↓item [mobile.components.UIControlVariable-1543007421686]: 
+                                                    varValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: script:child2
+                                              ↓Attr [mobile.components.UIAttribute-1543002924285]: 
+                                                attrName: id
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:'@prefixc8oitem'+child2.name+'@prefixc8otype'+child2.type+'c8o_child2'
+                                              ↓Attr1 [mobile.components.UIAttribute-1543002924288]: 
+                                                attrName: draggable
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:true
+                                          ↓AfterItem [mobile.components.UIDynamicElement-1543002924291]: 
+                                            beanData: '{"ionBean":"GridRow","Height":"plain:height:100%"}'
+                                            tagName: ion-row
+                                            ↓GridCol [mobile.components.UIDynamicElement-1543002924294]: 
+                                              beanData: '{"ionBean":"GridCol"}'
+                                              tagName: ion-col
+                                              ↓Tag [mobile.components.UIElement-1543002924297]: 
+                                                selfClose: true
+                                                tagName: br
+                                            ↓Attr [mobile.components.UIAttribute-1543002924300]: 
+                                              attrName: id
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:'@prefixc8oafterItem'+child.name
+                                            ↓Event [mobile.components.UIControlEvent-1543002924303]: 
+                                              attrName: (dragover)
+                                              eventName: (dragover)
+                                              ↓allowDrop [mobile.components.UICustomAction-1543002924306]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        			if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                                                        				if(event.dataTransfer.types.includes("radiobt")){
+                                                        					event.preventDefault();
+                                                        
+                                                        					this.recursive(event.target, "before");
+                                                        
+                                                        				}
+                                                        
+                                                        				else{
+                                                        
+                                                        					this.c8o.log.debug("Only dropping  radio button is authorised there");
+                                                        
+                                                        					
+                                                        
+                                                        				}
+                                                        
+                                                        			}
+                                                        
+                                                        		resolve();
+                                                        
+                                                        
+                                                        
+                                                        
+                                            ↓Event1 [mobile.components.UIControlEvent-1543002924309]: 
+                                              attrName: (drop)
+                                              eventName: (drop)
+                                              ↓drop [mobile.components.UICustomAction-1543002924312]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        		event.preventDefault();
+                                                        this.c8o.log.debug("Dropped into after level2 into a radio list");
+                                                        		const origin = event.dataTransfer.getData("origin");
+                                                        		switch(origin){
+                                                        		case "new":
+                                                        		    this.c8o.log.debug("Origin is new");
+                                                        		    let array = [vars.i,vars.j,0];
+                                                        		    if(this.formsList[vars.i]["children"][vars.j]["children"].length > 0){
+                                                        		        array[2] = this.formsList[vars.i]["children"][vars.j]["children"].length;
+                                                                    }
+                                                        		    this.addElement(event.dataTransfer.getData("type"), array);
+                                                        		    break;
+                                                        		case "moved":
+                                                                    this.c8o.log.debug("Origin is moved");
+                                                                    let arr0 = [vars.i,vars.j,0];
+                                                                    let arr;
+                                                                    if(event.dataTransfer.getData("index").indexOf(",") != -1){
+                                                                    	if(event.dataTransfer.getData("index").length == 5){
+                                                                    		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3), +event.dataTransfer.getData("index").substring(4,5)];
+                                                                    	}
+                                                                    	else{
+                                                                    		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                                                    	}
+                                                                    }
+                                                                    else{
+                                                                        arr = [+event.dataTransfer.getData("index")];
+                                                                    }
+                                                                    if(this.formsList[vars.i]["children"][vars.j]["children"].length > 0){
+                                                                        arr0[2] = this.formsList[vars.i]["children"][vars.j]["children"].length;
+                                                                    }
+                                                                    this.moveElement(arr0, arr);
+                                                                    break;
+                                                        		case "copied":
+                                                                    this.c8o.log.debug("Object has been copied");
+                                                                    break;
+                                                        		}
+                                                        		const oldElem = document.getElementById(this.local["currentHighlight"]);
+                                                                if(oldElem != null){
+                                                                    oldElem.style["border-color"] = null;
+                                                                    oldElem.style["border-style"] = null;
+                                                                }
+                                                        		resolve();
+                                                        
+                                                ↓i [mobile.components.UIControlVariable-1543002924315]: 
+                                                  varValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: script:i
+                                                ↓j [mobile.components.UIControlVariable-1543008826799]: 
+                                                  varValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: script:j
+                                      ↓Directive3 [mobile.components.UIControlDirective-1543109130070]: 
+                                        directiveName: If
+                                        directiveSource: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: script:child.type == "radiobt"
+                                        ↓GenericItem [mobile.components.UIDynamicElement-1543109167979]: 
+                                          beanData: '{"ionBean":"GenericItem"}'
+                                          tagName: ion-item
+                                          ↓Label [mobile.components.UIDynamicElement-1543109167982]: 
+                                            beanData: '{"ionBean":"Label"}'
+                                            tagName: ion-label
+                                            ↓Text [mobile.components.UIText-1543109167985]: 
+                                              textValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:child.config.text
+                                            ↓Attr3 [mobile.components.UIAttribute-1543109167988]: 
+                                              attrName: '[color]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:(child.config.label_color != 'unset')?child.config.label_color:null
+                                            ↓Attr [mobile.components.UIAttribute-1543109167991]: 
+                                              attrName: '[attr.stacked]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:(child.config.position == 'stacked')?'':null
+                                            ↓Attr2 [mobile.components.UIAttribute-1543109167994]: 
+                                              attrName: '[attr.fixed]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:(child.config.position == 'fixed')?'':null
+                                            ↓Attr1 [mobile.components.UIAttribute-1543109167997]: 
+                                              attrName: '[attr.floating]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:(child.config.position == 'floating')?'':null
+                                          ↓RadioButton [mobile.components.UIDynamicElement-1543109168000]: 
+                                            beanData: '{"ionBean":"RadioButton"}'
+                                            tagName: ion-radio
+                                            ↓Attr [mobile.components.UIAttribute-1543109168003]: 
+                                              attrName: disabled
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:child.config.disabled
+                                            ↓Attr2 [mobile.components.UIAttribute-1543109168006]: 
+                                              attrName: value
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:child.config.value
+                                            ↓Attr3 [mobile.components.UIAttribute-1543109168009]: 
+                                              attrName: checked
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:child.config.checked
                                     ↓Attr1 [mobile.components.UIAttribute-1541440313720]: 
                                       attrName: id
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:'c8o'+child.type
+                                          - MobileSmartSourceType: script:'c8o'+child.type+'c8o_child2'
                                 ↓Style [mobile.components.UIStyle-1541440313904]: 
                                   styleContent: 
                                     - xmlizable: 
@@ -3038,7 +3643,7 @@ title: Title for editor
                                   attrValue: 
                                     - xmlizable: 
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:'@prefixc8oitem'+child.name+'@prefixc8otype'+child.type+'c8o_child'
+                                      - MobileSmartSourceType: script:'@prefixc8oitem'+child.name+'@prefixc8otype'+child.type+'c8o_child1'
                                 ↓Attr1 [mobile.components.UIAttribute-1541440315821]: 
                                   attrName: draggable
                                   attrValue: 
@@ -3054,18 +3659,31 @@ title: Title for editor
                                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                           →: |
-                                            		console.log("dragstart2");
-                                            		console.log(vars.index);
-                                            		event.dataTransfer.setData("origin", "moved");
-                                            		event.dataTransfer.setData("index", vars.index);
-                                            		event.dataTransfer.setData("dropEffect", "copy");
-                                            		resolve();
+                                            			
+                                            		if(event.srcElement.id.indexOf("c8o_child2") != -1){
+                                            			 this.c8o.log.debug("dargstart concerns child2");
+                                            		}
+                                            		else{
+                                            				this.c8o.log.debug("dragstart at level1, index of target to move is "+vars.index);
+                                            				event.dataTransfer.setData("__c8oformsdrag", true);
+                                            				event.dataTransfer.setData(vars.item.type, true);
+                                            				event.dataTransfer.setData("origin", "moved");
+                                            				event.dataTransfer.setData("index", vars.index);
+                                            				event.dataTransfer.setData("dropEffect", "copy");
+                                            				resolve();
+                                            			}
+                                            		
                                             
                                     ↓index [mobile.components.UIControlVariable-1542050086217]: 
                                       varValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                           - MobileSmartSourceType: script:[i,j]
+                                    ↓item [mobile.components.UIControlVariable-1543007266183]: 
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:child
                             ↓AfterItem [mobile.components.UIDynamicElement-1541440345331]: 
                               beanData: '{"ionBean":"GridRow","Height":"plain:height:100%"}'
                               tagName: ion-row
@@ -3084,14 +3702,22 @@ title: Title for editor
                               ↓Event [mobile.components.UIControlEvent-1541440346050]: 
                                 attrName: (dragover)
                                 eventName: (dragover)
-                                ↓allowDrop [mobile.components.UICustomAction-1541440346222]: 
+                                ↓allowDrop [mobile.components.UICustomAction-1543001559198]: 
                                   actionValue: 
                                     - xmlizable: 
                                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                         →: |
-                                          		event.preventDefault();
-                                          		this.recursive(event.target, "before");
+                                          			if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                                          				if(event.dataTransfer.types.includes("group")){
+                                          					this.c8o.log.debug("dropping  card into another card is not authorized");
+                                          				}
+                                          				else{
+                                          					event.preventDefault();
+                                          					this.recursive(event.target, "before");
+                                          				}
+                                          			}
+                                          
                                           		resolve();
                                           
                               ↓Event1 [mobile.components.UIControlEvent-1541440346425]: 
@@ -3104,31 +3730,30 @@ title: Title for editor
                                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                         →: |
                                           		event.preventDefault();
-                                          		this.c8o.log.debug("Dropped before");
+                                          		this.c8o.log.debug("Dropped into before level1 into a card");
                                           		const origin = event.dataTransfer.getData("origin");
-                                          
                                           		switch(origin){
-                                          
                                           		case "new":
-                                          
-                                          		    this.c8o.log.debug("Object is new");
-                                          
+                                          		    this.c8o.log.debug("Origin is new");
                                           		    let array = [vars.i,0];
                                           		    if(this.formsList[vars.i]["children"].length > 0){
                                           		        array[1] = this.formsList[vars.i]["children"].length;
                                                       }
-                                          		    
                                           		    this.addElement(event.dataTransfer.getData("type"), array);
                                           
                                           		    break;
                                           
                                           		case "moved":
-                                          
-                                                      this.c8o.log.debug("Object has been moved");
+                                                      this.c8o.log.debug("Origin is moved");
                                                       let arr0 = [vars.i,0];
                                                       let arr;
                                                       if(event.dataTransfer.getData("index").indexOf(",") != -1){
-                                                           arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                                      	if(event.dataTransfer.getData("index").length == 5){
+                                                      		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3), +event.dataTransfer.getData("index").substring(4,5)];
+                                                      	}
+                                                      	else{
+                                                      		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                                      	}
                                                       }
                                                       else{
                                                           arr = [+event.dataTransfer.getData("index")];
@@ -3136,20 +3761,12 @@ title: Title for editor
                                                       if(this.formsList[vars.i]["children"].length > 0){
                                                           arr0[1] = this.formsList[vars.i]["children"].length;
                                                       }
-                                                      console.log("arr0");
-                                                      console.log(arr0);
-                                                      console.log("arr");console.log(arr);
                                                       
                                                       this.moveElement(arr0, arr);
-                                                      console.log(this.formsList);
                                                       break;
                                           
                                           		case "copied":
-                                          
                                                       this.c8o.log.debug("Object has been copied");
-                                          
-                                                      
-                                          
                                                       break;
                                           
                                           		}
@@ -3184,8 +3801,8 @@ title: Title for editor
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: plain:no-lines
                           ↓Directive [mobile.components.UIControlDirective-1542983234695]: 
-                            directiveName: If
                             directiveExpression: item.config.position == 'text-center'
+                            directiveName: If
                             ↓Div [mobile.components.UIDynamicElement-1542983234698]: 
                               beanData: '{"ionBean":"DivTag"}'
                               tagName: div
@@ -3204,8 +3821,8 @@ title: Title for editor
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                       - MobileSmartSourceType: script:item.config.text
                           ↓Directive1 [mobile.components.UIControlDirective-1542983234707]: 
-                            directiveName: If
                             directiveExpression: item.config.position == 'text-left'
+                            directiveName: If
                             ↓Div [mobile.components.UIDynamicElement-1542983234710]: 
                               beanData: '{"ionBean":"DivTag"}'
                               tagName: div
@@ -3224,8 +3841,8 @@ title: Title for editor
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                       - MobileSmartSourceType: script:item.config.text
                           ↓Directive2 [mobile.components.UIControlDirective-1542983234719]: 
-                            directiveName: If
                             directiveExpression: item.config.position == 'text-right'
+                            directiveName: If
                             ↓Div [mobile.components.UIDynamicElement-1542983234722]: 
                               beanData: '{"ionBean":"DivTag"}'
                               tagName: div
@@ -3329,13 +3946,15 @@ title: Title for editor
                                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                         →: |
-                                          			console.log("log");
-                                          			console.log(event.dataTransfer.getData("type"));
-                                          			console.log(event.dataTransfer);
-                                          		event.preventDefault();
-                                          
-                                          		this.recursive(event.target, "before");
-                                          
+                                          			if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                                          				if(event.dataTransfer.types.includes("radiobt")){event.preventDefault();
+                                          					this.recursive(event.target, "before");
+                                          				}
+                                          				else{
+                                          					this.c8o.log.debug("Only dropping  radio button is authorised there");
+                                          					
+                                          				}
+                                          			}
                                           		resolve();
                                           
                                           
@@ -3349,145 +3968,36 @@ title: Title for editor
                                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                         →: |
                                           		event.preventDefault();
-                                          
-                                          		this.c8o.log.debug("Dropped before");
-                                          
+                                          		this.c8o.log.debug("Dropped into before level1 into a radio list");
                                           		const origin = event.dataTransfer.getData("origin");
-                                          
-                                          
-                                          
                                           		switch(origin){
-                                          
-                                          
-                                          
                                           		case "new":
-                                          
-                                          
-                                          
-                                          		    this.c8o.log.debug("Object is new");
-                                          
-                                          
-                                          
-                                          		    this.addElement(event.dataTransfer.getData("type"), vars.index);
-                                          
-                                          
-                                          
-                                          		    break;
-                                          
-                                          
-                                          
+                                          		    this.c8o.log.debug("Origin is new");
+                                          			this.addElement(event.dataTransfer.getData("type"), vars.index);
+                                          			break;
                                           		case "moved":
-                                          
-                                          		    
-                                          
-                                          		    
-                                          
-                                          		    
-                                          
-                                          		  /*  this.c8o.log.debug("Object has been moved");
-                                          
-                                                      let arr0 = [vars.i,0];
-                                          
-                                                      let arr;
-                                          
-                                                      if(event.dataTransfer.getData("index").indexOf(",") != -1){
-                                          
-                                                           arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
-                                          
-                                                      }
-                                          
-                                                      else{
-                                          
-                                                          arr = [+event.dataTransfer.getData("index")];
-                                          
-                                                      }
-                                          
-                                                      if(this.formsList[vars.i]["children"].length > 0){
-                                          
-                                                          arr0[1] = this.formsList[vars.i]["children"].length;
-                                          
-                                                      }
-                                          
-                                                      console.log("arr0");
-                                          
-                                                      console.log(arr0);
-                                          
-                                                      console.log("arr");console.log(arr);
-                                          
-                                                      
-                                          
-                                                      this.moveElement(arr0, arr);
-                                          
-                                                      console.log(this.formsList);
-                                          
-                                                      */
-                                          
-                                          
-                                          
-                                                      this.c8o.log.debug("Object has been moved");
-                                          
+                                                      this.c8o.log.debug("Origin is moved");
                                                       let idx = event.dataTransfer.getData("index");
-                                          
                                                       let arr = [];
-                                          
                                                       if(idx.length > 1){
-                                          
                                                           arr[0] = +idx.substring(0,1);
-                                          
                                                           arr[1] = +idx.substring(2,3);
-                                          
                                                       }
-                                          
                                                       else{
-                                          
                                                           arr[0] = +idx;
-                                          
                                                       }
-                                          
-                                          
-                                          
                                                       this.moveElement(vars.index,arr);
-                                          
                                                       break;
-                                          
-                                          
-                                          
                                           		case "copied":
-                                          
-                                          
-                                          
                                                       this.c8o.log.debug("Object has been copied");
-                                          
-                                          
-                                          
-                                                      
-                                          
-                                          
-                                          
                                                       break;
-                                          
-                                          
-                                          
                                           		}
-                                          
-                                          
-                                          
-                                          		
-                                          
-                                          		
-                                          
                                           		const oldElem = document.getElementById(this.local["currentHighlight"]);
-                                          
                                                   if(oldElem != null){
-                                          
                                                       oldElem.style["border-color"] = null;
-                                          
                                                       oldElem.style["border-style"] = null;
-                                          
                                                   }
-                                          
                                           		resolve();
-                                          
                                           
                                   ↓index [mobile.components.UIControlVariable-1542994384442]: 
                                     varValue: 
@@ -3843,6 +4353,8 @@ title: Title for editor
                                           		console.log("dragstart2");
                                           
                                           		console.log(vars.index);
+                                          		event.dataTransfer.setData("__c8oformsdrag", true);
+                                          		event.dataTransfer.setData(vars.item.type, true);
                                           
                                           		event.dataTransfer.setData("origin", "moved");
                                           
@@ -3858,6 +4370,11 @@ title: Title for editor
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                         - MobileSmartSourceType: script:[i,j]
+                                  ↓item [mobile.components.UIControlVariable-1543007296604]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:child
                               ↓Attr [mobile.components.UIAttribute-1542995230251]: 
                                 attrName: id
                                 attrValue: 
@@ -3888,17 +4405,34 @@ title: Title for editor
                             ↓Event [mobile.components.UIControlEvent-1542994439763]: 
                               attrName: (dragover)
                               eventName: (dragover)
-                              ↓allowDrop [mobile.components.UICustomAction-1542994439766]: 
+                              ↓allowDrop [mobile.components.UICustomAction-1543002731605]: 
                                 actionValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                       →: |
-                                        		event.preventDefault();
+                                        			if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                                        				if(event.dataTransfer.types.includes("radiobt")){
+                                        				
+                                        					event.preventDefault();
                                         
-                                        		this.recursive(event.target, "before");
+                                        					this.recursive(event.target, "before");
+                                        
+                                        				}
+                                        
+                                        				else{
+                                        
+                                        					this.c8o.log.debug("Only dropping  radio button is authorised there");
+                                        
+                                        					
+                                        
+                                        				}
+                                        
+                                        			}
                                         
                                         		resolve();
+                                        
+                                        
                                         
                                         
                             ↓Event1 [mobile.components.UIControlEvent-1542994439769]: 
@@ -3911,123 +4445,41 @@ title: Title for editor
                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                       →: |
                                         		event.preventDefault();
-                                        
-                                        		this.c8o.log.debug("Dropped before");
-                                        
+                                        		this.c8o.log.debug("Dropped into after level1 into a radio list");
                                         		const origin = event.dataTransfer.getData("origin");
-                                        
-                                        
-                                        
                                         		switch(origin){
-                                        
-                                        
-                                        
                                         		case "new":
-                                        
-                                        
-                                        
-                                        		    this.c8o.log.debug("Object is new");
-                                        
-                                        
-                                        
-                                        		    let array = [vars.i,0];
-                                        
+                                        			this.c8o.log.debug("Object is new");
+                                        			let array = [vars.i,0];
                                         		    if(this.formsList[vars.i]["children"].length > 0){
-                                        
                                         		        array[1] = this.formsList[vars.i]["children"].length;
-                                        
                                                     }
-                                        
-                                        		    
-                                        
                                         		    this.addElement(event.dataTransfer.getData("type"), array);
-                                        
-                                        
-                                        
-                                        		    break;
-                                        
-                                        
-                                        
+                                        		break;
                                         		case "moved":
-                                        
-                                        
-                                        
                                                     this.c8o.log.debug("Object has been moved");
-                                        
                                                     let arr0 = [vars.i,0];
-                                        
                                                     let arr;
-                                        
                                                     if(event.dataTransfer.getData("index").indexOf(",") != -1){
-                                        
                                                          arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
-                                        
                                                     }
-                                        
                                                     else{
-                                        
                                                         arr = [+event.dataTransfer.getData("index")];
-                                        
                                                     }
-                                        
                                                     if(this.formsList[vars.i]["children"].length > 0){
-                                        
                                                         arr0[1] = this.formsList[vars.i]["children"].length;
-                                        
                                                     }
-                                        
-                                                    console.log("arr0");
-                                        
-                                                    console.log(arr0);
-                                        
-                                                    console.log("arr");console.log(arr);
-                                        
-                                                    
-                                        
-                                                    this.moveElement(arr0, arr);
-                                        
-                                                    console.log(this.formsList);
-                                        
                                                     break;
-                                        
-                                        
-                                        
                                         		case "copied":
-                                        
-                                        
-                                        
                                                     this.c8o.log.debug("Object has been copied");
-                                        
-                                        
-                                        
-                                                    
-                                        
-                                        
-                                        
                                                     break;
-                                        
-                                        
-                                        
                                         		}
-                                        
-                                        
-                                        
-                                        		
-                                        
-                                        		
-                                        
                                         		const oldElem = document.getElementById(this.local["currentHighlight"]);
-                                        
                                                 if(oldElem != null){
-                                        
                                                     oldElem.style["border-color"] = null;
-                                        
                                                     oldElem.style["border-style"] = null;
-                                        
                                                 }
-                                        
                                         		resolve();
-                                        
                                         
                                 ↓i [mobile.components.UIControlVariable-1542994439775]: 
                                   varValue: 
@@ -4040,6 +4492,62 @@ title: Title for editor
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                             - MobileSmartSourceType: script:item.type == "radiobt"
+                        ↓GenericItem [mobile.components.UIDynamicElement-1543109012572]: 
+                          beanData: '{"ionBean":"GenericItem"}'
+                          tagName: ion-item
+                          ↓Label [mobile.components.UIDynamicElement-1543109012575]: 
+                            beanData: '{"ionBean":"Label"}'
+                            tagName: ion-label
+                            ↓Text [mobile.components.UIText-1543109012578]: 
+                              textValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:item.config.text
+                            ↓Attr3 [mobile.components.UIAttribute-1543109012581]: 
+                              attrName: '[color]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.label_color != 'unset')?item.config.label_color:null
+                            ↓Attr [mobile.components.UIAttribute-1543109012584]: 
+                              attrName: '[attr.stacked]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.position == 'stacked')?'':null
+                            ↓Attr2 [mobile.components.UIAttribute-1543109012587]: 
+                              attrName: '[attr.fixed]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.position == 'fixed')?'':null
+                            ↓Attr1 [mobile.components.UIAttribute-1543109012590]: 
+                              attrName: '[attr.floating]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:(item.config.position == 'floating')?'':null
+                          ↓RadioButton [mobile.components.UIDynamicElement-1543109012593]: 
+                            beanData: '{"ionBean":"RadioButton"}'
+                            tagName: ion-radio
+                            ↓Attr [mobile.components.UIAttribute-1543109012596]: 
+                              attrName: disabled
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:item.config.disabled
+                            ↓Attr2 [mobile.components.UIAttribute-1543109012599]: 
+                              attrName: value
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:item.config.value
+                            ↓Attr3 [mobile.components.UIAttribute-1543109012602]: 
+                              attrName: checked
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:item.config.checked
                     ↓Attr1 [mobile.components.UIAttribute-1541177791891]: 
                       attrName: id
                       attrValue: 
@@ -4060,48 +4568,6 @@ title: Title for editor
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                       - MobileSmartSourceType: script:'@prefixc8oitem'+item.name+'@prefixc8otype'+item.type
-                ↓Event1 [mobile.components.UIControlEvent-1541177792969]: 
-                  attrName: (drop)
-                  eventName: (drop)
-                  ↓drop [mobile.components.UICustomAction-1541177793139]: 
-                    actionValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                                    event.preventDefault();
-                                    this.c8o.log.debug("Dropped into ion-card");
-                                    const origin = event.dataTransfer.getData("origin");
-                                    switch(origin){
-                                    case "new":
-                                        this.c8o.log.debug("Object is new");
-                                        this.addElement(event.dataTransfer.getData("type"), vars.index, true);
-                                        break;
-                                    case "moved":
-                                        this.c8o.log.debug("Object has been moved");
-                                        let arr;
-                                        if(event.dataTransfer.getData("index").indexOf(",") != -1){
-                                             arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
-                                        }
-                                        else{
-                                            arr = [+event.dataTransfer.getData("index")];
-                                        }
-                                        this.moveElement(vars.index, arr);
-                                        break;
-                                    case "copied":
-                                        this.c8o.log.debug("Object has been copied");
-                                        
-                                        break;
-                                    }
-                                    
-                            		const oldElem = document.getElementById(this.local["currentHighlight"]);
-                                    if(oldElem != null){
-                                        oldElem.style["border-color"] = null;
-                                        oldElem.style["border-style"] = null;
-                                    }
-                            		resolve();
-                            
-                    isEnabled: false
                 ↓Event11 [mobile.components.UIControlEvent-1541181398988]: 
                   attrName: (dragstart)
                   eventName: (dragstart)
@@ -4111,18 +4577,20 @@ title: Title for editor
                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
-                            		   
-                            		if(event.srcElement.id.indexOf("c8o_child") != -1){
-                            		    this.c8o.log.debug("dargstart concerns child");
+                            		if(event.srcElement.id.indexOf("c8o_child1") != -1 ){
+                            		    this.c8o.log.debug("dargstart concerns child1");
+                            		}
+                            		else if(event.srcElement.id.indexOf("c8o_child2") != -1){
+                            			 this.c8o.log.debug("dargstart concerns child2");
                             		}
                             		else{
-                            		    console.log("dragstart");
-                            	        console.log(vars.index);
+                            		    this.c8o.log.debug("dragstart at level0, index of target to move is "+vars.index);
+                            	        event.dataTransfer.setData("__c8oformsdrag", true);
+                            			event.dataTransfer.setData(vars.item.type, true);
                             	        event.dataTransfer.setData("origin", "moved");
                             	        event.dataTransfer.setData("index", vars.index);
                             	        event.dataTransfer.setData("dropEffect", "copy");
                             	        resolve();
-                            		    
                             		}
                             		
                             
@@ -4131,6 +4599,11 @@ title: Title for editor
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                           - MobileSmartSourceType: script:[i]
+                    ↓item [mobile.components.UIControlVariable-1543003415914]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:item
                 ↓Attr1 [mobile.components.UIAttribute-1541181654911]: 
                   attrName: draggable
                   attrValue: 
@@ -4201,8 +4674,10 @@ title: Title for editor
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                         →: |
-                          		event.preventDefault();
-                          		this.recursive(event.target, "before");
+                          			if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                          					event.preventDefault();
+                          					this.recursive(event.target, "before");
+                          			}
                           		resolve();
                           
               ↓Event1 [mobile.components.UIControlEvent-1541428252719]: 
@@ -4215,44 +4690,34 @@ title: Title for editor
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                         →: |
                           		event.preventDefault();
-                          		this.c8o.log.debug("Dropped before");
+                          		this.c8o.log.debug("Dropped into after level0");
                           		const origin = event.dataTransfer.getData("origin");
-                          
                           		switch(origin){
-                          
                           		case "new":
-                          
-                          		    this.c8o.log.debug("Object is new");
-                          
+                          		    this.c8o.log.debug("Origin is new");
                           		    this.addElement(event.dataTransfer.getData("type"), vars.index);
-                          
                           		    break;
-                          
                           		case "moved":
-                          
-                                      this.c8o.log.debug("Object has been moved");
+                                      this.c8o.log.debug("Origin is moved");
                                       let arr;
                                       if(event.dataTransfer.getData("index").indexOf(",") != -1){
-                                           arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                           if(event.dataTransfer.getData("index").length == 5){
+                                      		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3),+event.dataTransfer.getData("index").substring(4,5)];
+                                      	}
+                                      	else{
+                                      		arr = [+event.dataTransfer.getData("index").substring(0,1), +event.dataTransfer.getData("index").substring(2,3)];
+                                      	}
                                       }
                                       else{
                                           arr = [+event.dataTransfer.getData("index")];
                                       }
                                       this.moveElement(vars.index, arr);
                                       break;
-                          
                           		case "copied":
-                          
                                       this.c8o.log.debug("Object has been copied");
-                          
-                                      
-                          
                                       break;
                           
                           		}
-                          
-                          		
-                          		
                           		const oldElem = document.getElementById(this.local["currentHighlight"]);
                                   if(oldElem != null){
                                       oldElem.style["border-color"] = null;
@@ -4280,14 +4745,13 @@ title: Title for editor
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
+                    			this.c8o.log.debug("Dragleave called to supress highlighting");
                     		    const oldElem = document.getElementById(this.local["currentHighlight"]);
                     	        if(oldElem != null){
                     	            oldElem.style["border-color"] = null;
                     	            oldElem.style["border-style"] = null;
                     	        }
                     	        this.local["currentHighlight"] = "";
-                    	        console.log(oldElem);
-                    	        console.log("dragleave")
                     
 ↓PageEvent [mobile.components.UIPageEvent-1537361744228]: 
   ↓If [mobile.components.UIDynamicAction-1537539877850]: 
