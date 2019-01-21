@@ -7,6 +7,7 @@ scriptContent:
         '/*Begin_c8o_PageImport*/
         import {TranslateService} from ''@ngx-translate/core'';
         import { Slides } from ''ionic-angular'';
+        import {ToastController } from ''ionic-angular'';
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
         	@ViewChild(Slides) public slides: Slides;
@@ -29,6 +30,109 @@ scriptContent:
                 this.global["center"] = "";
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	
+        	public checkNotEmptyAndNameNotExists(event:any, vars: any, msgTosearch: string){
+        	    let cancel = false;
+        	    //Check that value is not empty
+        	    if(event.srcElement.value != ""){
+                    for(let val of vars.item.children){
+                        if(event.srcElement.value == val.value){
+                               cancel = true;
+                           } 
+                    }
+                    if(!cancel){
+                        vars.child.value = event.srcElement.value;
+                        this.updateState();
+                        this.tick();
+                        return;
+                    }
+                    else{
+                        let translate = this.getInstance(TranslateService)
+                        translate.get(msgTosearch).subscribe((res: string) => {
+                            let toastCtrl = this.getInstance(ToastController);
+                            let toast = toastCtrl.create({
+                                message: res,
+                                duration: 3000,
+                                cssClass:"changeToast"
+                            })
+                            toast.present();
+                        });
+                        let a = vars.child.value;
+                        vars.child.value = vars.child.value + " ";
+                        this.tick();
+                        vars.child.value= a;
+                        this.tick();
+                        return;
+                    }
+                }
+                else{
+                    let valInit = vars.child.value;
+                    vars.child.value = vars.child.value + " ";
+                    this.tick();
+                    vars.child.value= valInit;
+                    this.tick();
+                    return;
+                }
+        	}
+        	
+        	getNextValueDispo(localNumbers: Array<number>):number{
+        	    let val = 1;
+        	    let uniqueVal = false;
+        	    let smallest = localNumbers[0];
+        	    if(localNumbers.length == 0){
+                    val = 1;
+                }
+        	    else if(localNumbers.length == 1){
+                    val = localNumbers[localNumbers.length -1] + 1;
+                    uniqueVal = true;
+                }
+                else{
+                    val = localNumbers[localNumbers.length -1];   
+                }
+        	    if((smallest -1) > 0){
+        	        val = smallest -1;
+        	    }
+        	    else{
+        	        localNumbers.some((child, index) => {
+        	            if(child + 1 != localNumbers[index+1]){
+        	                val = child + 1;
+        	                return true;
+        	            }
+        	            else{
+        	                return false;   
+        	            }
+        	        });    
+        	    }
+                return val;
+        	}
+        	getlocalNumbersSorted(items, localNumbers, defaultlabel){
+        	    items["children"].forEach((child, index) => {
+                    if(child.value.indexOf(defaultlabel)!= -1){
+                        let whil = true;
+                        let cpt = 0;
+                        while(whil){
+                            whil = this.checkStringIsANumber(child.value, cpt +1);
+                            cpt++;
+                        }
+                        cpt--;
+                        if(cpt != 0){
+                            localNumbers[index] = +child.value.substring(child.value.length - cpt);
+                        }
+                    }
+                });
+                
+                localNumbers = localNumbers.sort((a,b)=> {
+                    return a - b;
+                });
+        	}
+        	checkStringIsANumber(str: string, level: number): boolean{
+        	    if(isNaN(+(str.substring(str.length - level, str.length)))){
+                    return false;
+                }
+        	    else{
+        	        return true;
+        	    }
+        	}
         	
         	 private setDisableScroll(disable: boolean) : void {       
         	     
@@ -106,7 +210,7 @@ scriptContent:
                 
                 this.c8o.callJsonObject("fs://c8oforms_fs.post", params)
                 .then((response: any, params: any)=>{
-                	this.tick();
+                	//this.tick();
                   this.c8o.log.debug("updateState: " + JSON.stringify(response));
                   return null;
                 })
@@ -258,6 +362,22 @@ scriptContent:
         	    translate.get(''answer'').subscribe((res: string) => {
             	 answer = res.charAt(0).toUpperCase() + res.slice(1);
         		});
+        	    
+        	    let obj = {};
+        	    this.formsList.forEach((item, index)=>{
+        	        if(item["type"] == "group"){
+        	            obj[item["name"]] = item["name"];
+        	            item.forEach((child, index2)=>{
+        	                obj[child["name"]] = child["name"];
+        	            });
+        	            
+        	        }
+        	        else{
+        	            obj[item["name"]] = item["name"];
+        	        }
+        	    });
+        	    console.log(obj);
+        	    
         	    switch (typ) {
                 	case "text":
                 	    objToInsert = {
@@ -294,6 +414,7 @@ scriptContent:
                 	case "checkbox":
                 	    objToInsert = {
                                     "type": typ,
+                                    "children":[{"value":"Checkbox 1", "selected":true,"label_color":"primary","position": ''unset''},{"value":"Checkbox 2","selected":true,"label_color":"primary","position": ''unset''}],
                                     "config": {
                                         "mandatory": false,
                                         "checked": false,
@@ -1106,25 +1227,8 @@ title: Title for editor
                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                             →: |
                               		page.c8o.log.debug(event ? event.toString():'no event');
-                              
-                              
-                              
-                              		
-                              
-                              
-                              
                               		this.addElement(vars.type);
-                              
-                              
-                              
-                              		
-                              
-                              
-                              
                               		resolve();
-                              
-                              
-                              
                               
                       ↓type [mobile.components.UIControlVariable-1543943644659]: 
                         varValue: 
@@ -4063,6 +4167,7 @@ title: Title for editor
                               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                               - MobileSmartSourceType: script:this.form.descform
                         ↓Style [mobile.components.UIStyle-1544121758470]: 
+                          isEnabled: false
                           styleContent: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -4073,7 +4178,6 @@ title: Title for editor
                                   
                                   
                                   '
-                          isEnabled: false
                         ↓Event [mobile.components.UIControlEvent-1544121758473]: 
                           attrName: (change)
                           eventName: onChange
@@ -5802,370 +5906,514 @@ title: Title for editor
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:item.type == "checkbox"
-                            ↓DividerItem [mobile.components.UIDynamicElement-1544150988474]: 
-                              beanData: '{"ionBean":"Listdivider","IonColor":"plain:primary"}'
-                              tagName: ion-item-divider
-                              ↓TextFormat [mobile.components.UIDynamicElement-1544150988477]: 
-                                beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
-                                tagName: div
-                                ↓Text [mobile.components.UIText-1544150988480]: 
-                                  textValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:'label' | translate
-                            ↓GridRow [mobile.components.UIDynamicElement-1544150953270]: 
-                              beanData: '{"ionBean":"GridRow"}'
-                              tagName: ion-row
-                              ↓GridCol [mobile.components.UIDynamicElement-1544151231360]: 
-                                beanData: '{"ionBean":"GridCol"}'
-                                tagName: ion-col
-                                ↓GenericItem [mobile.components.UIDynamicElement-1544151015843]: 
-                                  beanData: '{"ionBean":"GenericItem"}'
-                                  tagName: ion-item
-                                  ↓Label [mobile.components.UIDynamicElement-1544151142265]: 
-                                    beanData: '{"ionBean":"Label","Stacked":"plain:stacked"}'
-                                    tagName: ion-label
-                                    ↓TextFormat [mobile.components.UIDynamicElement-1544151142268]: 
-                                      beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
-                                      tagName: div
-                                      ↓Text [mobile.components.UIText-1544151142271]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: script:'text' | translate
-                                  ↓TextInput [mobile.components.UIDynamicElement-1544151024553]: 
-                                    beanData: '{"ionBean":"Input"}'
-                                    tagName: ion-input
-                                    ↓Attr [mobile.components.UIAttribute-1544151024556]: 
-                                      attrName: '[(ngModel)]'
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:item.config.label
-                                    ↓Event [mobile.components.UIControlEvent-1544539909078]: 
-                                      attrName: (change)
-                                      eventName: onChange
-                                      ↓CheckAndRegister [mobile.components.UICustomAction-1544539909081]: 
-                                        actionValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                              →: |
-                                                		if(event.srcElement.value != ""){
-                                                			vars.item.config.label = event.srcElement.value;
-                                                			this.updateState();
-                                                			this.tick();
-                                                		}
-                                                		else{
-                                                			//event.srcElement.value = this.form._id;
-                                                
-                                                		    let a = vars.item.config.label;
-                                                		    vars.item.config.label = vars.item.config.label + " ";
-                                                		    this.tick();
-                                                		    vars.item.config.label = a;
-                                                		    this.tick();
-                                                		}
-                                                		resolve();
-                                                
-                                        ↓item [mobile.components.UIControlVariable-1544539909084]: 
-                                          varValue: 
-                                            - xmlizable: 
-                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                              - MobileSmartSourceType: script:item
-                              ↓GridCol1 [mobile.components.UIDynamicElement-1544151233811]: 
-                                beanData: '{"ionBean":"GridCol"}'
-                                tagName: ion-col
-                                ↓GenericItem [mobile.components.UIDynamicElement-1544151174030]: 
-                                  beanData: '{"ionBean":"GenericItem"}'
-                                  tagName: ion-item
-                                  ↓Label [mobile.components.UIDynamicElement-1544151195969]: 
-                                    beanData: '{"ionBean":"Label","Stacked":"plain:stacked"}'
-                                    tagName: ion-label
-                                    ↓TextFormat [mobile.components.UIDynamicElement-1544151195972]: 
-                                      beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
-                                      tagName: div
-                                      ↓Text [mobile.components.UIText-1544151195975]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: script:'color' | translate
-                                  ↓SelectContainer [mobile.components.UIDynamicElement-1544151195978]: 
-                                    beanData: '{"ionBean":"Select","interface":"plain:popover"}'
-                                    tagName: ion-select
-                                    ↓SelectColorNotSet [mobile.components.UIDynamicElement-1544151195981]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''unset''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151195984]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Not set
-                                    ↓SelectColorPrimary [mobile.components.UIDynamicElement-1544151195987]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''primary''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151195990]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Primary
-                                    ↓SelectColorSecondary [mobile.components.UIDynamicElement-1544151195993]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''secondary''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151195996]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Secondary
-                                    ↓SelectColorDark [mobile.components.UIDynamicElement-1544151195999]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''dark''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151196002]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Dark
-                                    ↓Attr [mobile.components.UIAttribute-1544151196005]: 
-                                      attrName: '[(ngModel)]'
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:item.config.label_color
-                                    ↓SelectColorLight [mobile.components.UIDynamicElement-1544151196008]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''light''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151196011]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Light
-                                    ↓SelectColorDanger [mobile.components.UIDynamicElement-1544151196014]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''danger''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151196017]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Danger
-                                    ↓Event [mobile.components.UIControlEvent-1544540018279]: 
-                                      attrName: (ionChange)
-                                      eventName: (ionChange)
-                                      ↓triggerSave [mobile.components.UICustomAction-1544540018282]: 
-                                        actionValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                              →: |
-                                                		page.c8o.log.debug(event ? event.toString():'no event')
-                                                
-                                                
-                                                
-                                                		this.updateState();
-                                                
-                                                		resolve();
-                                                
-                                                
-                            ↓DividerItem1 [mobile.components.UIDynamicElement-1544151286927]: 
-                              beanData: '{"ionBean":"Listdivider","IonColor":"plain:primary"}'
-                              tagName: ion-item-divider
-                              ↓TextFormat [mobile.components.UIDynamicElement-1544151286930]: 
-                                beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
-                                tagName: div
-                                ↓Text [mobile.components.UIText-1544151286933]: 
-                                  textValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:'Checkbox' | translate
-                            ↓GridRow1 [mobile.components.UIDynamicElement-1544150956633]: 
-                              beanData: '{"ionBean":"GridRow"}'
-                              tagName: ion-row
-                              ↓GridCol [mobile.components.UIDynamicElement-1544151355996]: 
-                                beanData: '{"ionBean":"GridCol"}'
-                                tagName: ion-col
-                                ↓GenericItem [mobile.components.UIDynamicElement-1544151372100]: 
-                                  beanData: '{"ionBean":"GenericItem"}'
-                                  tagName: ion-item
-                                  ↓Label [mobile.components.UIDynamicElement-1544151375740]: 
-                                    beanData: '{"ionBean":"Label","Stacked":"plain:stacked"}'
-                                    tagName: ion-label
-                                    ↓TextFormat [mobile.components.UIDynamicElement-1544151375743]: 
-                                      beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
-                                      tagName: div
-                                      ↓Text [mobile.components.UIText-1544151375746]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: script:'checked' | translate
-                                  ↓ToggleButton [mobile.components.UIDynamicElement-1544151375749]: 
-                                    beanData: '{"ionBean":"Toggle"}'
-                                    identifier: checkedCheckbox
-                                    tagName: ion-toggle
-                                    ↓Attr [mobile.components.UIAttribute-1544151375752]: 
-                                      attrName: '[(ngModel)]'
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:item.config.checked
-                                    ↓Event [mobile.components.UIControlEvent-1544540053254]: 
-                                      attrName: (ionChange)
-                                      eventName: (ionChange)
-                                      ↓triggerSave [mobile.components.UICustomAction-1544540053257]: 
-                                        actionValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                              →: |
-                                                		page.c8o.log.debug(event ? event.toString():'no event')
-                                                
-                                                
-                                                
-                                                		this.updateState();
-                                                
-                                                		resolve();
-                                                
-                                                
-                              ↓GridCol1 [mobile.components.UIDynamicElement-1544151365905]: 
-                                beanData: '{"ionBean":"GridCol"}'
-                                tagName: ion-col
-                                ↓GenericItem [mobile.components.UIDynamicElement-1544151435798]: 
-                                  beanData: '{"ionBean":"GenericItem"}'
-                                  tagName: ion-item
-                                  ↓Label [mobile.components.UIDynamicElement-1544151441560]: 
-                                    beanData: '{"ionBean":"Label","Stacked":"plain:stacked"}'
-                                    tagName: ion-label
-                                    ↓TextFormat [mobile.components.UIDynamicElement-1544151441563]: 
-                                      beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
-                                      tagName: div
-                                      ↓Text [mobile.components.UIText-1544151441566]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: script:'color' | translate
-                                  ↓SelectContainer [mobile.components.UIDynamicElement-1544151441569]: 
-                                    beanData: '{"ionBean":"Select","interface":"plain:popover"}'
-                                    tagName: ion-select
-                                    ↓SelectColorNotSet [mobile.components.UIDynamicElement-1544151441572]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''unset''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151441575]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Not set
-                                    ↓SelectColorPrimary [mobile.components.UIDynamicElement-1544151441578]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''primary''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151441581]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Primary
-                                    ↓SelectColorSecondary [mobile.components.UIDynamicElement-1544151441584]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''secondary''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151441587]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Secondary
-                                    ↓SelectColorDark [mobile.components.UIDynamicElement-1544151441590]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''dark''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151441593]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Dark
-                                    ↓Attr [mobile.components.UIAttribute-1544151441596]: 
-                                      attrName: '[(ngModel)]'
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:item.config.color
-                                    ↓SelectColorLight [mobile.components.UIDynamicElement-1544151441599]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''light''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151441602]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Light
-                                    ↓SelectColorDanger [mobile.components.UIDynamicElement-1544151441605]: 
-                                      beanData: '{"ionBean":"Option","value":"plain:''danger''"}'
-                                      tagName: ion-option
-                                      ↓Text [mobile.components.UIText-1544151441608]: 
-                                        textValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:Danger
-                                    ↓Event [mobile.components.UIControlEvent-1544540094128]: 
-                                      attrName: (ionChange)
-                                      eventName: (ionChange)
-                                      ↓triggerSave [mobile.components.UICustomAction-1544540094131]: 
-                                        actionValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                              →: |
-                                                		page.c8o.log.debug(event ? event.toString():'no event')
-                                                
-                                                
-                                                
-                                                		this.updateState();
-                                                
-                                                		resolve();
-                                                
-                                                
                             ↓Attr1 [mobile.components.UIAttribute-1544107306772]: 
                               attrName: draggable
                               attrValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                   - MobileSmartSourceType: plain:true
-                            ↓GridRow11 [mobile.components.UIDynamicElement-1546528801622]: 
+                            ↓DividerItemCheckbox [mobile.components.UIDynamicElement-1547830326278]: 
+                              beanData: '{"ionBean":"Listdivider","IonColor":"plain:primary"}'
+                              tagName: ion-item-divider
+                              ↓TextFormat [mobile.components.UIDynamicElement-1547830326281]: 
+                                beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
+                                tagName: div
+                                ↓Text [mobile.components.UIText-1547830326284]: 
+                                  textValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: plain:Checkbox
+                            ↓ListContainer [mobile.components.UIDynamicElement-1547830349426]: 
+                              beanData: '{"ionBean":"List"}'
+                              tagName: ion-list
+                              ↓Directive [mobile.components.UIControlDirective-1547830370625]: 
+                                directiveExpression: let j = index
+                                directiveSource: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:let child of item.children
+                                ↓Item [mobile.components.UIDynamicElement-1547830370655]: 
+                                  beanData: '{"ionBean":"GridRow"}'
+                                  tagName: ion-row
+                                  ↓Event11 [mobile.components.UIControlEvent-1547830370658]: 
+                                    attrName: (dragstart)
+                                    eventName: (dragstart)
+                                    ↓addElementToList [mobile.components.UICustomAction-1547830370661]: 
+                                      actionValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              		
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              		
+                                              
+                                              
+                                              
+                                              		event.dataTransfer.setData("__c8oformsdrag", true);
+                                              
+                                              
+                                              
+                                              		event.dataTransfer.setData(vars.item.type, true);
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              		event.dataTransfer.setData("origin", "moved");
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              		event.dataTransfer.setData("index", vars.index);
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              		event.dataTransfer.setData("dropEffect", "copy");
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              		resolve();
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                              
+                                      ↓index [mobile.components.UIControlVariable-1547830370664]: 
+                                        varValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: script:[i,j]
+                                      ↓item [mobile.components.UIControlVariable-1547830370667]: 
+                                        varValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: script:child
+                                  ↓Attr [mobile.components.UIAttribute-1547830370670]: 
+                                    attrName: id
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:'@prefixc8oitem'+child.name+'@prefixc8otype'+child.type+'c8o_child1'
+                                    isEnabled: false
+                                  ↓Attr1 [mobile.components.UIAttribute-1547830370673]: 
+                                    attrName: draggable
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: plain:true
+                                  ↓GridCol [mobile.components.UIDynamicElement-1547830370676]: 
+                                    beanData: '{"ionBean":"GridCol"}'
+                                    tagName: ion-col
+                                    ↓GenericItem1 [mobile.components.UIDynamicElement-1547830370679]: 
+                                      beanData: '{"ionBean":"GenericItem"}'
+                                      tagName: ion-item
+                                      ↓TextInput [mobile.components.UIDynamicElement-1547830370682]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "Input",
+                                           "Placeholder": "script:this.global[''text'']",
+                                           "Value": "script:child.value"
+                                          }'
+                                        tagName: ion-input
+                                        ↓Event [mobile.components.UIControlEvent-1547830370685]: 
+                                          attrName: (change)
+                                          eventName: onChange
+                                          ↓CheckAndRegister [mobile.components.UICustomAction-1547830370688]: 
+                                            actionValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    		    this.checkNotEmptyAndNameNotExists(event,vars,"nameAlreadyexits");
+                                                    
+                                            ↓child [mobile.components.UIControlVariable-1547830370691]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:child
+                                            ↓item [mobile.components.UIControlVariable-1547931940883]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:item
+                                            ↓j [mobile.components.UIControlVariable-1548080424006]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:j
+                                  ↓GridCol1 [mobile.components.UIDynamicElement-1547830370694]: 
+                                    beanData: '{"ionBean":"GridCol"}'
+                                    tagName: ion-col
+                                    ↓GenericItem [mobile.components.UIDynamicElement-1547830370697]: 
+                                      beanData: '{"ionBean":"GenericItem"}'
+                                      tagName: ion-item
+                                      ↓CheckBox [mobile.components.UIDynamicElement-1547830430283]: 
+                                        beanData: '{"ionBean":"CheckBox"}'
+                                        tagName: ion-checkbox
+                                        ↓Event [mobile.components.UIControlEvent-1547830498450]: 
+                                          attrName: (ionChange)
+                                          eventName: (ionChange)
+                                          ↓CheckAndRegister [mobile.components.UICustomAction-1547830498453]: 
+                                            actionValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                                //vars.child.selected = true;
+                                                    		    //vars.child.selected = !vars.child.selected;
+                                                    		    console.log(vars);
+                                                                this.updateState();
+                                                                resolve();
+                                                    
+                                            ↓item [mobile.components.UIControlVariable-1547830498456]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:item
+                                            ↓child [mobile.components.UIControlVariable-1547830498459]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:child
+                                        ↓Attr [mobile.components.UIAttribute-1547831138176]: 
+                                          attrName: '[(ngModel)]'
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:item.children[j].selected
+                                    ↓Text [mobile.components.UIText-1547837926357]: 
+                                      isEnabled: false
+                                      textValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:item.children[j].selected
+                                  ↓GridCol2 [mobile.components.UIDynamicElement-1547830370721]: 
+                                    beanData: '{"ionBean":"GridCol","Columns":"plain:1"}'
+                                    tagName: ion-col
+                                    ↓GenericItem [mobile.components.UIDynamicElement-1547830370724]: 
+                                      beanData: '{"ionBean":"GenericItem"}'
+                                      tagName: ion-item
+                                      ↓Attr [mobile.components.UIAttribute-1547830370727]: 
+                                        attrName: 
+                                        attrValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: plain:item-end
+                                      ↓Button [mobile.components.UIDynamicElement-1547830370730]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "Button",
+                                           "IonColor": "plain:danger",
+                                           "IonShape": "plain:round"
+                                          }'
+                                        tagName: button
+                                        ↓Icon [mobile.components.UIDynamicElement-1547830370733]: 
+                                          beanData: '{"ionBean":"Icon","IconName":"plain:trash"}'
+                                          tagName: ion-icon
+                                        ↓Attr [mobile.components.UIAttribute-1547830370736]: 
+                                          attrName: 
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: plain:item-end
+                                        ↓Event [mobile.components.UIControlEvent-1547830370739]: 
+                                          ↓CustomAction [mobile.components.UICustomAction-1547830370742]: 
+                                            actionValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    		page.c8o.log.debug(event ? event.toString():'no event');
+                                                    		vars.item.children.splice(vars.j, 1);
+                                                    		this.updateState();
+                                                    		this.tick();
+                                                    		resolve();
+                                                    
+                                            ↓item [mobile.components.UIControlVariable-1547830370745]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:item
+                                            ↓j [mobile.components.UIControlVariable-1547830370748]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:j
+                              ↓ItemAddCheckbox [mobile.components.UIDynamicElement-1547830370757]: 
+                                beanData: '{"ionBean":"GridRow"}'
+                                tagName: ion-row
+                                ↓Event11 [mobile.components.UIControlEvent-1547830370760]: 
+                                  attrName: (dragstart)
+                                  eventName: (dragstart)
+                                  ↓addElementToList [mobile.components.UICustomAction-1547830370763]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            		
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            		
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            		event.dataTransfer.setData("__c8oformsdrag", true);
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            		event.dataTransfer.setData(vars.item.type, true);
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            		event.dataTransfer.setData("origin", "moved");
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            		event.dataTransfer.setData("index", vars.index);
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            		event.dataTransfer.setData("dropEffect", "copy");
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            		resolve();
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                            
+                                    ↓index [mobile.components.UIControlVariable-1547830370766]: 
+                                      isEnabled: false
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:[i,j]
+                                    ↓item [mobile.components.UIControlVariable-1547830370769]: 
+                                      isEnabled: false
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:child
+                                ↓Attr [mobile.components.UIAttribute-1547830370772]: 
+                                  attrName: id
+                                  attrValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:'@prefixc8oitem'+child.name+'@prefixc8otype'+child.type+'c8o_child1'
+                                  isEnabled: false
+                                ↓Attr1 [mobile.components.UIAttribute-1547830370775]: 
+                                  attrName: draggable
+                                  attrValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: plain:true
+                                ↓GridCol [mobile.components.UIDynamicElement-1547830370778]: 
+                                  beanData: '{"ionBean":"GridCol"}'
+                                  tagName: ion-col
+                                  ↓GenericItem1 [mobile.components.UIDynamicElement-1547830370781]: 
+                                    beanData: '{"ionBean":"GenericItem"}'
+                                    tagName: ion-item
+                                    ↓TextInput [mobile.components.UIDynamicElement-1547830370784]: 
+                                      beanData: |
+                                        '{
+                                         "ionBean": "Input",
+                                         "Placeholder": "script:this.global[''text'']",
+                                         "Value": "script:''addcheckbox''|translate"
+                                        }'
+                                      tagName: ion-input
+                                      ↓Attr [mobile.components.UIAttribute-1547830370787]: 
+                                        attrName: disabled
+                                        attrValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: plain:true
+                                      ↓Event1 [mobile.components.UIControlEvent-1547830370790]: 
+                                        attrName: (mouseover)
+                                        eventName: (mouseover)
+                                        isEnabled: false
+                                        ↓CustomAction [mobile.components.UICustomAction-1547830370793]: 
+                                    ↓Event [mobile.components.UIControlEvent-1547830370796]: 
+                                      ↓AddCheckbox [mobile.components.UICustomAction-1547830370799]: 
+                                        actionValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                              →: |
+                                                '        let localNumbers = [];
+                                                        let defualtLabel = "Checkbox";
+                                                        this.getlocalNumbersSorted(vars.item, localNumbers, defualtLabel);
+                                                		let val = this.getNextValueDispo(localNumbers);
+                                                        vars.item[''children''].push({"value":defualtLabel + " " +val, "selected":false,"label_color":"primary","position": ''unset''});
+                                                        this.updateState();
+                                                        this.tick();
+                                                		resolve();
+                                                '
+                                        ↓item [mobile.components.UIControlVariable-1547830370802]: 
+                                          varValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:item
+                                  ↓Style [mobile.components.UIStyle-1547830370805]: 
+                                    styleContent: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            '	cursor: pointer;
+                                            '
+                              ↓Tag2 [mobile.components.UIElement-1547830370808]: 
+                                selfClose: true
+                                tagName: br
+                            ↓GridRowMandatory [mobile.components.UIDynamicElement-1547841943125]: 
                               beanData: '{"ionBean":"GridRow"}'
                               tagName: ion-row
-                              ↓DividerItem [mobile.components.UIDynamicElement-1546528801625]: 
+                              ↓DividerItem [mobile.components.UIDynamicElement-1547841943128]: 
                                 beanData: '{"ionBean":"Listdivider","IonColor":"plain:primary"}'
                                 tagName: ion-item-divider
-                                ↓TextFormat [mobile.components.UIDynamicElement-1546528801628]: 
+                                ↓TextFormat [mobile.components.UIDynamicElement-1547841943131]: 
                                   beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
                                   tagName: div
-                                  ↓Text [mobile.components.UIText-1546528801631]: 
+                                  ↓Text [mobile.components.UIText-1547841943134]: 
                                     textValue: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                         - MobileSmartSourceType: script:'option'| translate
-                              ↓GridCol [mobile.components.UIDynamicElement-1546528801634]: 
+                              ↓GridCol [mobile.components.UIDynamicElement-1547841943137]: 
                                 beanData: '{"ionBean":"GridCol"}'
                                 tagName: ion-col
-                                ↓GenericItem [mobile.components.UIDynamicElement-1546528801637]: 
+                                ↓GenericItem [mobile.components.UIDynamicElement-1547841943140]: 
                                   beanData: '{"ionBean":"GenericItem"}'
                                   tagName: ion-item
-                                  ↓Label [mobile.components.UIDynamicElement-1546528801640]: 
+                                  ↓Label [mobile.components.UIDynamicElement-1547841943143]: 
                                     beanData: '{"ionBean":"Label","Stacked":"plain:stacked"}'
                                     tagName: ion-label
-                                    ↓TextFormat [mobile.components.UIDynamicElement-1546528801643]: 
+                                    ↓TextFormat [mobile.components.UIDynamicElement-1547841943146]: 
                                       beanData: '{"ionBean":"TextFormat","TextCapitalize":"plain:text-capitalize"}'
                                       tagName: div
-                                      ↓Text [mobile.components.UIText-1546528801646]: 
+                                      ↓Text [mobile.components.UIText-1547841943149]: 
                                         textValue: 
                                           - xmlizable: 
                                             - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                             - MobileSmartSourceType: script:'mandatory' | translate
-                                  ↓ToggleButton [mobile.components.UIDynamicElement-1546528801649]: 
+                                  ↓ToggleButton [mobile.components.UIDynamicElement-1547841943152]: 
                                     beanData: '{"ionBean":"Toggle"}'
                                     identifier: checkedCheckbox
                                     tagName: ion-toggle
-                                    ↓Attr [mobile.components.UIAttribute-1546528801652]: 
+                                    ↓Attr [mobile.components.UIAttribute-1547841943155]: 
                                       attrName: '[(ngModel)]'
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                           - MobileSmartSourceType: script:item.config.mandatory
-                                    ↓Event [mobile.components.UIControlEvent-1546528801655]: 
+                                    ↓Event [mobile.components.UIControlEvent-1547841943158]: 
                                       attrName: (ionChange)
                                       eventName: (ionChange)
-                                      ↓triggerSave [mobile.components.UICustomAction-1546528801658]: 
+                                      ↓triggerSave [mobile.components.UICustomAction-1547841943161]: 
                                         actionValue: 
                                           - xmlizable: 
                                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -6181,7 +6429,7 @@ title: Title for editor
                             ↓Tag [mobile.components.UIElement-1544151485130]: 
                               selfClose: true
                               tagName: br
-                            ↓GridRow21 [mobile.components.UIDynamicElement-1544151485133]: 
+                            ↓GridRowSave [mobile.components.UIDynamicElement-1544151485133]: 
                               beanData: '{"ionBean":"GridRow"}'
                               tagName: ion-row
                               ↓Div [mobile.components.UIDynamicElement-1544151485136]: 
@@ -9432,7 +9680,7 @@ title: Title for editor
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:item.type == "radio"
-                            ↓DividerItem [mobile.components.UIDynamicElement-1544213473986]: 
+                            ↓DividerItemOptions [mobile.components.UIDynamicElement-1544213473986]: 
                               beanData: '{"ionBean":"Listdivider","IonColor":"plain:primary"}'
                               tagName: ion-item-divider
                               ↓TextFormat [mobile.components.UIDynamicElement-1544213473989]: 
@@ -9452,214 +9700,6 @@ title: Title for editor
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:let child of item.children
-                                ↓BeforeItem [mobile.components.UIDynamicElement-1544107307735]: 
-                                  beanData: '{"ionBean":"GridRow"}'
-                                  tagName: ion-row
-                                  ↓GridCol [mobile.components.UIDynamicElement-1544107307738]: 
-                                    beanData: '{"ionBean":"GridCol"}'
-                                    tagName: ion-col
-                                    ↓Tag [mobile.components.UIElement-1544107307741]: 
-                                      selfClose: true
-                                      tagName: br
-                                  ↓Attr [mobile.components.UIAttribute-1544107307744]: 
-                                    attrName: id
-                                    attrValue: 
-                                      - xmlizable: 
-                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                        - MobileSmartSourceType: script:'@prefixc8obeforeItem' + child.name
-                                  ↓Event [mobile.components.UIControlEvent-1544107307747]: 
-                                    attrName: (dragover)
-                                    eventName: (dragover)
-                                    ↓allowDrop [mobile.components.UICustomAction-1544107307750]: 
-                                      actionValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                            →: |
-                                              			if(event.dataTransfer.types.includes("__c8oformsdrag")){
-                                              
-                                              
-                                              
-                                              				if(event.dataTransfer.types.includes("radiobt")){event.preventDefault();
-                                              
-                                              
-                                              
-                                              					this.recursive(event.target, "before");
-                                              
-                                              
-                                              
-                                              				}
-                                              
-                                              
-                                              
-                                              				else{
-                                              
-                                              
-                                              
-                                              					this.c8o.log.debug("Only dropping  radio button is authorised there");
-                                              
-                                              
-                                              
-                                              					
-                                              
-                                              
-                                              
-                                              				}
-                                              
-                                              
-                                              
-                                              			}
-                                              
-                                              
-                                              
-                                              		resolve();
-                                              
-                                              
-                                              
-                                              
-                                              
-                                              
-                                              
-                                              
-                                  ↓Event1 [mobile.components.UIControlEvent-1544107307753]: 
-                                    attrName: (drop)
-                                    eventName: (drop)
-                                    ↓drop [mobile.components.UICustomAction-1544107307756]: 
-                                      actionValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                            →: |
-                                              		event.preventDefault();
-                                              
-                                              
-                                              
-                                              		this.c8o.log.debug("Dropped into before level1 into a radio list");
-                                              
-                                              
-                                              
-                                              		const origin = event.dataTransfer.getData("origin");
-                                              
-                                              
-                                              
-                                              		switch(origin){
-                                              
-                                              
-                                              
-                                              		case "new":
-                                              
-                                              
-                                              
-                                              		    this.c8o.log.debug("Origin is new");
-                                              
-                                              
-                                              
-                                              			this.addElement(event.dataTransfer.getData("type"), vars.index);
-                                              
-                                              
-                                              
-                                              			break;
-                                              
-                                              
-                                              
-                                              		case "moved":
-                                              
-                                              
-                                              
-                                                          this.c8o.log.debug("Origin is moved");
-                                              
-                                              
-                                              
-                                                          let idx = event.dataTransfer.getData("index");
-                                              
-                                              
-                                              
-                                                          let arr = [];
-                                              
-                                              
-                                              
-                                                          if(idx.length > 1){
-                                              
-                                              
-                                              
-                                                              arr[0] = +idx.substring(0,1);
-                                              
-                                              
-                                              
-                                                              arr[1] = +idx.substring(2,3);
-                                              
-                                              
-                                              
-                                                          }
-                                              
-                                              
-                                              
-                                                          else{
-                                              
-                                              
-                                              
-                                                              arr[0] = +idx;
-                                              
-                                              
-                                              
-                                                          }
-                                              
-                                              
-                                              
-                                                          this.moveElement(vars.index,arr);
-                                              
-                                              
-                                              
-                                                          break;
-                                              
-                                              
-                                              
-                                              		case "copied":
-                                              
-                                              
-                                              
-                                                          this.c8o.log.debug("Object has been copied");
-                                              
-                                              
-                                              
-                                                          break;
-                                              
-                                              
-                                              
-                                              		}
-                                              
-                                              
-                                              
-                                              		const oldElem = document.getElementById(this.local["currentHighlight"]);
-                                              
-                                              
-                                              
-                                                      if(oldElem != null){
-                                              
-                                              
-                                              
-                                                          oldElem.style["border-color"] = null;
-                                              
-                                              
-                                              
-                                                          oldElem.style["border-style"] = null;
-                                              
-                                              
-                                              
-                                                      }
-                                              
-                                              
-                                              
-                                              		resolve();
-                                              
-                                              
-                                              
-                                              
-                                      ↓index [mobile.components.UIControlVariable-1544107307759]: 
-                                        varValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: script:[i,j]
                                 ↓Item [mobile.components.UIDynamicElement-1544107307762]: 
                                   beanData: '{"ionBean":"GridRow"}'
                                   tagName: ion-row
@@ -9774,23 +9814,15 @@ title: Title for editor
                                                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                   →: |
-                                                    		if(event.srcElement.value != ""){
-                                                    
-                                                    		    vars.item.value = event.srcElement.value;
-                                                    		    this.updateState();
-                                                    		    this.tick();
-                                                    		}
-                                                    		else{
-                                                    		    //event.srcElement.value = this.form._id;
-                                                    		    let a = vars.item.value;
-                                                    		    vars.item.value = vars.item.value + " ";
-                                                    		    this.tick();
-                                                    		    vars.item.value= a;
-                                                    		    this.tick();
-                                                    		}
+                                                    		    this.checkNotEmptyAndNameNotExists(event,vars,"nameAlreadyexits");
                                                     		resolve();
                                                     
                                             ↓item [mobile.components.UIControlVariable-1544118480835]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:item
+                                            ↓child [mobile.components.UIControlVariable-1548083222230]: 
                                               varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
@@ -9895,13 +9927,7 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:j
-                                ↓Tag2 [mobile.components.UIElement-1544210134965]: 
-                                  selfClose: true
-                                  tagName: br
-                              ↓Tag21 [mobile.components.UIElement-1544210312629]: 
-                                selfClose: true
-                                tagName: br
-                              ↓Item [mobile.components.UIDynamicElement-1544209794466]: 
+                              ↓ItemAddOptions [mobile.components.UIDynamicElement-1544209794466]: 
                                 beanData: '{"ionBean":"GridRow"}'
                                 tagName: ion-row
                                 ↓Event11 [mobile.components.UIControlEvent-1544209794469]: 
@@ -10083,16 +10109,14 @@ title: Title for editor
                                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                               →: |
-                                                '		page.c8o.log.debug(event ? event.toString():''no event'');
-                                                		let val = vars.item[''children''].length + 1;
-                                                
-                                                        vars.item[''children''].push({"value":"Option "+val, "selected":false,"label_color":"primary","position": ''unset''});
-                                                
-                                                        this.updateState();
-                                                        this.tick();
-                                                
-                                                        resolve();
-                                                		resolve();
+                                                '		    let localNumbers = [];
+                                                	        let defualtLabel = "Option";
+                                                	        this.getlocalNumbersSorted(vars.item, localNumbers, defualtLabel);
+                                                	        let val = this.getNextValueDispo(localNumbers);
+                                                            vars.item[''children''].push({"value":defualtLabel+ " " +val, "selected":false,"label_color":"primary","position": ''unset''});
+                                                            this.updateState();
+                                                            this.tick();
+                                                    		resolve();
                                                 '
                                         ↓item [mobile.components.UIControlVariable-1544210577236]: 
                                           varValue: 
@@ -10116,7 +10140,7 @@ title: Title for editor
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                   - MobileSmartSourceType: plain:true
-                            ↓GridRow11 [mobile.components.UIDynamicElement-1546528857521]: 
+                            ↓GridRowMandatory [mobile.components.UIDynamicElement-1546528857521]: 
                               beanData: '{"ionBean":"GridRow"}'
                               tagName: ion-row
                               ↓DividerItem [mobile.components.UIDynamicElement-1546528857524]: 
@@ -10176,7 +10200,7 @@ title: Title for editor
                             ↓Tag [mobile.components.UIElement-1544213624953]: 
                               selfClose: true
                               tagName: br
-                            ↓GridRow21 [mobile.components.UIDynamicElement-1544213624956]: 
+                            ↓GridRowSave [mobile.components.UIDynamicElement-1544213624956]: 
                               beanData: '{"ionBean":"GridRow"}'
                               tagName: ion-row
                               ↓Div [mobile.components.UIDynamicElement-1544213624959]: 
@@ -13716,44 +13740,59 @@ title: Title for editor
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:item.type == "checkbox"
-                            ↓GenericItem [mobile.components.UIDynamicElement-1543938575592]: 
-                              beanData: '{"ionBean":"GenericItem"}'
-                              tagName: ion-item
-                              ↓Label [mobile.components.UIDynamicElement-1543938575595]: 
-                                beanData: '{"ionBean":"Label"}'
-                                tagName: ion-label
-                                ↓Text [mobile.components.UIText-1543938575598]: 
-                                  textValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:item.config.label
-                                ↓Attr3 [mobile.components.UIAttribute-1543938575601]: 
-                                  attrName: '[color]'
-                                  attrValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:(item.config.label_color != 'unset')?item.config.label_color:null
-                              ↓Attr [mobile.components.UIAttribute-1543938575604]: 
-                                attrName: 
-                                attrValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: plain:no-lines
-                              ↓CheckBox [mobile.components.UIDynamicElement-1543938575607]: 
-                                beanData: |
-                                  '{
-                                   "ionBean": "CheckBox",
-                                   "IonColor": "script:item.config.color",
-                                   "Disabled": "script:item.config.disabled",
-                                   "Checked": "script:item.config.checked"
-                                  }'
-                                tagName: ion-checkbox
                             ↓Attr1 [mobile.components.UIAttribute-1543938575610]: 
                               attrName: draggable
                               attrValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                   - MobileSmartSourceType: plain:true
+                            ↓ListContainer [mobile.components.UIDynamicElement-1548081326996]: 
+                              beanData: '{"ionBean":"List"}'
+                              tagName: ion-list
+                              ↓Directive [mobile.components.UIControlDirective-1548081326999]: 
+                                directiveExpression: let j = index
+                                directiveSource: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:let child of item.children
+                                ↓GenericItem [mobile.components.UIDynamicElement-1548081380740]: 
+                                  beanData: '{"ionBean":"GenericItem"}'
+                                  tagName: ion-item
+                                  ↓Label [mobile.components.UIDynamicElement-1548081380743]: 
+                                    beanData: '{"ionBean":"Label"}'
+                                    tagName: ion-label
+                                    ↓Text [mobile.components.UIText-1548081380746]: 
+                                      textValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:child.value
+                                    ↓Attr3 [mobile.components.UIAttribute-1548081380749]: 
+                                      attrName: '[color]'
+                                      attrValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:(item.config.label_color != 'unset')?item.config.label_color:null
+                                  ↓Attr [mobile.components.UIAttribute-1548081380752]: 
+                                    attrName: 
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: plain:no-lines
+                                  ↓CheckBox [mobile.components.UIDynamicElement-1548081380755]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "CheckBox",
+                                       "IonColor": "script:item.config.color",
+                                       "Disabled": "script:item.config.disabled",
+                                       "Checked": "script:item.config.checked"
+                                      }'
+                                    tagName: ion-checkbox
+                                    ↓Attr [mobile.components.UIAttribute-1548081416581]: 
+                                      attrName: '[(ngModel)]'
+                                      attrValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:item.children[j].selected
                           ↓Directive21 [mobile.components.UIControlDirective-1543938575613]: 
                             directiveName: If
                             directiveSource: 
@@ -16698,6 +16737,10 @@ title: Title for editor
             		translate.get(''text'').subscribe((res: string) => {
             	         this.global["text"] = res;
             	    });
+            		translate.get(''addcheckbox'').subscribe((res: string) => {
+                        this.global["addcheckbox"] = res;
+                   });
+            		
             		translate.get(''left'').subscribe((res: string) => {
                         this.global["left"] = res;
                         
@@ -16743,9 +16786,12 @@ title: Title for editor
                                       // will be call now and after each database update
                                         if(response.rows != undefined){
                                             if(response.rows[0] != undefined){
+                                                console.log("viexlivebef");
+                                                console.log(this.formsList);
                                                 this.formsList = response.rows[0].value.doc.formulaire;
                                                 this.form = response.rows[0].value.doc;
-            
+                                                console.log("viexliveaft");
+                                                console.log(response.rows[0].value.doc.formulaire);
                                                 this.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view 1");
                                                 this.icon.nativeElement.classList.remove("animated");
                                                 this.icon.nativeElement.classList.remove("jackInTheBox");
