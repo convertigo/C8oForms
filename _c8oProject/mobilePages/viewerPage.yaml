@@ -8,6 +8,8 @@ scriptContent:
         import {TranslateService} from ''@ngx-translate/core'';
         import { Observable, Subject} from ''rxjs'';
         import { map } from ''rxjs/operators'';
+        
+        import { Input, EventEmitter, Output } from ''@angular/core'';
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
         	public formsList: Array<object> = [];
@@ -26,6 +28,7 @@ scriptContent:
         	public sendFormStr = ""
         	public idFiles; 
         	public cpt = 0;
+        	public loading;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/ 
         		this.epoch = (new Date).getTime() + "";
@@ -37,6 +40,29 @@ scriptContent:
                 this.global[this.idFiles] = [];
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	getProgress(){
+                if(this.global["__viewerProgress"] == undefined || this.global["__viewerTotal"] == undefined){
+                    return 0
+                }
+                else{
+                    //console.log(Number(this.global["__viewerProgress"]));
+                    //console.log(Number(this.global["__viewerTotal"]));
+                    return ((Number(this.global["__viewerProgress"]) / Number(this.global["__viewerTotal"])) * 100);
+                }
+        
+            }
+        	
+        	showProgress(){
+        	    this.loading = this.loadingCtrl.create({
+        	        spinner: ''hide'',
+        	        content: `
+        	          <div>
+        	            <progress-bar [progress]="''0''"></progress-bar>
+        	            <p>abc</p>
+        	          </div>`
+        	      });
+        	    this.loading.present();
+        	}
         	
         	flatArray(): any{
         	    let arr = [];
@@ -50,36 +76,50 @@ scriptContent:
         	     return [arr, cpt];
         	}
         	
-        	postRecursive(arr: any, index: number, total: number, id: any = null) : void{
-        	    let ids = id != null ? id: this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch;
-        	    let type = (arr[index]["file"].type == undefined || arr[index]["file"].type == "") ? "application/octet-stream":arr[index]["file"].type;
-        	    this.router.c8o.callJson("fs://c8oforms_response_fs.put_attachment",
-                    "docid",id,
-                    "name", arr[index]["bean"] + "_C80C80_" +arr[index]["file"]["name"]+"_C80C80_"+(new Date).getTime(),
-                    "content_type", type,
-                    "content", arr[index]["file"])
-                    
-                    .then((res)=>{
-                        this.cpt = this.cpt+1;
-                        console.log("Progress: " +this.cpt+ " / "+ total);
-                        if(this.cpt == total){
-                            console.log("finished");
-                        }
-                        else{
-                            this.postRecursive(arr, index + 1, total)
-                        }
-                    })
-                    .fail((err)=>{
-                        console.log(err);
-                        this.cpt = this.cpt+1;
-                        console.log("Progress: " +this.cpt+ " / "+ total);
-                        if(this.cpt == total){
-                            console.log("finished")
-                        }
-                        else{
-                            this.postRecursive(arr, index + 1, total)
-                        }
-                    });
+        	postRecursive(arr: any, index: number, total: number, id: any = null) : Promise<any>{
+        	    return new Promise((resolve)=>{
+        	        let ids = id != null ? id: this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch;
+        	        let type = (arr[index]["file"].type == undefined || arr[index]["file"].type == "") ? "application/octet-stream":arr[index]["file"].type;
+        	        this.router.c8o.callJson("fs://c8oforms_response_fs.put_attachment",
+        	            "docid",ids,
+        	            "name", arr[index]["bean"] + "_C80C80_" +arr[index]["file"]["name"]+"_C80C80_"+(new Date).getTime(),
+        	            "content_type", type,
+        	            "content", arr[index]["file"])
+        	            .then((res)=>{
+        	                this.cpt = this.cpt+1;
+        	                console.log("Progress: " +this.cpt+ " / "+ total);
+        	                this.global["__viewerProgress"] = this.cpt;
+        	                if(this.cpt == total){
+        	                    console.log("finished");
+        	                    resolve();
+        	                }
+        	                else{
+        	                    this.postRecursive(arr, index + 1, total, ids)
+        	                    .then(()=>{
+        	                        resolve();
+        	                    });
+        
+        	                }
+        	                return null;
+        	            })
+        	            .fail((err)=>{
+        	                console.log(err);
+        	                this.cpt = this.cpt+1;
+        	                console.log("Progress: " +this.cpt+ " / "+ total);
+        	                if(this.cpt == total){
+        	                    console.log("finishedErrores");
+        	                    resolve();
+        	                }
+        	                else{
+        	                    this.postRecursive(arr, index + 1, total, ids)
+        	                    .then(()=>{
+                                    resolve();
+                                });
+        	                }
+        	            });
+        	    });
+                
+        	    
             }
         	
         	unsetred(name:string){
@@ -5313,29 +5353,63 @@ title: Visualisateur
                                               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                               - MobileSmartSourceType: script:child.config.placeholder
                                         ↓Event [mobile.components.UIControlEvent-1551091719778]: 
-                                          ↓SetGlobal [mobile.components.UIDynamicAction-1551091866005]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "SetGlobalAction",
-                                               "Property": "plain:__tempITEMID",
-                                               "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083994?.id\"}"
-                                              }'
-                                            ↓Modal_Page [mobile.components.UIDynamicAction-1551091866008]: 
+                                          ↓IfMobile [mobile.components.UIDynamicAction-1551288204424]: 
+                                            beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] == ''mobile''"}'
+                                            ↓Chooser [mobile.components.UIDynamicAction-1551288204427]: 
+                                              beanData: '{"ionBean":"ChooserAction"}'
+                                              ↓CustomAction [mobile.components.UICustomAction-1551288204430]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        '		let newVar = [{name: props["out"]["name"], uri: props["out"]["uri"]}];
+                                                        		this.global[this.idFiles][vars.idItem] = this.global[this.idFiles][vars.idItem].concat(newVar);
+                                                                        
+                                                        		console.log(props);
+                                                        		console.log(vars);
+                                                        		page.c8o.log.debug(props.out.name);
+                                                        		resolve();
+                                                        '
+                                                ↓idItem [mobile.components.UIControlVariable-1551288204433]: 
+                                                  varValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1543865083994.id"}
+                                              ↓Toast [mobile.components.UIDynamicAction-1551288204436]: 
+                                                beanData: '{"ionBean":"ToastAction","message":"script:parent.out.name"}'
+                                              ↓Toast1 [mobile.components.UIDynamicAction-1551288204439]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "ToastAction",
+                                                   "message": "script:parent.out.uri",
+                                                   "position": "plain:top"
+                                                  }'
+                                          ↓IfWeb [mobile.components.UIDynamicAction-1551288204442]: 
+                                            beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] != ''mobile''"}'
+                                            ↓SetGlobal [mobile.components.UIDynamicAction-1551091866005]: 
                                               beanData: |
                                                 '{
-                                                 "ionBean": "ModalAction",
-                                                 "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
-                                                 "data": "script:{id: this.idFiles, multiple:true}",
-                                                 "showBackdrop": "plain:true",
-                                                 "enableBackdropDismiss": "plain:true"
+                                                 "ionBean": "SetGlobalAction",
+                                                 "Property": "plain:__tempITEMID",
+                                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083994?.id\"}"
                                                 }'
-                                          ↓SetGlobal2 [mobile.components.UIDynamicAction-1551104045787]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "SetGlobalAction",
-                                               "Property": "plain:__tempITEMNAME",
-                                               "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
-                                              }'
+                                              ↓Modal_Page [mobile.components.UIDynamicAction-1551091866008]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "ModalAction",
+                                                   "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
+                                                   "data": "script:{id: this.idFiles, multiple:true}",
+                                                   "showBackdrop": "plain:true",
+                                                   "enableBackdropDismiss": "plain:true"
+                                                  }'
+                                            ↓SetGlobal2 [mobile.components.UIDynamicAction-1551104045787]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "SetGlobalAction",
+                                                 "Property": "plain:__tempITEMNAME",
+                                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
+                                                }'
                                         ↓Attr [mobile.components.UIAttribute-1551091719787]: 
                                           attrName: '*ngIf'
                                           attrValue: 
@@ -5545,29 +5619,63 @@ title: Visualisateur
                                               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                               - MobileSmartSourceType: script:child.config.placeholder
                                         ↓Event [mobile.components.UIControlEvent-1551091719892]: 
-                                          ↓SetGlobal [mobile.components.UIDynamicAction-1551092001396]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "SetGlobalAction",
-                                               "Property": "plain:__tempITEMID",
-                                               "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083994?.id\"}"
-                                              }'
-                                            ↓Modal_Page [mobile.components.UIDynamicAction-1551092001399]: 
+                                          ↓IfMobile [mobile.components.UIDynamicAction-1551288276925]: 
+                                            beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] == ''mobile''"}'
+                                            ↓Chooser [mobile.components.UIDynamicAction-1551288276928]: 
+                                              beanData: '{"ionBean":"ChooserAction"}'
+                                              ↓CustomAction [mobile.components.UICustomAction-1551288276931]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        '		let newVar = [{name: props["out"]["name"], uri: props["out"]["uri"]}];
+                                                        		this.global[this.idFiles][vars.idItem] = this.global[this.idFiles][vars.idItem].concat(newVar);
+                                                                        
+                                                        		console.log(props);
+                                                        		console.log(vars);
+                                                        		page.c8o.log.debug(props.out.name);
+                                                        		resolve();
+                                                        '
+                                                ↓idItem [mobile.components.UIControlVariable-1551288276934]: 
+                                                  varValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1543865083994.id"}
+                                              ↓Toast [mobile.components.UIDynamicAction-1551288276937]: 
+                                                beanData: '{"ionBean":"ToastAction","message":"script:parent.out.name"}'
+                                              ↓Toast1 [mobile.components.UIDynamicAction-1551288276940]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "ToastAction",
+                                                   "message": "script:parent.out.uri",
+                                                   "position": "plain:top"
+                                                  }'
+                                          ↓IfWeb [mobile.components.UIDynamicAction-1551288276943]: 
+                                            beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] != ''mobile''"}'
+                                            ↓SetGlobal [mobile.components.UIDynamicAction-1551092001396]: 
                                               beanData: |
                                                 '{
-                                                 "ionBean": "ModalAction",
-                                                 "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
-                                                 "data": "script:{id: this.idFiles, multiple:true}",
-                                                 "showBackdrop": "plain:true",
-                                                 "enableBackdropDismiss": "plain:true"
+                                                 "ionBean": "SetGlobalAction",
+                                                 "Property": "plain:__tempITEMID",
+                                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083994?.id\"}"
                                                 }'
-                                          ↓SetGlobal2 [mobile.components.UIDynamicAction-1551104074272]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "SetGlobalAction",
-                                               "Property": "plain:__tempITEMNAME",
-                                               "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
-                                              }'
+                                              ↓Modal_Page [mobile.components.UIDynamicAction-1551092001399]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "ModalAction",
+                                                   "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
+                                                   "data": "script:{id: this.idFiles, multiple:true}",
+                                                   "showBackdrop": "plain:true",
+                                                   "enableBackdropDismiss": "plain:true"
+                                                  }'
+                                            ↓SetGlobal2 [mobile.components.UIDynamicAction-1551104074272]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "SetGlobalAction",
+                                                 "Property": "plain:__tempITEMNAME",
+                                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
+                                                }'
                                         ↓Attr [mobile.components.UIAttribute-1551091719904]: 
                                           attrName: '*ngIf'
                                           attrValue: 
@@ -5591,29 +5699,63 @@ title: Visualisateur
                                               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                               - MobileSmartSourceType: script:child.config.placeholder
                                         ↓Event [mobile.components.UIControlEvent-1551091719916]: 
-                                          ↓SetGlobal [mobile.components.UIDynamicAction-1551092044231]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "SetGlobalAction",
-                                               "Property": "plain:__tempITEMID",
-                                               "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083994?.id\"}"
-                                              }'
-                                            ↓Modal_Page [mobile.components.UIDynamicAction-1551092044234]: 
+                                          ↓IfMobile [mobile.components.UIDynamicAction-1551288298476]: 
+                                            beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] == ''mobile''"}'
+                                            ↓Chooser [mobile.components.UIDynamicAction-1551288298479]: 
+                                              beanData: '{"ionBean":"ChooserAction"}'
+                                              ↓CustomAction [mobile.components.UICustomAction-1551288298482]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        '		let newVar = [{name: props["out"]["name"], uri: props["out"]["uri"]}];
+                                                        		this.global[this.idFiles][vars.idItem] = this.global[this.idFiles][vars.idItem].concat(newVar);
+                                                                        
+                                                        		console.log(props);
+                                                        		console.log(vars);
+                                                        		page.c8o.log.debug(props.out.name);
+                                                        		resolve();
+                                                        '
+                                                ↓idItem [mobile.components.UIControlVariable-1551288298485]: 
+                                                  varValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1543865083994.id"}
+                                              ↓Toast [mobile.components.UIDynamicAction-1551288298488]: 
+                                                beanData: '{"ionBean":"ToastAction","message":"script:parent.out.name"}'
+                                              ↓Toast1 [mobile.components.UIDynamicAction-1551288298491]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "ToastAction",
+                                                   "message": "script:parent.out.uri",
+                                                   "position": "plain:top"
+                                                  }'
+                                          ↓IfWeb [mobile.components.UIDynamicAction-1551288298494]: 
+                                            beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] != ''mobile''"}'
+                                            ↓SetGlobal [mobile.components.UIDynamicAction-1551092044231]: 
                                               beanData: |
                                                 '{
-                                                 "ionBean": "ModalAction",
-                                                 "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
-                                                 "data": "script:{id: this.idFiles, multiple:true}",
-                                                 "showBackdrop": "plain:true",
-                                                 "enableBackdropDismiss": "plain:true"
+                                                 "ionBean": "SetGlobalAction",
+                                                 "Property": "plain:__tempITEMID",
+                                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083994?.id\"}"
                                                 }'
-                                          ↓SetGlobal2 [mobile.components.UIDynamicAction-1551104095027]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "SetGlobalAction",
-                                               "Property": "plain:__tempITEMNAME",
-                                               "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
-                                              }'
+                                              ↓Modal_Page [mobile.components.UIDynamicAction-1551092044234]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "ModalAction",
+                                                   "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
+                                                   "data": "script:{id: this.idFiles, multiple:true}",
+                                                   "showBackdrop": "plain:true",
+                                                   "enableBackdropDismiss": "plain:true"
+                                                  }'
+                                            ↓SetGlobal2 [mobile.components.UIDynamicAction-1551104095027]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "SetGlobalAction",
+                                                 "Property": "plain:__tempITEMNAME",
+                                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
+                                                }'
                                         ↓Attr [mobile.components.UIAttribute-1551091719931]: 
                                           attrName: '*ngIf'
                                           attrValue: 
@@ -7319,29 +7461,63 @@ title: Visualisateur
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:item.config.placeholder
                           ↓Event [mobile.components.UIControlEvent-1550854891238]: 
-                            ↓SetGlobal [mobile.components.UIDynamicAction-1551091853977]: 
-                              beanData: |
-                                '{
-                                 "ionBean": "SetGlobalAction",
-                                 "Property": "plain:__tempITEMID",
-                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.id\"}"
-                                }'
-                              ↓Modal_Page [mobile.components.UIDynamicAction-1551091853980]: 
+                            ↓IfMobile [mobile.components.UIDynamicAction-1551288135622]: 
+                              beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] == ''mobile''"}'
+                              ↓Chooser [mobile.components.UIDynamicAction-1551288135625]: 
+                                beanData: '{"ionBean":"ChooserAction"}'
+                                ↓CustomAction [mobile.components.UICustomAction-1551288135628]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          '		let newVar = [{name: props["out"]["name"], uri: props["out"]["uri"]}];
+                                          		this.global[this.idFiles][vars.idItem] = this.global[this.idFiles][vars.idItem].concat(newVar);
+                                                          
+                                          		console.log(props);
+                                          		console.log(vars);
+                                          		page.c8o.log.debug(props.out.name);
+                                          		resolve();
+                                          '
+                                  ↓idItem [mobile.components.UIControlVariable-1551288135631]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1543865083865.id"}
+                                ↓Toast [mobile.components.UIDynamicAction-1551288135634]: 
+                                  beanData: '{"ionBean":"ToastAction","message":"script:parent.out.name"}'
+                                ↓Toast1 [mobile.components.UIDynamicAction-1551288135637]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "ToastAction",
+                                     "message": "script:parent.out.uri",
+                                     "position": "plain:top"
+                                    }'
+                            ↓IfWeb [mobile.components.UIDynamicAction-1551288135640]: 
+                              beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] != ''mobile''"}'
+                              ↓SetGlobal [mobile.components.UIDynamicAction-1551091853977]: 
                                 beanData: |
                                   '{
-                                   "ionBean": "ModalAction",
-                                   "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
-                                   "data": "script:{id: this.idFiles, multiple:true}",
-                                   "showBackdrop": "plain:true",
-                                   "enableBackdropDismiss": "plain:true"
+                                   "ionBean": "SetGlobalAction",
+                                   "Property": "plain:__tempITEMID",
+                                   "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.id\"}"
                                   }'
-                            ↓SetGlobal2 [mobile.components.UIDynamicAction-1551103957194]: 
-                              beanData: |
-                                '{
-                                 "ionBean": "SetGlobalAction",
-                                 "Property": "plain:__tempITEMNAME",
-                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
-                                }'
+                                ↓Modal_Page [mobile.components.UIDynamicAction-1551091853980]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "ModalAction",
+                                     "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
+                                     "data": "script:{id: this.idFiles, multiple:true}",
+                                     "showBackdrop": "plain:true",
+                                     "enableBackdropDismiss": "plain:true"
+                                    }'
+                              ↓SetGlobal2 [mobile.components.UIDynamicAction-1551103957194]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "SetGlobalAction",
+                                   "Property": "plain:__tempITEMNAME",
+                                   "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
+                                  }'
                           ↓Attr [mobile.components.UIAttribute-1551088650985]: 
                             attrName: '*ngIf'
                             attrValue: 
@@ -7624,29 +7800,63 @@ title: Visualisateur
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:item.config.placeholder
                           ↓Event [mobile.components.UIControlEvent-1550850780955]: 
-                            ↓SetGlobal [mobile.components.UIDynamicAction-1551091482556]: 
-                              beanData: |
-                                '{
-                                 "ionBean": "SetGlobalAction",
-                                 "Property": "plain:__tempITEMID",
-                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.id\"}"
-                                }'
-                              ↓Modal_Page [mobile.components.UIDynamicAction-1550850780958]: 
+                            ↓IfMobile [mobile.components.UIDynamicAction-1551288088993]: 
+                              beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] == ''mobile''"}'
+                              ↓Chooser [mobile.components.UIDynamicAction-1551288088996]: 
+                                beanData: '{"ionBean":"ChooserAction"}'
+                                ↓CustomAction [mobile.components.UICustomAction-1551288088999]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          '		let newVar = [{name: props["out"]["name"], uri: props["out"]["uri"]}];
+                                          		this.global[this.idFiles][vars.idItem] = this.global[this.idFiles][vars.idItem].concat(newVar);
+                                                          
+                                          		console.log(props);
+                                          		console.log(vars);
+                                          		page.c8o.log.debug(props.out.name);
+                                          		resolve();
+                                          '
+                                  ↓idItem [mobile.components.UIControlVariable-1551288089002]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1543865083865.id"}
+                                ↓Toast [mobile.components.UIDynamicAction-1551288089005]: 
+                                  beanData: '{"ionBean":"ToastAction","message":"script:parent.out.name"}'
+                                ↓Toast1 [mobile.components.UIDynamicAction-1551288089008]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "ToastAction",
+                                     "message": "script:parent.out.uri",
+                                     "position": "plain:top"
+                                    }'
+                            ↓IfWeb [mobile.components.UIDynamicAction-1551288092877]: 
+                              beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] != ''mobile''"}'
+                              ↓SetGlobal [mobile.components.UIDynamicAction-1551091482556]: 
                                 beanData: |
                                   '{
-                                   "ionBean": "ModalAction",
-                                   "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
-                                   "data": "script:{id: this.idFiles, multiple:true}",
-                                   "showBackdrop": "plain:true",
-                                   "enableBackdropDismiss": "plain:true"
+                                   "ionBean": "SetGlobalAction",
+                                   "Property": "plain:__tempITEMID",
+                                   "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.id\"}"
                                   }'
-                            ↓SetGlobal2 [mobile.components.UIDynamicAction-1551103660027]: 
-                              beanData: |
-                                '{
-                                 "ionBean": "SetGlobalAction",
-                                 "Property": "plain:__tempITEMNAME",
-                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
-                                }'
+                                ↓Modal_Page [mobile.components.UIDynamicAction-1550850780958]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "ModalAction",
+                                     "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
+                                     "data": "script:{id: this.idFiles, multiple:true}",
+                                     "showBackdrop": "plain:true",
+                                     "enableBackdropDismiss": "plain:true"
+                                    }'
+                              ↓SetGlobal2 [mobile.components.UIDynamicAction-1551103660027]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "SetGlobalAction",
+                                   "Property": "plain:__tempITEMNAME",
+                                   "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
+                                  }'
                           ↓Attr [mobile.components.UIAttribute-1551088299596]: 
                             attrName: '*ngIf'
                             attrValue: 
@@ -7670,29 +7880,63 @@ title: Visualisateur
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:item.config.placeholder
                           ↓Event [mobile.components.UIControlEvent-1551088363331]: 
-                            ↓SetGlobal [mobile.components.UIDynamicAction-1551090525518]: 
-                              beanData: |
-                                '{
-                                 "ionBean": "SetGlobalAction",
-                                 "Property": "plain:__tempITEMID",
-                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865?.id\"}"
-                                }'
-                              ↓Modal_Page [mobile.components.UIDynamicAction-1551088363334]: 
+                            ↓IfMobile [mobile.components.UIDynamicAction-1551278820732]: 
+                              beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] == ''mobile''"}'
+                              ↓Chooser [mobile.components.UIDynamicAction-1551282980722]: 
+                                beanData: '{"ionBean":"ChooserAction"}'
+                                ↓CustomAction [mobile.components.UICustomAction-1551278931415]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          '		let newVar = [{name: props["out"]["name"], uri: props["out"]["uri"]}];
+                                          		this.global[this.idFiles][vars.idItem] = this.global[this.idFiles][vars.idItem].concat(newVar);
+                                                          
+                                          		console.log(props);
+                                          		console.log(vars);
+                                          		page.c8o.log.debug(props.out.name);
+                                          		resolve();
+                                          '
+                                  ↓idItem [mobile.components.UIControlVariable-1551284799595]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1543865083865.id"}
+                                ↓Toast [mobile.components.UIDynamicAction-1551284242767]: 
+                                  beanData: '{"ionBean":"ToastAction","message":"script:parent.out.name"}'
+                                ↓Toast1 [mobile.components.UIDynamicAction-1551284291436]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "ToastAction",
+                                     "message": "script:parent.out.uri",
+                                     "position": "plain:top"
+                                    }'
+                            ↓IfWeb [mobile.components.UIDynamicAction-1551278825073]: 
+                              beanData: '{"ionBean":"IfAction","condition":"script:this.global[''platform''][''name''][0] != ''mobile''"}'
+                              ↓SetGlobal [mobile.components.UIDynamicAction-1551285090637]: 
                                 beanData: |
                                   '{
-                                   "ionBean": "ModalAction",
-                                   "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
-                                   "data": "script:{id: this.idFiles, multiple:false}",
-                                   "showBackdrop": "plain:true",
-                                   "enableBackdropDismiss": "plain:true"
+                                   "ionBean": "SetGlobalAction",
+                                   "Property": "plain:__tempITEMID",
+                                   "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865?.id\"}"
                                   }'
-                            ↓SetGlobal2 [mobile.components.UIDynamicAction-1551103939481]: 
-                              beanData: |
-                                '{
-                                 "ionBean": "SetGlobalAction",
-                                 "Property": "plain:__tempITEMNAME",
-                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
-                                }'
+                                ↓SetGlobal2 [mobile.components.UIDynamicAction-1551103939481]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "SetGlobalAction",
+                                     "Property": "plain:__tempITEMNAME",
+                                     "Value": "source:{\"filter\":\"Iteration\",\"project\":\"C8Oforms\",\"input\":\"item1543865083865.name\"}"
+                                    }'
+                                  ↓Modal_Page [mobile.components.UIDynamicAction-1551088363334]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "ModalAction",
+                                       "page": "plain:C8Oforms.MobileApplication.Application.dropFilePage",
+                                       "data": "script:{id: this.idFiles, multiple:false}",
+                                       "showBackdrop": "plain:true",
+                                       "enableBackdropDismiss": "plain:true"
+                                      }'
                           ↓Attr [mobile.components.UIAttribute-1551088390618]: 
                             attrName: '*ngIf'
                             attrValue: 
@@ -7943,8 +8187,11 @@ title: Visualisateur
                                                       let total = flat[1];
                                                       let arr = flat[0];
                                                       this.cpt = 0;
-                                                      this.postRecursive(arr, 0, total, this.global.formSelected._id);
-                                          		resolve();
+                                                      this.postRecursive(arr, 0, total, this.global.formSelected._id)
+                                                      .then(()=>{
+                                                          resolve();
+                                                      });
+                                          
                                           
                                   ↓Toast [mobile.components.UIDynamicAction-1547586571188]: 
                                     beanData: |
@@ -7953,54 +8200,86 @@ title: Visualisateur
                                        "message": "script:this.formSubmittedStr",
                                        "cssClass": "plain:changeToast"
                                       }'
+                                ↓Modal_Page [mobile.components.UIDynamicAction-1551263579232]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "ModalAction",
+                                     "showBackdrop": "plain:true",
+                                     "enableBackdropDismiss": "plain:true"
+                                    }'
+                                  isEnabled: false
                             ↓else [mobile.components.UIDynamicAction-1545335521050]: 
                               beanData: '{"ionBean":"IfAction","condition":"script:!this.edit"}'
-                              ↓PostData [mobile.components.UIDynamicAction-1543865084780]: 
+                              ↓Modal_Page [mobile.components.UIDynamicAction-1551263796394]: 
                                 beanData: |
                                   '{
-                                   "ionBean": "FullSyncPostAction",
-                                   "requestable": "plain:C8Oforms.c8oforms_response_fs",
-                                   "_id": "script:this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch",
-                                   "_use_policy": "plain:merge"
+                                   "ionBean": "ModalAction",
+                                   "page": "plain:C8Oforms.MobileApplication.Application.progressPage",
+                                   "showBackdrop": "plain:true",
+                                   "enableBackdropDismiss": "plain:true",
+                                   "cssClass": "plain:update-profile-modal"
                                   }'
-                                ↓resp [mobile.components.UIControlVariable-1543865084783]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.formsSubmit
-                                ↓formId [mobile.components.UIControlVariable-1544719119011]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.form._id
-                                ↓timestamp [mobile.components.UIControlVariable-1544719287197]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.epoch
-                                ↓RootPage [mobile.components.UIDynamicAction-1547587936390]: 
-                                  beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
-                                  isEnabled: false
-                                ↓PostAttachment [mobile.components.UICustomAction-1551177830285]: 
-                                  actionValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                        →: |
-                                          	        
-                                                      let flat = this.flatArray();
-                                                      let total = flat[1];
-                                                      let arr = flat[0];
-                                                      this.cpt = 0;
-                                                      this.postRecursive(arr, 0, total);
-                                          
-                                  ↓Toast1 [mobile.components.UIDynamicAction-1547744595623]: 
-                                    beanData: |
-                                      '{
-                                       "ionBean": "ToastAction",
-                                       "message": "script:this.formSubmittedStr",
-                                       "cssClass": "plain:changeToast"
-                                      }'
+                                ↓PostData [mobile.components.UIDynamicAction-1543865084780]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "FullSyncPostAction",
+                                     "requestable": "plain:C8Oforms.c8oforms_response_fs",
+                                     "_id": "script:this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch",
+                                     "_use_policy": "plain:merge"
+                                    }'
+                                  ↓resp [mobile.components.UIControlVariable-1543865084783]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.formsSubmit
+                                  ↓formId [mobile.components.UIControlVariable-1544719119011]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.form._id
+                                  ↓timestamp [mobile.components.UIControlVariable-1544719287197]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.epoch
+                                  ↓RootPage [mobile.components.UIDynamicAction-1547587936390]: 
+                                    beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+                                    isEnabled: false
+                                  ↓PostAttachment [mobile.components.UICustomAction-1551177830285]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            	        //this.showProgress();
+                                                        let flat = this.flatArray();
+                                                        let total = flat[1];
+                                                        this.global["__viewerTotal"] = total;
+                                                        //this.global["__viewerProgress"] = this.cpt;
+                                                        let arr = flat[0];
+                                                        this.cpt = 0;
+                                                        let event = new Event('__C8ofinishedPost');
+                                                        //let id = this.global.user+'_'+this.global.formSelected._id+'_'+this.epoch;
+                                                        this.postRecursive(arr, 0, total)
+                                                        .then(()=>{
+                                                           resolve(); 
+                                                        });
+                                                        
+                                                        
+                                            
+                                    ↓Toast1 [mobile.components.UIDynamicAction-1547744595623]: 
+                                      beanData: |
+                                        '{
+                                         "ionBean": "ToastAction",
+                                         "message": "script:this.formSubmittedStr",
+                                         "cssClass": "plain:changeToast"
+                                        }'
+                                    ↓CloseModal [mobile.components.UIDynamicAction-1551276649809]: 
+                                      beanData: '{"ionBean":"CloseModalAction"}'
+                                      isEnabled: false
+                                      ↓RootPage [mobile.components.UIDynamicAction-1551277736875]: 
+                                        beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+                                        isEnabled: false
                       ↓Else [mobile.components.UIDynamicAction-1547494709652]: 
                         beanData: '{"ionBean":"IfAction","condition":"script:parent.out == \"animate\""}'
                         ↓SetRed [mobile.components.UICustomAction-1547581118823]: 
@@ -8147,6 +8426,18 @@ title: Visualisateur
               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
               - MobileSmartSourceType: plain:#fff
           isEnabled: false
+        ↓Div [mobile.components.UIDynamicElement-1551277525393]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓Style [mobile.components.UIStyle-1551277530343]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    'position: relative;
+                    '
+          ↓Text [mobile.components.UIText-1551277536669]: 
       ↓GridCol2 [mobile.components.UIDynamicElement-1543345640046]: 
         beanData: |
           '{
