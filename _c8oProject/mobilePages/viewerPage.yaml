@@ -28,9 +28,15 @@ scriptContent:
         	public sendFormStr = ""
         	public idFiles; 
         	public cpt = 0;
+        	public cptDelete = 0;
         	public loading;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/ 
+        		this.global[''__viewindeok'']= null;
+                this.global["__viewerTotal"] = 0;
+                this.global["__viewerarr"] = [];
+                this.global[''__C8O_TODELETE''] = [];
+                this.cpt = 0;
         		this.epoch = (new Date).getTime() + "";
         		let translate = this.getInstance(TranslateService);
                 translate.get(''allfield'').subscribe((res: string) => {
@@ -69,73 +75,140 @@ scriptContent:
         	    let cpt = 0;
         	     for(let bean in this.global[this.idFiles]){
         	         for(let file of this.global[this.idFiles][bean]){
-        	             arr.push({file: file, bean: bean});
-        	             cpt = cpt + 1;
+        	             if(file.deleted === undefined){
+        	                 arr.push({file: file, bean: bean});
+        	                 cpt = cpt + 1;
+        	             }
         	         }
         	     }
         	     return [arr, cpt];
         	}
-        	
-        	postRecursive(arr: any, index: number, total: number, id: any = null) : Promise<any>{
+        	//
+        	//this.global[''__viewerTotal''] > 0 || this.global["__C8O_TODELETE"] >0
+        	//delete_attachment
+        	deleteRecursive(arr: any, index: number, total: number, id:any):Promise<any>{
         	    return new Promise((resolve)=>{
-        	        let ids = id != null ? id: this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch;
-        	        let args;
-        	        if(this.global.platform.name[0] != ''mobile''){
-        	            let type = (arr[index]["file"].type == undefined || arr[index]["file"].type == "") ? "application/octet-stream":arr[index]["file"].type;
-        	            args = {
-        	                    "docid":ids,
-        	                    "name": arr[index]["bean"] + "_C80C80_" +arr[index]["file"]["name"]+"_C80C80_"+(new Date).getTime(),
-        	                    "content_type": type,
-        	                    "content": arr[index]["file"],
-        	                    "index":index
-        	            }
+        	        if(total == 0 || arr == undefined){
+        	            resolve();
         	        }
         	        else{
-        	            let type = (arr[index]["file"].mediaType == undefined || arr[index]["file"].mediaType == "") ? "application/octet-stream":arr[index]["file"].mediaType;
-        	            args = {
-                                "docid":ids,
-                                "name": arr[index]["bean"] + "_C80C80_" +arr[index]["file"]["name"]+"_C80C80_"+(new Date).getTime(),
-                                "content_type": type,
-                                "content": new Blob(arr[index]["file"].data, {type: type}),
-                                "index":index
-                        }
-        	        }
-        	        
-        	        this.router.c8o.callJsonObject("fs://c8oforms_response_fs.put_attachment",args)
+        	            let args = {
+        	                    "docid":id,
+        	                    "name": arr[index]["path"],
+        	                    "index": index
+        	            }
+        	            this.router.c8o.callJsonObject("fs://c8oforms_response_fs.delete_attachment",args)
         	            .then((resp, parameters)=>{
-        	                this.cpt = this.cpt+1;
-        	                console.log("Progress: " +this.cpt+ " / "+ total);
-        	                this.global["__viewerProgress"] = this.cpt;
-        	                this.global[''__viewerarr''][parameters[''index'']].file["ok"]= true;
-        	                this.global[''__viewindeok''][index]= true;
-        	                if(this.cpt == total){
-        	                    console.log("finished");
+        	                this.cptDelete = this.cptDelete+1;
+        	                this.global[''cptTotal''] = this.global[''cptTotal''] + 1;
+        	                this.global[''__C8O_TODELETE''][index][''deleted''] = true;
+        	                //console.log("Progress delete: " +this.cptDelete+ " / "+ total);
+        	                //this.global["__viewerProgressDelete"] = this.global["__viewerProgressDelete"] + this.cptDelete;
+        	                //this.global[''__C8O_TODELETE''][parameters[''index'']]["deleted"]= true;
+        	                if(this.cptDelete == total){
+        	                    //console.log("finished deletions");
         	                    resolve();
         	                }
         	                else{
-        	                    this.postRecursive(arr, index + 1, total, ids)
-        	                    .then(()=>{
-        	                        resolve();
-        	                    });
+        	                    setTimeout(() => {
+        	                        this.deleteRecursive(arr, index + 1, total, id)
+        	                        .then(()=>{
+        	                            resolve();
+        	                        });
+        	                    }, 100);
+        	                   
         
         	                }
         	                return null;
         	            })
         	            .fail((err)=>{
-        	                console.log(err);
-        	                this.cpt = this.cpt+1;
-        	                console.log("Progress: " +this.cpt+ " / "+ total);
+        	                //console.log(err);
+        	                //this.cpt = this.cptDelete+1;
+        	                //console.log("Progress delete: " +this.cptDelete+ " / "+ total);
+        	                this.global[''cptTotal''] = this.global[''cptTotal''] + 1;
         	                if(this.cpt == total){
-        	                    console.log("finishedErrores");
+        	                    //console.log("finishedErrores deletions");
         	                    resolve();
         	                }
         	                else{
-        	                    this.postRecursive(arr, index + 1, total, ids)
+        	                    this.postRecursive(arr, index + 1, total, id)
         	                    .then(()=>{
-                                    resolve();
-                                });
+        	                        resolve();
+        	                    });
         	                }
         	            });
+        	        }
+        	        
+        	    });
+        	}
+        	postRecursive(arr: any, index: number, total: number, id: any = null) : Promise<any>{
+        	    return new Promise((resolve)=>{
+        	        if(total == 0 || arr == undefined){
+        	            resolve();
+        	        }
+        	        else{
+        	            let ids = id != null ? id: this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch;
+        	            let args;
+        	            if(this.global.platform.name[0] != ''mobile''){
+        	                let type = (arr[index]["file"].type == undefined || arr[index]["file"].type == "") ? "application/octet-stream":arr[index]["file"].type;
+        	                args = {
+        	                        "docid":ids,
+        	                        "name": arr[index]["bean"] + "_C80C80_" +arr[index]["file"]["name"]+"_C80C80_"+(new Date).getTime(),
+        	                        "content_type": type,
+        	                        "content": arr[index]["file"],
+        	                        "index":index
+        	                }
+        	            }
+        	            else{
+        	                let type = (arr[index]["file"].mediaType == undefined || arr[index]["file"].mediaType == "") ? "application/octet-stream":arr[index]["file"].mediaType;
+        	                args = {
+        	                        "docid":ids,
+        	                        "name": arr[index]["bean"] + "_C80C80_" +arr[index]["file"]["name"]+"_C80C80_"+(new Date).getTime(),
+        	                        "content_type": type,
+        	                        "content": new Blob(arr[index]["file"].data, {type: type}),
+        	                        "index":index
+        	                }
+        	            }
+        	            
+        	            this.router.c8o.callJsonObject("fs://c8oforms_response_fs.put_attachment",args)
+        	                .then((resp, parameters)=>{
+        	                    this.cpt = this.cpt+1;
+        	                    //console.log("Progress: " +this.cpt+ " / "+ total);
+        	                    this.global[''cptTotal''] = this.global[''cptTotal''] + 1;
+        	                    this.global["__viewerProgress"] = this.cpt;
+        	                    this.global["__viewerProgressDelete"] = this.global["__viewerProgressDelete"] +this.cpt;
+        	                    this.global[''__viewerarr''][parameters[''index'']].file["ok"]= true;
+        	                    this.global[''__viewindeok''][index]= true;
+        	                    if(this.cpt == total){
+        	                        console.log("finished");
+        	                        resolve();
+        	                    }
+        	                    else{
+        	                        this.postRecursive(arr, index + 1, total, ids)
+        	                        .then(()=>{
+        	                            resolve();
+        	                        });
+        
+        	                    }
+        	                    return null;
+        	                })
+        	                .fail((err)=>{
+        	                    //console.log(err);
+        	                    this.cpt = this.cpt+1;
+        	                    //console.log("Progress: " +this.cpt+ " / "+ total);
+        	                    if(this.cpt == total){
+        	                        console.log("finishedErrores");
+        	                        resolve();
+        	                    }
+        	                    else{
+        	                        this.postRecursive(arr, index + 1, total, ids)
+        	                        .then(()=>{
+        	                            resolve();
+        	                        });
+        	                    }
+        	                });
+        	        }
+        	        
         	    });
                 
         	    
@@ -206,12 +279,12 @@ title: Visualisateur
               		         "key": key
               		        })
               		        .then((response: any, parameters)=>{
+              		            if(!this.local["submitting"]){
               		          // will be call now and after each database update
               		            if(response.rows != undefined){
               		                if(response.rows[0] != undefined){
               		                    page.form = response.rows[0].value.doc;
               		                    this.formsList = response.rows[0].value.doc.formulaire;
-              		                    console.log(this.formsList);
               		                    this.link = response.rows[0].value.doc["wallpaper"]["link"];
               		                    this.enabled = response.rows[0].value.doc["wallpaper"]["enabled"];
               		                    this.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
@@ -223,6 +296,43 @@ title: Visualisateur
                                                       this.redList[this.formsList[i]["name"]] = {};
                                                   }
                                               }
+              	                            if(this.global["__C8O_TODELETE"] == undefined){
+                                                  this.global["__C8O_TODELETE"] = [];
+                                              }
+              	                            let nullBefore = false;
+              	                            if(this.global[this.idFiles].length == 0){
+                                                  nullBefore = true
+              	                            }
+              	                            for(let item of this.formsList){
+                                                  if( item[''type''] == "file"){
+                                                      if(this.global[this.idFiles][item["id"]] == null){
+                                                          this.global[this.idFiles][item["id"]] = [];
+                                                      }
+                                                  }
+                                                  if(item["type"] =="ion-card"){
+                                                      for(let child of item["children"]){
+                                                          if(child[''type''] == "file"){
+                                                              if(this.global[this.idFiles][child["id"]] == null){
+                                                                  this.global[this.idFiles][child["id"]] = [];
+                                                              }
+                                                          }
+                                                      }
+                                                  }
+                                              }
+              	                            for(let item in this.global[''formSelected''][''_attachments'']){
+              	                                //first itemid
+              	                                let itemid = item.substring(0, item.indexOf(''_C80C80_''));
+              	                                //second namefile
+              	                                let name = item.substring(item.indexOf(''_C80C80_'')+8,item.lastIndexOf(''_C80C80_''));
+              	                                //synthax
+              	                                if(this.global[this.idFiles][itemid] == null){
+              	                                    this.global[this.idFiles][itemid] = [];
+              	                                }
+              	                                if(nullBefore){
+              	                                    this.global[this.idFiles][itemid].push({name:name,path:item, deleted:false});
+              	                                }
+              	                            }
+              	                            
                                           
               	                        }
               	                        else{
@@ -248,11 +358,18 @@ title: Visualisateur
                                                                   }
                                                               }
                                                           }
+              	                                        if(item[''type''] == "radio"){
+                                                              for(let child of item["children"]){
+                                                                  if(child.selected == true){
+                                                                      this.formsSubmit[this.formsList[i]["name"]][item[''name'']] = child["value"]
+                                                                  }
+                                                              }
+                                                          }
               	                                    }
               	                                }
               	                            }
               	                        }
-              	                        
+              	                        if(!this.edit){
               	                        for(let item of this.formsList){
               	                            if(item[''type''] == "checkbox"){
               	                                for(let child of item["children"]){
@@ -265,6 +382,13 @@ title: Visualisateur
               	                                }
               	                            }
               	                            if( item[''type''] == "select"){
+                                                  for(let child of item["children"]){
+                                                      if(child.selected == true){
+                                                          this.formsSubmit[item[''name'']] = child["value"];
+                                                      }
+                                                  }
+                                              }
+              	                            if( item[''type''] == "radio"){
                                                   for(let child of item["children"]){
                                                       if(child.selected == true){
                                                           this.formsSubmit[item[''name'']] = child["value"];
@@ -286,14 +410,16 @@ title: Visualisateur
               	                                }
               	                            }
               	                        }
+              	                        }
               		                   
               		                    resolve();
               		                }
               		             }
               		            return null;
+              		            }
               		        })
               		        .fail((err)=>{
-              		            this.c8o.log.error("CallViewLiveAndFillFormList: " + JSON.stringify(err));
+              		            this.c8o.log.error("CallViewLiveAndFillFormList: " + JSON.stringify(err.message));
               		        });
               '
 ↓Header [mobile.components.UIDynamicElement-1537435791175]: 
@@ -500,8 +626,8 @@ title: Visualisateur
             beanData: '{"ionBean":"CardContent"}'
             tagName: ion-card-content
             ↓Directive3 [mobile.components.UIControlDirective-1550225025779]: 
-              directiveName: If
               directiveExpression: form.namePosition == 'text-center'
+              directiveName: If
               ↓Div [mobile.components.UIDynamicElement-1550225025782]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -528,8 +654,8 @@ title: Visualisateur
                             'font-size: 34px;
                             '
             ↓Directive11 [mobile.components.UIControlDirective-1550225025797]: 
-              directiveName: If
               directiveExpression: form.namePosition == 'text-left'
+              directiveName: If
               ↓Div [mobile.components.UIDynamicElement-1550225025800]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -556,8 +682,8 @@ title: Visualisateur
                             'font-size: 34px;
                             '
             ↓Directive21 [mobile.components.UIControlDirective-1550225025815]: 
-              directiveName: If
               directiveExpression: form.namePosition == 'text-right'
+              directiveName: If
               ↓Div [mobile.components.UIDynamicElement-1550225025818]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -631,8 +757,8 @@ title: Visualisateur
                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                           - MobileSmartSourceType: script:this.form.descform
               ↓Directive31 [mobile.components.UIControlDirective-1550225127182]: 
-                directiveName: If
                 directiveExpression: form.descformPosition == 'text-center'
+                directiveName: If
                 ↓Div [mobile.components.UIDynamicElement-1550225127185]: 
                   beanData: '{"ionBean":"DivTag"}'
                   tagName: div
@@ -689,8 +815,8 @@ title: Visualisateur
                               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                               - MobileSmartSourceType: script:this.form.descform
               ↓Directive111 [mobile.components.UIControlDirective-1550225127200]: 
-                directiveName: If
                 directiveExpression: form.descformPosition == 'text-left'
+                directiveName: If
                 ↓Div [mobile.components.UIDynamicElement-1550225127203]: 
                   beanData: '{"ionBean":"DivTag"}'
                   tagName: div
@@ -749,8 +875,8 @@ title: Visualisateur
                               - MobileSmartSourceType: script:this.form.descform
                         ↓Attr [mobile.components.UIAttribute-1550594906914]: 
               ↓Directive211 [mobile.components.UIControlDirective-1550225127218]: 
-                directiveName: If
                 directiveExpression: form.descformPosition== 'text-right'
+                directiveName: If
                 ↓Div [mobile.components.UIDynamicElement-1550225127221]: 
                   beanData: '{"ionBean":"DivTag"}'
                   tagName: div
@@ -1255,11 +1381,11 @@ title: Visualisateur
                       tagName: div
                       ↓Directive [mobile.components.UIControlDirective-1550656100639]: 
                         directiveName: If
-                        isEnabled: false
                         directiveSource: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                             - MobileSmartSourceType: script:item.config.mandatory == true
+                        isEnabled: false
                         ↓H4 [mobile.components.UIDynamicElement-1550656100642]: 
                           beanData: '{"ionBean":"Heading4"}'
                           tagName: h4
@@ -1759,8 +1885,7 @@ title: Visualisateur
                               '{
                                "ionBean": "CheckBox",
                                "IonColor": "script:item.config.color",
-                               "Disabled": "script:item.config.disabled",
-                               "Checked": "script:item.config.checked"
+                               "Disabled": "script:item.config.disabled"
                               }'
                             tagName: ion-checkbox
                             ↓Attr [mobile.components.UIAttribute-1548355904507]: 
@@ -1769,12 +1894,41 @@ title: Visualisateur
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:item.children[j].selected
+                              isEnabled: false
+                            ↓Attr1 [mobile.components.UIAttribute-1553523016478]: 
+                              attrName: '[(ngModel)]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.formsSubmit[item['name']][child['value']]
                           ↓Attr2 [mobile.components.UIAttribute-1548356082660]: 
                             attrName: '[ngClass]'
                             attrValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:'stylegenericcheckboxnormal'
+                          ↓Event [mobile.components.UIControlEvent-1553523595436]: 
+                            ↓CustomAction [mobile.components.UICustomAction-1553523605368]: 
+                              actionValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      		page.c8o.log.debug(event ? event.toString():'no event');
+                                      		console.log(vars);
+                                      		let a = this.formsSubmit[vars.item['name']][vars.child['value']]
+                                      		resolve();
+                                      
+                              ↓item [mobile.components.UIControlVariable-1553523697859]: 
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:item
+                              ↓child [mobile.components.UIControlVariable-1553523710286]: 
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:child
                     ↓Directive2 [mobile.components.UIControlDirective-1547561964003]: 
                       directiveName: If
                       directiveSource: 
@@ -1819,9 +1973,9 @@ title: Visualisateur
                         beanData: '{"ionBean":"CardHeader"}'
                         tagName: ion-card-header
                         ↓Directive [mobile.components.UIControlDirective-1550224410283]: 
+                          directiveExpression: item.config.title.position == 'text-center'
                           directiveName: If
                           isEnabled: false
-                          directiveExpression: item.config.title.position == 'text-center'
                           ↓Div [mobile.components.UIDynamicElement-1550224410287]: 
                             beanData: '{"ionBean":"DivTag"}'
                             tagName: div
@@ -1925,9 +2079,9 @@ title: Visualisateur
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                       - MobileSmartSourceType: script:item.config.title.text
                         ↓Directive1 [mobile.components.UIControlDirective-1550224410299]: 
+                          directiveExpression: item.config.title.position == 'text-left'
                           directiveName: If
                           isEnabled: false
-                          directiveExpression: item.config.title.position == 'text-left'
                           ↓Div [mobile.components.UIDynamicElement-1550224410302]: 
                             beanData: '{"ionBean":"DivTag"}'
                             tagName: div
@@ -2031,9 +2185,9 @@ title: Visualisateur
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                       - MobileSmartSourceType: script:item.config.title.text
                         ↓Directive2 [mobile.components.UIControlDirective-1550224410314]: 
+                          directiveExpression: item.config.title.position == 'text-right'
                           directiveName: If
                           isEnabled: false
-                          directiveExpression: item.config.title.position == 'text-right'
                           ↓Div [mobile.components.UIDynamicElement-1550224410317]: 
                             beanData: '{"ionBean":"DivTag"}'
                             tagName: div
@@ -2137,8 +2291,8 @@ title: Visualisateur
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                       - MobileSmartSourceType: script:item.config.title.text
                         ↓Directive3 [mobile.components.UIControlDirective-1550583489547]: 
-                          directiveName: If
                           directiveExpression: item.config.title.position == 'text-center'
+                          directiveName: If
                           ↓Div [mobile.components.UIDynamicElement-1550583489550]: 
                             beanData: '{"ionBean":"DivTag"}'
                             tagName: div
@@ -2269,8 +2423,8 @@ title: Visualisateur
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                       - MobileSmartSourceType: 'script:{''color'': item.config.title.label_color}'
                         ↓Directive11 [mobile.components.UIControlDirective-1550583489628]: 
-                          directiveName: If
                           directiveExpression: item.config.title.position == 'text-left'
+                          directiveName: If
                           ↓Div [mobile.components.UIDynamicElement-1550583489631]: 
                             beanData: '{"ionBean":"DivTag"}'
                             tagName: div
@@ -2401,8 +2555,8 @@ title: Visualisateur
                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                       - MobileSmartSourceType: 'script:{''color'': item.config.title.label_color}'
                         ↓Directive21 [mobile.components.UIControlDirective-1550583489709]: 
-                          directiveName: If
                           directiveExpression: item.config.title.position == 'text-right'
+                          directiveName: If
                           ↓Div [mobile.components.UIDynamicElement-1550583489712]: 
                             beanData: '{"ionBean":"DivTag"}'
                             tagName: div
@@ -2790,11 +2944,11 @@ title: Visualisateur
                                     tagName: div
                                     ↓Directive [mobile.components.UIControlDirective-1550656161431]: 
                                       directiveName: If
-                                      isEnabled: false
                                       directiveSource: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                           - MobileSmartSourceType: script:child.config.mandatory
+                                      isEnabled: false
                                       ↓Style [mobile.components.UIStyle-1550656161434]: 
                                         styleContent: 
                                           - xmlizable: 
@@ -3374,9 +3528,9 @@ title: Visualisateur
                                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                           - MobileSmartSourceType: plain:no-lines
                                     ↓Directive [mobile.components.UIControlDirective-1548356470515]: 
+                                      directiveExpression: child.config.position == 'text-center'
                                       directiveName: If
                                       isEnabled: false
-                                      directiveExpression: child.config.position == 'text-center'
                                       ↓Div [mobile.components.UIDynamicElement-1548356470518]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
@@ -3480,9 +3634,9 @@ title: Visualisateur
                                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:child.config.text
                                     ↓Directive1 [mobile.components.UIControlDirective-1548356470530]: 
+                                      directiveExpression: child.config.position == 'text-left'
                                       directiveName: If
                                       isEnabled: false
-                                      directiveExpression: child.config.position == 'text-left'
                                       ↓Div [mobile.components.UIDynamicElement-1548356470533]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
@@ -3586,9 +3740,9 @@ title: Visualisateur
                                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:child.config.text
                                     ↓Directive2 [mobile.components.UIControlDirective-1548356470545]: 
+                                      directiveExpression: child.config.position == 'text-right'
                                       directiveName: If
                                       isEnabled: false
-                                      directiveExpression: child.config.position == 'text-right'
                                       ↓Div [mobile.components.UIDynamicElement-1548356470548]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
@@ -3698,8 +3852,8 @@ title: Visualisateur
                                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                           - MobileSmartSourceType: script:'stylegenericcheckboxnormal'
                                     ↓Directive3 [mobile.components.UIControlDirective-1550583533992]: 
-                                      directiveName: If
                                       directiveExpression: child.config.position == 'text-center'
+                                      directiveName: If
                                       ↓Div [mobile.components.UIDynamicElement-1550583533995]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
@@ -3830,8 +3984,8 @@ title: Visualisateur
                                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: 'script:{''color'': child.config.label_color}'
                                     ↓Directive11 [mobile.components.UIControlDirective-1550583534073]: 
-                                      directiveName: If
                                       directiveExpression: child.config.position == 'text-left'
+                                      directiveName: If
                                       ↓Div [mobile.components.UIDynamicElement-1550583534076]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
@@ -3962,8 +4116,8 @@ title: Visualisateur
                                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: 'script:{''color'': child.config.label_color}'
                                     ↓Directive21 [mobile.components.UIControlDirective-1550583534154]: 
-                                      directiveName: If
                                       directiveExpression: child.config.position == 'text-right'
+                                      directiveName: If
                                       ↓Div [mobile.components.UIDynamicElement-1550583534157]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
@@ -4930,12 +5084,6 @@ title: Visualisateur
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                 - MobileSmartSourceType: script:child.value
-                                          ↓Attr [mobile.components.UIAttribute-1548362470804]: 
-                                            attrName: '[selected]'
-                                            attrValue: 
-                                              - xmlizable: 
-                                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: script:child.selected
                                       ↓Attr6 [mobile.components.UIAttribute-1543865084387]: 
                                         attrName: '[(ngModel)]'
                                         attrValue: 
@@ -5023,11 +5171,11 @@ title: Visualisateur
                                   tagName: div
                                   ↓Directive [mobile.components.UIControlDirective-1548364768942]: 
                                     directiveName: If
-                                    isEnabled: false
                                     directiveSource: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                         - MobileSmartSourceType: script:child.config.mandatory == true
+                                    isEnabled: false
                                     ↓H4 [mobile.components.UIDynamicElement-1548364768945]: 
                                       beanData: '{"ionBean":"Heading4"}'
                                       tagName: h4
@@ -5110,12 +5258,6 @@ title: Visualisateur
                                                     - xmlizable: 
                                                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                                       - MobileSmartSourceType: script:child2.value
-                                                ↓Attr3 [mobile.components.UIAttribute-1548364768999]: 
-                                                  attrName: checked
-                                                  attrValue: 
-                                                    - xmlizable: 
-                                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                                      - MobileSmartSourceType: script:child2.selected
                                               ↓Style [mobile.components.UIStyle-1548364769002]: 
                                                 styleContent: 
                                                   - xmlizable: 
@@ -5570,7 +5712,14 @@ title: Visualisateur
                                                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                             →: |
                                                               		//this.files.splice(vars.i, 1);
-                                                              		this.global[this.idFiles][vars.itemID].splice(vars.i, 1);
+                                                              		if(this.global[this.idFiles][vars.itemID][vars.i]["deleted"] !== undefined){
+                                                                          this.global["__C8O_TODELETE"].push(this.global[this.idFiles][vars.itemID][vars.i]);
+                                                                          this.global[this.idFiles][vars.itemID].splice(vars.i, 1);
+                                                                      }
+                                                                      else{
+                                                                          this.global[this.idFiles][vars.itemID].splice(vars.i, 1);
+                                                                      }
+                                                                      resolve();
                                                               		resolve();
                                                               
                                                       ↓i [mobile.components.UIControlVariable-1551091719832]: 
@@ -5898,6 +6047,12 @@ title: Visualisateur
                                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                 - MobileSmartSourceType: plain:true
                             isEnabled: false
+                    ↓Attr [mobile.components.UIAttribute-1553531062044]: 
+                      attrName: 
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:no-padding
                 ↓Directive22 [mobile.components.UIControlDirective-1543865084450]: 
                   directiveName: If
                   directiveSource: 
@@ -5917,8 +6072,8 @@ title: Visualisateur
                             - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                             - MobileSmartSourceType: plain:no-lines
                       ↓Directive [mobile.components.UIControlDirective-1543865084459]: 
-                        directiveName: If
                         directiveExpression: item.config.position == 'text-center'
+                        directiveName: If
                         ↓Div [mobile.components.UIDynamicElement-1543865084462]: 
                           beanData: '{"ionBean":"DivTag"}'
                           tagName: div
@@ -6049,8 +6204,8 @@ title: Visualisateur
                                     - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                     - MobileSmartSourceType: 'script:{''color'': item.config.label_color}'
                       ↓Directive1 [mobile.components.UIControlDirective-1543865084474]: 
-                        directiveName: If
                         directiveExpression: item.config.position == 'text-left'
+                        directiveName: If
                         ↓Div [mobile.components.UIDynamicElement-1543865084477]: 
                           beanData: '{"ionBean":"DivTag"}'
                           tagName: div
@@ -6181,8 +6336,8 @@ title: Visualisateur
                                     - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                     - MobileSmartSourceType: 'script:{''color'': item.config.label_color}'
                       ↓Directive2 [mobile.components.UIControlDirective-1543865084489]: 
-                        directiveName: If
                         directiveExpression: item.config.position == 'text-right'
+                        directiveName: If
                         ↓Div [mobile.components.UIDynamicElement-1543865084492]: 
                           beanData: '{"ionBean":"DivTag"}'
                           tagName: div
@@ -7150,11 +7305,11 @@ title: Visualisateur
                         - MobileSmartSourceType: plain:true
                   ↓Directive [mobile.components.UIControlDirective-1546870091252]: 
                     directiveName: If
-                    isEnabled: false
                     directiveSource: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:item.config.mandatory == true
+                    isEnabled: false
                     ↓H4 [mobile.components.UIDynamicElement-1546870091255]: 
                       beanData: '{"ionBean":"Heading4"}'
                       tagName: h4
@@ -7214,12 +7369,6 @@ title: Visualisateur
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:child.value
-                            ↓Attr [mobile.components.UIAttribute-1543865084693]: 
-                              attrName: '[selected]'
-                              attrValue: 
-                                - xmlizable: 
-                                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: script:child.selected
                         ↓Attr [mobile.components.UIAttribute-1543865084696]: 
                           attrName: '[(ngModel)]'
                           attrValue: 
@@ -7322,18 +7471,12 @@ title: Visualisateur
                                 ↓RadioButton [mobile.components.UIDynamicElement-1543865084738]: 
                                   beanData: '{"ionBean":"RadioButton"}'
                                   tagName: ion-radio
-                                  ↓Attr2 [mobile.components.UIAttribute-1543865084741]: 
+                                  ↓Attr2 [mobile.components.UIAttribute-1553522419611]: 
                                     attrName: value
                                     attrValue: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                                         - MobileSmartSourceType: script:child.value
-                                  ↓Attr3 [mobile.components.UIAttribute-1543865084744]: 
-                                    attrName: checked
-                                    attrValue: 
-                                      - xmlizable: 
-                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                        - MobileSmartSourceType: script:child.selected
                                 ↓Style [mobile.components.UIStyle-1543931150108]: 
                                   styleContent: 
                                     - xmlizable: 
@@ -7717,7 +7860,7 @@ title: Visualisateur
                                       textValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1550850867094.name"}
+                                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1550850867094?.name"}
                                   ↓btEdit [mobile.components.UIDynamicElement-1550850867115]: 
                                     beanData: |
                                       '{
@@ -7751,7 +7894,13 @@ title: Visualisateur
                                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                               →: |
                                                 		//this.files.splice(vars.i, 1);
-                                                		this.global[this.idFiles][vars.itemID].splice(vars.i, 1);
+                                                		if(this.global[this.idFiles][vars.itemID][vars.i]["deleted"] !== undefined){
+                                                		    this.global["__C8O_TODELETE"].push(this.global[this.idFiles][vars.itemID][vars.i]);
+                                                		    this.global[this.idFiles][vars.itemID].splice(vars.i, 1);
+                                                		}
+                                                		else{
+                                                		    this.global[this.idFiles][vars.itemID].splice(vars.i, 1);
+                                                		}
                                                 		resolve();
                                                 
                                         ↓i [mobile.components.UIControlVariable-1550850867130]: 
@@ -8218,65 +8367,376 @@ title: Visualisateur
                             beanData: '{"ionBean":"IfAction","condition":"script:parent.out == 1"}'
                             ↓If [mobile.components.UIDynamicAction-1545335499641]: 
                               beanData: '{"ionBean":"IfAction","condition":"script:this.edit"}'
-                              ↓PostData [mobile.components.UIDynamicAction-1545335539210]: 
-                                beanData: |
-                                  '{
-                                   "ionBean": "FullSyncPostAction",
-                                   "requestable": "plain:C8Oforms.c8oforms_response_fs",
-                                   "_id": "script:this.global.formSelected._id",
-                                   "_use_policy": "plain:merge"
-                                  }'
-                                ↓resp [mobile.components.UIControlVariable-1545335539213]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.formsSubmit
-                                ↓formId [mobile.components.UIControlVariable-1545335539216]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.form._id
-                                ↓timestamp [mobile.components.UIControlVariable-1545335539219]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.epoch
-                                ↓RootPage [mobile.components.UIDynamicAction-1547586515798]: 
-                                  beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
-                                  isEnabled: false
-                                ↓PostAttachment [mobile.components.UICustomAction-1551177004647]: 
-                                  actionValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                        →: |
-                                          		
-                                                  
-                                                      let flat = this.flatArray();
-                                                      let total = flat[1];
-                                                      let arr = flat[0];
+                              ↓CheckFiles [mobile.components.UICustomAction-1551949589365]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        		    //Set globals
+                                                    this.global['__viewindeok']= [];
+                                                    let flat = this.flatArray();
+                                                    this.global["__viewerTotal"] = flat[1];
+                                                    this.global["__viewerarr"] = flat[0];
+                                                    this.cpt = 0;
+                                                    resolve();
+                                        
+                                ↓PostData [mobile.components.UIDynamicAction-1545335539210]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "FullSyncPostAction",
+                                     "requestable": "plain:C8Oforms.c8oforms_response_fs",
+                                     "_id": "script:this.global.formSelected._id",
+                                     "_use_policy": "plain:merge"
+                                    }'
+                                  ↓resp [mobile.components.UIControlVariable-1545335539213]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.formsSubmit
+                                  ↓formId [mobile.components.UIControlVariable-1545335539216]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.form._id
+                                  ↓timestamp [mobile.components.UIControlVariable-1545335539219]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.epoch
+                                  ↓IfFiles [mobile.components.UIDynamicAction-1551949683615]: 
+                                    beanData: '{"ionBean":"IfAction","condition":"script:this.global[''__viewerTotal''] > 0 || this.global[\"__C8O_TODELETE\"].length >0"}'
+                                    ↓Modal_Page [mobile.components.UIDynamicAction-1551949683618]: 
+                                      beanData: |
+                                        '{
+                                         "ionBean": "ModalAction",
+                                         "page": "plain:C8Oforms.MobileApplication.Application.progressPage",
+                                         "blockWhileDisplayed": "plain:true",
+                                         "showBackdrop": "plain:true",
+                                         "enableBackdropDismiss": "plain:true",
+                                         "cssClass": "plain:update-profile-modal"
+                                        }'
+                                      ↓PublishEvent [mobile.components.UIDynamicAction-1553526379644]: 
+                                        beanData: '{"ionBean":"PublishEventAction","topic":"plain:closeProgress"}'
+                                    ↓PostAttachment [mobile.components.UICustomAction-1551949683621]: 
+                                      actionValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              		//this.global['__viewerTotal'] > 0 || this.global["__C8O_TODELETE"] >0
+                                              		/**
+                                              		 * this.global["__viewerProgressDelete"] = this.cptDelete;
+                                                         this.global['__C8O_TODELETE'][parameters['index']]["deleted"]= true;
+                                                               **/
+                                                      this.global["totalcount"] =  this.global['__C8O_TODELETE'].length + this.global['__viewerarr'].length;
+                                                      this.global['cptTotal'] = 0;   
+                                              		this.local["submitting"] = true;
+                                              		if(this.global["__viewerarr"] == undefined){
+                                              		    this.global["__viewerarr"] == [];
+                                              		}
+                                                      this.global["__viewerProgressDelete"] = 0;
+                                              		this.global["viewerTotalDelAdd"] =  this.global["__C8O_TODELETE"].length + this.global["__viewerTotal"];
+                                              		this.deleteRecursive(this.global["__C8O_TODELETE"], 0, this.global["__C8O_TODELETE"].length, this.global.formSelected._id)
+                                              		.then(()=>{
+                                              		    this.postRecursive(this.global["__viewerarr"], 0, this.global["__viewerTotal"],this.global.formSelected._id)
+                                                          .then(()=>{
+                                                              this.global["totalcount"] = 1;
+                                                              this.global['cptTotal'] = 1;
+                                                             resolve(); 
+                                                          });
+                                              		});
+                                              	        
+                                              
+                                      ↓Toast1 [mobile.components.UIDynamicAction-1551949683624]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "ToastAction",
+                                           "message": "script:this.formSubmittedStr",
+                                           "cssClass": "plain:changeToast"
+                                          }'
+                                      ↓PublishEvent [mobile.components.UIDynamicAction-1551949683627]: 
+                                        beanData: '{"ionBean":"PublishEventAction","topic":"plain:closemodal"}'
+                                        isEnabled: false
+                                      ↓ResetVal [mobile.components.UICustomAction-1551969033266]: 
+                                        actionValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                              →: |
+                                                		this.global['__viewindeok']= null;
+                                                        this.global["__viewerTotal"] = 0;
+                                                        this.global["__viewerarr"] = [];
+                                                        this.global['__C8O_TODELETE'] = [];
+                                                        this.cpt = 0;
+                                                		resolve();
+                                                
+                                        isEnabled: false
+                                  ↓Else [mobile.components.UIDynamicAction-1551949683630]: 
+                                    beanData: '{"ionBean":"IfAction","condition":"script:!(this.global[''__viewerTotal''] > 0) && !(this.global[\"__C8O_TODELETE\"].length >0)"}'
+                                    ↓Toast1 [mobile.components.UIDynamicAction-1551949683633]: 
+                                      beanData: |
+                                        '{
+                                         "ionBean": "ToastAction",
+                                         "message": "script:this.formSubmittedStr",
+                                         "cssClass": "plain:changeToast"
+                                        }'
+                                    ↓ResetVal [mobile.components.UICustomAction-1551949683636]: 
+                                      actionValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              		this.global['__viewindeok']= null;
+                                                      this.global["__viewerTotal"] = null;
+                                                      this.global["__viewerarr"] = null;
+                                                      this.global['__C8O_TODELETE'] = [];
                                                       this.cpt = 0;
-                                                      this.postRecursive(arr, 0, total, this.global.formSelected._id)
-                                                      .then(()=>{
-                                                          resolve();
-                                                      });
-                                          
-                                          
-                                  ↓Toast [mobile.components.UIDynamicAction-1547586571188]: 
+                                              		resolve();
+                                              
+                                      isEnabled: false
+                                    ↓RootPage [mobile.components.UIDynamicAction-1551949683639]: 
+                                      beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+                                  ↓Modal_Page [mobile.components.UIDynamicAction-1551949616575]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "ModalAction",
+                                       "page": "plain:C8Oforms.MobileApplication.Application.progressPage",
+                                       "showBackdrop": "plain:true",
+                                       "enableBackdropDismiss": "plain:true",
+                                       "cssClass": "plain:update-profile-modal"
+                                      }'
+                                    isEnabled: false
+                                  ↓PostAttachment [mobile.components.UICustomAction-1551177004647]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                                        let flat = this.flatArray();
+                                                        let total = flat[1];
+                                                        let arr = flat[0];
+                                                        this.cpt = 0;
+                                                        this.postRecursive(arr, 0, total, this.global.formSelected._id)
+                                                        .then(()=>{
+                                                            resolve();
+                                                        });
+                                            
+                                            
+                                    isEnabled: false
+                                    ↓Toast [mobile.components.UIDynamicAction-1547586571188]: 
+                                      beanData: |
+                                        '{
+                                         "ionBean": "ToastAction",
+                                         "message": "script:this.formSubmittedStr",
+                                         "cssClass": "plain:changeToast"
+                                        }'
+                                    ↓IfFiles [mobile.components.UIDynamicAction-1551949352853]: 
+                                      beanData: '{"ionBean":"IfAction","condition":"script:this.global[''__viewerTotal''] > 0 || this.global[\"__C8O_TODELETE\"] >0"}'
+                                      ↓Modal_Page [mobile.components.UIDynamicAction-1551949352856]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "ModalAction",
+                                           "page": "plain:C8Oforms.MobileApplication.Application.progressPage",
+                                           "showBackdrop": "plain:true",
+                                           "enableBackdropDismiss": "plain:true",
+                                           "cssClass": "plain:update-profile-modal"
+                                          }'
+                                      ↓PostAttachment [mobile.components.UICustomAction-1551949352859]: 
+                                        actionValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                              →: |
+                                                		console.log("viewArr");
+                                                		console.log(this.global["__viewerarr"]);
+                                                	        this.postRecursive(this.global["__viewerarr"], 0, this.global["__viewerTotal"])
+                                                            .then(()=>{
+                                                               resolve(); 
+                                                            });
+                                                
+                                        ↓Toast1 [mobile.components.UIDynamicAction-1551949352862]: 
+                                          beanData: |
+                                            '{
+                                             "ionBean": "ToastAction",
+                                             "message": "script:this.formSubmittedStr",
+                                             "cssClass": "plain:changeToast"
+                                            }'
+                                        ↓PublishEvent [mobile.components.UIDynamicAction-1551949352865]: 
+                                          beanData: '{"ionBean":"PublishEventAction","topic":"plain:closemodal"}'
+                                    ↓Else [mobile.components.UIDynamicAction-1551949352868]: 
+                                      beanData: '{"ionBean":"IfAction","condition":"script:this.global[''__viewerTotal'']  == 0"}'
+                                      ↓Toast1 [mobile.components.UIDynamicAction-1551949352871]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "ToastAction",
+                                           "message": "script:this.formSubmittedStr",
+                                           "cssClass": "plain:changeToast"
+                                          }'
+                                      ↓ResetVal [mobile.components.UICustomAction-1551949352874]: 
+                                        actionValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                              →: |
+                                                		this.global['__viewindeok']= null;
+                                                        this.global["__viewerTotal"] = null;
+                                                        this.global["__viewerarr"] = null;
+                                                        this.cpt = 0;
+                                                		resolve();
+                                                
+                                      ↓RootPage [mobile.components.UIDynamicAction-1551949352877]: 
+                                        beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+                                  ↓RootPage [mobile.components.UIDynamicAction-1547586515798]: 
+                                    beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+                                    isEnabled: false
+                                  ↓CheckFiles [mobile.components.UICustomAction-1551949317174]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            		    //Set globals
+                                                        this.global['__viewindeok']= [];
+                                                        let flat = this.flatArray();
+                                                        this.global["__viewerTotal"] = flat[1];
+                                                        this.global["__viewerarr"] = flat[0];
+                                                        this.cpt = 0;
+                                                        resolve();
+                                            
+                                    isEnabled: false
+                                    ↓NameAttachmants [mobile.components.UICustomAction-1551949317177]: 
+                                      actionValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              		this.global["__descarr"] = {};
+                                              		for(let item of this.global["__viewerarr"]){
+                                              		    if(this.global["__descarr"][item.bean] == undefined){
+                                              		        this.global["__descarr"][item.bean] =[];
+                                              		    }
+                                              		    this.global["__descarr"][item.bean].push(item['file']['name']);
+                                              		}
+                                              		resolve(this.global["__descarr"]);
+                                              
+                                      ↓PostData [mobile.components.UIDynamicAction-1551949317180]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "FullSyncPostAction",
+                                           "requestable": "plain:C8Oforms.c8oforms_response_fs",
+                                           "_id": "script:this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch",
+                                           "_use_policy": "plain:merge"
+                                          }'
+                                        ↓resp [mobile.components.UIControlVariable-1551949317183]: 
+                                          varValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:this.formsSubmit
+                                        ↓formId [mobile.components.UIControlVariable-1551949317186]: 
+                                          varValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:this.form._id
+                                        ↓timestamp [mobile.components.UIControlVariable-1551949317189]: 
+                                          varValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:this.epoch
+                                        ↓IfFiles [mobile.components.UIDynamicAction-1551949317192]: 
+                                          beanData: '{"ionBean":"IfAction","condition":"script:this.global[''__viewerTotal''] > 0"}'
+                                          ↓Modal_Page [mobile.components.UIDynamicAction-1551949317195]: 
+                                            beanData: |
+                                              '{
+                                               "ionBean": "ModalAction",
+                                               "page": "plain:C8Oforms.MobileApplication.Application.progressPage",
+                                               "showBackdrop": "plain:true",
+                                               "enableBackdropDismiss": "plain:true",
+                                               "cssClass": "plain:update-profile-modal"
+                                              }'
+                                          ↓PostAttachment [mobile.components.UICustomAction-1551949317198]: 
+                                            actionValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    		console.log("viewArr");
+                                                    		console.log(this.global["__viewerarr"]);
+                                                    	        this.postRecursive(this.global["__viewerarr"], 0, this.global["__viewerTotal"])
+                                                                .then(()=>{
+                                                                   resolve(); 
+                                                                });
+                                                    
+                                            ↓Toast1 [mobile.components.UIDynamicAction-1551949317201]: 
+                                              beanData: |
+                                                '{
+                                                 "ionBean": "ToastAction",
+                                                 "message": "script:this.formSubmittedStr",
+                                                 "cssClass": "plain:changeToast"
+                                                }'
+                                            ↓PublishEvent [mobile.components.UIDynamicAction-1551949317204]: 
+                                              beanData: '{"ionBean":"PublishEventAction","topic":"plain:closemodal"}'
+                                        ↓Else [mobile.components.UIDynamicAction-1551949317207]: 
+                                          beanData: '{"ionBean":"IfAction","condition":"script:this.global[''__viewerTotal'']  == 0"}'
+                                          ↓Toast1 [mobile.components.UIDynamicAction-1551949317210]: 
+                                            beanData: |
+                                              '{
+                                               "ionBean": "ToastAction",
+                                               "message": "script:this.formSubmittedStr",
+                                               "cssClass": "plain:changeToast"
+                                              }'
+                                          ↓ResetVal [mobile.components.UICustomAction-1551949317213]: 
+                                            actionValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    		this.global['__viewindeok']= null;
+                                                            this.global["__viewerTotal"] = null;
+                                                            this.global["__viewerarr"] = null;
+                                                            this.cpt = 0;
+                                                    		resolve();
+                                                    
+                                          ↓RootPage [mobile.components.UIDynamicAction-1551949317216]: 
+                                            beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+                                        ↓descritpionAttachments [mobile.components.UIControlVariable-1551949317219]: 
+                                          varValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:parent.out
+                                      ↓CustomAction [mobile.components.UICustomAction-1551949317222]: 
+                                        actionValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                              →: |
+                                                		console.log(props)
+                                                		resolve();
+                                                
+                                  ↓Toast1 [mobile.components.UIDynamicAction-1553508403551]: 
                                     beanData: |
                                       '{
                                        "ionBean": "ToastAction",
                                        "message": "script:this.formSubmittedStr",
                                        "cssClass": "plain:changeToast"
                                       }'
-                                ↓Modal_Page [mobile.components.UIDynamicAction-1551263579232]: 
-                                  beanData: |
-                                    '{
-                                     "ionBean": "ModalAction",
-                                     "showBackdrop": "plain:true",
-                                     "enableBackdropDismiss": "plain:true"
-                                    }'
-                                  isEnabled: false
+                                    isEnabled: false
+                                  ↓ResetVal [mobile.components.UICustomAction-1553508403554]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            		this.global['__viewindeok']= null;
+                                                    this.global["__viewerTotal"] = null;
+                                                    this.global["__viewerarr"] = null;
+                                                    this.cpt = 0;
+                                            		resolve();
+                                            
+                                    isEnabled: false
+                                  ↓RootPage1 [mobile.components.UIDynamicAction-1553508403557]: 
+                                    beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+                                    isEnabled: false
                             ↓else [mobile.components.UIDynamicAction-1545335521050]: 
                               beanData: '{"ionBean":"IfAction","condition":"script:!this.edit"}'
                               ↓Modal_Page [mobile.components.UIDynamicAction-1551263796394]: 
@@ -8336,43 +8796,43 @@ title: Visualisateur
                                       ↓RootPage [mobile.components.UIDynamicAction-1551277736875]: 
                                         beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
                                         isEnabled: false
-                              ↓PostData [mobile.components.UIDynamicAction-1551865911871]: 
-                                beanData: |
-                                  '{
-                                   "ionBean": "FullSyncPostAction",
-                                   "requestable": "plain:C8Oforms.c8oforms_response_fs",
-                                   "_id": "script:this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch",
-                                   "_use_policy": "plain:merge"
-                                  }'
-                                ↓resp [mobile.components.UIControlVariable-1551865911874]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.formsSubmit
-                                ↓formId [mobile.components.UIControlVariable-1551865911877]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.form._id
-                                ↓timestamp [mobile.components.UIControlVariable-1551865911880]: 
-                                  varValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.epoch
-                                ↓CheckFiles [mobile.components.UICustomAction-1551865535816]: 
-                                  actionValue: 
-                                    - xmlizable: 
-                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                        →: |
-                                          		    //Set globals
-                                                      this.global['__viewindeok']= [];
-                                                      let flat = this.flatArray();
-                                                      this.global["__viewerTotal"] = flat[1];
-                                                      this.global["__viewerarr"] = flat[0];
-                                                      this.cpt = 0;
-                                                      resolve();
-                                          
+                              ↓CheckFiles [mobile.components.UICustomAction-1551865535816]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        		    //Set globals
+                                                    this.global['__viewindeok']= [];
+                                                    let flat = this.flatArray();
+                                                    this.global["__viewerTotal"] = flat[1];
+                                                    this.global["__viewerarr"] = flat[0];
+                                                    this.cpt = 0;
+                                                    resolve();
+                                        
+                                ↓PostData [mobile.components.UIDynamicAction-1551865911871]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "FullSyncPostAction",
+                                     "requestable": "plain:C8Oforms.c8oforms_response_fs",
+                                     "_id": "script:this.global.user+''_''+this.global.formSelected._id+''_''+this.epoch",
+                                     "_use_policy": "plain:merge"
+                                    }'
+                                  ↓resp [mobile.components.UIControlVariable-1551865911874]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.formsSubmit
+                                  ↓formId [mobile.components.UIControlVariable-1551865911877]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.form._id
+                                  ↓timestamp [mobile.components.UIControlVariable-1551865911880]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:this.epoch
                                   ↓IfFiles [mobile.components.UIDynamicAction-1551865138159]: 
                                     beanData: '{"ionBean":"IfAction","condition":"script:this.global[''__viewerTotal''] > 0"}'
                                     ↓Modal_Page [mobile.components.UIDynamicAction-1551865158121]: 
@@ -8380,18 +8840,26 @@ title: Visualisateur
                                         '{
                                          "ionBean": "ModalAction",
                                          "page": "plain:C8Oforms.MobileApplication.Application.progressPage",
+                                         "blockWhileDisplayed": "plain:true",
                                          "showBackdrop": "plain:true",
                                          "enableBackdropDismiss": "plain:true",
                                          "cssClass": "plain:update-profile-modal"
                                         }'
+                                      ↓PublishEvent [mobile.components.UIDynamicAction-1553526391182]: 
+                                        beanData: '{"ionBean":"PublishEventAction","topic":"plain:closeProgress"}'
                                     ↓PostAttachment [mobile.components.UICustomAction-1551865892091]: 
                                       actionValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                             →: |
+                                              		 this.global["totalcount"] =  this.global['__C8O_TODELETE'].length + this.global['__viewerarr'].length;
+                                                      this.global['cptTotal'] = 0;   
+                                                      this.local["submitting"] = true;
                                               	        this.postRecursive(this.global["__viewerarr"], 0, this.global["__viewerTotal"])
                                                           .then(()=>{
+                                                              this.global["totalcount"] = 1;
+                                                              this.global['cptTotal'] = 1;
                                                              resolve(); 
                                                           });
                                               
@@ -8421,10 +8889,12 @@ title: Visualisateur
                                             →: |
                                               		this.global['__viewindeok']= null;
                                                       this.global["__viewerTotal"] = null;
-                                                      this.global["__viewerarr"] = null;
+                                                      this.global["__viewerarr"] = [];
+                                                      this.global['__C8O_TODELETE'] = [];
                                                       this.cpt = 0;
                                               		resolve();
                                               
+                                      isEnabled: false
                                     ↓RootPage [mobile.components.UIDynamicAction-1551866011521]: 
                                       beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
                       ↓Else [mobile.components.UIDynamicAction-1547494709652]: 
@@ -8544,7 +9014,7 @@ title: Visualisateur
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
-                      margin:34px;
+                      /*margin:34px;*/
                       
           ↓Style [mobile.components.UIStyle-1543930974305]: 
             styleContent: 
@@ -8566,6 +9036,13 @@ title: Visualisateur
                   - MobileSmartSourceType: plain:cardfooter
             ↓Tag [mobile.components.UIElement-1544453391332]: 
               tagName: ion-col
+          ↓Attr [mobile.components.UIAttribute-1553531212384]: 
+            attrName: 
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:no-padding
+            isEnabled: false
         ↓Attr [mobile.components.UIAttribute-1543864506194]: 
           attrName: '[style.background-color]'
           attrValue: 
@@ -8651,10 +9128,11 @@ title: Visualisateur
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             		this.global['__viewindeok']= null;
-                    this.global["__viewerTotal"] = null;
-                    this.global["__viewerarr"] = null;
+                    this.global["__viewerTotal"] = 0;
+                    this.global["__viewerarr"] = [];
                     this.cpt = 0;
             		resolve();
             
+    isEnabled: false
   ↓RootPage [mobile.components.UIDynamicAction-1551865993355]: 
     beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
