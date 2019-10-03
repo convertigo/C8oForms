@@ -141,27 +141,16 @@
 																		style="display: block; margin-left: auto; margin-right: auto;"
 																		src="https://www.convertigo.com/wp-content/themes/EightDegree/images/logo_convertigo.png"
 																		width="145" height="46" />
-																	<h1 style="text-align: center;">Account Confirmed!</h1>
+																	<h1 style="text-align: center;">Convertigo Forms Builder</h1>
+																	
+																	
 																	<p
-																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Hello,</p>
+																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Nouvelle réponse dans votre formulaire <b> <xsl:value-of select="//formName" ></xsl:value-of></b></p>
+																	
 																	<p
-																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Your account is confirmed.</p>
-																	<ul>
-																		<li
-																			style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">
-																			Your signin email is : <xsl:value-of select="//email" ></xsl:value-of>
-																		</li>
-																		<li
-																			style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">
-																			Your Convertigo Cloud Site is :
-																			<a href="https://{//site}.convertigo.net" target="_blank">https://<xsl:value-of select="//site" ></xsl:value-of>.convertigo.net</a>
-																		</li>
-																		<li
-																			style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">
-																			Your Convertigo Cloud Dashboard login page is :<br />
-																			<a href="{//dashboard}" target="_blank"><xsl:value-of select="//dashboard" ></xsl:value-of></a>
-																		</li>
-																	</ul>
+																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Pour télécharger les réponses au format csv, veuillez cliquer <a href="{//linkCsv}">ici</a></p>
+																	<p
+																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Vous pouvez vous désabonner aux notifications en cliqant sur ce <a href="www.google.com">lien.</a></p>
 
 
 																</td>
@@ -185,7 +174,7 @@
 													<td class="content-block"
 														style="font-family: sans-serif; vertical-align: top; padding-bottom: 10px; padding-top: 10px; font-size: 12px; color: #999999; text-align: center; width: 556px;">
 														<span class="apple-link"
-															style="color: #ffffff; font-size: 12px; text-align: center;">Convertigo cloud is brought to you by Convertigo.SA</span>
+															style="color: #ffffff; font-size: 12px; text-align: center;">Convertigo form builder is brought to you by Convertigo.SA</span>
 													</td>
 												</tr>
 												<tr>
