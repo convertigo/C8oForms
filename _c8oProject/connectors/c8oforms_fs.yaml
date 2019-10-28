@@ -1,14 +1,15 @@
 databaseName: c8oforms_fs
+↓DeleteDocument [transactions.couchdb.DeleteDocumentTransaction]: 
+  ↓_use_docid [variables.RequestableVariable-1572016079895]: 
+    description: Document ID
 ↓GetDocument [transactions.couchdb.GetDocumentTransaction]: 
   ↓_use_docid [variables.RequestableVariable-1570024790592]: 
     description: Document ID
 ↓GetDocumentRev [transactions.couchdb.GetDocumentTransaction]: 
   ↓_use_docid [variables.RequestableVariable-1571920860201]: 
     description: Document ID
-    value: 1571760345347
   ↓_use_rev [variables.RequestableVariable-1571920860203]: 
     description: (string) – Retrieves document of specified revision. Optional
-    value: 114-b478eb0b549ceb79b8eaf49403832efd
 ↓GetServerInfo [transactions.couchdb.GetServerInfoTransaction]: 
   ↑default: true
 ↓PostDocument [transactions.couchdb.PostDocumentTransaction]: 
@@ -26,11 +27,28 @@ databaseName: c8oforms_fs
     description: Document id
 ↓PurgeDatabase [transactions.couchdb.PurgeDatabaseTransaction]: 
   purgeAll: true
-↓Design_document [couchdb.DesignDocument]: 
+↓control_documents [couchdb.DesignDocument]: 
   docdata: 
     →: |
       '{
-        "_id": "_design\/Design_document",
+        "_id": "_design\/control_documents",
+        "filters": {},
+        "updates": {},
+        "views": {"control_documents": {"map": "function (doc) {\r\n
+          try {\r\n
+              if(doc._id != \"C8Oreserved\" && doc._id.indexOf(\"published\") == -1 && doc._id.indexOf(\"control_document\") != -1){\r\n
+                  emit(doc._id, doc._rev);\r\n
+              }    \r\n
+          } catch (err) {\r\n
+              log(err.message);\r\n
+          }\r\n
+      }"}}
+      }'
+↓forms [couchdb.DesignDocument]: 
+  docdata: 
+    →: |
+      '{
+        "_id": "_design\/forms",
         "filters": {},
         "updates": {},
         "views": {
@@ -45,13 +63,14 @@ databaseName: c8oforms_fs
       }"},
           "formulaires": {"map": "function (doc) {\r\n
           try {\r\n
-              if(doc._id != \"C8Oreserved\" && doc._id.indexOf(\"published\") == -1){\r\n
+              if(doc._id != \"C8Oreserved\" && doc._id.indexOf(\"published\") == -1 && doc._id.indexOf(\"control_document\") == -1){\r\n
                   emit(doc._id, {doc: doc});\r\n
               }    \r\n
           } catch (err) {\r\n
               log(err.message);\r\n
           }\r\n
-      }"},
+      }\r\n
+      "},
           "favorites": {"map": "function (doc) {\r\n
           try {\r\n
               \r\n
@@ -62,3 +81,23 @@ databaseName: c8oforms_fs
       }"}
         }
       }'
+↓published_forms [couchdb.DesignDocument]: 
+  docdata: 
+    →: |
+      '{
+        "_id": "_design\/published_forms",
+        "filters": {},
+        "updates": {},
+        "views": {"formulaires": {"map": "function (doc) {\r\n
+          try {\r\n
+              if(doc._id != \"C8Oreserved\" && doc._id.indexOf(\"published\") != -1 && doc._id.indexOf(\"control_document\") == -1){\r\n
+                  emit(doc._id, {doc: doc});\r\n
+              }    \r\n
+          } catch (err) {\r\n
+              log(err.message);\r\n
+          }\r\n
+      }"}}
+      }'
+↓OnPostControlDocument [couchdb.FullSyncListener]: 
+  targetSequence: C8Oforms.Publish_Form
+  targetView: C8Oforms.c8oforms_fs.control_documents.control_documents
