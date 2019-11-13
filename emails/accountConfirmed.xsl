@@ -150,7 +150,7 @@
 																	<p
 																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Pour télécharger les réponses au format csv, veuillez cliquer <a href="{//linkCsv}">ici</a></p>
 																	<p
-																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Vous pouvez vous désabonner aux notifications en cliqant sur ce <a href="www.google.com">lien.</a></p>
+																		style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">Vous pouvez vous désabonner aux notifications en cliquant sur ce <a href="www.google.com">lien.</a></p>
 
 
 																</td>
