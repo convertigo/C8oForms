@@ -281,7 +281,7 @@ scriptContent:
         	
         	/*End_c8o_PageFunction*/
         '
-segment: viewer/:formId/:edit
+segment: viewer/:formId/:edit/:i
 title: Visualisateur
 ↓PageEvent [mobile.components.UIPageEvent-1537364954559]: 
   viewEvent: onWillEnter
@@ -415,32 +415,65 @@ title: Visualisateur
             		    page.local.edit = this.navParams.get(''edit'');*/
             		    // Getting user status (whenever he is logged or not)
             		    page.local.formId = this.navParams.get(''formId'');
-            		    page.local.published = page.local.formId.indexOf("published") != -1 ? true : false;
-            		    page.c8o.httpInterface.getUserServiceStatus()
-            		    .then((res)=>{
-            		        if(res.authenticated && res.user.length != 64 && res.user.indexOf("@") != -1){
-            		            page.local.user = res.user;
-            		            resolve(true);
-            		        }
-            		        else if(res.authenticated && res.user.length == 64){
-                                page.local.user = res.user;
+            		    
+            		    page.local.published = page.local.formId != undefined ?page.local.formId.indexOf("published") != -1 ? true : false: false;
+            		    page.local.user = this.navParams.get(''i'');
+            		    // if we are in anonymous mode
+            		    if(page.local.user != undefined && page.local.user != ":i"){        
+                            page.c8o.callJson(".login", "email", page.local.user, "password", page.local.user)
+                            .then((res: any)=>{
+                                if(res != "ko"){
+                                    return page.c8o.callJson("fs://c8oforms_fs.sync"
+                                    );
+                                }
+                                else{
+                                    window.location.href = ''./'';
+                                    resolve(false);
+                                    return null;
+                                }
+                              
+                            })
+                            .then((res)=>{
+                              return page.c8o.callJson("fs://c8oforms_fs.view",
+                                      "ddoc", "published_forms_anonymous",
+                                      "view", "all"
+                                  );
+                            })
+                            .then((res)=>{
+                               // page.local.user = res.user;
                                 page.local.anonymous = true;
                                 resolve(true);
-                            }
-            		        else{
-            		            setTimeout(()=>{
-            		                page.routerProvider.setRoot("loginPage", {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit}, null); 
-            		            }, 200);
-            		            resolve(false);
-            		        }
-            		    })
-            		    .catch((err)=>{
-            		        setTimeout(()=>{
-            		            page.routerProvider.setRoot("loginPage", {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit}, null); 
-            		        }, 200);
-            		        resolve(false);
-            		    })
-                          };
+                            })
+                            .fail((e)=>{
+                                console.log(e);
+                                window.location.href = ''./'';
+                                resolve(false);
+                            });
+            		    }
+            		    else{
+            		        page.c8o.httpInterface.getUserServiceStatus()
+            	            .then((res)=>{
+            	                if(res.user.length == 64 || res.user.authenticated == false){
+                                    setTimeout(()=>{
+                                        page.routerProvider.setRoot("loginPage", {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit}, null); 
+                                    }, 200);
+                                    resolve(false);
+                                }
+                                else{
+                                    page.local.user = res.user;
+                                    resolve(true);
+                                }
+            	                    
+            	            })
+            	            .catch((err)=>{
+            	                setTimeout(()=>{
+            	                    page.routerProvider.setRoot("loginPage", {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit}, null); 
+            	                }, 200);
+            	                resolve(false);
+            	            })
+            		    }
+            		    
+                       };
             		   /* this.local.debug = {};
                         let formId = this.navParams.get(''formId'');
                         if(formId != undefined){
@@ -8698,7 +8731,7 @@ title: Visualisateur
                         '{
                          "ionBean": "RootPageAction",
                          "page": "plain:C8Oforms.MobileApplication.Application.viewerPage",
-                         "data": "script:{formId:local.formId, edit:'':edit''}"
+                         "data": "script:{formId:local.formId, edit:'':edit'', i: this[''navParams''][''get''](''i'')}"
                         }'
                 ↓Tag [mobile.components.UIElement-1576511489080]: 
                   isEnabled: false

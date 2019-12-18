@@ -172,36 +172,75 @@
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
                   		    //Set globals
-                              page.global['__viewindeok']= [];
-                              let flat = page["flatArray"]();
-                              page.global["__viewerTotal"] = flat[1];
-                              page.global["__viewerarr"] = flat[0];
-                              
-                              page["cpt"] = 0;
-                              
-                              // for any case we define adequat id an formId to use for pushing doc and if there is to push or delete files
-                              if(page.local.anonymous == true){
-                                  var array = new Uint32Array(2);
-                                  let result = RandomVal(array);
-                                  let random = result[0] * result[1];
-                                  let formId = page.local.formId.substring(0, page.local.formId.length -10);
-                                  page.local.myId = 'anonymous-'+ random +'_'+ formId + '_' + page["epoch"];
-                                  page.local.myFormId = formId;
-                                  page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0;
-                              }
-                              else if(page["edit"] == true){
-                                  page.local.myId = page["navParams"]["data"]["edit"];
-                                  page.local.myFormId = page["form"]["_id"];
-                                  page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0 ||  page.global["__C8O_TODELETE"].length >0;
+                  		    const doStuff = ()=>{
+                                  page.global['__viewindeok']= [];
+                                  let flat = page["flatArray"]();
+                                  page.global["__viewerTotal"] = flat[1];
+                                  page.global["__viewerarr"] = flat[0];
                                   
+                                  page["cpt"] = 0;
+                                  
+                                  // for any case we define adequat id an formId to use for pushing doc and if there is to push or delete files
+                                  if(page.local.anonymous == true){
+                                      var array = new Uint32Array(2);
+                                      let result = RandomVal(array);
+                                      let random = result[0] * result[1];
+                                      let formId = page.local.formId.substring(0, page.local.formId.length -10);
+                                      page.local.myId = 'anonymous-'+ random +'_'+ formId + '_' + page["epoch"];
+                                      page.local.myFormId = formId;
+                                      page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0;
+                                  }
+                                  else if(page["edit"] == true){
+                                      page.local.myId = page["navParams"]["data"]["edit"];
+                                      page.local.myFormId = page["form"]["_id"];
+                                      page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0 ||  page.global["__C8O_TODELETE"].length >0;
+                                      
+                                  }
+                                  else{
+                                      page.local.myId = page.local.user+'_'+page.local.formId+'_'+page["epoch"];
+                                      page.local.myFormId = page.local.formId;
+                                      page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0;
+                                  }
+                                  
+                                  resolve();
                               }
-                              else{
-                                  page.local.myId = page.local.user+'_'+page.local.formId+'_'+page["epoch"];
-                                  page.local.myFormId = page.local.formId;
-                                  page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0;
-                              }
+                  		    
+                  		    if(page["navParams"]["get"]('i') != undefined && page["navParams"]["get"]('i') != ":i"){
+                  		        page.c8o.httpInterface.getUserServiceStatus()
+                  	            .then((res)=>{
+                  	                if(res.authenticated){
+                  	                    if(res.user != page["navParams"]["get"]('i')){
+                  	                        page.c8o.callJson(".login", "email", page["navParams"]["get"]('i'), "password", page["navParams"]["get"]('i'))
+                  	                        .then((res)=>{
+                  	                            doStuff()
+                  	                            return null;
+                  	                        });
+                  	                    }
+                  	                    else{
+                  	                        doStuff();
+                  	                    }
+                  	                    
+                  	                }
+                  	                else{
+                  	                    page.c8o.callJson(".login", "email", page["navParams"]["get"]('i'), "password", page["navParams"]["get"]('i'))
+                                          .then((res)=>{
+                                              doStuff()
+                                              return null;
+                                          });
+                  	                }
+                  	            })
+                  	            .catch((err)=>{
+                  	                setTimeout(()=>{
+                  	                    page.routerProvider.setRoot("loginPage", {page:'viewerPage', formId:page.local.formId, edit:page.local.edit}, null); 
+                  	                }, 200);
+                  	                resolve(false);
+                  	            })
+                  		    }
+                  		    else{
+                  		        doStuff();
+                  		    }
+                  		    
                               
-                              resolve();
                   
           package_dependencies: 
             - xmlizable: 
