@@ -5,6 +5,10 @@ This a is the dockerized version of Convertigo forms that able you tu run it on 
 - [C8o Forms Standalone](#c8o-forms-standalone)
   - [Installation guide](#installation-guide)
   - [Environnement](#environnement)
+    - [C8oForms](#c8oforms)
+    - [Convertigo Server](#convertigo-server)
+    - [Couchdb fauxton](#couchdb-fauxton)
+  - [Authentication Active directory](#authentication-active-directory)
 
 ## Installation guide ##
 
@@ -12,10 +16,10 @@ First of all, extract tar.gz
 ```shell
 $ tar -xzvf c8oforms_standalone.tar.gz
 ```
-Then, navigate to folder, and startup docker
+Then, navigate to folder, and start-up docker
 ```shell
 $ cd c8oforms_standalone
-$ docker-compose up --build -d
+$ docker-compose up -d
 ```
 When its done, on first launch you must to configure couchdb you can either use init_couchdb.sh that configure for you automatically couchdb in single node mode.
 ```shell
@@ -31,11 +35,26 @@ $ docker-compose down
 ## Environnement ##
 
 When previous step is done you can access to:
-- C8oForms
+### C8oForms ###
   - url: https://localhost:28080/convertigo/projects/C8Oforms/DisplayObjects/mobile/index.html
-- Convertigo Server: http://localhost:28080/convertigo/
+### Convertigo Server ###
+  - url http://localhost:28080/convertigo/ 
   - login: admin
   - password: admin
-- Couchdb fauxton at: http://localhost:28081/_utils
+### Couchdb fauxton ###
+  - url: http://localhost:28081/_utils
   - login: admin
   - password: fullsyncpassword
+
+## Authentication Active directory ##
+
+You have to configure project lib_UserManager project, to do so go to convertigo admin console: https://localhost:28080/convertigo/admin/login.html and type [login and password](#convertigo-server).
+Then, click on project on the left hand side to access to project list view. On the left side of lib_UserManager project, you will se a red warning icon, click on it to create symbols.
+Now that its done, click on symbols on the left hand side.
+You will have to define 3 symbols:  
+* lib_UserManager.adminUser
+  * This user must be an active directory account, who has at least read only access right, and so can execute research and whole tree 
+* lib_UserManager.adminPassword.secret
+  * Password of our active directory user
+* lib_UserManager.ldapServer
+  * url of LDAP server such as ldap://localhost:389
