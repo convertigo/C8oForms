@@ -3,6 +3,7 @@
 This a is the dockerized version of Convertigo forms that able you tu run it on premises.
 
 - [C8o Forms Standalone](#c8o-forms-standalone)
+  - [Pre-requisites](#pre-requisites)
   - [Installation guide](#installation-guide)
   - [Environnement](#environnement)
     - [C8oForms](#c8oforms)
@@ -10,11 +11,17 @@ This a is the dockerized version of Convertigo forms that able you tu run it on 
     - [Couchdb fauxton](#couchdb-fauxton)
   - [Authentication Active directory](#authentication-active-directory)
 
+## Pre-requisites ##
+You need to install docker and docker-compose
 ## Installation guide ##
 
 First of all, extract tar.gz
 ```shell
 $ tar -xzvf c8oforms_standalone.tar.gz
+```
+Then, start docker as a deamon
+ ```shell
+$ systemctl start docker
 ```
 Then, navigate to folder, and start-up docker
 ```shell
@@ -32,6 +39,8 @@ To shutdown docker exit process and run:
 $ docker-compose down
 ```
 
+
+
 ## Environnement ##
 
 When previous step is done you can access to:
@@ -47,6 +56,8 @@ When previous step is done you can access to:
   - password: fullsyncpassword
 
 ## Authentication Active directory ##
+
+Before configuring symboles ensure that you have write right on workspace folder !
 
 You have to configure project lib_UserManager project, to do so go to convertigo admin console: https://localhost:28080/convertigo/admin/login.html and type [login and password](#convertigo-server).
 Then, click on project on the left hand side to access to project list view. On the left side of lib_UserManager project, you will se a red warning icon, click on it to create symbols.
