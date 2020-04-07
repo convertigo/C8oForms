@@ -50,22 +50,33 @@ comment: Process a tick (Refresh define in caf)
           		    page.c8o.callJsonObject("fs://c8oforms_fs.view",objQ)
                           .then((response1: any, parameters)=>{
                               response = response1;
+                              page.local.count = response.rows.length;
                               if(page.local.folder != ""){
                                   if(response1.rows.length == 0){
                                       page.router.setRoot("selectorPage", {"published": page.local["published"]}, null);
                                       return null;
                                   }
                               }
+                              else if(vars.query) {
+                                  page["list"] = response.rows;
+                                  page["tick"]();
+                                  page.local.spinner = false;
+                                  resolve();
+                                  return null;
+                              }
+                              else{
+                                  let ObjParams = {
+                                          "ddoc": ddoc,
+                                          "view": "byFolder",
+                                          "__live": "viewLiveSelector2",
+                                          "reduce": true,
+                                          "group": true
+                                          
+                                      };
+                                  return page.c8o.callJsonObject("fs://c8oforms_fs.view",ObjParams);
+                              }
                               
-                              let ObjParams = {
-                                      "ddoc": ddoc,
-                                      "view": "byFolder",
-                                      "__live": "viewLiveSelector2",
-                                      "reduce": true,
-                                      "group": true
-                                      
-                                  };
-                              return page.c8o.callJsonObject("fs://c8oforms_fs.view",ObjParams);
+                              
                           })
                           .then((response2: any, params2: any)=>{
                               page.local.response2Array = [];
@@ -85,6 +96,7 @@ comment: Process a tick (Refresh define in caf)
                                           let tagDefined = !(page.local.tags == undefined || page.local.tags["length"] == 0);
                                           let subTagDefined = !(page.local.subTags == undefined || page.local.subTags["length"] == 0);
                                           if(!tagDefined && !subTagDefined){
+                                              page.local.strTotal = response.rows.length + '' Résultats pour le filtre de recherche: Aucun''; 
                                               page["list"] = response.rows;
                                               page["tick"]();
                                               page.local.spinner = false;
@@ -92,21 +104,39 @@ comment: Process a tick (Refresh define in caf)
                                           }
                                           else{
                                               let res = response.rows;
+                                              let strTagCount = '''';
                                               if(tagDefined){
+                                                  /* used to show filters */
+                                                  for(let filter of page.local.tags){
+                                                      if(strTagCount != ''''){
+                                                          strTagCount += " " + page["translate"].instant(''or'') + " ";
+                                                      }
+                                                      strTagCount += filter;
+                                                  }
+                                                  /* used to compute data */
                                                   let funcFiltre = (el)=>{
                                                       for(let filter of page.local.tags){
                                                           if(el["value"]["doc"]["tag"] != undefined){
                                                               if(JSON.parse(el["value"]["doc"]["tag"]).indexOf(filter) != -1){
                                                                   return true;
                                                               }
-                                                          }
+                                                          }                                                
                                                       }
                                                       return false;
                                                       
                                                   };
                                                   res = res.filter(el => funcFiltre(el));
                                               }
+                                              let strSubTagCount = '''';
                                               if(subTagDefined){
+                                                  /* used to show filters */
+                                                  for(let filter of page.local.subTags){
+                                                      if(strSubTagCount != ''''){
+                                                          strSubTagCount += " " + page["translate"].instant(''or'') + " ";
+                                                      }
+                                                      strSubTagCount += filter;
+                                                  }
+                                                  /* used to compute data */
                                                   let funcFiltre = (el)=>{
                                                       for(let filter of page.local.subTags){
                                                           if(el["value"]["doc"]["subTag"] != undefined){
@@ -119,6 +149,22 @@ comment: Process a tick (Refresh define in caf)
                                                       
                                                   };
                                                   res = res.filter(el => funcFiltre(el));
+                                              }
+                                              
+                                              
+                                              /* compute string for search results */
+                                              page.local.strTotal = res.length + '' Résultats pour le filtre de recherche: '' 
+                                              if(strTagCount == '''' && strSubTagCount == ''''){
+                                                  page.local.strTotal += ''Aucun'';
+                                              }
+                                              else{
+                                                  if(strTagCount != ''''){
+                                                      page.local.strTotal += '' Etiquettes = '' +strTagCount; 
+                                                  }
+                                                  if(strSubTagCount != ''''){
+                                                      strTagCount != '''' ? page.local.strTotal += '' et'': null;
+                                                      page.local.strTotal += '' Sous-etiquettes = '' +strSubTagCount; 
+                                                  }
                                               }
                                               
                                               page["list"] = res;
