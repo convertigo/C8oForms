@@ -91,18 +91,21 @@ you can find your workspace into folder c8oforms_standalone
 
 ## Create a new c8oforms account ##
 Go to [convertigo administration](#convertigo-server) and login,
-then navigate to test platform, and click on lib_UserManager, execute sequence AddUser with user email and password
+then navigate to test platform, and click on lib_UserManager, execute sequence AddUser with user email and password.
+
+Be carefull to use an email like "myemail@mail.com". If you don't you won't be able to login... 
 
 ## Authentication Active directory ##
 
 Before configuring symboles ensure that you have write right on workspace folder !
 
-You have to configure project lib_UserManager project, to do so go to convertigo admin console: https://localhost:28080/convertigo/admin/login.html and type [login and password](#convertigo-server).
+You have to configure project lib_UserManager project, to do so go to convertigo admin console: http://localhost:28080/convertigo/admin/login.html and type [login and password](#convertigo-server).
 Then, click on project on the left hand side to access to project list view. On the left side of lib_UserManager project, you will se a red warning icon, click on it to create symbols.
 Now that its done, click on symbols on the left hand side.
 You will have to define 3 symbols:  
 * lib_UserManager.adminUser
-  * This user must be an active directory account, who has at least read only access right, and so can execute research and whole tree 
+  * This user must be an active directory account, who has at least read only access right, and so can execute research and whole tree
+    * expected synthax is DOMAIN_NAME\USER 
 * lib_UserManager.adminPassword.secret
   * Password of our active directory user
 * lib_UserManager.ldapServer
