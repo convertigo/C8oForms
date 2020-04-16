@@ -38,6 +38,7 @@ Then, start docker as a deamon
 $ systemctl start docker
 ```
 Then, make sur you have correct permissions on folder c8oforms_standalone (Read/Write/Execute)
+
  ```shell
 $ sudo chmod -R 777 ./c8oforms_standalone
 ```
