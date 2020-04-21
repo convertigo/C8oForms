@@ -53,7 +53,7 @@ $ ./init_couchdb.sh
 ```
 or configure it manually by using fauxton.
 
-You maight wait about 5 minutes before whole environement fished setup after starting...
+You may wait about 5 minutes before whole environement fished setup after starting...
 
 Go to [convertigo Administration](#convertigo-server), into projects to check that all projects has been loaded.
 After 5 minutes you must see following projects:
@@ -71,7 +71,7 @@ $ docker-compose down
 
 
 ## Environnement ##
-You maight wait about 5 minutes before whole environement fished setup after starting..
+You may wait about 5 minutes before whole environement fished setup after starting..
 
 When previous step is done you can access to:
 ### C8oForms ###
@@ -97,7 +97,7 @@ Be carefull to use an email like "myemail@mail.com". If you don't you won't be a
 
 ## Authentication Active directory ##
 
-Before configuring symboles ensure that you have write right on workspace folder !
+Before configuring symbols ensure that you have write right on workspace folder !
 
 You have to configure project lib_UserManager project, to do so go to convertigo admin console: http://localhost:28080/convertigo/admin/login.html and type [login and password](#convertigo-server).
 Then, click on project on the left hand side to access to project list view. On the left side of lib_UserManager project, you will se a red warning icon, click on it to create symbols.
