@@ -35,7 +35,7 @@ databaseName: c8oforms_response_fs
           "getResponses": {
             "map": "function (doc) {\r\n
           try {\r\n
-              if(doc.timestamp != null){\r\n
+              if(doc.timestamp != null && doc.control_document_response != true){\r\n
                   emit(doc.formId, doc);\r\n
               }    \r\n
           } catch (err) {\r\n
@@ -53,7 +53,7 @@ databaseName: c8oforms_response_fs
           "responsesById": {
             "map": "function (doc) {\r\n
           try {\r\n
-              if(doc.timestamp != null){\r\n
+              if(doc.timestamp != null && doc.control_document_response != true){\r\n
                   emit(doc._id);\r\n
               }    \r\n
           } catch (err) {\r\n
@@ -70,7 +70,9 @@ databaseName: c8oforms_response_fs
           },
           "responsesByFormId": {"map": "function (doc) {\r\n
           try {\r\n
-              emit(doc.formId, {doc: doc});\r\n
+              if(doc.control_document_response != true){\r\n
+                  emit(doc.formId, {doc: doc});\r\n
+              }\r\n
           } catch (err) {\r\n
               log(err.message);\r\n
           }\r\n
@@ -174,10 +176,12 @@ databaseName: c8oforms_response_fs
                   formatedSecond = (second.length === 1) ? (\"0\" + second) : second;\r\n
                   return formatedDay + \"-\" + formatedMonth + \"-\" + year + \" \" + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;\r\n
               };\r\n
-              var date = getDate(doc.timestamp);\r\n
-                var resp = [{\"key\":\"horodateur\", \"value\":date}];\r\n
-                flatenize(doc.resp, \"\", resp, doc._id);\r\n
+              if(doc.control_document_response != true){\r\n
+                  var date = getDate(doc.timestamp);\r\n
+                  var resp = [{\"key\":\"horodateur\", \"value\":date}];\r\n
+                  flatenize(doc.resp, \"\", resp, doc._id);\r\n
                   emit(doc.formId, {doc: resp});\r\n
+              }\r\n
               } catch (err) {\r\n
                   log(err.message);\r\n
               }\r\n
@@ -185,7 +189,7 @@ databaseName: c8oforms_response_fs
           "getResponseByVersion": {
             "map": "function (doc) {\r\n
               try {\r\n
-                  if(doc.version != null){\r\n
+                  if(doc.version != null && doc.control_document_response != true){\r\n
                       emit(doc.formId + \"__\" + doc.version, doc);\r\n
                   }    \r\n
               } catch (err) {\r\n
@@ -203,9 +207,29 @@ databaseName: c8oforms_response_fs
           }
         }
       }'
+↓Publish_response [couchdb.DesignDocument]: 
+  docdata: 
+    →: |
+      '{
+        "_id": "_design\/Publish_response",
+        "filters": {},
+        "updates": {},
+        "views": {"getControlDocs": {"map": "function (doc) {\r\n
+          try {\r\n
+              if(doc.control_document_response == true && doc.finished == true){\r\n
+                  emit(doc._id, doc);\r\n
+              }\r\n
+          } catch (err) {\r\n
+              log(err.message);\r\n
+          }\r\n
+      }"}}
+      }'
 ↓FullSync_Update_Listener_Filter [couchdb.FullSyncFilterListener]: 
   isEnabled: false
   targetSequence: C8Oforms.NotifyResponseByMail
 ↓FullSync_Update_Listener_View [couchdb.FullSyncListener]: 
   targetSequence: C8Oforms.Execute_Sequences
   targetView: C8Oforms.c8oforms_response_fs.Design_document.responsesById
+↓FullSync_Update_Listener_ViewControlDoc [couchdb.FullSyncListener]: 
+  targetSequence: C8Oforms.Publish_response
+  targetView: C8Oforms.c8oforms_response_fs.Publish_response.getControlDocs
