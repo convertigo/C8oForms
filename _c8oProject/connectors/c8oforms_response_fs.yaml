@@ -22,6 +22,10 @@ databaseName: c8oforms_response_fs
   viewname: Design_document/view
   ↓_use_key [variables.RequestableVariable-1572470474538]: 
     description: (string) – Return only documents that match the specified key. Optional
+↓GetView1 [transactions.couchdb.GetViewTransaction]: 
+  viewname: Design_document/view1
+  ↓_use_key [variables.RequestableVariable-1591964805053]: 
+    description: (string) – Return only documents that match the specified key. Optional
 ↓PurgeDatabase [transactions.couchdb.PurgeDatabaseTransaction]: 
   purgeAll: true
 ↓Design_document [couchdb.DesignDocument]: 
@@ -200,7 +204,99 @@ databaseName: c8oforms_response_fs
               log(err.message);\r\n
           }\r\n
       }"
-          }
+          },
+          "view1": {"map": "function (doc) {\r\n
+          try {\r\n
+              \/\/function flatenize\r\n
+              var flatenize = function (doc, prefix, resp, myid){\r\n
+                    for (var property in doc) {\r\n
+                      if(doc[property].type != undefined){\r\n
+                        if(doc[property].type == \"ion-card\"){\r\n
+                          flatenize(doc[property][\"children\"], doc[property][\"name\"]+\"_\", resp, myid);\r\n
+                        }\r\n
+                        else if(doc[property].type == \"radio_group\"){\r\n
+                            for(var ninos in doc[property].children){\r\n
+                              resp.push({\"key\":property+\"_\" + ninos, \"value\": doc[property].children[ninos]})\r\n
+                            }\r\n
+                        }\r\n
+                        else{\r\n
+                          if(doc[property].type == \"checkbox\"){\r\n
+                              var val =\"\";                        \r\n
+                              for (var child in doc[property].children) {\r\n
+                                  if(doc[property].children[child].selected){\r\n
+                                      if(val == \"\"){\r\n
+                                          val = doc[property].children[child].value + \"\";\r\n
+                                      }\r\n
+                                      else{\r\n
+                                          val = val + \",\" + doc[property].children[child].value;\r\n
+                                      }\r\n
+                                    \r\n
+                                }\r\n
+                            }\r\n
+                            resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": val});\r\n
+                          }\r\n
+                          else if(doc[property].type == \"checkbox_group\"){\r\n
+                            \/\/ foreach Line\r\n
+                            for(var ninos in doc[property].children){\r\n
+                              var val = \"\";\r\n
+                              \/\/ foreach Column\r\n
+                              for (var child in doc[property].children[ninos]) {\r\n
+                                  if(doc[property].children[ninos][child].selected === true){\r\n
+                                    if(val === \"\"){\r\n
+                                      val = doc[property].children[ninos][child].value;\r\n
+                                    }\r\n
+                                    else{\r\n
+                                      val = val + \",\" + doc[property].children[ninos][child].value;\r\n
+                                    } \r\n
+                                  }\r\n
+                              }\r\n
+                              resp.push({\"key\":prefix + property+\"_\" + ninos, \"value\": val});\r\n
+                            }\r\n
+                          }\r\n
+                          else if(doc[property].type == \"img\"){\r\n
+                              if(doc[property].value != \"\"){\r\n
+                                  resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__IMG,\"+myid})  \r\n
+                              }\r\n
+                              else{\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
+                              }\r\n
+                            }\r\n
+                            else if(doc[property].type == \"signature\"){\r\n
+                              if(doc[property].value != \"\"){\r\n
+                                resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__SIGNATURE,\"+myid})\r\n
+                              }\r\n
+                              else{\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
+                              }\r\n
+                            }\r\n
+                            else if(doc[property].type == \"file\"){\r\n
+                              if(doc[property].value != \"\"){\r\n
+                                var str = \"\";\r\n
+                                for(var elem in doc[property][\"value\"]){\r\n
+                                  str += \",\" + doc[property][\"value\"][elem];\r\n
+                                }\r\n
+                                resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__FILE,\"+myid+str})\r\n
+                              } \r\n
+                              else{\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
+                              }\r\n
+                            }\r\n
+                          else{\r\n
+                           resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]}) \r\n
+                          }\r\n
+                        }\r\n
+                      }\r\n
+                    }\r\n
+              };\r\n
+              \r\n
+              var date = doc.timestamp;\r\n
+                var resp = [{\"key\":\"horodateur\", \"value\":date}];\r\n
+                flatenize(doc.resp, \"\", resp, doc._id);\r\n
+                  emit(doc.formId, {doc: resp});\r\n
+              } catch (err) {\r\n
+                  log(err.message);\r\n
+              }\r\n
+      }"}
         }
       }'
 ↓FullSync_Update_Listener_Filter [couchdb.FullSyncFilterListener]: 
