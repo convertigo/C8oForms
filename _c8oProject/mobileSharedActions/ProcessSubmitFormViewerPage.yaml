@@ -4,7 +4,12 @@
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '		let submit = true;
+          '		    
+          		    //this.local.pages[this.local.currentIndex][''pageTechName''] == item.config.page
+          		let currentIndex = vars.indexPage;
+          		let pages = vars.pages;
+          		let doAll = vars.doAll;
+          		let submit = true;
           		let submitDoble = true;
           		page.local.redListTwoSameColumn = {};
           		
@@ -66,52 +71,63 @@
                       } 
                   };
                   
-                  const checkMandatoryAndJustOnebyColumn = (currentList, formsSubmit)=>{
+                  const checkMandatoryAndJustOnebyColumn = (currentList, formsSubmit, pages, currentIndex)=>{
                       for(let item in currentList){
                           // Reassign each value as virgin
                           page["redList"][currentList[item]["name"]] = false;
-                          
-                          // Process just one by column
-                          if(currentList[item]["config"] != undefined && currentList[item]["config"]["different"] == true){
-                              
-                              switch (formsSubmit[currentList[item]["name"]]["type"]) {
-                                  case ''radio_group'':
-                                      checkJustOneByColumnRadioGroup(formsSubmit[currentList[item]["name"]]["children"], currentList[item]["name"]);
-                                      break;
-                                  case ''checkbox_group'':
-                                      checkJustOneByColumnCheckboxGroup(currentList[item]["children"], currentList[item]["name"], formsSubmit);
-                                      break;
-                                  default:
-                                      break;
+                          let doThis = false;
+                          if(currentIndex != undefined){
+                              if(pages[currentIndex][''pageTechName''] == currentList[item]["config"]["page"]){
+                                  doThis = true;
                               }
-                          
+                              
                           }
-                          // Process check mandatory
-                          if(currentList[item]["config"] != undefined && currentList[item]["config"]["mandatory"] == true){
-                              if(formsSubmit[currentList[item]["name"]]["value"] === "" || formsSubmit[currentList[item]["name"]]["value"] === undefined){
+                          else{
+                              doThis = true;
+                          }
+                          if(doThis){
+                              // Process just one by column
+                              if(currentList[item]["config"] != undefined && currentList[item]["config"]["different"] == true){
                                   
-                                  switch (currentList[item]["type"]) {
+                                  switch (formsSubmit[currentList[item]["name"]]["type"]) {
                                       case ''radio_group'':
-                                          checkNotEmptyRadioGroup(formsSubmit[currentList[item]["name"]]["children"], currentList[item]["name"]);
+                                          checkJustOneByColumnRadioGroup(formsSubmit[currentList[item]["name"]]["children"], currentList[item]["name"]);
                                           break;
                                       case ''checkbox_group'':
-                                          checkNotEmptyCheckboxGroup(formsSubmit[currentList[item]["name"]]["children"], currentList[item]["name"]);
-                                          break;
-                                      case ''file'':
-                                          checkNotEmptyFile(currentList[item]);
+                                          checkJustOneByColumnCheckboxGroup(currentList[item]["children"], currentList[item]["name"], formsSubmit);
                                           break;
                                       default:
-                                          page["redList"][currentList[item]["name"]] = true;
-                                          submit = false;
                                           break;
+                                  }
+                              
                               }
-                                  
+                              // Process check mandatory
+                              if(currentList[item]["config"] != undefined && currentList[item]["config"]["mandatory"] == true){
+                                  if(formsSubmit[currentList[item]["name"]]["value"] === "" || formsSubmit[currentList[item]["name"]]["value"] === undefined){
+                                      
+                                      switch (currentList[item]["type"]) {
+                                          case ''radio_group'':
+                                              checkNotEmptyRadioGroup(formsSubmit[currentList[item]["name"]]["children"], currentList[item]["name"]);
+                                              break;
+                                          case ''checkbox_group'':
+                                              checkNotEmptyCheckboxGroup(formsSubmit[currentList[item]["name"]]["children"], currentList[item]["name"]);
+                                              break;
+                                          case ''file'':
+                                              checkNotEmptyFile(currentList[item]);
+                                              break;
+                                          default:
+                                              page["redList"][currentList[item]["name"]] = true;
+                                              submit = false;
+                                              break;
+                                  }
+                                      
+                                  }
                               }
+                              // Recursive call for cards
+                              else if(currentList[item]["type"] == "ion-card"){
+                                  checkMandatoryAndJustOnebyColumn(currentList[item]["children"], formsSubmit[currentList[item]["name"]]["children"], pages, currentIndex);
+                              }   
                           }
-                          // Recursive call for cards
-                          else if(currentList[item]["type"] == "ion-card"){
-                              checkMandatoryAndJustOnebyColumn(currentList[item]["children"], formsSubmit[currentList[item]["name"]]["children"]);
-                          }                
                           
                       }
                   }
@@ -154,22 +170,30 @@
                       }
                   }
                   // call the function
-                  checkMandatoryAndJustOnebyColumn(page["formsList"], page["formsSubmit"]);
-                  putAttachments(page["formsSubmit"]);
-                  searchForActions();
+                  checkMandatoryAndJustOnebyColumn(page["formsList"], page["formsSubmit"], pages, currentIndex);
+                  if(doAll == true){
+                      putAttachments(page["formsSubmit"]);
+                      searchForActions();
+                  }
           		
           		page.tick();
           		if(submit && submitDoble){
-          		    let translate = page.getInstance(TranslateService);
-          		    let obs1 = translate.get(''formSubmitted'');
-          		    let obs2 = translate.get(''submitForm'');
-          		    let obs3 = translate.get(''sendForm'');
-          		    zip(obs1, obs2, obs3).subscribe((res)=>{
-          		        page["formSubmittedStr"] = res[0];
-          		        page["this.submitFormStr"] = res[1];
-          		        page["sendFormStr"] = res[2];
-          		        resolve({"animate":false});
-          		    });
+          		    if(doAll == true){
+          		        let translate = page.getInstance(TranslateService);
+          	            let obs1 = translate.get(''formSubmitted'');
+          	            let obs2 = translate.get(''submitForm'');
+          	            let obs3 = translate.get(''sendForm'');
+          	            zip(obs1, obs2, obs3).subscribe((res)=>{
+          	                page["formSubmittedStr"] = res[0];
+          	                page["this.submitFormStr"] = res[1];
+          	                page["sendFormStr"] = res[2];
+          	                resolve({"animate":false});
+          	            });
+          		    }
+          		    else{
+          		        resolve({"ok": true});
+          		    }
+          		    
           		  
           		  
           		}
@@ -189,7 +213,7 @@
             - java.lang.String: 
               - ↑value: rxjs
   ↓ifFormFillesCorrectly [mobile.components.UIDynamicIf-1576329798941]: 
-    beanData: '{"ionBean":"IfElseAction","condition":"script:parent.out.animate != true"}'
+    beanData: '{"ionBean":"IfElseAction","condition":"script:parent.out.animate != true && parent.out.ok != true"}'
     ↓showAlertConfirmation [mobile.components.UIDynamicAction-1576329916201]: 
       beanData: |
         '{
@@ -494,65 +518,97 @@
                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:page['local']['submitActions']
     ↓Else_Handler [mobile.components.UIActionElseEvent-1576329803906]: 
-      ↓SetRedAndAnimate [mobile.components.UICustomAction-1576329825047]: 
-        actionValue: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-              →: |
-                '		    let first = false;
-                		    /* if(this.redList[''respNameRequired'']){
-                		        this.divResponseName.nativeElement.classList.remove("animated");
-                                this.divResponseName.nativeElement.classList.remove("shake");
-                                if(!first){
-                                    this.divResponseName.nativeElement.scrollIntoView({block: "center", inline: "nearest", behavior:"smooth"});   
-                                    first = true;
-                                }
-                                setTimeout(() => {
-                                    this.divResponseName.nativeElement.classList.add("animated");
-                                    this.divResponseName.nativeElement.classList.add("shake");
-                                    
-                                }, 50);
-                		    }*/
-                		    
-                		    //this.setRedSpecs(this.all_divtext[''_results''], first);
-                            //this.setRedSpecs(this.all_divimg[''_results''], first);
-                		    let shake = (item: any)=>{
-                		        item.nativeElement.classList.remove("animated");
-                                item.nativeElement.classList.remove("shake");
-                                if(!first){
-                                    item.nativeElement.scrollIntoView({block: "center", inline: "nearest", behavior:"smooth"});   
-                                    first = true;
-                                }
-                                setTimeout(() => {
-                                    item.nativeElement.classList.add("animated");
-                                    item.nativeElement.classList.add("shake");
-                                    
-                                }, 50);
-                		    }
-                		    
-                		    for(let item of page["all_divtext"][''_results'']){
-                		        let find;
-                		        let findDobleColumn;
-                		        if(item.nativeElement.id.indexOf("_C8o#") != -1){
-                		            find = page["redList"][item.nativeElement.id.substring(0,item.nativeElement.id.indexOf("_C8o#"))][item.nativeElement.id.substring(item.nativeElement.id.indexOf("_C8o#")+5)];
-                		            findDobleColumn = page.local.redListTwoSameColumn[item.nativeElement.id.substring(0,item.nativeElement.id.indexOf("_C8o#"))][item.nativeElement.id.substring(item.nativeElement.id.indexOf("_C8o#")+5)];
-                		        }
-                		        else{
-                		            find = page["redList"][item.nativeElement.id];
-                		            findDobleColumn = page.local.redListTwoSameColumn[item.nativeElement.id];
-                		        }
-                                if(find && findDobleColumn){
-                                    shake(item);
-                                }
-                                else if(find){
-                                    shake(item);
-                                }
-                                else if(findDobleColumn){
-                                    shake(item);
-                                }
-                                
-                            }
-                		   
-                		resolve();
-                '
+      ↓IfElse [mobile.components.UIDynamicIf-1592831596052]: 
+        beanData: '{"ionBean":"IfElseAction","condition":"script:stack[''CheckMandatoryAndUniqueColumn''].out.animate == true"}'
+        ↓SetRedAndAnimate [mobile.components.UICustomAction-1576329825047]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '		    let first = false;
+                  		    /* if(this.redList[''respNameRequired'']){
+                  		        this.divResponseName.nativeElement.classList.remove("animated");
+                                  this.divResponseName.nativeElement.classList.remove("shake");
+                                  if(!first){
+                                      this.divResponseName.nativeElement.scrollIntoView({block: "center", inline: "nearest", behavior:"smooth"});   
+                                      first = true;
+                                  }
+                                  setTimeout(() => {
+                                      this.divResponseName.nativeElement.classList.add("animated");
+                                      this.divResponseName.nativeElement.classList.add("shake");
+                                      
+                                  }, 50);
+                  		    }*/
+                  		    
+                  		    //this.setRedSpecs(this.all_divtext[''_results''], first);
+                              //this.setRedSpecs(this.all_divimg[''_results''], first);
+                  		    let shake = (item: any)=>{
+                  		        item.nativeElement.classList.remove("animated");
+                                  item.nativeElement.classList.remove("shake");
+                                  if(!first){
+                                      item.nativeElement.scrollIntoView({block: "center", inline: "nearest", behavior:"smooth"});   
+                                      first = true;
+                                  }
+                                  setTimeout(() => {
+                                      item.nativeElement.classList.add("animated");
+                                      item.nativeElement.classList.add("shake");
+                                      
+                                  }, 50);
+                  		    }
+                  		    
+                  		    for(let item of page["all_divtext"][''_results'']){
+                  		        let find;
+                  		        let findDobleColumn;
+                  		        if(item.nativeElement.id.indexOf("_C8o#") != -1){
+                  		            find = page["redList"][item.nativeElement.id.substring(0,item.nativeElement.id.indexOf("_C8o#"))][item.nativeElement.id.substring(item.nativeElement.id.indexOf("_C8o#")+5)];
+                  		            findDobleColumn = page.local.redListTwoSameColumn[item.nativeElement.id.substring(0,item.nativeElement.id.indexOf("_C8o#"))][item.nativeElement.id.substring(item.nativeElement.id.indexOf("_C8o#")+5)];
+                  		        }
+                  		        else{
+                  		            find = page["redList"][item.nativeElement.id];
+                  		            findDobleColumn = page.local.redListTwoSameColumn[item.nativeElement.id];
+                  		        }
+                                  if(find && findDobleColumn){
+                                      shake(item);
+                                  }
+                                  else if(find){
+                                      shake(item);
+                                  }
+                                  else if(findDobleColumn){
+                                      shake(item);
+                                  }
+                                  
+                              }
+                  		   
+                  		resolve();
+                  '
+        ↓Else_Handler [mobile.components.UIActionElseEvent-1592831633547]: 
+          ↓CustomAction [mobile.components.UICustomAction-1592831642675]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    		resolve({"nextPage":true});
+                    
+  ↓indexPage [mobile.components.UIControlVariable-1592830860163]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.indexPage
+  ↓pages [mobile.components.UIControlVariable-1592830962017]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.pages
+  ↓doAll [mobile.components.UIControlVariable-1592831552052]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.doAll
+↓indexPage [mobile.components.UIStackVariable-1592830817786]: 
+  value: this.local.currentIndex
+↓pages [mobile.components.UIStackVariable-1592830949002]: 
+  value: this.local.pages
+↓doAll [mobile.components.UIStackVariable-1592831535509]: 
+  value: true
