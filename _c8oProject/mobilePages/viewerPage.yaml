@@ -345,8 +345,266 @@ title: Visualisateur
           ↓SyncFsResponses [mobile.components.UIDynamicAction-1576601012769]: 
             beanData: '{"ionBean":"FullSyncSyncAction","requestable":"plain:C8Oforms.c8oforms_response_fs"}'
       ↓Else_Handler [mobile.components.UIActionElseEvent-1570701884980]: 
-        ↓RootPage [mobile.components.UIDynamicAction-1572269500185]: 
-          beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+        ↓IfElse [mobile.components.UIDynamicIf-1593622945986]: 
+          beanData: '{"ionBean":"IfElseAction","condition":"script:this.local.user != undefined || this.local.user != \":i\""}'
+          ↓LoadFormanonymous [mobile.components.UICustomAction-1593622986245]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '		    page.local.user = this.navParams.get(''i'');
+                    		    page.c8o.callJson(".getAnonymousForm", "login", page.local.user,"__disableAutologin", true)
+                                .then((res: any)=>{
+                                    let respInit = null;
+                                    if(res.transaction.document.couchdb_output.rows[0] != undefined){
+                                        let response = res.transaction.document.couchdb_output;
+                                        if(response.rows != undefined){
+                                            if(response.rows[0] != undefined){
+                                                
+                                                
+                                                //
+                                                
+                                                var myIdP = response.rows[0].value.doc._id;
+                                                const key = "_C8O_HIDDEN_" +  myIdP.substring(0, myIdP.indexOf("_anonymous"));
+                                                page.local.grp[key] = true;
+                                                page.local.formId = response.rows[0].value.doc._id;
+                                                
+                                                //
+                                                page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
+                                                page["form"] = response.rows[0].value.doc;
+                                                page["formsList"] = response.rows[0].value.doc.formulaire;
+                                                page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
+                                                try{
+                                                    page["local"]["pages"] =  response.rows[0].value.doc["pages"]  
+                                                    page["local"]["currentIndex"] = 0;
+                                                }
+                                                catch(e){
+                                                    page["local"]["pages"] = undefined;
+                                                    page["local"]["currentIndex"] = 0;
+                                                }
+                                                page.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
+                                                
+                                                // load background image if we are in new support mode image
+                                                if(response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined){
+                                                    page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/"+page.form["_id"]+"/wallpaper";
+                                                    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+                                                    page.tick();
+                                                    /*page.c8o.get_attachment(page["form"]["_id"], "wallpaper", "c8oforms_fs")
+                                                    .then((res) => {
+                                                        page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/"+page.form["_id"]+"wallpaper";
+                                                        page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+                                                        page.tick();
+                                                    }).catch((err) => {
+                                                        page.c8o.log.error("Error loading wallpaper from local base", err);
+                                                    }); */
+                                                }
+                                                else{
+                                                    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+                                                }
+                                                let fillFormSubmit = (list, redList, formSubmit, response) => {
+                                                    try  {
+                                                        for(let item of list){
+                                                            if(item["type"] == "ion-card"){
+                                                                redList[item["name"]] = {};
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "children":{}};
+                                                                //redList[item["name"]]["children"] = [];
+                                                                let res = response != undefined ? response[item["name"]]["children"] : null;
+                                                                fillFormSubmit(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"], res);
+                                                            }
+                                                            else if(item["type"] == "text"){
+                                                                let value = respInit == null ? "": response[item["name"]]["value"]; 
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                            }
+                                                            else if(item["type"] == "checkbox"){
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                               
+                                                                for(let child in item["children"]){
+                                                                    let selected;
+                                                                    try {
+                                                                        selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
+                                                                    }
+                                                                    catch(e){
+                                                                        
+                                                                    }
+                                                                    
+                                                                    formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected, "other": item["children"][child].other});
+                                                                }
+                                                            }
+                                                            else if(item["type"] == "radio" || item["type"] == "select"){
+                                                                
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                                
+                                                                    let defaultSelected ="";
+                                                                    for(let child in item["children"]){
+                                                                        let selected;
+                                                                        try {
+                                                                            selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
+                                                                            if(selected){
+                                                                                defaultSelected = respInit == null ? item["children"][child].value : response[item["name"]]["children"][child]["value"];
+                                                                            }
+                                                                        }
+                                                                        catch(e){
+                                                                            
+                                                                        }
+                                                                        
+                                                                        formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
+                                                                    }
+                                                                    formSubmit[item["name"]]["value"] = defaultSelected;
+                                                               
+                                                                
+                                                            }
+                                                            else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
+                                                                let value = respInit == null ? "": response[item["name"]]["value"]; 
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["name"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                            }
+                                                            else if(item["type"] == "radio_group"){
+                                                                
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, children_label:item["children"], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                                for(let line of item.lines){
+                                                                    let value = respInit == null ? "": response[item["name"]]["children"][line.title]; 
+                                                                    formSubmit[item["name"]].children[line.title]= value;
+                                                                }
+                                                            }
+                                                            else if(item["type"] == "checkbox_group"){
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                                
+                                                                for(let line of item.lines){
+                                                                    formSubmit[item["name"]].children[line.title] = [];
+                                                                    for(let child in item["children"]){
+                                                                        let selected;
+                                                                        try {
+                                                                            selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][line.title][child]["selected"];
+                                                                        }
+                                                                        catch(e){   
+                                                                        }   
+                                                                        formSubmit[item["name"]].children[line.title].push({"value": item["children"][child].value, "selected": selected});
+                                                                    }
+                                                                }
+                                                            }
+                                                            
+                                                    };
+                                                    }
+                                                    catch(e){
+                                                        console.log("error");
+                                                        console.log(e);
+                                                    }
+                                                    
+                                                }
+                                                
+                                                
+                                                fillFormSubmit(page["formsList"], page["redList"], page["formsSubmit"], respInit); 
+                                                
+                                                // do stuff to support upload files
+                                                if(page.global["__C8O_TODELETE"] == undefined){
+                                                    page.global["__C8O_TODELETE"] = [];
+                                                }
+                                                let nullBefore = false;
+                                                if(page.global[page["idFiles"]].length == 0){
+                                                    nullBefore = true
+                                                }
+                                                for(let item of page["formsList"]){
+                                                    if( item[''type''] == "file"){
+                                                        if(page.global[page["idFiles"]][item["id"]] == null){
+                                                            page.global[page["idFiles"]][item["id"]] = [];
+                                                        }
+                                                    }
+                                                    if(item["type"] =="ion-card"){
+                                                        for(let child of item["children"]){
+                                                            if(child[''type''] == "file"){
+                                                                if(page.global[page["idFiles"]][child["id"]] == null){
+                                                                    page.global[page["idFiles"]][child["id"]] = [];
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                
+                                                
+                                                if(respInit == null){
+                                                      resolve();        
+                                                }
+                                                else{
+                                                    if(page.global["__C8O_TODELETE"] == undefined){
+                                                        page.global["__C8O_TODELETE"] = [];
+                                                    }
+                                                    let nullBefore = false;
+                                                    if(page.global[page["idFiles"]].length == 0){
+                                                        nullBefore = true
+                                                    }
+                                                    for(let item of page["formsList"]){
+                                                        if( item[''type''] == "file"){
+                                                            if(page.global[page["idFiles"]][item["id"]] == null){
+                                                                page.global[page["idFiles"]][item["id"]] = [];
+                                                            }
+                                                        }
+                                                        if(item["type"] =="ion-card"){
+                                                            for(let child of item["children"]){
+                                                                if(child[''type''] == "file"){
+                                                                    if(page.global[page["idFiles"]][child["id"]] == null){
+                                                                        page.global[page["idFiles"]][child["id"]] = [];
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                        let att = response["_attachments"];
+                                                        for(let item in att){
+                                                            //first itemid
+                                                            let itemid = item.substring(0, item.indexOf(''_C80C80_''));
+                                                            //second namefile
+                                                            let name = item.substring(item.indexOf(''_C80C80_'')+8,item.lastIndexOf(''_C80C80_''));
+                                                            //synthax
+                                                            if(page.global[page["idFiles"]][itemid] == null){
+                                                                page.global[page["idFiles"]][itemid] = [];
+                                                            }
+                                                            if(nullBefore){
+                                                                page.global[page["idFiles"]][itemid].push({name:name,path:item, deleted:false});
+                                                            }
+                                                        }
+                                                        resolve();
+                                                    
+                                                    
+                                                }
+                                                
+                                            }
+                                        }
+                                        //document  =  res.transaction.document.couchdb_output.rows[0].value.doc
+                                    }
+                                    else{
+                                        window.location.href = ''./'';
+                                        resolve(false);
+                                        return null;
+                                    }
+                                    return null;
+                                  
+                                })
+                                .fail((e)=>{
+                                    debugger;
+                                    console.log(e);
+                                    window.location.href = ''./'';
+                                    resolve(false);
+                                })
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                    '
+            ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1593701778492]: 
+              beanData: '{"ionBean":"InvokeAction"}'
+              stack: C8Oforms.MobileApplication.Application.removeSpinner
+          ↓Else_Handler [mobile.components.UIActionElseEvent-1593622954755]: 
+            ↓RootPage [mobile.components.UIDynamicAction-1572269500185]: 
+              beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
 ↓PageEvent1 [mobile.components.UIPageEvent-1547566899630]: 
   viewEvent: onCanEnter
   ↓CheckUser [mobile.components.UICustomAction-1572275202786]: 
@@ -375,8 +633,13 @@ title: Visualisateur
             		    page.local.published = page.local.formId != undefined ?page.local.formId.indexOf("published") != -1 ? true : false: false;
             		    page.local.user = this.navParams.get(''i'');
             		    // if we are in anonymous mode
-            		    if(page.local.user != undefined && page.local.user != ":i"){        
-                            page.c8o.callJson(".login", "email", page.local.user, "password", page.local.user)
+            		    if(page.local.user != undefined && page.local.user != ":i"){ 	        
+            		        page.local.grp = {};
+            
+                            page.local.anonymous = true;
+                            resolve(true);
+            		        
+                            /*page.c8o.callJson(".login", "email", page.local.user, "password", page.local.user)
                             .then((res: any)=>{
                                 if(res != "ko"){
                                     return page.c8o.callJson("fs://c8oforms_fs.sync"
@@ -408,7 +671,7 @@ title: Visualisateur
                                 console.log(e);
                                 window.location.href = ''./'';
                                 resolve(false);
-                            });
+                            });*/
             		    }
             		    else{
             		        page.c8o.httpInterface.getUserServiceStatus()
@@ -469,7 +732,7 @@ title: Visualisateur
   beanData: '{"ionBean":"Header"}'
   tagName: ion-header
   ↓Directive [mobile.components.UIControlDirective-1572552867684]: 
-    directiveExpression: '!this.local.published'
+    directiveExpression: '!(this.local.published == true || this.local.anonymous == true)'
     directiveName: If
     ↓UseSharedComponent [mobile.components.UIUseShared-1571856416149]: 
       sharedcomponent: C8Oforms.MobileApplication.Application.sharedHeaderViewer
@@ -536,6 +799,62 @@ title: Visualisateur
              "ColumnsXLarge": "plain:4"
             }'
           tagName: ion-col
+          ↓Directive21 [mobile.components.UIControlDirective-1593770170775]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.anonymous == true
+            ↓TextFormat [mobile.components.UIDynamicElement-1593770170778]: 
+              beanData: '{"ionBean":"TextFormat","TextCenter":"plain:text-center"}'
+              tagName: div
+              ↓Badge [mobile.components.UIDynamicElement-1593770170781]: 
+                beanData: '{"ionBean":"Badge","IonColor":"plain:btLight"}'
+                tagName: ion-badge
+                ↓Text [mobile.components.UIText-1593770170784]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Anonymous_Form
+                ↓Style [mobile.components.UIStyle-1593770170787]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'position:absolute;
+                          top:0;
+                          right: 5px;;
+                          border-radius: 10px;
+                          '
+          ↓Directive2 [mobile.components.UIControlDirective-1593769984818]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.published == true
+            ↓TextFormat [mobile.components.UIDynamicElement-1593769838195]: 
+              beanData: '{"ionBean":"TextFormat","TextCenter":"plain:text-center"}'
+              tagName: div
+              ↓Badge [mobile.components.UIDynamicElement-1593769815371]: 
+                beanData: '{"ionBean":"Badge","IonColor":"plain:btLight"}'
+                tagName: ion-badge
+                ↓Text [mobile.components.UIText-1593769826956]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Published_Form
+                ↓Style [mobile.components.UIStyle-1593769900491]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'position:absolute;
+                          top:0;
+                          right: 5px;;
+                          border-radius: 10px;
+                          '
           ↓Div [mobile.components.UIDynamicElement-1584610356623]: 
             beanData: '{"ionBean":"DivTag"}'
             tagName: div
@@ -1472,7 +1791,7 @@ title: Visualisateur
                         '{
                          "ionBean": "RootPageAction",
                          "page": "plain:C8Oforms.MobileApplication.Application.viewerPage",
-                         "data": "script:{formId:local.formId, edit:'':edit'', i: this[''navParams''][''get''](''i'')}"
+                         "data": "script:{i: this[''navParams''][''get''](''i'')}"
                         }'
                 ↓Tag [mobile.components.UIElement-1576511489080]: 
                   isEnabled: false
