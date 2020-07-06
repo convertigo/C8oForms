@@ -345,8 +345,266 @@ title: Visualisateur
           ↓SyncFsResponses [mobile.components.UIDynamicAction-1576601012769]: 
             beanData: '{"ionBean":"FullSyncSyncAction","requestable":"plain:C8Oforms.c8oforms_response_fs"}'
       ↓Else_Handler [mobile.components.UIActionElseEvent-1570701884980]: 
-        ↓RootPage [mobile.components.UIDynamicAction-1572269500185]: 
-          beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+        ↓IfElse [mobile.components.UIDynamicIf-1593622945986]: 
+          beanData: '{"ionBean":"IfElseAction","condition":"script:this.local.user != undefined || this.local.user != \":i\""}'
+          ↓LoadFormanonymous [mobile.components.UICustomAction-1593622986245]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '		    page.local.user = this.navParams.get(''i'');
+                    		    page.c8o.callJson(".getAnonymousForm", "login", page.local.user,"__disableAutologin", true)
+                                .then((res: any)=>{
+                                    let respInit = null;
+                                    if(res.transaction.document.couchdb_output.rows[0] != undefined){
+                                        let response = res.transaction.document.couchdb_output;
+                                        if(response.rows != undefined){
+                                            if(response.rows[0] != undefined){
+                                                
+                                                
+                                                //
+                                                
+                                                var myIdP = response.rows[0].value.doc._id;
+                                                const key = "_C8O_HIDDEN_" +  myIdP.substring(0, myIdP.indexOf("_anonymous"));
+                                                page.local.grp[key] = true;
+                                                page.local.formId = response.rows[0].value.doc._id;
+                                                
+                                                //
+                                                page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
+                                                page["form"] = response.rows[0].value.doc;
+                                                page["formsList"] = response.rows[0].value.doc.formulaire;
+                                                page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
+                                                try{
+                                                    page["local"]["pages"] =  response.rows[0].value.doc["pages"]  
+                                                    page["local"]["currentIndex"] = 0;
+                                                }
+                                                catch(e){
+                                                    page["local"]["pages"] = undefined;
+                                                    page["local"]["currentIndex"] = 0;
+                                                }
+                                                page.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
+                                                
+                                                // load background image if we are in new support mode image
+                                                if(response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined){
+                                                    page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/"+page.form["_id"]+"/wallpaper";
+                                                    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+                                                    page.tick();
+                                                    /*page.c8o.get_attachment(page["form"]["_id"], "wallpaper", "c8oforms_fs")
+                                                    .then((res) => {
+                                                        page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/"+page.form["_id"]+"wallpaper";
+                                                        page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+                                                        page.tick();
+                                                    }).catch((err) => {
+                                                        page.c8o.log.error("Error loading wallpaper from local base", err);
+                                                    }); */
+                                                }
+                                                else{
+                                                    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+                                                }
+                                                let fillFormSubmit = (list, redList, formSubmit, response) => {
+                                                    try  {
+                                                        for(let item of list){
+                                                            if(item["type"] == "ion-card"){
+                                                                redList[item["name"]] = {};
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "children":{}};
+                                                                //redList[item["name"]]["children"] = [];
+                                                                let res = response != undefined ? response[item["name"]]["children"] : null;
+                                                                fillFormSubmit(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"], res);
+                                                            }
+                                                            else if(item["type"] == "text"){
+                                                                let value = respInit == null ? "": response[item["name"]]["value"]; 
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                            }
+                                                            else if(item["type"] == "checkbox"){
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                               
+                                                                for(let child in item["children"]){
+                                                                    let selected;
+                                                                    try {
+                                                                        selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
+                                                                    }
+                                                                    catch(e){
+                                                                        
+                                                                    }
+                                                                    
+                                                                    formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected, "other": item["children"][child].other});
+                                                                }
+                                                            }
+                                                            else if(item["type"] == "radio" || item["type"] == "select"){
+                                                                
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                                
+                                                                    let defaultSelected ="";
+                                                                    for(let child in item["children"]){
+                                                                        let selected;
+                                                                        try {
+                                                                            selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
+                                                                            if(selected){
+                                                                                defaultSelected = respInit == null ? item["children"][child].value : response[item["name"]]["children"][child]["value"];
+                                                                            }
+                                                                        }
+                                                                        catch(e){
+                                                                            
+                                                                        }
+                                                                        
+                                                                        formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
+                                                                    }
+                                                                    formSubmit[item["name"]]["value"] = defaultSelected;
+                                                               
+                                                                
+                                                            }
+                                                            else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
+                                                                let value = respInit == null ? "": response[item["name"]]["value"]; 
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["name"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                            }
+                                                            else if(item["type"] == "radio_group"){
+                                                                
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, children_label:item["children"], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                                for(let line of item.lines){
+                                                                    let value = respInit == null ? "": response[item["name"]]["children"][line.title]; 
+                                                                    formSubmit[item["name"]].children[line.title]= value;
+                                                                }
+                                                            }
+                                                            else if(item["type"] == "checkbox_group"){
+                                                                formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                                
+                                                                for(let line of item.lines){
+                                                                    formSubmit[item["name"]].children[line.title] = [];
+                                                                    for(let child in item["children"]){
+                                                                        let selected;
+                                                                        try {
+                                                                            selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][line.title][child]["selected"];
+                                                                        }
+                                                                        catch(e){   
+                                                                        }   
+                                                                        formSubmit[item["name"]].children[line.title].push({"value": item["children"][child].value, "selected": selected});
+                                                                    }
+                                                                }
+                                                            }
+                                                            
+                                                    };
+                                                    }
+                                                    catch(e){
+                                                        console.log("error");
+                                                        console.log(e);
+                                                    }
+                                                    
+                                                }
+                                                
+                                                
+                                                fillFormSubmit(page["formsList"], page["redList"], page["formsSubmit"], respInit); 
+                                                
+                                                // do stuff to support upload files
+                                                if(page.global["__C8O_TODELETE"] == undefined){
+                                                    page.global["__C8O_TODELETE"] = [];
+                                                }
+                                                let nullBefore = false;
+                                                if(page.global[page["idFiles"]].length == 0){
+                                                    nullBefore = true
+                                                }
+                                                for(let item of page["formsList"]){
+                                                    if( item[''type''] == "file"){
+                                                        if(page.global[page["idFiles"]][item["id"]] == null){
+                                                            page.global[page["idFiles"]][item["id"]] = [];
+                                                        }
+                                                    }
+                                                    if(item["type"] =="ion-card"){
+                                                        for(let child of item["children"]){
+                                                            if(child[''type''] == "file"){
+                                                                if(page.global[page["idFiles"]][child["id"]] == null){
+                                                                    page.global[page["idFiles"]][child["id"]] = [];
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                
+                                                
+                                                if(respInit == null){
+                                                      resolve();        
+                                                }
+                                                else{
+                                                    if(page.global["__C8O_TODELETE"] == undefined){
+                                                        page.global["__C8O_TODELETE"] = [];
+                                                    }
+                                                    let nullBefore = false;
+                                                    if(page.global[page["idFiles"]].length == 0){
+                                                        nullBefore = true
+                                                    }
+                                                    for(let item of page["formsList"]){
+                                                        if( item[''type''] == "file"){
+                                                            if(page.global[page["idFiles"]][item["id"]] == null){
+                                                                page.global[page["idFiles"]][item["id"]] = [];
+                                                            }
+                                                        }
+                                                        if(item["type"] =="ion-card"){
+                                                            for(let child of item["children"]){
+                                                                if(child[''type''] == "file"){
+                                                                    if(page.global[page["idFiles"]][child["id"]] == null){
+                                                                        page.global[page["idFiles"]][child["id"]] = [];
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                        let att = response["_attachments"];
+                                                        for(let item in att){
+                                                            //first itemid
+                                                            let itemid = item.substring(0, item.indexOf(''_C80C80_''));
+                                                            //second namefile
+                                                            let name = item.substring(item.indexOf(''_C80C80_'')+8,item.lastIndexOf(''_C80C80_''));
+                                                            //synthax
+                                                            if(page.global[page["idFiles"]][itemid] == null){
+                                                                page.global[page["idFiles"]][itemid] = [];
+                                                            }
+                                                            if(nullBefore){
+                                                                page.global[page["idFiles"]][itemid].push({name:name,path:item, deleted:false});
+                                                            }
+                                                        }
+                                                        resolve();
+                                                    
+                                                    
+                                                }
+                                                
+                                            }
+                                        }
+                                        //document  =  res.transaction.document.couchdb_output.rows[0].value.doc
+                                    }
+                                    else{
+                                        window.location.href = ''./'';
+                                        resolve(false);
+                                        return null;
+                                    }
+                                    return null;
+                                  
+                                })
+                                .fail((e)=>{
+                                    debugger;
+                                    console.log(e);
+                                    window.location.href = ''./'';
+                                    resolve(false);
+                                })
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                                
+                    '
+            ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1593701778492]: 
+              beanData: '{"ionBean":"InvokeAction"}'
+              stack: C8Oforms.MobileApplication.Application.removeSpinner
+          ↓Else_Handler [mobile.components.UIActionElseEvent-1593622954755]: 
+            ↓RootPage [mobile.components.UIDynamicAction-1572269500185]: 
+              beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
 ↓PageEvent1 [mobile.components.UIPageEvent-1547566899630]: 
   viewEvent: onCanEnter
   ↓CheckUser [mobile.components.UICustomAction-1572275202786]: 
@@ -375,8 +633,13 @@ title: Visualisateur
             		    page.local.published = page.local.formId != undefined ?page.local.formId.indexOf("published") != -1 ? true : false: false;
             		    page.local.user = this.navParams.get(''i'');
             		    // if we are in anonymous mode
-            		    if(page.local.user != undefined && page.local.user != ":i"){        
-                            page.c8o.callJson(".login", "email", page.local.user, "password", page.local.user)
+            		    if(page.local.user != undefined && page.local.user != ":i"){ 	        
+            		        page.local.grp = {};
+            
+                            page.local.anonymous = true;
+                            resolve(true);
+            		        
+                            /*page.c8o.callJson(".login", "email", page.local.user, "password", page.local.user)
                             .then((res: any)=>{
                                 if(res != "ko"){
                                     return page.c8o.callJson("fs://c8oforms_fs.sync"
@@ -408,7 +671,7 @@ title: Visualisateur
                                 console.log(e);
                                 window.location.href = ''./'';
                                 resolve(false);
-                            });
+                            });*/
             		    }
             		    else{
             		        page.c8o.httpInterface.getUserServiceStatus()
@@ -469,7 +732,7 @@ title: Visualisateur
   beanData: '{"ionBean":"Header"}'
   tagName: ion-header
   ↓Directive [mobile.components.UIControlDirective-1572552867684]: 
-    directiveExpression: '!this.local.published'
+    directiveExpression: '!(this.local.published == true || this.local.anonymous == true)'
     directiveName: If
     ↓UseSharedComponent [mobile.components.UIUseShared-1571856416149]: 
       sharedcomponent: C8Oforms.MobileApplication.Application.sharedHeaderViewer
@@ -536,6 +799,62 @@ title: Visualisateur
              "ColumnsXLarge": "plain:4"
             }'
           tagName: ion-col
+          ↓Directive21 [mobile.components.UIControlDirective-1593770170775]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.anonymous == true
+            ↓TextFormat [mobile.components.UIDynamicElement-1593770170778]: 
+              beanData: '{"ionBean":"TextFormat","TextCenter":"plain:text-center"}'
+              tagName: div
+              ↓Badge [mobile.components.UIDynamicElement-1593770170781]: 
+                beanData: '{"ionBean":"Badge","IonColor":"plain:btLight"}'
+                tagName: ion-badge
+                ↓Text [mobile.components.UIText-1593770170784]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Anonymous_Form
+                ↓Style [mobile.components.UIStyle-1593770170787]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'position:absolute;
+                          top:0;
+                          right: 5px;;
+                          border-radius: 10px;
+                          '
+          ↓Directive2 [mobile.components.UIControlDirective-1593769984818]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.published == true
+            ↓TextFormat [mobile.components.UIDynamicElement-1593769838195]: 
+              beanData: '{"ionBean":"TextFormat","TextCenter":"plain:text-center"}'
+              tagName: div
+              ↓Badge [mobile.components.UIDynamicElement-1593769815371]: 
+                beanData: '{"ionBean":"Badge","IonColor":"plain:btLight"}'
+                tagName: ion-badge
+                ↓Text [mobile.components.UIText-1593769826956]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Published_Form
+                ↓Style [mobile.components.UIStyle-1593769900491]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'position:absolute;
+                          top:0;
+                          right: 5px;;
+                          border-radius: 10px;
+                          '
           ↓Div [mobile.components.UIDynamicElement-1584610356623]: 
             beanData: '{"ionBean":"DivTag"}'
             tagName: div
@@ -638,7 +957,7 @@ title: Visualisateur
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.form.descform != ''
+                  - MobileSmartSourceType: script:this.local.pages == undefined && this.form.descform != ''
               ↓Div [mobile.components.UIDynamicElement-1584610404353]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -668,6 +987,35 @@ title: Visualisateur
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:['card', 'card-md']
+            ↓Directive12 [mobile.components.UIControlDirective-1592563520001]: 
+              directiveName: If
+              directiveSource: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.local.pages != undefined && this.form.pages[this['local']['currentIndex']].desc != ''
+              ↓Div [mobile.components.UIDynamicElement-1592563520004]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Attr1 [mobile.components.UIAttribute-1592563520007]: 
+                  attrName: '[innerHTML]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.form.pages[this['local']['currentIndex']].desc)
+                ↓Attr2 [mobile.components.UIAttribute-1592563520010]: 
+                  attrName: '[ngClass]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:['styledivnormal']
+                ↓Style [mobile.components.UIStyle-1592563520013]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          	padding-bottom:13px !important;	
+                          
           ↓Attr [mobile.components.UIAttribute-1543864506194]: 
             attrName: '[style.background-color]'
             attrValue: 
@@ -687,371 +1035,576 @@ title: Visualisateur
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:item.cat == undefined
-              ↓DivCard [mobile.components.UIDynamicElement-1586265611980]: 
-                beanData: '{"ionBean":"DivTag"}'
-                tagName: div
-                ↓Attr2 [mobile.components.UIAttribute-1586265635235]: 
-                  attrName: '[ngClass]'
-                  attrValue: 
+              ↓Directive1 [mobile.components.UIControlDirective-1592514000964]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.pages == undefined  || (this.local.pages[this.local.currentIndex]['pageTechName'] == item.config.page)
+                ↓Directive [mobile.components.UIControlDirective-1588846603623]: 
+                  directiveName: Switch
+                  directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:['card', 'card-md']
-                ↓Style [mobile.components.UIStyle-1586265647519]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          'background-color: rgba(255,255,255,0.95);
-                          border-radius: 8px;
-                          
-                          '
-                ↓Attr [mobile.components.UIAttribute-1586265658284]: 
-                  attrName: '*ngIf'
-                  attrValue: 
+                      - MobileSmartSourceType: script:item.type
+                  ↓DivCard [mobile.components.UIDynamicElement-1586265611980]: 
+                    beanData: '{"ionBean":"DivTag"}'
+                    tagName: div
+                    ↓Attr2 [mobile.components.UIAttribute-1586265635235]: 
+                      attrName: '[ngClass]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:['card', 'card-md']
+                    ↓Style [mobile.components.UIStyle-1586265647519]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'background-color: rgba(255,255,255,0.95);
+                              border-radius: 8px;
+                              
+                              '
+                    ↓Attr [mobile.components.UIAttribute-1586265658284]: 
+                      attrName: '*ngIf'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:item.type != 'ion-card'
+                    ↓DivContentInnerHTML [mobile.components.UIDynamicElement-1586265727271]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓Attr2 [mobile.components.UIAttribute-1586265841305]: 
+                        attrName: '[ngClass]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:['styledivnormal']
+                      ↓Style [mobile.components.UIStyle-1586265928118]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                padding-bottom:10px;
+                                padding-top:10px;
+                                
+                      ↓Directive1 [mobile.components.UIControlDirective-1588846642198]: 
+                        directiveExpression: '''text'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent [mobile.components.UIUseShared-1588846642201]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemTextViewer
+                          ↓item [mobile.components.UIControlVariable-1588846642204]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓this [mobile.components.UIControlVariable-1588846642207]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this
+                          ↓model [mobile.components.UIControlVariable-1588846642210]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642213]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive11 [mobile.components.UIControlDirective-1588846642216]: 
+                        directiveExpression: '''ion-title'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent3 [mobile.components.UIUseShared-1588846642219]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemTitleViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642222]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642225]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                      ↓Directive2 [mobile.components.UIControlDirective-1588846642228]: 
+                        directiveExpression: '''ion-label'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent4 [mobile.components.UIUseShared-1588846642231]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemLabelViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642234]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642237]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                      ↓Directive3 [mobile.components.UIControlDirective-1588846642240]: 
+                        directiveExpression: '''checkbox'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent2 [mobile.components.UIUseShared-1588846642243]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemCheckboxViewer
+                          ↓item [mobile.components.UIControlVariable-1588846642246]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642249]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642252]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive4 [mobile.components.UIControlDirective-1588846642255]: 
+                        directiveExpression: '''radio'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent811 [mobile.components.UIUseShared-1588846642258]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemRadioViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642261]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642264]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642267]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive5 [mobile.components.UIControlDirective-1588846642270]: 
+                        directiveExpression: '''slider'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent8 [mobile.components.UIUseShared-1588846642273]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemSliderViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642276]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642279]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642282]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive51 [mobile.components.UIControlDirective-1588846642285]: 
+                        directiveExpression: '''select'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent81 [mobile.components.UIUseShared-1588846642288]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemSelectViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642291]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642294]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642297]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive52 [mobile.components.UIControlDirective-1588846642300]: 
+                        directiveExpression: '''datetime'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent5 [mobile.components.UIUseShared-1588846642303]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemDateTimeViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642306]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642309]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642312]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive53 [mobile.components.UIControlDirective-1588846642315]: 
+                        directiveExpression: '''time'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent51 [mobile.components.UIUseShared-1588846642318]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemTimeViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642321]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642324]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642327]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive54 [mobile.components.UIControlDirective-1588846642330]: 
+                        directiveExpression: '''img'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent1 [mobile.components.UIUseShared-1588846642333]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemImgViewer
+                          ↓item [mobile.components.UIControlVariable-1588846642336]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642339]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642342]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive55 [mobile.components.UIControlDirective-1588846642345]: 
+                        directiveExpression: '''barcode'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent7 [mobile.components.UIUseShared-1588846642348]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemBarcodeViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642351]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642354]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642357]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive56 [mobile.components.UIControlDirective-1588846642360]: 
+                        directiveExpression: '''file'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent8111 [mobile.components.UIUseShared-1588846642363]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemFileViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642366]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642369]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642372]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                          ↓idFiles [mobile.components.UIControlVariable-1588846642375]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.idFiles
+                      ↓Directive561 [mobile.components.UIControlDirective-1588846642378]: 
+                        directiveExpression: '''signature'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent6 [mobile.components.UIUseShared-1588846642381]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemSignatureViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642384]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642387]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642390]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                      ↓Directive562 [mobile.components.UIControlDirective-1588846642393]: 
+                        directiveExpression: '''radio_group'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent8112 [mobile.components.UIUseShared-1588846642396]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemRadioGroupViewver
+                          ↓item [mobile.components.UIControlVariable-1588846642399]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642402]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642405]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                          ↓ix [mobile.components.UIControlVariable-1588846642408]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:i
+                      ↓Directive563 [mobile.components.UIControlDirective-1588846642411]: 
+                        directiveExpression: '''checkbox_group'''
+                        directiveName: SwitchCase
+                        ↓UseSharedComponent21 [mobile.components.UIUseShared-1588846642414]: 
+                          sharedcomponent: C8Oforms.MobileApplication.Application.itemCheckboxGroupViewer
+                          ↓item [mobile.components.UIControlVariable-1588846642417]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:item
+                          ↓model [mobile.components.UIControlVariable-1588846642420]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                          ↓redList [mobile.components.UIControlVariable-1588846642423]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.redList[item['name']]
+                          ↓disabled [mobile.components.UIControlVariable-1588846642426]: 
+                            comment: this.formsSubmit[item['name']]
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:false
+                  ↓Directive [mobile.components.UIControlDirective-1588846710912]: 
+                    directiveExpression: '''ion-card'''
+                    directiveName: SwitchCase
+                    ↓Div [mobile.components.UIDynamicElement-1580402859499]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓UseSharedComponent81111 [mobile.components.UIUseShared-1580402859676]: 
+                        sharedcomponent: C8Oforms.MobileApplication.Application.itemCardViewer
+                        ↓item [mobile.components.UIControlVariable-1580402859679]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:item
+                        ↓model [mobile.components.UIControlVariable-1580402859682]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                        ↓redList [mobile.components.UIControlVariable-1580402859685]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this.redList[item['name']]
+                        ↓this [mobile.components.UIControlVariable-1580402859688]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this
+          ↓Directive1 [mobile.components.UIControlDirective-1592514107460]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.pages != undefined && (this.local.currentIndex < this.local.pages.length -1) else ElseBlock_1592514238339
+            ↓GenericItemButtonSubmit [mobile.components.UIDynamicElement-1592514301607]: 
+              beanData: '{"ionBean":"GenericItem"}'
+              tagName: ion-item
+              ↓Style [mobile.components.UIStyle-1592514301610]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'background-color: transparent;
+                        .item-inner{
+                        	border: 0px !important;
+                        }
+                        
+                        
+                        '
+              ↓Submit [mobile.components.UIDynamicElement-1592514301613]: 
+                beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:right"}'
+                tagName: ion-buttons
+                ↓Submit [mobile.components.UIDynamicElement-1592514301616]: 
+                  beanData: '{"ionBean":"Button"}'
+                  isEnabled: false
+                  tagName: button
+                  ↓Event [mobile.components.UIControlEvent-1592514301619]: 
+                    ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1592514301622]: 
+                      beanData: '{"ionBean":"InvokeAction"}'
+                      stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPage
+                  ↓Text [mobile.components.UIText-1592514301625]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:'send'| translate
+                ↓Directive [mobile.components.UIControlDirective-1592514910340]: 
+                  directiveName: If
+                  directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                      - MobileSmartSourceType: plain:item.type != 'ion-card'
-                ↓DivContentInnerHTML [mobile.components.UIDynamicElement-1586265727271]: 
-                  beanData: '{"ionBean":"DivTag"}'
-                  tagName: div
-                  ↓UseSharedComponent [mobile.components.UIUseShared-1586265727274]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemTextViewer
-                    ↓item [mobile.components.UIControlVariable-1586265727277]: 
-                      varValue: 
+                      - MobileSmartSourceType: script:this.local.currentIndex > 0
+                  ↓Button1 [mobile.components.UIDynamicElement-1592514849445]: 
+                    beanData: '{"ionBean":"Button"}'
+                    tagName: button
+                    ↓Event [mobile.components.UIControlEvent-1592514849448]: 
+                      ↓CustomAction [mobile.components.UICustomAction-1592514849451]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		page["local"]["currentIndex"] --;
+                                		resolve();
+                                
+                    ↓Text [mobile.components.UIText-1592514849454]: 
+                      textValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓this [mobile.components.UIControlVariable-1586265727280]: 
-                      varValue: 
+                          - MobileSmartSourceType: plain:previous
+                    ↓Attr [mobile.components.UIAttribute-1592514849457]: 
+                      attrName: 
+                      attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this
-                    ↓model [mobile.components.UIControlVariable-1586265727283]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727286]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent1 [mobile.components.UIUseShared-1586265727289]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemImgViewer
-                    ↓item [mobile.components.UIControlVariable-1586265727292]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727295]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727298]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent2 [mobile.components.UIUseShared-1586265727301]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemCheckboxViewer
-                    ↓item [mobile.components.UIControlVariable-1586265727304]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727307]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727310]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent21 [mobile.components.UIUseShared-1586265727313]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemCheckboxGroupViewer
-                    ↓item [mobile.components.UIControlVariable-1586265727316]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727319]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727322]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                    ↓disabled [mobile.components.UIControlVariable-1586265727325]: 
-                      comment: this.formsSubmit[item['name']]
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:false
-                  ↓UseSharedComponent3 [mobile.components.UIUseShared-1586265727328]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemTitleViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727331]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727334]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                  ↓UseSharedComponent4 [mobile.components.UIUseShared-1586265727337]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemLabelViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727340]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727343]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                  ↓UseSharedComponent5 [mobile.components.UIUseShared-1586265727346]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemDateTimeViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727349]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727352]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727355]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent6 [mobile.components.UIUseShared-1586265727358]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemSignatureViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727361]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727364]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727367]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent7 [mobile.components.UIUseShared-1586265727370]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemBarcodeViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727373]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727376]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727379]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent8 [mobile.components.UIUseShared-1586265727382]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemSliderViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727385]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727388]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727391]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent81 [mobile.components.UIUseShared-1586265727394]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemSelectViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727397]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727400]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727403]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent811 [mobile.components.UIUseShared-1586265727406]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemRadioViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727409]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727412]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727415]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓UseSharedComponent8112 [mobile.components.UIUseShared-1586265727418]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemRadioGroupViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727421]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727424]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727427]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                    ↓ix [mobile.components.UIControlVariable-1586265727430]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:i
-                  ↓UseSharedComponent8111 [mobile.components.UIUseShared-1586265727433]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemFileViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727436]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727439]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727442]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                    ↓idFiles [mobile.components.UIControlVariable-1586265727445]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.idFiles
-                  ↓UseSharedComponent51 [mobile.components.UIUseShared-1586265727448]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.itemTimeViewver
-                    ↓item [mobile.components.UIControlVariable-1586265727451]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:item
-                    ↓model [mobile.components.UIControlVariable-1586265727454]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                    ↓redList [mobile.components.UIControlVariable-1586265727457]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓Attr2 [mobile.components.UIAttribute-1586265841305]: 
-                    attrName: '[ngClass]'
-                    attrValue: 
+                          - MobileSmartSourceType: plain:item-start
+                ↓Button [mobile.components.UIDynamicElement-1592514320843]: 
+                  beanData: '{"ionBean":"Button"}'
+                  tagName: button
+                  ↓Event [mobile.components.UIControlEvent-1592514327067]: 
+                    ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1592831695091]: 
+                      beanData: '{"ionBean":"InvokeAction"}'
+                      stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPage
+                      ↓indexPage [mobile.components.UIControlVariable-1592831706018]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:this.local.currentIndex
+                      ↓pages [mobile.components.UIControlVariable-1592831706020]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:this.local.pages
+                      ↓doAll [mobile.components.UIControlVariable-1592831706022]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:false
+                      ↓CustomAction [mobile.components.UICustomAction-1592514345220]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		if(vars.next){
+                                		    page["local"]["currentIndex"] ++;
+                                		}
+                                		
+                                		resolve();
+                                
+                        ↓next [mobile.components.UIControlVariable-1592831722010]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:parent.out.nextPage
+                  ↓Text [mobile.components.UIText-1592514373643]: 
+                    textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:['styledivnormal']
-                  ↓Style [mobile.components.UIStyle-1586265928118]: 
-                    styleContent: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            padding-bottom:10px;
-                            padding-top:10px;
-                            
-              ↓Div [mobile.components.UIDynamicElement-1580402859499]: 
-                beanData: '{"ionBean":"DivTag"}'
-                tagName: div
-                ↓UseSharedComponent81111 [mobile.components.UIUseShared-1580402859676]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.itemCardViewer
-                  ↓item [mobile.components.UIControlVariable-1580402859679]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item
-                  ↓model [mobile.components.UIControlVariable-1580402859682]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.formsSubmit[item['name']]
-                  ↓redList [mobile.components.UIControlVariable-1580402859685]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.redList[item['name']]
-                  ↓this [mobile.components.UIControlVariable-1580402859688]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this
-          ↓GenericItemButtonSubmit [mobile.components.UIDynamicElement-1544464002619]: 
-            beanData: '{"ionBean":"GenericItem"}'
-            tagName: ion-item
-            ↓Style [mobile.components.UIStyle-1544464099962]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      'background-color: transparent;
-                      .item-inner{
-                      	border: 0px !important;
-                      }
-                      
-                      
-                      '
-            ↓Submit [mobile.components.UIDynamicElement-1543865084768]: 
-              beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:right"}'
-              tagName: ion-buttons
-              ↓Submit [mobile.components.UIDynamicElement-1543865084771]: 
-                beanData: '{"ionBean":"Button"}'
-                tagName: button
-                ↓Event [mobile.components.UIControlEvent-1543865084774]: 
-                  ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1576332679592]: 
-                    beanData: '{"ionBean":"InvokeAction"}'
-                    stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPage
-                ↓Text [mobile.components.UIText-1543865084789]: 
-                  textValue: 
+                        - MobileSmartSourceType: plain:next
+          ↓Tag [mobile.components.UIElement-1592514238339]: 
+            identifier: ElseBlock_1592514238339
+            tagName: ng-template
+            ↓GenericItemButtonSubmit [mobile.components.UIDynamicElement-1544464002619]: 
+              beanData: '{"ionBean":"GenericItem"}'
+              tagName: ion-item
+              ↓Style [mobile.components.UIStyle-1544464099962]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'background-color: transparent;
+                        .item-inner{
+                        	border: 0px !important;
+                        }
+                        
+                        
+                        '
+              ↓Submit [mobile.components.UIDynamicElement-1543865084768]: 
+                beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:right"}'
+                tagName: ion-buttons
+                ↓Directive [mobile.components.UIControlDirective-1592514986401]: 
+                  directiveName: If
+                  directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:'send'| translate
+                      - MobileSmartSourceType: script:this.local.currentIndex != 0
+                  ↓Button1 [mobile.components.UIDynamicElement-1592514986404]: 
+                    beanData: '{"ionBean":"Button"}'
+                    tagName: button
+                    ↓Event [mobile.components.UIControlEvent-1592514986407]: 
+                      ↓CustomAction [mobile.components.UICustomAction-1592514986410]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		page["local"]["currentIndex"] --;
+                                		resolve();
+                                
+                    ↓Text [mobile.components.UIText-1592514986413]: 
+                      textValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:previous
+                    ↓Attr [mobile.components.UIAttribute-1592514986416]: 
+                      attrName: 
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:item-start
+                ↓Submit [mobile.components.UIDynamicElement-1543865084771]: 
+                  beanData: '{"ionBean":"Button"}'
+                  tagName: button
+                  ↓Event [mobile.components.UIControlEvent-1543865084774]: 
+                    ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1576332679592]: 
+                      beanData: '{"ionBean":"InvokeAction"}'
+                      stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPage
+                  ↓Text [mobile.components.UIText-1543865084789]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:'send'| translate
         ↓GridCol2 [mobile.components.UIDynamicElement-1543345640046]: 
           beanData: '{"ionBean":"GridCol"}'
           tagName: ion-col
@@ -1232,7 +1785,7 @@ title: Visualisateur
                         '{
                          "ionBean": "RootPageAction",
                          "page": "plain:C8Oforms.MobileApplication.Application.viewerPage",
-                         "data": "script:{formId:local.formId, edit:'':edit'', i: this[''navParams''][''get''](''i'')}"
+                         "data": "script:{i: this[''navParams''][''get''](''i'')}"
                         }'
                 ↓Tag [mobile.components.UIElement-1576511489080]: 
                   isEnabled: false
