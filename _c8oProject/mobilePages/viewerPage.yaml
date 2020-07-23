@@ -349,30 +349,38 @@ scriptContent:
                 // Iterating over conditions
                 for(let cond of conds){
                     var status = "";
-                    // If subject of current condition are fields  
-                    if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || cond.val1.arr.length > 0) && cond.val2 != undefined && (cond.val2.str != "" || cond.val2.arr.length > 0) && cond.operator != undefined && cond.operator != ""){
-                        status = "field";
-                        jsString+= cpt > 0 ? operator+ " " + this.compute(cond) : this.compute(cond);
-                        cpt ++;
+                    try{
+                     // If subject of current condition are fields  
+                        if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || cond.val1.arr.length > 0) && cond.val2 != undefined && (cond.val2.str != "" || cond.val2.arr.length > 0) && cond.operator != undefined && cond.operator != ""){
+                            status = "field";
+                            jsString+= cpt > 0 ? operator+ " " + this.compute(cond) : this.compute(cond);
+                            cpt ++;
+                        }
+                        // If subject of current condition is the form
+                        else if(cond.subject != undefined && cond.subject == "form" && cond.attribute != undefined && cond.attribute != "" && cond.operator != undefined && cond.operator != ""){
+                            status = "form";
+                            // If its first condition of string don''t prefix by operator, then call generateJsVisibleIfForm
+                            jsString+= cpt > 0 ? operator+ " " + this.generateJsVisibleIfForm(cond) : this.generateJsVisibleIfForm(cond);
+                            //console.log("form");
+                            cpt ++;
+                        }
+                        else{
+                          //  console.log("errorr");
+                            
+                            status = "error";
+                        }
                     }
-                    // If subject of current condition is the form
-                    else if(cond.subject != undefined && cond.subject == "form" && cond.attribute != undefined && cond.attribute != "" && cond.operator != undefined && cond.operator != ""){
-                        status = "form";
-                        // If its first condition of string don''t prefix by operator, then call generateJsVisibleIfForm
-                        jsString+= cpt > 0 ? operator+ " " + this.generateJsVisibleIfForm(cond) : this.generateJsVisibleIfForm(cond);
-                        console.log("form");
-                        cpt ++;
-                    }
-                    else{
+                    catch(e){
                         console.log("errorr");
                         
-                        status = "error";
+                        //status = "error";
                     }
+                    
                 }
                 if(jsString == ""){
                     jsString = "true";
                 }
-                console.log("final assert js is "+ jsString);
+                //console.log("final assert js is "+ jsString);
                 return jsString;  
             }
             
@@ -410,13 +418,13 @@ scriptContent:
                     }*/
                     const type1: string = this.getType(field.val1.type);
                     const operator: string = field.operator;
-                    
-                    switch(type1){
+                    result = this[operator](field, type1);
+                    /*switch(type1){
                         // if val1 is type of simple
                         case "simple":
                             result = this[operator](field, type1);
                         break;
-                    }
+                    }*/
                 }
                 else{
                     const form = <FormObject>cond;
@@ -428,8 +436,24 @@ scriptContent:
                 return val.source ? this.getSimple(val) : val.str;
             }
             
-            private getValMultiple(val : ValFieldObject){
-                return val.source ? this.getFormCheckboxValueByName(val.arr[0]) :val.arr;
+            private getValMultiple(val : ValFieldObject): Array<any>{
+                let ret;
+                switch(val.type){
+                    case "checkbox":
+                        const str = val.arr!= undefined ? val.arr[0] : val.str; 
+                        ret = val.source ? this.getFormCheckboxValueByName(str) :val.arr;
+                    break;
+                    case "radio_group":
+                        const str = val.arr!= undefined ? val.arr[0] : val.str; 
+                        ret = val.source ? this.getFormRadioGroupValueByName(str) :val.arr;
+                    break;
+                    case "checkbox_group":
+                        const str = val.arr!= undefined ? val.arr[0] : val.str; 
+                        ret = val.source ? this.getFormCheckboxGroupValueByName(str) :val.arr;
+                    break;
+                        
+                }
+                return ret;
             }
             
             
@@ -442,6 +466,11 @@ scriptContent:
                 if(type == "simple"){
                     return this.getValSimple(field.val1) == this.getValSimple(field.val2);
                 }
+                else if(type == "multiple"){
+                    let arr1 = this.getValMultiple(field.val1);
+                    let arr2 = this.getValMultiple(field.val2)
+                    return arr1.length != arr2.length ? false : arr1.sort().every((value, index) => { return value ==  arr2[index]});
+                }
             }
             
             /**
@@ -452,6 +481,11 @@ scriptContent:
             private different(field: FieldObject, type: string){
                 if(type == "simple"){
                     return this.getValSimple(field.val1) != this.getValSimple(field.val2);
+                }
+                else if(type == "multiple"){
+                    let arr1 = this.getValMultiple(field.val1);
+                    let arr2 = this.getValMultiple(field.val2)
+                    return !(arr1.length != arr2.length ? false : arr1.sort().every((value, index) => { return value ==  arr2[index]}));
                 }
             }
             
@@ -564,6 +598,12 @@ scriptContent:
                     let v2 = this.getValMultiple(field.val2);
                     return (v2.filter(w => w == v1)).length > 0;
                 }
+                else if(type == "multiple"){
+                    let v1 = this.getValMultiple(field.val1);
+                    let v2 = this.getValMultiple(field.val2)
+                    return v2.filter(Set.prototype.has, new Set(v1)).length > 0;
+                
+                }
             }
             
             /**
@@ -576,6 +616,11 @@ scriptContent:
                     let v1 = this.getValSimple(field.val1);
                     let v2 = this.getValMultiple(field.val2);
                     return (v2.filter(w => w == v1)).length == 0;
+                }
+                else if(type == "multiple"){
+                    let v1 = this.getValMultiple(field.val1);
+                    let v2 = this.getValMultiple(field.val2) 
+                    return v2.filter(Set.prototype.has, new Set(v1)).length == 0;
                 }
             }
             
@@ -773,9 +818,41 @@ scriptContent:
                 }
                 return arrayStr;
             }
+            
+            public getFormRadioGroupValueByName(name): Array<string>{
+                let arrayStr: Array<string> = [];
+                for(let key of Object.keys(this.formsSubmit)){
+                    if(key == name){
+                        for(let i in this.formsSubmit[key].children){
+                            if(this.formsSubmit[key].children[i] != ""){
+                                arrayStr.push(i+"_"+this.formsSubmit[key].children[i]);  
+                            }
+                        }
+                    }
+                }
+                return arrayStr;
+            }
+            
+            public getFormCheckboxGroupValueByName(name): Array<string>{
+                let arrayStr: Array<string> = [];
+                for(let key of Object.keys(this.formsSubmit)){
+                    if(key == name){
+                        for(let i in this.formsSubmit[key].children){
+                            for(let j in this.formsSubmit[key].children[i]){
+                                if(this.formsSubmit[key].children[i][j]["selected"]){
+                                    arrayStr.push(i+"_"+this.formsSubmit[key].children[i][j].value);  
+                                }
+                            }
+                        }
+                    }
+                }
+                return arrayStr;
+            }
+            
             public pickFormCheckboxValueByKeyIndex( key, i): string{
                 return this.formsSubmit[key].children[i].value
             }
+            
             public getFormElementTypeByName(name){
                 for(let key of Object.keys(this.formsSubmit)){
                     if(key == name){
