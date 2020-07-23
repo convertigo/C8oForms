@@ -26,6 +26,8 @@ scriptContent:
         interface ValFieldObject{
             str: string;
             source: boolean;
+            type: string;
+            arr: Array<any>;
         }
         interface FieldObject {
             type: string;
@@ -65,6 +67,8 @@ scriptContent:
             public loading;
             public creating;
             
+            
+            
             /*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/ 
                 this.global[''__viewindeok'']= null;
@@ -78,6 +82,11 @@ scriptContent:
                 });
                 this.idFiles = "files_" + this.epoch;
                 this.global[this.idFiles] = [];
+                
+                this.local.multipleField = {radio_group: true, checkbox_group: true, checkbox: true};
+                this.local.simpleField = {date: true, select: true, datetime: true, time: true, radio: true, text: true, barcode: true, slider: true};
+                this.local.fileField = {file: true};
+                this.local.camSignField = {img: true, signature:true};
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
             
@@ -341,10 +350,9 @@ scriptContent:
                 for(let cond of conds){
                     var status = "";
                     // If subject of current condition are fields  
-                    if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && cond.val1.str != "" && cond.val2 != undefined && cond.val2.str != "" && cond.operator != undefined && cond.operator != ""){
+                    if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || cond.val1.arr.length > 0) && cond.val2 != undefined && (cond.val2.str != "" || cond.val2.arr.length > 0) && cond.operator != undefined && cond.operator != ""){
                         status = "field";
-                        // If its first condition of string don''t prefix by operator, then call generateJsVisibleIfField
-                        jsString+= cpt > 0 ? operator+ " " + this.equals(cond) : this.equals(cond);
+                        jsString+= cpt > 0 ? operator+ " " + this.compute(cond) : this.compute(cond);
                         cpt ++;
                     }
                     // If subject of current condition is the form
@@ -382,10 +390,12 @@ scriptContent:
              * @param val ValFieldObject
              * @param val1 ValFieldObject
              */
-            private equals(cond: FieldObject | FormObject){
+            private compute(cond: FieldObject | FormObject){
+                let result = true;
                 if(this.instanceOfField(cond)){
                     const field = <FieldObject>cond;
-                    const type1: string = this.getFormElementTypeByName(field.val1.str);
+                    
+                    /*const type1: string = this.getFormElementTypeByName(field.val1.str);
                     const type2: string = this.getFormElementTypeByName(field.val2.str);
                     const process1: string = this.getProcess(field.val1);
                     const process2: string = this.getProcess(field.val2);
@@ -397,12 +407,202 @@ scriptContent:
                     }
                     else{
                         return this.generateJsVisibleIfBothFieldCheckbox(field);
+                    }*/
+                    const type1: string = this.getType(field.val1.type);
+                    const operator: string = field.operator;
+                    
+                    switch(type1){
+                        // if val1 is type of simple
+                        case "simple":
+                            result = this[operator](field, type1);
+                        break;
                     }
                 }
                 else{
                     const form = <FormObject>cond;
                 }
+                return result;
                 
+            }
+            private getValSimple(val : ValFieldObject){
+                return val.source ? this.getSimple(val) : val.str;
+            }
+            
+            private getValMultiple(val : ValFieldObject){
+                return val.source ? this.getFormCheckboxValueByName(val.arr[0]) :val.arr;
+            }
+            
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private equals(field: FieldObject, type: string){
+                if(type == "simple"){
+                    return this.getValSimple(field.val1) == this.getValSimple(field.val2);
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private different(field: FieldObject, type: string){
+                if(type == "simple"){
+                    return this.getValSimple(field.val1) != this.getValSimple(field.val2);
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private greater(field: FieldObject, type: string){
+                if(type == "simple"){
+                    try{
+                        let v1 = Number(+this.getValSimple(field.val1));
+                        let v2 = Number(+this.getValSimple(field.val2));
+                        if(v1 == NaN || v2 == NaN){
+                            throw "errr";
+                        }
+                        else{
+                            return v1 > v2;
+                        }
+                    }
+                    catch(e){
+                        return this.getValSimple(field.val1) > this.getValSimple(field.val2);
+                    }
+        
+                    
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private minus(field: FieldObject, type: string){
+                if(type == "simple"){
+                    try{
+                        let v1 = Number(+this.getValSimple(field.val1));
+                        let v2 = Number(+this.getValSimple(field.val2));
+                        if(v1 == NaN || v2 == NaN){
+                            throw "errr";
+                        }
+                        else{
+                            return v1 < v2;
+                        }
+                    }
+                    catch(e){
+                        return this.getValSimple(field.val1) < this.getValSimple(field.val2);
+                    }
+        
+                    
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private greaterequals(field: FieldObject, type: string){
+                if(type == "simple"){
+                    try{
+                        let v1 = Number(+this.getValSimple(field.val1));
+                        let v2 = Number(+this.getValSimple(field.val2));
+                        if(v1 == NaN || v2 == NaN){
+                            throw "errr";
+                        }
+                        else{
+                            return v1 >= v2;
+                        }
+                    }
+                    catch(e){
+                        return this.getValSimple(field.val1) >= this.getValSimple(field.val2);
+                    }
+        
+                    
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private minusequals(field: FieldObject, type: string){
+                if(type == "simple"){
+                    try{
+                        let v1 = Number(+this.getValSimple(field.val1));
+                        let v2 = Number(+this.getValSimple(field.val2));
+                        if(v1 == NaN || v2 == NaN){
+                            throw "errr";
+                        }
+                        else{
+                            return v1 <= v2;
+                        }
+                    }
+                    catch(e){
+                        return this.getValSimple(field.val1) <= this.getValSimple(field.val2);
+                    }            
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private among_following(field: FieldObject, type: string){
+                if(type == "simple"){
+                    let v1 = this.getValSimple(field.val1);
+                    let v2 = this.getValMultiple(field.val2);
+                    return (v2.filter(w => w == v1)).length > 0;
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private out_following(field: FieldObject, type: string){
+                if(type == "simple"){
+                    let v1 = this.getValSimple(field.val1);
+                    let v2 = this.getValMultiple(field.val2);
+                    return (v2.filter(w => w == v1)).length == 0;
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private contains(field: FieldObject, type: string){
+                if(type == "simple"){
+                    let v1 = this.getValSimple(field.val1);
+                    let v2 = this.getValSimple(field.val2);
+                    return v1.indexOf(v2) != -1;
+                }
+            }
+            
+            /**
+             * 
+             * @param field
+             * @param type
+             */
+            private not_contains(field: FieldObject, type: string){
+                if(type == "simple"){
+                    let v1 = this.getValSimple(field.val1);
+                    let v2 = this.getValSimple(field.val2);
+                    return v1.indexOf(v2) == -1;
+                }
             }
             
             /**
@@ -477,65 +677,7 @@ scriptContent:
                 jsString =  ""+ (eval("ArrayToIterate.length "+ operator + "ArrayToIterate2.length") && ArrayToIterate.sort().every(function(value, index) { return eval("value"+ operator +" ArrayToIterate2.sort()[index]") }))+"";
                 console.log("generated  javascirpt expression is " + jsString);
                 return jsString ;
-            }
-            
-            
-            private getProcess(val: ValFieldObject ): string{
-                let process: string = "";
-                switch(this.getFormElementTypeByName(val.str)){
-                    case "text":
-                        process = "simple";
-                    break;
-                    case "radio":
-                        process = "simple";
-                    break;
-                    case "slider":
-                        process = "simple";
-                    break;
-                    case "select":
-                        process = "simple";
-                    break;
-                    case "datetime":
-                        process = "simple";
-                    break;
-                    case "time":
-                        process = "simple";
-                    break;
-                    case "barcode":
-                        process = "simple";
-                    break;
-                    case "checkbox":
-                        process = "checkbox";
-                    break;
-                    /*
-                    case "":
-            
-                    break;
-                    case "":
-            
-                    break;
-                    case "":
-            
-                    break;
-                    case "":
-            
-                    break;
-                    case "":
-            
-                    break;
-                    case "":
-            
-                    break;
-                    case "":
-            
-                    break;
-                    case "":
-            
-                    break;*/
-                }
-                return process;
-            }
-            
+            }  
             
             
             /**
@@ -678,7 +820,28 @@ scriptContent:
             public eval(str){
                 return eval(str);
             }
-            
+            /**
+             * returns type of field (simple, multiple, file, or camSign)
+             * @param type
+             */
+            public getType(type: string): string{
+                if(this.local.multipleField[type] == true){
+                    return "multiple";
+                }
+                else if(this.local.simpleField[type] == true){
+                    return "simple";
+                }
+                else if(this.local.fileField[type] == true){
+                    return "file";
+                }
+                else if(this.local.camSignField[type] == true){
+                    return "camSign"; 
+                }
+                else{
+                    return "";
+                }
+                
+            }
             /*End_c8o_PageFunction*/
         '
 segment: viewer/:formId/:edit/:i
