@@ -350,18 +350,23 @@ scriptContent:
                 for(let cond of conds){
                     var status = "";
                     try{
-                     // If subject of current condition are fields  
-                        if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || cond.val1.arr.length > 0) && cond.val2 != undefined && (cond.val2.str != "" || cond.val2.arr.length > 0) && cond.operator != undefined && cond.operator != ""){
+                        // If subject of current condition are fields  
+                        if(this.isAfieldSimpleOrMultiple(cond)){
                             status = "field";
                             jsString+= cpt > 0 ? operator+ " " + this.compute(cond) : this.compute(cond);
                             cpt ++;
                         }
                         // If subject of current condition is the form
-                        else if(cond.subject != undefined && cond.subject == "form" && cond.attribute != undefined && cond.attribute != "" && cond.operator != undefined && cond.operator != ""){
+                        else if(this.isAform(cond)){
                             status = "form";
                             // If its first condition of string don''t prefix by operator, then call generateJsVisibleIfForm
                             jsString+= cpt > 0 ? operator+ " " + this.generateJsVisibleIfForm(cond) : this.generateJsVisibleIfForm(cond);
                             //console.log("form");
+                            cpt ++;
+                        }
+                        else if(this.isAFile(cond)){
+                            status = "field";
+                            jsString+= cpt > 0 ? operator+ " " + this.compute(cond) : this.compute(cond);
                             cpt ++;
                         }
                         else{
@@ -392,6 +397,32 @@ scriptContent:
                 return ''val1'' in object
             }
             
+            private isAfieldSimpleOrMultiple(cond: FieldObject){
+                try {
+                    return cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || cond.val1.arr.length > 0) && cond.val2 != undefined && (cond.val2.str != "" || cond.val2.arr.length > 0) && cond.operator != undefined && cond.operator != "";
+                }
+                catch(e){
+                    return false;
+                }
+            }
+            
+            private isAform(cond: FormObject){
+                try {
+                    return cond.subject != undefined && cond.subject == "form" && cond.attribute != undefined && cond.attribute != "" && cond.operator != undefined && cond.operator != "";
+                }
+                catch(e){
+                    return false;
+                }
+            }
+            
+            private isAFile(cond: FieldObject){
+                try {
+                    return cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && cond.val1.str != undefined && cond.operator != "";
+                }
+                catch(e){
+                    return false;
+                }
+            }
             
             /**
              * 
@@ -651,6 +682,36 @@ scriptContent:
             }
             
             /**
+             * 
+             * @param field
+             */
+            private contains_multiple_files(field: FieldObject, type: string){
+                let v1 = this.getIdByName(field.val1.str);
+                let id = this.global.id;
+                return this.global[id] != undefined && this.global[id][v1] != undefined && this.global[id][v1].length > 1;
+            }
+            
+            /**
+             * 
+             * @param field
+             */
+            private contains_a_file(field: FieldObject, type: string){
+                let v1 = this.getIdByName(field.val1.str);
+                let id = this.global.id;
+                return this.global[id] != undefined && this.global[id][v1] != undefined && this.global[id][v1].length == 1;
+            }
+            
+            /**
+             * 
+             * @param field
+             */
+            private does_not_contain_file(field: FieldObject, type: string){
+                let v1 = this.getIdByName(field.val1.str);
+                let id = this.global.id;
+                return this.global[id] == undefined || this.global[id][v1] == undefined || this.global[id][v1].length == 0;
+            }
+            
+            /**
              * Generate Javascript expression for a given FieldObject
              * @param field FieldObject -- Its a field Object
              */
@@ -805,6 +866,23 @@ scriptContent:
                 }
                 return "";
             }
+            public getIdByName(name): string{
+                for(let obj of this.formsList){
+                    if(obj["type"] == "ion-card"){
+                        let id = this.getIdByName(name);
+                        if(id != ""){
+                            return id;
+                        }
+                    }
+                    else{
+                        if(obj["name"] == name){
+                            return obj["id"];
+                        }
+                    }
+                }
+                return "";
+            }
+            
             public getFormCheckboxValueByName(name): Array<string>{
                 let arrayStr: Array<string> = [];
                 for(let key of Object.keys(this.formsSubmit)){
