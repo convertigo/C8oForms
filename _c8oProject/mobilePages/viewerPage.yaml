@@ -87,6 +87,7 @@ scriptContent:
                 this.local.simpleField = {date: true, select: true, datetime: true, time: true, radio: true, text: true, barcode: true, slider: true};
                 this.local.fileField = {file: true};
                 this.local.camSignField = {img: true, signature:true};
+                this.global[this.global.id] = [];
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
             
@@ -320,7 +321,6 @@ scriptContent:
             public evaluateConditions(conditions): string{
                 let jsString: string = "";
                 for(let conds of Object.keys(conditions)){
-                    console.log(conds);
                     switch(conds){
                         case "visibleIf":
                             jsString += this.detectSubjectAndComplete(conditions[conds]["conds"], conditions[conds]["condVisible"]);
@@ -369,23 +369,23 @@ scriptContent:
                             jsString+= cpt > 0 ? operator+ " " + this.compute(cond) : this.compute(cond);
                             cpt ++;
                         }
+                        else if(this.isACamSign(cond)){
+                            status = "field";
+                            jsString+= cpt > 0 ? operator+ " " + this.compute(cond) : this.compute(cond);
+                            cpt ++;
+                        }
                         else{
-                          //  console.log("errorr");
-                            
                             status = "error";
                         }
                     }
                     catch(e){
                         console.log("errorr");
-                        
-                        //status = "error";
                     }
                     
                 }
                 if(jsString == ""){
                     jsString = "true";
                 }
-                //console.log("final assert js is "+ jsString);
                 return jsString;  
             }
             
@@ -397,6 +397,10 @@ scriptContent:
                 return ''val1'' in object
             }
             
+            /**
+             * detect if we are evaluating a valid field Simple or multiple
+             * @param cond
+             */
             private isAfieldSimpleOrMultiple(cond: FieldObject){
                 try {
                     return cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || cond.val1.arr.length > 0) && cond.val2 != undefined && (cond.val2.str != "" || cond.val2.arr.length > 0) && cond.operator != undefined && cond.operator != "";
@@ -406,6 +410,10 @@ scriptContent:
                 }
             }
             
+            /**
+             * detect if we are evaluating a valid form
+             * @param cond
+             */
             private isAform(cond: FormObject){
                 try {
                     return cond.subject != undefined && cond.subject == "form" && cond.attribute != undefined && cond.attribute != "" && cond.operator != undefined && cond.operator != "";
@@ -415,9 +423,26 @@ scriptContent:
                 }
             }
             
+            /**
+             * detect if we are evaluating a valid file
+             * @param cond
+             */
             private isAFile(cond: FieldObject){
                 try {
-                    return cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && cond.val1.str != undefined && cond.operator != "";
+                    return cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && cond.val1.str != undefined && cond.operator != "" && cond.val1.type == "file";
+                }
+                catch(e){
+                    return false;
+                }
+            }
+            
+            /**
+             * detect if we are evaluating a valid camSign
+             * @param cond
+             */
+            private isACamSign(cond: FieldObject){
+                try {
+                    return cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && cond.val1.str != undefined && cond.operator != "" && (cond.val1.type == "signature" || cond.val1.type == "img");
                 }
                 catch(e){
                     return false;
@@ -433,29 +458,9 @@ scriptContent:
                 let result = true;
                 if(this.instanceOfField(cond)){
                     const field = <FieldObject>cond;
-                    
-                    /*const type1: string = this.getFormElementTypeByName(field.val1.str);
-                    const type2: string = this.getFormElementTypeByName(field.val2.str);
-                    const process1: string = this.getProcess(field.val1);
-                    const process2: string = this.getProcess(field.val2);
-                    if(process1 == "simple" && process2 == "simple"){
-                        return this.generateJsVisibleIfFieldSimple(field);
-                    } 
-                    else if((process1 == "checkbox" || process2 == "checkbox") && (process1 == "simple" || process2 == "simple")) {
-                        return this.generateJsVisibleIfOneFieldCheckbox(field, process1 == "simple");
-                    }
-                    else{
-                        return this.generateJsVisibleIfBothFieldCheckbox(field);
-                    }*/
                     const type1: string = this.getType(field.val1.type);
                     const operator: string = field.operator;
                     result = this[operator](field, type1);
-                    /*switch(type1){
-                        // if val1 is type of simple
-                        case "simple":
-                            result = this[operator](field, type1);
-                        break;
-                    }*/
                 }
                 else{
                     const form = <FormObject>cond;
@@ -463,23 +468,33 @@ scriptContent:
                 return result;
                 
             }
+            
+            /**
+             * getter to a simple field val
+             * @param val
+             */
             private getValSimple(val : ValFieldObject){
                 return val.source ? this.getSimple(val) : val.str;
             }
             
+            /**
+             * getter to a multiple field val
+             * @param val
+             */
             private getValMultiple(val : ValFieldObject): Array<any>{
                 let ret;
+                let str 
                 switch(val.type){
                     case "checkbox":
-                        const str = val.arr!= undefined ? val.arr[0] : val.str; 
+                        str = val.arr!= undefined ? val.arr[0] : val.str; 
                         ret = val.source ? this.getFormCheckboxValueByName(str) :val.arr;
                     break;
                     case "radio_group":
-                        const str = val.arr!= undefined ? val.arr[0] : val.str; 
+                        str = val.arr!= undefined ? val.arr[0] : val.str; 
                         ret = val.source ? this.getFormRadioGroupValueByName(str) :val.arr;
                     break;
                     case "checkbox_group":
-                        const str = val.arr!= undefined ? val.arr[0] : val.str; 
+                        str = val.arr!= undefined ? val.arr[0] : val.str; 
                         ret = val.source ? this.getFormCheckboxGroupValueByName(str) :val.arr;
                     break;
                         
@@ -489,7 +504,7 @@ scriptContent:
             
             
             /**
-             * 
+             * equals operator 
              * @param field
              * @param type
              */
@@ -505,7 +520,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * different operator
              * @param field
              * @param type
              */
@@ -521,7 +536,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * greater operator
              * @param field
              * @param type
              */
@@ -546,7 +561,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * minus operator
              * @param field
              * @param type
              */
@@ -571,7 +586,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * greaterequals operator
              * @param field
              * @param type
              */
@@ -596,7 +611,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * minusequals operator
              * @param field
              * @param type
              */
@@ -619,7 +634,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * among_following operator
              * @param field
              * @param type
              */
@@ -638,7 +653,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * out_following operator
              * @param field
              * @param type
              */
@@ -656,7 +671,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * contains operator
              * @param field
              * @param type
              */
@@ -669,7 +684,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * not_contains operator
              * @param field
              * @param type
              */
@@ -682,7 +697,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * contains_multiple_files operator
              * @param field
              */
             private contains_multiple_files(field: FieldObject, type: string){
@@ -692,7 +707,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * contains_a_file operator
              * @param field
              */
             private contains_a_file(field: FieldObject, type: string){
@@ -702,7 +717,7 @@ scriptContent:
             }
             
             /**
-             * 
+             * does_not_contain_file operator
              * @param field
              */
             private does_not_contain_file(field: FieldObject, type: string){
@@ -712,79 +727,20 @@ scriptContent:
             }
             
             /**
-             * Generate Javascript expression for a given FieldObject
-             * @param field FieldObject -- Its a field Object
+             * is_filled operator
+             * @param field
              */
-            private generateJsVisibleIfFieldSimple(field: FieldObject){
-                // Javascript string to be built
-                let jsString = "";
-                // Iterate over vals
-                for(let val of ["val1", "val2"]){
-                    // if we are sourcing then getValue
-                    if(field[val].source){
-                        jsString += this.generateSimple(field[val]);
-                    }
-                    //else get string
-                    else{
-                        jsString += this.generateString(field[val]);
-                    }
-                    if(val == "val1"){
-                     // add operator
-                        jsString += this.strOperatorToSign(field.operator) + " ";
-                    }
-                }
-                console.log("generated  javascirpt expression is " + jsString);
-                return jsString;
-            }
-            
-            
-            /**
-             * Generate Javascript expression for a given FieldObject
-             * @param field FieldObject -- Its a field Object
-             */
-            private generateJsVisibleIfOneFieldCheckbox(field: FieldObject, isProcess1Simple: boolean){
-                // Javascript string to be built
-                let jsString = "(";
-                let objectSimple ="";
-                const objectToIterate = isProcess1Simple == true ? "val2" : "val1";
-                const objectToEvaluate = isProcess1Simple == true ? "val1" : "val2";
-                
-                if(field[objectToEvaluate].source){
-                    objectSimple = "''"+ this.getSimple(field[objectToEvaluate])+"''";;
-                }
-                //else get string
-                else{
-                    objectSimple = "''"+ eval(this.generateString(field[objectToEvaluate])+"''");
-                }
-                const ArrayToIterate = this.getFormCheckboxValueByName(field[objectToIterate].str);
-                for(let elem of ArrayToIterate){
-                    jsString += "''"+elem + "'' " + this.strOperatorToSign(field.operator) + " " + objectSimple + " && ";
-                }
-                if(ArrayToIterate.length == 0){
-                    jsString = "false";
-                }
-                else{
-                    jsString = jsString.substring(0, jsString.length -4) + ")";
-                }
-                console.log("generated  javascirpt expression is " + jsString);
-                return jsString ;
+            private is_filled(field: FieldObject){
+                return this.formsSubmit[field.val1.str].value != "";
             }
             
             /**
-             * Generate Javascript expression for a given FieldObject
-             * @param field FieldObject -- Its a field Object
+             * is_empty operator
+             * @param field
              */
-            private generateJsVisibleIfBothFieldCheckbox(field: FieldObject){
-                // Javascript string to be built
-                let jsString = "";
-                const ArrayToIterate = this.getFormCheckboxValueByName(field["val1"].str);
-                const ArrayToIterate2 = this.getFormCheckboxValueByName(field["val2"].str);
-                let operator = this.strOperatorToSign(field.operator);
-                jsString =  ""+ (eval("ArrayToIterate.length "+ operator + "ArrayToIterate2.length") && ArrayToIterate.sort().every(function(value, index) { return eval("value"+ operator +" ArrayToIterate2.sort()[index]") }))+"";
-                console.log("generated  javascirpt expression is " + jsString);
-                return jsString ;
-            }  
-            
+            private is_empty(field: FieldObject){
+                return this.formsSubmit[field.val1.str].value == "";
+            }
             
             /**
              * Generate Javascript expression for a given FormObject
@@ -794,10 +750,13 @@ scriptContent:
                 // Javascript string to be built
                 let jsString = "";
                 jsString+= this.strOperatorToAssert(form.operator) + this.getAttributeForm(form.attribute);
-                console.log("generated  javascirpt expression is " + jsString);
                 return jsString;
             }
             
+            /**
+             * 
+             * @param str
+             */
             public getAttributeForm(str): string{
                 let stri = "";
                 switch(str){
@@ -808,31 +767,11 @@ scriptContent:
                 return stri;
             }
             
-            public strOperatorToSign(str){
-                let stri = "";
-                switch(str){
-                    case "equals":
-                        stri = "==";
-                    break;
-                    case "different":
-                        stri = "!=";
-                    break;
-                    case "minus":
-                        stri = "<";
-                    break;
-                    case "minusequals":
-                        stri = "<=";
-                    break;
-                    case "greater":
-                        stri = ">";
-                    break;
-                    case "greaterequals":
-                        stri = ">=";
-                    break;
-                }
-                return stri;
-            }
-        
+            
+            /**
+             * 
+             * @param str
+             */
             public strOperatorToAssert(str){
                 let stri = "";
                 switch(str){
@@ -846,6 +785,10 @@ scriptContent:
                 return stri;
             }
         
+            /**
+             * 
+             * @param str
+             */
             public getcondVisibleToSign(str){
                 let stri = "";
                 switch(str){
@@ -858,14 +801,29 @@ scriptContent:
                 }
                 return stri;
             }
+            /**
+             * 
+             * @param name
+             */
             public getFormElementValueByName(name): string{
                 for(let key of Object.keys(this.formsSubmit)){
                     if(key == name){
                         return this.formsSubmit[key].value;
                     }
+                    else if(this.formsSubmit[key].type == "ion-card"){
+                        for(let keyChild of Object.keys(this.formsSubmit[key]["children"])){
+                            if(keyChild == name){
+                                return this.formsSubmit[key]["children"][keyChild].value;
+                            }
+                        }
+                    }
                 }
                 return "";
             }
+            /**
+             * 
+             * @param name
+             */
             public getIdByName(name): string{
                 for(let obj of this.formsList){
                     if(obj["type"] == "ion-card"){
@@ -883,6 +841,10 @@ scriptContent:
                 return "";
             }
             
+            /**
+             * 
+             * @param name
+             */
             public getFormCheckboxValueByName(name): Array<string>{
                 let arrayStr: Array<string> = [];
                 for(let key of Object.keys(this.formsSubmit)){
@@ -893,10 +855,25 @@ scriptContent:
                             }
                         }
                     }
+                    else if(this.formsSubmit[key].type == "ion-card"){
+                        for(let keyChild of Object.keys(this.formsSubmit[key]["children"])){
+                            if(keyChild == name){
+                                for(let i in this.formsSubmit[key]["children"][keyChild].children){
+                                    if(this.formsSubmit[key]["children"][keyChild].children[i]["selected"]){
+                                        arrayStr.push(this.formsSubmit[key]["children"][keyChild].children[i].value);  
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 return arrayStr;
             }
             
+            /**
+             * 
+             * @param name
+             */
             public getFormRadioGroupValueByName(name): Array<string>{
                 let arrayStr: Array<string> = [];
                 for(let key of Object.keys(this.formsSubmit)){
@@ -907,10 +884,25 @@ scriptContent:
                             }
                         }
                     }
+                    else if(this.formsSubmit[key].type == "ion-card"){
+                        for(let keyChild of Object.keys(this.formsSubmit[key]["children"])){
+                            if(keyChild == name){
+                                for(let i in this.formsSubmit[key]["children"][keyChild].children){
+                                    if(this.formsSubmit[key]["children"][keyChild].children[i] != ""){
+                                        arrayStr.push(i+"_"+this.formsSubmit[key]["children"][keyChild].children[i]);  
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 return arrayStr;
             }
             
+            /**
+             * 
+             * @param name
+             */
             public getFormCheckboxGroupValueByName(name): Array<string>{
                 let arrayStr: Array<string> = [];
                 for(let key of Object.keys(this.formsSubmit)){
@@ -923,50 +915,33 @@ scriptContent:
                             }
                         }
                     }
+                    //this.formsSubmit[key]["children"][keyChild]
+                    else if(this.formsSubmit[key].type == "ion-card"){
+                        for(let keyChild of Object.keys(this.formsSubmit[key]["children"])){
+                            if(keyChild == name){
+                                for(let i in this.formsSubmit[key]["children"][keyChild].children){
+                                    for(let j in this.formsSubmit[key]["children"][keyChild].children[i]){
+                                        if(this.formsSubmit[key]["children"][keyChild].children[i][j]["selected"]){
+                                            arrayStr.push(i+"_"+this.formsSubmit[key]["children"][keyChild].children[i][j].value);  
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 return arrayStr;
             }
-            
-            public pickFormCheckboxValueByKeyIndex( key, i): string{
-                return this.formsSubmit[key].children[i].value
-            }
-            
-            public getFormElementTypeByName(name){
-                for(let key of Object.keys(this.formsSubmit)){
-                    if(key == name){
-                        return this.formsSubmit[key].type;
-                    }
-                }
-            }
-            
-            
+        
             /**
-             * Generates string
-             * @param val ValFieldObject
+             * 
+             * @param val
              */
-            private generateString(val: ValFieldObject ): string{
-                return "''" + val.str + "'' ";
-            }
-            
-            /**
-             * Generates Javascript expression for simple case
-             * @param val ValFieldObject
-             */
-            private generateSimple(val: ValFieldObject ): string{
-                return "this.getFormElementValueByName(''" +val.str+ "'') ";
-            }
-            
             private getSimple(val: ValFieldObject ): string{
                 return this.getFormElementValueByName(val.str);
             }
+        
             
-            /**
-             * Generates Javascript expression for simple case
-             * @param val ValFieldObject
-             */
-            private generateCheckBox(val: ValFieldObject ): Array<string>{
-                return this.getFormCheckboxValueByName(val.str);
-            }
             
             /**
              * bind eval function
@@ -975,6 +950,7 @@ scriptContent:
             public eval(str){
                 return eval(str);
             }
+            
             /**
              * returns type of field (simple, multiple, file, or camSign)
              * @param type
@@ -1789,7 +1765,7 @@ title: Visualisateur
                       attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                          - MobileSmartSourceType: 'plain:item.type != ''ion-card'' && item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)): true'
+                          - MobileSmartSourceType: 'plain:item.type != ''ion-card'' && item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)): item.type != ''ion-card'' '
                     ↓DivContentInnerHTML [mobile.components.UIDynamicElement-1586265727271]: 
                       beanData: '{"ionBean":"DivTag"}'
                       tagName: div
