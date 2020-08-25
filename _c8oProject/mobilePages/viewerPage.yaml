@@ -88,6 +88,11 @@ scriptContent:
                 this.local.fileField = {file: true};
                 this.local.camSignField = {img: true, signature:true};
                 this.global[this.global.id] = [];
+                
+                this.local.multipleFieldGoToPage = {radio_group: true, checkbox_group: true, checkbox: true, select: true, radio: true};
+                this.local.simpleFieldGoToPage = {date: true, datetime: true, time: true, text: true, barcode: true, slider: true};
+                this.local.fileFieldGoToPage = {file: true};
+                this.local.camSignFieldGoToPage = {img: true, signature:true};
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
             
@@ -381,8 +386,24 @@ scriptContent:
                                                 // Go To Page
                                                 let indexToGo: number = this.findIndexOfPageByPageTechName(elem.action);
                                                 if(indexToGo != -1){
-                                                    this.local.currentIndex = indexToGo;
+                                                    //this.local.currentIndex = indexToGo;
+                                                    this.local.pages[indexToGo].enabled = true;
                                                 }
+                                            }
+                                        }
+                                        else{
+                                            try{
+                                                if(elem.action != "" ||elem.action != undefined){
+                                                    // Go To Page
+                                                    let indexToGo: number = this.findIndexOfPageByPageTechName(elem.action);
+                                                    if(indexToGo != -1){
+                                                        //this.local.currentIndex = indexToGo;
+                                                        this.local.pages[indexToGo].enabled = false;
+                                                    }
+                                                }
+                                            }
+                                            catch(e){
+                                                
                                             }
                                         }
                                     }
@@ -398,7 +419,8 @@ scriptContent:
                                         // Go To Page
                                         let indexToGo: number = this.findIndexOfPageByPageTechName(action);
                                         if(indexToGo != -1){
-                                            this.local.currentIndex = indexToGo;
+                                            //this.local.currentIndex = indexToGo;
+                                            this.local.pages[indexToGo].enabled = true;
                                         }
                                     }
                                     
@@ -419,10 +441,27 @@ scriptContent:
                                     // Go To Page
                                     let indexToGo: number = this.findIndexOfPageByPageTechName(action);
                                     if(indexToGo != -1){
-                                        this.local.currentIndex = indexToGo;
+                                        //this.local.currentIndex = indexToGo;
+                                        this.local.pages[indexToGo].enabled = true;
                                     }
                                 }
                                 
+                            }
+                            catch(e){
+                                
+                            }
+                        }
+                        else{
+                            try{
+                                let action = cond.page;
+                                if(action != "" ||action != undefined){
+                                    // Go To Page
+                                    let indexToGo: number = this.findIndexOfPageByPageTechName(action);
+                                    if(indexToGo != -1){
+                                        //this.local.currentIndex = indexToGo;
+                                        this.local.pages[indexToGo].enabled = false;
+                                    }
+                                }
                             }
                             catch(e){
                                 
@@ -1141,6 +1180,79 @@ scriptContent:
                     return "";
                 }
                 
+            }
+            
+            public getNextPageIndex(){
+                for (let i = this.local.currentIndex +1; i < this.local.pages.length; i++) {
+                    if(this.local.pages[i].enabled == true){
+                        return i;
+                    }   
+                 }
+            }
+            public getPreviousPageIndex(){
+                for (let i = 0; i < this.local.currentIndex; i++) {
+                    if(this.local.pages[i].enabled == true){
+                        return i;
+                    }   
+                 }
+                //return 0;
+            }
+            
+            public isThereANextPage(){
+                if(this.local.pages != undefined && (this.local.currentIndex < this.local.pages.length -1)){
+                    for (let i = this.local.currentIndex +1; i < this.local.pages.length; i++) {
+                        if(this.local.pages[i].enabled == true){
+                            return true;
+                        }   
+                     }
+                    return false;
+                }
+                else{
+                    return false;
+                }
+                
+            }
+            
+            /**
+             * evaluate each condition for a given page
+             */
+            public evaluatePage(){
+              for(let elem of this.formsList){
+                  if((<any>elem).config.page != undefined && (<any>elem).config.page == this.local.pages[this.local.currentIndex].pageTechName){
+                      try{
+                          if(this.local.simpleFieldGoToPage[(<any>elem).type] == true){
+                              this.detectTypeAndComplete((<any>elem).conditions.goToPageIf.conds, (<any>elem).conditions.goToPageIf.condVisible, null, null);
+                          }
+                          else if(this.local.multipleFieldGoToPage[(<any>elem).type] == true){
+                              if((<any>elem).type == "radio" ||(<any>elem).type == "checkbox"){
+                                  let cpt = 0;
+                                  for(let child of (<any>elem).children){
+                                      if(this.formsSubmit[(<any>elem).name].children[cpt].selected == true){
+                                          this.detectTypeAndComplete((<any>elem).conditions.goToPageIf.conds, (<any>elem).conditions.goToPageIf.condVisible, null, child);
+                                      }
+                                      cpt++;
+                                  }
+                                  
+                              }
+                              else if((<any>elem).type == "radio_group" ||(<any>elem).type == "checkbox_group"){
+                                  for(let line of (<any>elem).lines){
+                                      for(let child of (<any>elem).children){
+                                          this.detectTypeAndComplete((<any>elem).conditions.goToPageIf.conds, (<any>elem).conditions.goToPageIf.condVisible, line, child);
+                                      }
+                                  }
+                              }
+                              
+                          }
+                          /*else if(){
+                              
+                          }*/
+                          
+                      }
+                      catch(e){
+                          
+                      }
+                  }
+              }  
             }
             /*End_c8o_PageFunction*/
         '
@@ -2304,7 +2416,7 @@ title: Visualisateur
             directiveSource: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.local.pages != undefined && (this.local.currentIndex < this.local.pages.length -1) else ElseBlock_1592514238339
+                - MobileSmartSourceType: script:this.isThereANextPage() else ElseBlock_1592514238339
             ↓GenericItemButtonSubmit [mobile.components.UIDynamicElement-1592514301607]: 
               beanData: '{"ionBean":"GenericItem"}'
               tagName: ion-item
@@ -2399,7 +2511,8 @@ title: Visualisateur
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
                                 		if(vars.next){
-                                		    page["local"]["currentIndex"] ++;
+                                		    page["local"]["currentIndex"] = this.getNextPageIndex();
+                                		    this.evaluatePage();
                                 		}
                                 		
                                 		resolve();
@@ -2453,7 +2566,7 @@ title: Visualisateur
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                		page["local"]["currentIndex"] --;
+                                		page["local"]["currentIndex"] = this.getPreviousPageIndex();
                                 		resolve();
                                 
                     ↓Text [mobile.components.UIText-1592514986413]: 
