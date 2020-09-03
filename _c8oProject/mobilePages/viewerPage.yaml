@@ -1360,6 +1360,7 @@ title: Visualisateur
                     '		    page.local.user = this.navParams.get(''i'');
                     		    page.c8o.callJson(".getAnonymousForm", "login", page.local.user,"__disableAutologin", true)
                                 .then((res: any)=>{
+                                    page.local.sourceValue = {};
                                     let respInit = null;
                                     if(res.transaction.document.couchdb_output.rows[0] != undefined){
                                         let response = res.transaction.document.couchdb_output;
@@ -1441,7 +1442,32 @@ title: Visualisateur
                                                             else if(item["type"] == "radio" || item["type"] == "select"){
                                                                 
                                                                 formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                                
+                                                                let findName = "";
+                                                                let findVar = "";
+                                                                if(item["type"] == "select" && item["config"]["sourceEnabled"] == true){
+                                                                    for(let w in item["actions"]){
+                                                                        if(item["actions"][w].enabled == true){
+                                                                            findVar = item["actions"][w]["vars"][0];
+                                                                            findName = w;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                if(findName != ""){
+                                                                    formSubmit[item["name"]]["action"] = findName;
+                                                                    formSubmit[item["name"]]["actionVar"] = findVar;
+                                                                    //page.local["vals"+item.name] = 
+                                                                    page.c8o.callJsonObject(findName, {
+                                                                        [findVar] : ""
+                                                                    })
+                                                                    .then((res=>{
+                                                                        page.local.sourceValue[item.name] = res["value"];
+                                                                        for(let child of res["value"]){
+                                                                            formSubmit[item["name"]]["children"].push({"value": child, "selected": false});
+                                                                        }
+                                                                        return null;
+                                                                    }))
+                                                                }
+                                                                else{
                                                                     let defaultSelected ="";
                                                                     for(let child in item["children"]){
                                                                         let selected;
@@ -1458,7 +1484,7 @@ title: Visualisateur
                                                                         formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
                                                                     }
                                                                     formSubmit[item["name"]]["value"] = defaultSelected;
-                                                               
+                                                                }
                                                                 
                                                             }
                                                             else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
