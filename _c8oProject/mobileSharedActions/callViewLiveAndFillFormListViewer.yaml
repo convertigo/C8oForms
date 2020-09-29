@@ -84,6 +84,8 @@
                                       };
                                       
                                       let fillFormSubmit = (list, redList, formSubmit, response) => {
+                                          page.local.subKeyD = page.local.urlParams.get("_c8o_subkey");
+                                          page.local.subKeyD = page.local.subKeyD == null ? "," : page.local.subKeyD;
                                           try  {
                                               for(let item of list){
                                                   //checkAuthorizedPages(item);
@@ -91,20 +93,24 @@
                                                       redList[item["name"]] = {};
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "children":{}};
                                                       //redList[item["name"]]["children"] = [];
+                                                      
                                                       let res = response != undefined ? response[item["name"]]["children"] : null;
                                                       fillFormSubmit(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"], res);
                                                   }
                                                   else if(item["type"] == "text"){
-                                                      let value = respInit == null ? "": response[item["name"]]["value"]; 
+                                                      let urlParams = page.local.urlParams.get(item["name"]);
+                                                      let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
                                                   }
                                                   else if(item["type"] == "checkbox"){
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                     
+                                                      let urlParams = page.local.urlParams.get(item["name"]);
+                                                      let array = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
                                                       for(let child in item["children"]){
                                                           let selected;
                                                           try {
-                                                              selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
+                                                              let s = array.indexOf(item["children"][child].value) != -1;
+                                                              selected = s == true ? s : respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
                                                           }
                                                           catch(e){
                                                               
@@ -135,41 +141,75 @@
                                                               [findVar] : ""
                                                           })
                                                           .then((res=>{
+                                                              let urlParams = page.local.urlParams.get(item["name"]);
                                                               page.local.sourceValue[item.name] = res["value"];
+                                                              let defaultSelected ="";
                                                               for(let child of res["value"]){
-                                                                  formSubmit[item["name"]]["children"].push({"value": child, "selected": false});
+                                                                  if(child == urlParams){
+                                                                      defaultSelected = child;
+                                                                  }
+                                                                  formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
                                                               }
+                                                              formSubmit[item["name"]]["value"] = defaultSelected;
                                                               return null;
                                                           }))
                                                       }
                                                       else{
+                                                          let urlParams = page.local.urlParams.get(item["name"]);
+                                                          let indexFinded = false;
                                                           let defaultSelected ="";
-                                                          for(let child in item["children"]){
-                                                              let selected;
-                                                              try {
-                                                                  selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
-                                                                  if(selected){
-                                                                      defaultSelected = respInit == null ? item["children"][child].value : response[item["name"]]["children"][child]["value"];
+                                                          
+                                                          if(urlParams != undefined){
+                                                              for(let child in item["children"]){
+                                                                  if(item["children"][child]["value"] == urlParams){
+                                                                      indexFinded = true; 
+                                                                      defaultSelected = item["children"][child].value;
+                                                                      formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": true});
+                                                                  }
+                                                                  else{
+                                                                      formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": false});
                                                                   }
                                                               }
-                                                              catch(e){
+                                                          }
+                                                          if(!indexFinded){
+                                                              for(let child in item["children"]){
+                                                                  let selected;
+                                                                  try {
+                                                                      selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
+                                                                      if(selected){
+                                                                          defaultSelected = respInit == null ? item["children"][child].value : response[item["name"]]["children"][child]["value"];
+                                                                      }
+                                                                  }
+                                                                  catch(e){
+                                                                      
+                                                                  }
                                                                   
+                                                                  formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
                                                               }
-                                                              
-                                                              formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
                                                           }
                                                           formSubmit[item["name"]]["value"] = defaultSelected; 
                                                       }
                                                   }
                                                   else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
-                                                      let value = respInit == null ? "": response[item["name"]]["value"]; 
+                                                      let urlParams = page.local.urlParams.get(item["name"]);
+                                                      let value;
+                                                      if(item["type"] == "slider"){
+                                                          let valConvert = (isNaN(+urlParams) == false && urlParams != "") ? +urlParams : null;
+                                                          value = valConvert != null ? valConvert : respInit == null ? "": response[item["name"]]["value"]; 
+                                                      }
+                                                      else{
+                                                          value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
+                                                      }
+                                                      
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["name"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
                                                   }
                                                   else if(item["type"] == "radio_group"){
                                                       
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, children_label:item["children"], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
                                                       for(let line of item.lines){
-                                                          let value = respInit == null ? "": response[item["name"]]["children"][line.title]; 
+                                                          let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
+                                                          urlParams = item.children.filter(x=> x.value == urlParams).length > 0 ? urlParams : null;
+                                                          let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["children"][line.title]; 
                                                           formSubmit[item["name"]].children[line.title]= value;
                                                       }
                                                   }
@@ -178,10 +218,15 @@
                                                       
                                                       for(let line of item.lines){
                                                           formSubmit[item["name"]].children[line.title] = [];
+                                                          let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
+                                                          let array = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
                                                           for(let child in item["children"]){
+                                                             
+                                                              
                                                               let selected;
                                                               try {
-                                                                  selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][line.title][child]["selected"];
+                                                                  let s = array.indexOf(item["children"][child].value) != -1;
+                                                                  selected = s == true ? s : respInit == null ? item["children"][child].selected : response[item["name"]]["children"][line.title][child]["selected"];
                                                               }
                                                               catch(e){   
                                                               }   
