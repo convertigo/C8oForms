@@ -167,7 +167,77 @@
                     
                     page["datetimeconfig"][page.global.language] = true;
                     let t = true;
-                    let done_call_action = false
+                    let done_call_action = false;
+                    
+                    let getForm = () => {
+                        page.c8o.callJsonObject("fs://c8oforms_fs.get",{docid:page.local.formId
+                        })
+                        .then((response: any, parameters)=>{
+                            let flag = false;
+                            if(response["technicalVersion"] == undefined){
+                                updateHtml(response.formulaire); 
+                                let pageTechName = updateToPages(response.formulaire); 
+                                response["technicalVersion"] = "1.0.2";
+                                let desc = response.descform;
+                                response["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc:desc}];
+                                flag = true;
+                            }
+                            else if(response["technicalVersion"] == "1.0.0") {
+                                let pageTechName = updateToPages(response.formulaire); 
+                                response["technicalVersion"] = "1.0.2";
+                                let desc = response.descform;
+                                response["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc: desc}];
+                                flag = true;
+                            }
+                            else if(response["technicalVersion"] == "1.0.1") {
+                                let pageTechName = updateToPages(response.formulaire); 
+                                response["technicalVersion"] = "1.0.2";
+                                let desc = response.descform;
+                                for(let i in response["pages"]){
+                                    response["pages"][i].desc = desc;
+                                }
+                                
+                                flag = true;
+                            }
+                            else if(response["technicalVersion"] == "1.0.2") {
+                                updateToConditions(response.formulaire);  
+                                response["technicalVersion"] = "1.0.3";
+                                flag = true;
+                            }
+                            page["formsList"] = response.formulaire;
+                            page["form"] = response;                              
+                            if(flag){
+                                page[''updateState'']();
+                            }
+                            //search for actions that needs specific things
+                            let exists_submit = false;
+                            for(let item of page["form"]["formulaire"]){
+                                if(item.type == "submit"){
+                                    exists_submit = true;
+                                    if(!done_call_action){
+                                        page["actionBeans"]["STS1586453262123"](page, {}, {item:item, viewer:true}, null);
+                                        done_call_action = true;
+                                    }
+                                }
+                            }
+                            for(let item of page[''form'']["actions"]){
+                                if(item.type == "submit"){
+                                    exists_submit = true;
+                                    if(!done_call_action){
+                                        page["actionBeans"]["STS1586453262123"](page, {}, {item:item, viewer:true}, null);
+                                        done_call_action = true;
+                                    }
+                                }
+                            }
+                            
+                            page.local["exists_submit"] = exists_submit;
+                            
+                            page.ref.detectChanges();
+                            resolve();
+                            return null;
+                        })
+                    }
+                    getForm();
                     page.c8o.callJsonObject("fs://c8oforms_fs.sync",{
                         continuous: true,
                         retry: true,
@@ -183,74 +253,9 @@
                         .progress((progress)=>{
                             if(progress.finished == true){
                                 if(progress.pull){
-                                    page.c8o.callJsonObject("fs://c8oforms_fs.get",{docid:page.local.formId
-                                    })
-                                    .then((response: any, parameters)=>{
-                                        let flag = false;
-                                        if(response["technicalVersion"] == undefined){
-                                            updateHtml(response.formulaire); 
-                                            let pageTechName = updateToPages(response.formulaire); 
-                                            response["technicalVersion"] = "1.0.2";
-                                            let desc = response.descform;
-                                            response["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc:desc}];
-                                            flag = true;
-                                        }
-                                        else if(response["technicalVersion"] == "1.0.0") {
-                                            let pageTechName = updateToPages(response.formulaire); 
-                                            response["technicalVersion"] = "1.0.2";
-                                            let desc = response.descform;
-                                            response["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc: desc}];
-                                            flag = true;
-                                        }
-                                        else if(response["technicalVersion"] == "1.0.1") {
-                                            let pageTechName = updateToPages(response.formulaire); 
-                                            response["technicalVersion"] = "1.0.2";
-                                            let desc = response.descform;
-                                            for(let i in response["pages"]){
-                                                response["pages"][i].desc = desc;
-                                            }
-                                            
-                                            flag = true;
-                                        }
-                                        else if(response["technicalVersion"] == "1.0.2") {
-                                            updateToConditions(response.formulaire);  
-                                            response["technicalVersion"] = "1.0.3";
-                                            flag = true;
-                                        }
-                                        page["formsList"] = response.formulaire;
-                                        page["form"] = response;                              
-                                        if(flag){
-                                            page[''updateState'']();
-                                        }
-                                        //search for actions that needs specific things
-                                        let exists_submit = false;
-                                        for(let item of page["form"]["formulaire"]){
-                                            if(item.type == "submit"){
-                                                exists_submit = true;
-                                                if(!done_call_action){
-                                                    page["actionBeans"]["STS1586453262123"](page, {}, {item:item, viewer:true}, null);
-                                                    done_call_action = true;
-                                                }
-                                            }
-                                        }
-                                        for(let item of page[''form'']["actions"]){
-                                            if(item.type == "submit"){
-                                                exists_submit = true;
-                                                if(!done_call_action){
-                                                    page["actionBeans"]["STS1586453262123"](page, {}, {item:item, viewer:true}, null);
-                                                    done_call_action = true;
-                                                }
-                                            }
-                                        }
-                                        
-                                        page.local["exists_submit"] = exists_submit;
-                                        
-                                        page.ref.detectChanges();
-                                        resolve();
-                                        return null;
-                                    })
+                                    
                                 }
-                                
+                                getForm();
                                 t = false;
                                 /*this.icon.nativeElement.classList.remove("animated");
                                 this.icon.nativeElement.classList.remove("jackInTheBox");
