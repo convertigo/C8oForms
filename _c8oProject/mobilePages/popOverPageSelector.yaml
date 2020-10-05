@@ -41,6 +41,16 @@ scriptContent:
         	    
         	    
         	}
+        	
+        	public blobToBase64(blobData){
+        	    return new Promise( async (resolve, reject) => {
+        	        var reader = new FileReader();
+        	        reader.onloadend = function () {
+                        resolve(reader.result);
+                    };
+                    reader.readAsDataURL(blobData);
+        	    });
+        	}
         	/*End_c8o_PageFunction*/
         '
 segment: path-to-popoverpageselector
@@ -471,20 +481,56 @@ title: Title for popOverPageSelector
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  		    let text = page["navParams"]["data"]["selectedForm"];
-                  		    delete text["_rev"];
-                  		    
-                  		    let filename = text.name+".c8oforms".split(' ').join('_');
-                  		    var element = document.createElement('a');
-                  		    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(text)));
-                  		    element.setAttribute('download', filename);
+                  		
+                  		    new Promise(async (resolve1, reject1)=>{
+                  		        let text = page["navParams"]["data"]["selectedForm"];
+                  	            delete text["_rev"];
+                  	            let wallpaper, thumbnail = null;
+                  	            
+                  	            try{
+                  	                if(text.wallpaper && text.wallpaper.enabled == true){
+                  	                    wallpaper = await this.c8o.callJson("fs://c8oforms_fs.get_attachment", "docid", text._id, "name", "wallpaper").async();
+                  	                    if(wallpaper && (wallpaper instanceof Blob)){
+                  	                        text.wallpaper.b64 = await this.blobToBase64(wallpaper);
+                  	                    }
+                  	                }
+                  	            }
+                  	            catch(e){
+                  	                console.log("No Wallpaper attachment");
+                  	            }
+                  	            
+                  	            try{
+                  	                if(text.thumbnail && text.thumbnail.enabled == true){
+                  	                    thumbnail = await this.c8o.callJson("fs://c8oforms_fs.get_attachment", "docid", text._id, "name", "thumbnail").async();
+                  	                    if(thumbnail && (thumbnail instanceof Blob)){
+                  	                        text.thumbnail.b64 = await this.blobToBase64(thumbnail);
+                  	                    }
+                  	                }
+                                  }
+                                  catch(e){
+                                      console.log("No thumbnail attachment");
+                                  }
+                  	            
+                  	            let filename = (text.name+".c8oforms").replace(/\s/g, '_');
+                  	            var element = document.createElement('a');
+                  	            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(text)));
+                  	            element.setAttribute('download', filename);
                   
-                  		    element.style.display = 'none';
-                  		    document.body.appendChild(element);
+                  	            element.style.display = 'none';
+                  	            document.body.appendChild(element);
                   
-                  		    element.click();
+                  	            element.click();
                   
-                  		    document.body.removeChild(element);
+                  	            document.body.removeChild(element);
+                  	            
+                  	            resolve();
+                  		    })
+                  		    .then(()=>{
+                  		       resolve();
+                  		    })
+                  		    .catch(()=>{
+                  		        resolve();
+                  		    });
                   
           ↓ClosePopover [mobile.components.UIDynamicAction-1572277513078]: 
             beanData: '{"ionBean":"ClosePopoverAction"}'
