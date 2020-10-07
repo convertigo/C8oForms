@@ -3,7 +3,7 @@ scriptContent:
     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
-        /*Begin_c8o_PageImport*/
+        '/*Begin_c8o_PageImport*/
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
         	public fileSelected = false;
@@ -26,7 +26,7 @@ scriptContent:
                 for(let file of this.files){
                     let type = (file.type == undefined || file.type == "") ? "application/octet-stream":file.type;
                     await this.router.c8o.callJson("fs://c8oformstemp.put_attachment",
-                            "docid",'temp_'+this.idSession,
+                            "docid",''temp_''+this.idSession,
                             "name",file.name,
                             "content_type", type,
                             "content", file)
@@ -37,14 +37,29 @@ scriptContent:
         	public FileConvertSize(aSize){
         	    
         	    aSize = Math.abs(parseInt(aSize, 10));
-        	    var def = [[1, 'octets'], [1024, 'ko'], [1024*1024, 'Mo'], [1024*1024*1024, 'Go'], [1024*1024*1024*1024, 'To']];
-        	    for(var i=0; i<def.length; i++){
-        	        if(aSize<def[i][0]) return (aSize/((def[i-1][0]) as any)).toFixed(2)+' '+def[i-1][1];
+        	    var def = [[1, ''octets''], [1024, ''ko''], [1024*1024, ''Mo''], [1024*1024*1024, ''Go''], [1024*1024*1024*1024, ''To'']];
+        	    for(var i=0; i < def.length; i++){
+        	        if(aSize < def[i][0]) return (aSize/((def[i-1][0]) as any)).toFixed(2)+'' ''+def[i-1][1];
         	    }
         	    
         	}
+        	    
+            async importAttachment(idForm, name, b64): Promise<any>{
+                let b64Data = b64.split('','');
+                if(b64Data.length == 2){
+                    let matches = /data:(.*);base64/.exec(b64Data[0]);
+                    let  contentType = (matches !== null) ? matches[1] : "image/jpeg";
+                    try{
+                        await this.c8o.callJson("fs://c8oforms_fs.put_attachment", 
+                            "docid", idForm, "name", name, "content_type", contentType, "content", b64Data[1]).async();
+                    }
+                    catch(e){
+                        console.log("Can not add attachment named " + name + " to id " + idForm);
+                    }
+                }
+            };
         	/*End_c8o_PageFunction*/
-        
+        '
 segment: path-to-dropfilepage
 title: Title for dropFilePage
 ↓Header [mobile.components.UIDynamicElement-1550681175613]: 
@@ -899,14 +914,14 @@ title: Title for dropFilePage
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    		    /*
+                    '		    /*
                     		    let cpt = this.files.length;
                     		    let cpt2 = 0;
                     		    for(let file of this.files){
                     
                     		        let type = (file.type == undefined || file.type == "") ? "application/octet-stream":file.type;
                     		        let resultGet = await this.router.c8o.callJson("fs://c8oformstemp.put_attachment",
-                    		                "docid",'temp_'+this.idSession,
+                    		                "docid",''temp_''+this.idSession,
                     		                "name",file.name,
                     		                "content_type", type,
                     		                "content", file)
@@ -922,7 +937,7 @@ title: Title for dropFilePage
                     		        resolve();
                     		    })*/
                     		    /*if(this.files.length > 0){
-                    		        this.global['inst'].unsetred(this.global["__tempITEMNAME"]);
+                    		        this.global[''inst''].unsetred(this.global["__tempITEMNAME"]);
                     		    }*/
                     		    if(this.navParams.data["import"]== true){
                     		        for(let elem of this.files){
@@ -930,24 +945,48 @@ title: Title for dropFilePage
                     		                const reader = new FileReader();
                     
                     	                     // This fires after the blob has been read/loaded.
-                    	                     reader.addEventListener('loadend', (e) => {
+                    	                     reader.addEventListener(''loadend'', (e) => {
                     	                       const text = e.srcElement["result"];
                     	                       let form = JSON.parse(text);
                     	                       delete form._id;
                     	                       form._id = ""+new Date().getTime();
+                    	                       form.name = form.name + "_import";
                     	                       page.c8o.callJsonObject("fs://c8oforms_fs.post", form)
                     	                       .then((res)=>{
+                    	                           new Promise(async (resolve1, reject1)=>{
+                    	                               try{
+                    	                                   if(res["id"] && form.wallpaper && form.wallpaper.enabled == true && form.wallpaper.b64)
+                    	                                       await this.importAttachment(res["id"], "wallpaper", form.wallpaper.b64);
+                    	                               }
+                    	                               catch(e){
+                    	                                   page.c8o.log.debug("Error: ", e);
+                    	                               }
+                    	                               try{
+                    	                                   if(res["id"] && form.thumbnail && form.thumbnail.enabled == true && form.thumbnail.b64)
+                    	                                       await this.importAttachment(res["id"], "thumbnail", form.thumbnail.b64);
+                        	                           }
+                                                       catch(e){
+                                                           page.c8o.log.debug("Error: ", e);
+                                                       }
+                    	                               resolve1();
+                    	                           })
+                    	                           .then(()=>{
+                    	                               resolve();
+                    	                            })
+                    	                            .catch(()=>{
+                    	                                resolve();
+                    	                            });
                     	                           return null;
                     	                       })
                     	                       .fail((err)=>{
-                    	                           
+                    	                           page.c8o.log.debug("Error: ", err);
                     	                       })
                     	                       
                     	                     });
                     	                     reader.readAsText(elem);
                     		            }
                     		            catch(e){
-                    		                
+                    		                page.c8o.log.debug("Error: ", e);
                     		            }
                     		            
                     		        }
@@ -957,7 +996,7 @@ title: Title for dropFilePage
                     	                
                     		    }
                     		    resolve();
-                    
+                    '
             ↓If [mobile.components.UIDynamicAction-1571672728761]: 
               beanData: '{"ionBean":"IfAction","condition":"script:this.files.length > 0"}'
               ↓PublishEvent [mobile.components.UIDynamicAction-1571672728764]: 
