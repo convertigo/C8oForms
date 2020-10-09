@@ -78,7 +78,7 @@ comment: Build responses csv from a document id, providing a name
     			var paf = nodePath;
     			var nodeName = nodeList.item(i).getNodeName();
     			if(nodeName != "resp"){
-    				paf != "" ? paf += separator : null;
+    				paf != "" ? paf += nameSeparator : null;
     				paf += nodeName; 
     			}
     			searchRecursive(nodeList.item(i), paf, level);
@@ -109,7 +109,7 @@ comment: Build responses csv from a document id, providing a name
     	}
     }
     
-    function searchFlat(nodeList, nodePath, lvl){
+    function searchFlat(nodeList, nodePath, lvl, seprator){
     	log.warning("searchFlat: " + nodeList.length);
     		for(var i = 0; i< nodeList.length; i++){
     			log.warning("create tab at" + i )
@@ -140,6 +140,30 @@ comment: Build responses csv from a document id, providing a name
     						}
     						b += "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ docid +"/"+myArray[z];
     						b = encodeURI(b);
+    						
+    					}
+    					
+    				}
+    				else{
+    					try{
+    						// search for line beaks to escape them with quotes
+    						var regex = /[\n]/g;
+    						var match1 = b.match(regex);
+    						// search for separator to escape them with quotes
+    						if(seprator == ";"){
+    							var regex2 = /[;]/g;
+    						}
+    						else{
+    							var regex2 = /[,]/g;
+    						}
+    						var match2 = b.match(regex2);
+    						
+    						if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0)){
+    							b = ''"'' + b + ''"'';
+    						}
+    					}
+    					catch(e){
+    						log.warning("error: "+JSON.stringify(e));
     					}
     					
     				}
@@ -206,49 +230,64 @@ comment: Build responses csv from a document id, providing a name
     	
     }
     
-    function writeFile(arr){
-    	var csvWriter = new java.io.FileWriter(context.getProjectDirectory()+ "/csv/" + formId +".csv");
+    function writeFile(arr,sepratorChar,encoding){
+    	var char_output = new java.io.OutputStreamWriter(
+    		     new java.io.FileOutputStream(context.getProjectDirectory()+ "/csv/" + formId +".csv"),
+    		     java.nio.charset.Charset.forName(encoding).newEncoder() 
+    		 );
     	if(tab[0] != undefined){
     		try {
     			for(var i = 0; i< arr[0].length; i++){
-    				csvWriter.append(arr[0][i].key+"");
+    				char_output.append(arr[0][i].key+"");
     				if(i == arr[0].length -1){
-    					csvWriter.append("\n");
+    					char_output.append("\n");
     				}
     				else{
-    					csvWriter.append(";");
+    					char_output.append(sepratorChar);
     				}
     			}
     			for(var i = 0; i< arr.length; i++){
     				if(arr[i] != undefined) { 
     					for(var j = 0; j< arr[i].length; j++){
-    						csvWriter.append(arr[i][j].value+"");
+    						char_output.append(arr[i][j].value+"");
     						if(j == arr[i].length -1){
-    							csvWriter.append("\n");
+    							char_output.append("\n");
     						}
     						else{
-    							csvWriter.append(";");
+    							char_output.append(sepratorChar);
     						}
     					}
     				}
     			}
-    			csvWriter.flush();
-    			csvWriter.close();
+    			char_output.flush();
+    			char_output.close();
     		}
     		catch(e){
-    			csvWriter.flush();
-    			csvWriter.close();
+    			char_output.flush();
+    			char_output.close();
     			log.warning(e + "");
     		}
     	}
     	else{
     		log.warning("write file == undefined");
     	}
-    	
-    	
-    
     }
-    const separator = "_";
+    // define separator and encoding
+    try{
+    	if(separator != ";" && separator != ","){
+    		log.warning("separator: " + separator + " is not supported set to default separator ;");
+    		separator = '';'';
+    	}
+    	var sepratorChar = separator.charAt(0);
+    	if(encoding != "UTF-16" && encoding != "US-ASCII" && encoding != "ISO-8859-1" && encoding != "UTF-8" && encoding != "UTF-16BE" && encoding != "UTF-16LE"){
+    		log.warning("Encoding: " + encoding + " is not supported set to default encoding UTF-8");
+    		encoding = "UTF-8";
+    	}
+    }
+    catch(e){
+    	
+    }
+    const nameSeparator = "_";
     var tab = [];
     var uniquesKeys = {};
     var list = rows.item(0).getElementsByTagName("doc");
@@ -259,7 +298,7 @@ comment: Build responses csv from a document id, providing a name
     var length =rows.item(0).length;
     log.warning("resultat length: " + length);
     log.warning("resultat: " + JSON.stringify(tab))
-    writeFile(tab);
+    writeFile(tab,sepratorChar,encoding);
     //createNodeXml(tab);
     '
 ↓Write_CSV [steps.WriteCSVStep-1572472082894]: 
@@ -329,179 +368,14 @@ comment: Build responses csv from a document id, providing a name
   ↓jAttribute3 [steps.AttributeStep-1572472082915]: 
     nodeName: type
     nodeText: attachment
-↓Sequence_JS21 [steps.SimpleStep-1572532229164]: 
-  expression: |
-    '//todo
-    function searchRecursive(nodeList, nodePath, lvl){
-    	for(var i = 0; i< nodeList.length; i++){
-    		var level = lvl;
-    		if(level == null){
-    			tab.push([]);
-    			level = i;
-    		}
-    		var type = nodeList.item(i).getNodeType();
-    		var hasChild = nodeList.item(i).hasChildNodes();
-    		
-    		 if (hasChild && type != 3) {
-    			var paf = nodePath;
-    			var nodeName = nodeList.item(i).getNodeName();
-    			if(nodeName != "resp"){
-    				paf != "" ? paf += separator : null;
-    				paf += nodeName; 
-    			}
-    			searchRecursive(nodeList.item(i), paf, level);
-    		}
-    		else{
-    			var value = "" + nodeList.item(i).getTextContent();
-    			if(nodePath != "" && value != ""){
-    				var data = {};
-    				data.key = nodePath;
-    	            data.value = value;
-    	            tab[level].push(data);
-    			}  
-    		}
-    	}
-    }
-    
-    
-    function createNodeXml(arr){
-    	// create parent node
-    	//var node = context.addTextNodeUnderRoot("resp", "");
-    	var node = myNodeList.item(0);
-    	for(var i = 0; i< arr.length; i++){
-    		var item = context.addTextNode(node, "item", "");
-    		for(var j = 0; j< arr[i].length; j++){
-    			log.warning("elem => key: " + arr[i][j]["key"]+" value: "+ arr[i][j]["value"]);
-    			var elem = context.addTextNode(item, arr[i][j]["key"],arr[i][j]["value"]);			
-    		}
-    	}
-    }
-    
-    function searchFlat(nodeList, nodePath, lvl){
-    	log.warning("searchFlat: " + nodeList.length);
-    		for(var i = 0; i< nodeList.length; i++){
-    			log.warning("create tab at" + i )
-    			tab.push([]);
-    			log.warning("length current: " +nodeList.item(i).length);
-    			for(var j = 0; j< nodeList.item(i).length; j++){
-    				var hasChild = nodeList.item(i).hasChildNodes();
-    				var a = "" + nodeList.item(i).getElementsByTagName("key").item(j).getTextContent();
-    				var b = "" + nodeList.item(i).getElementsByTagName("value").item(j).getTextContent();
-    				log.warning("key: " + a)
-    				log.warning("value: " + b)
-    				var data = {};
-    				data.key = a;
-    	            data.value = b;
-    	            tab[i].push(data);
-    	            if(uniquesKeys[data.key] == undefined){
-    	            	uniquesKeys[data.key] = true;
-    	            }
-    	            log.warning("push data at" + i + " " + JSON.stringify(data))
-    			}
-    			
-    		
-    	}
-    	
-    }
-    function fillFlat(arr){
-    		for(var i = 0; i< arr.length; i++){
-    			if(arr[i].length == uniquesKeys.length){
-    				
-    			}
-    			else{
-    				var objTemp = uniquesKeys;
-    				for(var j = 0; j< arr[i].length; j++){
-    					if(objTemp[arr[i][j]["key"]] == true){
-    						delete objTemp[arr[i][j]["key"]];
-    					}
-    				}
-    				for(var prop in objTemp){
-    					arr[i].push({''key'':prop,''value'':''''});
-    				}
-    			}
-    	}
-    	
-    }
-    
-    const separator = "_";
-    var tab = [];
-    var uniquesKeys = {};
-    var list = rows.item(0).getElementsByTagName("doc");
-    searchFlat(list);
-    fillFlat(tab);
-    log.warning("tab result: " + JSON.stringify(tab));
-    var length =rows.item(0).length;
-    log.warning("resultat length: " + length);
-    //log.warning("resultat lengt2h: " + JSON.stringify(rows.item(0).getElementsByTagName("resp")));
-    
-    //searchRecursive(list, "", null);
-    log.warning("resultat: " + JSON.stringify(tab))
-    createNodeXml(tab);
-    /*log.warning("resultat: " + JSON.stringify(tab));
-    var tab = JSON.stringify({tab: tab});*/
-    /*
-    var xmlUtils = use("com.twinsoft.convertigo.engine.util.XMLUtils");
-    var jsonObject = new org.codehaus.jettison.json.JSONObject(JSON.stringify(tab));
-    xmlUtils.jsonToXml(jsonObject, dom.getDocumentElement());
-    
-    */
-    /*
-    function searchRecursive(nodeList, nodePath, lvl){
-    for(var i = 0; i< nodeList.length; i++){
-    	var level = lvl;
-    	if(level == null){
-    		tab.push([]);
-    		level = i;
-    	}
-    	var type = nodeList.item(i).getNodeType();
-    	var hasChild = nodeList.item(i).hasChildNodes();
-    	
-    	 if (hasChild && type != 3) {
-    		var paf = nodePath;
-    		var nodeName = nodeList.item(i).getNodeName();
-    		if(nodeName != "resp"){
-    			paf != "" ? paf += separator : null;
-    			paf += nodeName; 
-    		}
-    		searchRecursive(nodeList.item(i), paf, level);
-    	}
-    	else{
-    		var value = "" + nodeList.item(i).getTextContent();
-    		var data = {};
-            data.key = nodePath;
-            data.value = value;
-            tab[level].push(data);
-            
-    	}
-    }
-    }
-    */'
-  isEnabled: false
-↓writeCsv [steps.SimpleStep-1574348004565]: 
-  expression: |
-    '
-    var csvWriter = new java.io.FileWriter("new.csv");
-    csvWriter.append("Name");
-    csvWriter.append(",");
-    csvWriter.append("Role");
-    csvWriter.append(",");
-    csvWriter.append("Topic");
-    csvWriter.append("\n");
-    
-    for () {
-        csvWriter.append(String.join(",", rowData));
-        csvWriter.append("\n");
-    }
-    
-    csvWriter.flush();
-    csvWriter.close();
-    
-    '
-  isEnabled: false
 ↓formId [variables.RequestableVariable-1572472082918]: 
 ↓name [variables.RequestableVariable-1572472082921]: 
 ↓offset [variables.RequestableVariable-1591966011701]: 
   value: 0
+↓separator [variables.RequestableVariable-1602168904411]: 
+  value: ;
+↓encoding [variables.RequestableVariable-1602169188280]: 
+  value: UTF-8
 ↓Test_Case [core.TestCase]: 
   ↓formId [variables.TestCaseVariable-1572472082925]: 
     value: 1574934564914
