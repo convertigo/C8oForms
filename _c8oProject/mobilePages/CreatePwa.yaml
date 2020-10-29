@@ -850,78 +850,129 @@ title: Title for CreatePwa
                   		        return blob;
                   		      }
                   		    
-                  		    this.pwa.targetId = this.pwa.notAnonymous ? this.pwa.originalFormId:sha256(this.pwa.originalFormId);
-                  		    delete this.pwa.done;
-                  		    // first creation
-                  		    if(this.pwa._id == undefined){
-                  		        //this.pwa = {name : this.form.name, shortName: this.form.shortName, backgroundColor: "#ff0000", themeColor: "#00ff00", "notAnonymous": true, "querystr": ""};
-                                  //this.pwa.img = {data: base64data, url: this.router.sanitizer.bypassSecurityTrustUrl(base64data)};
-                  		        let img = this.pwa.img.data;
-                  		        let blob = this.pwa.img.blob;
-                  		        delete this.pwa.img;
-                  		        this.pwa.updateFinished = false;
-                  		        this.pwa._id = this.navParams.data.form._id+''_pwa_document'';
-                  		        this.c8o.callJsonObject("fs://c8oforms_fs.post", this.pwa)
-                  		        .then((res)=>{
-                  		            console.log("document created", res);
-                  		            if(blob != undefined){
-                  		                return this.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", this.pwa._id, "name","icon", "content_type", blob.type, "content", blob )
+                  		    
+                  		    
+                  		    
+                  		    
+                  		    new Promise (async(resolve2)=>{
+                  		        try{
+                  		            console.log(this.pwa.originalFormId)
+                  		            let doc = await page.c8o.callJson("fs://c8oforms_fs.get", "docid", this.pwa.originalFormId).async();
+                  		            if(!this.pwa.notAnonymous && (doc.sharedAnonymous != "true" || doc.sharedAnonymous != true)){
+                  		                let publicUser = doc.publicUser;
+                  		                let prefix ="control_document_create_user_"
+                  		                let makeid= (length) => {
+                  		                    var result           = '''';
+                  		                    var characters       = ''ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'';
+                  		                    var charactersLength = characters.length;
+                  		                    for ( var i = 0; i < length; i++ ) {
+                  		                       result += characters.charAt(Math.floor(Math.random() * charactersLength));
+                  		                    }
+                  		                    return result;
+                  		                 }
+                  		                let suffix = "" + Date.now();
+                  		                let idCOntrolDocument = prefix + makeid(10) + suffix;
+                  		                let userName = sha256(doc["_id"]);
+                  		                try{
+                  		                    await page.c8o.callJson("fs://c8oforms_fs.post", "_id",idCOntrolDocument, "formId", doc["_id"], "formRev", doc["_rev"],"userName", userName).async();
+                  		                    resolve2();
+                  		                }
+                  		                catch(e){
+                  		                    resolve2();
+                  		                }
+                  		                
                   		            }
                   		            else{
-                  		                const nB64 = detectContentType(img);
-                  		                let contentType = nB64[0];
-                  		                let b64 = nB64[1];
-                  		                return this.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", this.pwa._id, "name","icon", "content_type", contentType, "content", b64toBlob(b64, contentType))
+                  		                resolve2();
                   		            }
-                  		            
-                  		        })
-                  		        .then((res)=>{
-                                      console.log("asset inserted", res);
-                                      return this.c8o.callJson("fs://c8oforms_fs.post", this.pwa["_use_policy"], "merge", "updateFinished", true, "_id", this.pwa._id)
-                                      
-                                  })
-                                  .then((res)=>{
-                                      console.log("updateFinished true", res);
-                                      return null;
-                                      
-                                  })
-                  		        .fail((e)=>{
-                  		            console.log("an error occured", e)
-                  		        })
-                  		    }
-                  		    else{
-                  		        delete this.pwa._rev;
-                  		        this.pwa["_use_policy"] = "override";
-                  	            let blob = this.pwa.img != undefined ? this.pwa.img.blob: undefined;
-                                  delete this.pwa.img;
-                                  this.pwa.updateFinished = !(this.local.updatedImg == true);
-                  		        this.c8o.callJsonObject("fs://c8oforms_fs.post", this.pwa)
-                                  .then((res)=>{
-                                      console.log("document created", res);
-                                      if(this.local.updatedImg == true){
-                                         
-                                          return this.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", this.pwa._id, "name","icon", "content_type", blob.type, "content", blob )
-                                      }
-                                      else{
-                                          return null;
-                                      }
-                                     
-                                  })
-                                  .then((res)=>{
-                                      console.log("asset inserted", res);
-                                      return this.c8o.callJson("fs://c8oforms_fs.post", "_id", this.pwa._id ,this.pwa["_use_policy"], "merge", "updateFinished", true)
-                                      
-                                  })
-                                  .then((res)=>{
-                                      console.log("updateFinished true", res);
-                                      return null;
-                                      
-                                  })
-                                  .fail((e)=>{
-                                      console.log("an error occured", e)
-                                  })
-                  		    }
-                  		    resolve();
+                  		            console.log(doc);
+                  		        }
+                  		        catch(e){
+                  		            resolve2();
+                  		            console.error(e);
+                  		        }
+                  		        
+                  		        
+                  		    })
+                  		    .then(()=>{
+                  		        this.pwa.targetId = this.pwa.notAnonymous ? this.pwa.originalFormId:sha256(this.pwa.originalFormId);
+                  	            delete this.pwa.done;
+                  	            // first creation
+                  	            if(this.pwa._id == undefined){
+                  	                //this.pwa = {name : this.form.name, shortName: this.form.shortName, backgroundColor: "#ff0000", themeColor: "#00ff00", "notAnonymous": true, "querystr": ""};
+                  	                //this.pwa.img = {data: base64data, url: this.router.sanitizer.bypassSecurityTrustUrl(base64data)};
+                  	                let img = this.pwa.img.data;
+                  	                let blob = this.pwa.img.blob;
+                  	                delete this.pwa.img;
+                  	                this.pwa.updateFinished = false;
+                  	                this.pwa._id = this.navParams.data.form._id+''_pwa_document'';
+                  	                this.c8o.callJsonObject("fs://c8oforms_fs.post", this.pwa)
+                  	                .then((res)=>{
+                  	                    console.log("document created", res);
+                  	                    if(blob != undefined){
+                  	                        return this.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", this.pwa._id, "name","icon", "content_type", blob.type, "content", blob )
+                  	                    }
+                  	                    else{
+                  	                        const nB64 = detectContentType(img);
+                  	                        let contentType = nB64[0];
+                  	                        let b64 = nB64[1];
+                  	                        return this.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", this.pwa._id, "name","icon", "content_type", contentType, "content", b64toBlob(b64, contentType))
+                  	                    }
+                  	                    
+                  	                })
+                  	                .then((res)=>{
+                  	                    console.log("asset inserted", res);
+                  	                    return this.c8o.callJson("fs://c8oforms_fs.post", this.pwa["_use_policy"], "merge", "updateFinished", true, "_id", this.pwa._id)
+                  	                    
+                  	                })
+                  	                .then((res)=>{
+                  	                    console.log("updateFinished true", res);
+                  	                    return null;
+                  	                    
+                  	                })
+                  	                .fail((e)=>{
+                  	                    console.log("an error occured", e)
+                  	                })
+                  	            }
+                  	            else{
+                  	                delete this.pwa._rev;
+                  	                this.pwa["_use_policy"] = "override";
+                  	                let blob = this.pwa.img != undefined ? this.pwa.img.blob: undefined;
+                  	                delete this.pwa.img;
+                  	                this.pwa.updateFinished = !(this.local.updatedImg == true);
+                  	                this.c8o.callJsonObject("fs://c8oforms_fs.post", this.pwa)
+                  	                .then((res)=>{
+                  	                    console.log("document created", res);
+                  	                    if(this.local.updatedImg == true){
+                  	                       
+                  	                        return this.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", this.pwa._id, "name","icon", "content_type", blob.type, "content", blob )
+                  	                    }
+                  	                    else{
+                  	                        return null;
+                  	                    }
+                  	                   
+                  	                })
+                  	                .then((res)=>{
+                  	                    console.log("asset inserted", res);
+                  	                    return this.c8o.callJson("fs://c8oforms_fs.post", "_id", this.pwa._id ,this.pwa["_use_policy"], "merge", "updateFinished", true)
+                  	                    
+                  	                })
+                  	                .then((res)=>{
+                  	                    console.log("updateFinished true", res);
+                  	                    return null;
+                  	                    
+                  	                })
+                  	                .fail((e)=>{
+                  	                    console.log("an error occured", e)
+                  	                })
+                  	            }
+                  		        resolve();
+                  		    })
+                  		   
+                  		    
+                  		    
+                  		    
+                  		    
                   '
           ↓CloseModal [mobile.components.UIDynamicAction-1603878579106]: 
             beanData: '{"ionBean":"CloseModalAction"}'
