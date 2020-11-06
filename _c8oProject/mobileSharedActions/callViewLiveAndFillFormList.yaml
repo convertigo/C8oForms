@@ -5,279 +5,89 @@ comment: Process a tick (Refresh define in caf)
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '		    if(page["created"] != undefined){
-          		        page.c8o.log.debug("DoCallViewLiveAndFillFormList from selectorPage, instance: " + this["created"]);
-          		    }
-          		    let view = page.local["view"] != undefined ? page.local["view"] : "formulaires";
-          		    let ddoc = page.local["ddoc"] != undefined ? page.local["ddoc"] : "forms";
-          		    if(page.local.published){
-          		        ddoc = "published_forms";
-          		    }
-          		    let objQ = {};
-          		    if(vars.query == true){
-          		        let startkey = page["query"].toLowerCase();
-          		        let endkey = page["query"].toLowerCase()+"\ufff0";
-          		        objQ = {
-          	                    "ddoc": ddoc,
-          	                    "view": view,
-          	                    "__live": "viewLiveSelector",
-          	                    startkey:startkey,
-          		                endkey:endkey,
-          	                    "include_docs": true
-          	                    };
-          		    }
-          		    else{
-          		        
-          		        if(page.local.folder != ""){
-          		            objQ = {
-                                      "ddoc": ddoc,
-                                      "view": "byFolderNoReduce",
-                                      "__live": "viewLiveSelector",
-                                      keys:[page.local.folder],
-                                      reduce:false
-                                      
-                                  };
-          		        }
-          		        else{
-          		            objQ = {
-          	                        "ddoc": ddoc,
-          	                        "view": view,
-          	                        "__live": "viewLiveSelector",
-          	                        "keys": vars.keys,
-          	                        "descending": true
-          	                        };
-          		        }
-          		        
-          		    }
-          		    let response;
-          		    page.c8o.callJsonObject("fs://c8oforms_fs.view",objQ)
-                          .then((response1: any, parameters)=>{
-                              response = response1;
-                              page.local.count = response.rows.length;
-                              if(page.local.folder != "" && page["query"] == ""){
-                                  if(response1.rows.length == 0){
-                                      page.router.setRoot("selectorPage", {"published": page.local["published"]}, null);
-                                      return null;
+          '		    new Promise(async(resolveAsync)=>{
+          		        let view = page.local["view"] != undefined ? page.local["view"] : "formulaires";
+          	            let ddoc = page.local["ddoc"] != undefined ? page.local["ddoc"] : (page.local.published ? "published_formsV2":"formsV2");
+          	            // if we are doing a request (filtered by name)
+          	            if(vars.query){
+          	                
+          	            }
+          	            // if we are not filtered
+          	            else{
+          	                // view for documents inside of folder
+                              let requestObjectFolders = {
+                                      "ddoc": page.local["ddoc"],
+                                      "view": "folders",
+                                      "__live": "viewLiveFolders",
+                                      "descending": true,
+                                      "reduce": true,
+                                      "group": true
+                              };
+                              page.c8o.callJsonObject("fs://c8oforms_fs.view", requestObjectFolders)
+                              .then((response: any)=>{
+                                  const newHash = sha256(JSON.stringify(response));
+                                  if(page.local.hashFolders != newHash){
+                                      page["local"].response2Array = response.rows;
+                                      page.local.hashFolders = newHash;
                                   }
-                              }
-                              else if(vars.query) {
-                                  if(page.local["folder"] != undefined && page.local.folder != ""){
-                                      let funcFiltreFolder = (el)=>{
-                                          let filter = page.local.folder;
-                                          if(el["value"]["doc"]["tag"] != undefined){
-                                              if(JSON.parse(el["value"]["doc"]["tag"]).indexOf(filter) != -1){
-                                                  return true;
-                                              }
-                                          }                                                
-                                          
-                                          return false;
-                                          
-                                      };
-                                      response.rows = response.rows.filter(el => funcFiltreFolder(el));
-                                      page.local.count = response.rows.length;
-                                      page["list"] = response.rows;
-                                      page["tick"]();
-                                      page.local.spinner = false;
-                                      resolve();
-                                      return null;
-                                  }
-                                  else{
-                                      page["list"] = response.rows;
-                                      page["tick"]();
-                                      page.local.spinner = false;
-                                      resolve();
-                                      return null;
-                                  }
-                                  
-                              }
-                              // case normal (showing all forms + folders)
-                              else{
-                                  let ObjParams = {
-                                          "ddoc": ddoc,
-                                          "view": "byFolder",
-                                          "__live": "viewLiveSelector2",
-                                          "reduce": true,
-                                          "group": true
-                                          
-                                      };
-                                  return page.c8o.callJsonObject("fs://c8oforms_fs.view",ObjParams);
-                              }
-                              
-                              
-                          })
-                          .then((response2: any, params2: any)=>{
-                              page.local.response2Array = [];
-                              page.local.response2 = {};
-                              if(page.local.folder == ""){
-                              let val={};
-                              response2.rows.forEach((cur)=>{
-                                  val[cur.key] = cur.value;
-                              });
-                              page.local.response2Array = response2.rows;
-                              page.local.response2 = val
-                              }
-                              if(page["created"] != undefined){
-                                  page.c8o.log.debug("DoCallViewLiveAndFillFormList after each from selectorPage, instance: " + this["created"]);
-                              }
-                              // will be call now and after each database update
-                              if(response.rows != undefined){
-                                  if(response.rows[0] != undefined){
-                                      if(page.local.tag == true){
-                                          let tagDefined = !(page.local.tags == undefined || page.local.tags["length"] == 0);
-                                          let subTagDefined = !(page.local.subTags == undefined || page.local.subTags["length"] == 0);
-                                          if(!tagDefined && !subTagDefined){
-                                              page.local.strTotal = response.rows.length + '' '' + page["translate"]["instant"]("result_search_filter") + '': '' + page["translate"]["instant"]("none"); 
-                                              page["list"] = response.rows;
-                                              page["tick"]();
-                                              page.local.spinner = false;
-                                              resolve();
-                                          }
-                                          else{
-                                              let res = response.rows;
-                                              let strTagCount = '''';
-                                              if(tagDefined){
-                                                  /* used to show filters */
-                                                  for(let filter of page.local.tags){
-                                                      if(strTagCount != ''''){
-                                                          strTagCount += " " + page["translate"].instant(''or'') + " ";
-                                                      }
-                                                      strTagCount += filter;
-                                                  }
-                                                  /* used to compute data */
-                                                  let funcFiltre = (el)=>{
-                                                      for(let filter of page.local.tags){
-                                                          if(el["value"]["doc"]["tag"] != undefined){
-                                                              if(JSON.parse(el["value"]["doc"]["tag"]).indexOf(filter) != -1){
-                                                                  return true;
-                                                              }
-                                                          }                                                
-                                                      }
-                                                      return false;
-                                                      
-                                                  };
-                                                  res = res.filter(el => funcFiltre(el));
-                                              }
-                                              let strSubTagCount = '''';
-                                              if(subTagDefined){
-                                                  /* used to show filters */
-                                                  for(let filter of page.local.subTags){
-                                                      if(strSubTagCount != ''''){
-                                                          strSubTagCount += " " + page["translate"].instant(''or'') + " ";
-                                                      }
-                                                      strSubTagCount += filter;
-                                                  }
-                                                  /* used to compute data */
-                                                  let funcFiltre = (el)=>{
-                                                      for(let filter of page.local.subTags){
-                                                          if(el["value"]["doc"]["subTag"] != undefined){
-                                                              if(JSON.parse(el["value"]["doc"]["subTag"]).indexOf(filter) != -1){
-                                                                  return true;
-                                                              }
-                                                          }
-                                                      }
-                                                      return false;
-                                                      
-                                                  };
-                                                  res = res.filter(el => funcFiltre(el));
-                                              }
-                                              
-                                              
-                                              /* compute string for search results */
-                                              page.local.strTotal = res.length + " " + page["translate"]["instant"]("result_search_filter") + ": ";
-                                              if(strTagCount == '''' && strSubTagCount == ''''){
-                                                  page.local.strTotal += page["translate"]["instant"]("none");
-                                              }
-                                              else{
-                                                  if(strTagCount != ''''){
-                                                      page.local.strTotal += " " + page["translate"]["instant"]("labels") + " = ( " + strTagCount + " )"; 
-                                                  }
-                                                  if(strSubTagCount != ''''){
-                                                      strTagCount != '''' ? page.local.strTotal += '' '' + page["translate"]["instant"]("and") + '' '': null;
-                                                      page.local.strTotal += " " + page["translate"]["instant"]("subtag") + " = ( "  + strSubTagCount + " )"; 
-                                                  }
-                                              }
-                                              
-                                              
-                                              setTimeout(()=>{
-                                                  page["list"] = res;
-                                              }, 100)
-                                              setTimeout(()=>{
-                                                  page["tick"]();
-                                              }, 100)
-                                              
-                                              page.local.spinner = false;
-                                              resolve();
-                                              
-                                          }
-                                      }
-                                      else{
-                                          if(!(JSON.stringify(page["list"]) == JSON.stringify(response.rows))){
-                                              page.c8o.log.debug("[DoCallViewLiveAndFillFormList] need to refresh ui");
-                                              page["list"] = response.rows;
-                                              //page["tick"]();
-                                          }
-                                          else{
-                                              page.c8o.log.debug("[DoCallViewLiveAndFillFormList] no need to refresh ui");
-                                          }
-                                          page.local.spinner = false;
-                                          resolve();
-                                      }
-                                      
-                                  }
-                                  else{
-                                      page["list"]= [];
-                                      page["tick"]();
-                                      page.local.spinner = false;
-                                      resolve();
-                                  }
-                                  for(let el of page["list"]){
-                                      
-                                     // compatibility mode for new features ( update older docs )
-                                     let changed = false;
-                                     let objChange = {''_use_policy'': "merge", "_id": (el[''value''][''doc''][''_id''])};
-                                     if(el[''value''][''doc''][''wallpaper''] !=  undefined){
-                                         if( el[''value''][''doc''][''wallpaper''][''random''] == undefined){
-                                             el[''value''][''doc''][''wallpaper''][''random''] = "assets/images/svg/imgplaceholder/placeholder" + (Math.floor(Math.random() * Math.floor(3)))+".svg";
-                                             objChange["wallpaper"] = el[''value''][''doc''][''wallpaper''];
-                                             changed = true;
-                                             
-                                         }
-                                     }
-                                     else{
-                                         objChange["wallpaper"] = {
-                                             "link": null,
-                                             "enabled": false,
-                                             "index": null,
-                                             "random": "assets/images/svg/imgplaceholder/placeholder"+ (Math.floor(Math.random() * Math.floor(3)))+".svg"
-                                           }
-                                         changed = true
-                                     }
-                                     /*if(el[''value''][''doc''][''creator''] == undefined){
-                                         
-                                         objChange["creator"] = page.global.user;
-                                         changed = true;
-                                     }*/
-                                     if(changed){
-                                         page.c8o.callJsonObject("fs://c8oforms_fs.post", objChange)
-                                     }
-                                     
-                                  }
-                               }
-                              else{
-                                  reject();
+                                  page.local.alreadyFinished = true;
                                   page.local.spinner = false;
-                              }
-                              
-                              return null;
-                          })
-                          .fail((err)=>{
-                              page.local.spinner = false;
-                              page.c8o.log.error("CallViewLiveAndFillFormList: " + JSON.stringify(err));
-                              reject();
-                          });
+                                  return null;
+                              })
+                              .fail((error)=>{
+                                  
+                              });
+          	                // view for documents outside of folder
+          	                let requestObject = {
+          	                        "ddoc": page.local["ddoc"],
+          	                        "view": "out_folders",
+          	                        "__live": "viewLiveOut",
+          	                        "descending": true
+          	                };
+          	                page.c8o.callJsonObject("fs://c8oforms_fs.view", requestObject)
+          	                .then((response: any)=>{
+          	                    const newHash = sha256(JSON.stringify(response));
+          	                    if(page.local.hash != newHash){
+          	                        page["list"] = response.rows;
+          	                        page.local.hash = newHash;
+          	                    }
+          	                    page.local.alreadyFinished = true;
+          	                    page.local.spinner = false;
+          	                    return null;
+          	                })
+          	                .fail((error)=>{
+          	                    
+          	                })
+          	            }
+          		    });
+          		    
+          		    
+          		    
           		    
           		    
           		    
           		
           '
+  package_dependencies: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: js-sha256
+            - java.lang.String: 
+              - ↑value: 0.9.0
+  page_ts_imports: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: sha256
+            - java.lang.String: 
+              - ↑value: js-sha256
 ↓keys [mobile.components.UIStackVariable-1567094333170]: 
