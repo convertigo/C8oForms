@@ -19,6 +19,7 @@ scriptContent:
         require(''tinymce/plugins/autosave/plugin.js'');
         require(''tinymce/plugins/save/plugin.js'');
         require(''tinymce/plugins/directionality/plugin.js'');
+        require(''tinymce/plugins/autoresize/plugin.js'');
         require(''tinymce/plugins/code/plugin.js'');
         require(''tinymce/plugins/code/plugin.js'');
         require(''tinymce/plugins/visualblocks/plugin.js'');
@@ -174,8 +175,23 @@ scriptContent:
                     
                 }
                 
-                
+        
                 this.local.objectComponents = "";
+                this.local.visible = [];
+                this.local.multipleField = {radio_group: true, checkbox_group: true, checkbox: true};
+                this.local.simpleField = {date: true, select: true, datetime: true, time: true, radio: true, text: true, barcode: true, slider: true};
+                this.local.fileField = {file: true};
+                this.local.camSignField = {img: true, signature:true};
+        
+        
+                this.local.multipleFieldGoToPage = {radio_group: true, checkbox_group: true, checkbox: true, select: true, radio: true};
+                this.local.simpleFieldGoToPage = {date: true, datetime: true, time: true, text: true, barcode: true, slider: true};
+                this.local.fileFieldGoToPage = {file: true};
+                this.local.camSignFieldGoToPage = {img: true, signature:true};
+                
+                this.local.showVisible = false;
+                this.local.condVisible = "and";
+                this.local.showGoToPage = false;
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
         	
@@ -1445,6 +1461,164 @@ scriptContent:
         	        return "";
         	    }
         	}
+        	
+        	
+        	
+        	
+        	/**
+             * returns type of field (simple, multiple, file, or camSign)
+             * @param type
+             */
+            public getType(type: string): string{
+                if(this.local.multipleField[type] == true){
+                    return "multiple";
+                }
+                else if(this.local.simpleField[type] == true){
+                    return "simple";
+                }
+                else if(this.local.fileField[type] == true){
+                    return "file";
+                }
+                else if(this.local.camSignField[type] == true){
+                    return "camSign"; 
+                }
+                else{
+                    return "";
+                }
+                
+            }
+            public getGoToPageType(type: string): string{
+                if(this.local.multipleFieldGoToPage[type] == true){
+                    return "multiple";
+                }
+                else if(this.local.simpleFieldGoToPage[type] == true){
+                    return "simple";
+                }
+                else if(this.local.fileFieldGoToPage[type] == true){
+                    return "file";
+                }
+                else if(this.local.camSignFieldGoToPage[type] == true){
+                    return "camSign"; 
+                }
+                else{
+                    return "";
+                }
+                
+            }
+            /**
+             * convert a string to an array
+             * @param e
+             */
+            public strToArr(e){
+                if(typeof(e)== "string"){
+                    return [e];
+                }
+                else{
+                   return e; 
+                }
+            }
+            
+            /**
+             * 
+             * @param name
+             */
+            public getItemNameByIdC(field: any){
+                if(field.source == true){
+                    for(let key of Object.keys(this.navParams.data.form.formulaire)){
+                        if(this.navParams.data.form.formulaire[key].id == field.str){
+                            //console.log(this.navParams.data.form.formulaire[key]);
+                            return this.navParams.data.form.formulaire[key].name;
+                        }
+                        else if(this.navParams.data.form.formulaire[key].type == "ion-card"){
+                            for(let keyChild of Object.keys(this.navParams.data.form.formulaire[key]["children"])){
+                                if(this.navParams.data.form.formulaire[key]["children"][keyChild].id == field.str){
+                                    return this.navParams.data.form.formulaire[key]["children"][keyChild].name;
+                                }
+                            }
+                        }
+                    }
+                }
+                else{
+                    return field.str;
+                }
+                
+                return "";
+            }
+            
+            public getItemNameByIdStr(str: any){
+                for(let key of Object.keys(this.navParams.data.form.formulaire)){
+                        if(this.navParams.data.form.formulaire[key].id == str){
+                            return this.navParams.data.form.formulaire[key].name;
+                        }
+                        else if(this.navParams.data.form.formulaire[key].type == "ion-card"){
+                            for(let keyChild of Object.keys(this.navParams.data.form.formulaire[key]["children"])){
+                                if(this.navParams.data.form.formulaire[key]["children"][keyChild].id == str){
+                                    return this.navParams.data.form.formulaire[key]["children"][keyChild].name;
+                                }
+                            }
+                        }
+                    }
+                
+                
+                return "";
+            }
+            
+            public getPageNameByTech(str){
+                for(let page of this.navParams.data.form.pages){
+                    if(page.pageTechName == str){
+                        return page.name;
+                    }
+                }
+            }
+            
+            isTotalyFilled(cond){
+                try{
+                    if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || (cond.val1.arr != undefined && cond.val1.arr.length > 0)) && cond.val2 != undefined && (cond.val2.str != "" || (cond.val2.arr != undefined && cond.val2.arr.length > 0)) && cond.operator != undefined && cond.operator != ""){
+                        return true;  
+                      } 
+                      else if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || (cond.val1.arr != undefined && cond.val1.arr.length > 0)) && cond.operator != undefined && cond.operator != "" && (cond.operator == "is_filled" || cond.operator == "is_empty")){
+                         return true; 
+                      }
+                      else if(cond.val1 != undefined && (cond.val1.str != "" || (cond.val1.arr != undefined && cond.val1.arr.length > 0)) && cond.val2 != undefined && (cond.val2.str != "" || (cond.val2.arr != undefined && cond.val2.arr.length > 0)) && cond.operator != undefined && cond.operator != "" && cond.type == "goToPageIf"){
+                          return true;
+                      }
+                      else if((cond.val1 != undefined && (cond.val1.str != "" || (cond.val1.arr != undefined && cond.val1.arr.length > 0)) && cond.operator != undefined && cond.operator != "" && (cond.operator == "is_filled" || cond.operator == "is_empty"))){
+                          return true;
+                      }
+                      else if(cond.subject != undefined && cond.subject == "form" && cond.attribute != undefined && cond.attribute != "" && cond.operator != undefined && cond.operator != ""){
+                          return true;
+                      }
+                      else if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && cond.val1.str != undefined && cond.operator != "" && cond.val1.type == "file"){
+                          return true;
+                      }
+                      else if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && cond.val1.str != undefined && cond.operator != "" && (cond.val1.type == "signature" || cond.val1.type == "img")){
+                          
+                      }
+                      else{
+                          return false;
+                      }
+                }
+                catch(e){
+                    return false;
+                }
+            }
+            isAnyTotalyFilled(conds){
+                let cpt = 0;
+                for(let item of conds){
+                    this.isTotalyFilled(item) == true ? cpt++: null;
+                }
+                return cpt > 0;
+            }
+            
+            public lengthOkC(obj: any){
+                try{
+                    return Object.keys(obj).length > 0;
+                }
+                catch(e){
+                    return false;
+                }
+               
+            }
         	/*End_c8o_PageFunction*/
         '
 segment: editor/:formId
@@ -9929,3 +10103,75 @@ title: Title for editor
                         resolve();
             		
             '
+↓Subscribe_Handler2 [mobile.components.UIEventSubscriber-1606227788567]: 
+  topic: ngxTagInputNgModelChange
+  ↓setTags [mobile.components.UICustomAction-1606227788570]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		    const visible = "cond_visible_";
+                        const goToPage = "cond_goToPage_";
+                        if(event.ref.indexOf(visible) != -1){
+                            let arrTmp = [];
+                            for(let elem of event["event"]){
+                                if(elem instanceof Object){
+                                    arrTmp.push(elem);
+                                }
+                                else{
+                                    arrTmp.push(elem);
+                                }
+                            }
+                            this.local.visible[+(event.ref.substring(visible.length))].val2.arr = arrTmp;
+                        }
+                        else if(event.ref.indexOf(goToPage) != -1){
+                            let arrTmp = [];
+                            for(let elem of event["event"]){
+                                if(elem instanceof Object){
+                                    arrTmp.push(elem);
+                                }
+                                else{
+                                    arrTmp.push(elem);
+                                }
+                            }
+                            this.local.goToPage[+(event.ref.substring(goToPage.length))].val2.arr = arrTmp;
+                        }
+                        resolve();		    
+            
+↓Subscribe_Handler21 [mobile.components.UIEventSubscriber-1606227788573]: 
+  topic: ngxTagInputRemoved
+  ↓setTags [mobile.components.UICustomAction-1606227788576]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		    const visible = "cond_visible_";
+                        const goToPage = "cond_goToPage_";
+                        if(event.ref.indexOf(visible) != -1){
+                            this.local.visible[+(event.ref.substring(visible.length))].val2.source = false;
+                        }
+                        else if(event.ref.indexOf(goToPage) != -1){
+                            this.local.goToPage[+(event.ref.substring(goToPage.length))].val2.source = false;
+                        }
+                        resolve();		    
+            
+↓Subscribe_Handler211 [mobile.components.UIEventSubscriber-1606227788579]: 
+  topic: ngxTagInputAdded
+  ↓setTags [mobile.components.UICustomAction-1606227788582]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            	        const visible = "cond_visible_";
+            	        const goToPage = "cond_goToPage_";
+            	        if(event.ref.indexOf(visible) != -1){
+            	            this.local.visible[+(event.ref.substring(visible.length))].val2.source = false;
+            	        }
+            	        else if(event.ref.indexOf(goToPage) != -1){
+            	            this.local.goToPage[+(event.ref.substring(goToPage.length))].val2.source = false;
+            	        }
+            		    resolve();		    
+            
