@@ -26,75 +26,11 @@
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '		    page.local.execCode = (resolve, reject)=>{
-          		        page.global[''zxing:codeReader''].getVideoInputDevices()
-                          .then((videoInputDevices) => {
-                              let selectedDeviceId = videoInputDevices[0].deviceId;
-                              let videoId = !vars.videoId || vars.videoId == "" ? ''video'' : vars.videoId;
-                              // version 0.17.1
-                              /*codeReader.decodeFromVideoDevice(selectedDeviceId, videoId, (result, err) => {
-                                  if(result){
-                                      page.c8o.log.debug(''Success: '' + result["text"]);
-                                      if(vars.resultId && vars.resultId != ""){
-                                          if(vars.resultId instanceof Object){
-                                              vars.resultId.value =  result["text"];
-                                          }
-                                          else {
-                                              (<HTMLInputElement>document.querySelector("#idInputResult input")).value = result["text"];
-                                          }
-                                      }
-                                      codeReader.reset();
-                                      if(vars.isOutputEvent === true){
-                                          page.global[''zxing:''+vars.topic + vars.ref] = result;
-                                          page.global[''zxing:''+vars.ref] = vars.ref;
-                                      }
-                                      result["ref"] = vars.ref;
-                                      resolve(result);
-                                  }
-                                  if(err && !(err instanceof NotFoundException)){
-                                      page.c8o.log.warn(''Error: '' + err);
-                                      resolve({error: err});
-                                  }
-                              });*/
-                              // version 0.12.4
-                              page.global[''zxing:codeReader''].decodeFromInputVideoDevice(selectedDeviceId, videoId)
-                              .then((result) => {
-                                  page.c8o.log.debug(''Success: '' + result["text"]);
-                                  if(vars.resultId && vars.resultId != ""){
-                                      if(vars.resultId instanceof Object){
-                                          vars.resultId.value =  result["text"];
-                                      }
-                                      else {
-                                          (<HTMLInputElement>document.querySelector("#" + vars.resultId + " input")).value = result["text"];
-                                      }
-                                  }
-                                  page.global[''zxing:codeReader''].reset();
-                                  delete page.global[''zxing:codeReader''];
-                                  if(vars.isOutputGlobal === true){
-                                      page.global[''zxing:''+vars.topic + vars.ref] = result;
-                                      page.global[''zxing:''+vars.ref] = vars.ref;
-                                  }
-                                  result["ref"] = vars.ref;
-                                  resolve(result);
-                              })
-                              .catch((err) => {
-                                  delete page.global[''zxing:codeReader''];
-                                  if(err && !(err instanceof NotFoundException)){
-                                      page.c8o.log.warn(''>>> Error: '' + err);
-                                      resolve({error: err});
-                                  }
-                              })
-                          })
-                          .catch(err => {
-                              delete page.global[''zxing:codeReader''];
-                              if(err && !(err instanceof NotFoundException)){
-                                  page.c8o.log.warn(''>>> Error: '' + err);
-                                  resolve({error: err});
-                              }
-                          });
-          		    }
-          		    page.local.resolve = resolve;
-          		    page.local.reject = reject;
+          '		    
+          	    page.local.resolve = resolve;
+          	    page.local.reject = reject;
+          	    page.local.cameras = [];
+          	    page.local.facingMode = "environment";
           		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
           		
           		page.global[''zxing:codeReader''] = new BrowserMultiFormatReader();
@@ -154,16 +90,144 @@
                           resolve({error: ''No file''});
                       }
                   } else {
+                      /**
+                       * detect if there is any camera and if we have permission to use it
+                       */
+                      page.local.detectIfPermissionsAndFillCameras = () => {
+                          return new Promise((resolve, reject)=>{
+                              page.global[''zxing:codeReader''].getVideoInputDevices()
+                              .then((videoInputDevices) => {
+                                  for(let v of videoInputDevices){
+                                      if(v.deviceId != ""){
+                                          page.local.cameras.push({"deviceId": v.deviceId, "facingMode": (v.label.indexOf("front") != -1 ? "user" : "environment")})
+                                      }
+                                  }
+                                  if(videoInputDevices.length == 0){
+                                      // in this case there is no camera existing in the targeted device
+                                      reject({"error": "not any camera available"});
+                                  }
+                                  else if(page.local.cameras.length == 0){
+                                      // in this case we can''t acces to any camera on the device
+                                      resolve(false)
+                                  }
+                                  else{
+                                      // at least one camera were detected and available to use
+                                      resolve(true);
+                                  }
+                              });
+                          });
+                      };
                       
-                      //let ret = codeReader.addVideoSource(page["vidz"], null);
-                      page.local.facingMode = "environment";
-                      navigator.mediaDevices.getUserMedia({video: {facingMode: page.local.facingMode}, audio: false})
-                      .then(stream => {
-                          page.local.stream = stream;
-                          page.local.execCode(resolve, reject)
-                      })
-                      .catch(err => {});
+                      /**
+                       * force to ask for permissons using new facingMode api just to ask but not to use it then
+                       */
+                      page.local.TriggerPermissions = ()=>{
+                          return new Promise((resolve, reject)=>{
+                              navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio: false})
+                              .then((stream)=>{
+                                  //stops the stream immediatly
+                                  if (stream.stop) {
+                                      stream.stop();
+                                  } else {
+                                      stream.getTracks().forEach((track) => {
+                                          track.stop();
+                                      });
+                                  }
+                                  resolve(true);
+                              })
+                              .catch((e)=>{
+                                  // no permissions
+                                  reject(e);
+                              });
+                          });
+                      }
+                      
+                      /**
+                       * Starts Xzing process
+                       * @param type can be "user" | "environment"
+                       */
+                      page.local.startXzing = (type)=>{
+                          const videoId = !vars.videoId || vars.videoId == "" ? ''video'' : vars.videoId;
+                          // version 0.12.4
+                          
+                          // fin camera choosen and use other if not founded
+                          var selectedDeviceId;
+                          let cameraChoosen = (page.local.cameras.filter((x)=>{return x.facingMode === type}))[0];
+                          if(cameraChoosen != undefined){
+                              selectedDeviceId = cameraChoosen.deviceId;
+                          }
+                          else{
+                              selectedDeviceId = page.local.cameras[0].deviceId;
+                          }
+                          
+                          page.global[''zxing:codeReader''].decodeFromInputVideoDevice(selectedDeviceId, videoId)
+                          .then((result) => {
+                              page.c8o.log.debug(''Success: '' + result["text"]);
+                              if(vars.resultId && vars.resultId != ""){
+                                  if(vars.resultId instanceof Object){
+                                      vars.resultId.value =  result["text"];
+                                  }
+                                  else {
+                                      (<HTMLInputElement>document.querySelector("#" + vars.resultId + " input")).value = result["text"];
+                                  }
+                              }
+                              page.global[''zxing:codeReader''].reset();
+                              delete page.global[''zxing:codeReader''];
+                              if(vars.isOutputGlobal === true){
+                                  page.global[''zxing:''+vars.topic + vars.ref] = result;
+                                  page.global[''zxing:''+vars.ref] = vars.ref;
+                              }
+                              result["ref"] = vars.ref;
+                              resolve(result);
+                          })
+                          .catch((err) => {
+                              delete page.global[''zxing:codeReader''];
+                              if(err && !(err instanceof NotFoundException)){
+                                  page.c8o.log.warn(''>>> Error: '' + err);
+                                  resolve({error: err});
+                              }
+                          })
+                      };
+                      
+                      /**
+                       * resetXzingProcess
+                       */
+                      page.local.resetXzing = () =>{
+                          if(page.global[''zxing:codeReader''] !== undefined){
+                              page.global[''zxing:codeReader''].reset();
+                          }
+                      }
+                      
+                      /**
+                       * recursive ExecFlow to have camera working
+                       */
+                      page.local.startFlowExec = ()=>{
+                          page.local.detectIfPermissionsAndFillCameras()
+                          .then((ok)=>{
+                              if(ok){
+                                  page.local.startXzing(page.local.facingMode)
+                              }
+                              else{
+                                  page.local.TriggerPermissions()
+                                  .then((r)=>{
+                                      page.local.startFlowExec();
+                                  })
+                                  .catch((e)=>{
+                                      reject(e);
+                                  })
+                              }
+                          })
+                          .catch((e)=>{
+                            reject(e);  
+                          })
+                      }
+                      // execution
+                      page.local.startFlowExec();
+                          
                   }
+                  
+                      
+                  
           '
   package_dependencies: 
     - xmlizable: 
@@ -194,6 +258,9 @@
               - ↑value: NotFoundException
             - java.lang.String: 
               - ↑value: '@zxing/library'
+  ↓Failure_Handler [mobile.components.UIActionFailureEvent-1606327231127]: 
+    ↓Toast [mobile.components.UIDynamicAction-1606327094066]: 
+      beanData: '{"ionBean":"ToastAction","message":"script:c8oPage.translate.instant(''error_occured'')"}'
   ↓type [mobile.components.UIControlVariable-1606311275943]: 
     varValue: 
       - xmlizable: 
