@@ -1,8 +1,4 @@
 #  Convertigo Form Builder #
-
-
-<div style="text-align:center"><img src="./DisplayObjects/mobile/assets/images/svg/tel/illus_tel_03.svg" /></div>
-
 ## Introducing Convertigo Form Builder ##
 
 Form Builder is the “No Code” tool built on top of Convertigo Low Code platform technology.
