@@ -1,0 +1,73 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Build deploy and release
+
+# Controls when the action will run. 
+on: 
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  # Triggers the workflow on push or pull request events but only for the develop branch
+  #push:
+   # tags:
+    #  - '**-beta**'
+    #  - '*.*.*'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Builds and deployz Convertigo Forms versions
+      - name: Build and deploy Convertigo Forms betas versions
+        env:
+          TESTENDPOINT: ${{secrets.testEndpoint}}
+          DEPLOYSERVER: ${{secrets.testEndpoint}}
+          TESTUSERADMIN: ${{secrets.testUserAdmin}}
+          TESTUSERPASSWORD: ${{secrets.testUserPassword}}
+        run: sh gradlew --no-daemon --stacktrace --info car deploy -Pconvertigo.load.mobileApplicationEndpoint="$TESTENDPOINT" -Pconvertigo.deploy.server="$DEPLOYSERVER" -Pconvertigo.deploy.user="$TESTUSERADMIN" -Pconvertigo.deploy.password="$TESTUSERPASSWORD"
+      # Creates "c8oforms_standalone" dockerized version
+      - name: Create "c8oforms_standalone" dockerized version
+        run: |
+          cp /home/runner/work/C8oForms/C8oForms/build/C8Oforms.car /home/runner/work/C8oForms/C8oForms/c8oforms_standalone/workspace/projects/C8Oforms.car
+          cd /home/runner/work/C8oForms/C8oForms/ && tar -czvf c8oforms_standalone.tar.gz c8oforms_standalone
+      # Creates a release
+      - name: Create a release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Upload asset C8oForms.car
+        id: upload-release-asset_C8oForms
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: /home/runner/work/C8oForms/C8oForms/build/C8Oforms.car
+          asset_name: C8Oforms.car
+          asset_content_type: application/zip
+      - name: Upload asset c8oforms_standalone.tar.gz
+        id: upload-release-asset_c8oforms_standalone
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: /home/runner/work/C8oForms/C8oForms/c8oforms_standalone.tar.gz
+          asset_name: c8oforms_standalone.tar.gz
+          asset_content_type: application/tar+gzip
