@@ -97,8 +97,6 @@
           dataS += myReader.nextLine();
       }
       var form = JSON.parse(dataS+"");
-      log.warn("form name is "+ form.name);
-      log.warn("form acl is "+ form["~c8oAcl"]);
       // delete some properties
       delete form._rev;
       delete form["~c8oAcl"];
@@ -113,26 +111,34 @@
       // get assets
       var b64Wallpaper = undefined;
       var b64Thumbnail = undefined;
-      var keyPrefix = "base64,";
+      
       if(form.wallpaper.b64 != undefined){
-      	var i = form.wallpaper.b64.indexOf(keyPrefix);
-      	if(i != -1){
-      		form.wallpaper.b64  = form.wallpaper.b64.substring(i+ keyPrefix.length);
-      	}
-      	b64Wallpaper = form.wallpaper.b64;
+      	var b64Decoded = getB64(form.wallpaper.b64);
+      	b64Wallpaper = b64Decoded.base64Data;
+      	var contentTypeWallpaper = b64Decoded.mimeType;
       	delete form.wallpaper.b64;
       }
       if(form.thumbnail != undefined && form.thumbnail.b64 != undefined){
-      	var i = form.thumbnail.b64.indexOf(keyPrefix);
-      	if(i != -1){
-      		form.thumbnail.b64  = form.thumbnail.b64.substring(i+ keyPrefix.length);
-      	}
-      	b64Thumbnail = form.thumbnail.b64;
+      	var b64Decoded = getB64(form.thumbnail.b64);
+      	b64Thumbnail = b64Decoded.base64Data;
+      	var contentTypeThumbnail = b64Decoded.mimeType;
       	delete form.thumbnail.b64;
       }
       form._id = "template_"+lang+"_"+name;
       
-      '
+      function getB64(base64Content){
+      	try{
+      		// if base64 contains prefix with content type 
+      		var base64ContentArray = base64Content.split(",");
+      		var mimeType = base64ContentArray[0].match(/[^:\s*]\w+\/[\w-+\d.]+(?=[;| ])/)[0];
+      		var base64Data = base64ContentArray[1];
+      		return {"mimeType": mimeType, "base64Data": base64Data}
+      	}
+      	catch(e){
+      		// if an error occurred consider that base64 content was just holding b64 data and set default mineType to octet stream
+      		return {"mimeType": "application/octet-stream", "base64Data": base64Content}
+      	}
+      }'
   ↓jElement [steps.ElementStep-1606922293821]: 
     expression: JSON.stringify(form)
     nodeName: jsonbase
@@ -140,14 +146,6 @@
   ↓jElement1 [steps.ElementStep-1606925214452]: 
     expression: form._id
     nodeName: formID
-  ↓jElement2 [steps.ElementStep-1606925254970]: 
-    expression: b64Wallpaper
-    nodeName: b64Wallpaper
-    output: false
-  ↓jElement21 [steps.ElementStep-1606925272132]: 
-    expression: b64Thumbnail
-    nodeName: b64Thumbnail
-    output: false
   ↓Call_Transaction [steps.TransactionStep-1606922234577]: 
     sourceTransaction: C8Oforms.c8oforms_fs.PostDocumentPublicFormJSONbase
     ↓_use_json_base [variables.StepVariable-1606922245379]: 
@@ -162,8 +160,20 @@
               - ↑value: ./text()
   ↓jIf [steps.IfStep-1606924345535]: 
     condition: b64Wallpaper != undefined
+    ↓Sequence_JS_B64toFile [steps.SimpleStep-1607100518575]: 
+      expression: |
+        var Base64 = use("org.apache.commons.codec.binary.Base64")
+        var File = use("java.io.File");
+        var FileUtils = use("org.apache.commons.io.FileUtils");
+        
+        var byteArr = Base64.decodeBase64(b64Wallpaper);
+        var fileTemp = File.createTempFile("template_to_delete", "template_to_delete");
+        FileUtils.writeByteArrayToFile(fileTemp, byteArr);
+        var _use_attpath = fileTemp.getAbsolutePath();
+        var _use_attcontent_type = contentTypeWallpaper;
+        		
     ↓Call_Transaction1 [steps.TransactionStep-1606924225474]: 
-      sourceTransaction: C8Oforms.c8oforms_fs.PutDocumentAttachmentFromBase64
+      sourceTransaction: C8Oforms.c8oforms_fs.PutDocumentAttachmentFromFile
       ↓_use_attname [variables.StepVariable-1606925099130]: 
         description: Attachment name
         value: wallpaper
@@ -177,18 +187,26 @@
                 - ↑value: 1606925214452
               - java.lang.String: 
                 - ↑value: ./text()
-      ↓_use_attbase64 [variables.StepVariable-1606925099134]: 
-        description: Attachment base64 encoded  The value is converted from a base64 string to a binary content. Used if attpath parameter is blank or if the file doesn't exist.
-        sourceDefinition: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: 1606925254970
-              - java.lang.String: 
-                - ↑value: ./text()
+      ↓_use_attpath [variables.StepVariable-1607100991410]: 
+        description: Attachment path  This path is either absolute or relative to Convertigo environment. Relative paths starting with:<br/><br/>• <span class="computer">./</span> are relative to Convertigo workspace,<br/>• <span class="computer">.//</span> are relative to current project folder. <br/><br/>
+      ↓_use_attcontent_type [variables.StepVariable-1607102508072]: 
+        description: Attachment ContentType  Define the ContentType of the attachment. This is the ContentType returned when the attachment is requested.
+    ↓Sequence_JS_DeleteTmpFile [steps.SimpleStep-1607102620880]: 
+      expression: fileTemp.delete();
   ↓jIf1 [steps.IfStep-1606925302345]: 
     condition: b64Thumbnail != undefined
+    ↓Sequence_JS_B64toFile [steps.SimpleStep-1607101136320]: 
+      expression: |
+        var Base64 = use("org.apache.commons.codec.binary.Base64")
+        var File = use("java.io.File");
+        var FileUtils = use("org.apache.commons.io.FileUtils");
+        
+        var byteArr = Base64.decodeBase64(b64Thumbnail);
+        var fileTemp = File.createTempFile("template_to_delete", "template_to_delete");
+        FileUtils.writeByteArrayToFile(fileTemp, byteArr);
+        var _use_attpath = fileTemp.getAbsolutePath();
+        var _use_attcontent_type = contentTypeThumbnail;
+        		
     ↓Call_Transaction1 [steps.TransactionStep-1606925302348]: 
       sourceTransaction: C8Oforms.c8oforms_fs.PutDocumentAttachmentFromBase64
       ↓_use_attname [variables.StepVariable-1606925302351]: 
@@ -204,13 +222,5 @@
                 - ↑value: 1606925214452
               - java.lang.String: 
                 - ↑value: ./text()
-      ↓_use_attbase64 [variables.StepVariable-1606925302357]: 
-        description: Attachment base64 encoded  The value is converted from a base64 string to a binary content. Used if attpath parameter is blank or if the file doesn't exist.
-        sourceDefinition: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: 1606925272132
-              - java.lang.String: 
-                - ↑value: ./text()
+    ↓Sequence_JS_DeleteTmpFile [steps.SimpleStep-1607102685521]: 
+      expression: fileTemp.delete();
