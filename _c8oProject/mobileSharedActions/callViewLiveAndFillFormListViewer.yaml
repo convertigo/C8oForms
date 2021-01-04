@@ -82,6 +82,7 @@
                                               }
                                           }
                                       };
+          							page.local.functionsToBeCalled = {};
                                       
                                       let fillFormSubmit = (list, redList, formSubmit, response) => {
                                           page.local.subKeyD = page.local.urlParams.get("_c8o_subkey");
@@ -122,38 +123,76 @@
           										else if(item.type == "grid"){
           											let findName = "";
                                                       let findVars = {};
-          											
+          											let ObjectThatHaveToCallFunc = [];
                                                           for(let w in item["sources"]){
                                                               if(item["sources"][w].enabled == true){
                                                                 for (const [key, value] of (<any>Object).entries(item["sources"][w]["vars"])) {
                                                                     findVars[key] = value["str"];
                                                                 }
-                                                                //findVar = item["sources"][w]["vars"];
                                                                 findName = w;
                                                               }
                                                           }
-                                                      
+          
+          												const regex = /[$$]{2}\w+[$$]{2}/gm
+          												for(let va in findVars){
+                                              
+          				                                    let str = findVars[va];
+          				                                    if(str == undefined){
+          				                                        str = "";
+          				                                    }
+          				                                    var arrayFound = str.match(regex);
+          				                                    str = "''" + str + "''";
+          				                                    if(arrayFound!= undefined && arrayFound.length > 0){
+          				                                        for(let elements of arrayFound){
+          				                                            let iStart = str.indexOf(elements);
+          				                                            let iEnd = iStart + elements.length;
+          				                                            let id = elements.substring(2, elements.length -2);
+          				    										ObjectThatHaveToCallFunc.push(id);
+          				                                            let path = page["getPathById"](+id);
+          				                                            let currentVal = "''+"+ path +"+''";
+          				                                            
+          				                                            str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+          				                                        }
+          				                                        findVars[va] = str;
+          				                                    }
+          				                                    else{
+          				                                        findVars[va] = str;
+          				                                    }
+          												}
           											if(findName != ""){
-                                                         /* formSubmit[item["name"]]["source"] = findName;
-                                                          formSubmit[item["name"]]["sourceVars"] = findVars;*/
-                                                          //page.local["vals"+item.name] = 
-                                                          page.c8o.callJsonObject(findName, findVars)
-                                                          .then((res: any) =>{
-                                                              // find Colomn definitions
-          													let colDef = 
-          													Object.keys(res.data[0]).map((y)=>{
-          														return {"field": y}
+          												let funcTocall = ()=>{
+          													let variables = {};
+          													for(let va in findVars){
+          														variables[va] = eval(findVars[va]);
+          													}
+          													page.c8o.callJsonObject(findName,variables)
+          													.then((res: any) =>{
+          	                                                    // find Colomn definitions
+          														let colDef = 
+          														Object.keys(res.data[0]).map((y)=>{
+          															return {"field": y}
+          														});
+          														// find data
+          														formSubmit[item["name"]] = {};
+          														let data = res.data;
+          														formSubmit[item["name"]]["colDef"] = colDef;
+          														formSubmit[item["name"]]["data"] = data;
+          	                                                    return null;
+          	                                                })
+          	                                                .fail((err)=>{
+          	                                                    page.c8o.log.error("an error occured while trying to laod source for  select", err);
+          	                                                })
+          												};
+          												if(arrayFound!= undefined && arrayFound.length > 0){
+          													let onlyUnique = (value, index, self)=> {
+          													  return self.indexOf(value) === index;
+          													}
+          													var unique = ObjectThatHaveToCallFunc.filter(onlyUnique);
+          													unique.forEach((x)=>{
+          														page.local.functionsToBeCalled[x] = funcTocall;
           													});
-          													// find data
-          													formSubmit[item["name"]] = {};
-          													let data = res.data;
-          													formSubmit[item["name"]]["colDef"] = colDef;
-          													formSubmit[item["name"]]["data"] = data;
-                                                              return null;
-                                                          })
-                                                          .fail((err)=>{
-                                                              page.c8o.log.error("an error occured while trying to laod source for  select", err);
-                                                          })
+          												}
+          												funcTocall();
                                                       }
           											
           										}
