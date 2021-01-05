@@ -7,6 +7,7 @@
           '		 // Calling view live
                       let key;
                       let respInit;
+          			page.local.filters_elems = {};
                       if(page.local["formId"]!= null){
                           key = page.local["formId"];
                           if(page.local["respInit"] != null){
@@ -183,7 +184,7 @@
           	                                                    page.c8o.log.error("an error occured while trying to laod source for  select", err);
           	                                                })
           												};
-          												if(arrayFound!= undefined && arrayFound.length > 0){
+          												if(ObjectThatHaveToCallFunc!= undefined && ObjectThatHaveToCallFunc.length > 0){
           													let onlyUnique = (value, index, self)=> {
           													  return self.indexOf(value) === index;
           													}
@@ -202,7 +203,7 @@
                                                           
                                                       let findName = "";
                                                       let findVars = {};
-                                                      if(item["type"] == "select" && item["config"]["sourceEnabled"] == true){
+                                                      /*if(item["type"] == "select" && item["config"]["sourceEnabled"] == true){
                                                           for(let w in item["sources"]){
                                                               if(item["sources"][w].enabled == true){
                                                                 for (const [key, value] of (<any>Object).entries(item["sources"][w]["vars"])) {
@@ -234,7 +235,103 @@
                                                           .fail((err)=>{
                                                               page.c8o.log.error("an error occured while trying to laod source for  select", err);
                                                           })
-                                                      }
+                                                      }*/
+          											if(item["type"] == "select" && item["config"]["sourceEnabled"] == true){
+          												let findName = "";
+          	                                            let findVars = {};
+          												let ObjectThatHaveToCallFunc = [];
+          	                                                for(let w in item["sources"]){
+          	                                                    if(item["sources"][w].enabled == true){
+          	                                                      for (const [key, value] of (<any>Object).entries(item["sources"][w]["vars"])) {
+          	                                                          findVars[key] = value["str"];
+          	                                                      }
+          	                                                      findName = w;
+          	                                                    }
+          	                                                }
+          	
+          													const regex = /[$$]{2}\w+[$$]{2}/gm
+          													for(let va in findVars){
+          														if(va == "forms_filter"){
+          															findVars[va] = "page.local.filters_elems[''"+item.id+"''] == undefined ? '''': page.local.filters_elems[''"+item.id+"'']";
+          															ObjectThatHaveToCallFunc.push(item.id);
+          														}
+          														else{
+          															let str = findVars[va];
+          						                                    if(str == undefined){
+          						                                        str = "";
+          						                                    }
+          						                                    var arrayFound = str.match(regex);
+          						                                    str = "''" + str + "''";
+          						                                    if(arrayFound!= undefined && arrayFound.length > 0){
+          						                                        for(let elements of arrayFound){
+          						                                            let iStart = str.indexOf(elements);
+          						                                            let iEnd = iStart + elements.length;
+          						                                            let id = elements.substring(2, elements.length -2);
+          						    										ObjectThatHaveToCallFunc.push(id);
+          						                                            let path = page["getPathById"](+id);
+          						                                            let currentVal = "''+"+ path +"+''";
+          						                                            
+          						                                            str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+          						                                        }
+          						                                        findVars[va] = str;
+          						                                    }
+          						                                    else{
+          						                                        findVars[va] = str;
+          						                                    }
+          														}
+          													}
+          												if(findName != ""){
+          													let funcTocall = ()=>{
+          														let variables = {};
+          														for(let va in findVars){
+          															variables[va] = eval(findVars[va]);
+          														}
+          														page.c8o.callJsonObject(findName,variables)
+          														.then((res: any) =>{
+          		                                                    // find Colomn definitions
+          															let urlParams = page.local.urlParams.get(item["name"]);
+          															if(page["formsSubmit"][item.name] != undefined && page["formsSubmit"][item.name].children != undefined && page["formsSubmit"][item.name].children.length > 0){
+          																urlParams = page["formsSubmit"][item.name].children.filter(x=> x.selected == true)[0].value
+          															}
+          		                                                    let defaultSelected ="";
+          															let array = [];
+          															if(!(res["value"] == undefined)){
+          												                if(typeof(res["value"]) == "string"){
+          												                    array.push(res["value"]);
+          												                }
+          												                else{
+          												                    for(let child of res["value"]){
+          												                        array.push(child);
+          												                    }
+          												                }
+          												                
+          												            }
+          		                                                    for(let child of array){
+          		                                                        if(child == urlParams){
+          		                                                            defaultSelected = child;
+          		                                                        }
+          		                                                        formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
+          		                                                    }
+          		                                                    formSubmit[item["name"]]["value"] = defaultSelected;
+           															page.local.sourceValue[item.name] = array;
+          		                                                    return null;
+          		                                                })
+          		                                                .fail((err)=>{
+          		                                                    page.c8o.log.error("an error occured while trying to laod source for  select", err);
+          		                                                })
+          													};
+          													if(ObjectThatHaveToCallFunc!= undefined && ObjectThatHaveToCallFunc.length > 0){
+          														let onlyUnique = (value, index, self)=> {
+          														  return self.indexOf(value) === index;
+          														}
+          														var unique = ObjectThatHaveToCallFunc.filter(onlyUnique);
+          														unique.forEach((x)=>{
+          															page.local.functionsToBeCalled[x] = funcTocall;
+          														});
+          													}
+          													funcTocall();
+          	                                            }
+          											}
                                                       else{
                                                           let urlParams = page.local.urlParams.get(item["name"]);
                                                           let indexFinded = false;
