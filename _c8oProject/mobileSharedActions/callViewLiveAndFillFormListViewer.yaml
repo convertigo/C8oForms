@@ -8,6 +8,7 @@
                       let key;
                       let respInit;
           			page.local.filters_elems = {};
+          			page.local.updating = {};
                       if(page.local["formId"]!= null){
                           key = page.local["formId"];
                           if(page.local["respInit"] != null){
@@ -198,44 +199,8 @@
           											
           										}
                                                   else if(item["type"] == "radio" || item["type"] == "select"){
-                                                      
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                          
-                                                      let findName = "";
-                                                      let findVars = {};
-                                                      /*if(item["type"] == "select" && item["config"]["sourceEnabled"] == true){
-                                                          for(let w in item["sources"]){
-                                                              if(item["sources"][w].enabled == true){
-                                                                for (const [key, value] of (<any>Object).entries(item["sources"][w]["vars"])) {
-                                                                    findVars[key] = value["str"];
-                                                                }
-                                                                //findVar = item["sources"][w]["vars"];
-                                                                findName = w;
-                                                              }
-                                                          }
-                                                      }
-                                                      if(findName != ""){
-                                                          formSubmit[item["name"]]["source"] = findName;
-                                                          formSubmit[item["name"]]["sourceVars"] = findVars;
-                                                          //page.local["vals"+item.name] = 
-                                                          page.c8o.callJsonObject(findName, findVars)
-                                                          .then((res=>{
-                                                              let urlParams = page.local.urlParams.get(item["name"]);
-                                                              page.local.sourceValue[item.name] = res["value"];
-                                                              let defaultSelected ="";
-                                                              for(let child of res["value"]){
-                                                                  if(child == urlParams){
-                                                                      defaultSelected = child;
-                                                                  }
-                                                                  formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
-                                                              }
-                                                              formSubmit[item["name"]]["value"] = defaultSelected;
-                                                              return null;
-                                                          }))
-                                                          .fail((err)=>{
-                                                              page.c8o.log.error("an error occured while trying to laod source for  select", err);
-                                                          })
-                                                      }*/
+          											// if item is sourced
           											if(item["type"] == "select" && item["config"]["sourceEnabled"] == true){
           												let findName = "";
           	                                            let findVars = {};
@@ -282,9 +247,13 @@
           													}
           												if(findName != ""){
           													let funcTocall = ()=>{
+          														page.local.updating[item.id] = 0;
           														let variables = {};
           														for(let va in findVars){
           															variables[va] = eval(findVars[va]);
+          															if(variables[va] == undefined || variables[va] == "undefined"){
+          																delete variables[va];
+          															}
           														}
           														page.c8o.callJsonObject(findName,variables)
           														.then((res: any) =>{
@@ -293,6 +262,7 @@
           															if(page["formsSubmit"][item.name] != undefined && page["formsSubmit"][item.name].children != undefined && page["formsSubmit"][item.name].children.length > 0){
           																urlParams = page["formsSubmit"][item.name].children.filter(x=> x.selected == true)[0].value
           															}
+          															formSubmit[item["name"]]["children"] = [];
           		                                                    let defaultSelected ="";
           															let array = [];
           															if(!(res["value"] == undefined)){
@@ -314,10 +284,12 @@
           		                                                    }
           		                                                    formSubmit[item["name"]]["value"] = defaultSelected;
            															page.local.sourceValue[item.name] = array;
+          															page.local.updating[item.id] = 1;
           		                                                    return null;
           		                                                })
           		                                                .fail((err)=>{
           		                                                    page.c8o.log.error("an error occured while trying to laod source for  select", err);
+          															page.local.updating[item.id] = 2;
           		                                                })
           													};
           													if(ObjectThatHaveToCallFunc!= undefined && ObjectThatHaveToCallFunc.length > 0){
