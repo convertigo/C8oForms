@@ -106,6 +106,11 @@
                                                       let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
                                                   }
+          										else if(item["type"] == "location"){
+                                                      let urlParams = page.local.urlParams.get(item["name"]);
+                                                      let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
+                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":{"addr":{}, "gps":{}}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                                                  }
                                                   else if(item["type"] == "checkbox"){
                                                       formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
                                                       let urlParams = page.local.urlParams.get(item["name"]);
@@ -163,7 +168,29 @@
           				                                    }
           												}
           											if(findName != ""){
+          												let showOverlay = undefined;
+          												let dismissOverlay = ()=>{
+          														
+          													};
           												let funcTocall = ()=>{
+          													
+          													if(showOverlay == undefined){
+          														for(let grid of page["all_agGrid"][''_results'']){
+          															if(grid._nativeElement.id == item.id+""){
+          																grid.api.showLoadingOverlay();
+          																showOverlay = ()=>{
+          																	grid.api.showLoadingOverlay();
+          																	dismissOverlay = ()=>{
+          																		grid.api.hideOverlay();
+          																	};
+          																}
+          															}
+          										            	}
+          													}
+          													else{
+          														showOverlay();
+          													}
+          													
           													page.local.updating[item.id] = 0;
           													let variables = {};
           													for(let va in findVars){
@@ -172,19 +199,27 @@
           													page.c8o.callJsonObject(findName,variables)
           													.then((res: any) =>{
           	                                                    // find Colomn definitions
-          														let colDef = 
-          														Object.keys(res.data[0]).map((y)=>{
-          															return {"field": y}
-          														});
-          														// find data
-          														formSubmit[item["name"]] = {};
-          														let data = res.data;
-          														formSubmit[item["name"]]["colDef"] = colDef;
-          														formSubmit[item["name"]]["data"] = data;
-          														page.local.updating[item.id] = 1;
+          														if(res.data != undefined && res.data.length>0){
+          															let colDef = 
+          															Object.keys(res.data[0]).map((y)=>{
+          																return {"field": y}
+          															});
+          															// find data
+          															formSubmit[item["name"]] = {};
+          															let data = res.data;
+          															formSubmit[item["name"]]["colDef"] = colDef;
+          															formSubmit[item["name"]]["data"] = data;
+          															page.local.updating[item.id] = 1;
+          															dismissOverlay();
+          														}
+          														else{
+          															formSubmit[item["name"]]["data"] = [];
+          														}
+          														
           	                                                    return null;
           	                                                })
           	                                                .fail((err)=>{
+          														dismissOverlay();
           	                                                    page.c8o.log.error("an error occured while trying to laod source for  select", err);	
           														page.local.updating[item.id] = 2;
           	                                                })
