@@ -132,6 +132,8 @@
                                           }
                                       }
           							else if(item.type == "grid"){
+          								formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":{}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+          								page.local.sourceValue[item.name] = {colDef:[], data:[]};
           								let findName = "";
                                           let findVars = {};
           								let ObjectThatHaveToCallFunc = [];
@@ -190,7 +192,13 @@
           										page.local.updating[item.id] = 0;
           										let variables = {};
           										for(let va in findVars){
-          											variables[va] = eval(findVars[va]);
+          											try{
+          												variables[va] = eval(findVars[va]);
+          											}
+          											catch(e){
+          												page.c8o.log.error("An error occured while computing variables for "+item.name+" data sources", e)
+          											}
+          											
           										}
           										page.c8o.callJsonObject(findName, variables)
           										.then((res: any) =>{
@@ -199,7 +207,7 @@
           												let colDef = 
           												Object.keys(res.data[0]).map((y)=>{
           													let current = res.data[0];
-          													let obj = {};
+          													let obj = {"editable": false};
           													// if cell is an object, and has a type html
           													if(current[y].type == "html"){
           														// if cell has a specified name then take it
@@ -237,7 +245,6 @@
           													return obj;
           												});
           												// find data
-          												formSubmit[item["name"]] = {};
           												let data = res.data.map((x)=>{
           													try{
           														Object.keys(x).forEach((y)=>{
@@ -257,14 +264,17 @@
           														return x;
           													}
           												})
-          												formSubmit[item["name"]]["colDef"] = colDef;
-          												formSubmit[item["name"]]["data"] = data;
+          												page.local.sourceValue[item.name]["colDef"] = colDef;
+          												page.local.sourceValue[item.name]["data"] = data;
+          												// in case of user wants all data to be returned to response
+          												if(item.config.returned_value === "all_the_data"){
+          													formSubmit[item.name]["value"] = data;
+          												}
           												page.local.updating[item.id] = 1;
           												dismissOverlay();
           											}
           											else{
-          												formSubmit[item["name"]] = {};
-          												formSubmit[item["name"]]["data"] = [];
+          												page.local.sourceValue[item["name"]]["data"] = [];
           											}
           											
                                                       return null;
