@@ -47,6 +47,10 @@
           			else{
           				cond = response.transaction != undefined && response.transaction.document != undefined && response.transaction.document.couchdb_output != undefined && response.transaction.document.couchdb_output.rows != undefined && response.transaction.document.couchdb_output.rows[0] != undefined;
           				response = response.transaction.document.couchdb_output;
+          				var myIdP = response.rows[0].value.doc._id;
+                          const key = "_C8O_HIDDEN_" +  myIdP.substring(0, myIdP.indexOf("_anonymous"));
+                          page.local.grp[key] = true;
+                          page.local.formId = response.rows[0].value.doc._id;
           			}
           			if(cond && response.rows != undefined && response.rows[0] != undefined){
                           page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
@@ -218,51 +222,8 @@
                               }
                               
                           }
-          				const searchForSources = (item) : Object => {
-          					let findName = "";
-                              let findVars = {};
-          					let ObjectThatHaveToCallFunc = [];
-                              for(let w in item["sources"]){
-                                  if(item["sources"][w].enabled == true){
-                                    for (const [key, value] of (<any>Object).entries(item["sources"][w]["vars"])) {
-                                        findVars[key] = value["str"];
-                                    }
-                                    findName = w;
-                                  }
-                              }
-          					const regex = /[$$]{2}\w+[$$]{2}/gm
-          					for(let va in findVars){
-          						if(va == "forms_filter"){
-          							findVars[va] = "page.local.filters_elems[''"+item.id+"''] == undefined ? '''': page.local.filters_elems[''"+item.id+"'']";
-          							ObjectThatHaveToCallFunc.push(item.id);
-          						}
-          						else{
-          							let str = findVars[va];
-                                      if(str == undefined){
-                                          str = "";
-                                      }
-                                      var arrayFound = str.match(regex);
-                                      str = "''" + str + "''";
-                                      if(arrayFound!= undefined && arrayFound.length > 0){
-                                          for(let elements of arrayFound){
-                                              let iStart = str.indexOf(elements);
-                                              let iEnd = iStart + elements.length;
-                                              let id = elements.substring(2, elements.length -2);
-          									ObjectThatHaveToCallFunc.push(id);
-                                              let path = page["getPathById"](+id);
-                                              let currentVal = "''+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+''";
-                                              
-                                              str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
-                                          }
-                                          findVars[va] = str;
-                                      }
-                                      else{
-                                          findVars[va] = str;
-                                      }
-          						}
-          					}
-          					return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc }
-          				}
+          
+          				
           				
           				const fillFunctionsToBeCalledFromObjectThatHaveToCallFunc = (ObjectThatHaveToCallFunc, funcTocall) : void =>{
           					if(ObjectThatHaveToCallFunc!= undefined && ObjectThatHaveToCallFunc.length > 0){
@@ -279,20 +240,6 @@
           					}
           				}
           				
-          				const computeVariable = (findVars, variables, item) : void => {
-          					for(let va in findVars){
-          						try{
-          							variables[va] = eval(findVars[va]);
-          							if(variables[va] == undefined || variables[va] == "undefined"){
-          								delete variables[va];
-          							}
-          						}
-          						catch(e){
-          							page.c8o.log.warn("An error occured while computing variables for "+item.name+" data sources, maybe the source has still not been created")
-          						}
-          						
-          					}
-          				}
           				const fillSources = (list, redList, formSubmit) => {
           					try  {
                                   for(let item of list){
@@ -308,7 +255,7 @@
           	                            }
           								else if(item.type == "grid"){
           									page.local.sourceValue[item.name] = {colDef:[], data:[]};
-          									let sources: any = searchForSources(item);
+          									let sources: any = page["searchForSources"](item, "sources", true);
           									let findName = sources.findName;
           									let findVars = sources.findVars;
           									let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
@@ -335,20 +282,7 @@
           											}
           											page.local.updating[item.id] = 0;
           											let variables = {};
-          											/*for(let va in findVars){
-          												try{
-          													variables[va] = eval(findVars[va]);
-          													variables[va] = JSON.stringify(variables[va]);
-          													if(variables[va] == undefined || variables[va] == "undefined"){
-          														delete variables[va];
-          													}
-          												}
-          												catch(e){
-          													page.c8o.log.warn("An error occured while computing variables for "+item.name+" data sources, maybe the source has still not been created")
-          												}
-          												
-          											}*/
-          											computeVariable(findVars, variables, item);
+          											page["computeVariable"](findVars, variables, item);
           											page.c8o.callJsonObject(findName, variables)
           											.then((res: any) =>{
           	                                            // find Colomn definitions
@@ -442,7 +376,7 @@
           	                            else if(item["type"] == "radio" || item["type"] == "select"){
           									// if item is sourced
           									if(item["type"] == "select"){
-          										let sources: any = searchForSources(item);
+          										let sources: any = page["searchForSources"](item, "sources", true);
           										let findName = sources.findName;
           										let findVars = sources.findVars;
           										let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
@@ -453,13 +387,7 @@
           												page.local.doing[item.id] = funcId;
           												page.local.updating[item.id] = 0;
           												let variables = {};
-          												/*for(let va in findVars){
-          													variables[va] = eval(findVars[va]);
-          													if(variables[va] == undefined || variables[va] == "undefined"){
-          														delete variables[va];
-          													}
-          												}*/
-          												computeVariable(findVars, variables, item);
+          												page["computeVariable"](findVars, variables, item);
           												page.c8o.callJsonObject(findName,variables)
           												.then((res: any) =>{
           													let defaultSelected ="";
