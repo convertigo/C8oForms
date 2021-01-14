@@ -453,10 +453,72 @@
                                   page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
                               }
           				}
+          				const fillActionsVars = (list)=>{
+          					for(let elem of list){
+          						if(elem["type"] == "business_logic"){
+          							 page["actions"][elem["name"]] = {"name":elem["name"], "type": elem["type"], "value":""};
+          
+          						}
+          					}
+          				}
+          				const fillActions = (list, redList, formSubmit) => {
+          					try  {
+                                  for(let item of list){
+          							if(item["type"] == "business_logic"){
+          									let sources: any = page["searchForSources"](item, "sources", true);
+          									let findName = sources.findName;
+          									let findVars = sources.findVars;
+          									let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+          									let variables = {};
+          									let funcTocall = ()=>{
+          										page["computeVariable"](findVars, variables, item);
+          										page["actions"][item["name"]]["value"] = variables["selfVar"];
+          										try{
+          											if(page.local["processingDataS"] == undefined){
+          												page.local["processingDataS"] = {};
+          											}
+          											
+          											if(page.local.functionsToBeCalled[item.id] != undefined){
+          												if(page.local["processingDataS"][item.id] != undefined){
+          													try{
+          														clearTimeout(page.local["processingDataS"][item.id]);
+          													}
+          													catch(e){
+          														
+          													}
+          												}
+          												page.local["processingDataS"][item.id] = setTimeout(()=>{
+          													page.local.functionsToBeCalled[item.id]
+          													.forEach((func)=>{
+          														func();
+          													})
+          												}, 200)
+          												
+          											}
+          										}
+          										catch(e){
+          											page.c8o.log.error("Error while trying to refresh a data source", e);
+          										}
+          									}
+          									fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+          									funcTocall();
+          							}
+          						}
+          					}
+          					catch(e){
+          						
+          					}
+          					
+          								
+          				}
           				// calling fillFormSubmit
                           fillFormSubmit(page["formsList"], page["redList"], page["formsSubmit"], respInit); 
+          				// calling fillActionsVars
+          				fillActionsVars(page["form"]["actions"])
           				// calling fillSources
           				fillSources(page["formsList"], page["redList"], page["formsSubmit"]); 
+          				// calling fillActions
+          				fillActions(page["form"]["actions"], null, null)
                           // check conditions
           				page["checkForAnyCondition"]();
                           

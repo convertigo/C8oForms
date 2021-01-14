@@ -49,6 +49,7 @@ scriptContent:
         /*Begin_c8o_PageDeclaration*/
             public formsList: Array<object> = [];
             public formsSubmit = {};
+        	public actions = {};
             public link;
             public enabled = false;
             public results = {};
@@ -108,7 +109,7 @@ scriptContent:
                 for(let w in item[path]){
                     if(item[path][w].enabled == true){
                       for (const [key, value] of (<any>Object).entries(item[path][w]["vars"])) {
-        				findVars[key] = value["str"];  
+        				findVars[key] = value;  
                       }
                       findName = w;
                     }
@@ -120,12 +121,14 @@ scriptContent:
         				ObjectThatHaveToCallFunc.push(item.id);
         			}
         			else{
-        				let str = findVars[va];
+        				let str = findVars[va].str;
                         if(str == undefined){
                             str = "";
                         }
                         var arrayFound = str.match(regex);
-                        str = "''" + str + "''";
+        				if(!(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts")){
+                        	str = "''" + str + "''";
+        				}
                         if(arrayFound!= undefined && arrayFound.length > 0){
                             for(let elements of arrayFound){
                                 let iStart = str.indexOf(elements);
@@ -133,7 +136,14 @@ scriptContent:
                                 let id = elements.substring(2, elements.length -2);
         						ObjectThatHaveToCallFunc.push(id);
                                 let path = this["getPathById"](+id);
-                                let currentVal = "''+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+''";
+        						let currentVal = "";
+        						if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
+        							currentVal = path;
+        						}
+        						else{
+        							 currentVal = "''+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+''"
+        						}
+                                ;
                                 str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
                             }
                             findVars[va] = str;
@@ -1080,6 +1090,11 @@ scriptContent:
                         }
                     }
                 }
+        		for(let key of Object.keys(this.actions)){
+                    if(key == name){
+                        return "page.actions."+name+"."+this.getKeyByType(this.actions[key].type);
+                    }
+                }
                 return "";
             }
         
@@ -1235,8 +1250,9 @@ scriptContent:
              * @param val
              */
             private getNameById(val: ValFieldObject | number): string{
+        		var searchArray = this.form.formulaire.concat(this.form.actions);
                 if(typeof(val) == ''number''){
-                    for(let elem of this.form.formulaire){
+                    for(let elem of searchArray){
                         if(elem.id == val){
                             return elem.name;
                         }
@@ -1251,7 +1267,7 @@ scriptContent:
                     return "";
                 }
                 else{
-                    for(let elem of this.form.formulaire){
+                    for(let elem of searchArray){
                         if(elem.id == val.str){
                             return elem.name;
                         }
