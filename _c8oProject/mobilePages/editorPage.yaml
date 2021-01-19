@@ -131,6 +131,94 @@ scriptContent:
                 this.local.objectComponents = "";
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	
+        	public cancelKeyDownForTiny(ed){
+        		if(ed != undefined && ed._editor != undefined && ed._editor.on != undefined){
+        			ed._editor.on(''keydown'', function(e) {
+                    if(e.keyCode == 13){
+                        e.preventDefault();
+                    }
+                });
+        		}
+                
+        	}
+        	
+        	public getTinyLang(lang){
+        		switch(lang){
+        			case "fr":
+        				return "fr_FR";
+        			case undefined:
+        				return "en";
+        			default:
+        				return lang;
+        		}
+        	}
+        	
+        	public getTinyPathLang(lang){
+        		switch(lang){
+        			case "fr":
+        				return "assets/i18n/fr_FR.js"
+        			case "en":
+        				return null;
+        			case undefined:
+        				return null;
+        			default:
+        				return "assets/i18n/" + lang+ ".js";
+        		}
+        	}
+        	
+        	public setCaretPosition(elemId, caretPos){
+        		var elem: any = document.getElementById(elemId);
+        	    if(elem != null) {
+        	        if(elem.createTextRange) {
+        	            var range = elem.createTextRange();
+        	            range.move(''character'', caretPos);
+        	            range.select();
+        	        }
+        	        else {
+        	            if(elem.selectionStart) {
+        	                elem.focus();
+        	                elem.setSelectionRange(caretPos, caretPos);
+        	            }
+        	            else
+        	                elem.focus();
+        	        }
+        		}
+        		console.log("setCaretPosition at "+ caretPos);
+        	}
+        	
+        	public getCarretPosition(element: any): number{
+        		var caretOffset = 0;
+        	    var docu = element.ownerDocument || element.document;
+        	    var win = docu.defaultView || docu.parentWindow;
+        	    var sel;
+        		var id = element.id;
+        		if (typeof win.getSelection != "undefined") {
+        	        sel = win.getSelection();
+        	        if (sel.rangeCount > 0) {
+        	            var range = win.getSelection().getRangeAt(0);
+        	            var preCaretRange = range.cloneRange();
+        	            preCaretRange.selectNodeContents(element);
+        	            preCaretRange.setEnd(range.endContainer, range.endOffset);
+        	            caretOffset = preCaretRange.toString().length;
+        	        }
+        	    } 
+        		else if ( (sel = docu.selection) && sel.type != "Control") {
+        	        var textRange = sel.createRange();
+        	        var preCaretTextRange = docu.body.createTextRange();
+        	        preCaretTextRange.moveToElementText(element);
+        	        preCaretTextRange.setEndPoint("EndToEnd", textRange);
+        	        caretOffset = preCaretTextRange.text.length;
+        	    }
+        		this.local[element.id] = caretOffset;
+        		console.log("carretOffset is ", caretOffset);
+        		return caretOffset;
+        	}
+        	
+        	
+        	public trackByIndex (index: number, obj: object): number{
+          		return index;
+        	};
         	toFixed(abc, def){
         		return '''';
         	}
@@ -1465,19 +1553,23 @@ scriptContent:
         	                        str = str.substring(0, iStart) + this.getBadge(id, val) + str.substring(iEnd);
         	                    }
         	                }
+        					console.log("transform$toHtml 1: "+ str);
         	                return str;
         	            }
         	            else{
         	                if(str == undefined){
+        						console.log("transform$toHtml 2: "+ "''''");
         	                    return "";
         	                }
         	                else{
+        						console.log("transform$toHtml 3: "+ str);
         	                    return str;    
         	                }
         	                
         	            }
         	    }
         	    catch(e){
+        			console.log("transform$toHtml 4: "+ "''''");
         	        this.c8o.log.error("An error occurend into transform$toHtml: \n see: \n "+ JSON.stringify(e));
         	        return "";
         	    }
@@ -5859,15 +5951,16 @@ title: Title for editor
                                                             { title: ''Some class'', value: ''class-name'' }
                                                         ],
                                                         importcss_append: true,
-                                                        height: 200,
                                                         template_cdate_format: ''[Date Created (CDATE): %m/%d/%Y : %H:%M:%S]'',
                                                         template_mdate_format: ''[Date Modified (MDATE): %m/%d/%Y : %H:%M:%S]'',
-                                                        height: 600,
+                                                        height: 400,
                                                         image_caption: true,
                                                         quickbars_selection_toolbar: ''bold italic | quicklink h2 h3 blockquote quickimage quicktable'',
                                                         noneditable_noneditable_class: ''mceNonEditable'',
                                                         toolbar_mode: ''sliding'',
-                                                        contextmenu: ''link image imagetools table''
+                                                        contextmenu: ''link image imagetools table'',
+                                                        language: getTinyLang(this.global.settings.language),
+                                                        language_url: getTinyPathLang(this.global.settings.language)
                                                     }'
                                           ↓disabled [mobile.components.UIControlVariable-1584563485274]: 
                                             varValue: 
@@ -8132,6 +8225,7 @@ title: Title for editor
                       beanData: '{"ionBean":"DivTag"}'
                       tagName: div
                       ↓Directive [mobile.components.UIControlDirective-1600849700405]: 
+                        directiveExpression: trackBy:trackByIndex
                         directiveIndexName: t
                         directiveItemName: thing
                         directiveSource: 
@@ -9838,3 +9932,56 @@ title: Title for editor
                         resolve();
             		
             '
+↓Subscribe_Handler11 [mobile.components.UIEventSubscriber-1610986550931]: 
+  topic: tinyMceBlur
+  ↓controllerTiny [mobile.components.UICustomAction-1610986550934]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '		
+            		page.c8o.log.debug("ref: " + props.parent.out.ref);
+            		if(props.parent.out.ref == "description"){
+            		    this.form.pages[this.local.currentIndex].desc = props.parent.out.event;
+                        this.updateState();
+            		}
+            		else if(props.parent.out.ref.config.title != undefined){
+            		    props.parent.out.ref.config.title.html = props.parent.out.event;
+                        this.updateState();
+                        this.tick();
+            		}
+            		else{
+            		    props.parent.out.ref.config.html = props.parent.out.event;
+                        this.updateState();
+                        this.tick();
+            		}
+            		resolve();
+            		
+            '
+    isEnabled: false
+  ↓controllerTiny1 [mobile.components.UICustomAction-1610986550937]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            			// case editing variable type html or ts
+                        if(props.parent.out.ref.refName != undefined && props.parent.out.ref.refName == "actionsVar2"){
+                            let html = page["transformHtmlto$"](props.parent.out.event.editor.getBody().innerHTML);
+                            (page["form"] as any).actions[props.parent.out.ref.thingIndex].actions[props.parent.out.ref.enabled]['vars'][props.parent.out.ref.keyIndex].str = html;
+                            page["updateState"]();
+                        }
+            			// case editing variable type text or ts
+            			else if(props.parent.out.ref.refName != undefined && props.parent.out.ref.refName == "actionsVar3"){
+            				let html = page["transformHtmlto$"](props.parent.out.event.editor.getBody().innerHTML);
+            				var newDiv = document.createElement("div");
+            				newDiv.innerHTML = html
+            				html = newDiv.innerText;
+            			    (page["form"] as any).actions[props.parent.out.ref.thingIndex].actions[props.parent.out.ref.enabled]['vars'][props.parent.out.ref.keyIndex].str = html;
+                            page["updateState"]();
+                           
+                        }
+                        resolve();
+            		
+            
