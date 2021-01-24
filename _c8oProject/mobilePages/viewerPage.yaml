@@ -44,7 +44,6 @@ scriptContent:
             attribute: string;
         
         }
-        
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
             public formsList: Array<object> = [];
@@ -101,6 +100,432 @@ scriptContent:
                 this.local.camSignFieldGoToPage = {img: true, signature:true};
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	public fillFormSubmit(list, redList, formSubmit, response): void {
+        		let page = this;
+                page.local.subKeyD = page.local.urlParams.get("_c8o_subkey");
+                page.local.subKeyD = page.local.subKeyD == null ? "," : page.local.subKeyD;
+                try  {
+                    for(let item of list){
+                        if(item["type"] == "ion-card"){
+                            redList[item["name"]] = {};
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "children":{}, "label":item["config"]["title"]["text"], "labelHtml":item["config"]["title"]["personalized"] ? item["config"]["title"]["html"] : item["config"]["title"]["text"]};                                
+                            let res = response != undefined && response[item["name"]] != undefined ? response[item["name"]]["children"] : null;
+                            this.fillFormSubmit(item["children"],redList[item["name"]]["children"], formSubmit[item["name"]]["children"], res);
+        					//fillFormSubmit(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"], res);
+                        }
+                        else if(item["type"] == "text"){
+        					let value: string = "";
+        					// search if we have to set current value by response init
+        					if(response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined){
+        						value = response[item["name"]]["value"];
+        					}
+        					// search if value has been set by url params
+        					else if(page.local.urlParams.get(item["name"]) != null){
+        						value = page.local.urlParams.get(item["name"]) + "";
+        					}
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                        }
+        				else if(item["type"] == "location"){
+                            let urlParams = page.local.urlParams.get(item["name"]);
+                            let value = urlParams != null ? urlParams : response != null && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ?  response[item["name"]]["value"] : {"addr":{}, "gps":{}}; 
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                        }
+                        else if(item["type"] == "checkbox"){
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                            let urlParams = page.local.urlParams.get(item["name"]);
+                            let arrayUrlParams = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
+                            for(let child in item["children"]){
+        						let selected: boolean;
+        						try{
+        							// search if we have to set current value by response init
+        							if(response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] != undefined && response[item["name"]]["children"][child]["selected"] != undefined){
+        								selected = response[item["name"]]["children"][child]["selected"];
+        							}
+        							// search if value has been set by url params
+        							else if(arrayUrlParams.indexOf(item["children"][child].value) != -1){
+        								selected = (arrayUrlParams.indexOf(item["children"][child].value) != -1) == true
+        							}
+        							// in this case take default value
+        							if(selected == undefined){
+        								selected = item["children"][child].selected;
+        							}
+        						}
+        						catch(e){
+        							console.error("catch5", e);
+        							selected = false;
+        						}
+                                formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected, "other": item["children"][child].other});
+                            }
+                        }
+        				else if(item.type == "grid"){
+        					let value = response != undefined && response[item["name"]] != undefined ? response[item["name"]] : {};
+        					formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+        				}
+                        else if(item["type"] == "radio" || item["type"] == "select"){
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                            
+        					// search for default values in urlParams
+        					let urlParams = page.local.urlParams.get(item["name"]);
+                            let indexFinded = false;
+                            let defaultSelected = "";
+        
+        					for(let child in item["children"]){
+        						let selected: boolean = false;
+        						let useResponse = response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] && response[item["name"]]["children"][child]["selected"] != undefined;
+                                try {
+                                    selected =  useResponse ? response[item["name"]]["children"][child]["selected"] : urlParams != undefined ? item["children"][child]["value"] == urlParams : item["children"][child].selected;
+                                    if(selected){
+                                        defaultSelected = item["children"][child].value;
+                                    }
+                                }
+                                catch(e){
+                                    console.error("catch4", e);
+                                }
+        						formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
+        					}						
+        					// assign value
+                            formSubmit[item["name"]]["value"] = defaultSelected; 
+                        }
+                        else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
+                            let urlParams = page.local.urlParams.get(item["name"]);
+                            let value;	
+                            if(item["type"] == "slider"){
+                                urlParams = (isNaN(+urlParams) == false && urlParams != "" && urlParams != null) ? +urlParams : null;
+                            }
+        					value = (response != null && response[item["name"]] != null && response[item["name"]]["value"] != null) ? response[item["name"]]["value"] : urlParams != null ? urlParams: ""; 
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["name"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                        }
+                        else if(item["type"] == "radio_group"){
+                            
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, children_label:item["children"], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                            for(let line of item.lines){
+                                let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
+                                urlParams = item.children.filter(x=> x.value == urlParams).length > 0 ? urlParams : null;
+                                let value = urlParams != null ? urlParams : response == null ? "": response[item["name"]]["children"][line.title]; 
+                                formSubmit[item["name"]].children[line.title]= value;
+                            }
+                        }
+                        else if(item["type"] == "checkbox_group"){
+                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+                            for(let line of item.lines){
+                                formSubmit[item["name"]].children[line.title] = [];
+                                let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
+                                let arrayUrlParams = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
+                                for(let child in item["children"]){
+        							let selected: boolean;
+        							try{
+        								// search if we have to set current value by response init
+        								if(response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][line.title] != undefined && response[item["name"]]["children"][line.title][child] != undefined && response[item["name"]]["children"][line.title][child]["selected"] != undefined){
+        									selected = response[item["name"]]["children"][line.title][child]["selected"];
+        								}
+        								// search if value has been set by url params
+        								else if(arrayUrlParams.indexOf(item["children"][child].value) != -1){
+        									selected = (arrayUrlParams.indexOf(item["children"][child].value) != -1) == true
+        								}
+        								// in this case take default value
+        								if(selected == undefined){
+        									selected = item["children"][child].selected;
+        								}
+        							}
+        							catch(e){
+        								console.error("catch5", e);
+        								selected = false;
+        							} 
+                                    formSubmit[item["name"]].children[line.title].push({"value": item["children"][child].value, "selected": selected});
+                                }
+                            }
+                        }
+                        
+                };
+                }
+                catch(e){
+                    page.c8o.log.error("An error occured while executing function fillFormSubmit into viewerPage", e);
+        			console.error("An error occured while executing function fillFormSubmit into viewerPage", e);
+                }
+        	}
+        	
+        	public fillActions(list): void{
+        		let page = this;
+        		try  {
+                    for(let item of list){
+        				if(item["type"] == "business_logic"){
+        						let sources: any = page["searchForSources"](item, "sources", true);
+        						let findName = sources.findName;
+        						let findVars = sources.findVars;
+        						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        						let variables = {};
+        						let funcTocall = ()=>{
+        							page["computeVariable"](findVars, variables, item);
+        							page["actions"][item["name"]]["value"] = variables["selfVar"];
+        							try{
+        								if(page.local["processingDataS"] == undefined){
+        									page.local["processingDataS"] = {};
+        								}
+        								
+        								if(page.local.functionsToBeCalled[item.id] != undefined){
+        									if(page.local["processingDataS"][item.id] != undefined){
+        										try{
+        											clearTimeout(page.local["processingDataS"][item.id]);
+        										}
+        										catch(e){
+        											console.error("catch9", e);
+        										}
+        									}
+        									page.local["processingDataS"][item.id] = setTimeout(()=>{
+        										page.local.functionsToBeCalled[item.id]
+        										.forEach((func)=>{
+        											func();
+        										})
+        									}, 200)
+        									
+        								}
+        							}
+        							catch(e){
+        								console.error("catch10", e);
+        								page.c8o.log.error("Error while trying to refresh a data source", e);
+        							}
+        						}
+        						this.fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        				}
+        			}
+        		}
+        		catch(e){
+        			page.c8o.log.error("An error occured while executing function fillActions into viewerPage", e);
+        			console.error("An error occured while executing function fillActions into viewerPage", e);
+        		}
+        	}
+        	
+        	public fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall) : void{
+        		let page = this;
+        		if(ObjectThatHaveToCallFunc!= undefined && ObjectThatHaveToCallFunc.length > 0){
+        			let onlyUnique = (value, index, self)=> {
+        			  return self.indexOf(value) === index;
+        			}
+        			var unique = ObjectThatHaveToCallFunc.filter(onlyUnique);
+        			unique.forEach((x)=>{
+        				if(page.local.functionsToBeCalled[x] == undefined){
+        						page.local.functionsToBeCalled[x] = [];
+        					}
+        					page.local.functionsToBeCalled[x].push(funcTocall);
+        			});
+        		}
+        	}
+        	
+        	public fillSources(list, redList, formSubmit): void{
+        		let page = this;
+        		try  {
+                    for(let item of list){
+                        if(item["type"] == "ion-card"){
+                            this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
+                        }
+        				else if(item["config"]["sourceEnabled"] == true || item.sources){
+        					if(item["type"] == "text"){
+        					}
+        					else if(item["type"] == "location"){
+                            }
+                            else if(item["type"] == "checkbox"){
+                            }
+        					else if(item.type == "grid"){
+        						page.local.sourceValue[item.name] = {colDef:[], data:[]};
+        						let sources: any = page["searchForSources"](item, "sources", true);
+        						let findName = sources.findName;
+        						let findVars = sources.findVars;
+        						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        						
+        						if(findName != ""){
+        							let showOverlay = undefined;
+        							let dismissOverlay = ()=>{};
+        							let funcTocall = ()=>{
+        								if(showOverlay == undefined){
+        									for(let grid of page["all_agGrid"][''_results'']){
+        										if(grid._nativeElement.id == item.id+""){
+        											grid.api.showLoadingOverlay();
+        											showOverlay = ()=>{
+        												grid.api.showLoadingOverlay();
+        												dismissOverlay = ()=>{
+        													grid.api.hideOverlay();
+        												};
+        											}
+        										}
+        					            	}
+        								}
+        								else{
+        									showOverlay();
+        								}
+        								page.local.updating[item.id] = 0;
+        								let variables = {};
+        								page["computeVariable"](findVars, variables, item);
+        								page.c8o.callJsonObject(findName, variables)
+        								.then((res: any) =>{
+                                            // find Colomn definitions
+        									if(res.data != undefined && res.data.length > 0){
+        										let colDef = 
+        										Object.keys(res.data[0]).map((y)=>{
+        											let current = res.data[0];
+        											let obj = {"editable": false};
+        											// if cell is an object, and has a type html
+        											if(current[y].type == "html"){
+        												// if cell has a specified name then take it
+        												if(current[y].name != undefined){
+        													obj["field"] = current[y].name;
+        												}
+        												// else take key name
+        												else{
+        													obj["field"] = y;
+        												}
+        												// create a cell renderer to have innerHTML
+        												let HTMLCellRenderer = function HTMLCellRenderer () {};
+        												HTMLCellRenderer.prototype.init = function(params) {
+        													try{
+        														this.eGui = document.createElement(''div'');																			
+        														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted: params.value;
+        													}
+        													catch(e){
+        														this.eGui.innerHTML = "<p>ko<p>"
+        													}
+        													
+        												}
+        												HTMLCellRenderer.prototype.getGui = function() {
+        												    return this.eGui;
+        												};
+        												HTMLCellRenderer.prototype.refresh = function(params) {
+        													this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        													return true;
+        												}
+        												obj["cellRenderer"] = HTMLCellRenderer;
+        											}
+        											else{
+        												obj["field"] = y;
+        											}
+        											return obj;
+        										});
+        										// find data
+        										let data = res.data.map((x)=>{
+        											try{
+        												Object.keys(x).forEach((y)=>{
+        													if(typeof(x[y]) !== "string"){
+        														if(x[y].name != undefined){
+        															x[x[y].name] = x[y].value;
+        															delete x[y];
+        														}
+        														else{
+        															x[y] = x[y].value;
+        														}
+        													}
+        												});
+        												return x;
+        											}
+        											catch(e){
+        												console.error("catch7", e);
+        												return x;
+        											}
+        										})
+        										page.local.sourceValue[item.name]["colDef"] = colDef;
+        										page.local.sourceValue[item.name]["data"] = data;
+        										// in case of user wants all data to be returned to response
+        										if(item.config.returned_value === "all_the_data"){
+        											formSubmit[item.name]["value"] = data;
+        										}
+        										page.local.updating[item.id] = 1;
+        										dismissOverlay();
+        									}
+        									else{
+        										page.local.sourceValue[item["name"]]["data"] = [];
+        									}
+        									
+                                            return null;
+                                        })
+                                        .fail((err)=>{
+        									dismissOverlay();
+                                            page.c8o.log.error("an error occured while trying to laod source for  select", err);	
+        									page.local.updating[item.id] = 2;
+                                        })
+        							};
+        							this.fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        							funcTocall();
+                                }
+        						
+        					}
+                            else if(item["type"] == "radio" || item["type"] == "select"){
+        						// if item is sourced
+        						if(item["type"] == "select"){
+        							let sources: any = page["searchForSources"](item, "sources", true);
+        							let findName = sources.findName;
+        							let findVars = sources.findVars;
+        							let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        						
+        							if(findName != ""){
+        								let funcTocall = ()=>{
+        									let funcId = new Date().getTime();
+        									page.local.doing[item.id] = funcId;
+        									page.local.updating[item.id] = 0;
+        									let variables = {};
+        									page["computeVariable"](findVars, variables, item);
+        									page.c8o.callJsonObject(findName,variables)
+        									.then((res: any) =>{
+        										let defaultSelected ="";
+        										// if we are still the latest request for this object
+        										if(funcId == page.local.doing[item.id]){
+        											// find Colomn definitions
+        											let urlParams = page.local.urlParams.get(item["name"]);
+        											if(page["formsSubmit"][item.name] != undefined && page["formsSubmit"][item.name].children != undefined && page["formsSubmit"][item.name].children.length > 0){
+        												const tmp = page["formsSubmit"][item.name].children.filter(x=> x.selected == true);
+        												if(tmp != undefined && tmp.length > 0){
+        													urlParams = tmp[0].value
+        												}
+        											}
+        											formSubmit[item["name"]]["children"] = [];
+                                                    
+        											let array = [];
+        											if(!(res["value"] == undefined)){
+        								                if(typeof(res["value"]) == "string"){
+        								                    array.push(res["value"]);
+        								                }
+        								                else{
+        								                    for(let child of res["value"]){
+        								                        array.push(child);
+        								                    }
+        								                }
+        								            }
+                                                    for(let child of array){
+                                                        if(child == urlParams){
+                                                            defaultSelected = child;
+                                                        }
+                                                        formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
+                                                    }
+                                                    formSubmit[item["name"]]["value"] = defaultSelected;
+        											page.local.sourceValue[item.name] = array;
+        											page.local.updating[item.id] = 1;
+        										}
+        										formSubmit[item["name"]]["value"] = defaultSelected;
+                                                return null;
+                                            })
+                                            .fail((err)=>{
+                                                page.c8o.log.error("an error occured while trying to laod source for  select", err);
+        										// if we are still the latest request for this object
+        										if(funcId == page.local.doing[item.id]){
+        											page.local.updating[item.id] = 2;
+        										}
+                                            })
+        								};
+        								this.fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        								funcTocall();
+                                    }
+        						}
+                            }
+                            else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
+                            }
+                            else if(item["type"] == "radio_group"){
+                            }
+                            else if(item["type"] == "checkbox_group"){
+                            }	
+        				}   
+                	}
+                }
+                catch(e){
+                    page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
+                }
+        	}
         	
         	public searchForSources (item, path, isSource = true) : Object {
         		let findName = "";
@@ -156,6 +581,15 @@ scriptContent:
         		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc }
         	}
         	
+        	public fillActionsVars(list): void {
+        		let page = this;
+        		for(let elem of list){
+        			if(elem["type"] == "business_logic"){
+        				 page["actions"][elem["name"]] = {"name":elem["name"], "type": elem["type"], "value":""};
+        
+        			}
+        		}
+        	}
         	public computeVariable(findVars, variables, item) : void {
         		let page = this;
         		for(let va in findVars){
@@ -239,6 +673,13 @@ scriptContent:
                  }
                  return [arr, cpt];
             }
+        
+        	trackByFn(index, item) {
+        		return index;  
+        	}
+        	trackById(index, item) {
+        		return item.id;  
+        	}
             //
             //this.global[''__viewerTotal''] > 0 || this.global["__C8O_TODELETE"] >0
             //delete_attachment
@@ -2568,7 +3009,7 @@ title: Visualisateur
                 - MobileSmartSourceType: plain:#fff
             isEnabled: false
           ↓Directive [mobile.components.UIControlDirective-1543865083865]: 
-            directiveExpression: let i = index
+            directiveExpression: 'let i = index; trackBy: trackById'
             directiveSource: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
@@ -2578,7 +3019,7 @@ title: Visualisateur
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:item.cat == undefined
+                  - MobileSmartSourceType: script:item.cat == undefined && this.local.hideme == undefined
               ↓Directive1 [mobile.components.UIControlDirective-1592514000964]: 
                 directiveName: If
                 directiveSource: 
@@ -3671,3 +4112,14 @@ title: Visualisateur
               		}
               		resolve();
               
+↓PageEvent2 [mobile.components.UIPageEvent-1611327642638]: 
+  viewEvent: onWillLeave
+  ↓cancelViewLive [mobile.components.UICustomAction-1611327662306]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		page.c8o.cancelLive("viewLiveViewerPage");
+            		resolve();
+            

@@ -8,8 +8,9 @@
           		let verb = null;
           		let respInit = null;
           		page.local.hash = undefined;
+          		page.local.sizeWallPaper = undefined;
           		let isProd = page.local.published == true || page.local.anonymous == true;
-          		
+          		// if in fullsync mode
           		if(vars.fs){
           			let key;
                       let respInit;
@@ -24,10 +25,11 @@
           			args = {
           				"ddoc": "forms",
           				"view": "view",
-          				"__live": "view",
+          				"__live": "viewLiveViewerPage",
           				"key": key
                      };
           		}
+          		// if in sequence mode
           		else{
           			page.global.errorViewer = false;
           			page.local.user = page["navParams"].get(''i'');
@@ -58,6 +60,11 @@
           			}
           			catch(e){}
           			if(cond && response.rows != undefined && response.rows[0] != undefined && newHash != page.local.hash){
+          				//updates value except page.formsList
+          				page["form"] = response.rows[0].value.doc;
+          				page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
+          	            page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
+          				var isInitial = true;
           				// if response is diffrent from previous
           				if(page.local.hash == undefined){
           					// this was inital loading of form so do nothing
@@ -65,6 +72,7 @@
           				}
           				// if there is an update while consulting 
           				else{
+          					isInitial = false;
           					// if we are in production 
           					if(isProd){
           						
@@ -74,36 +82,42 @@
           						
           					}
           				}
-          				page.local.sourceValue = {};
-          				page.local.functionsToBeCalled = {};
-          	            page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
-          	            page["form"] = response.rows[0].value.doc;
-          	            page["formsList"] = response.rows[0].value.doc.formulaire;
-          	            page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
+          				if(isInitial){
+          					page.local.sourceValue = {};
+          					page.local.functionsToBeCalled = {};
+          				}
           	
           	            try{
           	                page["local"]["pages"] =  response.rows[0].value.doc["pages"]  
           	                for(let i in page.local.pages){
           	                    page["local"]["pages"][i]["enabled"] = true;
           	                }
-          	                page["local"]["currentIndex"] = 0;
+          					if(isInitial){
+          						page["local"]["currentIndex"] = 0;
+          					}
           	            }
           	            catch(e){
           	                page["local"]["pages"] = undefined;
           	                page["local"]["currentIndex"] = 0;
+          					console.error("catch1", e);
           	            }
           	            page.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
           	            
+          				// Load wallpaper
           				if(vars.fs){
           					// load background image if we are in new support mode image
           	                if(response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined && page["form"]["wallpaper"]["type"] != ''color''){
           	                    page.c8o.get_attachment(page["form"]["_id"], "wallpaper", "c8oforms_fs")
           	                    .then((res) => {
-          	                        var urlCreator = window["URL"] || window["webkitURL"];
-          	                        page.local.url = urlCreator.createObjectURL(res);
-          	                        page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-          	                        page.tick();
+          							if(res.size != page.local.sizeWallPaper){
+          								page.local.sizeWallPaper = res.size;
+          								 var urlCreator = window["URL"] || window["webkitURL"];
+          		                        page.local.url = urlCreator.createObjectURL(res);
+          		                        page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+          		                        //page.tick();
+          							}
           	                    }).catch((err) => {
+          							console.error("catch2", err);
           	                        page.c8o.log.error("Error loading wallpaper from local base", err);
           	                    }); 
           	                }
@@ -113,437 +127,38 @@
           				}
           				else{
           					if (response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined) {
-          					    page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper";
-          					    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-          					    page.tick();
+          						if(page.local.url != page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper"){
+          							page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper";
+          						    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+          						    //page.tick();
+          						}
           					}
           					else {
           					    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
           					}
           				}
           				
-          	            
-          	            const fillFormSubmit = (list, redList, formSubmit, response) => {
-          	                page.local.subKeyD = page.local.urlParams.get("_c8o_subkey");
-          	                page.local.subKeyD = page.local.subKeyD == null ? "," : page.local.subKeyD;
-          	                try  {
-          	                    for(let item of list){
-          	                        if(item["type"] == "ion-card"){
-          	                            redList[item["name"]] = {};
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "children":{}, "label":item["config"]["title"]["text"], "labelHtml":item["config"]["title"]["personalized"] ? item["config"]["title"]["html"] : item["config"]["title"]["text"]};                                
-          	                            let res = response != undefined ? response[item["name"]]["children"] : null;
-          	                            fillFormSubmit(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"], res);
-          	                        }
-          	                        else if(item["type"] == "text"){
-          	                            let urlParams = page.local.urlParams.get(item["name"]);
-          	                            let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          	                        }
-          							else if(item["type"] == "location"){
-          	                            let urlParams = page.local.urlParams.get(item["name"]);
-          	                            let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":{"addr":{}, "gps":{}}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          	                        }
-          	                        else if(item["type"] == "checkbox"){
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          	                            let urlParams = page.local.urlParams.get(item["name"]);
-          	                            let array = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
-          	                            for(let child in item["children"]){
-          	                                let selected: any;
-          	                                try {
-          	                                    let s = array.indexOf(item["children"][child].value) != -1;
-          	                                    selected = s == true ? s : respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
-          	                                }
-          	                                catch(e){}
-          	                                formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected, "other": item["children"][child].other});
-          	                            }
-          	                        }
-          							else if(item.type == "grid"){
-          								formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":{}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          							}
-          	                        else if(item["type"] == "radio" || item["type"] == "select"){
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          	                            let urlParams = page.local.urlParams.get(item["name"]);
-          	                            let indexFinded = false;
-          	                            let defaultSelected ="";
-          	                            if(urlParams != undefined){
-          	                                for(let child in item["children"]){
-          	                                    if(item["children"][child]["value"] == urlParams){
-          	                                        indexFinded = true; 
-          	                                        defaultSelected = item["children"][child].value;
-          	                                        formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": true});
-          	                                    }
-          	                                    else{
-          	                                        formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": false});
-          	                                    }
-          	                                }
-          	                            }
-          	                            if(!indexFinded){
-          	                                for(let child in item["children"]){
-          	                                    let selected;
-          	                                    try {
-          	                                        selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
-          	                                        if(selected){
-          	                                            defaultSelected = respInit == null ? item["children"][child].value : response[item["name"]]["children"][child]["value"];
-          	                                        }
-          	                                    }
-          	                                    catch(e){
-          	                                        
-          	                                    }
-          	                                    
-          	                                    formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
-          	                                }
-          	                            }
-          	                            formSubmit[item["name"]]["value"] = defaultSelected; 
-          	                        }
-          	                        else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
-          	                            let urlParams = page.local.urlParams.get(item["name"]);
-          	                            let value;
-          	                            if(item["type"] == "slider"){
-          	                                let valConvert = (isNaN(+urlParams) == false && urlParams != "") ? +urlParams : null;
-          	                                value = valConvert != null ? valConvert : respInit == null ? "": response[item["name"]]["value"]; 
-          	                            }
-          	                            else{
-          	                                value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
-          	                            }
-          	                            
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["name"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          	                        }
-          	                        else if(item["type"] == "radio_group"){
-          	                            
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, children_label:item["children"], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          	                            for(let line of item.lines){
-          	                                let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
-          	                                urlParams = item.children.filter(x=> x.value == urlParams).length > 0 ? urlParams : null;
-          	                                let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["children"][line.title]; 
-          	                                formSubmit[item["name"]].children[line.title]= value;
-          	                            }
-          	                        }
-          	                        else if(item["type"] == "checkbox_group"){
-          	                            formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-          	                            for(let line of item.lines){
-          	                                formSubmit[item["name"]].children[line.title] = [];
-          	                                let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
-          	                                let array = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
-          	                                for(let child in item["children"]){
-          	                                    let selected;
-          	                                    try {
-          	                                        let s = array.indexOf(item["children"][child].value) != -1;
-          	                                        selected = s == true ? s : respInit == null ? item["children"][child].selected : response[item["name"]]["children"][line.title][child]["selected"];
-          	                                    }
-          	                                    catch(e){   
-          	                                    }   
-          	                                    formSubmit[item["name"]].children[line.title].push({"value": item["children"][child].value, "selected": selected});
-          	                                }
-          	                            }
-          	                        }
-          	                        
-          	                };
-          	                }
-          	                catch(e){
-          	                    page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
-          	                }
-          	                
-          	            }
-          	
-          				
-          				
-          				const fillFunctionsToBeCalledFromObjectThatHaveToCallFunc = (ObjectThatHaveToCallFunc, funcTocall) : void =>{
-          					if(ObjectThatHaveToCallFunc!= undefined && ObjectThatHaveToCallFunc.length > 0){
-          						let onlyUnique = (value, index, self)=> {
-          						  return self.indexOf(value) === index;
-          						}
-          						var unique = ObjectThatHaveToCallFunc.filter(onlyUnique);
-          						unique.forEach((x)=>{
-          							if(page.local.functionsToBeCalled[x] == undefined){
-          									page.local.functionsToBeCalled[x] = [];
-          								}
-          								page.local.functionsToBeCalled[x].push(funcTocall);
-          						});
-          					}
-          				}
-          				
-          				const fillSources = (list, redList, formSubmit) => {
-          					try  {
-          	                    for(let item of list){
-          	                        if(item["type"] == "ion-card"){
-          	                            fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
-          	                        }
-          							else if(item["config"]["sourceEnabled"] == true || item.sources){
-          								if(item["type"] == "text"){
-          								}
-          								else if(item["type"] == "location"){
-          	                            }
-          	                            else if(item["type"] == "checkbox"){
-          	                            }
-          								else if(item.type == "grid"){
-          									page.local.sourceValue[item.name] = {colDef:[], data:[]};
-          									let sources: any = page["searchForSources"](item, "sources", true);
-          									let findName = sources.findName;
-          									let findVars = sources.findVars;
-          									let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
-          									
-          									if(findName != ""){
-          										let showOverlay = undefined;
-          										let dismissOverlay = ()=>{};
-          										let funcTocall = ()=>{
-          											if(showOverlay == undefined){
-          												for(let grid of page["all_agGrid"][''_results'']){
-          													if(grid._nativeElement.id == item.id+""){
-          														grid.api.showLoadingOverlay();
-          														showOverlay = ()=>{
-          															grid.api.showLoadingOverlay();
-          															dismissOverlay = ()=>{
-          																grid.api.hideOverlay();
-          															};
-          														}
-          													}
-          								            	}
-          											}
-          											else{
-          												showOverlay();
-          											}
-          											page.local.updating[item.id] = 0;
-          											let variables = {};
-          											page["computeVariable"](findVars, variables, item);
-          											page.c8o.callJsonObject(findName, variables)
-          											.then((res: any) =>{
-          	                                            // find Colomn definitions
-          												if(res.data != undefined && res.data.length > 0){
-          													let colDef = 
-          													Object.keys(res.data[0]).map((y)=>{
-          														let current = res.data[0];
-          														let obj = {"editable": false};
-          														// if cell is an object, and has a type html
-          														if(current[y].type == "html"){
-          															// if cell has a specified name then take it
-          															if(current[y].name != undefined){
-          																obj["field"] = current[y].name;
-          															}
-          															// else take key name
-          															else{
-          																obj["field"] = y;
-          															}
-          															// create a cell renderer to have innerHTML
-          															let HTMLCellRenderer = function HTMLCellRenderer () {};
-          															HTMLCellRenderer.prototype.init = function(params) {
-          																try{
-          																	this.eGui = document.createElement(''div'');																			
-          																	this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted: params.value;
-          																}
-          																catch(e){
-          																	this.eGui.innerHTML = "<p>ko<p>"
-          																}
-          																
-          															}
-          															HTMLCellRenderer.prototype.getGui = function() {
-          															    return this.eGui;
-          															};
-          															HTMLCellRenderer.prototype.refresh = function(params) {
-          																this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
-          																return true;
-          															}
-          															obj["cellRenderer"] = HTMLCellRenderer;
-          														}
-          														else{
-          															obj["field"] = y;
-          														}
-          														return obj;
-          													});
-          													// find data
-          													let data = res.data.map((x)=>{
-          														try{
-          															Object.keys(x).forEach((y)=>{
-          																if(typeof(x[y]) !== "string"){
-          																	if(x[y].name != undefined){
-          																		x[x[y].name] = x[y].value;
-          																		delete x[y];
-          																	}
-          																	else{
-          																		x[y] = x[y].value;
-          																	}
-          																}
-          															});
-          															return x;
-          														}
-          														catch(e){
-          															return x;
-          														}
-          													})
-          													page.local.sourceValue[item.name]["colDef"] = colDef;
-          													page.local.sourceValue[item.name]["data"] = data;
-          													// in case of user wants all data to be returned to response
-          													if(item.config.returned_value === "all_the_data"){
-          														formSubmit[item.name]["value"] = data;
-          													}
-          													page.local.updating[item.id] = 1;
-          													dismissOverlay();
-          												}
-          												else{
-          													page.local.sourceValue[item["name"]]["data"] = [];
-          												}
-          												
-          	                                            return null;
-          	                                        })
-          	                                        .fail((err)=>{
-          												dismissOverlay();
-          	                                            page.c8o.log.error("an error occured while trying to laod source for  select", err);	
-          												page.local.updating[item.id] = 2;
-          	                                        })
-          										};
-          										fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
-          										funcTocall();
-          	                                }
-          									
-          								}
-          	                            else if(item["type"] == "radio" || item["type"] == "select"){
-          									// if item is sourced
-          									if(item["type"] == "select"){
-          										let sources: any = page["searchForSources"](item, "sources", true);
-          										let findName = sources.findName;
-          										let findVars = sources.findVars;
-          										let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
-          									
-          										if(findName != ""){
-          											let funcTocall = ()=>{
-          												let funcId = new Date().getTime();
-          												page.local.doing[item.id] = funcId;
-          												page.local.updating[item.id] = 0;
-          												let variables = {};
-          												page["computeVariable"](findVars, variables, item);
-          												page.c8o.callJsonObject(findName,variables)
-          												.then((res: any) =>{
-          													let defaultSelected ="";
-          													// if we are still the latest request for this object
-          													if(funcId == page.local.doing[item.id]){
-          														// find Colomn definitions
-          														let urlParams = page.local.urlParams.get(item["name"]);
-          														if(page["formsSubmit"][item.name] != undefined && page["formsSubmit"][item.name].children != undefined && page["formsSubmit"][item.name].children.length > 0){
-          															const tmp = page["formsSubmit"][item.name].children.filter(x=> x.selected == true);
-          															if(tmp != undefined && tmp.length > 0){
-          																urlParams = tmp[0].value
-          															}
-          														}
-          														formSubmit[item["name"]]["children"] = [];
-          	                                                    
-          														let array = [];
-          														if(!(res["value"] == undefined)){
-          											                if(typeof(res["value"]) == "string"){
-          											                    array.push(res["value"]);
-          											                }
-          											                else{
-          											                    for(let child of res["value"]){
-          											                        array.push(child);
-          											                    }
-          											                }
-          											            }
-          	                                                    for(let child of array){
-          	                                                        if(child == urlParams){
-          	                                                            defaultSelected = child;
-          	                                                        }
-          	                                                        formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
-          	                                                    }
-          	                                                    formSubmit[item["name"]]["value"] = defaultSelected;
-          														page.local.sourceValue[item.name] = array;
-          														page.local.updating[item.id] = 1;
-          													}
-          													formSubmit[item["name"]]["value"] = defaultSelected;
-          	                                                return null;
-          	                                            })
-          	                                            .fail((err)=>{
-          	                                                page.c8o.log.error("an error occured while trying to laod source for  select", err);
-          													// if we are still the latest request for this object
-          													if(funcId == page.local.doing[item.id]){
-          														page.local.updating[item.id] = 2;
-          													}
-          	                                            })
-          											};
-          											fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
-          											funcTocall();
-          	                                    }
-          									}
-          	                            }
-          	                            else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
-          	                            }
-          	                            else if(item["type"] == "radio_group"){
-          	                            }
-          	                            else if(item["type"] == "checkbox_group"){
-          	                            }	
-          							}   
-          	                	}
-          	                }
-          	                catch(e){
-          	                    page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
-          	                }
-          				}
-          				const fillActionsVars = (list)=>{
-          					for(let elem of list){
-          						if(elem["type"] == "business_logic"){
-          							 page["actions"][elem["name"]] = {"name":elem["name"], "type": elem["type"], "value":""};
-          	
-          						}
-          					}
-          				}
-          				const fillActions = (list, redList, formSubmit) => {
-          					try  {
-          	                    for(let item of list){
-          							if(item["type"] == "business_logic"){
-          									let sources: any = page["searchForSources"](item, "sources", true);
-          									let findName = sources.findName;
-          									let findVars = sources.findVars;
-          									let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
-          									let variables = {};
-          									let funcTocall = ()=>{
-          										page["computeVariable"](findVars, variables, item);
-          										page["actions"][item["name"]]["value"] = variables["selfVar"];
-          										try{
-          											if(page.local["processingDataS"] == undefined){
-          												page.local["processingDataS"] = {};
-          											}
-          											
-          											if(page.local.functionsToBeCalled[item.id] != undefined){
-          												if(page.local["processingDataS"][item.id] != undefined){
-          													try{
-          														clearTimeout(page.local["processingDataS"][item.id]);
-          													}
-          													catch(e){
-          														
-          													}
-          												}
-          												page.local["processingDataS"][item.id] = setTimeout(()=>{
-          													page.local.functionsToBeCalled[item.id]
-          													.forEach((func)=>{
-          														func();
-          													})
-          												}, 200)
-          												
-          											}
-          										}
-          										catch(e){
-          											page.c8o.log.error("Error while trying to refresh a data source", e);
-          										}
-          									}
-          									fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
-          									funcTocall();
-          							}
-          						}
-          					}
-          					catch(e){
-          						
-          					}
-          					
-          								
+          				// if we have reloaded the form charge again the currents values
+          				if(!isInitial){
+          					respInit = {...page["formsSubmit"]};
           				}
           				// calling fillFormSubmit
-          	            fillFormSubmit(page["formsList"], page["redList"], page["formsSubmit"], respInit); 
+          	            page["fillFormSubmit"](response.rows[0].value.doc.formulaire, page["redList"], page["formsSubmit"], respInit);
+          				// then affetct value of form
+          				page["formsList"] = page["form"]["formulaire"];
+          				page.tick();
+          				
+          				//page.ref.markForCheck()
           				// calling fillActionsVars
-          				fillActionsVars(page["form"]["actions"])
+          				page["fillActionsVars"](page["form"]["actions"])
           				// calling fillSources
-          				fillSources(page["formsList"], page["redList"], page["formsSubmit"]); 
+          				page["fillSources"](page["formsList"], page["redList"], page["formsSubmit"]); 
           				// calling fillActions
-          				fillActions(page["form"]["actions"], null, null)
+          				page["fillActions"](page["form"]["actions"], null, null)
           	            // check conditions
           				page["checkForAnyCondition"]();
+          				
+          				
           	            
           	            // do stuff to support upload files
           	            if(page.global["__C8O_TODELETE"] == undefined){
@@ -587,6 +202,13 @@
               - ↑value: js-sha256
             - java.lang.String: 
               - ↑value: 0.9.0
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: lodash
+            - java.lang.String: 
+              - ↑value: 4.17.20
   page_ts_imports: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -612,6 +234,13 @@
               - ↑value: sha256
             - java.lang.String: 
               - ↑value: js-sha256
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: '* as _'
+            - java.lang.String: 
+              - ↑value: lodash
   ↓Failure_Handler [mobile.components.UIActionFailureEvent-1574090792916]: 
     ↓IfElse [mobile.components.UIDynamicIf-1604420874457]: 
       beanData: '{"ionBean":"IfElseAction","condition":"script:this.global.pwa == true"}'
