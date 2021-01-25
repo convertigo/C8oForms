@@ -158,31 +158,41 @@ scriptContent:
                             }
                         }
         				else if(item.type == "grid"){
-        					let value = response != undefined && response[item["name"]] != undefined ? response[item["name"]] : {};
+        					let value = response != undefined && response[item["name"]] != undefined  && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : {};
         					formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
         				}
                         else if(item["type"] == "radio" || item["type"] == "select"){
+        					if(response != undefined && response[item.name] != undefined){
+        						
+        					} 
                             formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
                             
         					// search for default values in urlParams
         					let urlParams = page.local.urlParams.get(item["name"]);
                             let indexFinded = false;
                             let defaultSelected = "";
-        
-        					for(let child in item["children"]){
-        						let selected: boolean = false;
-        						let useResponse = response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] && response[item["name"]]["children"][child]["selected"] != undefined;
-                                try {
-                                    selected =  useResponse ? response[item["name"]]["children"][child]["selected"] : urlParams != undefined ? item["children"][child]["value"] == urlParams : item["children"][child].selected;
-                                    if(selected){
-                                        defaultSelected = item["children"][child].value;
-                                    }
-                                }
-                                catch(e){
-                                    console.error("catch4", e);
-                                }
-        						formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
-        					}						
+        					if(!item.config.sourceEnabled){
+        						for(let child in item["children"]){
+        							let selected: boolean = false;
+        							let useResponse = response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] && response[item["name"]]["children"][child]["selected"] != undefined;
+        	                        try {
+        	                            selected =  useResponse ? response[item["name"]]["children"][child]["selected"] : urlParams != undefined ? item["children"][child]["value"] == urlParams : item["children"][child].selected;
+        	                            if(selected){
+        	                                defaultSelected = item["children"][child].value;
+        	                            }
+        	                        }
+        	                        catch(e){
+        	                            console.error("catch4", e);
+        	                        }
+        							formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
+        						}
+        					}
+        					else{
+        						defaultSelected = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : "";
+        						if(response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"]!= undefined){
+        							formSubmit[item["name"]]["children"] = response[item["name"]]["children"];
+        						}
+        					}					
         					// assign value
                             formSubmit[item["name"]]["value"] = defaultSelected; 
                         }
@@ -285,6 +295,7 @@ scriptContent:
         								page.c8o.log.error("Error while trying to refresh a data source", e);
         							}
         						}
+        						funcTocall();
         						this.fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         				}
         			}
@@ -311,12 +322,12 @@ scriptContent:
         		}
         	}
         	
-        	public fillSources(list, redList, formSubmit): void{
+        	public fillSources(list, redList, formSubmit, response = null): void{
         		let page = this;
         		try  {
                     for(let item of list){
                         if(item["type"] == "ion-card"){
-                            this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
+                            this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"],response[item["name"]]);
                         }
         				else if(item["config"]["sourceEnabled"] == true || item.sources){
         					if(item["type"] == "text"){
