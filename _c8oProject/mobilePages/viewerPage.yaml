@@ -66,7 +66,8 @@ scriptContent:
             public cptDelete = 0;
             public loading;
             public creating;
-            
+            public functionsById = {};
+        	public previousAndPostFunctions = {};
             
             
             /*End_c8o_PageDeclaration*/
@@ -100,6 +101,28 @@ scriptContent:
                 this.local.camSignFieldGoToPage = {img: true, signature:true};
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	
+        	/**
+        		Shows a grid overlay with its given id in arg
+        	 */
+        	public showGridOverlayById(id){
+        		for(let grid of this["all_agGrid"][''_results'']){
+        			if(grid._nativeElement.id == id+""){
+        				grid.api.showLoadingOverlay();
+        			}
+        		}						
+        	}
+        	/**
+        		Hide a grid overlay with its given id in arg
+        	 */
+        	public hideGridOverlayById(id){
+        		for(let grid of this["all_agGrid"][''_results'']){
+        			if(grid._nativeElement.id == id+""){
+        				grid.api.hideOverlay();
+        			}
+        		}
+        	}
+        	
         	public fillFormSubmit(list, redList, formSubmit, response): void {
         		let page = this;
                 page.local.subKeyD = page.local.urlParams.get("_c8o_subkey");
@@ -263,11 +286,14 @@ scriptContent:
         						let findName = sources.findName;
         						let findVars = sources.findVars;
         						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        						let sha = sources.sha;
         						let variables = {};
-        						let funcTocall = ()=>{
+        						this.functionsById[sha] = ()=>{
         							page["computeVariable"](findVars, variables, item);
-        							page["actions"][item["name"]]["value"] = variables["selfVar"];
-        							try{
+        							// if value has changed update it and call functions
+        							if(page["actions"][item["name"]]["value"] != variables["selfVar"]){ 
+        								page["actions"][item["name"]]["value"] = variables["selfVar"];
+        								try{
         								if(page.local["processingDataS"] == undefined){
         									page.local["processingDataS"] = {};
         								}
@@ -283,8 +309,8 @@ scriptContent:
         									}
         									page.local["processingDataS"][item.id] = setTimeout(()=>{
         										page.local.functionsToBeCalled[item.id]
-        										.forEach((func)=>{
-        											func();
+        										.forEach((id)=>{
+        											page["functionsById"][id](); 
         										})
         									}, 200)
         									
@@ -294,9 +320,12 @@ scriptContent:
         								console.error("catch10", e);
         								page.c8o.log.error("Error while trying to refresh a data source", e);
         							}
+        							}
+        							
         						}
-        						funcTocall();
-        						this.fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        						//funcTocall();
+        						this.functionsById[sha](); 
+        						this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         				}
         			}
         		}
@@ -322,56 +351,97 @@ scriptContent:
         		}
         	}
         	
-        	public fillSources(list, redList, formSubmit): void{
+        	public fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, id) : void{
         		let page = this;
+        		if(ObjectThatHaveToCallFunc!= undefined && ObjectThatHaveToCallFunc.length > 0){
+        			let onlyUnique = (value, index, self)=> {
+        			  return self.indexOf(value) === index;
+        			}
+        			var unique = ObjectThatHaveToCallFunc.filter(onlyUnique);
+        			unique.forEach((x)=>{
+        				if(page.local.functionsToBeCalled[x] == undefined){
+        						page.local.functionsToBeCalled[x] = [];
+        				}
+        				if(page.local.functionsToBeCalled[x].indexOf(id) == -1){
+        					page.local.functionsToBeCalled[x].push(id);
+        				}
+        				
+        			});
+        		}
+        	}
+        	public fillSources(list, redList, formSubmit): Array<string>{
+        		let page = this;
+        		let idsToCall: Array<string> = [];
         		try  {
                     for(let item of list){
                         if(item["type"] == "ion-card"){
-                            this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
+                            idsToCall.concat(this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]));
                         }
         				else if(item["config"]["sourceEnabled"] == true || item.sources){
-        					if(item["type"] == "text"){
-        					}
-        					else if(item["type"] == "location"){
-                            }
-                            else if(item["type"] == "checkbox"){
-                            }
-        					else if(item.type == "grid"){
-        						if(page.local.sourceValue[item.name] == undefined){
-        							page.local.sourceValue[item.name] = {colDef:[], data:[]};
-        						}
-        						//page.local.sourceValue[item.name] = {colDef:[], data:[]};
-        						let sources: any = page["searchForSources"](item, "sources", true);
-        						let findName = sources.findName;
+        					//search source name and params
+        					let sources: any = page["searchForSources"](item, "sources", true);
+        					let findName = sources.findName;
+        					// if there is a sequence founded
+        					if(findName != ""){
         						let findVars = sources.findVars;
+        						// find objects that have to call this functions
         						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
-        						
-        						if(findName != ""){
-        							let showOverlay = undefined;
-        							let dismissOverlay = ()=>{};
-        							let funcTocall = ()=>{
-        								if(showOverlay == undefined){
-        									for(let grid of page["all_agGrid"][''_results'']){
-        										if(grid._nativeElement.id == item.id+""){
-        											grid.api.showLoadingOverlay();
-        											showOverlay = ()=>{
-        												grid.api.showLoadingOverlay();
-        												dismissOverlay = ()=>{
-        													grid.api.hideOverlay();
-        												};
-        											}
-        										}
-        					            	}
-        								}
-        								else{
-        									showOverlay();
-        								}
-        								page.local.updating[item.id] = 0;
+        						// unique hash for this sequence with thoses parameters
+        						let sha = sources.sha;
+        						// in case of object select we can''t factorize beacause of filter param
+        						if(item.type == "select"){
+        							sha +=item.id;
+        						}
+        						let postFunc, failFunc, prevFunc: any;
+        						// if this sequence withn thoses parameters has not been founded yet add it
+        						if(this.functionsById[sha] == undefined){ 
+        							idsToCall.push(sha);
+        							this.functionsById[sha] = ()=>{
+        								// call preload functions
+        								//...
+        								this.previousAndPostFunctions[sha].previous.forEach((func)=>{
+        									func();
+        								})
         								let variables = {};
         								page["computeVariable"](findVars, variables, item);
-        								page.c8o.callJsonObject(findName, variables)
+        								/*
+        								let params = {[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.LOCAL, 3.154e+10)}
+        								page.c8o.callJsonObject(findName, {...variables, ...params})
+        								*/
+        								page.c8o.callJsonObject(findName,variables)
         								.then((res: any) =>{
-                                            // find Colomn definitions
+        									// call post load functions
+        									//...
+        									this.previousAndPostFunctions[sha].post.forEach((func)=>{
+        										let res2 = {...res};
+        										func(res2);  
+        									})
+        									return null;
+        								})
+        								.fail((err)=>{
+        									// call fail functions
+        									//...
+        									this.previousAndPostFunctions[sha].fail.forEach((func)=>{
+        										let err2 = {...err};
+        										func(err2);
+        									})
+        								})
+        							}
+        							// has we now parameters, we not each object that have to call this sequence do it once
+        							this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
+        						}
+        						if(item.type == "grid"){
+        							if(page.local.sourceValue[item.name] == undefined){
+        								page.local.sourceValue[item.name] = {colDef:[], data:[]};
+        							}							
+        							// preload function for grid
+        							prevFunc = ()=>{
+        								this.showGridOverlayById(item.id);
+        								page.local.updating[item.id] = 0;
+        							}
+        							// postload function for grid
+        							postFunc = (res)=>{
+        								// find Colomn definitions
         									if(res.data != undefined && res.data.length > 0){
         										let colDef = 
         										Object.keys(res.data[0]).map((y)=>{
@@ -416,18 +486,20 @@ scriptContent:
         										// find data
         										let data = res.data.map((x)=>{
         											try{
+        												var z = {...x};
         												Object.keys(x).forEach((y)=>{
-        													if(typeof(x[y]) !== "string"){
-        														if(x[y].name != undefined){
-        															x[x[y].name] = x[y].value;
-        															delete x[y];
+        													
+        													if(typeof(z[y]) !== "string"){
+        														if(z[y].name != undefined){
+        															z[z[y].name] = z[y].value;
+        															delete z[y];
         														}
         														else{
-        															x[y] = x[y].value;
+        															z[y] = z[y].value;
         														}
         													}
         												});
-        												return x;
+        												return z;
         											}
         											catch(e){
         												console.error("catch7", e);
@@ -441,104 +513,78 @@ scriptContent:
         											formSubmit[item.name]["value"] = data;
         										}
         										page.local.updating[item.id] = 1;
-        										dismissOverlay();
+        										this.hideGridOverlayById(item.id);
         									}
-        									else{
-        										page.local.sourceValue[item["name"]]["data"] = [];
-        									}
-        									
-                                            return null;
-                                        })
-                                        .fail((err)=>{
-        									dismissOverlay();
-                                            page.c8o.log.error("an error occured while trying to laod source for  select", err);	
-        									page.local.updating[item.id] = 2;
-                                        })
-        							};
-        							this.fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
-        							funcTocall();
-                                }
-        						
-        					}
-                            else if(item["type"] == "radio" || item["type"] == "select"){
-        						// if item is sourced
-        						if(item["type"] == "select"){
-        							let sources: any = page["searchForSources"](item, "sources", true);
-        							let findName = sources.findName;
-        							let findVars = sources.findVars;
-        							let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
-        						
-        							if(findName != ""){
-        								let funcTocall = ()=>{
-        									let funcId = new Date().getTime();
-        									page.local.doing[item.id] = funcId;
-        									page.local.updating[item.id] = 0;
-        									let variables = {};
-        									page["computeVariable"](findVars, variables, item);
-        									page.c8o.callJsonObject(findName,variables)
-        									.then((res: any) =>{
-        										let defaultSelected ="";
-        										// if we are still the latest request for this object
-        										if(funcId == page.local.doing[item.id]){
-        											// find Colomn definitions
-        											let urlParams = page.local.urlParams.get(item["name"]);
-        											if(page["formsSubmit"][item.name] != undefined && page["formsSubmit"][item.name].children != undefined && page["formsSubmit"][item.name].children.length > 0){
-        												const tmp = page["formsSubmit"][item.name].children.filter(x=> x.selected == true);
-        												if(tmp != undefined && tmp.length > 0){
-        													urlParams = tmp[0].value
-        												}
-        											}
-        											formSubmit[item["name"]]["children"] = [];
-                                                    
-        											let array = [];
-        											if(!(res["value"] == undefined)){
-        								                if(typeof(res["value"]) == "string"){
-        								                    array.push(res["value"]);
-        								                }
-        								                else{
-        								                    for(let child of res["value"]){
-        								                        array.push(child);
-        								                    }
-        								                }
-        								            }
-                                                    for(let child of array){
-                                                        if(child == urlParams){
-                                                            defaultSelected = child;
-                                                        }
-                                                        formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
-                                                    }
-                                                    formSubmit[item["name"]]["value"] = defaultSelected;
-        											page.local.sourceValue[item.name] = array;
-        											page.local.updating[item.id] = 1;
-        										}
-        										formSubmit[item["name"]]["value"] = defaultSelected;
-                                                return null;
-                                            })
-                                            .fail((err)=>{
-                                                page.c8o.log.error("an error occured while trying to laod source for  select", err);
-        										// if we are still the latest request for this object
-        										if(funcId == page.local.doing[item.id]){
-        											page.local.updating[item.id] = 2;
-        										}
-                                            })
-        								};
-        								this.fillFunctionsToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
-        								funcTocall();
-                                    }
+        							}
+        							// fail function for grid
+        							failFunc = (err)=>{
+        								this.hideGridOverlayById(item.id);
+                                        page.c8o.log.error("an error occured while trying to laod source for a grid", err);	
+        								page.local.updating[item.id] = 2;
+        							}							
         						}
-                            }
-                            else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
-                            }
-                            else if(item["type"] == "radio_group"){
-                            }
-                            else if(item["type"] == "checkbox_group"){
-                            }	
-        				}   
+        	                    else if(item["type"] == "select"){
+        							// preload function for select
+        							prevFunc = ()=>{
+        								page.local.updating[item.id] = 0;
+        							}
+        							// postload function for select
+        							postFunc = (res)=>{
+        								let defaultSelected ="";
+        								// find Colomn definitions
+        								let urlParams = page.local.urlParams.get(item["name"]);
+        								if(page["formsSubmit"][item.name] != undefined && page["formsSubmit"][item.name].children != undefined && page["formsSubmit"][item.name].children.length > 0){
+        									const tmp = page["formsSubmit"][item.name].children.filter(x=> x.selected == true);
+        									if(tmp != undefined && tmp.length > 0){
+        										urlParams = tmp[0].value
+        									}
+        								}
+        								formSubmit[item["name"]]["children"] = [];
+                                        
+        								let array = [];
+        								if(!(res["value"] == undefined)){
+        					                if(typeof(res["value"]) == "string"){
+        					                    array.push(res["value"]);
+        					                }
+        					                else{
+        					                    for(let child of res["value"]){
+        					                        array.push(child);
+        					                    }
+        					                }
+        					            }
+                                        for(let child of array){
+                                            if(child == urlParams){
+                                                defaultSelected = child;
+                                            }
+                                            formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
+                                        }
+                                        formSubmit[item["name"]]["value"] = defaultSelected;
+        								page.local.sourceValue[item.name] = array;
+        								page.local.updating[item.id] = 1;
+        								
+        								formSubmit[item["name"]]["value"] = defaultSelected;
+        							}
+        							// fail function for grid
+        							failFunc = (err)=>{
+                                        page.c8o.log.error("an error occured while trying to laod source for a select", err);	
+        								page.local.updating[item.id] = 2;
+        							}
+        	                    }
+        						// register previous and post functions for this sequence
+        						if(this.previousAndPostFunctions[sha] == undefined){
+        							this.previousAndPostFunctions[sha] = {previous: [], post: [], fail:[]}
+        						}
+        						this.previousAndPostFunctions[sha].previous.push(prevFunc);
+        						this.previousAndPostFunctions[sha].post.push(postFunc);
+        						this.previousAndPostFunctions[sha].fail.push(failFunc);   
+        					}  
+        				} 
                 	}
                 }
                 catch(e){
                     page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
                 }
+        		return idsToCall; 
         	}
         	
         	public searchForSources (item, path, isSource = true) : Object {
@@ -553,6 +599,7 @@ scriptContent:
                       findName = w;
                     }
                 }
+        		const sha = sha256(JSON.stringify(findName) + JSON.stringify(findVars));
         		const regex = /[$$]{2}\w+[$$]{2}/gm
         		for(let va in findVars){
         			if(isSource && va == "forms_filter"){
@@ -592,7 +639,7 @@ scriptContent:
                         }
         			}
         		}
-        		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc }
+        		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha }
         	}
         	
         	public fillActionsVars(list): void {
@@ -1938,6 +1985,42 @@ title: Visualisateur
             		        resolve(false);
             		    }		
             
+    package_dependencies: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: js-sha256
+              - java.lang.String: 
+                - ↑value: 0.9.0
+    page_ts_imports: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: Priority
+              - java.lang.String: 
+                - ↑value: c8osdkangular
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: C8oLocalCache
+              - java.lang.String: 
+                - ↑value: c8osdkangular
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: sha256
+              - java.lang.String: 
+                - ↑value: js-sha256
     ↓ifFormIdIsDefined [mobile.components.UIDynamicIf-1570701884872]: 
       beanData: '{"ionBean":"IfElseAction"}'
       ↓IfEditingAResponse [mobile.components.UIDynamicIf-1572271164680]: 
