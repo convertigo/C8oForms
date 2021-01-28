@@ -450,55 +450,65 @@ scriptContent:
         										Object.keys(res.data[0]).map((y)=>{
         											let current = res.data[0];
         											let obj = {"editable": false};
-        											// if cell is an object, and has a type html
-        											if(current[y].type == "html"){
-        												// if cell has a specified name then take it
-        												if(current[y].name != undefined){
-        													obj["field"] = current[y].name;
+        											if(y != "__rowValue"){
+        												// if cell is an object, and has a type html
+        												if(current[y].type == "html"){
+        													// if cell has a specified name then take it
+        													if(current[y].displayName != undefined){
+        														obj["field"] = current[y].displayName;
+        													}		
+        													// else take key name
+        													else{
+        														obj["field"] = y;
+        													}
+        													// create a cell renderer to have innerHTML
+        													let HTMLCellRenderer = function HTMLCellRenderer () {};
+        													HTMLCellRenderer.prototype.init = function(params) {
+        														try{
+        															this.eGui = document.createElement(''div'');	
+        															// if displayValue field exists display it, if not display field value																		
+        															this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        														}
+        														catch(e){
+        															this.eGui.innerHTML = "<p>ko<p>"
+        														}
+        														
+        													}
+        													HTMLCellRenderer.prototype.getGui = function() {
+        													    return this.eGui;
+        													};
+        													HTMLCellRenderer.prototype.refresh = function(params) {
+        														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        														return true;
+        													}
+        													obj["cellRenderer"] = HTMLCellRenderer;
         												}
-        												// else take key name
         												else{
         													obj["field"] = y;
         												}
-        												// create a cell renderer to have innerHTML
-        												let HTMLCellRenderer = function HTMLCellRenderer () {};
-        												HTMLCellRenderer.prototype.init = function(params) {
-        													try{
-        														this.eGui = document.createElement(''div'');																			
-        														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted: params.value;
-        													}
-        													catch(e){
-        														this.eGui.innerHTML = "<p>ko<p>"
-        													}
-        													
-        												}
-        												HTMLCellRenderer.prototype.getGui = function() {
-        												    return this.eGui;
-        												};
-        												HTMLCellRenderer.prototype.refresh = function(params) {
-        													this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
-        													return true;
-        												}
-        												obj["cellRenderer"] = HTMLCellRenderer;
+        												return obj;
         											}
         											else{
+        												obj["hide"] = true;
         												obj["field"] = y;
+        												return obj;  
         											}
-        											return obj;
         										});
+        										/*
         										// find data
         										let data = res.data.map((x)=>{
         											try{
-        												var z = {...x};
-        												Object.keys(x).forEach((y)=>{
+        												// foreach col (z)
+        												var col = {...x};
+        												Object.keys(col).forEach((y)=>{
         													
-        													if(typeof(z[y]) !== "string"){
-        														if(z[y].name != undefined){
-        															z[z[y].name] = z[y].value;
-        															delete z[y];
+        													if(typeof(col[y]) !== "string"){
+        														if(col[y].name != undefined){
+        															col[col[y].name] = z[y].value;
+        															delete col[y];
         														}
         														else{
-        															z[y] = z[y].value;
+        															col[y] = z[y].value;
         														}
         													}
         												});
@@ -508,12 +518,37 @@ scriptContent:
         												console.error("catch7", e);
         												return x;
         											}
+        										})*/
+        										
+        										// foreach row
+        										let data = res.data.map((x)=>{
+        											var row = {...x};
+        											// foreach col
+        											Object.keys(row).forEach((col)=>{
+        												// if col is not a simple string
+        												if(typeof(row[col]) !== "string"){
+        													// if there is a displayColName
+        													if(row[col].displayName != undefined){
+        														// rename the col name
+        														row[row[col].displayName] = row[col];
+        														// save the technical name
+        														row[row[col].displayName].technicalName = col;
+        														// delete the usless col;
+        														delete row[col];
+        													}
+        													else{
+        														// save the technical name (same as its name)
+        														row[col].technicalName = col;
+        													}
+        												}
+        											});
+        											return row;
         										})
         										page.local.sourceValue[item.name]["colDef"] = colDef;
         										page.local.sourceValue[item.name]["data"] = data;
         										// in case of user wants all data to be returned to response
         										if(item.config.returned_value === "all_the_data"){
-        											formSubmit[item.name]["value"] = data;
+        											formSubmit[item.name]["value"] = res.data;
         										}
         										page.local.updating[item.id] = 1;
         										this.hideGridOverlayById(item.id);
