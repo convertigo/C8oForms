@@ -281,7 +281,7 @@ scriptContent:
                 }
         	}
         	
-        	public fillActions(list): void{
+        	public async fillActions(list): Promise<void> {
         		let page = this;
         		try  {
                     for(let item of list){
@@ -292,38 +292,38 @@ scriptContent:
         						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
         						let sha = sources.sha;
         						let variables = {};
-        						this.functionsById[sha] = ()=>{
-        							page["computeVariable"](findVars, variables, item);
+        						this.functionsById[sha] = async ()=>{
+        							await page["computeVariable"](findVars, variables, item);
         							// if value has changed update it and call functions
         							if(page["actions"][item["name"]]["value"] != variables["selfVar"]){ 
         								page["actions"][item["name"]]["value"] = variables["selfVar"];
         								try{
-        								if(page.local["processingDataS"] == undefined){
-        									page.local["processingDataS"] = {};
-        								}
-        								
-        								if(page.local.functionsToBeCalled[item.id] != undefined){
-        									if(page.local["processingDataS"][item.id] != undefined){
-        										try{
-        											clearTimeout(page.local["processingDataS"][item.id]);
-        										}
-        										catch(e){
-        											console.error("catch9", e);
-        										}
+        									if(page.local["processingDataS"] == undefined){
+        										page.local["processingDataS"] = {};
         									}
-        									page.local["processingDataS"][item.id] = setTimeout(()=>{
-        										page.local.functionsToBeCalled[item.id]
-        										.forEach((id)=>{
-        											page["functionsById"][id](); 
-        										})
-        									}, 200)
         									
+        									if(page.local.functionsToBeCalled[item.id] != undefined){
+        										if(page.local["processingDataS"][item.id] != undefined){
+        											try{
+        												clearTimeout(page.local["processingDataS"][item.id]);
+        											}
+        											catch(e){
+        												console.error("catch9", e);
+        											}
+        										}
+        										page.local["processingDataS"][item.id] = setTimeout(()=>{
+        											page.local.functionsToBeCalled[item.id]
+        											.forEach((id)=>{
+        												page["functionsById"][id](); 
+        											})
+        										}, 200)
+        										
+        									}
         								}
-        							}
-        							catch(e){
-        								console.error("catch10", e);
-        								page.c8o.log.error("Error while trying to refresh a data source", e);
-        							}
+        								catch(e){
+        									console.error("catch10", e);
+        									page.c8o.log.error("Error while trying to refresh a data source", e);
+        								}
         							}
         							
         						}
@@ -400,14 +400,14 @@ scriptContent:
         						// if this sequence withn thoses parameters has not been founded yet add it
         						if(this.functionsById[sha] == undefined){ 
         							idsToCall.push(sha);
-        							this.functionsById[sha] = ()=>{
+        							this.functionsById[sha] = async ()=>{
         								// call preload functions
         								//...
         								this.previousAndPostFunctions[sha].previous.forEach((func)=>{
         									func();
         								})
         								let variables = {};
-        								page["computeVariable"](findVars, variables, item);
+        								await page["computeVariable"](findVars, variables, item);
         								/*
         								let params = {[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.LOCAL, 3.154e+10)}
         								page.c8o.callJsonObject(findName, {...variables, ...params})
@@ -690,22 +690,158 @@ scriptContent:
         			}
         		}
         	}
-        	public computeVariable(findVars, variables, item) : void {
+        	public async computeVariable(findVars, variables, item) : Promise<boolean> {
         		let page = this;
         		for(let va in findVars){
         			try{
-        				variables[va] = eval(findVars[va]);
+        				variables[va] = await this.safeEval(findVars[va])//eval(findVars[va]);
         				if(variables[va] == undefined || variables[va] == "undefined"){
         					delete variables[va];
         				}
         			}
         			catch(e){
-        				this.c8o.log.warn("An error occured while computing variables for "+item.name+" data sources, maybe the source has still not been created");
+        				this.c8o.log.warn("An error occured while computing variables for "+item.name+" data sources, maybe the source has still not been created", e);
         				delete variables[va];
         			}
         			
         		}
+        		return true;
         	}
+        	
+        	public async safeEval(untrustedCode): Promise<any>{
+        		return new Promise((resolve, reject)=>{
+        			// declare main function
+        			var functionStringified = function () {
+        	            var _postMessage = postMessage;
+        	            var _addEventListener = addEventListener;
+        				//debugger;
+        				/* replace me */
+        	            (function (obj){
+        	                "use strict";
+        	                var current = obj;
+        	                var keepProperties = [
+        	                    // required
+        	                    ''Object'', ''Function'', ''Infinity'', ''NaN'', ''undefined'', ''caches'', ''TEMPORARY'', ''PERSISTENT'', 
+        	                    // optional, but trivial to get back
+        	                    ''Array'', ''Boolean'', ''Number'', ''String'', ''Symbol'',
+        	                    // optional
+        	                    ''Map'', ''Math'', ''Set'',
+        						// debug
+        						''console'', ''JSON''
+        	                ];
+        	
+        	                do {
+        	                    Object.getOwnPropertyNames(current).forEach(function (name) {
+        	                        if (keepProperties.indexOf(name) === -1) {
+        	                            delete current[name];
+        	                        }
+        	                    });
+        	
+        	                    current = Object.getPrototypeOf(current);
+        	                }
+        	                while (current !== Object.prototype);
+        	                })(this);
+        	
+        	            _addEventListener(''message'', function (e){
+        					debugger;
+        		            var f = new Function("page", "return (" + e.data.untrustedCode + "\n);");
+        					let result = f(e.data.page);
+        		            _postMessage(result);
+        	            });
+        			}.toString();
+        			
+        			// create a blob containg function
+        			var blobURL = URL.createObjectURL(new Blob(["(", functionStringified,")()"], {type: "application/javascript"}));
+        			
+        			//create a worker
+        			var worker = new Worker(blobURL);
+        	        URL.revokeObjectURL(blobURL);
+        			
+        			worker.onmessage = (evt) =>{
+        	            worker.terminate();
+        	            resolve(evt.data);
+        			};
+        	    
+        	        worker.onerror = (evt)=> {
+        				worker.terminate();
+        	            reject(new Error(evt.message));
+        	        };
+        	    
+        			// call it with arguments
+        			let _page = {"formsSubmit":this.formsSubmit, "actions": this.actions, "local": {pages:this.local.pages, currentIndex: this.local.currentIndex}}
+        	        worker.postMessage({untrustedCode: untrustedCode, "page":_page});//, "local": this.local}});
+        		});
+        	}
+        		/*return new Promise((resolve, reject)=>{
+        			 var blobURL = URL.createObjectURL(new Blob([
+                    "(",
+                    "function ()
+                        {
+                        var _postMessage = postMessage;
+                        var _addEventListener = addEventListener;
+        				debugger;
+        				var eeeh =''eeeh ohhh'';
+            
+                        (function (obj)
+                            {
+                            "use strict";
+            
+                            var current = obj;
+                            var keepProperties = [
+                                // required
+                                ''Object'', ''Function'', ''Infinity'', ''NaN'', ''undefined'', ''caches'', ''TEMPORARY'', ''PERSISTENT'', 
+                                // optional, but trivial to get back
+                                ''Array'', ''Boolean'', ''Number'', ''String'', ''Symbol'',
+                                // optional
+                                ''Map'', ''Math'', ''Set'',
+        						// debug
+        						''console''
+                            ];
+        
+                            do {
+                                Object.getOwnPropertyNames(current).forEach(function (name) {
+                                    if (keepProperties.indexOf(name) === -1) {
+                                        delete current[name];
+                                    }
+                                });
+        
+                                current = Object.getPrototypeOf(current);
+                            }
+                            while (current !== Object.prototype);
+                            })(this);
+            
+                        _addEventListener(''message'', function (e)
+                        {
+        				debugger;
+                        var f = new Function('''', ''return ('' + e.data + ''\n);'');
+                        _postMessage(f());
+                        });
+                        }",
+                    ")()"], {type: "application/javascript"}));
+        		var worker = new Worker(blobURL);
+            
+                URL.revokeObjectURL(blobURL);
+            
+                worker.onmessage = function (evt)
+                    {
+                    worker.terminate();
+                    resolve(evt.data);
+                    };
+            
+                worker.onerror = function (evt)
+                    {
+                    reject(new Error(evt.message));
+                    };
+            
+                worker.postMessage(untrustedCode);
+            
+                setTimeout(function () {
+                    worker.terminate();
+                    reject(new Error(''The worker timed out.''));
+                    }, 100000);
+        		});
+        		
+        	} */
         	
         	public toFixed(number: any, count: number){
         		let numb: Number = +number;
