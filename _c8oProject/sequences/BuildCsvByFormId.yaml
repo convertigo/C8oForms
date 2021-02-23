@@ -122,7 +122,6 @@ comment: Build responses csv from a document id, providing a name
     	for(var i = 0; i< arr.length; i++){
     		var item = context.addTextNode(node, "item", "");
     		for(var j = 0; j< arr[i].length; j++){
-    			log.warning("elem => key: " + arr[i][j]["key"]+" value: "+ arr[i][j]["value"]);
     			var elem = context.addTextNode(item, arr[i][j]["key"],arr[i][j]["value"]);			
     		}
     	}
@@ -181,12 +180,9 @@ comment: Build responses csv from a document id, providing a name
     					var regex = /[\n]/g;
     					var match1 = b.match(regex);
     					// search for separator to escape them with quotes
-    					if(seprator == ";"){
-    						var regex2 = /[;]/g;
-    					}
-    					else{
-    						var regex2 = /[,]/g;
-    					}
+    					var regex2 = /[;]/g;
+    					var regex2B = /[,]/g;
+    					
     					if(string_separator == ''"''){
     						var regex3 = /["]/g;
     						b = b.replace(regex3,''""'');
@@ -197,7 +193,8 @@ comment: Build responses csv from a document id, providing a name
     					}
     					b = b
     					var match2 = b.match(regex2);
-    					if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0)){
+    					var match2B = b.match(regex2B);
+    					if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0) || (match2B != undefined && match2B.length > 0)){
     						b = string_separator + b + string_separator;
     					}
     				}
@@ -214,7 +211,7 @@ comment: Build responses csv from a document id, providing a name
     					var offsetDiff = offset - offSetServer;
     					var timeStamp = +b + offsetDiff;
     					var date = new Date(+timeStamp);
-    					var year = date.getFullYear();
+    					/*var year = date.getFullYear();
     					var month = (date.getMonth() + 1).toString();
     					var formatedMonth = (month.length === 1) ? ("0" + month) : month;
     					var day = date.getDate().toString();
@@ -225,7 +222,8 @@ comment: Build responses csv from a document id, providing a name
     					var formatedMinute = (minute.length === 1) ? ("0" + minute) : minute;
     					var second = date.getSeconds().toString();
     					var formatedSecond = (second.length === 1) ? ("0" + second) : second;
-    		            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;
+    		            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;*/
+    					var b = date;
     				}
     				catch(e) {
     					log.warning("Error while trying to set horodateur " + JSON.stringify(e))
@@ -237,7 +235,6 @@ comment: Build responses csv from a document id, providing a name
                 if(uniquesKeys[data.key] == undefined){
                 	uniquesKeys[data.key] = true;
                 }
-                log.warning("push data at" + i + " " + JSON.stringify(data))
     		}
     		
     	
@@ -306,36 +303,65 @@ comment: Build responses csv from a document id, providing a name
     		log.warning("write file == undefined");
     	}
     }
+    
+    function sort(tab){
+    	return tab.sort((a, b)=>{
+    		return  a[0].value - b[0].value;
+    	})
+    }
+    
+    function replaceHorodator(tab){
+    	tab.forEach((line)=>{
+    		var date = line[0].value;
+    		var year = date.getFullYear();
+    		var month = (date.getMonth() + 1).toString();
+    		var formatedMonth = (month.length === 1) ? ("0" + month) : month;
+    		var day = date.getDate().toString();
+    		var formatedDay = (day.length === 1) ? ("0" + day) : day;
+    		var hour = date.getHours().toString();
+    		var formatedHour = (hour.length === 1) ? ("0" + hour) : hour;
+    		var minute = date.getMinutes().toString();
+    		var formatedMinute = (minute.length === 1) ? ("0" + minute) : minute;
+    		var second = date.getSeconds().toString();
+    		var formatedSecond = (second.length === 1) ? ("0" + second) : second;
+            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;
+    		line[0].value = b;
+    	})
+    }
     // define separator and encoding
     try{
     	if(separator != ";" && separator != ","){
-    		log.warning("separator: " + separator + " is not supported set to default separator ;");
+    		log.debug("separator: " + separator + " is not supported set to default separator ;");
     		separator = '';'';
     	}
     	var sepratorChar = separator.charAt(0);
     	if(string_separator != "''" && separator != ''"''){
-    		log.warning("string separator: " + string_separator + '' is not supported set to default separator "'');
+    		log.debug("string separator: " + string_separator + '' is not supported set to default separator "'');
     		string_separator = ''"'';
     	}
     	if(encoding != "UTF-16" && encoding != "US-ASCII" && encoding != "ISO-8859-1" && encoding != "UTF-8" && encoding != "UTF-16BE" && encoding != "UTF-16LE"){
-    		log.warning("Encoding: " + encoding + " is not supported set to default encoding UTF-8");
+    		log.debug("Encoding: " + encoding + " is not supported set to default encoding UTF-8");
     		encoding = "UTF-8";
     	}
     }
     catch(e){
     	
     }
+    
+    
     const nameSeparator = "_";
     var tab = [];
     var uniquesKeys = {};
     var list = rows.item(0).getElementsByTagName("doc");
     searchFlat(list, separator, string_separator);
-    log.warning("searchflat finished");
+    log.debug("searchflat finished");
     fillFlat(tab);
-    log.warning("tab result: " + JSON.stringify(tab));
+    tab = sort(tab);
+    replaceHorodator(tab);
+    log.debug("tab result: " + JSON.stringify(tab));
     var length =rows.item(0).length;
-    log.warning("resultat length: " + length);
-    log.warning("resultat: " + JSON.stringify(tab))
+    log.debug("resultat length: " + length);
+    log.debug("resultat: " + JSON.stringify(tab))
     writeFile(tab,sepratorChar,encoding);
     //createNodeXml(tab);
     '
