@@ -457,8 +457,13 @@ scriptContent:
         											let current = res.data[0];
         											let obj = {"editable": false};
         											if(y != "__rowValue"){
-        												// if cell is an object, and has a type html
-        												if(current[y].type == "html"){
+        												// if cell is a simple string
+        												if(typeof(res.data[0][y]) === "string"){
+        													obj["field"] = y;
+        													return obj;
+        												}
+        												// if it''s a more complex object
+        												else{
         													// if cell has a specified name then take it
         													if(current[y].displayName != undefined){
         														obj["field"] = current[y].displayName;
@@ -467,65 +472,67 @@ scriptContent:
         													else{
         														obj["field"] = y;
         													}
-        													// create a cell renderer to have innerHTML
-        													let HTMLCellRenderer = function HTMLCellRenderer () {};
-        													HTMLCellRenderer.prototype.init = function(params) {
-        														try{
-        															this.eGui = document.createElement(''div'');	
-        															// if displayValue field exists display it, if not display field value																		
-        															this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        													// if cell has an html type 
+        													if(current[y].type == "html"){
+        														// create a cell renderer to have innerHTML
+        														let HTMLCellRenderer = function HTMLCellRenderer () {};
+        														HTMLCellRenderer.prototype.init = function(params) {
+        															try{
+        																this.eGui = document.createElement(''div'');	
+        																// if displayValue field exists display it, if not display field value																		
+        																this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        															}
+        															catch(e){
+        																this.eGui.innerHTML = "<p>ko<p>"
+        															}
+        															
         														}
-        														catch(e){
-        															this.eGui.innerHTML = "<p>ko<p>"
+        														HTMLCellRenderer.prototype.getGui = function() {
+        														    return this.eGui;
+        														};
+        														HTMLCellRenderer.prototype.refresh = function(params) {
+        															this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        															return true;
         														}
-        														
+        														obj["cellRenderer"] = HTMLCellRenderer;
         													}
-        													HTMLCellRenderer.prototype.getGui = function() {
-        													    return this.eGui;
-        													};
-        													HTMLCellRenderer.prototype.refresh = function(params) {
-        														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
-        														return true;
+        													// if cell has a text type or no type
+        													else{
+        														let TextCellRenderer = function TextCellRenderer () {};
+        														TextCellRenderer.prototype.init = function(params) {
+        															try{
+        																this.eGui = document.createElement(''div'');
+        																let p = document.createElement(''p'');
+        																p.textContent = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        																p.style.whiteSpace = "normal"
+        																this.eGui.appendChild(p);
+        																// if displayValue field exists display it, if not display field value																		
+        																//this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        															}
+        															catch(e){
+        																this.eGui.innerHTML = "<p>ko<p>"
+        															}
+        															
+        														}
+        														TextCellRenderer.prototype.getGui = function() {
+        														    return this.eGui;
+        														};
+        														TextCellRenderer.prototype.refresh = function(params) {
+        															this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        															return true;
+        														}
+        														obj["cellRenderer"] = TextCellRenderer;
         													}
-        													obj["cellRenderer"] = HTMLCellRenderer;
+        													return obj;
         												}
-        												else{
-        													obj["field"] = y;
-        												}
-        												return obj;
         											}
+        											// hide __rowValue
         											else{
         												obj["hide"] = true;
         												obj["field"] = y;
         												return obj;  
         											}
         										});
-        										/*
-        										// find data
-        										let data = res.data.map((x)=>{
-        											try{
-        												// foreach col (z)
-        												var col = {...x};
-        												Object.keys(col).forEach((y)=>{
-        													
-        													if(typeof(col[y]) !== "string"){
-        														if(col[y].name != undefined){
-        															col[col[y].name] = z[y].value;
-        															delete col[y];
-        														}
-        														else{
-        															col[y] = z[y].value;
-        														}
-        													}
-        												});
-        												return z;
-        											}
-        											catch(e){
-        												console.error("catch7", e);
-        												return x;
-        											}
-        										})*/
-        										
         										// foreach row
         										let data = res.data.map((x)=>{
         											var row = {...x};
