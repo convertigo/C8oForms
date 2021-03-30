@@ -38,7 +38,7 @@ jobs:
           DEPLOYSERVER: ${{secrets.testEndpoint}}
           TESTUSERADMIN: ${{secrets.testUserAdmin}}
           TESTUSERPASSWORD: ${{secrets.testUserPassword}}
-        run: sh gradlew --no-daemon --stacktrace --info car deploy -Pconvertigo.load.mobileApplicationEndpoint="$TESTENDPOINT" -Pconvertigo.deploy.server="$DEPLOYSERVER" -Pconvertigo.deploy.user="$TESTUSERADMIN" -Pconvertigo.deploy.password="$TESTUSERPASSWORD"
+        run: sh gradlew --no-daemon --stacktrace --info car deploy -Pconvertigo.generateMobileBuilder.mode=fast -Pconvertigo.load.mobileApplicationEndpoint="$TESTENDPOINT" -Pconvertigo.deploy.server="$DEPLOYSERVER" -Pconvertigo.deploy.user="$TESTUSERADMIN" -Pconvertigo.deploy.password="$TESTUSERPASSWORD"
       # Creates "c8oforms_standalone" dockerized version
       - name: Create "c8oforms_standalone" dockerized version
         run: |
@@ -46,6 +46,7 @@ jobs:
           cd /home/runner/work/C8oForms/C8oForms/ && tar -czvf c8oforms_standalone.tar.gz c8oforms_standalone
       # Creates a changelog
       - name: Generate changelog
+        id: generate_changelog_C8oForms
         uses: heinrichreimer/action-github-changelog-generator@v2.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -58,6 +59,8 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: ${{ github.ref }}
+          body: |
+            ${{ steps.generate_changelog_C8oForms.outputs.changelog }}
           draft: false
           prerelease: true
       - name: Upload asset C8oForms.car
@@ -80,3 +83,14 @@ jobs:
           asset_path: /home/runner/work/C8oForms/C8oForms/c8oforms_standalone.tar.gz
           asset_name: c8oforms_standalone.tar.gz
           asset_content_type: application/tar+gzip
+      - name: Upload asset CHANGELOG.md
+        id: upload-release-asset_changelog
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: /github/workspace/CHANGELOG.md
+          asset_name: CHANGELOG.md
+          asset_content_type: text/markdown
+         
