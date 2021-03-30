@@ -26,12 +26,14 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       # SetUp java 11
       - name: Setup Java
         uses: actions/setup-java@v1.4.3
         with:
           java-version: '11'
-      # Builds and deployz Convertigo Forms versions
+      # Builds and deploy Convertigo Forms versions
       - name: Build and deploy Convertigo Forms betas versions
         env:
           TESTENDPOINT: ${{secrets.testEndpoint}}
@@ -44,6 +46,13 @@ jobs:
         run: |
           cp /home/runner/work/C8oForms/C8oForms/build/C8Oforms.car /home/runner/work/C8oForms/C8oForms/c8oforms_standalone/workspace/projects/C8Oforms.car
           cd /home/runner/work/C8oForms/C8oForms/ && tar -czvf c8oforms_standalone.tar.gz c8oforms_standalone
+      # Creates a changelog
+      - name: Generate changelog
+        id: generate_changelog_C8oForms
+        uses: heinrichreimer/action-github-changelog-generator@v2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          onlyLastTag: true
       # Creates a release
       - name: Create a release
         id: create_release
@@ -53,6 +62,8 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: ${{ github.ref }}
+          body: |
+            ${{ steps.generate_changelog_C8oForms.outputs.changelog }}
           draft: false
           prerelease: false
       - name: Upload asset C8oForms.car
@@ -75,3 +86,13 @@ jobs:
           asset_path: /home/runner/work/C8oForms/C8oForms/c8oforms_standalone.tar.gz
           asset_name: c8oforms_standalone.tar.gz
           asset_content_type: application/tar+gzip
+      - name: Upload asset CHANGELOG.md
+        id: upload-release-asset_changelog
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: /home/runner/work/C8oForms/C8oForms/github/workspace/CHANGELOG.md
+          asset_name: CHANGELOG.md
+          asset_content_type: text/markdown
