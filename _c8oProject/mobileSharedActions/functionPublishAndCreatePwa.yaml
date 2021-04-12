@@ -1,0 +1,80 @@
+↓CustomAction [mobile.components.UICustomAction-1617888138019]: 
+  actionValue: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '		// define an async function to be able to use async await
+          		let asyncF = async () =>{
+          			try{
+          				var controlDoc = {};
+          				// in case of first publication + pwa
+          				if(page["navParams"].data.publishInfos != null){
+          					controlDoc["_id"] = "control_document_pwaPublishAndCreateRights_";
+          					controlDoc["publishing"] = {
+          						"formRev":page["navParams"].data.publishInfos._rev,
+          						"formId":page["navParams"].data.publishInfos._id
+          					}
+          				}
+          				// in case of update pwa
+          				else{
+          					controlDoc["_id"] = "control_document_pwaAndCreateRights_";
+          				}
+          				// add unique suffix to control doc
+          				controlDoc["_id"] += (Math.random()+"").substring(2) + Date.now();
+          				// add pwa properties to pwa control doc
+          				controlDoc["pwa"] = {
+          					"_id": page["navParams"].data.form._id + "_pwa_document",
+          					"backgroundColor": page["pwa"].backgroundColor,
+          					"name": page["pwa"].name,
+          					"notAnonymous": page["pwa"].notAnonymous,
+          					"originalFormId": page["pwa"].originalFormId,
+          					"querystr": page["pwa"].querystr,
+          					"shortName": page["pwa"].shortName,
+          					"themeColor": page["pwa"].themeColor
+          				}
+          				
+          				// if updatedImg is false, then its not a first creation and image has not been changed so no needs to republish attachments and waits for it
+          				controlDoc["updateFinished"] = page.local.updatedImg == false;
+          				// publish control doc
+          				try{
+          					var result = await page.c8o.callJsonObject("fs://c8oforms_fs.post", controlDoc).async();
+          				}
+          				catch(e){
+          					alert("an error occured while creating control doc");
+          				}
+          				
+          				// prepare image insertion into control doc 
+          				if(page.local.updatedImg){
+          					let img = page["pwa"].img.data;
+          		        	let blob = page["pwa"].img.blob;
+          					try{
+          						if(blob != undefined){
+          		                    var put1 = await page.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", controlDoc["_id"], "name","icon", "content_type", blob.type, "content", blob ).async();
+          		                }
+          		                else{
+          		                    const nB64 = page["detectContentType"](img);
+          		                    let contentType = nB64[0];
+          		                    let b64 = nB64[1];
+          		                    var put2 = await page.c8o.callJson("fs://c8oforms_fs.put_attachment", "docid", controlDoc["_id"], "name","icon", "content_type", contentType, "content", page["b64toBlob"](b64, contentType)).async();
+          		                }
+          					}
+          					catch(e){
+          						alert("an error occured while inserting image for pwa");
+          					}
+          					
+          					try{
+          						var resultFinished = await page.c8o.callJson("fs://c8oforms_fs.post", "_id", controlDoc["_id"] ,"_use_policy", "merge", "updateFinished", true).async();
+          					}
+          					catch(e){
+          						alert("an error occured while setting updateFinished property");
+          					}
+          				}
+          			}
+          			catch(e){
+          				alert("an error occured while creating pwa");
+          			}
+          		}	
+          		asyncF();
+          		resolve();
+          '
