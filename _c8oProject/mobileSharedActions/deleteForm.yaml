@@ -41,22 +41,67 @@
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
-              		if(props.stack["Alert"].out){
+              '		if(props.stack["Alert"].out){
+              			/**
+              			status = 0 => all ok
+              			status = 1 => some can''t be deleted due to erors
+              			status = 2 => an eror occured
+              			 */
+              			var status = 0;
+              			var rejected = [];
               			const f = async ()=>{
-              				for(let elem of props.stack['TransformObjectToArrayOfIds'].out){
+              				var settings = page.global.settings;
+              				for(let elem of props.stack[''TransformObjectToArrayOfIds''].out){
               					try{
-              						await page.c8o.callJson("fs://c8oforms_fs.delete", "docid", elem).async();
-              						console.log("elem "+elem+" has been deleted");
+              						let doc = await page.c8o.callJson("fs://c8oforms_fs.get", "docid", elem).async();
+              						if(settings["~c8oAcl"] == doc.creator){
+              							await page.c8o.callJson("fs://c8oforms_fs.delete", "docid", elem).async();
+              							page.c8o.log.debug("Form "+doc.name + "(id "+elem+") has been deleted succesfully");
+              						}
+              						else{
+              							if(status == 0){
+              								status = 1
+              							}
+              							rejected.push(doc._id)
+              							page.c8o.log.debug("Current user is not the owner of the doc:"+elem+"\nit''''s can''t be deleted");
+              						}
               					}
               					catch(e){
-              						console.error("an error occured while deleting "+elem, e);
+              						status = 2;
+              						page.c8o.log.error("An error occured while trying to delete form "+elem, e);
               					}
-              					
               				}
               			}
               			f().then(()=>{
+              				let message = "";
+              				let cssClass ="";
+              				let duration = "3000";
+              				if(status == 0){
+              					message = page["translate"].instant(''form_have_been_deleted'');
+              					cssClass = "toastSuccess";
+              				}
+              				else if (status == 1){
+              					message = page["translate"].instant(''form_have_been_deleted_expect_somes_no_rights'');
+              					cssClass = "toastWarn";
+              					duration = "6000";
+              				}
+              				else if (status == 2){
+              					message = page["translate"].instant(''form_have_been_deleted_error'');
+              					cssClass = "toastError";
+              					duration = "6000";
+              				}
+              				try{
+              					rejected.forEach((e)=>{
+              						page.global.selectedItem[e] = false;
+              					})	
+              				}
+              				catch(e){
+              					
+              				}
+              				page.tick();
               				page.global.selectedItem = {};
-              				resolve(true);
+              				page.tick();
+              				resolve({message: message, cssClass : cssClass, duration: duration});
               			})
               		}
               		else{
@@ -64,7 +109,7 @@
               		}
               		
               		
-              
+              '
       ↓Toast [mobile.components.UIDynamicAction-1611753098934]: 
         beanData: |
           '{
@@ -72,3 +117,27 @@
            "message": "script:this.translate.instant(''form_have_been_deleted'')",
            "cssClass": "plain:changeToast"
           }'
+        isEnabled: false
+      ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1618402322640]: 
+        beanData: '{"ionBean":"InvokeAction"}'
+        stack: C8Oforms.MobileApplication.Application.showToast
+        ↓msg [mobile.components.UIControlVariable-1618402339674]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:parent.out.message
+        ↓duration [mobile.components.UIControlVariable-1618402339676]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:parent.out.duration
+        ↓position [mobile.components.UIControlVariable-1618402339678]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:'bottom'
+        ↓cssClass [mobile.components.UIControlVariable-1618402339680]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:parent.out.cssClass
