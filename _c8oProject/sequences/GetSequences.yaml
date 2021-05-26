@@ -95,9 +95,113 @@ comment: List all sequences that match a pattern
                         ↓Attribute [steps.XMLAttributeStep-1612775679309]: 
                           nodeName: type
                           nodeText: string
+        ↓sequences1 [steps.XMLComplexStep-1622036541412]: 
+          nodeName: views
+          ↓sequenceArray [steps.XMLAttributeStep-1622036541415]: 
+            nodeName: type
+            nodeText: array
+          ↓iViews [steps.SimpleIteratorStep-1622036541418]: 
+            expression: prj.getConnectorsList()
+            ↓filterSequence [steps.IfStep-1622036541421]: 
+              condition: connector = item; item instanceof com.twinsoft.convertigo.beans.connectors.FullSyncConnector
+              ↓jIterator [steps.SimpleIteratorStep-1622037682490]: 
+                expression: connector.getDocumentsList()
+                ↓jIf [steps.IfStep-1622037731667]: 
+                  condition: document = item; document instanceof com.twinsoft.convertigo.beans.couchdb.DesignDocument
+                  ↓jIf [steps.IfStep-1622037910092]: 
+                    condition: parsedDocument = (JSON.parse(""+document.getJSONObject().toString())); parsedDocument.views != null
+                    ↓jIterator [steps.SimpleIteratorStep-1622037951358]: 
+                      expression: Object.keys(parsedDocument.views)
+                      ↓jIf [steps.IfStep-1622043705361]: 
+                        condition: 'sequenceFilter ? item.match(new RegExp(sequenceFilter)) != null : true'
+                        ↓Complex [steps.XMLComplexStep-1622043621241]: 
+                          nodeName: view
+                          ↓projectName [steps.ElementStep-1622043633968]: 
+                            expression: document.getName() + "/" + item
+                            nodeName: name
+                          ↓Sequence_JS [steps.SimpleStep-1622044211507]: 
+                            expression: |
+                              '// define variables
+                              var currentViewMap = parsedDocument.views[item].map;
+                              var functionName = "function c8oformComputeKeys";
+                              var commentBeginName = "Begin_c8oformComputeKeys";
+                              var commentEndName = "End_c8oformComputeKeys";
+                              // get the whole viewMap string and remove everything before functionName
+                              var str = currentViewMap.substring(currentViewMap.indexOf(functionName)+functionName.length);
+                              // get the next "{" char
+                              str = str.substring(0,str.indexOf("{"));
+                              // remove spaces and ()
+                              str = str.trim().substring(1, str.length -1);
+                              var jVars = str.split(",");
+                              
+                              // get comments
+                              str = null;
+                              str = currentViewMap.substring(currentViewMap.indexOf(commentBeginName)+commentBeginName.length,currentViewMap.indexOf(commentEndName));
+                              log.warn("mystr "+str);
+                              var objComments = JSON.parse(str.trim());
+                              var jVariables = [];
+                              for(var w in jVars){
+                              	var vars = jVars[w];
+                              	jVariables.push({"name":vars, "comment": objComments[vars] != undefined ? JSON.stringify(objComments[vars]):""})
+                              }'
+                          ↓Complex [steps.XMLComplexStep-1622045542810]: 
+                            nodeName: variables
+                            ↓sequenceArray [steps.XMLAttributeStep-1622045572209]: 
+                              nodeName: type
+                              nodeText: object
+                            ↓Complex [steps.XMLComplexStep-1622045581230]: 
+                              nodeName: name
+                              ↓Attribute [steps.XMLAttributeStep-1622045581233]: 
+                                nodeName: type
+                                nodeText: array
+                              ↓jIterator [steps.SimpleIteratorStep-1622045581236]: 
+                                expression: jVariables
+                                ↓jElement [steps.ElementStep-1622045581239]: 
+                                  expression: jVariables[index].name
+                                  nodeName: name
+                                  ↓Attribute [steps.XMLAttributeStep-1622045581242]: 
+                                    nodeName: type
+                                    nodeText: string
+                            ↓Complex1 [steps.XMLComplexStep-1622052394176]: 
+                              nodeName: comment
+                              ↓Attribute [steps.XMLAttributeStep-1622052394179]: 
+                                nodeName: type
+                                nodeText: array
+                              ↓jIterator [steps.SimpleIteratorStep-1622052394182]: 
+                                expression: jVariables
+                                ↓jElement1 [steps.ElementStep-1622052394185]: 
+                                  expression: jVariables[index].comment
+                                  nodeName: comment
+                                  ↓Attribute [steps.XMLAttributeStep-1622052394188]: 
+                                    nodeName: type
+                                    nodeText: string
+        ↓Sequence_JS [steps.SimpleStep-1622036665955]: 
+          expression: |
+            '//todo
+            var listConnector = prj.getConnectorsList();
+            
+            for (var i = 0; i < listConnector.size(); i++) {
+            	var connector = listConnector.get(i);
+            	if(connector instanceof com.twinsoft.convertigo.beans.connectors.FullSyncConnector){
+            		log.warn("It is a FullSyncConnector");
+            		for(var j=0; j<connector.getDocumentsList().size(); j++){
+            			var document = connector.getDocumentsList().get(j);
+            			if (document instanceof com.twinsoft.convertigo.beans.couchdb.DesignDocument) {
+            				var parsedDocument = (JSON.parse(""+document.getJSONObject().toString()))
+            				if (parsedDocument.views != null) {
+            					for(var name in parsedDocument.views){
+            						log.warn("view name is "+name);
+            						log.warn("view map value is" + parsedDocument.views[name].map)
+            					}
+            				}
+            			}
+            		}
+            	}	
+            }'
+          isEnabled: false
 ↓Cleanup [steps.SimpleStep-1586439398083]: 
   expression: |
-    'var list = context.getXpathApi().selectList(dom.getDocumentElement(), "./projects/project[not(sequences/sequence)]");
+    'var list = context.getXpathApi().selectList(dom.getDocumentElement(), "./projects/project[not(views/view) and not(sequences/sequence)]");
     var i = list.iterator();
     while (i.hasNext()) {
     	var elt = i.next();
@@ -113,4 +217,10 @@ comment: List all sequences that match a pattern
   ↓sequenceFilter [variables.TestCaseVariable-1586439434934]: 
     value: ^forms_
   ↓variableFilter [variables.TestCaseVariable-1594113181733]: 
+    value: ^forms_
+↓Test_Case1 [core.TestCase]: 
+  ↓projectFilter [variables.TestCaseVariable-1622043803779]: 
+  ↓sequenceFilter [variables.TestCaseVariable-1622043803782]: 
+    value: ^formssource_
+  ↓variableFilter [variables.TestCaseVariable-1622043803785]: 
     value: ^forms_
