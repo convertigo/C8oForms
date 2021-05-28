@@ -105,6 +105,44 @@ scriptContent:
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
         	
+        	/**  list all database that must be synchronized to allow fs view oprations*/
+        	getDatabasesToSync(arrayConnector, current = this.form.formulaire){
+        		for(let component of current){
+        			if(component.type == "ion-card"){
+        				this.getDatabasesToSync(arrayConnector, component.children);
+        				//recursive call
+        			}
+        			else if(component.sources != undefined){
+        				for(let sourceName in component.sources){
+        					var source = component.sources[sourceName];
+        					if(source.enabled && source.fullsync){
+        						arrayConnector[source.connectorName] = true;
+        					}
+        				}
+        			}
+        		}
+        	}
+        	
+        	startSyncDatabases(databaseObject){
+        		for(let databaseName in databaseObject){
+        			if(databaseObject[databaseName]){
+        				this.c8o.callJsonObject("fs://"+databaseName+".replicate_pull",{"continuous": true})
+        				.then((res, parameters)=>{
+        					this.c8o.log.debug("startSyncDatabases "+ databaseName + " status");
+        					console.log("status", res);
+        					return null;
+        				})
+        				.progress((progress)=>{
+        					this.c8o.log.debug("startSyncDatabases progress "+ databaseName + " progress");
+        					console.log("progress", progress);
+        				})
+        				.fail((error)=>{
+        					this.c8o.log.error("error startSyncDatabases "+ databaseName + " status");
+        				})
+        			}
+        		}
+        	}
+        	
         	getSessionId(){
         		if(this.form.c8o_view_type_drafts_form){
         			return this.form._id;
@@ -399,6 +437,46 @@ scriptContent:
         			});
         		}
         	}
+        	public async getAndApplyC8oformComputeKeysFunction(sources, params, variables){
+        		let page = this;
+        		var commentBegin = "Begin_c8oformComputeKeys_function";
+        		var commentEnd = "End_c8oformComputeKeys_function"
+        		var functionName = "function c8oformComputeKeys";
+        		let doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
+        		doc = doc["views"][params.view].map;
+        		console.log("there doc", doc);
+        		var functionStr = doc.substring(doc.indexOf(commentBegin) + commentBegin.length, doc.indexOf(commentEnd)).trim();
+        		console.log("functionStr", functionStr);
+        		var str = functionStr.substring(functionStr.indexOf(functionName)+functionName.length);
+        		// get the next "{" char
+        		str = str.substring(0,str.indexOf("{"));
+        		// remove spaces and ()
+        		str = str.trim().substring(1, str.length -1);
+        		var varsOrdered = str.split(",");
+        		let args = [];
+        		for(let vars of varsOrdered){
+        			vars = vars.trim();
+        			args.push(variables[vars]);
+        		}
+        		
+        		//@ts-ignore
+        		return eval("("+functionStr+").apply(this,args)");
+        	}
+        	
+        	public async getAndApplyC8oformPostQueryFunction(sources, params, response, type){
+        		let page = this;
+        		var commentBegin = "Begin_c8oformPostQuery_function";
+        		var commentEnd = "End_c8oformPostQuery_function"
+        		var functionName = "function c8oformComputeKeys";
+        		let doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
+        		doc = doc["views"][params.view].map;
+        		console.log("there doc", doc);
+        		var functionStr = doc.substring(doc.indexOf(commentBegin) + commentBegin.length, doc.indexOf(commentEnd)).trim();
+        		console.log("functionStr", functionStr);
+        		var args =[response, type];
+        		return eval("("+functionStr+").apply(this,args)");
+        	}
+        	
         	public fillSources(list, redList, formSubmit): Array<string>{
         		let page = this;
         		let idsToCall: Array<string> = [];
@@ -427,7 +505,7 @@ scriptContent:
         						// if this sequence withn thoses parameters has not been founded yet add it
         						if(this.functionsById[sha] == undefined){ 
         							idsToCall.push(sha);
-        							this.functionsById[sha] = ()=>{
+        							this.functionsById[sha] =  async ()=>{
         								// call preload functions
         								//...
         								this.previousAndPostFunctions[sha].previous.forEach((func)=>{
@@ -439,15 +517,57 @@ scriptContent:
         								let params = {[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.LOCAL, 3.154e+10)}
         								page.c8o.callJsonObject(findName, {...variables, ...params})
         								*/
-        								page.c8o.callJsonObject(findName,variables)
+        								let params ={};
+        								if(sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync){
+        									let defaults = {};
+        									defaults["ddoc"] = sources.fullSyncArgs.ddoc;
+        									defaults["view"] = sources.fullSyncArgs.view;
+        									defaults["__live"] = sources.fullSyncArgs.__live;
+        									// get c8oformComputeKeys
+        									debugger;
+        									let computedParams = await page.getAndApplyC8oformComputeKeysFunction(sources, defaults, variables);
+        									params = {...defaults, ...computedParams}
+        									if(params["__live"] == false){
+        										delete params["__live"];
+        									}
+        									else{
+        										if(this.local.liveToCancel == null){
+        											this.local.liveToCancel = []
+        										}
+        										this.local.liveToCancel.push(params["__live"]);
+        										
+        									}
+        									
+        								}
+        								else{
+        									let params = variables;
+        								}
+        								page.c8o.callJsonObject(findName, params)
         								.then((res: any) =>{
-        									// call post load functions
-        									//...
-        									this.previousAndPostFunctions[sha].post.forEach((func)=>{
-        										let res2 = {...res};
-        										func(res2);  
-        									})
-        									return null;
+        									
+        									//if fullsync
+        									if(sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync){
+        										page.getAndApplyC8oformPostQueryFunction(sources, params, res, item["type"])
+        										.then((response)=>{
+        											// call post load functions
+        											//...
+        											this.previousAndPostFunctions[sha].post.forEach((func)=>{
+        												let res2 = {...response};
+        												func(res2);  
+        											})
+        											return null;
+        										})
+        									}
+        									else{
+        										// call post load functions
+        										//...
+        										this.previousAndPostFunctions[sha].post.forEach((func)=>{
+        											let res2 = {...res};
+        											func(res2);  
+        										})
+        										return null;
+        									}
+        									
         								})
         								.fail((err)=>{
         									// call fail functions
@@ -672,14 +792,28 @@ scriptContent:
         	public searchForSources (item, path, isSource = true) : Object {
         		let findName = "";
                 let findVars = {};
+        		let isFullsync = false;
+        		let fullSyncArgs = {};
         		let ObjectThatHaveToCallFunc = [];
                 for(let w in item[path]){
-                    if(item[path][w].enabled == true){
-                      for (const [key, value] of (<any>Object).entries(item[path][w]["vars"])) {
-        				findVars[key] = value;  
-                      }
-                      findName = w;
-                    }
+        	        if(item[path][w].enabled == true){
+        				for (const [key, value] of (<any>Object).entries(item[path][w]["vars"])) {
+        					findVars[key] = value;  
+        				}
+        				if(item[path][w]["fullsync"] == true){
+        					fullSyncArgs["isFullsync"] = true;
+        					findName = "fs://" + item[path][w]["connectorName"] + ".view";
+        					let viewName = item[path][w]["viewName"].split("/");
+        					fullSyncArgs["ddoc"] = viewName[0];
+        					fullSyncArgs["view"] = viewName[1];
+        					fullSyncArgs["__live"] = w;
+        					fullSyncArgs["connectorName"] = item[path][w]["connectorName"]
+        					fullSyncArgs["viewName"] =  item[path][w]["viewName"];
+        				}
+        				else{
+        					findName = w;
+        				}
+        	        }
                 }
         		const sha = sha256(JSON.stringify(findName) + JSON.stringify(findVars));
         		const regex = /[$$]{2}\w+[$$]{2}/gm
@@ -728,7 +862,7 @@ scriptContent:
         				
         			}
         		}
-        		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha }
+        		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha, fullSyncArgs: fullSyncArgs }
         	}
         	
         	public fillActionsVars(list): void {
@@ -4486,11 +4620,23 @@ title: Visualisateur
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            		page.global.anonymous = null;
+            '		page.global.anonymous = null;
             		page.global.published = null;
             		page.c8o.cancelLive("viewLiveViewerPage");
+            		if(page.local.databsesTosync != undefined){
+            			for(let db in page.local.databsesTosync){
+            				page.c8o.callJsonObject("fs://"+db+".replicate_pull",{cancel: true});
+            				page.c8o.log.debug("canceled "+db+" pull replication (before leaving page)");
+            			}
+            		}
+            		if(page.local.liveToCancel != undefined){
+            			for(let liveQuery of page.local.liveToCancel){
+            				page.c8o.cancelLive(liveQuery);
+            				page.c8o.log.debug("canceled "+liveQuery+" live query (before leaving page)");
+            			}
+            		}
             		resolve();
-            
+            '
 ↓Div [mobile.components.UIDynamicElement-1620404620514]: 
   beanData: '{"ionBean":"DivTag"}'
   tagName: div
