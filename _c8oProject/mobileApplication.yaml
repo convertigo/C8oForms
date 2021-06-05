@@ -10,6 +10,18 @@ componentScriptContent:
             
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
+        		let updates = this.getInstance(SwUpdate);
+        		if(updates.isEnabled){
+        			updates.checkForUpdate()   
+        			.then(()=>{
+        				updates.available.subscribe(event => {
+        					updates.activateUpdate().then(() => {
+        						this.c8o.log.warn("A new version of the app has been installed, relaunch the application to activate it:\n current hash is: "+event.current.hash+"\n  new hash is: "+event.available.hash);
+        					});
+        				})
+        			})
+        		}
+        		
                 //settings.setNormalizeParameters(true);
                 const localStorage = window.localStorage.getItem("c8oforms_log_level");
                 const logLevel = localStorage != undefined && localStorage != '''' ? localStorage : ''WARN'';
@@ -18,7 +30,13 @@ componentScriptContent:
                 
                 this.global["platform"] = {"name":[""]};
                 this.global[''visibleoptions''] = [];
-                this.global["settings"] = {"editing_rights": false};
+        		if(this.global["settings"] == undefined){
+        			this.global["settings"] = {"editing_rights": false};
+        		}
+        		else{
+        			this.global["settings"]["editing_rights"] = false;
+        		}
+                
                 /*End_c8o_AppSettings*/
         /*Begin_c8o_AppConstructor*/
         		/*End_c8o_AppConstructor*/
@@ -30,13 +48,16 @@ componentScriptContent:
                             this.global.pwa = true;
                             let indexHtml = window.location.pathname.indexOf("index.html");
                             let standalonePwa = window.location.pathname.substring(indexPWA + 5, indexHtml -1)
-                          // get url base
+                          	this.global.standalonePwa = standalonePwa;
+        					// get url base
                           const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
-                          this.c8o.httpPublic.get(baseUrl + "/manifest.json")
+                          this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "/manifest.json");
+        				  this.global.pwaGet
                             .subscribe(
                               response => {
                                   if(response["theme_color"] != undefined){
                                       statusBar.backgroundColorByHexString(response["theme_color"]);
+        							  this.global.pwaThemeColor = response["theme_color"];
                                   }
                                   else{
                                       statusBar.backgroundColorByHexString("#0cbbe7");
@@ -48,6 +69,7 @@ componentScriptContent:
                               })
                         }
                         else{
+        					this.global.standalonePwa = null;
                             statusBar.backgroundColorByHexString("#0cbbe7");
                         }
                         window["mobileAndTabletCheck"] = function() {
@@ -60,6 +82,7 @@ componentScriptContent:
                         
                         
                         window["__c8o__translate"] = this.translate;
+        				this.global.since = "" + new Date().getTime();
                         
                         c8o.logC8o = true; //dz,dnz
                         /* Uncomment the following lines to enable the i18n feature.
@@ -102,6 +125,9 @@ componentScriptContent:
                            this.global["__secretL"] = localLang;
                             
                         }
+        				if(Object.keys(this.global.settings).length <= 1){
+        					this.global.settings["language"] = localLang;
+        				}
                         this.global["platform"] = {};
                         this.global["platform"]["width"] = platform.width();
                         this.global["platform"]["info"] = platform.platforms();
@@ -127,21 +153,194 @@ componentScriptContent:
                         // statusBar.overlaysWebView(false);
                         // statusBar.backgroundColorByHexString("#000000");
                         // statusBar.styleBlackOpaque();
+                        
+                        /* Uncomment the following lines to enable the Service Worker Update. */
+                    
+        			/* let updates = this.getInstance(SwUpdate);
+                        let alertCtrl = this.getInstance(AlertController);
+                        let fu = ()=>{
+                           this.c8o.log.debug("[SW] checking for updates each 60000 ms")
+                           updates.checkForUpdate()
+                          .then((res)=>{
+                              this.c8o.log.debug("[SW] updates checked")
+                          })
+                          .catch((e)=>{
+                              this.c8o.log.error("[SW] updates error")
+                              console.log(JSON.stringify(e));
+                          });
+                        }
+                        fu()
+                        setInterval(fu, 60000)
+                        
+                        updates.available.subscribe(event => {
+                           this.c8o.log.debug("[SW] update available");
+        					let eventStr = "";
+        					try{
+        						eventStr = JSON.stringify(event);
+        					}
+        					catch(e){
+        						
+        					}
+                           this.c8o.log.debug(''new version is ''+ event.current + " total event is "+eventStr);
+                           const prompt = alertCtrl.create({
+                              title: this.translate.instant("convertigo_update_service"),
+                              message: this.translate.instant("new_version_available"),
+                              buttons: [
+                              {
+                                 text: this.translate.instant("Restart_app"),
+                                 handler: data => {
+                                     this.c8o.log.debug("update available we will reload app");
+                                     updates.activateUpdate().then(() => document.location.reload());
+                                 }
+                              }
+                             ]
+                           });
+                           prompt.present();
+                        },
+        		      error => {
+        				let errorStr = "";
+        					try{
+        						errorStr = JSON.stringify(error);
+        					}
+        					catch(e){
+        						
+        					}
+        		        this.c8o.log.error(`An error were rejected in service worker` + errorStr);
+        		      },);
+        				/*updates.unrecoverable.subscribe(event => {
+              				this.c8o.log._error(`An error occurred that we cannot recover from:\n${event.reason}\n\n`);
+            			});*/
         			/*End_c8o_AppInitialization*/
         /*Begin_c8o_AppFunction*/
         	/*End_c8o_AppFunction*/
-        /*Begin_c8o_function:CTS1573639773110*/
-        		 resolve(this.nav._views[0].getNavParams().data.formId);
+        /*Begin_c8o_function:CTS1616432315186*/
+        		let lang = event.toString();
+        		if(lang != undefined && lang != ""){
+        		    localStorage.setItem(''lang'', lang);
+        	        window["__c8o__translate"]["use"](lang);
+        	       	this.global.settings.language = lang;
+        			this.local.visible = true;
+        			this.global.relaodAgGrid = true
+        	        page.ref.detectChanges();
+        			resolve(lang);
+        		}
+        		setTimeout(()=>{
+        			this.global.relaodAgGrid = undefined
+        			this.local.visible = undefined;
+        		},0);
+        		/*End_c8o_function:CTS1616432315186*/
+        /*Begin_c8o_function:CTS1616432477027*/
+        		let lang = event.toString();
+        		if(lang != undefined && lang != ""){
+        		    localStorage.setItem(''lang'', lang);
+        	        window["__c8o__translate"]["use"](lang);
+        	       	this.global.settings.laguage = lang;
+        			this.local.visible = true;
+        	        resolve(lang);
+        		}
+        		setTimeout(()=>{
+        			this.local.visible = undefined;
+        		},0);
+        		/*End_c8o_function:CTS1616432477027*/
+        /*Begin_c8o_function:CTS1615223142157*/
+        		if(this.global.settings.language != undefined && this.global.settings.language != ""){
+        			page["translate"].setDefaultLang(this.global.settings.language);
+                    page["translate"].use(this.global.settings.language);
+        		}
+        		else{
+        			page["translate"].setDefaultLang(window.navigator.language.substring(0,2));
+        			page["translate"].use(window.navigator.language.substring(0,2));
+        		}
+        		resolve();
+        		/*End_c8o_function:CTS1615223142157*/
+        /*Begin_c8o_function:CTS1615203057107*/
+        			let checkForDeletion = ()=>{
+        				page.c8o.log.debug("[group deletion] we will check for local deletions (groups)");
+        				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
+        			 	Object.assign(headersObject, page.c8o.headers);
+        			 	let params = {
+        	                headers: this.c8o.httpInterface.getHeaders(headersObject),
+        	                withCredentials: true,
+        	            }
+        				page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
+        				.subscribe(
+        			        response => {
+        						let remote = response.results.map((x)=>{
+        							return x.id;
+        						})
+        						this.c8o.callJson("fs://c8oforms_fs.all")
+        						.then((resp: any)=>{
+        							let local = resp.rows.map((x)=>{
+        								return x.id;
+        							})
+        							var toBeRemoved = local.filter(function(n) {
+        						    	return remote.indexOf(n) === -1;
+        							})
+        							page.c8o.log.debug("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
+        							toBeRemoved.forEach((el)=>{
+        								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
+        								.then((re)=>{
+        									page.c8o.log.debug("[group deletion] "+ el +" succesfully removed");
+        									return null;
+        								})
+        								.fail((e)=>{
+        									page.c8o.log.error("[group deletion] "+ el +" an error occured");
+        								})
+        								resolve();
+        							})
+        							return null;
+        						})
+        						.fail((err)=>{
+        							page.c8o.log.error("[group deletion] an error occured while fetching .all");
+        						});
+        			        },
+        			        error => {
+        						page.c8o.log.error("[group deletion] an error occured while fetching changes");
+        			     })
+        			}
+        			let checkLiveDeletion = ()=>{
+        				page.c8o.callJson("fs://c8oforms_fs.view", "ddoc", "control_documents", "view", "control_local_doc_check_delete", "__live","liveCheckDeletion")
+        				.then((res: any)=>{
+        					if(res.rows.length > 0){
+        						var newHash = sha256(JSON.stringify(res.rows));
+        						if(this.local.hashDeletion == undefined || this.local.hashDeletion != newHash){
+        							this.local.hashDeletion = newHash;
+        							for(let elem of res.rows){
+        								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
+        								.then((re)=>{
+        									return null;
+        								})
+        								.fail((e)=>{
+        								})
+        							}
+        							setTimeout(()=>{
+        								checkForDeletion();
+        							});
+        							setTimeout(()=>{
+        								checkForDeletion();
+        							},3000);
+        						}
+        					}
+        					
+        					return null;
+        				})
+        				.fail((err)=>{
+        					
+        				})
+        			}
+        			
+        			if(page.global.initialGroupDeletion == undefined){
+        				checkForDeletion();
+        				page.global.initialGroupDeletion = true;
+        			}
+        			if(page.global.checkLiveDeletion == undefined){
+        				checkLiveDeletion();
+        				page.global.checkLiveDeletion = true;
+        			}
+        			
+             
         		
-        		/*End_c8o_function:CTS1573639773110*/
-        /*Begin_c8o_function:CTS1573640264523*/
-        		 resolve(this.nav._views[0].getNavParams().data.formId);
-        		
-        		/*End_c8o_function:CTS1573640264523*/
-        /*Begin_c8o_function:CTS1573640687188*/
-        		 resolve(this.nav._views[0].getNavParams().data.formId);
-        		
-        		/*End_c8o_function:CTS1573640687188*/
+        		/*End_c8o_function:CTS1615203057107*/
         '
 isPWA: true
 tplProjectName: mobilebuilder_tpl_test
@@ -192,6 +391,37 @@ useClickForTap: true
 ↓createNewForm [mobile.components.UIActionStack-1605185431262]: 🗏 mobileSharedActions/createNewForm.yaml
 ↓searchForm [mobile.components.UIActionStack-1605199050514]: 🗏 mobileSharedActions/searchForm.yaml
 ↓rootPage [mobile.components.UIActionStack-1587645017550]: 🗏 mobileSharedActions/rootPage.yaml
+↓ZXing_sa_forms [mobile.components.UIActionStack-1606311206408]: 🗏 mobileSharedActions/ZXing_sa_forms.yaml
+↓popOverEditView [mobile.components.UIActionStack-1606727065524]: 🗏 mobileSharedActions/popOverEditView.yaml
+↓popOverVisualizeView [mobile.components.UIActionStack-1606728678097]: 🗏 mobileSharedActions/popOverVisualizeView.yaml
+↓popOverPublishDoc [mobile.components.UIActionStack-1606729290054]: 🗏 mobileSharedActions/popOverPublishDoc.yaml
+↓popOverVizualiseResponses [mobile.components.UIActionStack-1606729949504]: 🗏 mobileSharedActions/popOverVizualiseResponses.yaml
+↓popOverDownloadCsv [mobile.components.UIActionStack-1606730370814]: 🗏 mobileSharedActions/popOverDownloadCsv.yaml
+↓replaceEmptyFunction [mobile.components.UIActionStack-1606731053716]: 🗏 mobileSharedActions/replaceEmptyFunction.yaml
+↓getOffsetFunction [mobile.components.UIActionStack-1606731751926]: 🗏 mobileSharedActions/getOffsetFunction.yaml
+↓isVisibleFunction [mobile.components.UIActionStack-1606750399163]: 🗏 mobileSharedActions/isVisibleFunction.yaml
+↓popOverCreatePwa [mobile.components.UIActionStack-1606752424750]: 🗏 mobileSharedActions/popOverCreatePwa.yaml
+↓popOverGetLinkShare [mobile.components.UIActionStack-1606753067983]: 🗏 mobileSharedActions/popOverGetLinkShare.yaml
+↓popOverGetLinkSharePublic [mobile.components.UIActionStack-1606815237125]: 🗏 mobileSharedActions/popOverGetLinkSharePublic.yaml
+↓popOverDisableSharePublic [mobile.components.UIActionStack-1606815643143]: 🗏 mobileSharedActions/popOverDisableSharePublic.yaml
+↓popOverManageAccessRights [mobile.components.UIActionStack-1606819651922]: 🗏 mobileSharedActions/popOverManageAccessRights.yaml
+↓popOverManageAccessRightsResponses [mobile.components.UIActionStack-1606819826094]: 🗏 mobileSharedActions/popOverManageAccessRightsResponses.yaml
+↓popOverManageLabels [mobile.components.UIActionStack-1606819977341]: 🗏 mobileSharedActions/popOverManageLabels.yaml
+↓popOverCopy [mobile.components.UIActionStack-1606820276458]: 🗏 mobileSharedActions/popOverCopy.yaml
+↓popOverCopyTo [mobile.components.UIActionStack-1606821705396]: 🗏 mobileSharedActions/popOverCopyTo.yaml
+↓popOverThumnail [mobile.components.UIActionStack-1606825399935]: 🗏 mobileSharedActions/popOverThumnail.yaml
+↓popOverAddToFav [mobile.components.UIActionStack-1606826327707]: 🗏 mobileSharedActions/popOverAddToFav.yaml
+↓popOverRemoveFromFav [mobile.components.UIActionStack-1606828487741]: 🗏 mobileSharedActions/popOverRemoveFromFav.yaml
+↓popOverExport [mobile.components.UIActionStack-1606828765731]: 🗏 mobileSharedActions/popOverExport.yaml
+↓blobToBase64Function [mobile.components.UIActionStack-1606829529555]: 🗏 mobileSharedActions/blobToBase64Function.yaml
+↓popOverDeleteView [mobile.components.UIActionStack-1606843476348]: 🗏 mobileSharedActions/popOverDeleteView.yaml
+↓createFormFromTemplate [mobile.components.UIActionStack-1606992860587]: 🗏 mobileSharedActions/createFormFromTemplate.yaml
+↓UpdateFunctionsToBeCalledToDataSource [mobile.components.UIActionStack-1609767708127]: 🗏 mobileSharedActions/UpdateFunctionsToBeCalledToDataSource.yaml
+↓getPositonAndAddr [mobile.components.UIActionStack-1609948084476]: 🗏 mobileSharedActions/getPositonAndAddr.yaml
+↓CopyLinkToClipBoard [mobile.components.UIActionStack-1613575066489]: 🗏 mobileSharedActions/CopyLinkToClipBoard.yaml
+↓viewNotifs [mobile.components.UIActionStack-1613732629864]: 🗏 mobileSharedActions/viewNotifs.yaml
+↓functionPublishDoc [mobile.components.UIActionStack-1617883870737]: 🗏 mobileSharedActions/functionPublishDoc.yaml
+↓functionPublishAndCreatePwa [mobile.components.UIActionStack-1617887998186]: 🗏 mobileSharedActions/functionPublishAndCreatePwa.yaml
 ↓FormImg [mobile.components.UISharedComponent-1568125160774]: 🗏 mobileSharedComponents/FormImg.yaml
 ↓itemTextViewer [mobile.components.UISharedComponent-1570455165983]: 🗏 mobileSharedComponents/itemTextViewer.yaml
 ↓itemImgViewer [mobile.components.UISharedComponent-1570455192839]: 🗏 mobileSharedComponents/itemImgViewer.yaml
@@ -244,13 +474,12 @@ useClickForTap: true
 ↓sharedHeaderViewer [mobile.components.UISharedComponent-1571848248991]: 🗏 mobileSharedComponents/sharedHeaderViewer.yaml
 ↓sharedHeaderWebViewer [mobile.components.UISharedComponent-1571848275886]: 🗏 mobileSharedComponents/sharedHeaderWebViewer.yaml
 ↓ItemTitleSub [mobile.components.UISharedComponent-1572009834372]: 🗏 mobileSharedComponents/ItemTitleSub.yaml
-↓SelectorPage [mobile.components.UISharedComponent-1572258272121]: 🗏 mobileSharedComponents/SelectorPage.yaml
 ↓sharedHeaderData [mobile.components.UISharedComponent-1572517786339]: 🗏 mobileSharedComponents/sharedHeaderData.yaml
 ↓sharedQuestionElem [mobile.components.UISharedComponent-1573662577792]: 🗏 mobileSharedComponents/sharedQuestionElem.yaml
 ↓sharedLabelElem [mobile.components.UISharedComponent-1573663157513]: 🗏 mobileSharedComponents/sharedLabelElem.yaml
 ↓colorPalet [mobile.components.UISharedComponent-1573746896372]: 🗏 mobileSharedComponents/colorPalet.yaml
 ↓colorPicker [mobile.components.UISharedComponent-1602843941010]: 🗏 mobileSharedComponents/colorPicker.yaml
-↓sharedHeaderButtonCreate1 [mobile.components.UISharedComponent-1574356090443]: 🗏 mobileSharedComponents/sharedHeaderButtonCreate1.yaml
+↓sharedHeaderButtonImport [mobile.components.UISharedComponent-1574356090443]: 🗏 mobileSharedComponents/sharedHeaderButtonImport.yaml
 ↓sharedStatsInputText [mobile.components.UISharedComponent-1580308950214]: 🗏 mobileSharedComponents/sharedStatsInputText.yaml
 ↓sharedStatsCheckbox [mobile.components.UISharedComponent-1581589785221]: 🗏 mobileSharedComponents/sharedStatsCheckbox.yaml
 ↓sharedStatsRadio [mobile.components.UISharedComponent-1581601986463]: 🗏 mobileSharedComponents/sharedStatsRadio.yaml
@@ -283,6 +512,23 @@ useClickForTap: true
 ↓sharedHeaderWebAdmin [mobile.components.UISharedComponent-1587633076436]: 🗏 mobileSharedComponents/sharedHeaderWebAdmin.yaml
 ↓sharedHeaderTextAdmin [mobile.components.UISharedComponent-1587633378615]: 🗏 mobileSharedComponents/sharedHeaderTextAdmin.yaml
 ↓sharedHeaderWebAdminAddUser [mobile.components.UISharedComponent-1587976728336]: 🗏 mobileSharedComponents/sharedHeaderWebAdminAddUser.yaml
+↓sharedHeaderButtonImportMobile [mobile.components.UISharedComponent-1606499225059]: 🗏 mobileSharedComponents/sharedHeaderButtonImportMobile.yaml
+↓itemGridViewer [mobile.components.UISharedComponent-1608286885281]: 🗏 mobileSharedComponents/itemGridViewer.yaml
+↓itemGridEditor [mobile.components.UISharedComponent-1608288821075]: 🗏 mobileSharedComponents/itemGridEditor.yaml
+↓datasource [mobile.components.UISharedComponent-1608302126817]: 🗏 mobileSharedComponents/datasource.yaml
+↓itemLocationViewer [mobile.components.UISharedComponent-1609942463032]: 🗏 mobileSharedComponents/itemLocationViewer.yaml
+↓itemLocationEditor [mobile.components.UISharedComponent-1609942857023]: 🗏 mobileSharedComponents/itemLocationEditor.yaml
+↓itemActionBusinessLogicViewer [mobile.components.UISharedComponent-1610539997802]: 🗏 mobileSharedComponents/itemActionBusinessLogicViewer.yaml
+↓itemHeaderEdit [mobile.components.UISharedComponent-1610543278205]: 🗏 mobileSharedComponents/itemHeaderEdit.yaml
+↓dataSourceEditor [mobile.components.UISharedComponent-1610637118444]: 🗏 mobileSharedComponents/dataSourceEditor.yaml
+↓itemActionBusinessLogicEditor [mobile.components.UISharedComponent-1610650936321]: 🗏 mobileSharedComponents/itemActionBusinessLogicEditor.yaml
+↓dataSourceEditorDescription [mobile.components.UISharedComponent-1610653321882]: 🗏 mobileSharedComponents/dataSourceEditorDescription.yaml
+↓ngxTagInputCustomC8oForms [mobile.components.UISharedComponent-1613566718054]: 🗏 mobileSharedComponents/ngxTagInputCustomC8oForms.yaml
+↓SharedHeaderStats [mobile.components.UISharedComponent-1613996690303]: 🗏 mobileSharedComponents/SharedHeaderStats.yaml
+↓sharedStatsActions [mobile.components.UISharedComponent-1615560039142]: 🗏 mobileSharedComponents/sharedStatsActions.yaml
+↓itemVideoCallViewerInEditionPage [mobile.components.UISharedComponent-1620389799932]: 🗏 mobileSharedComponents/itemVideoCallViewerInEditionPage.yaml
+↓itemVideoCallEditor [mobile.components.UISharedComponent-1620389800133]: 🗏 mobileSharedComponents/itemVideoCallEditor.yaml
+↓itemVideoCallViewer [mobile.components.UISharedComponent-1620390962313]: 🗏 mobileSharedComponents/itemVideoCallViewer.yaml
 ↓editorPage [mobile.components.PageComponent-1531323370377]: 🗏 mobilePages/editorPage.yaml
 ↓loginPage [mobile.components.PageComponent-1537532884984]: 🗏 mobilePages/loginPage.yaml
 ↓viewerPage [mobile.components.PageComponent-1537364775769]: 🗏 mobilePages/viewerPage.yaml
@@ -320,6 +566,8 @@ useClickForTap: true
 ↓AdminPageUser [mobile.components.PageComponent-1587644779447]: 🗏 mobilePages/AdminPageUser.yaml
 ↓AdminPageAddUser [mobile.components.PageComponent-1587745805539]: 🗏 mobilePages/AdminPageAddUser.yaml
 ↓ResetPassword [mobile.components.PageComponent-1588088649238]: 🗏 mobilePages/ResetPassword.yaml
+↓modalVideo [mobile.components.PageComponent-1605871344928]: 🗏 mobilePages/modalVideo.yaml
+↓ShareRights [mobile.components.PageComponent-1612961196848]: 🗏 mobilePages/ShareRights.yaml
 ↓Theme [mobile.components.UITheme-1491635018260]: 
   comment: Global color themes can be customized here
   styleContent: 
@@ -382,7 +630,8 @@ useClickForTap: true
                   greyFab: #333333,
                   greyButton: #979797,
                   btLight: #ff8206,
-                  greenCsv: #1D6F42
+                  greenCsv: #1D6F42,
+          		black: #000000
           );
           
           
@@ -438,7 +687,45 @@ useClickForTap: true
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '.hugeModal{
+          '.toastError {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: color($colors, danger);
+          	}
+          }
+          .toastSuccess {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: color($colors, secondary);
+          	}
+          }
+          .toastPending {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: color($colors, convertigo);
+          	}
+          }
+          .toastWarn {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: color($colors, btLight);
+          	}
+          }
+          .ng2-menu-item {
+          	padding:0 !important;
+          }
+          tooltip-box {
+          	z-index:100000 !important;
+          }
+          .popOverNotifs {
+          	max-width:100% !important;
+          	max-height:100% !important;
+          }
+          .hugeModal{
           	.modal-wrapper {
                 
                 width: 90%; 
@@ -448,6 +735,16 @@ useClickForTap: true
                right: 5%; 
                bottom: 5%;
               } 
+          }
+          .alwaysFullScreen {
+          	.modal-wrapper {
+          	      position: absolute;
+          	      top: 0 !important;
+          	      left: 0 !important;
+          	      display: block;
+          	      width: 100% !important;
+          	      height: 100% !important;
+              	}
           }
           
           .modalCSV{
@@ -563,10 +860,18 @@ useClickForTap: true
           
           
           body {
-          user-select: text;
+          	@media (pointer:none), (pointer:coarse) {
+          		
+          	}
+          	@media (pointer: fine){
+          	user-select: text;
+          	}
+          	
+          
           }
           .popover-content {
-          width:auto !important
+          width:auto !important;
+          min-width: 250px !important;
           }
           .color-picker{
           	margin-right:0px !important;
@@ -807,6 +1112,10 @@ useClickForTap: true
               margin-top: 2px;
               margin: 0px 17px;
           }
+          .styledivnormal34 {
+              margin: 0px 34px;
+          	margin-top: 13px;
+          }
           .styleselectnormal {
           	background-color: transparent;
           	margin:0px;
@@ -1027,6 +1336,7 @@ useClickForTap: true
           	/* Webkit scrollbar */
           	*::-webkit-scrollbar {
           	  width: 6px;
+          	  height: 6px;
           	}
           	*::-webkit-scrollbar-thumb {
           	  background-color: color($colors, convertigo);
@@ -1074,6 +1384,126 @@ useClickForTap: true
          "Property": "plain:settings",
          "Value": "script:parent.out"
         }'
+      ↓ReApplyLang [mobile.components.UICustomAction-1615223142157]: 
+        actionValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                		if(this.global.settings.language != undefined && this.global.settings.language != ""){
+                			page["translate"].setDefaultLang(this.global.settings.language);
+                            page["translate"].use(this.global.settings.language);
+                		}
+                		else{
+                			page["translate"].setDefaultLang(window.navigator.language.substring(0,2));
+                			page["translate"].use(window.navigator.language.substring(0,2));
+                		}
+                		resolve();
+                
+  ↓CheckInvalidDocs [mobile.components.UICustomAction-1615203057107]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '			let checkForDeletion = ()=>{
+            				page.c8o.log.debug("[group deletion] we will check for local deletions (groups)");
+            				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
+            			 	Object.assign(headersObject, page.c8o.headers);
+            			 	let params = {
+            	                headers: this.c8o.httpInterface.getHeaders(headersObject),
+            	                withCredentials: true,
+            	            }
+            				page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
+            				.subscribe(
+            			        response => {
+            						let remote = response.results.map((x)=>{
+            							return x.id;
+            						})
+            						this.c8o.callJson("fs://c8oforms_fs.all")
+            						.then((resp: any)=>{
+            							let local = resp.rows.map((x)=>{
+            								return x.id;
+            							})
+            							var toBeRemoved = local.filter(function(n) {
+            						    	return remote.indexOf(n) === -1;
+            							})
+            							page.c8o.log.debug("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
+            							toBeRemoved.forEach((el)=>{
+            								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
+            								.then((re)=>{
+            									page.c8o.log.debug("[group deletion] "+ el +" succesfully removed");
+            									return null;
+            								})
+            								.fail((e)=>{
+            									page.c8o.log.error("[group deletion] "+ el +" an error occured");
+            								})
+            								resolve();
+            							})
+            							return null;
+            						})
+            						.fail((err)=>{
+            							page.c8o.log.error("[group deletion] an error occured while fetching .all");
+            						});
+            			        },
+            			        error => {
+            						page.c8o.log.error("[group deletion] an error occured while fetching changes");
+            			     })
+            			}
+            			let checkLiveDeletion = ()=>{
+            				page.c8o.callJson("fs://c8oforms_fs.view", "ddoc", "control_documents", "view", "control_local_doc_check_delete", "__live","liveCheckDeletion")
+            				.then((res: any)=>{
+            					if(res.rows.length > 0){
+            						var newHash = sha256(JSON.stringify(res.rows));
+            						if(this.local.hashDeletion == undefined || this.local.hashDeletion != newHash){
+            							this.local.hashDeletion = newHash;
+            							for(let elem of res.rows){
+            								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
+            								.then((re)=>{
+            									return null;
+            								})
+            								.fail((e)=>{
+            								})
+            							}
+            							setTimeout(()=>{
+            								checkForDeletion();
+            							});
+            							setTimeout(()=>{
+            								checkForDeletion();
+            							},3000);
+            						}
+            					}
+            					
+            					return null;
+            				})
+            				.fail((err)=>{
+            					
+            				})
+            			}
+            			
+            			if(page.global.initialGroupDeletion == undefined){
+            				checkForDeletion();
+            				page.global.initialGroupDeletion = true;
+            			}
+            			if(page.global.checkLiveDeletion == undefined){
+            				checkLiveDeletion();
+            				page.global.checkLiveDeletion = true;
+            			}
+            			
+                 
+            		
+            '
+    page_ts_imports: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: sha256
+              - java.lang.String: 
+                - ↑value: js-sha256
 ↓AppEvent1 [mobile.components.UIAppEvent-1601462085416]: 
   isEnabled: false
 ↓TabSelected [mobile.components.UIStyle-1602496360884]: 
@@ -1151,8 +1581,8 @@ useClickForTap: true
                   mask-position: 50% 50%;
                   mask-repeat: no-repeat;
                   background: currentColor;
-          		width: 1rem;
-          		height: 1rem;
+          		width: 3rem;
+          		height: 3rem;
               }
               // custom icons
               &[class*="custom-csv"] {
@@ -1164,4 +1594,81 @@ useClickForTap: true
               &[class*="custom-qr_code"] {
                   mask-image: url(../assets/images/svg/icon/qr_code.svg);
               }
+              &[class*="custom-add-circle"] {
+                  mask-image: url(../assets/images/svg/icon/add-circle.svg);
+              }
+              &[class*="custom-grid"] {
+                  mask-image: url(../assets/images/svg/icon/grid.svg);
+              }
+              &[class*="custom-list"] {
+                  mask-image: url(../assets/images/svg/icon/list.svg);
+              }
+          	&[class*="custom-location"] {
+                  mask-image: url(../assets/images/svg/component/location.svg);
+              }
+          	&[class*="custom-ts-active"] {
+                  mask-image: url(../assets/images/svg/icon/ts_active.svg);
+              }
+          	&[class*="custom-txt-inactive"] {
+                  mask-image: url(../assets/images/svg/icon/text_inactive.svg);
+              }
+          	&[class*="custom-share-social"] {
+                  mask-image: url(../assets/images/svg/icon/share-social-outline.svg);
+              }
+          	&[class*="custom-videocam"] {
+                  mask-image: url(../assets/images/svg/icon/videocam.svg);
+              }
+          	&[class*="custom-icn_hang_up"] {
+                  mask-image: url(../assets/images/svg/component/icn_hang_up.svg);
+              }
+          }
+          
+          '
+↓AgGridStyle [mobile.components.UIStyle-1608287559840]: 
+  comment: You can add some global application styles here
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.custom-header-weel {
+          	background-image: url(data:image/gif;base64,R0lGODlhEAAQAMQAAORHHOVSKudfOulrSOp3WOyDZu6QdvCchPGolfO0o/XBs/fNwfjZ0frl3/zy7////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAkAABAALAAAAAAQABAAAAVVICSOZGlCQAosJ6mu7fiyZeKqNKToQGDsM8hBADgUXoGAiqhSvp5QAnQKGIgUhwFUYLCVDFCrKUE1lBavAViFIDlTImbKC5Gm2hB0SlBCBMQiB0UjIQA7);
+          	background-repeat: no-repeat;
+          	background-position: center;
+          }
+          @import "../../node_modules/ag-grid-community/dist/styles/ag-grid.scss";
+          @import "../../node_modules/ag-grid-community/dist/styles/ag-theme-material/sass/ag-theme-material.scss";
+          '
+↓StyleFixIssue310 [mobile.components.UIStyle-1616501581433]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.tox-dialog__body-content{
+          	padding:0 !important;
+          }
+          .tox-image-tools__image{
+          	margin-top: 0 !important;
+          }
+          .tox-image-tools__toolbar {
+          	margin-top:0 !important;
+          }
+          .tox-image-tools__sidebar{
+          	margin-top:0 !important;
+          }
+          .tox-dialog__footer {
+          	padding-top:0 !important;
+          	padding-bottom:0 !important;
+          }
+          .tox-dialog__header{
+          	padding-top:0 !important;
+          	padding-bottom:0 !important;
+          }
+          .tox-form{
+          	height: unset !important;
+          }
+          .tox-tbtn{
+          	margin-top:0 !important;
+          	margin-bottom:0 !important;
           }'

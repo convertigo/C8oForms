@@ -12,9 +12,15 @@ comment: Build responses csv from a document id, providing a name
   variableName: offset
 ↓createKey [steps.SimpleStep-1572472082870]: 
   expression: |
-    //todo
-    var idForView = '["'+formId+'", "'+version+'"]';
-    log.warning(idForView)
+    '// compute view id
+    var idForView = ''["''+formId+''", "''+version+''"]'';
+    
+    /** 
+    	rename name of attachment to prevent from ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_DISPOSITION
+    	it seems that filename must not conatins any unicode char
+    	using doble quotes around name prevent us from this error
+    */ 
+    var nameWithoutUnicode = ''"''+name+''.csv"'';'
 ↓jElement [steps.ElementStep-1572472082873]: 
   expression: idForView
   nodeName: myIdForView
@@ -122,7 +128,6 @@ comment: Build responses csv from a document id, providing a name
     	for(var i = 0; i< arr.length; i++){
     		var item = context.addTextNode(node, "item", "");
     		for(var j = 0; j< arr[i].length; j++){
-    			log.warning("elem => key: " + arr[i][j]["key"]+" value: "+ arr[i][j]["value"]);
     			var elem = context.addTextNode(item, arr[i][j]["key"],arr[i][j]["value"]);			
     		}
     	}
@@ -147,18 +152,52 @@ comment: Build responses csv from a document id, providing a name
     			var hasChild = nodeList.item(i).hasChildNodes();
     			if(column_name != "id"){
     				var a = getInnerText("" + nodeList.item(i).getElementsByTagName("key").item(j).getTextContent());
+    				log.warn("there a => "+a);
     			}
     			else{
     				var a = "" + nodeList.item(i).getElementsByTagName("key").item(j).getTextContent();
+    				log.warn("there a => "+a);
     			}
+    			try{
+    				// search for line beaks to escape them with quotes
+    				var regex = /[\n]/g;
+    				var match1 = a.match(regex);
+    				// search for separator to escape them with quotes
+    				var regex2 = /[;]/g;
+    				var regex2B = /[,]/g;
+    				
+    				if(string_separator == ''"''){
+    					var regex3 = /["]/g;
+    					a = a.replace(regex3,''""'');
+    				}
+    				else{
+    					var regex3 = /['']/g;
+    					a = a.replace(regex3,"''''");
+    				}
+    				a = a
+    				var match2 = a.match(regex2);
+    				var match2B = a.match(regex2B);
+    				if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0) || (match2B != undefined && match2B.length > 0)){
+    					a = string_separator + a + string_separator;
+    				}
+    			}
+    			catch(e){
+    				
+    			}
+    			var regex = undefined;
+    			var match1 = undefined;
+    			var regex2 = undefined;
+    			var regex2B = undefined;
+    			var match2 = undefined;
     			
     			var b = "" + nodeList.item(i).getElementsByTagName("value").item(j).getTextContent();
     			if(b.indexOf("__C8O__UNIQUE__IMG,") != -1){
-    				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+a;
+    				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+nodeList.item(i).getElementsByTagName("name").item(j != 0 ? j -1 : j).getTextContent();
     				b = encodeURI(b);
+    				log.warn("final b ")
     			}
     			else if(b.indexOf("__C8O__UNIQUE__SIGNATURE,") != -1){
-    				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+a;
+    				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+nodeList.item(i).getElementsByTagName("name").item(j != 0 ? j -1 : j).getTextContent();
     				b = encodeURI(b);
     			}
     			else if(b.indexOf("__C8O__UNIQUE__FILE,") != -1){
@@ -181,12 +220,9 @@ comment: Build responses csv from a document id, providing a name
     					var regex = /[\n]/g;
     					var match1 = b.match(regex);
     					// search for separator to escape them with quotes
-    					if(seprator == ";"){
-    						var regex2 = /[;]/g;
-    					}
-    					else{
-    						var regex2 = /[,]/g;
-    					}
+    					var regex2 = /[;]/g;
+    					var regex2B = /[,]/g;
+    					
     					if(string_separator == ''"''){
     						var regex3 = /["]/g;
     						b = b.replace(regex3,''""'');
@@ -197,7 +233,8 @@ comment: Build responses csv from a document id, providing a name
     					}
     					b = b
     					var match2 = b.match(regex2);
-    					if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0)){
+    					var match2B = b.match(regex2B);
+    					if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0) || (match2B != undefined && match2B.length > 0)){
     						b = string_separator + b + string_separator;
     					}
     				}
@@ -214,7 +251,7 @@ comment: Build responses csv from a document id, providing a name
     					var offsetDiff = offset - offSetServer;
     					var timeStamp = +b + offsetDiff;
     					var date = new Date(+timeStamp);
-    					var year = date.getFullYear();
+    					/*var year = date.getFullYear();
     					var month = (date.getMonth() + 1).toString();
     					var formatedMonth = (month.length === 1) ? ("0" + month) : month;
     					var day = date.getDate().toString();
@@ -225,7 +262,8 @@ comment: Build responses csv from a document id, providing a name
     					var formatedMinute = (minute.length === 1) ? ("0" + minute) : minute;
     					var second = date.getSeconds().toString();
     					var formatedSecond = (second.length === 1) ? ("0" + second) : second;
-    		            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;
+    		            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;*/
+    					var b = date;
     				}
     				catch(e) {
     					log.warning("Error while trying to set horodateur " + JSON.stringify(e))
@@ -237,7 +275,6 @@ comment: Build responses csv from a document id, providing a name
                 if(uniquesKeys[data.key] == undefined){
                 	uniquesKeys[data.key] = true;
                 }
-                log.warning("push data at" + i + " " + JSON.stringify(data))
     		}
     		
     	
@@ -306,36 +343,65 @@ comment: Build responses csv from a document id, providing a name
     		log.warning("write file == undefined");
     	}
     }
+    
+    function sort(tab){
+    	return tab.sort((a, b)=>{
+    		return  a[0].value - b[0].value;
+    	})
+    }
+    
+    function replaceHorodator(tab){
+    	tab.forEach((line)=>{
+    		var date = line[0].value;
+    		var year = date.getFullYear();
+    		var month = (date.getMonth() + 1).toString();
+    		var formatedMonth = (month.length === 1) ? ("0" + month) : month;
+    		var day = date.getDate().toString();
+    		var formatedDay = (day.length === 1) ? ("0" + day) : day;
+    		var hour = date.getHours().toString();
+    		var formatedHour = (hour.length === 1) ? ("0" + hour) : hour;
+    		var minute = date.getMinutes().toString();
+    		var formatedMinute = (minute.length === 1) ? ("0" + minute) : minute;
+    		var second = date.getSeconds().toString();
+    		var formatedSecond = (second.length === 1) ? ("0" + second) : second;
+            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;
+    		line[0].value = b;
+    	})
+    }
     // define separator and encoding
     try{
     	if(separator != ";" && separator != ","){
-    		log.warning("separator: " + separator + " is not supported set to default separator ;");
+    		log.debug("separator: " + separator + " is not supported set to default separator ;");
     		separator = '';'';
     	}
     	var sepratorChar = separator.charAt(0);
     	if(string_separator != "''" && separator != ''"''){
-    		log.warning("string separator: " + string_separator + '' is not supported set to default separator "'');
+    		log.debug("string separator: " + string_separator + '' is not supported set to default separator "'');
     		string_separator = ''"'';
     	}
     	if(encoding != "UTF-16" && encoding != "US-ASCII" && encoding != "ISO-8859-1" && encoding != "UTF-8" && encoding != "UTF-16BE" && encoding != "UTF-16LE"){
-    		log.warning("Encoding: " + encoding + " is not supported set to default encoding UTF-8");
+    		log.debug("Encoding: " + encoding + " is not supported set to default encoding UTF-8");
     		encoding = "UTF-8";
     	}
     }
     catch(e){
     	
     }
+    
+    
     const nameSeparator = "_";
     var tab = [];
     var uniquesKeys = {};
     var list = rows.item(0).getElementsByTagName("doc");
     searchFlat(list, separator, string_separator);
-    log.warning("searchflat finished");
+    log.debug("searchflat finished");
     fillFlat(tab);
-    log.warning("tab result: " + JSON.stringify(tab));
+    tab = sort(tab);
+    replaceHorodator(tab);
+    log.debug("tab result: " + JSON.stringify(tab));
     var length =rows.item(0).length;
-    log.warning("resultat length: " + length);
-    log.warning("resultat: " + JSON.stringify(tab))
+    log.debug("resultat length: " + length);
+    log.debug("resultat: " + JSON.stringify(tab))
     writeFile(tab,sepratorChar,encoding);
     //createNodeXml(tab);
     '
@@ -389,7 +455,7 @@ comment: Build responses csv from a document id, providing a name
     expression: context.getProjectDirectory() + "/csv/"+ id
     nodeName: local-url
   ↓jAttribute2 [steps.AttributeStep-1572472082912]: 
-    expression: name+".csv"
+    expression: nameWithoutUnicode
     nodeName: name
   ↓jAttribute3 [steps.AttributeStep-1572472082915]: 
     nodeName: type

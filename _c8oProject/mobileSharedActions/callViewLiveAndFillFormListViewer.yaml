@@ -4,8 +4,16 @@
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '		 // Calling view live
-                      let key;
+          '		let dontReload = false;
+          		let args = null;
+          		let verb = null;
+          		let respInit = null;
+          		page.local.hash = undefined;
+          		page.local.sizeWallPaper = undefined;
+          		let isProd = page.local.published == true || page.local.anonymous == true;
+          		// if in fullsync mode
+          		if(vars.fs){
+          			let key;
                       let respInit;
                       if(page.local["formId"]!= null){
                           key = page.local["formId"];
@@ -14,334 +22,330 @@
                               page["edit"] = true;
                           }
                       }
-          
-                      page.c8o.callJsonObject("fs://c8oforms_fs.view",{
-                          "ddoc": "forms",
-                          "view": "view",
-                          "__live": "view",
-                           "key": key
-                          })
-                          .then((response: any, parameters)=>{
-                              page.local.sourceValue = {};
-                              if(!page.local["submitting"]){
-                              // will be call now and after each database update
-                              if(response.rows != undefined){
-                                  if(response.rows[0] != undefined){
-                                      page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
-                                      page["form"] = response.rows[0].value.doc;
-                                      page["formsList"] = response.rows[0].value.doc.formulaire;
-                                      page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
-                                      try{
-                                          page["local"]["pages"] =  response.rows[0].value.doc["pages"]  
-                                          for(let i in page.local.pages){
-                                              page["local"]["pages"][i]["enabled"] = true;
-                                          }
-                                          page["local"]["currentIndex"] = 0;
-                                      }
-                                      catch(e){
-                                          page["local"]["pages"] = undefined;
-                                          page["local"]["currentIndex"] = 0;
-                                      }
-                                      
-                                      
-                                      page.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
-                                      
-                                      // load background image if we are in new support mode image
-                                      if(response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined && page["form"]["wallpaper"]["type"] != ''color''){
-                                          page.c8o.get_attachment(page["form"]["_id"], "wallpaper", "c8oforms_fs")
-                                          .then((res) => {
-                                              var urlCreator = window["URL"] || window["webkitURL"];
-                                              page.local.url = urlCreator.createObjectURL(res);
-                                              page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-                                              page.tick();
-                                          }).catch((err) => {
-                                              page.c8o.log.error("Error loading wallpaper from local base", err);
-                                          }); 
-                                      }
-                                      else{
-                                          page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-                                      }
-                                  
-                                      const checkAuthorizedPages = (item: any) => {
-                                          if(item.config.page != undefined && item.config.page != ""){
-                                              if(item.conditions != undefined && item.conditions.goToPageIf != undefined){
-                                                  for(let el of item.conditions.goToPageIf.conds){
-                                                      if((el.val2.source == false && (el.val2.str != "" || Object.keys(el.val2.vals).length > 0)) && el.operator != undefined && el.operator != "" && el.page != undefined && el.page != ""){
-                                                          //this is a valid goToPage condition so enable it 
-                                                          for(let i in page.local.pages){
-                                                              if(+i == page.local.currentIndex){
-                                                                  page.local.pages[+i].enabled = true;
-                                                              }
-                                                              else{
-                                                                  page.local.pages[+i].enabled = false;
-                                                              }
-                                                          }
-                                                      }
-                                                  }
-                                                  
-                                              }
-                                          }
-                                      };
-                                      
-                                      let fillFormSubmit = (list, redList, formSubmit, response) => {
-                                          page.local.subKeyD = page.local.urlParams.get("_c8o_subkey");
-                                          page.local.subKeyD = page.local.subKeyD == null ? "," : page.local.subKeyD;
-                                          try  {
-                                              for(let item of list){
-                                                  //checkAuthorizedPages(item);
-                                                  if(item["type"] == "ion-card"){
-                                                      redList[item["name"]] = {};
-                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "children":{}, "label":item["config"]["title"]["text"], "labelHtml":item["config"]["title"]["personalized"] ? item["config"]["title"]["html"] : item["config"]["title"]["text"]};
-                                                      //redList[item["name"]]["children"] = [];
-                                                      
-                                                      let res = response != undefined ? response[item["name"]]["children"] : null;
-                                                      fillFormSubmit(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"], res);
-                                                  }
-                                                  else if(item["type"] == "text"){
-                                                      let urlParams = page.local.urlParams.get(item["name"]);
-                                                      let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
-                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                  }
-                                                  else if(item["type"] == "checkbox"){
-                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                      let urlParams = page.local.urlParams.get(item["name"]);
-                                                      let array = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
-                                                      for(let child in item["children"]){
-                                                          let selected;
-                                                          try {
-                                                              let s = array.indexOf(item["children"][child].value) != -1;
-                                                              selected = s == true ? s : respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
-                                                          }
-                                                          catch(e){
-                                                              
-                                                          }
-                                                          
-                                                          formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected, "other": item["children"][child].other});
-                                                      }
-                                                  }
-                                                  else if(item["type"] == "radio" || item["type"] == "select"){
-                                                      
-                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], "children":[], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                          
-                                                      let findName = "";
-                                                      let findVar = "";
-                                                      if(item["type"] == "select" && item["config"]["sourceEnabled"] == true){
-                                                          for(let w in item["actions"]){
-                                                              if(item["actions"][w].enabled == true){
-                                                                  findVar = item["actions"][w]["vars"][0];
-                                                                  findName = w;
-                                                              }
-                                                          }
-                                                      }
-                                                      if(findName != ""){
-                                                          formSubmit[item["name"]]["action"] = findName;
-                                                          formSubmit[item["name"]]["actionVar"] = findVar;
-                                                          //page.local["vals"+item.name] = 
-                                                          page.c8o.callJsonObject(findName, {
-                                                              [findVar] : ""
-                                                          })
-                                                          .then((res=>{
-                                                              let urlParams = page.local.urlParams.get(item["name"]);
-                                                              page.local.sourceValue[item.name] = res["value"];
-                                                              let defaultSelected ="";
-                                                              for(let child of res["value"]){
-                                                                  if(child == urlParams){
-                                                                      defaultSelected = child;
-                                                                  }
-                                                                  formSubmit[item["name"]]["children"].push({"value": child, "selected": child == urlParams});
-                                                              }
-                                                              formSubmit[item["name"]]["value"] = defaultSelected;
-                                                              return null;
-                                                          }))
-                                                      }
-                                                      else{
-                                                          let urlParams = page.local.urlParams.get(item["name"]);
-                                                          let indexFinded = false;
-                                                          let defaultSelected ="";
-                                                          
-                                                          if(urlParams != undefined){
-                                                              for(let child in item["children"]){
-                                                                  if(item["children"][child]["value"] == urlParams){
-                                                                      indexFinded = true; 
-                                                                      defaultSelected = item["children"][child].value;
-                                                                      formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": true});
-                                                                  }
-                                                                  else{
-                                                                      formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": false});
-                                                                  }
-                                                              }
-                                                          }
-                                                          if(!indexFinded){
-                                                              for(let child in item["children"]){
-                                                                  let selected;
-                                                                  try {
-                                                                      selected = respInit == null ? item["children"][child].selected : response[item["name"]]["children"][child]["selected"];
-                                                                      if(selected){
-                                                                          defaultSelected = respInit == null ? item["children"][child].value : response[item["name"]]["children"][child]["value"];
-                                                                      }
-                                                                  }
-                                                                  catch(e){
-                                                                      
-                                                                  }
-                                                                  
-                                                                  formSubmit[item["name"]]["children"].push({"value": item["children"][child].value, "selected": selected});
-                                                              }
-                                                          }
-                                                          formSubmit[item["name"]]["value"] = defaultSelected; 
-                                                      }
-                                                  }
-                                                  else if(item["type"] == "slider" || item["type"] == "datetime" || item["type"] == "time" || item["type"] == "barcode" || item["type"] == "img" || item["type"] == "file"|| item["type"] == "signature"){
-                                                      let urlParams = page.local.urlParams.get(item["name"]);
-                                                      let value;
-                                                      if(item["type"] == "slider"){
-                                                          let valConvert = (isNaN(+urlParams) == false && urlParams != "") ? +urlParams : null;
-                                                          value = valConvert != null ? valConvert : respInit == null ? "": response[item["name"]]["value"]; 
-                                                      }
-                                                      else{
-                                                          value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["value"]; 
-                                                      }
-                                                      
-                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["name"], "value":value, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                  }
-                                                  else if(item["type"] == "radio_group"){
-                                                      
-                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, children_label:item["children"], "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                      for(let line of item.lines){
-                                                          let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
-                                                          urlParams = item.children.filter(x=> x.value == urlParams).length > 0 ? urlParams : null;
-                                                          let value = urlParams != null ? urlParams : respInit == null ? "": response[item["name"]]["children"][line.title]; 
-                                                          formSubmit[item["name"]].children[line.title]= value;
-                                                      }
-                                                  }
-                                                  else if(item["type"] == "checkbox_group"){
-                                                      formSubmit[item["name"]] = {"name":item["name"], "type": item["type"], "label":item["config"]["label"], children:{}, "labelHtml":item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
-                                                      
-                                                      for(let line of item.lines){
-                                                          formSubmit[item["name"]].children[line.title] = [];
-                                                          let urlParams = page.local.urlParams.get(item["name"]+"_"+line.title);
-                                                          let array = urlParams != null ?urlParams.split(page.local.subKeyD) : [];
-                                                          for(let child in item["children"]){
-                                                             
-                                                              
-                                                              let selected;
-                                                              try {
-                                                                  let s = array.indexOf(item["children"][child].value) != -1;
-                                                                  selected = s == true ? s : respInit == null ? item["children"][child].selected : response[item["name"]]["children"][line.title][child]["selected"];
-                                                              }
-                                                              catch(e){   
-                                                              }   
-                                                              formSubmit[item["name"]].children[line.title].push({"value": item["children"][child].value, "selected": selected});
-                                                          }
-                                                      }
-                                                  }
-                                                  
-                                          };
-                                          }
-                                          catch(e){
-                                              console.log("error");
-                                              console.log(e);
-                                          }
-                                          
-                                      }
-                                      
-                                      
-                                      fillFormSubmit(page["formsList"], page["redList"], page["formsSubmit"], respInit); 
-                                      page["checkForAnyCondition"]();
-                                      
-                                      // do stuff to support upload files
-                                      if(page.global["__C8O_TODELETE"] == undefined){
-                                          page.global["__C8O_TODELETE"] = [];
-                                      }
-                                      let nullBefore = false;
-                                      if(page.global[page["idFiles"]].length == 0){
-                                          nullBefore = true
-                                      }
-                                      for(let item of page["formsList"]){
-                                          if( item[''type''] == "file"){
-                                              if(page.global[page["idFiles"]][item["id"]] == null){
-                                                  page.global[page["idFiles"]][item["id"]] = [];
-                                              }
-                                          }
-                                          if(item["type"] =="ion-card"){
-                                              for(let child of item["children"]){
-                                                  if(child[''type''] == "file"){
-                                                      if(page.global[page["idFiles"]][child["id"]] == null){
-                                                          page.global[page["idFiles"]][child["id"]] = [];
-                                                      }
-                                                  }
-                                              }
-                                          }
-                                      }
-                                      
-                                      
-                                      
-                                      if(respInit == null){
-                                            resolve();        
-                                      }
-                                      else{
-                                          if(page.global["__C8O_TODELETE"] == undefined){
-                                              page.global["__C8O_TODELETE"] = [];
-                                          }
-                                          let nullBefore = false;
-                                          if(page.global[page["idFiles"]].length == 0){
-                                              nullBefore = true
-                                          }
-                                          for(let item of page["formsList"]){
-                                              if( item[''type''] == "file"){
-                                                  if(page.global[page["idFiles"]][item["id"]] == null){
-                                                      page.global[page["idFiles"]][item["id"]] = [];
-                                                  }
-                                              }
-                                              if(item["type"] =="ion-card"){
-                                                  for(let child of item["children"]){
-                                                      if(child[''type''] == "file"){
-                                                          if(page.global[page["idFiles"]][child["id"]] == null){
-                                                              page.global[page["idFiles"]][child["id"]] = [];
-                                                          }
-                                                      }
-                                                  }
-                                              }
-                                          }
-                                          page.c8o.callJson("fs://c8oforms_response_fs.get", "docid", page.local.edit, "attachments", true)
-                                          .then((res)=>{
-                                              let att = res["_attachments"];
-                                              for(let item in att){
-                                                  //first itemid
-                                                  let itemid = item.substring(0, item.indexOf(''_C80C80_''));
-                                                  //second namefile
-                                                  let name = item.substring(item.indexOf(''_C80C80_'')+8,item.lastIndexOf(''_C80C80_''));
-                                                  //synthax
-                                                  if(page.global[page["idFiles"]][itemid] == null){
-                                                      page.global[page["idFiles"]][itemid] = [];
-                                                  }
-                                                  if(nullBefore){
-                                                      page.global[page["idFiles"]][itemid].push({name:name,path:item, deleted:false});
-                                                  }
-                                              }
-                                              resolve();
-                                              return null;
-                                          })
-                                          .fail((err)=>{
-                                              resolve();
-                                          })
-                                      }
-                                      
-                                  }
-                                  else{
-                                      reject();
-                                  }
-                               }
-                              else{
-                                  reject();
-                              }
-                              return null;
-                              }
-                          })
-                          .fail((err)=>{
-                              page.c8o.log.error("CallViewLiveAndFillFormList: " + JSON.stringify(err.message));
-                              reject();
-                          });
+          			verb = "fs://c8oforms_fs.view";
+          			args = {
+          				"ddoc": "forms",
+          				"view": "view",
+          				"__live": "viewLiveViewerPage",
+          				"key": key
+                     };
+          		}
+          		// if in sequence mode
+          		else{
+          			page.global.errorViewer = false;
+          			page.local.user = page["navParams"].get(''i'');
+          			args = {
+          				"login": page.local.user,
+          				"__disableAutologin": true,
+          				[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)
+          			}
+          			verb = ".getAnonymousForm"; 
+          		}
+                  
+          		page.c8o.callJsonObject(verb,args)
+          		.then((response: any)=>{
+          			let cond: boolean;
+          			if(vars.fs){
+          				cond = !page.local.submitting;
+          			}
+          			else{
+          				cond = response.transaction != undefined && response.transaction.document != undefined && response.transaction.document.couchdb_output != undefined && response.transaction.document.couchdb_output.rows != undefined && response.transaction.document.couchdb_output.rows[0] != undefined;
+          				response = response.transaction.document.couchdb_output;
+          				var myIdP = response.rows[0].value.doc._id;
+          	            const key = "_C8O_HIDDEN_" +  myIdP.substring(0, myIdP.indexOf("_anonymous"));
+          	            page.local.grp[key] = true;
+          	            page.local.formId = response.rows[0].value.doc._id;
+          			}
+          			try{
+          				var newHash = sha256(JSON.stringify(response.rows[0]));
+          			}
+          			catch(e){}
+          			if(cond && response.rows != undefined && response.rows[0] != undefined && newHash != page.local.hash && response.rows.length > 0){
+          				// remove errorViewer
+          				page.local.errorViewer = false;
+          				//updates value except page.formsList
+          				page["form"] = response.rows[0].value.doc;
+          				page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
+          	            page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
+          				if(response.rows[0].value.doc.collabsResponse != undefined && response.rows[0].value.doc.collabsResponse.length > 0){
+          					if(page.local.grp == undefined){
+          						page.local.grp = {};
+          					}
+          					response.rows[0].value.doc.collabsResponse.forEach((e)=>{
+          						page.local.grp[e] = true; 
+          					})
+          				}
+          				var isInitial = true;
+          				// if response is diffrent from previous
+          				if(page.local.hash == undefined){
+          					// this was inital loading of form so do nothing
+          					page.local.hash = newHash;
+          				}
+          				// if there is an update while consulting 
+          				else{
+          					isInitial = false;
+          					// if we are in production 
+          					if(isProd){
+          						dontReload = true;
+          						//return;//window.location.reload();
+          					}
+          					// if we are in preview
+          					else{
+          						if(!page.local.displayIngToast){
+          							page.local.displayIngToast = true;
+          							let toastCtrl = page.getInstance(ToastController);
+          							let toast = toastCtrl.create({
+          							    message: page["translate"].instant("the_form_has_been_updated"),
+          							    duration: 3000,
+          							    position: ''bottom'',
+          								dismissOnPageChange: true,
+          								showCloseButton: true,
+          								closeButtonText: page["translate"].instant("close"),
+          								cssClass: "changeToast"
+          							});
+          							toast.present();
+          							setTimeout(()=>{
+          								page.local.displayIngToast = false;
+          							},3000)
+          							if(page.local.databsesTosync != undefined){
+          								for(let db in page.local.databsesTosync){
+          									//page.c8o.callJsonObject("fs://"+db+".replicate_pull",{cancel: true});
+          									page.c8o.log.debug("canceled "+db+" pull replication (brefore updating form)");
+          								}
+          							}
+          							if(page.local.liveToCancel != undefined){
+          								for(let liveQuery of page.local.liveToCancel){
+          									page.c8o.cancelLive(liveQuery);
+          									page.c8o.log.debug("canceled "+liveQuery+" live query (brefore updating form)");
+          								}
+          								page.local.liveToCancel = [];
+          							}
+          						}
+          						
+          						
+          					}
+          				}
+          				if(isInitial){
+          					page.local.sourceValue = {};
+          					page.local.functionsToBeCalled = {};
+          				}
+          				if(!dontReload){
+          					
+          				}
+          	            try{
+          					if(isInitial){
+          						page["local"]["pages"] =  response.rows[0].value.doc["pages"]  
+          		                for(let i in page.local.pages){
+          							if(page["local"]["pages"][i]["enabled"] == undefined){
+          								page["local"]["pages"][i]["enabled"] = true;
+          							}
+          		                }
+          						page["local"]["currentIndex"] = 0;
+          					}
+          					else{
+          						// get previous pageTechNameByIndex
+          						let indexPageTechName = page["local"]["pages"].map((x)=> x.Page1607421989682);
+          						for(let i in response.rows[0].value.doc["pages"]){
+          							// getting previous status of pageTechName if exists
+          							let ArrayCorrespondigPage = page["local"]["pages"].filter((x)=> x.pageTechName == response.rows[0].value.doc["pages"][i].pageTechName);
+          							if(ArrayCorrespondigPage.length > 0){
+          								response.rows[0].value.doc["pages"][i]["enabled"] = ArrayCorrespondigPage[0]["enabled"];
+          							}
+          							else{
+          								response.rows[0].value.doc["pages"][i]["enabled"] = true;
+          							}
+          						}
+          					}
+          					
+          	            }
+          	            catch(e){
+          	                page["local"]["pages"] = undefined;
+          	                page["local"]["currentIndex"] = 0;
+          					console.error("catch1", e);
+          	            }
+          	            page.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
+          	            
+          				// Load wallpaper
+          				if(vars.fs){
+          					// load background image if we are in new support mode image
+          	                if(response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined && page["form"]["wallpaper"]["type"] != ''color''){
+          	                    page.c8o.get_attachment(page["form"]["_id"], "wallpaper", "c8oforms_fs")
+          	                    .then((res) => {
+          							if(res.size != page.local.sizeWallPaper){
+          								page.local.sizeWallPaper = res.size;
+          								 var urlCreator = window["URL"] || window["webkitURL"];
+          		                        page.local.url = urlCreator.createObjectURL(res);
+          		                        page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+          		                        //page.tick();
+          							}
+          	                    }).catch((err) => {
+          							console.error("catch2", err);
+          	                        page.c8o.log.error("Error loading wallpaper from local base", err);
+          	                    }); 
+          	                }
+          	                else{
+          	                    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+          	                }
+          				}
+          				else{
+          					if (response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined) {
+          						if(page.local.url != page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper"){
+          							page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper";
+          						    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+          						    //page.tick();
+          						}
+          					}
+          					else {
+          					    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+          					}
+          				}
+          				
+          				// if we have reloaded the form charge again the currents values
+          				if(!isInitial){
+          					respInit = {...page["formsSubmit"]};
+          					(page as any).local.functionsToBeCalled = {};
+          					(page as any).functionsById = {};
+          					(page as any).previousAndPostFunctions = {};
+          				}
+          				// calling fillFormSubmit
+          	            page["fillFormSubmit"](response.rows[0].value.doc.formulaire, page["redList"], page["formsSubmit"], respInit);
+          				// then affetct value of form
+          				page["formsList"] = page["form"]["formulaire"];
+          				page.tick();
+          				page.local["databsesTosync"] = {};
+          				page["getDatabasesToSync"](page.local["databsesTosync"]);
+          				console.log("databsesTosync", page.local["databsesTosync"]);
+          				page["startSyncDatabases"](page.local["databsesTosync"])
+          				
+          				//page.ref.markForCheck()
+          				// calling fillActionsVars
+          				if(page["form"]["actions"] != undefined){
+          					page["fillActionsVars"](page["form"]["actions"])
+          					// calling fillActions
+          					page["fillActions"](page["form"]["actions"], null, null);
+          				}
+          				// calling fillSources
+          				//if(isInitial){
+          				let idsToCall = page["fillSources"](page["formsList"], page["redList"], page["formsSubmit"]); 
+          				
+          					idsToCall.forEach((id)=>{
+          						try{
+          							page["functionsById"][id]();
+          						}
+          						catch(e){
+          							console.error("an error occured idsToCall", e) 
+          						}
+          					});
+          					
+          				
+          				//}
+          				
+          				
+          				//²if(isInitial){
+          		            // check conditions
+          					page["checkForAnyCondition"]();
+          				//}	
+          	            
+          	            // do stuff to support upload files
+          	            if(page.global["__C8O_TODELETE"] == undefined){
+          	                page.global["__C8O_TODELETE"] = [];
+          	            }
+          	            
+          	            for(let item of page["formsList"]){
+          	                if( item[''type''] == "file"){
+          	                    if(page.global[page["idFiles"]][item["id"]] == null){
+          	                        page.global[page["idFiles"]][item["id"]] = [];
+          	                    }
+          	                }
+          	                if(item["type"] =="ion-card"){
+          	                    for(let child of item["children"]){
+          	                        if(child[''type''] == "file"){
+          	                            if(page.global[page["idFiles"]][child["id"]] == null){
+          	                                page.global[page["idFiles"]][child["id"]] = [];
+          	                            }
+          	                        }
+          	                    }
+          	                }
+          	            }
+          	            resolve();
+          			}
+          			else if(response.rows.length == 0){
+          				page.local.spinner = false
+          				page.local.errorMsgViewer = ''error_not_found'';
+          				page.local.errorViewer = true;
+          				page[''events''].publish("anyInitalSyncFinished");
+          			}
+          			else if(response.document != undefined && response.document.error != undefined){
+          				if(response.document.error.message == "Max number of sessions exceeded for Standard Edition"){
+          					page.c8o.log.fatal("Max number of sessions exceeded for Standard Edition")
+          				}
+          				
+          			}
+          			
+          			return null;
+          		})
+          		.fail((e)=>{
+          			page.c8o.log.error("An error occured into CallViewLiveAndFillFormList viewer " + JSON.stringify(e.message));
+                      reject();
+          		});
           '
+  package_dependencies: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: js-sha256
+            - java.lang.String: 
+              - ↑value: 0.9.0
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: lodash
+            - java.lang.String: 
+              - ↑value: 4.17.20
+  page_ts_imports: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: C8oLocalCache
+            - java.lang.String: 
+              - ↑value: c8osdkangular
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: Priority
+            - java.lang.String: 
+              - ↑value: c8osdkangular
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: sha256
+            - java.lang.String: 
+              - ↑value: js-sha256
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: '* as _'
+            - java.lang.String: 
+              - ↑value: lodash
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: ToastController
+            - java.lang.String: 
+              - ↑value: ionic-angular
   ↓Failure_Handler [mobile.components.UIActionFailureEvent-1574090792916]: 
     ↓IfElse [mobile.components.UIDynamicIf-1604420874457]: 
       beanData: '{"ionBean":"IfElseAction","condition":"script:this.global.pwa == true"}'
@@ -363,7 +367,7 @@
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.translate.instant('error_not_found')
+              - MobileSmartSourceType: script:'error_not_found'
         ↓path [mobile.components.UIControlVariable-1604422044141]: 
           varValue: 
             - xmlizable: 
@@ -382,6 +386,20 @@
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
               - MobileSmartSourceType: script:'errorViewer'
+      ↓PublishEventInitalSyncFinished [mobile.components.UIDynamicAction-1617011921689]: 
+        beanData: |
+          '{
+           "ionBean": "PublishEventAction",
+           "topic": "plain:anyInitalSyncFinished",
+           "data": "script"
+          }'
       ↓Else_Handler [mobile.components.UIActionElseEvent-1604420898169]: 
         ↓RootPage [mobile.components.UIDynamicAction-1574090799651]: 
           beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
+  ↓fs [mobile.components.UIControlVariable-1610051910101]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:stack.callViewLiveAndFillFormListViewer.in.vars.fs
+↓fs [mobile.components.UIStackVariable-1610051895823]: 
+  value: true

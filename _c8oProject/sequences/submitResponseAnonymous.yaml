@@ -70,6 +70,64 @@
         ↓Element [steps.XMLElementStep-1593705542028]: 
           nodeName: ok
           nodeText: true
+        ↓jSimpleSource [steps.SimpleSourceStep-1614959482360]: 
+          sourceDefinition: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+              - com.twinsoft.convertigo.beans.common.XMLVector: 
+                - java.lang.String: 
+                  - ↑value: 1593705549244
+                - java.lang.String: 
+                  - ↑value: ./myId/text()
+          variableName: idPublishedA
+        ↓Sequence_JSz [steps.SimpleStep-1614959549033]: 
+          expression: |
+            'var splitted = idPublishedA.split("_");
+            var idPublishedDoc = splitted[1]+"_"+splitted[2];
+            log.debug("id published doc is: "+idPublishedDoc)'
+        ↓jElement [steps.ElementStep-1614959774370]: 
+          expression: idPublishedDoc
+          nodeName: idPublished
+        ↓Call_TransactionGetGroupsAnsers [steps.TransactionStep-1614956210668]: 
+          sourceTransaction: C8Oforms.c8oforms_fs.GetDocument
+          ↓_use_docid [variables.StepVariable-1614959454633]: 
+            description: Document ID
+            sourceDefinition: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+                - com.twinsoft.convertigo.beans.common.XMLVector: 
+                  - java.lang.String: 
+                    - ↑value: 1614959774370
+                  - java.lang.String: 
+                    - ↑value: ./text()
+            value: 
+        ↓jSource [steps.SourceStep-1614959837729]: 
+          sourceDefinition: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+              - com.twinsoft.convertigo.beans.common.XMLVector: 
+                - java.lang.String: 
+                  - ↑value: 1614956210668
+                - java.lang.String: 
+                  - ↑value: ./document/couchdb_output/collabsResponse
+          variableName: c8oGrp
+        ↓Sequence_JSs [steps.SimpleStep-1614959902078]: 
+          expression: |
+            '//todo
+            var jsGroups = {};
+            try{
+            	if(c8oGrp != undefined && c8oGrp.item(0) != undefined && c8oGrp.item(0).length > 0){
+            		for(var i = 0; i< c8oGrp.item(0).length; i++){
+            			//log.warn(c8oGrp.item(0).item(i).getTextContent());
+            			jsGroups[c8oGrp.item(0).item(i).getTextContent()] = true;
+            		}
+            	}
+            }
+            catch(e){
+            	log.error("An error occured while tying to retrive other groups");
+            }
+            
+            '
         ↓Sequence_JS [steps.SimpleStep-1593706046894]: 
           expression: |
             'var jBase = {
@@ -79,10 +137,12 @@
             		"formRev":formRev,
             		"version":version,
             		"actions":JSON.parse(actions),
-            		"c8oGrp":JSON.parse(grp),
+            		"c8oGrp":Object.assign(JSON.parse(grp),jsGroups),
             		"finished":"true"
             };
             jBase = JSON.stringify(jBase);
+            log.warn("JBASE =>");
+            log.warn(""+jBase);
             filesInfo = JSON.parse(filesInfo);
             var i = 0;
             '
@@ -211,14 +271,47 @@
             delete doc["couchdb_output"]["_c8oMeta"];
             delete doc["couchdb_output"]["attr"];
             var document = doc["couchdb_output"];
-            log.warning("document: " + JSON.stringify(document));
             
             var xmlUtils = use("com.twinsoft.convertigo.engine.util.XMLUtils");
             var jsonObject = new org.codehaus.jettison.json.JSONObject(JSON.stringify(document));
             xmlUtils.jsonToXml(jsonObject, dom.getDocumentElement().item(1));
             
+            var running = null;
+            log.info("submitResponseAnonymous: before creating runnable");
+            var r = new java.lang.Runnable() {
+                run: function() {
+            		// prevent from deletion of variables in previous context
+            		var logRunnable = log;
+            		var itemJsRunnable = dom.getDocumentElement().item(1);
+            		running = true;
+            		logRunnable.warn("submitResponseAnonymous: into runnable func");
+                  	// call sequence mannual 
+            		var __project = java.lang.reflect.Array.newInstance(java.lang.String, 1);
+            		__project[0] = "C8Oforms"
+            		var __sequence = "Execute_Sequences"
+            		
+            		var parameters = new java.util.HashMap();
+            		parameters.put("__project", __project);
+            		parameters.put("__sequence", __sequence);
+            		parameters.put("doc", itemJsRunnable);
+            		
+            		var request = new com.twinsoft.convertigo.engine.requesters.InternalHttpServletRequest(context.httpServletRequest);
+            		var requester = new com.twinsoft.convertigo.engine.requesters.InternalRequester(parameters, request);
+            		requester.processRequest();
+            		logRunnable.warn("submitResponseAnonymous: into runnable func after processRequest");
+            	}
+            };
+            new java.lang.Thread(r).start();
+            var cpt = 200;
+            while(running != true && --cpt){
+            	java.lang.Thread.sleep(50);
+            }
+            
+            
+            
             '
         ↓Call_Sequence [steps.SequenceStep-1602002373760]: 
+          isEnabled: false
           sourceSequence: C8Oforms.Execute_Sequences
           ↓doc [variables.StepMultiValuedVariable-1602002387105]: 
             sourceDefinition: 

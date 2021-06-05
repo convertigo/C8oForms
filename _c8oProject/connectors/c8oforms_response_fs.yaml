@@ -1,3 +1,4 @@
+anonymousReplication: allow
 comment: Fullsync connector that holds all responses
 databaseName: c8oforms_response_fs
 ↓GetDocument [transactions.couchdb.GetDocumentTransaction]: 
@@ -15,6 +16,11 @@ databaseName: c8oforms_response_fs
     description: Document ID
   ↓_use_attpath [variables.RequestableVariable-1599747026232]: 
     description: Attachment path  This path is either absolute or relative to Convertigo environment. Relative paths starting with:<br/><br/>• <span class="computer">./</span> are relative to Convertigo workspace,<br/>• <span class="computer">.//</span> are relative to current project folder. <br/><br/>
+↓GetDocumentRev [transactions.couchdb.GetDocumentTransaction]: 
+  ↓_use_docid [variables.RequestableVariable-1615466265899]: 
+    description: Document ID
+  ↓_use_rev [variables.RequestableVariable-1615466265902]: 
+    description: (string) – Retrieves document of specified revision. Optional
 ↓GetResponseByFormId [transactions.couchdb.GetViewTransaction]: 
   viewname: Design_document/responsesByFormId
   ↓Test_Case [core.TestCase]: 
@@ -48,6 +54,7 @@ databaseName: c8oforms_response_fs
     description: (string) – JSON use as a base for the array of documents (js array), or for individual documents (js object). Optional
 ↓PostDocument [transactions.couchdb.PostDocumentTransaction]: 
   fullSyncAclPolicy: fromKeyC8oAcl
+  policy: merge
   ↓_c8oAcl [variables.RequestableVariable-1593705650341]: 
     description: Set the owner of the document if the "Acl Policy"="From _c8oACL variable"
   ↓_id [variables.RequestableVariable-1593705650343]: 
@@ -58,6 +65,13 @@ databaseName: c8oforms_response_fs
     description: (string) – JSON use as a base for the document (js object). Optional
     value: 
   ↓resp [variables.RequestableVariable-1593709452846]: 
+↓PostDocumentJBASE [transactions.couchdb.PostDocumentTransaction]: 
+  fullSyncAclPolicy: noOp
+  policy: merge
+  ↓_use_json_base [variables.RequestableVariable-1615460801760]: 
+    description: (string) – JSON use as a base for the document (js object). Optional
+  ↓_id [variables.RequestableVariable-1615460801762]: 
+    description: Document id
 ↓PurgeDatabase [transactions.couchdb.PurgeDatabaseTransaction]: 
   purgeAll: true
 ↓PutDocumentAttachment [transactions.couchdb.PutDocumentAttachmentTransaction]: 
@@ -67,6 +81,15 @@ databaseName: c8oforms_response_fs
     description: Attachment path  This path is either absolute or relative to Convertigo environment. Relative paths starting with:<br/><br/>• <span class="computer">./</span> are relative to Convertigo workspace,<br/>• <span class="computer">.//</span> are relative to current project folder. <br/><br/>
   ↓_use_docid [variables.RequestableVariable-1593717335096]: 
     description: Document ID
+↓PutDocumentAttachmentFromFile [transactions.couchdb.PutDocumentAttachmentTransaction]: 
+  ↓_use_attname [variables.RequestableVariable-1615460071150]: 
+    description: Attachment name
+  ↓_use_attpath [variables.RequestableVariable-1615460071153]: 
+    description: Attachment path  This path is either absolute or relative to Convertigo environment. Relative paths starting with:<br/><br/>• <span class="computer">./</span> are relative to Convertigo workspace,<br/>• <span class="computer">.//</span> are relative to current project folder. <br/><br/>
+  ↓_use_docid [variables.RequestableVariable-1615460071156]: 
+    description: Document ID
+  ↓_use_attcontent_type [variables.RequestableVariable-1615460071159]: 
+    description: Attachment ContentType  Define the ContentType of the attachment. This is the ContentType returned when the attachment is requested.
 ↓Design_document [couchdb.DesignDocument]: 
   docdata: 
     →: |
@@ -111,14 +134,17 @@ databaseName: c8oforms_response_fs
           }\r\n
       }"
           },
-          "responsesByFormId": {"map": "function (doc) {\r\n
+          "responsesByFormId": {
+            "map": "function (doc) {\r\n
           try {\r\n
               emit(doc.formId, {doc: doc});\r\n
           } catch (err) {\r\n
               log(err.message);\r\n
           }\r\n
-      }"},
-          "view": {"map": "function (doc) {\r\n
+      }"
+          },
+          "view": {
+            "map": "function (doc) {\r\n
           try {\r\n
               \/\/function flatenize\r\n
               var flatenize = function (doc, prefix, resp, myid){\r\n
@@ -224,7 +250,8 @@ databaseName: c8oforms_response_fs
               } catch (err) {\r\n
                   log(err.message);\r\n
               }\r\n
-      }"},
+      }"
+          },
           "getResponseByVersion": {
             "map": "function (doc) {\r\n
               try {\r\n
@@ -244,7 +271,8 @@ databaseName: c8oforms_response_fs
           }\r\n
       }"
           },
-          "view1": {"map": "function (doc) {\r\n
+          "view1": {
+            "map": "function (doc) {\r\n
           try {\r\n
               \/\/function flatenize\r\n
               var flatenize = function (doc, prefix, resp, myid){\r\n
@@ -335,8 +363,10 @@ databaseName: c8oforms_response_fs
               } catch (err) {\r\n
                   log(err.message);\r\n
               }\r\n
-      }"},
-          "view1_Pretty": {"map": "function (doc) {\r\n
+      }"
+          },
+          "view1_Pretty": {
+            "map": "function (doc) {\r\n
           try {\r\n
               \/\/function flatenize\r\n
               var flatenize = function (doc, prefix, resp, myid){\r\n
@@ -347,7 +377,7 @@ databaseName: c8oforms_response_fs
                         }\r\n
                         else if(doc[property].type == \"radio_group\"){\r\n
                             for(var ninos in doc[property].children){\r\n
-                              resp.push({\"key\":property+\" [\" + ninos + \"]\", \"value\": doc[property].children[ninos]})\r\n
+                              resp.push({\"key\":property+\" [\" + ninos + \"]\", \"name\":doc[property][\"name\"], \"value\": doc[property].children[ninos]})\r\n
                             }\r\n
                         }\r\n
                         else{\r\n
@@ -364,7 +394,7 @@ databaseName: c8oforms_response_fs
                                     \r\n
                                 }\r\n
                             }\r\n
-                            resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": val});\r\n
+                            resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"name\":doc[property][\"name\"], \"value\": val});\r\n
                           }\r\n
                           else if(doc[property].type == \"checkbox_group\"){\r\n
                             \/\/ foreach Line\r\n
@@ -381,23 +411,23 @@ databaseName: c8oforms_response_fs
                                     } \r\n
                                   }\r\n
                               }\r\n
-                              resp.push({\"key\":prefix + property+\" [\" + ninos + \"]\", \"value\": val});\r\n
+                              resp.push({\"key\":prefix + property+\" [\" + ninos + \"]\", \"name\":doc[property][\"name\"], \"value\": val});\r\n
                             }\r\n
                           }\r\n
                           else if(doc[property].type == \"img\"){\r\n
                               if(doc[property].value != \"\"){\r\n
-                                  resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": \"__C8O__UNIQUE__IMG,\"+myid})  \r\n
+                                  resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"name\":doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__IMG,\"+myid})  \r\n
                               }\r\n
                               else{\r\n
-                                 resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": doc[property][\"value\"]})\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"labelHtml\"],\"name\":doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
                               }\r\n
                             }\r\n
                             else if(doc[property].type == \"signature\"){\r\n
                               if(doc[property].value != \"\"){\r\n
-                                resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": \"__C8O__UNIQUE__SIGNATURE,\"+myid})\r\n
+                                resp.push({\"key\":prefix + doc[property][\"labelHtml\"],\"name\":doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__SIGNATURE,\"+myid})\r\n
                               }\r\n
                               else{\r\n
-                                 resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": doc[property][\"value\"]})\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"labelHtml\"],\"name\":doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
                               }\r\n
                             }\r\n
                             else if(doc[property].type == \"file\"){\r\n
@@ -406,14 +436,14 @@ databaseName: c8oforms_response_fs
                                 for(var elem in doc[property][\"value\"]){\r\n
                                   str += \",\" + doc[property][\"value\"][elem];\r\n
                                 }\r\n
-                                resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": \"__C8O__UNIQUE__FILE,\"+myid+str})\r\n
+                                resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"name\":doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__FILE,\"+myid+str})\r\n
                               } \r\n
                               else{\r\n
-                                 resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": doc[property][\"value\"]})\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"name\":doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
                               }\r\n
                             }\r\n
                           else{\r\n
-                           resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"value\": doc[property][\"value\"]}) \r\n
+                           resp.push({\"key\":prefix + doc[property][\"labelHtml\"], \"name\":doc[property][\"name\"], \"value\": doc[property][\"value\"]}) \r\n
                           }\r\n
                         }\r\n
                       }\r\n
@@ -427,8 +457,10 @@ databaseName: c8oforms_response_fs
               } catch (err) {\r\n
                   log(err.message);\r\n
               }\r\n
-      }"},
-          "view1_multiple": {"map": "function (doc) {\r\n
+      }"
+          },
+          "view1_multiple": {
+            "map": "function (doc) {\r\n
           try {\r\n
               \/\/function flatenize\r\n
               var flatenize = function (doc, prefix, resp, myid){\r\n
@@ -439,7 +471,7 @@ databaseName: c8oforms_response_fs
                         }\r\n
                         else if(doc[property].type == \"radio_group\"){\r\n
                             for(var ninos in doc[property].children){\r\n
-                              resp.push({\"key\":property+\"_\" + ninos, \"value\": doc[property].children[ninos]})\r\n
+                              resp.push({\"key\":property+\"_\" + ninos, \"name\":doc[property][\"name\"], \"value\": doc[property].children[ninos]})\r\n
                             }\r\n
                         }\r\n
                         else{\r\n
@@ -456,7 +488,7 @@ databaseName: c8oforms_response_fs
                                     \r\n
                                 }\r\n
                             }\r\n
-                            resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": val});\r\n
+                            resp.push({\"key\":prefix + doc[property][\"name\"],  \"name\":doc[property][\"name\"], \"value\": val});\r\n
                           }\r\n
                           else if(doc[property].type == \"checkbox_group\"){\r\n
                             \/\/ foreach Line\r\n
@@ -473,23 +505,23 @@ databaseName: c8oforms_response_fs
                                     } \r\n
                                   }\r\n
                               }\r\n
-                              resp.push({\"key\":prefix + property+\"_\" + ninos, \"value\": val});\r\n
+                              resp.push({\"key\":prefix + property+\"_\" + ninos, \"name\":doc[property][\"name\"], \"value\": val});\r\n
                             }\r\n
                           }\r\n
                           else if(doc[property].type == \"img\"){\r\n
                               if(doc[property].value != \"\"){\r\n
-                                  resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__IMG,\"+myid})  \r\n
+                                  resp.push({\"key\":prefix + doc[property][\"name\"],\"name\":doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__IMG,\"+myid})  \r\n
                               }\r\n
                               else{\r\n
-                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"name\"],\"name\":doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
                               }\r\n
                             }\r\n
                             else if(doc[property].type == \"signature\"){\r\n
                               if(doc[property].value != \"\"){\r\n
-                                resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__SIGNATURE,\"+myid})\r\n
+                                resp.push({\"key\":prefix + doc[property][\"name\"], \"name\":doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__SIGNATURE,\"+myid})\r\n
                               }\r\n
                               else{\r\n
-                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"name\":doc[property][\"name\"],\"value\": doc[property][\"value\"]})\r\n
                               }\r\n
                             }\r\n
                             else if(doc[property].type == \"file\"){\r\n
@@ -498,14 +530,14 @@ databaseName: c8oforms_response_fs
                                 for(var elem in doc[property][\"value\"]){\r\n
                                   str += \",\" + doc[property][\"value\"][elem];\r\n
                                 }\r\n
-                                resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__FILE,\"+myid+str})\r\n
+                                resp.push({\"key\":prefix + doc[property][\"name\"], \"name\":doc[property][\"name\"], \"value\": \"__C8O__UNIQUE__FILE,\"+myid+str})\r\n
                               } \r\n
                               else{\r\n
-                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]})\r\n
+                                 resp.push({\"key\":prefix + doc[property][\"name\"], \"name\":doc[property][\"name\"],\"value\": doc[property][\"value\"]})\r\n
                               }\r\n
                             }\r\n
                           else{\r\n
-                           resp.push({\"key\":prefix + doc[property][\"name\"], \"value\": doc[property][\"value\"]}) \r\n
+                           resp.push({\"key\":prefix + doc[property][\"name\"], \"name\":doc[property][\"name\"], \"value\": doc[property][\"value\"]}) \r\n
                           }\r\n
                         }\r\n
                       }\r\n
@@ -519,12 +551,32 @@ databaseName: c8oforms_response_fs
               } catch (err) {\r\n
                   log(err.message);\r\n
               }\r\n
-      }"}
+      }"
+          },
+          "responsesByIdForListener": {
+            "map": "function (doc) {\r\n
+          try {\r\n
+              if(doc.timestamp != null && doc.finished){\r\n
+                  emit(doc._id);\r\n
+              }    \r\n
+          } catch (err) {\r\n
+              log(err.message);\r\n
+          }\r\n
+      }",
+            "reduce": "function (keys, values, rereduce) {\r\n
+          try {\r\n
+               return values;\r\n
+          } catch (err) {\r\n
+              log(err.message);\r\n
+          }\r\n
+      }"
+          }
         }
       }'
 ↓FullSync_Update_Listener_Filter [couchdb.FullSyncFilterListener]: 
   isEnabled: false
   targetSequence: C8Oforms.NotifyResponseByMail
 ↓FullSync_Update_Listener_View [couchdb.FullSyncListener]: 
+  comment: triggered when a new response is submitted
   targetSequence: C8Oforms.Execute_Sequences
-  targetView: C8Oforms.c8oforms_response_fs.Design_document.responsesById
+  targetView: C8Oforms.c8oforms_response_fs.Design_document.responsesByIdForListener

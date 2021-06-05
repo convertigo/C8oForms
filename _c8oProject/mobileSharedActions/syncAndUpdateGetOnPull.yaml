@@ -119,16 +119,22 @@
                               try{
                                   if(obj[i]["type"] == "radio_group" || obj[i]["type"] == "checkbox_group"){
                                           for(let child of obj[i]["children"]){
-                                              child["id"] = (Math.random() + "").substring(2);
+          									if(child["id"] == undefined){
+          										child["id"] = (Math.random() + "").substring(2);
+          									}
                                           }
                                           for(let child of obj[i]["lines"]){
-                                              child["id"] = (Math.random() + "").substring(2);
+          									if(child["id"] == undefined){
+                                              	child["id"] = (Math.random() + "").substring(2);
+          									}
                                           }
                                   }
                                   else if(obj[i]["type"] == "select" || obj[i]["type"] == "radio" || obj[i]["type"] == "checkbox"){
                                       for(let child of obj[i]["children"]){
-                                          child["id"] = (Math.random() + "").substring(2);
-                                      }
+          								if(child["id"] == undefined){
+                                          	child["id"] = (Math.random() + "").substring(2);
+                                      	}
+          							}
                                   }
                                   else if(obj[i]["type"] == "ion-card"){
                                       updateToConditions(obj[i]["children"]);
@@ -139,7 +145,25 @@
                               }
                           }
                       };
-          		    
+          
+          			/**
+          				FIX FORM GROUP PAGETECHNAME 
+          			 */
+          		    const fixGroupChildsPages = (obj: Array<any>): void => {
+                          for(let i in obj){
+                              try{
+                                  if(obj[i]["type"] == "ion-card"){
+          							let pageTechName = obj[i].config.page
+          							for(let j in obj[i]["children"]){
+          								obj[i]["children"][j].config.page = pageTechName;
+          							}
+          						}
+          					}
+                              catch(e){
+                                  console.log("error during migration: \n",e);
+                              }
+                      	}
+           			}
           		    page.global["__helpersRadio"] = (arr)=>{
                           for(let elem in arr){
                               if(arr[elem]["selected"]){
@@ -174,23 +198,28 @@
                         })
                         .then((response: any, parameters)=>{
                             try{
+          					const newHash = sha256(JSON.stringify(response));
+                              if(page.local.hashFolders != newHash){
+                                page.local.hashFolders = newHash;
                                 let flag = false;
                                 if(response["technicalVersion"] == undefined){
-                                    updateHtml(response.formulaire); 
-                                    let pageTechName = updateToPages(response.formulaire); 
-                                    response["technicalVersion"] = "1.0.2";
-                                    let desc = response.descform;
-                                    response["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc:desc}];
-                                    flag = true;
+          						if(response.pages == undefined){
+          							updateHtml(response.formulaire); 
+                                    	let pageTechName = updateToPages(response.formulaire);
+                                    	let desc = response.descform;
+                                    	response["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc:desc}];
+          						}
+          						response["technicalVersion"] = "1.0.2";
+                                  flag = true;
                                 }
-                                else if(response["technicalVersion"] == "1.0.0") {
+                                if(response["technicalVersion"] == "1.0.0") {
                                     let pageTechName = updateToPages(response.formulaire); 
                                     response["technicalVersion"] = "1.0.2";
                                     let desc = response.descform;
                                     response["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc: desc}];
                                     flag = true;
                                 }
-                                else if(response["technicalVersion"] == "1.0.1") {
+                                if(response["technicalVersion"] == "1.0.1") {
                                     let pageTechName = updateToPages(response.formulaire); 
                                     response["technicalVersion"] = "1.0.2";
                                     let desc = response.descform;
@@ -200,9 +229,14 @@
                                     
                                     flag = true;
                                 }
-                                else if(response["technicalVersion"] == "1.0.2") {
+                                if(response["technicalVersion"] == "1.0.2") {
                                     updateToConditions(response.formulaire);  
                                     response["technicalVersion"] = "1.0.3";
+                                    flag = true;
+                                }
+          					  if(response["technicalVersion"] == "1.0.3") {
+                                    fixGroupChildsPages(response.formulaire);  
+                                    response["technicalVersion"] = "1.0.4";
                                     flag = true;
                                 }
                                 page["formsList"] = response.formulaire;
@@ -238,6 +272,7 @@
                                 
                                 page.ref.detectChanges();
                                 resolve();
+          					}
                                 return null;
                             }
                             catch(e){
@@ -283,3 +318,25 @@
                             reject();
                         }); 
           '
+  package_dependencies: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: js-sha256
+            - java.lang.String: 
+              - ↑value: 0.9.0
+  page_ts_imports: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: sha256
+            - java.lang.String: 
+              - ↑value: js-sha256
