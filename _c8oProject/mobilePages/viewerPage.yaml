@@ -125,20 +125,27 @@ scriptContent:
         	startSyncDatabases(databaseObject){
         		for(let databaseName in databaseObject){
         			if(databaseObject[databaseName]){
-        				this.c8o.log.debug("beforeCall "+ databaseName + " status");
-        				this.c8o.callJsonObject("fs://"+databaseName+".replicate_pull",{"continuous": true, "heartbeat": false, "timeout": false, "batch_size": 1000, "retry": true, "batches_limit": 10})
-        				.then((res, parameters)=>{
-        					this.c8o.log.debug("startSyncDatabases "+ databaseName + " status");
-        					console.log("status", res);
-        					return null;
+        				if(this.local.promisesFS == null){
+        					this.local.promisesFS = {};
+        				}
+        				this.local.promisesFS[databaseName] = new Promise((resolveP)=>{
+        					this.c8o.log.debug("beforeCall "+ databaseName + " status");
+        					this.c8o.callJsonObject("fs://"+databaseName+".replicate_pull",{"continuous": true, "heartbeat": false, "timeout": false, "batch_size": 1000, "retry": true, "batches_limit": 10})
+        					.then((res, parameters)=>{
+        						resolveP();
+        						this.c8o.log.debug("startSyncDatabases "+ databaseName + " status");
+        						console.log("status", res);
+        						return null;
+        					})
+        					.progress((progress)=>{
+        						this.c8o.log.debug("startSyncDatabases progress "+ databaseName + " progress");
+        						console.log("progress", progress);
+        					})
+        					.fail((error)=>{
+        						this.c8o.log.error("error startSyncDatabases "+ databaseName + " status");
+        					})
         				})
-        				.progress((progress)=>{
-        					this.c8o.log.debug("startSyncDatabases progress "+ databaseName + " progress");
-        					console.log("progress", progress);
-        				})
-        				.fail((error)=>{
-        					this.c8o.log.error("error startSyncDatabases "+ databaseName + " status");
-        				})
+        				
         			}
         		}
         	}
@@ -444,6 +451,7 @@ scriptContent:
         		var functionName = "var c8oformComputeKeys = function";
         		var varName = "var c8oformComputeKeys = ";
         		var functionKeyWord = "function";
+        		var wait = await this.local.promisesFS[sources.fullSyncArgs.connectorName];
         		let doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
         		doc = doc["views"][params.view].map;
         		var functionStr = doc.substring(doc.indexOf(commentBegin) + commentBegin.length, doc.indexOf(commentEnd)).trim();
@@ -538,12 +546,12 @@ scriptContent:
         										}
         										this.local.liveToCancel.push(params["__live"]);
         										
-        									}
-        									
+        									}									
         								}
         								else{
         									params = variables;
         								}
+        								
         								page.c8o.callJsonObject(findName, params)
         								.then((res: any) =>{
         									
