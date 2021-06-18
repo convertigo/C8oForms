@@ -641,12 +641,185 @@
                        "ionBean": "ModalAction",
                        "page": "plain:C8Oforms.MobileApplication.Application.progressPage",
                        "data": "script:{''others'':page.local[''objAtt''], ''theme'':this.local.headerColor, ''policyColor'': this.local.policyColor}",
-                       "blockWhileDisplayed": "plain:true",
                        "cssClass": "plain:update-profile-modal"
                       }'
                     ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1576513364135]: 
                       beanData: '{"ionBean":"InvokeAction"}'
+                      isEnabled: false
                       stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPageFINISH
+                    ↓PostAttachmentImgAndSign [mobile.components.UICustomAction-1581498508095]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              '			
+                              			//prepare agrs for modal progress
+                              			page.global["totalcount"] =  page.global[''__C8O_TODELETE''].length + page.global[''__viewerarr''].length + (page.local["objAtt"] != undefined ? Object.keys(page.local["objAtt"]).length : 0)
+                              	        page.global[''cptTotal''] = 0;   
+                              	        page.local["submitting"] = true;
+                              			page.local.filesArgs = [];
+                              			page.global.filesStatus = [];
+                              			// prepare to submit files
+                              			let id = page.local.myId;
+                              			// generate unique id for put
+                              			let ids = id != null ? id: page.local.user+''_''+page.local.edit+''_''+(page as any).epoch;
+                              			for(let index in page.global["__viewerarr"]){
+                              				let item = page.global["__viewerarr"][index];
+                              				// generate args for push
+                              				let args;
+                              				// handle web mode
+                              				if(window[''cordova''] == undefined){
+                                                  let type = (item["file"].type == undefined || item["file"].type == "") ? "application/octet-stream":item["file"].type;
+                                                  let file: Blob = item["file"];
+                                                  args = {
+                                                          "docid":ids,
+                                                          "name": item["bean"] + "_C80C80_" + item["file"]["name"]+"_C80C80_"+(new Date).getTime(),
+                                                          "content_type": type,
+                                                          "content":file,
+                                                          "index":index
+                                                  }
+                                              }
+                              				// handle cordova mode
+                                              else{
+                                                  let type = (item["file"].mediaType == undefined || item["file"].mediaType == "") ? "application/octet-stream": item["file"].mediaType;
+                                                  args = {
+                                                          "docid":ids,
+                                                          "name": item["bean"] + "_C80C80_" + item["file"]["name"]+"_C80C80_"+(new Date).getTime(),
+                                                          "content_type": type,
+                                                          "content": new Blob(item["file"].data, {type: type}),
+                                                          "index":index
+                                                  }
+                                              }
+                              				// push args to an array
+                              				page.local.filesArgs.push(args);
+                              				page.global.filesStatus.push({name:item["file"]["name"]})
+                              			}
+                              			// prepare to submit images and signatures
+                              			if(page.local["objAtt"] != undefined){
+                              				for(let index in page.local["objAtt"]){
+                              					let item = page.local["objAtt"][index];
+                              					item["docid"] = ids;
+                              					
+                              					
+                              					let args = {
+                                                      "docid":id,
+                                                      "name": item["name"],
+                                                      "content_type": item["content_type"],
+                                                      "content": item["data"]
+                                              	}; 
+                              					// push args to an array
+                              					page.local.filesArgs.push(args);
+                              					page.global.filesStatus.push({name: args["name"]}) 
+                              				}
+                              			}
+                              			let asyncHandler = async ()=>{
+                              				for(let index in page.local.filesArgs){
+                              					let elem = page.local.filesArgs[index];
+                              					try{
+                              						let resp = await page.c8o.callJsonObject("fs://c8oforms_response_fs.put_attachment",elem).async();
+                              						page.global.filesStatus[index]["ok"] = true;
+                              						page.global[''cptTotal''] ++;
+                              					}
+                              					catch(e){
+                              						page.global.filesStatus[index]["error"] = true;
+                              						page.global[''cptTotal''] ++;
+                              						console.error("error ", e);
+                              					}
+                              				}
+                              				
+                              			}
+                              			asyncHandler()
+                              			.then(()=>{
+                              				page.c8o.callJsonObject("fs://c8oforms_response_fs.get", {"docid":page.local.myId, "_attachments":true})
+                              	                .then((res)=>{
+                                                      console.log("ok@",res);
+                                                      for(let i in res["_attachments"]){
+                                                          if(i.indexOf("_C80C80_") != -1){
+                                                              let id = i.substring(0, i.indexOf("_"));
+                                                              for(let el of page["formsList"]){
+                              									try{
+                              										if(el != undefined && page["formsSubmit"][el.name] != undefined){
+                              											if(+el.id == +id){
+                              				                                if(page["formsSubmit"][el.name]["value"] == undefined || page["formsSubmit"][el.name]["value"] == ""){
+                              				                                    page["formsSubmit"][el.name]["value"] = [];
+                              				                                }
+                              				                                page["formsSubmit"][el.name]["value"].push(i);
+                              				                            }
+                              											if(page["formsSubmit"][el.name]["type"]== "ion-card"){
+                              												for(let elem of el.children){
+                              													if(+elem.id == +id){
+                              														if(page["formsSubmit"][el.name]["children"][elem.name] != undefined){
+                              															if(page["formsSubmit"][el.name]["children"][elem.name]["value"] == undefined || page["formsSubmit"][el.name]["children"][elem.name]["value"] == ""){
+                              																page["formsSubmit"][el.name]["children"][elem.name]["value"] = [];
+                              															}
+                              															page["formsSubmit"][el.name]["children"][elem.name]["value"].push(i);
+                              														}
+                              													}
+                              												}
+                              											}
+                              										}
+                              									}
+                              									catch(e){
+                              										page.c8o.log.warn("an error occured into postRecursive function, this log can be normal", e);
+                              									}                            
+                              		                        }
+                                                          }
+                                                      }
+                                                      
+                                                      page.c8o.callJson("fs://c8oforms_response_fs.post", "_id",page.local.myId,"_use_policy","merge", "resp", page["formsSubmit"], "finished", true)
+                                                      .then((res)=>{
+                              							page.c8o.log.debug("post to "+ page.local.myId + " to validate files upload");
+                                                          return null;
+                                                      })
+                                                      .fail((err)=>{
+                              							page.c8o.log.error("post to"+ page.local.myId + " to validate files upload failed ", err);
+                                                      })
+                                                      return null; 
+                                                  })
+                                                  .fail((err)=>{
+                                                     page.c8o.log.error("inserting file to"+ page.local.myId + " failed ", err);
+                                                  })
+                              					page.global["totalcount"] = 1;
+                              					
+                              	                page.global[''cptTotal''] = 1;
+                              				resolve();
+                              			})
+                              			/*
+                              		    if(page.local["objAtt"] != undefined){
+                              		        let push = async (arr, index) => {
+                                                  await page.router.c8o.callJsonObject("fs://c8oforms_response_fs.put_attachment",arr[index]).async()
+                                              	if(!(array.length -1 == index)){
+                                                      await push(arr, index+1);
+                                                  }
+                              					else{
+                              						console.log("finished123");
+                              					}
+                                          }
+                                          let array = [];
+                                          for(let item in page.local.objAtt){
+                                              //let type = () ? "application/octet-stream":arr[index]["file"].mediaType;
+                                              array.push({
+                                                      "docid":page.local.myId,
+                                                      "name": page.local.objAtt[item]["name"],
+                                                      "content_type": page.local.objAtt[item]["content_type"],
+                                                      "content": page.local.objAtt[item]["data"]
+                                              });                  
+                                          }
+                                          push(array, 0).then(()=>{
+                              				console.log("then push");
+                              				resolve();
+                              			})
+                              		    }
+                              		    else{
+                              		        resolve();
+                              		    }*/		 
+                              '
+                      ↓PublishEvent [mobile.components.UIDynamicAction-1624018742341]: 
+                        beanData: '{"ionBean":"PublishEventAction","topic":"plain:closeProgressPage"}'
+                        ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1624019728273]: 
+                          beanData: '{"ionBean":"InvokeAction"}'
+                          stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPageFINISH
                   ↓PostAttachment [mobile.components.UICustomAction-1576331215977]: 
                     actionValue: 
                       - xmlizable: 
@@ -747,175 +920,6 @@
                             		 
                             '
                     isEnabled: false
-                  ↓PostAttachmentImgAndSign [mobile.components.UICustomAction-1581498508095]: 
-                    actionValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            '			
-                            			//prepare agrs for modal progress
-                            			page.global["totalcount"] =  page.global[''__C8O_TODELETE''].length + page.global[''__viewerarr''].length + (page.local["objAtt"] != undefined ? Object.keys(page.local["objAtt"]).length : 0)
-                            	        page.global[''cptTotal''] = 0;   
-                            	        page.local["submitting"] = true;
-                            			page.local.filesArgs = [];
-                            			page.global.filesStatus = [];
-                            			// prepare to submit files
-                            			let id = page.local.myId;
-                            			// generate unique id for put
-                            			let ids = id != null ? id: page.local.user+''_''+page.local.edit+''_''+(page as any).epoch;
-                            			for(let index in page.global["__viewerarr"]){
-                            				let item = page.global["__viewerarr"][index];
-                            				// generate args for push
-                            				let args;
-                            				// handle web mode
-                            				if(window[''cordova''] == undefined){
-                                                let type = (item["file"].type == undefined || item["file"].type == "") ? "application/octet-stream":item["file"].type;
-                                                let file: Blob = item["file"];
-                                                args = {
-                                                        "docid":ids,
-                                                        "name": item["bean"] + "_C80C80_" + item["file"]["name"]+"_C80C80_"+(new Date).getTime(),
-                                                        "content_type": type,
-                                                        "content":file,
-                                                        "index":index
-                                                }
-                                            }
-                            				// handle cordova mode
-                                            else{
-                                                let type = (item["file"].mediaType == undefined || item["file"].mediaType == "") ? "application/octet-stream": item["file"].mediaType;
-                                                args = {
-                                                        "docid":ids,
-                                                        "name": item["bean"] + "_C80C80_" + item["file"]["name"]+"_C80C80_"+(new Date).getTime(),
-                                                        "content_type": type,
-                                                        "content": new Blob(item["file"].data, {type: type}),
-                                                        "index":index
-                                                }
-                                            }
-                            				// push args to an array
-                            				page.local.filesArgs.push(args);
-                            				page.global.filesStatus.push({name:item["file"]["name"]})
-                            			}
-                            			// prepare to submit images and signatures
-                            			if(page.local["objAtt"] != undefined){
-                            				for(let index in page.local["objAtt"]){
-                            					let item = page.local["objAtt"][index];
-                            					item["docid"] = ids;
-                            					
-                            					
-                            					let args = {
-                                                    "docid":id,
-                                                    "name": item["name"],
-                                                    "content_type": item["content_type"],
-                                                    "content": item["data"]
-                                            	}; 
-                            					// push args to an array
-                            					page.local.filesArgs.push(args);
-                            					page.global.filesStatus.push({name: args["name"]}) 
-                            				}
-                            			}
-                            			let asyncHandler = async ()=>{
-                            				for(let index in page.local.filesArgs){
-                            					let elem = page.local.filesArgs[index];
-                            					try{
-                            						let resp = await page.c8o.callJsonObject("fs://c8oforms_response_fs.put_attachment",elem).async();
-                            						page.global.filesStatus[index]["ok"] = true;
-                            						page.global[''cptTotal''] ++;
-                            					}
-                            					catch(e){
-                            						page.global.filesStatus[index]["error"] = true;
-                            						page.global[''cptTotal''] ++;
-                            						console.error("error ", e);
-                            					}
-                            				}
-                            				
-                            			}
-                            			asyncHandler()
-                            			.then(()=>{
-                            				page.c8o.callJsonObject("fs://c8oforms_response_fs.get", {"docid":page.local.myId, "_attachments":true})
-                            	                .then((res)=>{
-                                                    console.log("ok@",res);
-                                                    for(let i in res["_attachments"]){
-                                                        if(i.indexOf("_C80C80_") != -1){
-                                                            let id = i.substring(0, i.indexOf("_"));
-                                                            for(let el of page["formsList"]){
-                            									try{
-                            										if(el != undefined && page["formsSubmit"][el.name] != undefined){
-                            											if(+el.id == +id){
-                            				                                if(page["formsSubmit"][el.name]["value"] == undefined || page["formsSubmit"][el.name]["value"] == ""){
-                            				                                    page["formsSubmit"][el.name]["value"] = [];
-                            				                                }
-                            				                                page["formsSubmit"][el.name]["value"].push(i);
-                            				                            }
-                            											if(page["formsSubmit"][el.name]["type"]== "ion-card"){
-                            												for(let elem of el.children){
-                            													if(+elem.id == +id){
-                            														if(page["formsSubmit"][el.name]["children"][elem.name] != undefined){
-                            															if(page["formsSubmit"][el.name]["children"][elem.name]["value"] == undefined || page["formsSubmit"][el.name]["children"][elem.name]["value"] == ""){
-                            																page["formsSubmit"][el.name]["children"][elem.name]["value"] = [];
-                            															}
-                            															page["formsSubmit"][el.name]["children"][elem.name]["value"].push(i);
-                            														}
-                            													}
-                            												}
-                            											}
-                            										}
-                            									}
-                            									catch(e){
-                            										page.c8o.log.warn("an error occured into postRecursive function, this log can be normal", e);
-                            									}                            
-                            		                        }
-                                                        }
-                                                    }
-                                                    
-                                                    page.c8o.callJson("fs://c8oforms_response_fs.post", "_id",page.local.myId,"_use_policy","merge", "resp", page["formsSubmit"], "finished", true)
-                                                    .then((res)=>{
-                            							page.c8o.log.debug("post to "+ page.local.myId + " to validate files upload");
-                                                        return null;
-                                                    })
-                                                    .fail((err)=>{
-                            							page.c8o.log.error("post to"+ page.local.myId + " to validate files upload failed ", err);
-                                                    })
-                                                    return null; 
-                                                })
-                                                .fail((err)=>{
-                                                   page.c8o.log.error("inserting file to"+ page.local.myId + " failed ", err);
-                                                })
-                            					page.global["totalcount"] = 1;
-                            					
-                            	                page.global[''cptTotal''] = 1;
-                            	              
-                            				resolve();
-                            			})
-                            			/*
-                            		    if(page.local["objAtt"] != undefined){
-                            		        let push = async (arr, index) => {
-                                                await page.router.c8o.callJsonObject("fs://c8oforms_response_fs.put_attachment",arr[index]).async()
-                                            	if(!(array.length -1 == index)){
-                                                    await push(arr, index+1);
-                                                }
-                            					else{
-                            						console.log("finished123");
-                            					}
-                                        }
-                                        let array = [];
-                                        for(let item in page.local.objAtt){
-                                            //let type = () ? "application/octet-stream":arr[index]["file"].mediaType;
-                                            array.push({
-                                                    "docid":page.local.myId,
-                                                    "name": page.local.objAtt[item]["name"],
-                                                    "content_type": page.local.objAtt[item]["content_type"],
-                                                    "content": page.local.objAtt[item]["data"]
-                                            });                  
-                                        }
-                                        push(array, 0).then(()=>{
-                            				console.log("then push");
-                            				resolve();
-                            			})
-                            		    }
-                            		    else{
-                            		        resolve();
-                            		    }*/		 
-                            '
                   ↓Else_Handler [mobile.components.UIActionElseEvent-1576330889356]: 
                     ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1576513320747]: 
                       beanData: '{"ionBean":"InvokeAction"}'
