@@ -19,6 +19,7 @@ scriptContent:
         import { Input, EventEmitter, Output } from ''@angular/core'';
         
         import ''rxjs/add/observable/zip'';
+        import { indexationPage }                                                                       from ''../indexationPage/indexationpage'';
         
         //Used by conditional
         interface ValFieldObject{
@@ -103,6 +104,41 @@ scriptContent:
         		this.local.selectFilter = {};
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	showModalSyncOrOptimize(){
+        		if(this.local.modalOptimize == undefined){
+        			let modalCtrl = this.getInstance(ModalController);
+        			this.local.modalOptimize = modalCtrl.create(indexationPage, {  }, {enableBackdropDismiss: false, showBackdrop: false, cssClass: "modalCSV"});
+        	   		this.local.modalOptimize.present();
+        		}
+        		
+        	}
+        	hideModalSyncOrOptimize(){
+        		setTimeout(()=>{
+        			let closeMe = true;
+        			for(let i in this.global.waitFSBaseStatus){
+        				let base = this.global.waitFSBaseStatus[i];
+        				let not_finished = false;
+        				for(let k in base.indexed){
+        					let e = base.indexed[k];
+        					if(e != true){
+        						not_finished = true;
+        					}
+        				}
+        				if(!base.init || not_finished){
+        					closeMe = false;
+        				}
+        			}
+        			if(closeMe){
+        				if(this.local.modalOptimize != undefined){
+        					this.local.modalOptimize.dismiss();
+        					this.local.modalOptimize = null;
+        				}
+        				this.ref.reattach();
+        				//this.local.callEndInitC8o();
+        			}
+        		})
+        		
+        	}
         	
         	/**  list all database that must be synchronized to allow fs view oprations*/
         	getDatabasesToSync(arrayConnector, current = this.form.formulaire){
@@ -128,20 +164,60 @@ scriptContent:
         				if(this.local.promisesFS == null){
         					this.local.promisesFS = {};
         				}
-        				this.local.promisesFS[databaseName] = new Promise((resolveP)=>{
+        				if(this.global.waitFSBaseStatus == null){
+        					this.global.waitFSBaseStatus = {};
+        				}
+        				this.local.promisesFS[databaseName] = new Promise(async (resolveP)=>{
         					this.c8o.log.debug("beforeCall "+ databaseName + " status");
+        					if(this.global.waitFSBaseStatus[databaseName] == undefined){
+        						this.global.waitFSBaseStatus[databaseName] = {init:false, progress: null, errored: false, indexed: {}}	
+        					}
+        					else{
+        						this.global.waitFSBaseStatus[databaseName].init = false;
+        						this.global.waitFSBaseStatus[databaseName].progress = null;
+        						this.global.waitFSBaseStatus[databaseName].errored = false;
+        						if(this.global.waitFSBaseStatus[databaseName].indexed == null){
+        							this.global.waitFSBaseStatus[databaseName].indexed = {};
+        						}
+        					}
+        					 
+        					let localC8o = undefined;
+        					try{
+        						localC8o = await this.c8o.callJsonObject("fs://" + databaseName + ".get", { docid: "_local/c8o" }).async();
+        						this.global.waitFSBaseStatus[databaseName].init = true;
+        						this.c8o.log.debug("Got a _local/c8o doc for source database : "+ databaseName + " ==> Do not display loader for this base");
+        						resolveP();
+        					}
+        					catch(e){
+        						this.c8o.log.debug("no _local/c8o doc for source database : "+ databaseName + " ==> This is first sync, waiting for full replication before showing form");
+        						this.showModalSyncOrOptimize();
+        					}
         					this.c8o.callJsonObject("fs://"+databaseName+".replicate_pull",{"continuous": true, "heartbeat": false, "timeout": false, "batch_size": 1000, "retry": true, "batches_limit": 10})
         					.then((res, parameters)=>{
-        						resolveP();
-        						this.c8o.log.debug("startSyncDatabases "+ databaseName + " status");
+        						this.global.waitFSBaseStatus[databaseName].init = true;
+        						this.global.waitFSBaseStatus[databaseName].errored = false;
+        						if(localC8o == undefined){
+        							resolveP();
+        							this.c8o.callJsonObject("fs://" + databaseName + ".post", {
+        	                            _id: "_local/c8o",
+        	                            status: "completed",
+        	                            "_use_policy":"merge"
+                               		 }).async();
+        						}
+        						this.c8o.log.debug("startSyncDatabases "+ databaseName + " finished");
+        						
+        						this.hideModalSyncOrOptimize();
         						console.log("status", res);
         						return null;
         					})
         					.progress((progress)=>{
-        						this.c8o.log.debug("startSyncDatabases progress "+ databaseName + " progress");
+        						this.c8o.log.debug("startSyncDatabases progress "+ databaseName + " progress " + progress.status);
+        						this.global.waitFSBaseStatus[databaseName].progress = progress;
+        						this.global.waitFSBaseStatus[databaseName].errored = false;
         						console.log("progress", progress);
         					})
         					.fail((error)=>{
+        						this.global.waitFSBaseStatus[databaseName].errored = true;
         						this.c8o.log.error("error startSyncDatabases "+ databaseName + " status");
         					})
         				})
@@ -486,10 +562,122 @@ scriptContent:
         		var args =[response, type, variables];
         		return eval("("+functionStr+").apply(this,args)");
         	}
+        	public async getFullsyncSources(list){
+        		let page = this;
+        		try  {
+                    for(let item of list){
+        				if(item["type"] == "ion-card"){
+        					this.getFullsyncSources(item["children"]);
+        					
+        				}
+        				else if(item["config"]["sourceEnabled"] == true || item.sources){
+        					//findName
+        					//fullSyncArgs
+        					//sha
+        					let sources: any = this["searchForSources"](item, "sources", true, true);
+        					let findName = sources.findName;
+        					if(findName != "" && sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync){
+        						if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] == null){
+        							this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] = {};
+        						}						
+        						let localC8o = undefined;
+        						try{
+        							localC8o = await this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".get", { docid: "_local/c8o" }).async();
+        							if(localC8o.indexed != undefined && localC8o.indexed[sources.sha] == true){
+        								if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed == undefined){
+        									this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed = {};
+        								}
+        								this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] = true;
+        								this.c8o.log.debug("Got a _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+sources.fullSyncArgs["ddoc"] + "/"+ sources.fullSyncArgs["view"] +" ==> Do not display loader for this base");
+        							}
+        							else{
+        								throw new Error();
+        							}
+        						}
+        						catch(e){
+        							if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed == null){
+        								this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed = {};
+        							}
+        							this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] = false;
+        							this.showModalSyncOrOptimize();
+        							this.c8o.log.debug("no _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+sources.fullSyncArgs["ddoc"] + "/"+ sources.fullSyncArgs["view"] +" ==> This is first sync, waiting for full replication before showing form");
+        						}
+        					}
+        				}
+        			}
+        		}
+        		catch(e){
+        			
+        		}
+        	}
         	
+        	public async indexFullsyncSources(list){
+        		let page = this;
+        		try  {
+                    for(let item of list){
+        				if(item["type"] == "ion-card"){
+        					this.getFullsyncSources(item["children"]);
+        					
+        				}
+        				else if(item["config"]["sourceEnabled"] == true || item.sources){
+        					let sources: any = this["searchForSources"](item, "sources", true, true);
+        					let findName = sources.findName;
+        					if(findName != "" && sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync){
+        						if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] == null){
+        							this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] = {};
+        						}						
+        						let localC8o = undefined;
+        						try{
+        							localC8o = await this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".get", { docid: "_local/c8o" }).async();
+        							if(localC8o.indexed != undefined && localC8o.indexed[sources.sha] == true){
+        								this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] = true;
+        								this.c8o.log.debug("Got a _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+sources.fullSyncArgs["ddoc"] + "/"+ sources.fullSyncArgs["view"] +" ==> Do not display loader for this base");
+        							}
+        							else{
+        								throw new Error();
+        							}
+        						}
+        						catch(e){
+        							this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] = false;
+        							this.showModalSyncOrOptimize();
+        							this.c8o.log.debug("no _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+sources.fullSyncArgs["ddoc"] + "/"+ sources.fullSyncArgs["view"] +" ==> This is first sync, waiting for full replication before showing form");
+        							let defaults = {};
+        							let params = {};
+        							let variables = sources.findVars;
+        							defaults["ddoc"] = sources.fullSyncArgs.ddoc;
+        							defaults["view"] = sources.fullSyncArgs.view;
+        							// get c8oformComputeKeys
+        							//debugger;
+        							let computedParams = await page.getAndApplyC8oformComputeKeysFunction(sources, defaults, variables);
+        							params = {...defaults, ...computedParams}
+        							delete params["__live"];
+        							page.c8o.callJsonObject(findName, params)
+        							.then((res: any) =>{
+        								if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] == false){
+        									this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] = true;
+        									this.hideModalSyncOrOptimize();
+        									let indexed = {[sources.sha]: true};
+        									this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
+        			                            _id: "_local/c8o",
+        			                            "_use_policy":"merge",
+        										"indexed" :indexed
+        	                       		 	})
+        								}
+        								return null;
+        							})
+        						}
+        					}
+        				}
+        			}
+        		}
+        		catch(e){
+        			
+        		}
+        	}
         	public fillSources(list, redList, formSubmit): Array<string>{
         		let page = this;
         		let idsToCall: Array<string> = [];
+        		
         		try  {
                     for(let item of list){
                         if(item["type"] == "ion-card"){
@@ -507,10 +695,14 @@ scriptContent:
         						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
         						// unique hash for this sequence with thoses parameters
         						let sha = sources.sha;
+        						/* disabled factorization because of variables params
         						// in case of object select we can''t factorize beacause of filter param
         						if(item.type == "select"){
         							sha +=item.id;
-        						}
+        						}*/
+        						let Osha = ""+sha;
+        						sha +=item.id;
+        						
         						let postFunc, failFunc, prevFunc: any;
         						// if this sequence withn thoses parameters has not been founded yet add it
         						if(this.functionsById[sha] == undefined){ 
@@ -534,7 +726,7 @@ scriptContent:
         									defaults["view"] = sources.fullSyncArgs.view;
         									defaults["__live"] = sources.fullSyncArgs.__live;
         									// get c8oformComputeKeys
-        									debugger;
+        									//debugger;
         									let computedParams = await page.getAndApplyC8oformComputeKeysFunction(sources, defaults, variables);
         									params = {...defaults, ...computedParams}
         									if(params["__live"] == false){
@@ -546,7 +738,25 @@ scriptContent:
         										}
         										this.local.liveToCancel.push(params["__live"]);
         										
-        									}									
+        									}
+        									/*if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sha] == false){
+        										let localC8o = undefined;
+        										try{
+        											localC8o = await this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".get", { docid: "_local/c8o" }).async();
+        											if(localC8o.indexed != undefined && localC8o.indexed[sha] == true){
+        												this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sha] = true;
+        												this.c8o.log.debug("Got a _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+defaults["ddoc"] + "/"+ defaults["view"] +" ==> Do not display loader for this base");
+        											}
+        											else{
+        												throw new Error();
+        											}
+        										}
+        										catch(e){
+        											this.c8o.log.debug("no _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+defaults["ddoc"] + "/"+ defaults["view"] +" ==> This is first sync, waiting for full replication before showing form");
+        											this.showModalSyncOrOptimize();
+        										}	
+        									}*/
+        																
         								}
         								else{
         									params = variables;
@@ -557,6 +767,17 @@ scriptContent:
         									
         									//if fullsync
         									if(sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync){
+        										
+        										if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false){
+        											this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
+        											this.hideModalSyncOrOptimize();
+        											let indexed = {[Osha]: true};
+        											this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
+        					                            _id: "_local/c8o",
+        					                            "_use_policy":"merge",
+        												"indexed" :indexed
+        			                       		 	})
+        										}
         										page.getAndApplyC8oformPostQueryFunction(sources, params, res, item["type"], variables)
         										.then((response)=>{
         											// call post load functions
@@ -800,7 +1021,7 @@ scriptContent:
         		return idsToCall; 
         	}
         	
-        	public searchForSources (item, path, isSource = true) : Object {
+        	public searchForSources (item, path, isSource = true, noEval = false) : Object {
         		let findName = "";
                 let findVars = {};
         		let isFullsync = false;
@@ -827,50 +1048,57 @@ scriptContent:
         	        }
                 }
         		const sha = sha256(JSON.stringify(findName) + JSON.stringify(findVars));
-        		const regex = /[$$]{2}\w+[$$]{2}/gm
-        		for(let va in findVars){
-        			if(isSource && va == "forms_filter"){
-        				findVars[va] = "page.local.filters_elems[''"+item.id+"''] == undefined ? '''': page.local.filters_elems[''"+item.id+"'']";
-        				ObjectThatHaveToCallFunc.push(item.id);
+        		if(noEval){
+        			for(let va in findVars){
+        				findVars[va] = "";
         			}
-        			else{
-        				if(findVars[va].from_attachment != undefined && findVars[va].from_attachment == true){
-        					
+        		}
+        		else{
+        			const regex = /[$$]{2}\w+[$$]{2}/gm
+        			for(let va in findVars){
+        				if(isSource && va == "forms_filter"){
+        					findVars[va] = "page.local.filters_elems[''"+item.id+"''] == undefined ? '''': page.local.filters_elems[''"+item.id+"'']";
+        					ObjectThatHaveToCallFunc.push(item.id);
         				}
         				else{
-        					let str = findVars[va].str;
-        	                if(str == undefined){
-        	                    str = "";
-        	                }
-        	                var arrayFound = str.match(regex);
-        					if(!(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts")){
-        	                	str = "`" + str.replace(/`/g, "\\`") + "`";
-        					}
-        	                if(arrayFound!= undefined && arrayFound.length > 0){
-        	                    for(let elements of arrayFound){
-        	                        let iStart = str.indexOf(elements);
-        	                        let iEnd = iStart + elements.length;
-        	                        let id = elements.substring(2, elements.length -2);
-        							ObjectThatHaveToCallFunc.push(id);
-        	                        let path = this["getPathById"](+id);
-        							let currentVal = "";
-        							if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
-        								currentVal = path;
-        							}
-        							else{
-        								 currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`"
-        							}
-        	                        ;
-        	                        str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
-        	                    }
-        	                    findVars[va] = str;
-        	                }
-        	                else{
-        	                    findVars[va] = str;
-        	                }
+        					if(findVars[va].from_attachment != undefined && findVars[va].from_attachment == true){
         						
+        					}
+        					else{
+        						let str = findVars[va].str;
+        		                if(str == undefined){
+        		                    str = "";
+        		                }
+        		                var arrayFound = str.match(regex);
+        						if(!(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts")){
+        		                	str = "`" + str.replace(/`/g, "\\`") + "`";
+        						}
+        		                if(arrayFound!= undefined && arrayFound.length > 0){
+        		                    for(let elements of arrayFound){
+        		                        let iStart = str.indexOf(elements);
+        		                        let iEnd = iStart + elements.length;
+        		                        let id = elements.substring(2, elements.length -2);
+        								ObjectThatHaveToCallFunc.push(id);
+        		                        let path = this["getPathById"](+id);
+        								let currentVal = "";
+        								if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
+        									currentVal = path;
+        								}
+        								else{
+        									 currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`"
+        								}
+        		                        ;
+        		                        str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        		                    }
+        		                    findVars[va] = str;
+        		                }
+        		                else{
+        		                    findVars[va] = str;
+        		                }
+        							
+        					}
+        					
         				}
-        				
         			}
         		}
         		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha, fullSyncArgs: fullSyncArgs }
