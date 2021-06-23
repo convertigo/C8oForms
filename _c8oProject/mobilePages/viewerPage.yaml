@@ -521,46 +521,56 @@ scriptContent:
         		}
         	}
         	public async getAndApplyC8oformComputeKeysFunction(sources, params, variables){
-        		let page = this;
-        		var commentBegin = "/*Begin_c8oformComputeKeys_function*/";
-        		var commentEnd = "/*End_c8oformComputeKeys_function*/"
-        		var functionName = "var c8oformComputeKeys = function";
-        		var varName = "var c8oformComputeKeys = ";
-        		var functionKeyWord = "function";
-        		var wait = await this.local.promisesFS[sources.fullSyncArgs.connectorName];
-        		let doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
-        		doc = doc["views"][params.view].map;
-        		var functionStr = doc.substring(doc.indexOf(commentBegin) + commentBegin.length, doc.indexOf(commentEnd)).trim();
-        		functionStr = functionStr.substring(functionStr.indexOf(varName)+varName.length);
-        		var str = functionStr.substring(functionStr.indexOf(functionKeyWord)+functionKeyWord.length);
-        		// get the next "{" char
-        		str = str.substring(0,str.indexOf("{"));
-        		// remove spaces and ()
-        		str = str.trim().replace(/\s/g, '''');
-        		str = str.substring(1, str.length -1);
-        		var varsOrdered = str.split(",");
-        		let args = [];
-        		for(let vars of varsOrdered){
-        			vars = vars.trim();
-        			args.push(variables[vars]);
+        		try {
+        			let page = this;
+        			var commentBegin = "/*Begin_c8oformComputeKeys_function*/";
+        			var commentEnd = "/*End_c8oformComputeKeys_function*/"
+        			var functionName = "var c8oformComputeKeys = function";
+        			var varName = "var c8oformComputeKeys = ";
+        			var functionKeyWord = "function";
+        			var wait = await this.local.promisesFS[sources.fullSyncArgs.connectorName];
+        			let doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
+        			doc = doc["views"][params.view].map;
+        			var functionStr = doc.substring(doc.indexOf(commentBegin) + commentBegin.length, doc.indexOf(commentEnd)).trim();
+        			functionStr = functionStr.substring(functionStr.indexOf(varName)+varName.length);
+        			var str = functionStr.substring(functionStr.indexOf(functionKeyWord)+functionKeyWord.length);
+        			// get the next "{" char
+        			str = str.substring(0,str.indexOf("{"));
+        			// remove spaces and ()
+        			str = str.trim().replace(/\s/g, '''');
+        			str = str.substring(1, str.length -1);
+        			var varsOrdered = str.split(",");
+        			let args = [];
+        			for(let vars of varsOrdered){
+        				vars = vars.trim();
+        				args.push(variables[vars]);
+        			}
+        			//@ts-ignore
+        			return eval("("+functionStr+").apply(this,args)");
+        		}
+        		catch(e){
+        			return {};	
         		}
         		
-        		//@ts-ignore
-        		return eval("("+functionStr+").apply(this,args)");
         	}
         	
         	public async getAndApplyC8oformPostQueryFunction(sources, params, response, type, variables){
-        		let page = this;
-        		var commentBegin = "/*Begin_c8oformPostQuery_function*/";
-        		var commentEnd = "/*End_c8oformPostQuery_function*/"
-        		var functionName = "var c8oformPostQuery = function";
-        		var varName = "var c8oformPostQuery = ";
-        		let doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
-        		doc = doc["views"][params.view].map;
-        		var functionStr = doc.substring(doc.indexOf(commentBegin) + commentBegin.length, doc.indexOf(commentEnd)).trim();
-        		functionStr = functionStr.substring(functionStr.indexOf(varName)+varName.length);
-        		var args =[response, type, variables];
-        		return eval("("+functionStr+").apply(this,args)");
+        		try{
+        			let page = this;
+        			var commentBegin = "/*Begin_c8oformPostQuery_function*/";
+        			var commentEnd = "/*End_c8oformPostQuery_function*/"
+        			var functionName = "var c8oformPostQuery = function";
+        			var varName = "var c8oformPostQuery = ";
+        			let doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
+        			doc = doc["views"][params.view].map;
+        			var functionStr = doc.substring(doc.indexOf(commentBegin) + commentBegin.length, doc.indexOf(commentEnd)).trim();
+        			functionStr = functionStr.substring(functionStr.indexOf(varName)+varName.length);
+        			var args =[response, type, variables];
+        			return eval("("+functionStr+").apply(this,args)");	
+        		}
+        		catch(e){
+        			return null;
+        		}
         	}
         	public async getFullsyncSources(list){
         		let page = this;
@@ -802,6 +812,19 @@ scriptContent:
         									
         								})
         								.fail((err)=>{
+        									if(sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync){
+        										
+        										if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false){
+        											this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
+        											this.hideModalSyncOrOptimize();
+        											let indexed = {[Osha]: true};
+        											this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
+        					                            _id: "_local/c8o",
+        					                            "_use_policy":"merge",
+        												"indexed" :indexed
+        			                       		 	})
+        										}
+        									}
         									// call fail functions
         									//...
         									this.previousAndPostFunctions[sha].fail.forEach((func)=>{
