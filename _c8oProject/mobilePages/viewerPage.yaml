@@ -72,6 +72,8 @@ scriptContent:
             
             /*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.local.tagName = "div";
+                this.local.tagId = "id";
         		this.local.doing = {};
         		this.local.updating = {};
         		this.local.filters_elems = {};
@@ -1107,7 +1109,7 @@ scriptContent:
         			}
         		}
         		else{
-        			const regex = /[$$]{2}\w+[$$]{2}/gm
+        			const regex = /([$$$$START]{2}\w+)(((?![END]{1}\w+[$$]{2}).)*)([END]{1}\w+[$$]{2})|[$$]{2}\w+[$$]{2}/gm
         			for(let va in findVars){
         				if(isSource && va == "forms_filter"){
         					findVars[va] = "page.local.filters_elems[''"+item.id+"''] == undefined ? '''': page.local.filters_elems[''"+item.id+"'']";
@@ -1122,17 +1124,23 @@ scriptContent:
         		                if(str == undefined){
         		                    str = "";
         		                }
-        		                var arrayFound = str.match(regex);
+        		                //var arrayFound = str.match(regex);
         						if(!(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts")){
         		                	str = "`" + str.replace(/`/g, "\\`") + "`";
         						}
-        		                if(arrayFound!= undefined && arrayFound.length > 0){
-        		                    for(let elements of arrayFound){
-        		                        let iStart = str.indexOf(elements);
-        		                        let iEnd = iStart + elements.length;
-        		                        let id = elements.substring(2, elements.length -2);
+        						
+        						let match;
+        						let cpt = 0;
+        						while((match = regex.exec(str)) != null) {
+        							cpt++;
+        							let elem = match[0];
+        							let iStart = str.indexOf(elem);
+        			                let iEnd = iStart + elem.length;
+        							// if its a non preview $$
+        							if(match[4] == undefined){
+        			                    let id = elem.substring(2, elem.length -2);
         								ObjectThatHaveToCallFunc.push(id);
-        		                        let path = this["getPathById"](+id);
+        			                    let path = this.getPathById(+id);
         								let currentVal = "";
         								if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
         									currentVal = path;
@@ -1140,14 +1148,23 @@ scriptContent:
         								else{
         									 currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`"
         								}
-        		                        ;
-        		                        str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
-        		                    }
-        		                    findVars[va] = str;
-        		                }
-        		                else{
-        		                    findVars[va] = str;
-        		                }
+        								str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        							}
+        							// if its a preview $$START END$$
+        							else{
+        								let id = match[1].substring("$$START".length);
+        								ObjectThatHaveToCallFunc.push(id);
+        								let defElem = this.getItemById(id);
+        								let valElem = this.getPathById(+id)
+        								let meta = JSON.parse(match[2]);
+        								if(defElem != null){
+        									str = str.substring(0, iStart) + "`+this.getBadge("+id+", "+ JSON.stringify(defElem)+", " +valElem+", "+ JSON.stringify(meta)+", false, ''html'')+`" + str.substring(iEnd);
+        								}
+        							}
+        						}
+        		                
+        		                findVars[va] = str;
+        		                
         							
         					}
         					
@@ -1156,6 +1173,244 @@ scriptContent:
         		}
         		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha, fullSyncArgs: fullSyncArgs }
         	}
+        	
+        	public getBadge(id, defElem, valElem, meta = null, newBadge = false, targetType){
+        		let elem: any = defElem;
+        		let str = "";
+        		if(elem != null && targetType == "html"){
+        			switch(elem.type){
+        				case "radio_group":
+        				case "checkbox_group":
+        					let cptOpts = 0;
+        					let childrenLength = elem.children.length;
+        					let linesLength = elem.lines.length;
+        					let colwidth = 100 / (childrenLength + 1);
+        					
+        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">
+        						<span class="tooltiptext" contenteditable="false" >${name}</span>`;
+        					if(newBadge){
+        						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`
+        					}
+        					else{
+        						str += `<table`;
+        						if(meta != null){
+        							for(let elem in meta){
+        								str += ` ${elem}="${meta[elem]}"`;
+        							}
+        						}
+        						str += `>`;
+        					}
+        					
+        					
+        					str += `
+        						<tbody>
+        						<tr style="height: 18px;">
+        						<th style="text-align: center; height: 18px; width: 99.2498%;" colspan="${childrenLength+1}"><span id="1234"><!--START1123-->${elem.config.html}<!--END1123--></span></th>
+        						</tr>
+        						<tr style="height: 18px;">
+        						<td style="width: ${colwidth}%; height: 18px;">
+        						&nbsp;
+        						</td>
+        						`;
+        					for(let i = 0; i < childrenLength; i++){
+        						str += `
+        						<td style="width: ${colwidth}%; height: 18px; text-align: center;">
+        						${elem.children[i].value}
+        						</td>
+        						`
+        						
+        					}
+        					str += `</tr>`;
+        					
+        					for(let line of elem.lines){
+        						str += `<tr style="height: 18px;">
+        								<td style="width: ${colwidth}%; height: 18px; text-align: center; "><span>${line.title}</span></td>`
+        						for(let i = 0; i < childrenLength; i++){
+        							str += `<td style="width: ${colwidth}%; height: 18px; text-align: center;"><span>${elem.type == "checkbox_group" ? valElem[line.title][i].selected ? "✔️" : "&nbsp;" : valElem[line.title] == elem.children[i].value ? "✔️" : "&nbsp;" }</span></td>`
+        						}
+        						str += `</tr>`;
+        						cptOpts ++;
+        	
+        					}
+        					str += `</tbody>
+        							</table>
+        							</${this.local.tagName}>`;
+        					if(newBadge){
+        						str += `<p></p>`;
+        					}
+        				break;
+        				case "radio":
+        				case "checkbox":
+        				case "select":
+        					let childrenLength2 = elem.children.length;
+        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%">
+        						<span class="tooltiptext" contenteditable="false" >${name}</span>`;
+        					if(newBadge){
+        						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`;
+        					}
+        					else{
+        						str += `<table`;
+        						if(meta != null){
+        							for(let elem in meta){
+        								str += ` ${elem}="${meta[elem]}"`;
+        							}
+        						}
+        						str += `>`;
+        					}
+        					
+        					str += `<tbody>
+        						<tr style="height: 18px;">
+        						<th style="text-align: center; height: 18px; width: 99.2498%;" colspan="2"><span id="1234"><!--START1123-->${elem.config.html}<!--END1123--></span></th>
+        						</tr>`;
+        					for(let index in elem.children){
+        						let child = elem.children[index];
+        						str+= `<tr style="height: 18px;">
+        						<td style="width: 50%; height: 18px; text-align: center;">
+        						${child.value}
+        						</td>
+        						<td style="width: 50%; height: 18px; text-align: center;">
+        						${ elem.type == "checkbox" ? valElem[index].selected ? "✔️" : "&nbsp;" : child.value == valElem ? "✔️" : "&nbsp;"}
+        						</td>
+        						</tr>
+        						`;
+        					}
+        					str += `</tbody>
+        						</table>
+        						</${this.local.tagName}>`;
+        					if(newBadge){
+        						str += `<p></p>`;
+        					}
+        				break;
+        				case "grid":
+        					str += `<${this.local.tagName} ${this.local.tagId}="${id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">
+        						<span class="tooltiptext" contenteditable="false" >${name}</span>`;
+        					if(newBadge){
+        						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`
+        					}
+        					else{
+        						str += `<table`;
+        						if(meta != null){
+        							for(let elem in meta){
+        								str += ` ${elem}="${meta[elem]}"`;
+        							}
+        						}
+        						str += `>`;
+        					}
+        					str += `
+        						<tbody>
+        						<tr style="height: 18px;">
+        						<th style="text-align: center; height: 18px; width: 99.2498%;" colspan="3"><span id="1234"><!--START1123-->${elem.config.html}<!--END1123--></span></th>
+        						</tr>
+        						<tr style="height: 18px;">`;
+        					switch(elem.config.returned_value){
+        						case "":
+        						case "all_the_data":
+        							let colsName = [];
+        							for(let el of this.local.sourceValue[elem.name].colDef){
+        								if(el.hide != true){
+        									colsName.push(el.field);
+        								}
+        							}
+        							
+        							let width = 100 / (colsName.length != 0 ? colsName.length : 1);
+        							colsName.forEach((field)=>{
+        								str += `
+        										<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
+        										${field}
+        										</td>`
+        							})
+        							str +=`</tr>`;
+        							for(let el of this.local.sourceValue[elem.name].data){
+        									str += `<tr style="height: 18px;">`;
+        									for(let st of colsName){
+        										let current = el[st];
+        										let display = "";
+        										if(current.displayValue != undefined){
+        											display = current.displayValue;
+        										}
+        										else{
+        											display = current.value;
+        										}
+        										str += `
+        										<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
+        										${display}
+        										</td>`
+        									}
+        									str +=`</tr>`;
+        								}
+        								str += `</tbody>
+        									</table>
+        									</${this.local.tagName}>`;
+        								if(newBadge){
+        									str += `<p></p>`;
+        								}
+        							break;
+        							case "row_selected":
+        								let colsName = [];
+        								for(let el of this.local.sourceValue[elem.name].colDef){
+        									if(el.hide != true){
+        										colsName.push(el.field);
+        										str += `
+        											<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
+        											${el.field}
+        											</td>`
+        									}
+        								}
+        								str +=`</tr>`;
+        								if(this.formsSubmit[elem.name].value != null || this.formsSubmit[elem.name].length > 0){
+        									if(typeof(this.formsSubmit[elem.name].value) === "string"){
+        										str += `<tr style="height: 18px;"><td style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">${this.formsSubmit[elem.name].value}</td></tr>`;
+        									}
+        									else if(this.local.sourceValue[elem.name].data[0] != undefined && this.local.sourceValue[elem.name].data[0].__rowValue == undefined){
+        										str +=`</tr>`;
+        										for(let st of colsName){
+        											let current = this.formsSubmit[elem.name].value[st];
+        											let display = "";
+        											if(current.displayValue != undefined){
+        												display = current.displayValue;
+        											}
+        											else{
+        												display = current.value;
+        											}
+        											str += `
+        											<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
+        											${display}
+        											</td>`
+        										}
+        										str +=`</tr>`;
+        									}
+        									else{
+        										str += `<tr style="height: 18px;"><td style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">${JSON.stringify(this.formsSubmit[elem.name].value)}</td></tr>`;
+        									}
+        								}
+        								else{
+        									str += `<tr style="height: 18px;"><td style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">&nbsp;</td></tr>`;
+        								}
+        								str += `</tbody>
+        									</table>
+        									</${this.local.tagName}>`;
+        								if(newBadge){
+        									str += `<p></p>`;
+        								}
+        							break;
+        					}
+        					
+        				break;
+        				default:
+        				break;
+        			
+        			}
+        		}
+        		if(str != ""){
+        			return str;
+        		}
+        		else{
+        			return ''<''+ this.local.tagName +'' ''+this.local.tagId+''="''+id+''" class="styleBadge badge badge-md badge-md-convertigo" color="convertigo" contenteditable="false" style="display: inline-block;">''+name+''</''+ this.local.tagName +''>'';
+        		}
+        	    
+        	}
+        	
+        	
         	
         	public fillActionsVars(list): void {
         		let page = this;
@@ -1166,10 +1421,24 @@ scriptContent:
         			}
         		}
         	}
-        	public computeVariable(findVars, variables, item) : void {
+        	public computeVariable(findVars, variables, item, findName = null) : void {
         		let page = this;
+        		let names = {};
+        		if(findName != null){
+        			for(let i in item.actions[findName].vars){
+        				if(item.actions[findName].vars[i].html === true){
+        					names
+        				}
+        			}
+        		}
         		for(let va in findVars){
         			try{
+        				if(findName != null && item.actions[findName].vars[va].html == true){
+        					
+        				}
+        				else{
+        					
+        				}
         				variables[va] = eval(findVars[va]);
         				if(variables[va] == undefined || variables[va] == "undefined"){
         					delete variables[va];
