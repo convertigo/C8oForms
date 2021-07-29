@@ -1440,6 +1440,7 @@ scriptContent:
         					}
         				break;
         				case "grid":
+        				let length = 0;
         					str += `<${this.local.tagName} ${this.local.tagId}="${id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">
         						<span class="tooltiptext" contenteditable="false" >${name}</span>`;
         					if(newBadge){
@@ -1454,15 +1455,42 @@ scriptContent:
         						}
         						str += `>`;
         					}
+        					for(let el of this.local.sourceValue[elem.name].colDef){
+        								if(el.hide != true){
+        									length ++;
+        								}
+        							}
         					str += `
         						<tbody>
         						<tr style="height: 18px;">
-        						<th style="text-align: center; height: 18px; width: 99.2498%;" colspan="3"><span id="1234"><!--START1123-->${elem.config.html}<!--END1123--></span></th>
+        						<th style="text-align: center; height: 18px; width: 99.2498%;" colspan="${length}"><span id="1234"><!--START1123-->${elem.config.html}<!--END1123--></span></th>
         						</tr>
         						<tr style="height: 18px;">`;
         					let colsName = [];	
         					switch(elem.config.returned_value){
+        						case "nothing":
         						case "":
+        							for(let el of this.local.sourceValue[elem.name].colDef){
+        								if(el.hide != true){
+        									colsName.push(el.field);
+        								}
+        							}
+        							
+        							let width = 100 / (colsName.length != 0 ? colsName.length : 1);
+        							colsName.forEach((field)=>{
+        								str += `
+        										<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
+        										${field}
+        										</td>`
+        							})
+        							str +=`</tr>`;
+        							str += `</tbody>
+        									</table>
+        									</${this.local.tagName}>`;
+        								if(newBadge){
+        									str += `<p></p>`;
+        								}
+        						break;
         						case "all_the_data":
         							
         							for(let el of this.local.sourceValue[elem.name].colDef){
@@ -1471,7 +1499,7 @@ scriptContent:
         								}
         							}
         							
-        							let width = 100 / (colsName.length != 0 ? colsName.length : 1);
+        							width = 100 / (colsName.length != 0 ? colsName.length : 1);
         							colsName.forEach((field)=>{
         								str += `
         										<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
@@ -1487,8 +1515,11 @@ scriptContent:
         										if(current.displayValue != undefined){
         											display = current.displayValue;
         										}
-        										else{
+        										else if (current.display != undefined){
         											display = current.value;
+        										}
+        										else{
+        											display = current;
         										}
         										str += `
         										<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
@@ -1515,21 +1546,44 @@ scriptContent:
         											</td>`
         									}
         								}
+        								width = 100 / (colsName.length != 0 ? colsName.length : 1);
         								str +=`</tr>`;
         								if(this.formsSubmit[elem.name].value != null || this.formsSubmit[elem.name].length > 0){
         									if(typeof(this.formsSubmit[elem.name].value) === "string"){
-        										str += `<tr style="height: 18px;"><td style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">${this.formsSubmit[elem.name].value}</td></tr>`;
+        										str += `<tr style="height: 18px;"><td colspan="${length} style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">${this.formsSubmit[elem.name].value}</td></tr>`;
         									}
         									else if(this.local.sourceValue[elem.name].data[0] != undefined && this.local.sourceValue[elem.name].data[0].__rowValue == undefined){
-        										str +=`</tr>`;
+        										let prettyForUgly = {};
+        										try{
+        											for(let i in this.local.sourceValue[elem.name].data[0]){
+        												try{
+        													let sub =  this.local.sourceValue[elem.name].data[0][i];
+        													prettyForUgly[sub.displayName] = sub.technicalName;
+        												}
+        												catch(e){
+        													
+        												}
+        												
+        											}
+        										}
+        										catch(e){
+        											
+        										}
+        										str += `<tr style="height: 18px;">`;
         										for(let st of colsName){
         											let current = this.formsSubmit[elem.name].value[st];
+        											if(current == undefined){
+        												current = this.formsSubmit[elem.name].value[prettyForUgly[st]];
+        											}
         											let display = "";
         											if(current.displayValue != undefined){
         												display = current.displayValue;
         											}
-        											else{
+        											else if (current.display != undefined){
         												display = current.value;
+        											}
+        											else{
+        												display = current;
         											}
         											str += `
         											<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
@@ -1539,11 +1593,11 @@ scriptContent:
         										str +=`</tr>`;
         									}
         									else{
-        										str += `<tr style="height: 18px;"><td style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">${JSON.stringify(this.formsSubmit[elem.name].value)}</td></tr>`;
+        										str += `<tr style="height: 18px;"><td colspan="${length} style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">${JSON.stringify(this.formsSubmit[elem.name].value)}</td></tr>`;
         									}
         								}
         								else{
-        									str += `<tr style="height: 18px;"><td style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">&nbsp;</td></tr>`;
+        									str += `<tr style="height: 18px;"><td colspan="${length} style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">&nbsp;</td></tr>`;
         								}
         								str += `</tbody>
         									</table>
@@ -1551,6 +1605,32 @@ scriptContent:
         								if(newBadge){
         									str += `<p></p>`;
         								}
+        							break;
+        							case "cell_selected":
+        								for(let el of this.local.sourceValue[elem.name].colDef){
+        									if(el.hide != true){
+        										colsName.push(el.field);
+        										str += `
+        											<td style="width: ${width}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
+        											${el.field}
+        											</td>`
+        									}
+        								}
+        								width = 100 / (colsName.length != 0 ? colsName.length : 1);
+        								str +=`</tr>`;
+        								str += `<tr style="height: 18px;">`;
+        								str += `
+        											<td colspan="${length} style="width: ${100}%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">
+        											${this.formsSubmit[elem.name].value}
+        											</td>`;
+        								str +=`</tr>`;
+        								str += `</tbody>
+        									</table>
+        									</${this.local.tagName}>`;
+        								if(newBadge){
+        									str += `<p></p>`;
+        								}
+        								debugger;
         							break;
         					}
         					
