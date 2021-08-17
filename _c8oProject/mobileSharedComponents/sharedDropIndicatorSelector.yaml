@@ -47,33 +47,52 @@
               '		page.local.dragging = false;
               		event.preventDefault();
               		let name = "";
+              		let error = false;
               		vars.folder = this.local.folder;
-              		var id =  event.dataTransfer.getData("_id");
+              		const keysSelected = Object.keys(page.global.selectedItem);
+              		const multiple = keysSelected.length > 1;
+              		if(page.global[''visibleoptions0Drag''] == undefined){
+              			page.global[''visibleoptions0Drag''] = {};
+              		}
+              		page.global[''visibleoptions0Drag''][vars.i] = false;
               		
-              		page.c8o.callJsonObject("fs://c8oforms_fs.get",{
-              			"docid":id
-              		})
-              		.then((res: any)=>{
-              			console.log("res", res);
-              			let newTag = [];
-              			if(res.tag != undefined && res.tag instanceof Array){
-              				newTag = res.tag.filter((x)=>{return x != vars.folder});
+              		var id =  event.dataTransfer.getData("_id");
+              		var ids = [];
+              		if(multiple){
+              			ids = keysSelected
+              				.filter((x)=>{return this.global.selectedItem[x]});
+              		}
+              		else{
+              			ids = [id];
+              		}
+              		new Promise(async (resolve1)=>{
+              			for(let elem of ids){
+              				try{
+              					let res = await page.c8o.callJsonObject("fs://c8oforms_fs.get",{
+              						"docid":elem
+              					}).async();
+              					let newTag = [];
+              					if(res.tag != undefined && res.tag instanceof Array){
+              						newTag = res.tag.filter((x)=>{return x != vars.folder});
+              					}
+              					name = res["name"];
+              					let res2 = await page.c8o.callJsonObject("fs://c8oforms_fs.post",{
+              						"_id": elem,
+              						"tag": newTag,
+              						"_use_policy": "merge",
+              						_use_merge_tag : "override" 
+              					}).async();
+              				}
+              				catch(e){
+              					console.error("myErr", e);
+              					error = true;
+              				}				
               			}
-              			name = res["name"];
-              			return page.c8o.callJsonObject("fs://c8oforms_fs.post",{
-              				"_id": id,
-              				"tag": newTag,
-              				"_use_policy": "merge",
-              				_use_merge_tag : "override" 
-              			});
+              			resolve1();
               		})
               		.then((res)=>{
-              			resolve({"error": false, "name": name, "folder": vars.folder, id: id});
-              			return null;
-              		})	
-              		.fail((err)=>{
-              			resolve({"error": true, "name": name, "folder": vars.folder, id: id});
-              			console.log("err", err);
+              			page.global.selectedItem = {};
+              			resolve({"error": error, params: {"folder": vars.folder, "form": name}, id: id, multiple: multiple});
               		})
               '
       ↓InvokeSharedAction [mobile.components.UIDynamicInvoke-1629134509135]: 
@@ -83,7 +102,7 @@
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-              - MobileSmartSourceType: 'script:parent.out.error ?  c8oPage.translate.instant(''error_occured_while_moving'') : c8oPage.translate.instant(''form_published'') + ''  ''+ parent.out.name + ''  '' + c8oPage.translate.instant(''has_been_removed_folder'') + ''  '' +parent.out.folder'
+              - MobileSmartSourceType: 'script:parent.out.error ?  c8oPage.translate.instant(''error_occured_while_moving'') : parent.out.multiple ? c8oPage.translate.instant(''had_been_removed_folders'', parent.out.params) : c8oPage.translate.instant(''has_been_removed_folder'', parent.out.params) '
         ↓duration [mobile.components.UIControlVariable-1629134509141]: 
           varValue: 
             - xmlizable: 

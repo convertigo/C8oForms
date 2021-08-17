@@ -4861,15 +4861,48 @@ title: Selection de formulaires
                                 →: |
                                   '		event.preventDefault();
                                   		let name = "";
+                                  		let error = false;
+                                  		const keysSelected = Object.keys(page.global.selectedItem);
+                                  		const multiple = keysSelected.length > 1;
                                   		if(page.global[''visibleoptions0Drag''] == undefined){
                                   			page.global[''visibleoptions0Drag''] = {};
                                   		}
                                   		page.global[''visibleoptions0Drag''][vars.i] = false;
                                   		
-                                  		
-                                  		
                                   		var id =  event.dataTransfer.getData("_id");
-                                  		console.log("myID : folder: ", {id:id, folder: vars.folder});
+                                  		var ids = [];
+                                  		if(multiple){
+                                  			ids = keysSelected
+                                  				.filter((x)=>{return this.global.selectedItem[x]});
+                                  		}
+                                  		else{
+                                  			ids = [id];
+                                  		}
+                                  		new Promise(async (resolve1)=>{
+                                  			for(let elem of ids){
+                                  				try{
+                                  					let res = await page.c8o.callJsonObject("fs://c8oforms_fs.get",{
+                                  						"docid":elem
+                                  					}).async();
+                                  					name = res["name"];
+                                  					let res2 = await page.c8o.callJsonObject("fs://c8oforms_fs.post",{
+                                  						"_id": elem,
+                                  						"tag": [vars.folder],
+                                  						"_use_policy": "merge" 
+                                  					}).async();
+                                  				}
+                                  				catch(e){
+                                  					console.error("myErr", e);
+                                  					error = true;
+                                  				}				
+                                  			}
+                                  			resolve1();
+                                  		})
+                                  		.then((res)=>{
+                                  			page.global.selectedItem = {};
+                                  			resolve({"error": error, params: {"folder": vars.folder, "form": name}, id: id, multiple: multiple});
+                                  		})
+                                  		/*
                                   		page.c8o.callJsonObject("fs://c8oforms_fs.get",{
                                   			"docid":id
                                   		})
@@ -4890,6 +4923,9 @@ title: Selection de formulaires
                                   			resolve({"error": true, "name": name, "folder": vars.folder, id: id});
                                   			console.log("err", err);
                                   		})
+                                  		*/
+                                  		
+                                  		
                                   		
                                   '
                           ↓folder [mobile.components.UIControlVariable-1628793910961]: 
@@ -4909,7 +4945,7 @@ title: Selection de formulaires
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: 'script:parent.out.error ?  c8oPage.translate.instant(''error_occured_while_moving'') : c8oPage.translate.instant(''form_published'') + ''  ''+ parent.out.name + ''  '' + c8oPage.translate.instant(''has_been_moved_folder'') + ''  '' +parent.out.folder'
+                                  - MobileSmartSourceType: 'script:parent.out.error ?  c8oPage.translate.instant(''error_occured_while_moving'') : parent.out.multiple ? c8oPage.translate.instant(''had_been_moved_folders'', parent.out.params) : c8oPage.translate.instant(''has_been_moved_folder'', parent.out.params)'
                             ↓duration [mobile.components.UIControlVariable-1628795405294]: 
                               varValue: 
                                 - xmlizable: 
