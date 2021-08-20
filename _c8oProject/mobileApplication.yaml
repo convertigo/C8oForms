@@ -12,13 +12,55 @@ componentScriptContent:
             
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
+        		var toastCtrl = null;
+        		var toast = null;
         		let updates = this.getInstance(SwUpdate);
         		if(updates.isEnabled){
         			updates.checkForUpdate()   
         			.then(()=>{
         				updates.available.subscribe(event => {
+        					debugger;				
+        					if(event.available.appData["version"] != event.current.appData["version"]){
+        						this.c8o.log.warn("A new version of the app is downoloading ... current: "+ event.current.appData != undefined ? event.current.appData["version"] : "..."+ "\n available: "+ event.available.appData["version"]);
+        						toastCtrl = this.getInstance(ToastController);
+        						toast = toastCtrl.create({
+        						    message: this.translate.instant("toastUpdateAvailable"),
+        						    duration: 10000,
+        						    position: ''bottom'',
+        							cssClass:"toastPending",
+        							showCloseButton: true,
+        							closeButtonText: this.translate.instant("close")
+        						});
+        						toast.present();
+        					}
         					updates.activateUpdate().then(() => {
-        						this.c8o.log.warn("A new version of the app has been installed, relaunch the application to activate it:\n current hash is: "+event.current.hash+"\n  new hash is: "+event.available.hash);
+        						if(toastCtrl == undefined){
+        							toastCtrl = this.getInstance(ToastController);
+        						}
+        						let toast2 = toastCtrl.create({
+        						    message: this.translate.instant("toastUpdateReady", {version: event.current.appData["version"] + ""}),
+        						    position: ''bottom'',
+        							cssClass:"toastWarn",
+        							showCloseButton: true,
+        							closeButtonText: this.translate.instant("restart_app_update")
+        						});
+        						let closedByTimeout = false;
+        				      	let timeoutHandle = setTimeout(() => { closedByTimeout = true; toast2.dismiss(); }, 10000);
+        						toast2.onDidDismiss(() => {
+        							if (closedByTimeout) return;
+        							clearTimeout(timeoutHandle);
+        						    // Dismiss manually
+        							this.c8o.log.warn("User asked to reload app to install update");
+        							document.location.reload();
+        						});
+        						try{
+        							toast.dismiss();	
+        						}
+        						catch(e){
+        							
+        						}
+        						toast2.present();
+        						this.c8o.log.warn("A new version of the app has been installed, relaunch the application to activate it:\n current version is: "+event.current.appData != undefined ? event.current.appData["version"] : "..." +"\n  new version is: "+event.available.appData["version"]);
         					});
         				})
         			})
@@ -28,8 +70,8 @@ componentScriptContent:
                 const localStorage = window.localStorage.getItem("c8oforms_log_level");
                 const logLevel = localStorage != undefined && localStorage != '''' ? localStorage : ''WARN'';
                 settings.setEnablePrefixBase(true)
-                .setLogLevelLocal(C8oLogLevel[logLevel])
         		.setUseWorker(true);
+        		//.setLogLevelLocal(C8oLogLevel[logLevel])
                 
                 this.global["platform"] = {"name":[""]};
                 this.global[''visibleoptions''] = [];
