@@ -48,10 +48,16 @@ databaseName: c8oforms_fs
   responseTimeout: 600
   ↓_use_ddoc [variables.RequestableVariable-1604507273380]: 
     description: Design document name
-    value: users
+    value: data_integrity
   ↓_use_view [variables.RequestableVariable-1604507273382]: 
     description: View function name
-    value: all
+    value: check_published_collabResponse_groups
+  ↓_use_group [variables.RequestableVariable-1632329377608]: 
+    description: (boolean) – Group the results using the reduce function to a group or single row. Default is false
+  ↓_use_reduce [variables.RequestableVariable-1632329377611]: 
+    description: (boolean) – Use the reduction function. Default is true
+  ↓_use_group_level [variables.RequestableVariable-1632329377614]: 
+    description: (number) – Specify the group level to be used. Optional
 ↓GetViewByKeys [transactions.couchdb.GetViewTransaction]: 
   responseTimeout: 600
   ↓_use_ddoc [variables.RequestableVariable-1625136115665]: 
@@ -564,6 +570,65 @@ databaseName: c8oforms_fs
                   emit(doc._id, doc._rev);\r\n
               }    \r\n
           } catch (err) {\r\n
+              log(err.message);\r\n
+          }\r\n
+      }"
+          }
+        }
+      }'
+↓data_integrity [couchdb.DesignDocument]: 
+  docdata: 
+    →: |
+      '{
+        "_id": "_design\/data_integrity",
+        "filters": {},
+        "updates": {},
+        "views": {
+          "check_between_edition_published": {
+            "map": "function (doc) {\r\n
+          try {\r\n
+              if ((doc.c8o_view_type_drafts_form === true || doc.c8o_view_type_published_form === true) && doc.deleted !== true) {\r\n
+                  var id = \"\";\r\n
+                  if (doc.c8o_view_type_drafts_form === true) {\r\n
+                      id = doc._id;\r\n
+                  }\r\n
+                  else {\r\n
+                      id = doc.parentId;\r\n
+                  }\r\n
+                  var tab = null;\r\n
+                  if (doc.collabsResponse != undefined && doc.collabsResponse.length > 0) {\r\n
+                      tab = JSON.parse(JSON.stringify(doc.collabsResponse));\r\n
+                      tab.sort();\r\n
+                  }\r\n
+                  \/\/if(tab != null){\r\n
+                      emit([id, JSON.stringify(tab)], tab);\r\n
+                  \/\/}\r\n
+              }\r\n
+          }\r\n
+          catch (err) {\r\n
+              log(err.message);\r\n
+          }\r\n
+      }",
+            "reduce": "_count"
+          },
+          "check_published_collabResponse_groups": {
+            "map": "function (doc) {\r\n
+          try {\r\n
+              if (doc.c8o_view_type_published_form === true && doc.deleted !== true) {\r\n
+                  var id = doc._id;\r\n
+                  var tab = [];\r\n
+                  if (doc.collabsResponse != undefined && doc.collabsResponse.length > 0) {\r\n
+                      tab = JSON.parse(JSON.stringify(doc.collabsResponse));\r\n
+                      var ownerIndex = tab.indexOf(\"C8Oreserved_\" + doc.creator)\r\n
+                      if(ownerIndex != -1){\r\n
+                           tab.splice(ownerIndex, 1)\r\n
+                      }\r\n
+                      tab.sort();\r\n
+                  }\r\n
+                  emit(id, JSON.stringify(tab));\r\n
+              }\r\n
+          }\r\n
+          catch (err) {\r\n
               log(err.message);\r\n
           }\r\n
       }"
