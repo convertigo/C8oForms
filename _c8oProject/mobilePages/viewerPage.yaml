@@ -280,10 +280,10 @@ scriptContent:
         					 
         					let localC8o = undefined;
         					try{
-        						localC8o = await this.c8o.callJsonObject("fs://" + databaseName + ".get", { docid: "_local/c8o" }).async();
+        						/*localC8o = await this.c8o.callJsonObject("fs://" + databaseName + ".get", { docid: "_local/c8o" }).async();
         						this.global.waitFSBaseStatus[databaseName].init = true;
         						this.c8o.log.debug("Got a _local/c8o doc for source database : "+ databaseName + " ==> Do not display loader for this base");
-        						resolveP();
+        						resolveP();*/
         					}
         					catch(e){
         						this.c8o.log.debug("no _local/c8o doc for source database : "+ databaseName + " ==> This is first sync, waiting for full replication before showing form");
@@ -619,6 +619,19 @@ scriptContent:
         			});
         		}
         	}
+        	
+        	public async getDdocFromBase(sources, params){
+        		const page = this;
+        		return await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
+        	}
+        	
+        	public async getDdocFromHttp(sources,params){
+        		const page = this;
+        		let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
+                Object.assign(headersObject, this.c8o.headers);
+                let headers =  this.c8o.httpInterface.getHeaders(headersObject);
+        		return await page.c8o.httpPublic.get(this.c8o.endpointConvertigo +"/fullsync/" + sources.fullSyncArgs.connectorName+"/"+"_design/"+params["ddoc"], {headers: headers, withCredentials: true}).toPromise();
+        	}
         	public async getAndApplyC8oformComputeKeysFunction(sources, params, variables){
         		try {
         			let page = this;
@@ -628,20 +641,40 @@ scriptContent:
         			var varName = "var c8oformComputeKeys = ";
         			var functionKeyWord = "function";
         			//var wait = await this.local.promisesFS[sources.fullSyncArgs.connectorName];
-        			let doc;
+        			// get database status
+        			let ready = false;
         			try{
+        				ready = this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].init;
+        			}
+        			catch(e){
         				
-        				doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
+        			}
+        			let doc;
+        			let hasExecOnline = false;
+        			try{
+        				if(window.navigator.onLine && !ready){
+        					hasExecOnline = true;
+        					page.c8o.log.debug("getAndApplyC8oformComputeKeysFunction, we are online and sync isn''t finished, we will get ddoc to execute offline source over http");
+        					doc = await this.getDdocFromHttp(sources, params);
+        				}
+        				else{
+        					page.c8o.log.debug("getAndApplyC8oformComputeKeysFunction, we are online and sync is finished, or we are offline, we will get ddoc to execute offline source over fullsync.get");
+        					doc = await this.getDdocFromBase(sources, params);
+        				}
         			}
         			catch(e){
         				try{
-        					let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
-        		            Object.assign(headersObject, this.c8o.headers);
-        		            let headers =  this.c8o.httpInterface.getHeaders(headersObject);
-        					doc = await page.c8o.httpPublic.get(this.c8o.endpointConvertigo +"/fullsync/" + sources.fullSyncArgs.connectorName+"/"+"_design/"+params["ddoc"], {headers: headers, withCredentials: true}).toPromise();
+        					if(hasExecOnline){
+        						page.c8o.log.warn("getAndApplyC8oformComputeKeysFunction, we failed to get ddoc to execute offline source over http, we will try in fullsync.get");
+        						doc = await this.getDdocFromBase(sources, params);
+        					}
+        					else{
+        						page.c8o.log.warn("getAndApplyC8oformComputeKeysFunction, we failed to get ddoc to execute offline source in fullsync.get, we will try over http");
+        						doc = await this.getDdocFromHttp(sources, params);
+        					}
         				}
         				catch(e){
-        					console.log(e);
+        					page.c8o.log.error("getAndApplyC8oformComputeKeysFunction, we failed to get ddoc to to execute offline source over http and fullsync.get");
         				}
         			}
         			doc = doc["views"][params.view].map;
@@ -659,15 +692,6 @@ scriptContent:
         				vars = vars.trim();
         				args.push(variables[vars]);
         			}
-        			// get status
-        			let ready = false;
-        			try{
-        				ready = this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].init;
-        			}
-        			catch(e){
-        				
-        			}
-        			
         			//@ts-ignore
         			return await eval("(async "+functionStr+").apply({...this, ...{ready: ready}},args)");
         		}
@@ -685,19 +709,39 @@ scriptContent:
         			var functionName = "var c8oformPostQuery = function";
         			var varName = "var c8oformPostQuery = ";
         			let doc;
+        			let hasExecOnline = false;
+        			let ready = false;
+        			
         			try{
+        				ready = this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].init;
+        			}
+        			catch(e){
         				
-        				doc = await page.c8o.callJsonObject("fs://"+sources.fullSyncArgs.connectorName+".get", {docid:"_design/"+params["ddoc"]}).async();
+        			}
+        			try{
+        				if(window.navigator.onLine && !ready){
+        					hasExecOnline = true;
+        					page.c8o.log.debug("getAndApplyC8oformComputeKeysFunction, we are online and sync isn''t finished, we will get ddoc to execute offline source over http");
+        					doc = await this.getDdocFromHttp(sources, params);
+        				}
+        				else{
+        					page.c8o.log.debug("getAndApplyC8oformComputeKeysFunction, we are online and sync is finished, or we are offline, we will get ddoc to execute offline source over fullsync.get");
+        					doc = await this.getDdocFromBase(sources, params);
+        				}
         			}
         			catch(e){
         				try{
-        					let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
-        		            Object.assign(headersObject, this.c8o.headers);
-        		            let headers =  this.c8o.httpInterface.getHeaders(headersObject);
-        					doc = await page.c8o.httpPublic.get(this.c8o.endpointConvertigo +"/fullsync/" + sources.fullSyncArgs.connectorName+"/"+"_design/"+params["ddoc"], {headers: headers, withCredentials: true}).toPromise();
+        					if(hasExecOnline){
+        						page.c8o.log.warn("getAndApplyC8oformComputeKeysFunction, we failed to get ddoc to execute offline source over http, we will try in fullsync.get");
+        						doc = await this.getDdocFromBase(sources, params);
+        					}
+        					else{
+        						page.c8o.log.warn("getAndApplyC8oformComputeKeysFunction, we failed to get ddoc to execute offline source in fullsync.get, we will try over http");
+        						doc = await this.getDdocFromHttp(sources, params);
+        					}
         				}
         				catch(e){
-        					console.log(e);
+        					page.c8o.log.error("getAndApplyC8oformComputeKeysFunction, we failed to get ddoc to to execute offline source over http and fullsync.get");
         				}
         			}
         			doc = doc["views"][params.view].map;
