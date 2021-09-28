@@ -15,55 +15,67 @@ componentScriptContent:
         		var toastCtrl = null;
         		var toast = null;
         		let updates = this.getInstance(SwUpdate);
+        		let checkingUpdate = false;
         		if(updates.isEnabled){
-        			updates.checkForUpdate()   
-        			.then(()=>{
-        				updates.available.subscribe(event => {
-        					debugger;				
-        					if(event.available.appData["version"] != event.current.appData["version"]){
-        						this.c8o.log.warn("A new version of the app is downoloading ... current: "+ event.current.appData != undefined ? event.current.appData["version"] : "..."+ "\n available: "+ event.available.appData["version"]);
-        						toastCtrl = this.getInstance(ToastController);
-        						toast = toastCtrl.create({
-        						    message: this.translate.instant("toastUpdateAvailable"),
-        						    duration: 10000,
-        						    position: ''bottom'',
-        							cssClass:"toastPending",
-        							showCloseButton: true,
-        							closeButtonText: this.translate.instant("close")
-        						});
-        						toast.present();
-        					}
-        					updates.activateUpdate().then(() => {
-        						if(toastCtrl == undefined){
+        			let doCheckUpdate = ()=>{
+        				this.c8o.log.debug("Checking for pwa update");
+        				updates.checkForUpdate()   
+        				.then(()=>{
+        					updates.available.subscribe(event => {
+        						checkingUpdate = true;
+        						debugger;				
+        						if(event.available.appData["version"] != event.current.appData["version"]){
+        							this.c8o.log.warn("A new version of the app is downoloading ... current: "+ event.current.appData != undefined ? event.current.appData["version"] : "..."+ "\n available: "+ event.available.appData["version"]);
         							toastCtrl = this.getInstance(ToastController);
+        							toast = toastCtrl.create({
+        							    message: this.translate.instant("toastUpdateAvailable"),
+        							    duration: 10000,
+        							    position: ''bottom'',
+        								cssClass:"toastPending",
+        								showCloseButton: true,
+        								closeButtonText: this.translate.instant("close")
+        							});
+        							toast.present();
         						}
-        						let toast2 = toastCtrl.create({
-        						    message: this.translate.instant("toastUpdateReady", {version: event.available.appData["version"] + ""}),
-        						    position: ''bottom'',
-        							cssClass:"toastWarn",
-        							showCloseButton: true,
-        							closeButtonText: this.translate.instant("restart_app_update")
+        						updates.activateUpdate().then(() => {
+        							if(toastCtrl == undefined){
+        								toastCtrl = this.getInstance(ToastController);
+        							}
+        							let toast2 = toastCtrl.create({
+        							    message: this.translate.instant("toastUpdateReady", {version: event.available.appData["version"] + ""}),
+        							    position: ''bottom'',
+        								cssClass:"toastWarn",
+        								showCloseButton: true,
+        								closeButtonText: this.translate.instant("restart_app_update")
+        							});
+        							let closedByTimeout = false;
+        					      	let timeoutHandle = setTimeout(() => { closedByTimeout = true; toast2.dismiss(); }, 10000);
+        							toast2.onDidDismiss(() => {
+        								if (closedByTimeout) return;
+        								clearTimeout(timeoutHandle);
+        							    // Dismiss manually
+        								this.c8o.log.warn("User asked to reload app to install update");
+        								document.location.reload();
+        							});
+        							try{
+        								toast.dismiss();	
+        							}
+        							catch(e){
+        								
+        							}
+        							toast2.present();
+        							this.c8o.log.warn("A new version of the app has been installed, relaunch the application to activate it:\n current version is: "+event.current.appData != undefined ? event.current.appData["version"] : "..." +"\n  new version is: "+event.available.appData["version"]);
         						});
-        						let closedByTimeout = false;
-        				      	let timeoutHandle = setTimeout(() => { closedByTimeout = true; toast2.dismiss(); }, 10000);
-        						toast2.onDidDismiss(() => {
-        							if (closedByTimeout) return;
-        							clearTimeout(timeoutHandle);
-        						    // Dismiss manually
-        							this.c8o.log.warn("User asked to reload app to install update");
-        							document.location.reload();
-        						});
-        						try{
-        							toast.dismiss();	
-        						}
-        						catch(e){
-        							
-        						}
-        						toast2.present();
-        						this.c8o.log.warn("A new version of the app has been installed, relaunch the application to activate it:\n current version is: "+event.current.appData != undefined ? event.current.appData["version"] : "..." +"\n  new version is: "+event.available.appData["version"]);
-        					});
+        					})
         				})
-        			})
+        			}
+        			doCheckUpdate();
+        			setInterval(()=>{
+        				if(checkingUpdate == false){
+        					doCheckUpdate();
+        				}
+        			}, 10000);
+        			
         		}
         		
                 //settings.setNormalizeParameters(true);
