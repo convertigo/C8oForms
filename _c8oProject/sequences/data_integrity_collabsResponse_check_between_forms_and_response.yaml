@@ -115,6 +115,7 @@
               - java.lang.String: 
                 - ↑value: ./document/couchdb_output/rows/item
         ↓jSimpleSource_1 [steps.SimpleSourceStep-1632338042278]: 
+          isEnabled: false
           sourceDefinition: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -124,6 +125,16 @@
                 - java.lang.String: 
                   - ↑value: ./value/text()
           variableName: grpResponses
+        ↓jSource [steps.SourceStep-1632932239199]: 
+          sourceDefinition: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+              - com.twinsoft.convertigo.beans.common.XMLVector: 
+                - java.lang.String: 
+                  - ↑value: 1632338107618
+                - java.lang.String: 
+                  - ↑value: ./value
+          variableName: grpResponsesNodeList
         ↓jSimpleSource [steps.SimpleSourceStep-1632338833372]: 
           sourceDefinition: 
             - xmlizable: 
@@ -136,21 +147,33 @@
           variableName: responseId
         ↓searchErrorIntoResponse [steps.SimpleStep-1632338180637]: 
           expression: |
-            'log.warn("grpResponses:\n"+JSON.stringify(grpResponses));
+            '
+            var grpResponses = (JSON.parse(''''+com.twinsoft.convertigo.engine.util.XMLUtils.XmlToJson(grpResponsesNodeList.item(0), false, true))).value;
+            grpResponses = JSON.parse(grpResponses);
+            log.warn("grpResponses:\n"+JSON.stringify(grpResponses));
             // grp is an array of expected groups in response
             
             // grpResponse in an object of groups present in response
-            grpResponses = JSON.parse(grpResponses);
+            //grpResponses = JSON.parse(grpResponses);
             responseStatusByPublishedForm[published_form_id]["responses"][responseId] = {errored: false, missingGrps:[]};
+            grp.forEach((currentGrp)=>{
+            	if(grpResponses != undefined && grpResponses[currentGrp] == true){
+            		// group is in response 
+            		// there is no problem
+            	}
+            	else{
+            		log.warn("an error d2etected " +currentGrp);
+            	}
+            })
             for(var i in grp){
-            	var currentGrpName = grp[i];
-            	if(grpResponses != undefined && grpResponses[currentGrpName] === true){
+            	//var currentGrpName = ;
+            	if(grpResponses != undefined && grpResponses[""+grp[i]] == true){
             		// group is in response 
             		// there is no problem
             	}
             	else{
             		//an error detected
-            		responseStatusByPublishedForm[published_form_id]["responses"][responseId]["missingGrps"].push(currentGrpName);
+            		responseStatusByPublishedForm[published_form_id]["responses"][responseId]["missingGrps"].push(grp[i]);
             		responseStatusByPublishedForm[published_form_id]["responses"][responseId]["errored"] = true;
             		responseStatusByPublishedForm[published_form_id]["errored"] = true;
             	}
@@ -158,6 +181,13 @@
     ↓add_js_value_to_complex [steps.SimpleStep-1632339049125]: 
       expression: |
         'log.warn("responseStatusByPublishedForm: \n"+JSON.stringify(responseStatusByPublishedForm));
+        var errored = {};
+        for(var index in responseStatusByPublishedForm){
+        	if(responseStatusByPublishedForm[index].errored == true){
+        		errored[index] = "errored";
+        	}
+        }
+        var resume = {errored: errored, responseStatusByPublishedForm: responseStatusByPublishedForm}
         var xmlUtils = use("com.twinsoft.convertigo.engine.util.XMLUtils");
-        var jsonObject = new org.codehaus.jettison.json.JSONObject(JSON.stringify(responseStatusByPublishedForm));
+        var jsonObject = new org.codehaus.jettison.json.JSONObject(JSON.stringify(resume));
         xmlUtils.jsonToXml(jsonObject, myNodeList.item(0));//dom.getDocumentElement().item(1));'
