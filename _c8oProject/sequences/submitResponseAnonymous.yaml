@@ -197,9 +197,20 @@ responseTimeout: 600
               '//todo
               var currentFileName = filesInfo[i]["name"];
               var _use_attcontent_type = filesInfo[i]["content_type"];
-              i ++;
+              var b64 = filesInfo[i]["type"] == "toB64";
+              var index;
+              try{
+              	log.warn("index + " + filesInfo[i]["index"])
+              	index = JSON.parse(filesInfo[i]["index"]);
+              	
+              }
+              catch(e){
+              	log.warn("index +  catched" + e);
+              }
               
-              var isFile = new java.io.File(item.getTextContent()).exists();
+              i ++;
+              var file = new java.io.File(item.getTextContent());
+              var isFile = file.exists();
               log.warn("item: "+item.getTextContent());
               
               log.warn("is a file: " + isFile);
@@ -210,53 +221,101 @@ responseTimeout: 600
           ↓jIfThenElse [steps.IfThenElseStep-1633445808547]: 
             condition: isFile
             ↓jThen [steps.ThenStep-1633445808549]: 
-              ↓Call_Transaction [steps.TransactionStep-1593717632201]: 
-                sourceTransaction: C8Oforms.c8oforms_response_fs.PutDocumentAttachment
-                ↓_use_attname [variables.StepVariable-1593717657292]: 
-                  description: Attachment name
-                  sourceDefinition: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-                      - com.twinsoft.convertigo.beans.common.XMLVector: 
-                        - java.lang.String: 
-                          - ↑value: 1593718123518
-                        - java.lang.String: 
-                          - ↑value: ./text()
-                  value: 
-                ↓_use_attpath [variables.StepVariable-1593717657294]: 
-                  description: Attachment path  This path is either absolute or relative to Convertigo environment. Relative paths starting with:<br/><br/>• <span class="computer">./</span> are relative to Convertigo workspace,<br/>• <span class="computer">.//</span> are relative to current project folder. <br/><br/>
-                  sourceDefinition: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-                      - com.twinsoft.convertigo.beans.common.XMLVector: 
-                        - java.lang.String: 
-                          - ↑value: 1593717412441
-                        - java.lang.String: 
-                          - ↑value: ./text()
-                ↓_use_docid [variables.StepVariable-1593717657296]: 
-                  description: Document ID
-                  sourceDefinition: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-                      - com.twinsoft.convertigo.beans.common.XMLVector: 
-                        - java.lang.String: 
-                          - ↑value: 1593705549244
-                        - java.lang.String: 
-                          - ↑value: ./myId/text()
-                ↓_c8oAcl [variables.StepVariable-1593719329731]: 
-                  description: Set the owner of the document if the "Acl Policy"="From _c8oACL variable"
-                  sourceDefinition: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-                      - com.twinsoft.convertigo.beans.common.XMLVector: 
-                        - java.lang.String: 
-                          - ↑value: 1593705549244
-                        - java.lang.String: 
-                          - ↑value: ./login/text()
-                ↓_use_attcontent_type [variables.StepVariable-1633531539480]: 
-                  description: |
-                    Attachment ContentType <br/>
-                     Define the ContentType of the attachment. This is the ContentType returned when the attachment is requested.
+              ↓jIfThenElse [steps.IfThenElseStep-1633618084819]: 
+                condition: b64 && false
+                ↓jThen [steps.ThenStep-1633618084821]: 
+                  ↓Sequence_JS [steps.SimpleStep-1633618160869]: 
+                    expression: |
+                      '//todo
+                      var _use_merge = {};
+                      var _use_json_base = {resp:{}};
+                      var path = "";
+                      var fileContent = java.nio.file.Files.readAllBytes(file.toPath());
+                      var b64Value = java.util.Base64.getEncoder().encodeToString(fileContent);
+                      if(index.length == 1){
+                      	 path = "resp."+index[0];
+                      	_use_json_base["resp"][index[0]] = {value:""}
+                      	_use_json_base["resp"][index[0]]["value"] =""+ b64Value
+                      	
+                      }
+                      else if(index.length == 2){
+                      	path = "resp."+index[0]+".children."+index[1];
+                      	_use_json_base["resp"][index[0]] = {children:{}}
+                      	_use_json_base["resp"][index[0]]["children"][index[1]] = {value:""};
+                      	_use_json_base["resp"][index[0]]["children"][index[1]] = ""+ b64Value;
+                      }
+                      //var encoded = java.util.Base64.encodeBase64(org.apache.commons.io.FileUtils.readFileToByteArray(file));
+                      
+                      _use_merge[path+".value"] = "override";
+                      _use_merge = ""+JSON.stringify(_use_merge)
+                      _use_json_base = ""+JSON.stringify(_use_json_base);
+                      log.warn("_use_merge" + _use_merge);'
+                  ↓Call_Transaction [steps.TransactionStep-1633618169493]: 
+                    sourceTransaction: C8Oforms.c8oforms_response_fs.PostDocumentAttachmentB64IntoField
+                    ↓_id [variables.StepVariable-1633618180707]: 
+                      description: Document id
+                      sourceDefinition: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+                          - com.twinsoft.convertigo.beans.common.XMLVector: 
+                            - java.lang.String: 
+                              - ↑value: 1593705549244
+                            - java.lang.String: 
+                              - ↑value: ./myId/text()
+                    ↓_use_merge [variables.StepVariable-1633618180709]: 
+                      description: |
+                        '(string) – JSON used to specify special behavior of the ''merge'' Policy. Optional <br/>
+                         In this strict JSON string, you can:<br/><br/>• <b>delete</b>: delete the target key. <br/>• <b>override</b>: replace the value of the target key, don''t merge this. <br/>• <b>prepend</b>: prepend the value or the array in the existing array or value of the target key. <br/>• <b>append</b>: append the value or the array in the existing array or value of the target key. <br/><br/>A target key is the path of the object to reach, separated by the "_separator" (default is dot). The target key is the same for the 2 documents to merge. <br/>Samples: <br/>{"a.b.c": "override", "a.b.d": "delete"} <br/>{"_separator": "+", "a+b+c": "override"} <br/><br/>'
+                    ↓_use_json_base [variables.StepVariable-1633618180711]: 
+                      description: (string) – JSON use as a base for the document (js object). Optional
+                ↓jElse [steps.ElseStep-1633618084823]: 
+                  ↓Call_Transaction [steps.TransactionStep-1593717632201]: 
+                    sourceTransaction: C8Oforms.c8oforms_response_fs.PutDocumentAttachment
+                    ↓_use_attname [variables.StepVariable-1593717657292]: 
+                      description: Attachment name
+                      sourceDefinition: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+                          - com.twinsoft.convertigo.beans.common.XMLVector: 
+                            - java.lang.String: 
+                              - ↑value: 1593718123518
+                            - java.lang.String: 
+                              - ↑value: ./text()
+                      value: 
+                    ↓_use_attpath [variables.StepVariable-1593717657294]: 
+                      description: Attachment path  This path is either absolute or relative to Convertigo environment. Relative paths starting with:<br/><br/>• <span class="computer">./</span> are relative to Convertigo workspace,<br/>• <span class="computer">.//</span> are relative to current project folder. <br/><br/>
+                      sourceDefinition: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+                          - com.twinsoft.convertigo.beans.common.XMLVector: 
+                            - java.lang.String: 
+                              - ↑value: 1593717412441
+                            - java.lang.String: 
+                              - ↑value: ./text()
+                    ↓_use_docid [variables.StepVariable-1593717657296]: 
+                      description: Document ID
+                      sourceDefinition: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+                          - com.twinsoft.convertigo.beans.common.XMLVector: 
+                            - java.lang.String: 
+                              - ↑value: 1593705549244
+                            - java.lang.String: 
+                              - ↑value: ./myId/text()
+                    ↓_c8oAcl [variables.StepVariable-1593719329731]: 
+                      description: Set the owner of the document if the "Acl Policy"="From _c8oACL variable"
+                      sourceDefinition: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+                          - com.twinsoft.convertigo.beans.common.XMLVector: 
+                            - java.lang.String: 
+                              - ↑value: 1593705549244
+                            - java.lang.String: 
+                              - ↑value: ./login/text()
+                    ↓_use_attcontent_type [variables.StepVariable-1633531539480]: 
+                      description: |
+                        Attachment ContentType <br/>
+                         Define the ContentType of the attachment. This is the ContentType returned when the attachment is requested.
             ↓jElse [steps.ElseStep-1633445808551]: 
               ↓Call_Transaction [steps.TransactionStep-1633445824850]: 
                 sourceTransaction: C8Oforms.c8oforms_response_fs.PutDocumentAttachment
