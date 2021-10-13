@@ -10,6 +10,8 @@ scriptContent:
         //import ''rxjs/add/observable/zip'';
         
         //import { Observable, Subject } from ''rxjs'';
+        import {compressAccurately, dataURLtoImage} from ''image-conversion'';
+        
         import { delay } from ''rxjs/operators'';
         import { of, zip } from ''rxjs'';
         
@@ -68,6 +70,7 @@ scriptContent:
             public creating;
             public functionsById = {};
         	public previousAndPostFunctions = {};
+        	//public imageCompression = require("browser-image-compression");
             
             
             /*End_c8o_PageDeclaration*/
@@ -133,6 +136,117 @@ scriptContent:
         		this.local.selectFilter = {};
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	
+        	// maxDeviation is the difference that is allowed default: 50kb
+        // Example: targetFileSizeKb = 500 then result will be between 450kb and 500kb
+        // increase the deviation to reduce the amount of iterations.
+        
+        public async lowerImageQuality(file, targetFileSizeKb){
+        	let time = new Date().getTime();
+        	var reader  = new FileReader();
+        	let p = new Promise((resolve)=>{
+        		reader.addEventListener("load", function () {
+        	    	resolve(this);
+        	  	}, false);
+        		reader.readAsDataURL(file);
+        	});
+        	
+        	const fileSize = file.size;
+        	const quality = (fileSize / targetFileSizeKb);
+        	let loadedData: any  = await p;
+        	var mime_type = "image/jpeg";
+        	var cvs = document.createElement(''canvas'');
+        	cvs.width = loadedData.width;
+        	cvs.height = loadedData.height;
+        	var img = new Image();
+        	img.src = URL.createObjectURL(file);
+        	var ctx = cvs.getContext("2d").drawImage(img, 0, 0);
+        	
+        	var newImageData = cvs.toDataURL(mime_type, quality);
+        	let time_end = new Date().getTime();
+        	console.log("total time: "+( (time_end - time) )+ "ms");
+        	
+        	
+        }
+        public async resizeImage(dataUrl, targetFileSizeKb, isFile = true, maxDeviation = 10) {
+        	let originalFile;
+        	if(isFile){
+        		originalFile = dataUrl;
+        	}
+        	else {
+        		originalFile = await this.urltoFile(dataUrl, ''test.png'', ''image/png'');
+        	}
+            
+            if (originalFile.size / 1000 < targetFileSizeKb)
+                return dataUrl; // File is already smaller
+        
+            let low = 0.0;
+            let middle = 0.5;
+            let high = 1.0;
+        
+            let result = dataUrl;
+        
+            let file = originalFile;
+        
+            while (Math.abs(file.size / 1000 - targetFileSizeKb) > maxDeviation) {
+        		let time = new Date().getTime();
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                const img = document.createElement(''img'');
+        
+                const promise = new Promise((resolve, reject) => {
+                    img.onload = () => {resolve();}
+                    img.onerror = (err)=>{
+        				debugger;
+        				reject(err);
+        			}
+                });
+        		if(isFile){
+        			img.src = this.local.URLO.createObjectURL(dataUrl);
+        		}
+        		else{
+        			 img.src = dataUrl;
+        		}
+               
+        
+                await promise;
+        		let time_end = new Date().getTime();
+        		console.log("took " +(time_end - time) /1000 + " seconds");
+        		time = new Date().getTime();
+                canvas.width = Math.round(img.width * middle);
+                canvas.height = Math.round(img.height * middle);
+                context.scale(canvas.width / img.width, canvas.height / img.height);
+                context.drawImage(img, 0, 0);
+                file = await this.urltoFile(canvas.toDataURL(), ''test.png'', ''image/png'');
+        
+                if (file.size / 1000 < (targetFileSizeKb - maxDeviation)) {
+                    low = middle;
+                } else if (file.size / 1000 > targetFileSizeKb) {
+                    high = middle;
+                }
+        
+                middle = (low + high) / 2;
+        		result = canvas.toDataURL();
+            }
+        	var blobBin = atob(result.split('','')[1]);
+        	var array = [];
+        	for(var i = 0; i < blobBin.length; i++) {
+        	    array.push(blobBin.charCodeAt(i));
+        	}
+            result = new Blob([new Uint8Array(array)], {type: ''image/png''});
+            return result;
+        }
+        
+        public urltoFile(url, filename, mimeType): Promise<any> {
+            return (fetch(url)
+                    .then(function (res) {
+                        return res.arrayBuffer();
+                    })
+                    .then(function (buf) {
+                        return new File([buf], filename, {type: mimeType});
+                    })
+            );
+        }
         	
         	replaceAndTranslateDate(str){
         		return this.translate.instant(str.replace(/\//g, ''_''));
