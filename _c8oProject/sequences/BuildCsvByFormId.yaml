@@ -140,7 +140,7 @@ comment: Build responses csv from a document id, providing a name
     		return ""+ doc.body().text();
     	}
     	catch(e){
-    		log.warning("error into getInnerText: " + JSON.stringify(e));
+    		log.warning("(Sequence BuildCsvByFormId) error into getInnerText: " + JSON.stringify(e));
     		return el;
     	}
     }
@@ -152,11 +152,9 @@ comment: Build responses csv from a document id, providing a name
     			var hasChild = nodeList.item(i).hasChildNodes();
     			if(column_name != "id"){
     				var a = getInnerText("" + nodeList.item(i).getElementsByTagName("key").item(j).getTextContent());
-    				log.warn("there a => "+a);
     			}
     			else{
     				var a = "" + nodeList.item(i).getElementsByTagName("key").item(j).getTextContent();
-    				log.warn("there a => "+a);
     			}
     			try{
     				// search for line beaks to escape them with quotes
@@ -194,7 +192,6 @@ comment: Build responses csv from a document id, providing a name
     			if(b.indexOf("__C8O__UNIQUE__IMG,") != -1){
     				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+nodeList.item(i).getElementsByTagName("name").item(j).getTextContent();
     				b = encodeURI(b);
-    				log.warn("final b ")
     			}
     			else if(b.indexOf("__C8O__UNIQUE__SIGNATURE,") != -1){
     				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+nodeList.item(i).getElementsByTagName("name").item(j).getTextContent();
@@ -239,7 +236,7 @@ comment: Build responses csv from a document id, providing a name
     					}
     				}
     				catch(e){
-    					log.warning("error: "+JSON.stringify(e));
+    					log.warning("(Sequence BuildCsvByFormId) error: "+JSON.stringify(e));
     				}
     				
     			}
@@ -283,7 +280,7 @@ comment: Build responses csv from a document id, providing a name
     					var b = date;
     				}
     				catch(e) {
-    					log.warning("Error while trying to set horodateur " + JSON.stringify(e))
+    					log.warning("(Sequence BuildCsvByFormId) Error while trying to set horodateur " + JSON.stringify(e))
     				}
     			}
     			data.key = a;
@@ -353,11 +350,11 @@ comment: Build responses csv from a document id, providing a name
     		catch(e){
     			char_output.flush();
     			char_output.close();
-    			log.warning(e + "");
+    			log.warning("(Sequence BuildCsvByFormId) error: "+e + "");
     		}
     	}
     	else{
-    		log.warning("write file == undefined");
+    		log.warning("(Sequence BuildCsvByFormId) error write file == undefined");
     	}
     }
     
@@ -385,25 +382,6 @@ comment: Build responses csv from a document id, providing a name
     		line[0].value = b;
     	})
     }
-    // define separator and encoding
-    try{
-    	if(separator != ";" && separator != ","){
-    		log.debug("separator: " + separator + " is not supported set to default separator ;");
-    		separator = '';'';
-    	}
-    	var sepratorChar = separator.charAt(0);
-    	if(string_separator != "''" && separator != ''"''){
-    		log.debug("string separator: " + string_separator + '' is not supported set to default separator "'');
-    		string_separator = ''"'';
-    	}
-    	if(encoding != "UTF-16" && encoding != "US-ASCII" && encoding != "ISO-8859-1" && encoding != "UTF-8" && encoding != "UTF-16BE" && encoding != "UTF-16LE"){
-    		log.debug("Encoding: " + encoding + " is not supported set to default encoding UTF-8");
-    		encoding = "UTF-8";
-    	}
-    }
-    catch(e){
-    	
-    }
     
     function processAuthor(nodeList, listAuthor){
     	for(var i = 0; i< nodeList.length; i++){
@@ -417,18 +395,56 @@ comment: Build responses csv from a document id, providing a name
     	}
     }
     
+    // define separator and encoding
+    try{
+    	if(separator != ";" && separator != ","){
+    		log.debug("(Sequence BuildCsvByFormId) separator: " + separator + " is not supported set to default separator ;");
+    		separator = '';'';
+    	}
+    	var sepratorChar = separator.charAt(0);
+    	if(string_separator != "''" && separator != ''"''){
+    		log.debug("(Sequence BuildCsvByFormId) string separator: " + string_separator + '' is not supported set to default separator "'');
+    		string_separator = ''"'';
+    	}
+    	if(encoding != "UTF-16" && encoding != "US-ASCII" && encoding != "ISO-8859-1" && encoding != "UTF-8" && encoding != "UTF-16BE" && encoding != "UTF-16LE"){
+    		log.debug("(Sequence BuildCsvByFormId) Encoding: " + encoding + " is not supported set to default encoding UTF-8");
+    		encoding = "UTF-8";
+    	}
+    }
+    catch(e){
+    	
+    }
+    
+    
+    
     const nameSeparator = "_";
     var tab = [];
     var uniquesKeys = {};
+    // get list of results
     var list = rows.item(0).getElementsByTagName("doc");
-    searchFlat(list, separator, string_separator);
-    log.debug("searchflat finished");
-    fillFlat(tab);
-    log.warn("fillFLAT: " + JSON.stringify(tab));
-    /*listUsers = [];
-    processAuthor(rows.item(0).getElementsByTagName("author"), listUsers);
-    processAuthor(rows.item(0).getElementsByTagName("anonymous"), listUsers);*/
     
+    //Calling search flat function
+    log.debug("(Sequence BuildCsvByFormId) calling function searchFlat ");
+    searchFlat(list, separator, string_separator);
+    var uniquesKeysArr = Object.keys(uniquesKeys);
+    log.debug("(Sequence BuildCsvByFormId) function searchFlat results: \n tab=\n"+JSON.stringify(tab)+"\nuniquesKeys=\n"+uniquesKeysArr);
+    
+    //Sorting responses: ensure that the same order is used foreach columns of each responses
+    log.debug("(Sequence BuildCsvByFormId) sorting responses: ensure that the same order is used foreach columns of each responses");
+    for(var i=0; i<tab.length; i ++){
+    	tab[i].sort((a, b)=>{
+    		return uniquesKeysArr.indexOf(a.key) - uniquesKeysArr.indexOf(b.key);
+    	})
+    }
+    log.debug("(Sequence BuildCsvByFormId) function searchFlat results: \n tab=\n"+JSON.stringify(tab));
+    
+    // Calling fill flat function: It will flatenize response
+    log.debug("(Sequence BuildCsvByFormId) flat responses: ensure that responses are flat");
+    fillFlat(tab);
+    log.debug("(Sequence BuildCsvByFormId) function fillFlat results: \n tab=\n"+JSON.stringify(tab)); 
+    
+    
+    log.debug("(Sequence BuildCsvByFormId) listAsked: compute all users ids to be able to replace them by theirs name if necessary");
     // search users ids 
     var listAsked = tab.map((elem)=>{
     	var author = '''';
@@ -449,8 +465,11 @@ comment: Build responses csv from a document id, providing a name
     listAsked = listAsked.filter(function(item, pos, self) {
         return self.indexOf(item) == pos;
     })
-    log.warn("listAsked: " + JSON.stringify(listAsked));
     listAskedStr = ""+JSON.stringify(listAsked);
+    log.debug("(Sequence BuildCsvByFormId) listAsked results: \n listAskedStr=\n"+listAskedStr);
+    
+    
+    
     /*
     tab = sort(tab);
     replaceHorodator(tab);
@@ -496,14 +515,33 @@ comment: Build responses csv from a document id, providing a name
   variableName: usersV2
 ↓computeData2 [steps.SimpleStep-1625134929185]: 
   expression: |
-    'var users = usersV2.item(0);
+    'log.debug("(Sequence BuildCsvByFormId) prettifying users");
+    var users = usersV2.item(0);
     var prettyUsers = {};
     if(privacy != "" && privacy != "none"){
     	for(var i = 0; i< usersV2.length; i++){
     		for(var j = 0; j< usersV2.item(i).length; j++){
-    			var id = usersV2.item(i).getElementsByTagName("id").item(j).getTextContent();
-    			var displayName = usersV2.item(i).getElementsByTagName("value").item(j).getElementsByTagName("displayName").item(0).getTextContent();
-    			var mail = usersV2.item(i).getElementsByTagName("value").item(j).getElementsByTagName("mail").item(0).getTextContent();
+    			var id;
+    			var displayName;
+    			var mail;
+    			try{
+    				id = usersV2.item(i).getElementsByTagName("id").item(j).getTextContent();
+    			}
+    			catch(e){
+    				
+    			}
+    			try{
+    				displayName = usersV2.item(i).getElementsByTagName("value").item(j).getElementsByTagName("displayName").item(0).getTextContent();
+    			}
+    			catch(e){
+    				
+    			}
+    			try{
+    				mail = usersV2.item(i).getElementsByTagName("value").item(j).getElementsByTagName("mail").item(0).getTextContent();
+    			}
+    			catch(e){
+    				
+    			}
     			if(privacy == "name"){
     				if(displayName != undefined && displayName != ""){
     					prettyUsers[id] = ""+displayName;
@@ -587,14 +625,17 @@ comment: Build responses csv from a document id, providing a name
     		elem.splice(iAnonymous, 1);
     	}
     }
+    log.debug("(Sequence BuildCsvByFormId) prettifying users done");
     
+    log.debug("(Sequence BuildCsvByFormId) sorting responses by date");
     tab = sort(tab);
+    log.debug("(Sequence BuildCsvByFormId) sorting responses by date done. results: \n tab=\n"+JSON.stringify(tab));
+    log.debug("(Sequence BuildCsvByFormId) replace timestamp by human readable date");
     replaceHorodator(tab);
-    log.debug("tab result: " + JSON.stringify(tab));
-    var length =rows.item(0).length;
-    log.debug("resultat length: " + length);
-    log.debug("resultat: " + JSON.stringify(tab))
-    writeFile(tab,sepratorChar,encoding);'
+    log.debug("(Sequence BuildCsvByFormId) replace timestamp by human readable date done. results: \n tab=\n"+JSON.stringify(tab));
+    log.debug("(Sequence BuildCsvByFormId) calling write file function");
+    writeFile(tab,sepratorChar,encoding);
+    log.debug("(Sequence BuildCsvByFormId) calling write file function done");'
 ↓Concat [steps.XMLConcatStep-1572472082897]: 
   output: false
   separator: 

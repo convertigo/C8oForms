@@ -330,9 +330,27 @@
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  		    //Set globals
-                  		    page.local["epoch2"] = (new Date()).getTime() + "";
+                  		
+                  			//only for private forms. For anonyous search for processSingature() into CTS1593708089557
+                  		    const porcessObjsCameraAndSing = ()=>{
+                  			    if(page.local.objAtt != undefined){
+                  			        for(let item in page.local.objAtt){					
+                  						const name = page.local.objAtt[item]["name"];
+                  						let index = page["getElementByNameIntoFormSubmit"](item);
+                  						if(index.length == 1){
+                  							page["formsSubmit"][index[0]]["value"] = name;
+                  							page["formsSubmit"][index[0]]["att_type"] = true;
+                  						}
+                  						else{
+                  							page["formsSubmit"][index[0]]["children"][index[1]]["value"] = name;
+                  							page["formsSubmit"][index[0]]["children"][index[1]]["att_type"] = true;
+                  						}
+                  		            }
+                  			    }
+                  			}
                   		    const doStuff = ()=>{
+                  				//Set globals
+                  		    	page.local["epoch2"] = (new Date()).getTime() + "";
                                   page.global['__viewindeok']= [];
                                   let flat = page["flatArray"]();
                                   page.global["__viewerTotal"] = flat[1];
@@ -351,28 +369,32 @@
                   					page.local.myFormRev = page.form["parentRev"];
                                       page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0;
                                   }
-                                  else if(page["edit"] == true){
-                                      page.local.myId = page["navParams"]["data"]["edit"];
-                                      page.local.myFormId = page["form"]["_id"];
-                                      page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0 ||  page.global["__C8O_TODELETE"].length >0;
-                                      let grpName = "_C8O_HIDDEN_" + page.local.myFormId;//((page["form"]["creator"].replace(/@/g,'_')).replace(/\./g,'-')) + page.local.myFormId;
-                                      page.local.grp[grpName] = true;
-                                      
-                                  }
                                   else{
-                                      page.local.myId = page.local.user+'_'+page.local.formId+'_'+page["epoch"];
-                                      page.local.myFormId = page.local.formId;
-                                      page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0 || page.local["objAtt"] != undefined && Object.keys(page.local["objAtt"]).length > 0;
+                  					if(page["edit"] == true){
+                  	                    page.local.myId = page["navParams"]["data"]["edit"];
+                  	                    page.local.myFormId = page["form"]["_id"];
+                  	                }
+                  	                else{
+                  	                    page.local.myId = page.local.user+'_'+page.local.formId+'_'+page["epoch"];
+                  	                    page.local.myFormId = page.local.formId;
+                  	                    
+                  	                }
+                  					// in both cases
+                  					page.local.myIsOnModeFile = page.global["__viewerTotal"] > 0 || page.local["objAtt"] != undefined && Object.keys(page.local["objAtt"]).length > 0;
                                       if(page.local.grp == undefined){
                   						page.local.grp = {};
                   					}
-                                      let grpName = "_C8O_HIDDEN_" + page.local.myFormId;//((page["form"]["creator"].replace(/@/g,'_')).replace(/\./g,'-')) + page.local.myFormId;
+                                      let grpName = "_C8O_HIDDEN_" + page.local.myFormId;
                                       page.local.grp[grpName] = true;
-                                  }
+                  					porcessObjsCameraAndSing();
+                  				}
                                   
                                   resolve();
                               }
+                  
                   		    
+                  			
+                  			//call doStuff
                   		    doStuff();
                   		    
                   		    
@@ -485,19 +507,61 @@
                       		        }
                       		    });
                       		}
+                      		const b64toBlob = (b64Data, contentType='''', sliceSize=512) => {
+                      		  const byteCharacters = atob(b64Data);
+                      		  const byteArrays = [];
                       		
+                      		  for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+                      		    const slice = byteCharacters.slice(offset, offset + sliceSize);
+                      		
+                      		    const byteNumbers = new Array(slice.length);
+                      		    for (let i = 0; i < slice.length; i++) {
+                      		      byteNumbers[i] = slice.charCodeAt(i);
+                      		    }
+                      		
+                      		    const byteArray = new Uint8Array(byteNumbers);
+                      		    byteArrays.push(byteArray);
+                      		  }
+                      		
+                      		  const blob = new Blob(byteArrays, {type: contentType});
+                      		  return blob;
+                      		}
                       		let processSingature = ()=>{
                       		    if(page.local.objAtt != undefined){
+                      				let cpt = 1;
                       		        for(let item in page.local.objAtt){
+                      					let start = new Date().getTime();
                       	                //let type = () ? "application/octet-stream":arr[index]["file"].mediaType;
-                      	                page.local.filesToSeq.push(
+                      					const blob = b64toBlob(page.local.objAtt[item]["data"], page.local.objAtt[item]["content_type"]);
+                      					
+                      	                /*page.local.filesToSeq.push(
                       	                        page.local.objAtt[item]["data"]
-                      	                );  
+                      	                );  */
+                      
+                      					
+                      					const name = page.local.objAtt[item]["name"];
+                      					page.local.filesToSeq.push(blob);
+                      					let index = page["getElementByNameIntoFormSubmit"](item);
                       	                page.local.filesInfoToSeq.push({
                       	                    "docid":page.local.myId,
                                               "name": page.local.objAtt[item]["name"],
-                                              "content_type": page.local.objAtt[item]["content_type"]
-                                      })
+                      						"type": "toB64",
+                                              "content_type": page.local.objAtt[item]["content_type"],
+                      						"index": JSON.stringify(index)
+                                      	})
+                      					let end = new Date().getTime();
+                      					console.log("total process:" + (end - start));
+                      					
+                      					console.log("index : " + JSON.stringify(index));
+                      					if(index.length == 1){
+                      						page["formsSubmit"][index[0]]["value"] = name;
+                      						page["formsSubmit"][index[0]]["att_type"] = true;
+                      					}
+                      					else{
+                      						page["formsSubmit"][index[0]]["children"][index[1]]["value"] = name;
+                      						page["formsSubmit"][index[0]]["children"][index[1]]["att_type"] = true;
+                      					}
+                      					cpt ++;
                       	            }
                       		    }
                       		}

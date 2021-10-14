@@ -44,6 +44,12 @@
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
             - MobileSmartSourceType: plain:params1570455192839.item.config.width+'px'
+      ↓Attr2 [mobile.components.UIAttribute-1633974268126]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:params1570455192839.model.att_type != true
     ↓Attr [mobile.components.UIAttribute-1570464402088]: 
       attrName: 
       attrValue: 
@@ -67,6 +73,35 @@
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
           - MobileSmartSourceType: script:'stylegenericcheckboxnormal'
+    ↓ImageFS [mobile.components.UIDynamicElement-1633974179266]: 
+      beanData: |
+        '{
+         "ionBean": "Image",
+         "url": "script:(params1570455192839.disabled == true|| params1570455192839.model.value == '''') ? params1570455192839.item.config.src : \r\nthis.router.sanitizer.bypassSecurityTrustUrl(this.local.URLO.createObjectURL(params1570455192839.model.value))",
+         "width": "script:params1570455192839.item.config.width",
+         "height": "script:params1570455192839.item.config.height",
+         "alt": "script:params1570455192839.item.config.alt"
+        }'
+      selfClose: true
+      tagName: img
+      ↓Attr [mobile.components.UIAttribute-1633974179269]: 
+        attrName: title
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:params1570455192839.item.config.alt
+      ↓Attr1 [mobile.components.UIAttribute-1633974179272]: 
+        attrName: '[style.max-width]'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:params1570455192839.item.config.width+'px'
+      ↓Attr2 [mobile.components.UIAttribute-1633974192662]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.mobile.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:params1570455192839.model.att_type == true && this.local.typeof(params1570455192839.model.value) != 'string'
     ↓ButtonSet [mobile.components.UIDynamicElement-1614677356279]: 
       beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:right"}'
       tagName: ion-buttons
@@ -133,8 +168,9 @@
                  "ionBean": "CameraAction",
                  "quality": "script:100",
                  "destinationType": "plain:DATA_URL",
-                 "targetWidth": "script:800",
-                 "targetHeight": "script:800"
+                 "targetWidth": "script:2200",
+                 "targetHeight": "script:2200",
+                 "mediaType": "plain:ALLMEDIA"
                 }'
               ↓setImgSrc [mobile.components.UICustomAction-1614611332803]: 
                 actionValue: 
@@ -142,11 +178,48 @@
                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
-                        	        vars.item.config.src = "data:image/jpeg;base64," + vars.src;
-                                    vars.model.value   = vars.src;//data:image/jpeg;base64,
-                                    vars.redList = false;
-                                    resolve();
-                        
+                        '			const authorized_sizeMB = vars.item.config.max_size != undefined ? +vars.item.config.max_size : 5;
+                        			const authorized_size = authorized_sizeMB * 1000000;
+                        			const lower_quality_if_necessary = async ()=>{	
+                        				let authorized_size = 1000000;
+                        				page.c8o.log.debug("(Camera component) : from camera without media capture");
+                        				let file;
+                        				try{
+                        					let time = new Date().getTime();
+                        					page.c8o.log.debug("(Camera component) : we will transform base64 to file");
+                        					//@ts-ignore
+                        					file =  await dataURLtoFile("data:image/jpg;base64,"+vars.src, vars.item.config.name);
+                        					let end_time = new Date().getTime();
+                        					page.c8o.log.debug(`(Camera component) : base64 to file succesfull, total computing time: ${(end_time - time) / 1000} seconds"`);
+                        					if( file.size > authorized_size){
+                        						page.c8o.log.debug(`(Camera component) : image size (${file.size} Bytes) exeeds default authorized size (${authorized_size} Bytes)`);
+                        						page.c8o.log.debug("(Camera component) : we will compress image");
+                        						try{
+                        							time = new Date().getTime();
+                        							//@ts-ignore
+                        							file = await compressAccurately(file,authorized_size/1000);
+                        							end_time = new Date().getTime();
+                        							page.c8o.log.debug(`(Camera component) : image compression succesfull, new size: ${file.size} Bytes, total computing time: ${(end_time - time) / 1000} seconds"`);
+                        							
+                        						}
+                        						catch(e){
+                        							page.c8o.log.debug("(Camera component) : image compression failed", e);
+                        						}
+                        					}
+                        					vars.model.value  = file;
+                        					vars.model.att_type = true;
+                        				}
+                        				catch(e){
+                        					page.c8o.log.debug("(Camera component) : base64 to file transformation failed", e);
+                        					vars.item.config.src = "data:image/jpeg;base64," + vars.src;
+                        	            	vars.model.value   = vars.src;
+                        					vars.model.att_type = false;
+                        				}
+                        				resolve();
+                        			}
+                        		
+                        	        lower_quality_if_necessary();
+                        '
                 module_ts_imports: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -241,21 +314,33 @@
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '		for(let file of event["srcElement"]["files"]){
-                    		    var reader = new FileReader();
-                    		   	reader.readAsDataURL(file);
-                    		   	reader.onload = function () {
-                    			
-                    		    //vars.item.config.src = page.router.sanitizer.bypassSecurityTrustUrl(reader.result);
-                                vars.model.value   = (""+reader.result).substring((""+reader.result).indexOf("base64,")+7);
-                                vars.redList = false;
-                                resolve();
-                    		   };
-                    		   reader.onerror = function (error) {
-                    		     console.log(''Error: '', error);
-                    			resolve();
-                    		   };
-                    		}
+                    '		const lower_quality_if_necessary = async()=>{
+                    			const authorized_sizeMB = vars.item.config.max_size != undefined ? +vars.item.config.max_size : 5;
+                    			const authorized_size = authorized_sizeMB * 1000000;
+                    			for(let file of event["srcElement"]["files"]){
+                    				if( file.size > authorized_size){
+                    					let time = new Date().getTime();
+                    					page.c8o.log.debug(`(Camera component) : image size (${file.size} Bytes) exeeds default authorized size (${authorized_size} Bytes)`);
+                    					page.c8o.log.debug("(Camera component) : we will compress image");
+                    					try{						
+                    						//@ts-ignore
+                    						file = await compressAccurately(file,authorized_size/1000);
+                    						let end_time = new Date().getTime();
+                    						page.c8o.log.debug(`(Camera component) : image compression succesfull, new size: ${file.size} Bytes, total computing time: ${(end_time - time) / 1000} seconds"`);
+                    					}
+                    					catch(e){
+                    						page.c8o.log.debug("(Camera component) : image compression failed", e);
+                    					}
+                    					
+                    				}
+                    				// use now file without base64 encoding
+                    				vars.model.value  = file;
+                    				vars.model.att_type = true;
+                    				resolve();
+                    			}
+                    		};
+                    		lower_quality_if_necessary();
+                    		
                     '
             ↓item [mobile.components.UIControlVariable-1614679341649]: 
               varValue: 
@@ -398,21 +483,33 @@
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '		for(let file of event["srcElement"]["files"]){
-                    		    var reader = new FileReader();
-                    		   	reader.readAsDataURL(file);
-                    		   	reader.onload = function () {
-                    			
-                    		    //vars.item.config.src = page.router.sanitizer.bypassSecurityTrustUrl(reader.result);
-                                vars.model.value   = (""+reader.result).substring((""+reader.result).indexOf("base64,")+7);
-                                vars.redList = false;
-                                resolve();
-                    		   };
-                    		   reader.onerror = function (error) {
-                    		     console.log(''Error: '', error);
-                    			resolve();
-                    		   };
-                    		}
+                    '		const authorized_sizeMB = vars.item.config.max_size != undefined ? +vars.item.config.max_size : 5;
+                    		const authorized_size = authorized_sizeMB * 1000000;
+                    		const lower_quality_if_necessary = async()=>{
+                    			for(let file of event["srcElement"]["files"]){
+                    				if( file.size > authorized_size){
+                    					let time = new Date().getTime();
+                    					page.c8o.log.debug(`(Camera component) : image size (${file.size} Bytes) exeeds default authorized size (${authorized_size} Bytes)`);
+                    					page.c8o.log.debug("(Camera component) : we will compress image");
+                    					try{						
+                    						//@ts-ignore
+                    						file = await compressAccurately(file,authorized_size/1000);
+                    						let end_time = new Date().getTime();
+                    						page.c8o.log.debug(`(Camera component) : image compression succesfull, new size: ${file.size} Bytes, total computing time: ${(end_time - time) / 1000} seconds"`);
+                    					}
+                    					catch(e){
+                    						page.c8o.log.debug("(Camera component) : image compression failed", e);
+                    					}
+                    					
+                    				}
+                    				// use now file without base64 encoding
+                    				vars.model.value  = file;
+                    				vars.model.att_type = true;
+                    				vars.redList = false;
+                    				resolve();
+                    			}
+                    		};
+                    		lower_quality_if_necessary();
                     '
             ↓item [mobile.components.UIControlVariable-1614616633315]: 
               varValue: 
@@ -587,5 +684,25 @@
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             		page.local.capture = (document.createElement('input') as any).capture != undefined;
+            		page.local.URLO = URL;
+            		page.local.typeof = (str)=> {
+            			try{
+            				return typeof(str);
+            			}
+            			catch(e){
+            				return true;
+            			}
+            		}
             		resolve();
             
+    package_dependencies: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: image-conversion
+              - java.lang.String: 
+                - ↑value: 2.1.1
