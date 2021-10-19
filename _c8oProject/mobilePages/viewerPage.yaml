@@ -71,6 +71,7 @@ scriptContent:
             public creating;
             public functionsById = {};
         	public previousAndPostFunctions = {};
+        	public functionsExecById = {};
         	//public imageCompression = require("browser-image-compression");
             
             
@@ -874,6 +875,7 @@ scriptContent:
         			
         		}
         	}
+        
         	public fillSources(list, redList, formSubmit): Array<string>{
         		let page = this;
         		let idsToCall: Array<string> = [];
@@ -904,15 +906,35 @@ scriptContent:
         						sha +=item.id;
         						
         						let postFunc, failFunc, prevFunc: any;
+        						if(this.functionsExecById[sha] == undefined){
+        							this.functionsExecById[sha] = {};
+        						}
         						// if this sequence withn thoses parameters has not been founded yet add it
         						if(this.functionsById[sha] == undefined){ 
         							idsToCall.push(sha);
         							this.functionsById[sha] =  async ()=>{
+        								// cancel all others executions for the same component
+        								for(let key in this.functionsById[sha]){
+        									this.functionsById[sha][key] = false;
+        								}
+        								// register myself as executing
+        								let idExec = new Date().getTime() + "_" +(Math.random()+"").substring(2);
+        								this.functionsExecById[sha][idExec] = true;
+        								
+        								// check for cancel order
+        								if(this.functionsExecById[sha][idExec] == false){
+        									page.c8o.log.debug("Canceling execution of "+ item.name+" source ("+idExec+") because a newer was launched");
+        									return;
+        								}
         								// call preload functions
         								//...
         								this.previousAndPostFunctions[sha].previous.forEach((func)=>{
         									func();
         								})
+        								if(this.functionsExecById[sha][idExec] == false){
+        									page.c8o.log.debug("Canceling execution of "+ item.name+" source ("+idExec+") because a newer was launched");
+        									return;
+        								}
         								let variables = {};
         								page["computeVariable"](findVars, variables, item);
         								/*
@@ -932,6 +954,10 @@ scriptContent:
         									defaults["ddoc"] = sources.fullSyncArgs.ddoc;
         									defaults["view"] = sources.fullSyncArgs.view;
         									defaults["__live"] = sources.fullSyncArgs.__live;
+        									if(this.functionsExecById[sha][idExec] == false){
+        										page.c8o.log.debug("Canceling execution of "+ item.name+" source ("+idExec+") because a newer was launched");
+        										return;
+        									}
         									// compute parameters for exec
         									let computedParams = await page.getAndApplyC8oformComputeKeysFunction(sources, defaults, variables);
         									// override defaults parameters with computed ones
@@ -1008,6 +1034,10 @@ scriptContent:
         								try{
         									let res;
         									if(canExec){
+        										if(this.functionsExecById[sha][idExec] == false){
+        											page.c8o.log.debug("Canceling execution of "+ item.name+" source ("+idExec+") because a newer was launched");
+        											return;
+        										}
         										try{
         											res = await page.c8o.callJsonObject(requestable, params).async();
         										}
@@ -1029,11 +1059,19 @@ scriptContent:
         			                       		 	})
         										}
         										try {
+        											if(this.functionsExecById[sha][idExec] == false){
+        												page.c8o.log.debug("Canceling execution of "+ item.name+" source ("+idExec+") because a newer was launched");
+        												return;
+        											}
         											res = await page.getAndApplyC8oformPostQueryFunction(sources, params, res, item["type"], variables)
         										}
         										catch(e){
         											
         										}
+        									}
+        									if(this.functionsExecById[sha][idExec] == false){
+        										page.c8o.log.debug("Canceling execution of "+ item.name+" source ("+idExec+") because a newer was launched");
+        										return;
         									}
         									// call post load functions
         									//...
@@ -1062,6 +1100,10 @@ scriptContent:
         												"indexed" :indexed
         			                       		 	})
         										}
+        									}
+        									if(this.functionsExecById[sha][idExec] == false){
+        										page.c8o.log.debug("Canceling execution of "+ item.name+" source ("+idExec+") because a newer was launched");
+        										return;
         									}
         									// call fail functions
         									//...
