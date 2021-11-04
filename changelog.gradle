@@ -1,0 +1,140 @@
+import groovy.json.JsonSlurper
+
+task makeChangelog {
+	group 'convertigo'
+	
+	doLast {
+        def convertigoVersion = "1.0.50"
+		def jsonSlurper = new JsonSlurper()
+		def url = 'https://api.github.com/repos/convertigo/C8oForms/milestones'
+		def json = jsonSlurper.parseText(new URL(url).text)
+		def milestone = json.find { it.title == convertigoVersion }.number
+		def tickets = ['new feature':[:], 'enhancement':[:], 'bug':[:]]
+		def page = 1
+		while (page > 0) {
+			url = ('https://api.github.com/repos/convertigo/C8oForms/issues?'
+			+ "milestone=${milestone}"
+			+ '&state=all'
+			+ "&page=${page}")
+			json = jsonSlurper.parseText(new URL(url).text)
+			if (json.size() > 0) {
+				json.each {
+					def label = it.labels.find { tickets.containsKey(it.name) }
+					if (label != null) {
+						tickets[label.name][it.number] = "[#${it.number}](${it.html_url}) ${it.title}"
+					}
+				}
+				page++;
+			} else {
+				page = -1
+			}
+		}
+		
+		def state = 0
+		def redo = true
+		def changelog = ''
+		def addAtTheEnd = ''
+		def good_version = false
+		println "tickets: $tickets" 
+		def handleCategory = { line, inc, key, name ->
+			inc *= 5
+			redo = false
+			println "inc $inc ; state $state ; key $key ; name $name ; line $line"
+			if (state == 1 + inc) { // search new feature
+				def m = (line =~ /#### (.*)/)
+				if (m.matches()) {
+					if (m[0][1] == "${name}:") {
+						state += 1
+					} else {
+						state += 5
+						return false
+					}
+				} else if (!line.isEmpty()) {
+					state += 2
+					redo = true
+				}
+				
+				if (!redo) {
+					changelog += "${line}\n"
+				}
+			} else if (state == 2 + inc) { // space new feature
+				changelog += "${line}\n"
+				state += 2
+			} else if (state == 3 + inc) { // add new feature part
+				if (!tickets[key].isEmpty()) {
+					changelog += "#### ${name}:\n\n"
+					state += 2
+					redo = true
+				} else if (good_version) {
+					state += 3
+				} else {
+					state += 5
+					redo = true
+				}
+			} else if (state == 4 + inc) { // filter new feature
+				if (line.isEmpty()) {
+					state += 1
+				} else {
+					def m = (line =~ /- .*?\[#(\d+)\]/)
+					if (m.find()) {
+						def num = m[0][1].toInteger()
+						if (tickets[key].containsKey(num)) {
+							tickets[key].remove num
+						} else {
+							line = line.replaceFirst(/^- /, '- ? ')
+						}
+					}
+					changelog += "${line}\n"
+				}
+			} else if (state == 5 + inc) { // add new feature
+				tickets[key].keySet().sort().each {
+					changelog += "- * ${tickets[key][it]}\n"
+				}
+				changelog += '\n'
+				state += 1
+				redo = true
+			} else {
+				return false
+			}
+			return true
+		}
+		
+		def changelog_file = file('CHANGELOG.md')
+		changelog_file.eachLine {
+			redo = true
+			while (redo) {
+				if (state == 0) { // search version
+					redo = false
+					def m = (it =~ /## (.*)/)
+					if (m.matches()) {
+						if (m[0][1] == convertigoVersion) {
+							good_version = true
+							state += 1
+						} else {
+							changelog += "## $convertigoVersion\n\n"
+							addAtTheEnd = "---\n\n"
+							redo = true
+							state += 3
+						}
+					}
+					if (!redo) {
+						changelog += "${it}\n"
+					}
+				} else if (state <= 5 && handleCategory(it, 0, 'new feature', 'New Features')) {
+				} else if (state <= 10 && handleCategory(it, 1, 'enhancement ', 'Improvements')) {
+				} else if (state <= 15 && handleCategory(it, 2, 'bug', 'Bug Fixes')) {
+				} else if (state == 16) { // add separator
+					changelog += addAtTheEnd
+					state += 1
+					redo = true
+				} else {
+					changelog += "${it}\n"
+					redo = false
+				}
+			}
+		}
+		
+		//println changelog
+		changelog_file.text = changelog
+	}
+}
