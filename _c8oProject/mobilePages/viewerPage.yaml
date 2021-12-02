@@ -6,7 +6,7 @@ scriptContent:
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
         '/*Begin_c8o_PageImport*/
-        import { Content } from ''ionic-angular'';
+        import { Content,ToastController } from ''ionic-angular'';
         
         //import { Observable, Subject } from ''rxjs'';
         import {compressAccurately, dataURLtoFile} from ''image-conversion'';
@@ -773,6 +773,7 @@ scriptContent:
         	}
         	public async getFullsyncSources(list){
         		let page = this;
+        		let resetObject = {};
         		try  {
                     for(let item of list){
         				if(item["type"] == "ion-card"){
@@ -791,13 +792,46 @@ scriptContent:
         						}						
         						let localC8o = undefined;
         						try{
+        							if(resetObject[sources.fullSyncArgs.connectorName] == undefined){
+        								//check for reset
+        								try{
+        									localC8o = await this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".get", { docid: "_local/c8o" }).async();
+        									//set max listener
+        									page.c8o.c8oFullSync["fullSyncDatabases"][page.c8o.database.localName(sources.fullSyncArgs.connectorName)+"_device"].database.setMaxListeners(100);
+        									let has_reset = await page.c8o.c8oFullSync["fullSyncDatabases"][page.c8o.database.localName(sources.fullSyncArgs.connectorName)+"_device"].checkResetBase();
+        									if(has_reset){
+        										page.c8o.log.debug("A fs:// source database has been reset we will reload app");
+        										let toastCtrl = page.getInstance(ToastController);
+        	          							let toast = toastCtrl.create({
+        	          							    message: page["translate"].instant("db_reset"),
+        	          							    duration: 10000,
+        	          							    position: ''bottom'',
+        	          								dismissOnPageChange: false,
+        	          								showCloseButton: true,
+        	          								closeButtonText: page["translate"].instant("restart_app_update"),
+        	          								cssClass: "changeToast"
+        	          							});
+        										toast.onDidDismiss(() => {
+        											window.location.reload();
+        										});
+                  							
+                  								toast.present();
+        										return {restart: true};
+        									}
+        								}
+        								catch(e){
+        									
+        								}
+        								resetObject[sources.fullSyncArgs.connectorName] = true;
+        							}
         							localC8o = await this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".get", { docid: "_local/c8o" }).async();
         							if(localC8o.indexed != undefined && localC8o.indexed[sources.sha] == true){
         								if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed == undefined){
         									this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed = {};
         								}
         								this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] = true;
-        								this.c8o.log.debug("Got a _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+sources.fullSyncArgs["ddoc"] + "/"+ sources.fullSyncArgs["view"] +" ==> Do not display loader for this base");
+        								this.c8o.log.debug("Got a _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+sources.fullSyncArgs["ddoc"] + "/"+ sources.fullSyncArgs["view"] +" ==> Do not display loader for this base");						
+        								
         							}
         							else{
         								throw new Error();
@@ -857,7 +891,6 @@ scriptContent:
         							defaults["ddoc"] = sources.fullSyncArgs.ddoc;
         							defaults["view"] = sources.fullSyncArgs.view;
         							// get c8oformComputeKeys
-        							//debugger;
         							let computedParams = await page.getAndApplyC8oformComputeKeysFunction(sources, defaults, variables);
         							params = {...defaults, ...computedParams}
         							delete params["__live"];
@@ -952,6 +985,7 @@ scriptContent:
         								let params = {[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.LOCAL, 3.154e+10)}
         								page.c8o.callJsonObject(findName, {...variables, ...params})
         								*/
+        								let hadAPrepare = false;
         								// create empty object for params
         								let params = {};
         								// enable execution by default
@@ -1021,7 +1055,7 @@ scriptContent:
         													return null;
         												})
         												.fail((err)=>{
-        													
+        													console.log("NEW FAIL", err);
         												})
         											})
         										}
@@ -1033,6 +1067,9 @@ scriptContent:
         									}
         									else{
         										canExec = true;
+        									}
+        									if(params["__prepare"] != undefined){
+        										hadAPrepare = true;
         									}
         									delete params["__prepare"];																
         								}
@@ -1057,7 +1094,7 @@ scriptContent:
         									}						
         									//if fullsync
         									if(sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync){
-        										if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false && requestable.indexOf("fs://") == 0){
+        										if(this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false && requestable.indexOf("fs://") == 0 && hadAPrepare == false){
         											this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
         											this.hideModalSyncOrOptimize();
         											let indexed = {[Osha]: true};
@@ -3375,7 +3412,12 @@ title: Visualisateur
                    "data": "script"
                   }'
             ↓SyncFsResponses [mobile.components.UIDynamicAction-1576601012769]: 
-              beanData: '{"ionBean":"FullSyncSyncAction","requestable":"plain:C8Oforms.c8oforms_response_fs"}'
+              beanData: |
+                '{
+                 "ionBean": "FullSyncSyncAction",
+                 "requestable": "plain:C8Oforms.c8oforms_response_fs",
+                 "Direction": "plain:push"
+                }'
         ↓Else_Handler [mobile.components.UIActionElseEvent-1570701884980]: 
           ↓IfElse [mobile.components.UIDynamicIf-1593622945986]: 
             beanData: '{"ionBean":"IfElseAction","condition":"script:this.local.user != undefined || this.local.user != \":i\""}'
