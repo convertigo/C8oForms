@@ -141,7 +141,122 @@ scriptContent:
         		this.local.selectFilter = {};
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
-        	
+        	public updateGridValues(event, item){
+        		if(document.getElementById(item.id).getElementsByClassName("justTocheckExistingLoading").length == 0){
+        			// if grids is''nt showing overlay
+        			let page = this;
+        			if(
+        				page.local.techGrid != undefined
+        				&& page.local.techGrid[item.name] != undefined
+        				&& page["formsSubmit"][item.name]!= undefined
+        				&& page["formsSubmit"][item.name].value != undefined 
+        				&& (
+        					typeof page["formsSubmit"][item.name].value != "object" 
+        					|| (
+        						Object.keys(page["formsSubmit"][item.name].value) != undefined
+        						&& Object.keys(page["formsSubmit"][item.name].value).length > 0
+        						)
+        					)
+        				&& page.local.sourceValue != undefined
+        				&& page.local.sourceValue[item.name] != undefined
+        			){
+        				// if grid''s value returns row_selected
+        				if(item.config.returned_value === "row_selected" || item.config.returned_value === "cell_selected"){
+        					let founded = false;
+        					//itterate over grid to retrive selected row 
+        					event.event.api.forEachNode((node, rowIndex)=>{
+        						// if based on __rowValue
+        						if(node.data != undefined && JSON.stringify(node.data) ==  JSON.stringify(page.local.techGrid[item.name].data)){
+        							//ensure that node is visible
+        							event.event.api.ensureNodeVisible(node);
+        							// if returned value is row (so selectable item is the row)
+        							if(item.config.returned_value === "row_selected"){
+        								//select the node
+        								node.setSelected(true);
+        								// set that we founded element so we won''t remove element from responses
+        								founded = true;
+        							}
+        							// if returned value is cell (so selectable item is the cell)
+        							else if(item.config.returned_value === "cell_selected"){
+        								//we founded the node, now searching for cell
+        								window["grid"]= event.event.api;
+        								window["page"] = page;
+        								for(let i in node.data){
+        									// since __rowValue is not visible, and so is not available to select in case of cell_selected settings ignore it
+        									if(i != "__rowValue"){
+        										let currentCell = node.data[i];
+        										//since there are diffrents type of cell we will search according to its formating
+        										// in case of simple string cell 
+        										if(typeof currentCell == "string"){
+        											if(currentCell == page["formsSubmit"][item.name].value){
+        												// founded value
+        												/**
+        													When data has been reloaded into grid, columns ids thakes a wrong value.
+        													we are obliged to empty colDefs and set them again
+        													see: https://github.com/ag-grid/ag-grid/issues/2889
+        												 */
+        												event.event.api.setColumnDefs([]);
+        												event.event.api.setColumnDefs(page.local.sourceValue[item.name]["colDef"]);
+        												// set focused cell
+        												event.event.api.setFocusedCell(rowIndex, i);
+        												// set that we founded element so we won''t remove element from responses
+        												founded = true;
+        												break;
+        											}
+        										}
+        										// in case of object cell
+        										else if(typeof currentCell == "object"){
+        											// if value field exists its value is choosen 
+        											if(currentCell.value != undefined && currentCell.value == page["formsSubmit"][item.name].value){
+        												// founded value
+        												/**
+        													When data has been reloaded into grid, columns ids thakes a wrong value.
+        													we are obliged to empty colDefs and set them again
+        													see: https://github.com/ag-grid/ag-grid/issues/2889
+        												 */
+        												event.event.api.setColumnDefs([]);
+        												event.event.api.setColumnDefs(page.local.sourceValue[item.name]["colDef"]);
+        												// set focused cell
+        												event.event.api.setFocusedCell(rowIndex, i);
+        												// set that we founded element so we won''t remove element from responses
+        												founded = true;
+        												break;
+        											}
+        											// if not, displayValue is choosen
+        											else if(currentCell.value == undefined && currentCell.displayValue == page["formsSubmit"][item.name].value){
+        												// founded value
+        												/**
+        													When data has been reloaded into grid, columns ids thakes a wrong value.
+        													we are obliged to empty colDefs and set them again
+        													see: https://github.com/ag-grid/ag-grid/issues/2889
+        												 */
+        												event.event.api.setColumnDefs([]);
+        												event.event.api.setColumnDefs(page.local.sourceValue[item.name]["colDef"]);
+        												// set focused cell
+        												event.event.api.setFocusedCell(rowIndex, i);
+        												// set that we founded element so we won''t remove element from responses
+        												founded = true;
+        												break;
+        											}
+        										}
+        									}								
+        								}
+        							}
+        							//founded = true;
+        							
+        						}
+        					})
+        					if(!founded){
+        						page["formsSubmit"][item.name].value = {};
+        					}
+        				}							
+        			}
+        			else{
+        				// if grids is showing overlay: do nothing
+        			}
+        		}
+        			
+        	}
         	getFsStatus(){
         		let doing = {db:{status: "", finished: false, statusComputed: false}, indexing:{status: "", finished: false}};
         		let finished = true;
@@ -1377,14 +1492,14 @@ scriptContent:
         											});
         											return row;
         										})
+        										page.local.updating[item.id] = 1;
+        										this.hideGridOverlayById(item.id);
         										page.local.sourceValue[item.name]["colDef"] = colDef;
         										page.local.sourceValue[item.name]["data"] = data;
         										// in case of user wants all data to be returned to response
         										if(item.config.returned_value === "all_the_data"){
         											formSubmit[item.name]["value"] = res.data;
         										}
-        										page.local.updating[item.id] = 1;
-        										this.hideGridOverlayById(item.id);
         										page.ref.detectChanges();
         									}
         									else {
@@ -4023,7 +4138,7 @@ title: Visualisateur
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
-              '		page.global.overlayNoRowsTemplate = ''<div style="background-color:#f4f4f450; width:100%; height:100%; display: flex;align-items: center;justify-content: center;"><div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>''
+              '		page.global.overlayNoRowsTemplate = ''<div class="justTocheckExistingLoading" style="background-color:#f4f4f450; width:100%; height:100%; display: flex;align-items: center;justify-content: center;"><div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>''
               		//page.global.overlayNoRowsTemplate2 = ''<div style="width:100%; height:100%; display: flex;align-items: center;justify-content: center;">''+page["translate"].instant("no_result_grid")+''</div>''
               		this.local.agGridLocaleTextFunc =
               		(key, defaultValue) =>{
