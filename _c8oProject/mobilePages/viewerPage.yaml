@@ -78,6 +78,7 @@ scriptContent:
             
             /*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		window["this"] = this;
         		this.local.tagName = "div";
                 this.local.tagId = "id";
         		this.local.doing = {};
@@ -257,6 +258,40 @@ scriptContent:
         		}
         			
         	}
+        	public AllDbReplicated(){
+        		try{ 
+        			let status;
+        			//first search for all db if one is not replicated yet
+        			for(let index in this.global.waitFSBaseStatus){
+        				let current = this.global.waitFSBaseStatus[index];
+        				if(current.init == false){
+        					status = "red";
+        					break;
+        				}
+        			}
+        			// then if all are replicated search if some indexations are missing
+        			if(status != "red") {
+        				for(let index in this.global.waitFSBaseStatus){
+        					let current = this.global.waitFSBaseStatus[index];
+        					for(let indexY in current.indexed){
+        						let currentY = current.indexed[indexY];
+        						if(currentY == false){
+        							status = "btLight";
+        							break;
+        						}
+        					}
+        				}
+        			}
+        			if(status == undefined){
+        				status = "green";
+        			}
+        			return status;
+        			
+        		}
+        		catch(e){
+        			return "red";
+        		}
+        	}
         	getFsStatus(){
         		let doing = {db:{status: "", finished: false, statusComputed: false}, indexing:{status: "", finished: false}};
         		let finished = true;
@@ -303,7 +338,7 @@ scriptContent:
         		}
         		doing.db.status = this.translate.instant("data_download") + "... ("+currentC + "/" + total+")";
         		doing.db.finished = finished;
-        		if(finished){
+        		if(finished && doing.indexing.finished){
         			doing.db.status = this.translate.instant("data_download_finished");
         			if(this.btStatus != undefined){
         				this.btStatus.nativeElement.classList.remove("animate__animated");
@@ -377,8 +412,10 @@ scriptContent:
         	}
         	
         	startSyncDatabases(databaseObject){
+        		this.local.statDB = {};
         		for(let databaseName in databaseObject){
         			if(databaseObject[databaseName]){
+        				this.local.statDB[databaseName] = false;
         				if(this.local.promisesFS == null){
         					this.local.promisesFS = {};
         				}
@@ -410,23 +447,53 @@ scriptContent:
         						this.c8o.log.debug("no _local/c8o doc for source database : "+ databaseName + " ==> This is first sync, waiting for full replication before showing form");
         						this.showModalSyncOrOptimize();
         					}
-        					this.c8o.callJsonObject("fs://"+databaseName+".replicate_pull",{"continuous": true, "heartbeat": false, "timeout": false, "batch_size": 1000, "retry": true, "batches_limit": 10})
+        					this.local.syncFunc1 = ()=>{
+        						this.c8o.callJsonObject("fs://"+databaseName+".replicate_pull",{"continuous": true, "heartbeat": false, "timeout": false, "batch_size": 1000, "retry": true, "batches_limit": 10})
         					.then((res, parameters)=>{
-        						this.global.waitFSBaseStatus[databaseName].init = true;
-        						this.global.waitFSBaseStatus[databaseName].errored = false;
-        						if(localC8o == undefined){
-        							resolveP();
-        							this.c8o.callJsonObject("fs://" + databaseName + ".post", {
-        	                            _id: "_local/c8o",
-        	                            status: "completed",
-        	                            "_use_policy":"merge"
-                               		 }).async();
+        						if(window.navigator.onLine){
+        							this.global.waitFSBaseStatus[databaseName].init = true;
+        							this.global.waitFSBaseStatus[databaseName].errored = false;
+        							if(localC8o == undefined){
+        								resolveP();
+        								this.c8o.callJsonObject("fs://" + databaseName + ".post", {
+        		                            _id: "_local/c8o",
+        		                            status: "completed",
+        		                            "_use_policy":"merge"
+        	                       		 }).async();
+        							}
+        							this.c8o.log.debug("startSyncDatabases "+ databaseName + " finished");
+        							
+        							this.hideModalSyncOrOptimize();
+        							this.ref.detectChanges();
+        							this.local.statDB[databaseName] = true;
         						}
-        						this.c8o.log.debug("startSyncDatabases "+ databaseName + " finished");
+        						else{
+        							this.local.fsSourcesListenerOnline = (event) => {
+        								console.log("customList");
+            							window.removeEventListener(''online'',this.local.fsSourcesListenerOnline)
+        								this.local.syncFunc1();
+        								//this.startSyncDatabases(databaseObject);
+        								try{
+        									this.btStatus.nativeElement.classList.remove("animate__animated");
+        						            this.btStatus.nativeElement.classList.remove("animate__heartBeat");
+        									this.btStatus.nativeElement.classList.remove("animate__infinite");
+        									this.btStatus.nativeElement.classList.remove("animate__slower");
+        									setTimeout(()=>{
+        										this.btStatus.nativeElement.classList.add("animate__animated");
+        							            this.btStatus.nativeElement.classList.add("animate__heartBeat");
+        										this.btStatus.nativeElement.classList.add("animate__infinite");
+        										this.btStatus.nativeElement.classList.add("animate__slower");
+        									})
+        								}
+        								catch(e){
+        									
+        								}
+        								
+        								
+        							}
+        							window.addEventListener(''online'',this.local.fsSourcesListenerOnline );
+        						}
         						
-        						this.hideModalSyncOrOptimize();
-        						this.ref.detectChanges();
-        						console.log("status", res);
         						return null;
         					})
         					.progress((progress)=>{
@@ -440,6 +507,9 @@ scriptContent:
         						this.global.waitFSBaseStatus[databaseName].errored = true;
         						this.c8o.log.error("error startSyncDatabases "+ databaseName + " status");
         					})
+        					}
+        					this.local.syncFunc1();
+        					
         				})
         				
         			}
@@ -998,6 +1068,12 @@ scriptContent:
         						}
         						catch(e){
         							this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[sources.sha] = false;
+        							let indexed = {[sources.sha]: false};
+        							this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
+        	                            _id: "_local/c8o",
+        	                            "_use_policy":"merge",
+        								"indexed" :indexed
+                           		 	})
         							this.showModalSyncOrOptimize();
         							this.c8o.log.debug("no _local/c8o doc for source database : "+ sources.fullSyncArgs.connectorName + " and view "+sources.fullSyncArgs["ddoc"] + "/"+ sources.fullSyncArgs["view"] +" ==> This is first sync, waiting for full replication before showing form");
         							let defaults = {};
