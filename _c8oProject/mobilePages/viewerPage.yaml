@@ -293,14 +293,16 @@ scriptContent:
         		}
         	}
         	getFsStatus(){
-        		let doing = {db:{status: "", finished: false, statusComputed: false}, indexing:{status: "", finished: false}};
+        		let doing = {db:{status: "", finished: false, statusComputed: false, "dateFormatedLastUpdate": "unknown"}, indexing:{status: "", finished: false}};
         		let finished = true;
         		let total = 0;
         		let currentC = 0;
         		let totalI = 0;
         		let currentI = 0;
+        		let dateFormatedLastUpdate = "";
         		for(let i in this.global.waitFSBaseStatus){
         			let current = this.global.waitFSBaseStatus[i];
+        			dateFormatedLastUpdate  = current.dateFormatedLastUpdate;
         			if(current.progress != undefined){
         				doing.db.statusComputed = true;
         				total += current.progress.total;
@@ -338,6 +340,7 @@ scriptContent:
         		}
         		doing.db.status = this.translate.instant("data_download") + "... ("+currentC + "/" + total+")";
         		doing.db.finished = finished;
+        		doing.db.dateFormatedLastUpdate = dateFormatedLastUpdate;
         		if(finished && doing.indexing.finished){
         			doing.db.status = this.translate.instant("data_download_finished");
         			if(this.btStatus != undefined){
@@ -414,7 +417,9 @@ scriptContent:
         	startSyncDatabases(databaseObject){
         		this.local.statDB = {};
         		for(let databaseName in databaseObject){
+        			
         			if(databaseObject[databaseName]){
+        				
         				this.local.statDB[databaseName] = false;
         				if(this.local.promisesFS == null){
         					this.local.promisesFS = {};
@@ -438,6 +443,14 @@ scriptContent:
         					 
         					let localC8o = undefined;
         					try{
+        						if(window.navigator.onLine == false){
+        							localC8o = await this.c8o.callJsonObject("fs://" + databaseName + ".get", { docid: "_local/c8o" }).async();
+        							this.global.waitFSBaseStatus[databaseName].init = localC8o.status == "completed";
+        							if(localC8o.indexed != undefined){
+        								this.global.waitFSBaseStatus[databaseName].indexed = localC8o.indexed;
+        							}
+        							console.log("OFFLINE TRUE", localC8o)
+        						}
         						/*localC8o = await this.c8o.callJsonObject("fs://" + databaseName + ".get", { docid: "_local/c8o" }).async();
         						this.global.waitFSBaseStatus[databaseName].init = true;
         						this.c8o.log.debug("Got a _local/c8o doc for source database : "+ databaseName + " ==> Do not display loader for this base");
@@ -455,9 +468,12 @@ scriptContent:
         							this.global.waitFSBaseStatus[databaseName].errored = false;
         							if(localC8o == undefined){
         								resolveP();
+        								let timestamp_lastUpdate = ""+new Date().getTime()
+        								this.global.waitFSBaseStatus[databaseName].dateFormatedLastUpdate = new Date(+timestamp_lastUpdate).toLocaleString();
         								this.c8o.callJsonObject("fs://" + databaseName + ".post", {
         		                            _id: "_local/c8o",
         		                            status: "completed",
+        									"timestamp_lastUpdate":timestamp_lastUpdate,
         		                            "_use_policy":"merge"
         	                       		 }).async();
         							}
@@ -502,6 +518,16 @@ scriptContent:
         						this.global.waitFSBaseStatus[databaseName].errored = false;
         						this.ref.detectChanges();
         						console.log("progress", progress);
+        						if(this.global.waitFSBaseStatus[databaseName].init == true){
+        							let timestamp_lastUpdate = ""+new Date().getTime()
+        							this.global.waitFSBaseStatus[databaseName].dateFormatedLastUpdate = new Date(+timestamp_lastUpdate).toLocaleString();
+        							this.c8o.callJsonObject("fs://" + databaseName + ".post", {
+        		                            _id: "_local/c8o",
+        									"timestamp_lastUpdate":timestamp_lastUpdate,
+        		                            "_use_policy":"merge",
+        									"_use_merge_timestamp_lastUpdate":"override"
+        	                       		 }).async();
+        						}
         					})
         					.fail((error)=>{
         						this.global.waitFSBaseStatus[databaseName].errored = true;
