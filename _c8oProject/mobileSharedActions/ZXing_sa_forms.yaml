@@ -1,0 +1,344 @@
+↓type [ngx.components.UIStackVariable-1606311263339]: 
+  comment: 'Scan from file or video. Default: ''file'''
+  value: '''file'''
+↓file [ngx.components.UIStackVariable-1606311263342]: 
+  comment: File object as Array (if not provided from an input type file).
+↓imgId [ngx.components.UIStackVariable-1606311263345]: 
+  comment: Img tag identifier to output image file. Optional
+↓videoId [ngx.components.UIStackVariable-1606311263348]: 
+  comment: 'Video tag identifier to output video camera. Default: ''video''. Optional'
+  value: '''video'''
+↓resultId [ngx.components.UIStackVariable-1606311263351]: 
+  comment: Input tag identifier to set value to. Optional
+↓topic [ngx.components.UIStackVariable-1606311263354]: 
+  comment: Publish Topic name to use with a Subscribe component. Optional
+↓isOutputEvent [ngx.components.UIStackVariable-1606311263357]: 
+  comment: 'Publish scan result or not to the topic event. Default: true.'
+  value: true
+↓isOutputGlobal [ngx.components.UIStackVariable-1606311263360]: 
+  comment: 'Insert or not the scan result in a global page variable. The variable is composed of ''zxing:'' + topic + ref variables. Default: true.'
+  value: true
+↓ref [ngx.components.UIStackVariable-1606311263363]: 
+  comment: 'In case of multiple ZXing package instances, set the variable to different values to distinguish the Publish data event and/or the local page variable. Default: ''''. Optional'
+↓initZxing [ngx.components.UICustomAction-1606311275940]: 
+  actionValue: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '		let iOS = () => {
+          		  return [
+          		    ''iPad Simulator'',
+          		    ''iPhone Simulator'',
+          		    ''iPod Simulator'',
+          		    ''iPad'',
+          		    ''iPhone'',
+          		    ''iPod''
+          		  ].indexOf(navigator.platform) != -1
+          		  // iPad on iOS 13 detection
+          		  || (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+          		}	    
+          	    page.local.resolve = resolve;
+          	    page.local.reject = reject;
+          	    page.local.cameras = [];
+          	    page.local.facingMode = "environment";
+          		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+          		
+          		page.global[''zxing:codeReader''] = new BrowserMultiFormatReader();
+                  page.global[''zxing:codeReader''].reset();
+                  
+                  if(vars.type == ''file''){
+                      let file = null;
+                      if(event && event.target && event.target.files){
+                          file = event.target.files[0];
+                      }	
+                      else if(Array.isArray(vars.file)){
+                          file = vars.file[0];
+                      }
+                      if(file != null){
+                          var reader = new FileReader();
+                          reader.onload = function() {
+                              if(reader["result"]){
+                                  if(vars.imgId && vars.imgId != ""){
+                                      vars.imgId.src = reader["result"];
+                                  }
+                                  page.global[''zxing:codeReader''].decodeFromImage(undefined, reader["result"].toString())
+                                  .then(result => {
+                                      page.c8o.log.debug(''Success: '' + result["text"]);
+                                      if(vars.resultId && vars.resultId != ""){
+                                          if(vars.resultId instanceof Object){
+                                              vars.resultId.value =  result["text"];
+                                          }
+                                          else {
+                                              (<HTMLInputElement>document.querySelector("#" + vars.resultId + " input")).value = result["text"];
+                                          }
+                                      }
+                                      if(vars.isOutputGlobal === true){
+                                          page.global[''zxing:''+vars.topic + vars.ref] = result;
+                                          page.global[''zxing:''+vars.ref] = vars.ref;
+                                      }
+                                      delete page.global[''zxing:codeReader''];
+                                      result["ref"] = vars.ref;
+                                      resolve(result);
+                                  })
+                                  .catch(err => {
+                                      delete page.global[''zxing:codeReader''];
+                                      if(err && !(err instanceof NotFoundException)){
+                                          page.c8o.log.warn(''>>> Error: '' + err);
+                                          resolve({error: err});
+                                      }
+                                  });
+          
+                              } else {
+                                  delete page.global[''zxing:codeReader''];
+                                  resolve({error: ''Can not read file''});
+                              }
+                          }
+                          reader.readAsDataURL(file);
+                      } else {
+                          delete page.global[''zxing:codeReader''];
+                          page.c8o.log.warn(''Error: No file'');
+                          resolve({error: ''No file''});
+                      }
+                  } else {
+                      /**
+                       * detect if there is any camera and if we have permission to use it
+                       */
+                      page.local.detectIfPermissionsAndFillCameras = () => {
+                          return new Promise((resolve, reject)=>{
+                              page.global[''zxing:codeReader''].getVideoInputDevices()
+                              .then((videoInputDevices) => {
+          						let cpt0 = 0;
+                                  for(let v of videoInputDevices){
+                                      if(v.deviceId != ""){
+                                          page.local.cameras.push({"deviceId": v.deviceId, "facingMode": (iOS() ? (cpt0 == 0 ? "user" : "environment") : (v.label.indexOf("front") != -1 || v.label.indexOf("avant") != -1) ? "user" : "environment")})//((v.label.indexOf("front") != -1 || v.label.indexOf("avant") != -1) ? "user" : "environment")
+                                      }
+                                      cpt0++;
+                                  }
+                                  if(videoInputDevices.length == 0){
+                                      // in this case there is no camera existing in the targeted device
+                                      reject({"error": "not any camera available"});
+                                  }
+                                  else if(page.local.cameras.length == 0){
+                                      // in this case we can''t acces to any camera on the device
+                                      resolve(false)
+                                  }
+                                  else{
+          							// at least one camera were detected and available to use
+          		                     resolve(true);					
+                                  }
+                              });
+                          });
+                      };
+                      
+                      /**
+                       * force to ask for permissons using new facingMode api just to ask but not to use it then
+                       */
+                      page.local.TriggerPermissions = ()=>{
+                          return new Promise((resolve, reject)=>{
+                              navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio: false})
+                              .then((stream)=>{
+                                  //stops the stream immediatly
+                                  if (stream.stop) {
+                                      stream.stop();
+                                  } else {
+                                      stream.getTracks().forEach((track) => {
+                                          track.stop();
+                                      });
+                                  }
+                                  resolve(true);
+                              })
+                              .catch((e)=>{
+                                  // no permissions
+                                  reject(e);
+                              });
+                          });
+                      }
+                      
+                      /**
+                       * Starts Xzing process
+                       * @param type can be "user" | "environment"
+                       */
+                      page.local.startXzing = (type)=>{
+                          const videoId = !vars.videoId || vars.videoId == "" ? ''video'' : vars.videoId;
+                          // version 0.12.4
+                          
+                          // fin camera choosen and use other if not founded
+                          var selectedDeviceId;
+                          let cameraChoosen = (page.local.cameras.filter((x)=>{return x.facingMode === type}))[0];
+                          if(cameraChoosen != undefined){
+                              selectedDeviceId = cameraChoosen.deviceId;
+                          }
+                          else{
+                              selectedDeviceId = page.local.cameras[0].deviceId;
+                          }
+                          
+                          page.global[''zxing:codeReader''].decodeFromInputVideoDevice(selectedDeviceId, videoId)
+                          .then((result) => {
+                              page.c8o.log.debug(''Success: '' + result["text"]);
+                              if(vars.resultId && vars.resultId != ""){
+                                  if(vars.resultId instanceof Object){
+                                      vars.resultId.value =  result["text"];
+                                  }
+                                  else {
+                                      (<HTMLInputElement>document.querySelector("#" + vars.resultId + " input")).value = result["text"];
+                                  }
+                              }
+                              page.global[''zxing:codeReader''].reset();
+                              delete page.global[''zxing:codeReader''];
+                              if(vars.isOutputGlobal === true){
+                                  page.global[''zxing:''+vars.topic + vars.ref] = result;
+                                  page.global[''zxing:''+vars.ref] = vars.ref;
+                              }
+                              result["ref"] = vars.ref;
+                              resolve(result);
+                          })
+                          .catch((err) => {
+                              delete page.global[''zxing:codeReader''];
+                              if(err && !(err instanceof NotFoundException)){
+                                  page.c8o.log.warn(''>>> Error: '' + err);
+                                  resolve({error: err});
+                              }
+                          })
+                      };
+                      
+                      /**
+                       * resetXzingProcess
+                       */
+                      page.local.resetXzing = () =>{
+                          if(page.global[''zxing:codeReader''] !== undefined){
+                              page.global[''zxing:codeReader''].reset();
+                          }
+                      }
+                      
+                      /**
+                       * recursive ExecFlow to have camera working
+                       */
+                      page.local.startFlowExec = ()=>{
+                          page.local.detectIfPermissionsAndFillCameras()
+                          .then((ok)=>{
+                              if(ok){
+                                  page.local.startXzing(page.local.facingMode)
+                              }
+                              else{
+                                  page.local.TriggerPermissions()
+                                  .then((r)=>{
+                                      page.local.startFlowExec();
+                                  })
+                                  .catch((e)=>{
+                                      reject(e);
+                                  })
+                              }
+                          })
+                          .catch((e)=>{
+                            reject(e);  
+                          })
+                      }
+                      // execution
+                      page.local.startFlowExec();
+                          
+                  }
+                  
+                      
+                  
+          '
+  package_dependencies: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: '@zxing/library'
+            - java.lang.String: 
+              - ↑value: 0.12.4
+  page_ts_imports: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: BrowserMultiFormatReader
+            - java.lang.String: 
+              - ↑value: '@zxing/library'
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: NotFoundException
+            - java.lang.String: 
+              - ↑value: '@zxing/library'
+  ↓Failure_Handler [ngx.components.UIActionFailureEvent-1606327231127]: 
+    ↓Toast [ngx.components.UIDynamicAction-1606327094066]: 
+      beanData: '{"ionBean":"ToastAction","message":"script:c8oPage.translate.instant(''error_occured'')"}'
+  ↓type [ngx.components.UIControlVariable-1606311275943]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.type
+  ↓file [ngx.components.UIControlVariable-1606311275946]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.file
+  ↓imgId [ngx.components.UIControlVariable-1606311275949]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.imgId
+  ↓videoId [ngx.components.UIControlVariable-1606311275952]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.videoId
+  ↓resultId [ngx.components.UIControlVariable-1606311275955]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.resultId
+  ↓If_OutputEvent [ngx.components.UIDynamicAction-1606311275958]: 
+    beanData: '{"ionBean":"IfAction","condition":"script:params.isOutputEvent == true && params.topic && params.topic != '''' && !parent.out.error"}'
+    ↓PublishEvent [ngx.components.UIDynamicAction-1606311275961]: 
+      beanData: |
+        '{
+         "ionBean": "PublishEventAction",
+         "topic": "script:params.topic",
+         "data": "script:stack[''initZxing''].out"
+        }'
+  ↓isOutputEvent [ngx.components.UIControlVariable-1606311275964]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.isOutputEvent
+  ↓topic [ngx.components.UIControlVariable-1606311275967]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.topic
+  ↓isOutputGlobal [ngx.components.UIControlVariable-1606311275970]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.isOutputGlobal
+  ↓ref [ngx.components.UIControlVariable-1606311275973]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.ref
+  ↓addResolveOutput [ngx.components.UICustomAction-1606311275976]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+            		resolve(vars.output);
+            '
+    ↓output [ngx.components.UIControlVariable-1606311275979]: 
+      varValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:stack['initZxing'].out

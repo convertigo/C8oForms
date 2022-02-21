@@ -1,0 +1,128 @@
+comment: |
+  'For a given form, this adds a group to every answers
+  --- 
+  used to collaborative response share
+  ---
+  Called by a Listener
+  ---
+  Listener: FullSync_Update_Listener_ViewAddGroupsToResponses
+  ---
+  targetView:
+  C8Oforms.c8oforms_fs.control_documents.control_documents_add_groups_to_responses
+  '
+↓Input_variables [steps.InputVariablesStep-1614951655466]: 
+↓Iterator [steps.IteratorStep-1614951655469]: 
+  output: true
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1614951655466
+        - java.lang.String: 
+          - ↑value: ./doc
+  ↓groupsSTR [steps.SimpleSourceStep-1614951706395]: 
+    output: true
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1614951655469
+          - java.lang.String: 
+            - ↑value: ./item/groups
+    variableName: groupsSTR
+  ↓Sequence_ParseGroups [steps.SimpleStep-1614951796938]: 
+    expression: |
+      'log.warn("groupsSTR: "+""+groupsSTR)
+      var groups = JSON.parse(""+groupsSTR);
+      /*var groups = {};
+      /*groupsArray.forEach((x)=>{
+      	groups[x] = true;
+      })*/
+      log.debug("Groups to be parsed: " + groupsSTR)'
+  ↓Call_Transaction1 [steps.TransactionStep-1614951655541]: 
+    sourceTransaction: C8Oforms_NGX.c8oforms_response_fs.GetResponseByFormId
+    ↓_use_key [variables.StepVariable-1614951655544]: 
+      description: (string) – Return only documents that match the specified key. Optional
+      sourceDefinition: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: 1614951655469
+            - java.lang.String: 
+              - ↑value: ./item/id/text()
+  ↓jSource1 [steps.SourceStep-1614951655547]: 
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1614951655541
+          - java.lang.String: 
+            - ↑value: ./document/couchdb_output/rows
+    variableName: responses
+  ↓Sequence_Compute_New_Responses [steps.SimpleStep-1614951655550]: 
+    expression: |
+      '// compute new responses docs with groups
+      var jDoc = (JSON.parse(''''+com.twinsoft.convertigo.engine.util.XMLUtils.XmlToJson(responses.item(0), true, true))).rows.item;
+      //converting jdoc to array
+      if(jDoc != undefined && jDoc != "undefined"){
+      	if(jDoc instanceof Array == false){
+      		jDoc = [jDoc];
+      	}
+      	var bulkI = jDoc.map((x)=>{
+      		var y = x.value.doc;
+      		var z = {};
+      		z._id = y._id;
+      		if(y.c8oGrp == undefined){
+      			y.c8oGrp = groups;
+      		}
+      		else{
+      			Object.assign(y.c8oGrp, groups)
+      		}
+      		z.c8oGrp = y.c8oGrp;
+      		return z;
+      	});
+      	var bulkI = JSON.stringify(bulkI);
+      }
+      else{
+      	log.warn("They are not any existing repsonses, we will do nothing.\nThis log can be normal");
+      }'
+  ↓jIf [steps.IfStep-1614952449340]: 
+    condition: jDoc != undefined && jDoc != "undefined"
+    ↓jElement1 [steps.ElementStep-1614951655553]: 
+      expression: bulkI
+    ↓Call_Transaction5 [steps.TransactionStep-1614951655556]: 
+      output: true
+      sourceTransaction: C8Oforms_NGX.c8oforms_response_fs.PostBulkDocumentsMergeOverrideGrp
+      ↓_use_json_base [variables.StepVariable-1614951655559]: 
+        description: (string) – JSON use as a base for the array of documents (js array), or for individual documents (js object). Optional
+        sourceDefinition: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: 1614951655553
+              - java.lang.String: 
+                - ↑value: ./text()
+      ↓_use_merge [variables.StepVariable-1632267717007]: 
+        description: |
+          '(string) – JSON used to specify special behavior of the ''merge'' Policy. Optional <br/>
+           In this strict JSON string, you can:<br/><br/>• <b>delete</b>: delete the target key. <br/>• <b>override</b>: replace the value of the target key, don''t merge this. <br/>• <b>prepend</b>: prepend the value or the array in the existing array or value of the target key. <br/>• <b>append</b>: append the value or the array in the existing array or value of the target key. <br/><br/>A target key is the path of the object to reach, separated by the "_separator" (default is dot). The target key is the same for the 2 documents to merge. <br/>Samples: <br/>{"a.b.c": "override", "a.b.d": "delete"} <br/>{"_separator": "+", "a+b+c": "override"} <br/><br/>'
+        value: '{"c8oGrp" : "override"}'
+  ↓Call_Transaction [steps.TransactionStep-1614951655562]: 
+    comment: Delete the control document
+    sourceTransaction: C8Oforms_NGX.c8oforms_fs.DeleteDocument
+    ↓_use_docid [variables.StepVariable-1614951655565]: 
+      description: Document ID
+      sourceDefinition: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: 1614951655469
+            - java.lang.String: 
+              - ↑value: ./item/_id/text()
+↓doc [variables.RequestableMultiValuedVariable-1614951655568]: 

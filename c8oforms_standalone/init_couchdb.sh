@@ -1,0 +1,2 @@
+#!/bin/bash
+curl -X POST -H "Content-Type: application/json" http://admin:fullsyncpassword@localhost:28081/_cluster_setup -d '{"action" : "enable_single_node", "username": "admin", "password": "fullsyncpassword","bind_address": "0.0.0.0", "port": 5984, "singlenode": true}'

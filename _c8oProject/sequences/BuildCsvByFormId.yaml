@@ -1,0 +1,716 @@
+comment: Build responses csv from a document id, providing a name
+↓Input_variables [steps.InputVariablesStep-1572472082864]: 
+↓jSimpleSource1 [steps.SimpleSourceStep-1591966045215]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1572472082864
+        - java.lang.String: 
+          - ↑value: ./offset/text()
+  variableName: offset
+↓createKey [steps.SimpleStep-1572472082870]: 
+  expression: |
+    '// compute view id
+    var idForView = ''["''+formId+''", "''+version+''"]'';
+    
+    /** 
+    	rename name of attachment to prevent from ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_DISPOSITION
+    	it seems that filename must not conatins any unicode char
+    	using doble quotes around name prevent us from this error
+    */ 
+    var nameWithoutUnicode = ''"''+name+''.csv"'';'
+↓jElement [steps.ElementStep-1572472082873]: 
+  expression: idForView
+  nodeName: myIdForView
+  output: false
+↓jIfThenElse [steps.IfThenElseStep-1602494456288]: 
+  condition: column_name == "id"
+  ↓jThen [steps.ThenStep-1602494457447]: 
+    ↓Call_Transaction1 [steps.TransactionStep-1572472082876]: 
+      sourceTransaction: C8Oforms_NGX.c8oforms_response_fs.GetView1_multiple
+      ↓_use_key [variables.StepVariable-1572472082879]: 
+        description: (string) – Return only documents that match the specified key. Optional
+        sourceDefinition: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: 1572472082873
+              - java.lang.String: 
+                - ↑value: ./text()
+        value: 
+    ↓jSource [steps.SourceStep-1572472082882]: 
+      sourceDefinition: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: 1572472082876
+            - java.lang.String: 
+              - ↑value: ./document/couchdb_output/rows
+      variableName: rows
+  ↓jElse [steps.ElseStep-1602494457449]: 
+    ↓Call_Transaction1 [steps.TransactionStep-1602494493692]: 
+      sourceTransaction: C8Oforms_NGX.c8oforms_response_fs.GetView1Pretty
+      ↓_use_key [variables.StepVariable-1602494493695]: 
+        description: (string) – Return only documents that match the specified key. Optional
+        sourceDefinition: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: 1572472082873
+              - java.lang.String: 
+                - ↑value: ./text()
+        value: 
+    ↓jSource [steps.SourceStep-1602494493698]: 
+      sourceDefinition: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: 1602494493692
+            - java.lang.String: 
+              - ↑value: ./document/couchdb_output/rows
+      variableName: rows
+↓Complex1 [steps.XMLComplexStep-1572472082885]: 
+↓jSource1 [steps.SourceStep-1572472082888]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1572472082885
+        - java.lang.String: 
+          - ↑value: .
+↓computeData [steps.SimpleStep-1572472082891]: 
+  expression: |
+    'var Jsoup = use("org.jsoup.Jsoup");
+    //todo
+    function searchRecursive(nodeList, nodePath, lvl){
+    	for(var i = 0; i< nodeList.length; i++){
+    		var level = lvl;
+    		if(level == null){
+    			tab.push([]);
+    			level = i;
+    		}
+    		var type = nodeList.item(i).getNodeType();
+    		var hasChild = nodeList.item(i).hasChildNodes();
+    		
+    		 if (hasChild && type != 3) {
+    			var paf = nodePath;
+    			var nodeName = nodeList.item(i).getNodeName();
+    			if(nodeName != "resp"){
+    				paf != "" ? paf += nameSeparator : null;
+    				paf += nodeName; 
+    			}
+    			searchRecursive(nodeList.item(i), paf, level);
+    		}
+    		else{
+    			var value = "" + nodeList.item(i).getTextContent();
+    			if(nodePath != "" && value != ""){
+    				var data = {};
+    				data.key = nodePath;
+    	            data.value = value;
+    	            tab[level].push(data);
+    			}  
+    		}
+    	}
+    }
+    
+    
+    function createNodeXml(arr){
+    	// create parent node
+    	//var node = context.addTextNodeUnderRoot("resp", "");
+    	var node = myNodeList.item(0);
+    	for(var i = 0; i< arr.length; i++){
+    		var item = context.addTextNode(node, "item", "");
+    		for(var j = 0; j< arr[i].length; j++){
+    			var elem = context.addTextNode(item, arr[i][j]["key"],arr[i][j]["value"]);			
+    		}
+    	}
+    }
+    
+    function getInnerText(el){
+    	try{
+    		var html = el;
+    		var doc = Jsoup.parse(html);
+    		return ""+ doc.body().text();
+    	}
+    	catch(e){
+    		log.warning("(Sequence BuildCsvByFormId) error into getInnerText: " + JSON.stringify(e));
+    		return el;
+    	}
+    }
+    
+    function searchFlat(nodeList, seprator, string_separator){
+    	for(var i = 0; i< nodeList.length; i++){
+    		tab.push([]);
+    		for(var j = 0; j< nodeList.item(i).length; j++){
+    			var hasChild = nodeList.item(i).hasChildNodes();
+    			if(column_name != "id"){
+    				var a = getInnerText("" + nodeList.item(i).getElementsByTagName("key").item(j).getTextContent());
+    			}
+    			else{
+    				var a = "" + nodeList.item(i).getElementsByTagName("key").item(j).getTextContent();
+    			}
+    			try{
+    				// search for line beaks to escape them with quotes
+    				var regex = /[\n]/g;
+    				var match1 = a.match(regex);
+    				// search for separator to escape them with quotes
+    				var regex2 = /[;]/g;
+    				var regex2B = /[,]/g;
+    				
+    				if(string_separator == ''"''){
+    					var regex3 = /["]/g;
+    					a = a.replace(regex3,''""'');
+    				}
+    				else{
+    					var regex3 = /['']/g;
+    					a = a.replace(regex3,"''''");
+    				}
+    				a = a
+    				var match2 = a.match(regex2);
+    				var match2B = a.match(regex2B);
+    				if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0) || (match2B != undefined && match2B.length > 0)){
+    					a = string_separator + a + string_separator;
+    				}
+    			}
+    			catch(e){
+    				
+    			}
+    			var regex = undefined;
+    			var match1 = undefined;
+    			var regex2 = undefined;
+    			var regex2B = undefined;
+    			var match2 = undefined;
+    			
+    			var b = "" + nodeList.item(i).getElementsByTagName("value").item(j).getTextContent();
+    			if(b.indexOf("__C8O__UNIQUE__IMG,") != -1){
+    				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+nodeList.item(i).getElementsByTagName("name").item(j).getTextContent();
+    				b = encodeURI(b);
+    			}
+    			else if(b.indexOf("__C8O__UNIQUE__SIGNATURE,") != -1){
+    				b = "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ b.substring(b.indexOf(",")+1)+"/"+nodeList.item(i).getElementsByTagName("name").item(j).getTextContent();
+    				b = encodeURI(b);
+    			}
+    			else if(b.indexOf("__C8O__UNIQUE__FILE,") != -1){
+    				var myArray = b.split(",");
+    				var docid = myArray[1];
+    				myArray.splice(0,2);
+    				b = "";
+    				for(var z in myArray){
+    					if(!b == ""){
+    						b+=",";
+    					}
+    					b += "" + context.getProjectUrl() + "DisplayObjects/mobile/index.html#/l/"+ docid +"/"+myArray[z];
+    					b = encodeURI(b);
+    				}
+    				
+    			}
+    			else{
+    				try{
+    					// search for line beaks to escape them with quotes
+    					var regex = /[\n]/g;
+    					var match1 = b.match(regex);
+    					// search for separator to escape them with quotes
+    					var regex2 = /[;]/g;
+    					var regex2B = /[,]/g;
+    					
+    					if(string_separator == ''"''){
+    						var regex3 = /["]/g;
+    						b = b.replace(regex3,''""'');
+    					}
+    					else{
+    						var regex3 = /['']/g;
+    						b = b.replace(regex3,"''''");
+    					}
+    					b = b
+    					var match2 = b.match(regex2);
+    					var match2B = b.match(regex2B);
+    					if((match1 != undefined && match1.length > 0) || (match2 != undefined && match2.length > 0) || (match2B != undefined && match2B.length > 0)){
+    						b = string_separator + b + string_separator;
+    					}
+    				}
+    				catch(e){
+    					log.warning("(Sequence BuildCsvByFormId) error: "+JSON.stringify(e));
+    				}
+    				
+    			}
+    			var data = {};
+    			if(a === "horodateur"){
+    				switch(""+lang){
+    					case "en":
+    						a = "Date";
+    					break;
+    					case "fr":
+    						a = "Date";
+    					break;
+    					case "es":
+    						a = "Fecha";
+    					break;
+    					case "it":
+    						a = "Data";
+    					break;
+    					default:
+    						a = "Date";
+    					break;
+    				}
+    				try {
+    					var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
+    					offset = +offset;
+    					var offsetDiff = offset - offSetServer;
+    					var timeStamp = +b + offsetDiff;
+    					var date = new Date(+timeStamp);
+    					/*var year = date.getFullYear();
+    					var month = (date.getMonth() + 1).toString();
+    					var formatedMonth = (month.length === 1) ? ("0" + month) : month;
+    					var day = date.getDate().toString();
+    					var formatedDay = (day.length === 1) ? ("0" + day) : day;
+    					var hour = date.getHours().toString();
+    					var formatedHour = (hour.length === 1) ? ("0" + hour) : hour;
+    					var minute = date.getMinutes().toString();
+    					var formatedMinute = (minute.length === 1) ? ("0" + minute) : minute;
+    					var second = date.getSeconds().toString();
+    					var formatedSecond = (second.length === 1) ? ("0" + second) : second;
+    		            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;*/
+    					var b = date;
+    				}
+    				catch(e) {
+    					log.warning("(Sequence BuildCsvByFormId) Error while trying to set horodateur " + JSON.stringify(e))
+    				}
+    			}
+    			data.key = a;
+                data.value = b;
+                tab[i].push(data);
+                if(uniquesKeys[data.key] == undefined){
+                	uniquesKeys[data.key] = true;
+                }
+    		}
+    		
+    	
+    }
+    	
+    }
+    function fillFlat(arr){
+    		for(var i = 0; i< arr.length; i++){
+    			if(arr[i].length == uniquesKeys.length){
+    				
+    			}
+    			else{
+    				var objTemp = uniquesKeys;
+    				for(var j = 0; j< arr[i].length; j++){
+    					if(objTemp[arr[i][j]["key"]] == true){
+    						delete objTemp[arr[i][j]["key"]];
+    					}
+    				}
+    				for(var prop in objTemp){
+    					arr[i].push({''key'':prop,''value'':''''});
+    				}
+    			}
+    	}
+    	
+    }
+    
+    function writeFile(arr,sepratorChar,encoding){
+    	var char_output = new java.io.OutputStreamWriter(
+    		     new java.io.FileOutputStream(context.getProjectDirectory()+ "/csv/" + formId +".csv"),
+    		     encoding 
+    		 );
+    	if(tab[0] != undefined){
+    		try {
+    			for(var i = 0; i< arr[0].length; i++){
+    				char_output.append(arr[0][i].key+"");
+    				if(i == arr[0].length -1){
+    					char_output.append("\n");
+    				}
+    				else{
+    					char_output.append(sepratorChar);
+    				}
+    			}
+    			for(var i = 0; i< arr.length; i++){
+    				if(arr[i] != undefined) { 
+    					for(var j = 0; j< arr[i].length; j++){
+    						char_output.append(arr[i][j].value+"");
+    						if(j == arr[i].length -1){
+    							char_output.append("\n");
+    						}
+    						else{
+    							char_output.append(sepratorChar);
+    						}
+    					}
+    				}
+    			}
+    			char_output.flush();
+    			char_output.close();
+    		}
+    		catch(e){
+    			char_output.flush();
+    			char_output.close();
+    			log.warning("(Sequence BuildCsvByFormId) error: "+e + "");
+    		}
+    	}
+    	else{
+    		log.warning("(Sequence BuildCsvByFormId) error write file == undefined");
+    	}
+    }
+    
+    function sort(tab){
+    	return tab.sort((a, b)=>{
+    		return  a[0].value - b[0].value;
+    	})
+    }
+    
+    function replaceHorodator(tab){
+    	tab.forEach((line)=>{
+    		var date = line[0].value;
+    		var year = date.getFullYear();
+    		var month = (date.getMonth() + 1).toString();
+    		var formatedMonth = (month.length === 1) ? ("0" + month) : month;
+    		var day = date.getDate().toString();
+    		var formatedDay = (day.length === 1) ? ("0" + day) : day;
+    		var hour = date.getHours().toString();
+    		var formatedHour = (hour.length === 1) ? ("0" + hour) : hour;
+    		var minute = date.getMinutes().toString();
+    		var formatedMinute = (minute.length === 1) ? ("0" + minute) : minute;
+    		var second = date.getSeconds().toString();
+    		var formatedSecond = (second.length === 1) ? ("0" + second) : second;
+            b =  formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + '':'' + formatedMinute + '':'' + formatedSecond;
+    		line[0].value = b;
+    	})
+    }
+    
+    function processAuthor(nodeList, listAuthor){
+    	for(var i = 0; i< nodeList.length; i++){
+    		listAuthor.push({author:nodeList.item(i).getTextContent()})
+    	}
+    }
+    
+    function processAnnonymous(nodeList, listAuthor){
+    	for(var i = 0; i< nodeList.length; i++){
+    		listAuthor.push({anonymous:nodeList.item(i).getTextContent()})
+    	}
+    }
+    
+    // define separator and encoding
+    try{
+    	if(separator != ";" && separator != ","){
+    		log.debug("(Sequence BuildCsvByFormId) separator: " + separator + " is not supported set to default separator ;");
+    		separator = '';'';
+    	}
+    	var sepratorChar = separator.charAt(0);
+    	if(string_separator != "''" && separator != ''"''){
+    		log.debug("(Sequence BuildCsvByFormId) string separator: " + string_separator + '' is not supported set to default separator "'');
+    		string_separator = ''"'';
+    	}
+    	if(encoding != "UTF-16" && encoding != "US-ASCII" && encoding != "ISO-8859-1" && encoding != "UTF-8" && encoding != "UTF-16BE" && encoding != "UTF-16LE"){
+    		log.debug("(Sequence BuildCsvByFormId) Encoding: " + encoding + " is not supported set to default encoding UTF-8");
+    		encoding = "UTF-8";
+    	}
+    }
+    catch(e){
+    	
+    }
+    
+    
+    
+    const nameSeparator = "_";
+    var tab = [];
+    var uniquesKeys = {};
+    // get list of results
+    var list = rows.item(0).getElementsByTagName("doc");
+    
+    //Calling search flat function
+    log.debug("(Sequence BuildCsvByFormId) calling function searchFlat ");
+    searchFlat(list, separator, string_separator);
+    var uniquesKeysArr = Object.keys(uniquesKeys);
+    log.debug("(Sequence BuildCsvByFormId) function searchFlat results: \n tab=\n"+JSON.stringify(tab)+"\nuniquesKeys=\n"+uniquesKeysArr);
+    
+    //Sorting responses: ensure that the same order is used foreach columns of each responses
+    log.debug("(Sequence BuildCsvByFormId) sorting responses: ensure that the same order is used foreach columns of each responses");
+    for(var i=0; i<tab.length; i ++){
+    	tab[i].sort((a, b)=>{
+    		return uniquesKeysArr.indexOf(a.key) - uniquesKeysArr.indexOf(b.key);
+    	})
+    }
+    log.debug("(Sequence BuildCsvByFormId) function searchFlat results: \n tab=\n"+JSON.stringify(tab));
+    
+    // Calling fill flat function: It will flatenize response
+    log.debug("(Sequence BuildCsvByFormId) flat responses: ensure that responses are flat");
+    fillFlat(tab);
+    log.debug("(Sequence BuildCsvByFormId) function fillFlat results: \n tab=\n"+JSON.stringify(tab)); 
+    
+    
+    log.debug("(Sequence BuildCsvByFormId) listAsked: compute all users ids to be able to replace them by theirs name if necessary");
+    // search users ids 
+    var listAsked = tab.map((elem)=>{
+    	var author = '''';
+    	var anonymous = "";
+    	elem.forEach((elem)=>{
+    		if(elem.key == "author"){
+    			author = elem.value;
+    		}
+    		else if(elem.key == "anonymous"){
+    			anonymous = elem.value;
+    		}
+    	});
+    	if(anonymous == "false"){
+    		return "C8Oreserved_" + author;
+    	}
+    });
+    // set unique
+    listAsked = listAsked.filter(function(item, pos, self) {
+        return self.indexOf(item) == pos;
+    })
+    listAskedStr = ""+JSON.stringify(listAsked);
+    log.debug("(Sequence BuildCsvByFormId) listAsked results: \n listAskedStr=\n"+listAskedStr);
+    
+    
+    
+    /*
+    tab = sort(tab);
+    replaceHorodator(tab);
+    log.debug("tab result: " + JSON.stringify(tab));
+    var length =rows.item(0).length;
+    log.debug("resultat length: " + length);
+    log.debug("resultat: " + JSON.stringify(tab))
+    writeFile(tab,sepratorChar,encoding);
+    //createNodeXml(tab);
+    */
+    '
+↓jElement_1 [steps.ElementStep-1625136188545]: 
+  expression: listAskedStr
+  nodeName: listAskedStr
+↓Call_Transaction [steps.TransactionStep-1625136029312]: 
+  output: true
+  sourceTransaction: C8Oforms_NGX.c8oforms_fs.GetViewByKeys
+  ↓_use_ddoc [variables.StepVariable-1625136050699]: 
+    description: Design document name
+    value: usersV2
+  ↓_use_view [variables.StepVariable-1625136050701]: 
+    description: View function name
+    value: all
+  ↓_use_keys [variables.StepVariable-1625136164257]: 
+    description: (json-array) – Return only documents where the key matches one of the keys specified in the array. Optional
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1625136188545
+          - java.lang.String: 
+            - ↑value: ./text()
+↓jSource [steps.SourceStep-1625136315110]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1625136029312
+        - java.lang.String: 
+          - ↑value: ./document/couchdb_output/rows
+  variableName: usersV2
+↓computeData2 [steps.SimpleStep-1625134929185]: 
+  expression: |
+    'log.debug("(Sequence BuildCsvByFormId) prettifying users");
+    var users = usersV2.item(0);
+    var prettyUsers = {};
+    if(privacy != "" && privacy != "none"){
+    	for(var i = 0; i< usersV2.length; i++){
+    		for(var j = 0; j< usersV2.item(i).length; j++){
+    			var id = undefined;
+    			var displayName = undefined;
+    			var mail = undefined;
+    			try{
+    				id = usersV2.item(i).getElementsByTagName("id").item(j).getTextContent();				
+    			}
+    			catch(e){
+    				
+    			}
+    			try{
+    				displayName = usersV2.item(i).getElementsByTagName("value").item(j).getElementsByTagName("displayName").item(0).getTextContent();
+    			}
+    			catch(e){
+    				
+    			}
+    			try{
+    				mail = usersV2.item(i).getElementsByTagName("value").item(j).getElementsByTagName("mail").item(0).getTextContent();
+    			}
+    			catch(e){
+    				
+    			}
+    			if(privacy == "name"){
+    				if(displayName != undefined && displayName != ""){
+    					prettyUsers[id] = ""+displayName;
+    				}
+    				else{
+    					prettyUsers[id] = ""+mail;
+    				}
+    			}
+    			else if(privacy == "id"){
+    				try{
+    					prettyUsers[id] = (""+ id).substring(12);
+    				}
+    				catch(e){
+    					prettyUsers[id] = (""+ id);
+    				}
+    			}
+    		}
+    	}
+    	
+    	for(var z in tab){
+    		var elem = tab[z];
+    		var anonymous = false;
+    		var author = "";
+    		var iAuthor = 0;
+    		var iAnonymous = 0;
+    		elem.forEach((child, index)=>{
+    			if(child.key == "anonymous"){
+    				anonymous = child.value == "true";
+    				iAnonymous = index;
+    			}
+    			else if(child.key == "author"){
+    				author = child.value;
+    				iAuthor = index;
+    				log.warn(''lang  '' + lang);
+    				switch(""+lang){
+    					case "en":
+    						log.warn(''case en  '' + lang);
+    						child.key = "Author";
+    					break;
+    					case "fr":
+    						log.warn(''case fr  '' + lang);
+    						child.key = "Auteur";
+    					break;
+    					case "es":
+    						child.key = "Autor";
+    					break;
+    					case "it":
+    						child.key = "Autore";
+    					break;
+    					default:
+    						log.warn(''case default  '' + lang);
+    						child.key = "Author";
+    					break;
+    				}
+    			}
+    		});
+    		if(anonymous){
+    			var str = "";
+    			switch(""+lang){
+    				case "en":
+    					str = "Anonymous user";
+    				break;
+    				case "fr":
+    					str = "Utilisateur anonyme";
+    				break;
+    				case "es":
+    					str = "Usuario anónimo";
+    				break;
+    				case "it":
+    					str = "Utente anonimo";
+    				break;
+    				default:
+    					str = "Anonymous user";
+    				break;
+    			}
+    			elem[iAuthor].value = str;
+    		}
+    		else{
+    			elem[iAuthor].value = prettyUsers["C8Oreserved_"+author];
+    		}
+    		elem.splice(iAnonymous, 1);
+    	}
+    }
+    log.debug("(Sequence BuildCsvByFormId) prettifying users done");
+    
+    log.debug("(Sequence BuildCsvByFormId) sorting responses by date");
+    tab = sort(tab);
+    log.debug("(Sequence BuildCsvByFormId) sorting responses by date done. results: \n tab=\n"+JSON.stringify(tab));
+    log.debug("(Sequence BuildCsvByFormId) replace timestamp by human readable date");
+    replaceHorodator(tab);
+    log.debug("(Sequence BuildCsvByFormId) replace timestamp by human readable date done. results: \n tab=\n"+JSON.stringify(tab));
+    log.debug("(Sequence BuildCsvByFormId) calling write file function");
+    writeFile(tab,sepratorChar,encoding);
+    log.debug("(Sequence BuildCsvByFormId) calling write file function done");'
+↓Concat [steps.XMLConcatStep-1572472082897]: 
+  output: false
+  separator: 
+  sourcesDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: description
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+              - com.twinsoft.convertigo.beans.common.XMLVector: 
+                - java.lang.String: 
+                  - ↑value: 1572472082864
+                - java.lang.String: 
+                  - ↑value: ./formId/text()
+            - java.lang.String: 
+              - ↑value: ''
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: description
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+              - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: .csv
+↓jSimpleSource [steps.SimpleSourceStep-1572472082900]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1572472082897
+        - java.lang.String: 
+          - ↑value: ./text()
+  variableName: id
+↓Element [steps.XMLElementStep-1572472082903]: 
+  nodeName: attachment
+  ↓jAttribute [steps.AttributeStep-1572472082906]: 
+    nodeName: content-type
+    nodeText: application/csv
+  ↓jAttribute1 [steps.AttributeStep-1572472082909]: 
+    expression: context.getProjectDirectory() + "/csv/"+ id
+    nodeName: local-url
+  ↓jAttribute2 [steps.AttributeStep-1572472082912]: 
+    expression: nameWithoutUnicode
+    nodeName: name
+  ↓jAttribute3 [steps.AttributeStep-1572472082915]: 
+    nodeName: type
+    nodeText: attachment
+↓formId [variables.RequestableVariable-1572472082918]: 
+↓name [variables.RequestableVariable-1572472082921]: 
+↓offset [variables.RequestableVariable-1591966011701]: 
+  value: 0
+↓separator [variables.RequestableVariable-1602168904411]: 
+  value: ;
+↓encoding [variables.RequestableVariable-1602169188280]: 
+  value: UTF-8
+↓string_separator [variables.RequestableVariable-1602257167506]: 
+  value: '"'
+↓column_name [variables.RequestableVariable-1602257190894]: 
+  value: id
+↓version [variables.RequestableVariable-1602496905387]: 
+  value: 
+↓lang [variables.RequestableVariable-1625140918264]: 
+  value: en
+↓privacy [variables.RequestableVariable-1630692729424]: 
+  value: ${C8Oforms.default_csv_privacy = name}
+↓Test_Case [core.TestCase]: 
+  ↓formId [variables.TestCaseVariable-1572472082925]: 
+    value: 1574934564914
+  ↓name [variables.TestCaseVariable-1572472082928]: 
+    value: GrilleChoixMultiple

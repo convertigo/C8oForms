@@ -1,0 +1,2280 @@
+componentScriptContent: 
+  - xmlizable: 
+    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+      →: |
+        '/*Begin_c8o_AppImport*/
+        import { C8oFullSyncChangeListener, C8oLocalCache, Priority } from "c8osdkangular";
+        /*End_c8o_AppImport*/
+        /*Begin_c8o_AppDeclaration*/
+            
+        	/*End_c8o_AppDeclaration*/
+        /*Begin_c8o_AppSettings*/
+        		var toastCtrl = null;
+        		var toast = null;
+        		let updates: any = this.getInstance(SwUpdate);
+        		let checkingUpdate = false;
+        		if(updates.isEnabled){
+        			let doCheckUpdate = ()=>{
+        				this.c8o.log.debug("Checking for pwa update");
+        				updates.checkForUpdate()   
+        				.then(()=>{
+        					let taostDownloading = false;
+        					let toastReload = false;
+        					updates.available.subscribe(event => {
+        						checkingUpdate = true;
+        						debugger;				
+        						if(event.available.appData["version"] != event.current.appData["version"]){
+        							this.c8o.log.warn("A new version of the app is downoloading ... current: "+ event.current.appData != undefined ? event.current.appData["version"] : "..."+ "\n available: "+ event.available.appData["version"]);
+        							if(!taostDownloading){
+        								taostDownloading = true;
+        								toastCtrl = this.getInstance(ToastController);
+        								toast = toastCtrl.create({
+        								    message: this.translate.instant("toastUpdateAvailable"),
+        								    duration: 300000,
+        								    position: ''bottom'',
+        									cssClass:"toastPending",
+        									showCloseButton: true,
+        									closeButtonText: this.translate.instant("close")
+        								});
+        								toast.present();
+        								
+        							}
+        							
+        						}
+        						updates.activateUpdate().then(() => {
+        							if(event.available.appData["version"] != event.current.appData["version"]){
+        								if(!toastReload){
+        									toastReload = true;
+        									if(toastCtrl == undefined){
+        										toastCtrl = this.getInstance(ToastController);
+        									}
+        									let toast2 = toastCtrl.create({
+        									    message: this.translate.instant("toastUpdateReady", {version: event.available.appData["version"] + ""}),
+        										duration: 300000,
+        									    position: ''bottom'',
+        										cssClass:"toastWarn",
+        										showCloseButton: true,
+        										closeButtonText: this.translate.instant("restart_app_update")
+        									});
+        									let closedByTimeout = false;
+        							      	let timeoutHandle = setTimeout(() => { closedByTimeout = true; toast2.dismiss(); }, 300000);
+        									toast2.onDidDismiss(() => {
+        										if (closedByTimeout) return;
+        										clearTimeout(timeoutHandle);
+        									    // Dismiss manually
+        										this.c8o.log.warn("User asked to reload app to install update");
+        										document.location.reload();
+        									});
+        									try{
+        										toast.dismiss();	
+        									}
+        									catch(e){
+        										
+        									}
+        									toast2.present();
+        									this.c8o.log.warn("A new version of the app has been installed, relaunch the application to activate it:\n current version is: "+event.current.appData != undefined ? event.current.appData["version"] : "..." +"\n  new version is: "+event.available.appData["version"]);
+        								
+        								}
+        							}
+        							
+        							this.c8o.log.warn("A new version of the app has been installed but version doesn''t differs we won''t toast to update'', relaunch the application to activate it:\n current version is: "+event.current.appData != undefined ? event.current.appData["version"] : "..." +"\n  new version is: "+event.available.appData["version"]);
+        						});
+        					})
+        				})
+        			}
+        			doCheckUpdate();
+        			setInterval(()=>{
+        				if(checkingUpdate == false){
+        					doCheckUpdate();
+        				}
+        			}, 10000);
+        			
+        		}
+        		
+                //settings.setNormalizeParameters(true);
+                const localStorage = window.localStorage.getItem("c8oforms_log_level");
+                const logLevel = localStorage != undefined && localStorage != '''' ? localStorage : ''WARN'';
+                settings.setEnablePrefixBase(true)
+        		.setUseWorker(true);
+        		//.setLogLevelLocal(C8oLogLevel[logLevel])
+                
+                this.global["platform"] = {"name":[""]};
+                this.global[''visibleoptions''] = [];
+        		if(this.global["settings"] == undefined){
+        			this.global["settings"] = {"editing_rights": false};
+        		}
+        		else{
+        			this.global["settings"]["editing_rights"] = false;
+        		}
+                
+                /*End_c8o_AppSettings*/
+        /*Begin_c8o_AppConstructor*/
+        		/*End_c8o_AppConstructor*/
+        /*Begin_c8o_AppInitialization*/
+                        let indexPWA = window.location.pathname.indexOf("pwas");
+                        let indexMobile = window.location.pathname.indexOf("mobile");
+                        // if we started in standalone pwa mode
+                        if(indexPWA != -1 && indexMobile == -1){
+                            this.global.pwa = true;
+                            let indexHtml = window.location.pathname.indexOf("index.html");
+                            let standalonePwa = window.location.pathname.substring(indexPWA + 5, indexHtml -1)
+                          	this.global.standalonePwa = standalonePwa;
+        					// get url base
+                          const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
+                          this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "/manifest.json");
+        				  this.global.pwaGet
+                            .subscribe(
+                              response => {
+                                  if(response["theme_color"] != undefined){
+                                      statusBar.backgroundColorByHexString(response["theme_color"]);
+        							  this.global.pwaThemeColor = response["theme_color"];
+                                  }
+                                  else{
+                                      statusBar.backgroundColorByHexString("#0cbbe7");
+                                  }
+                                  
+                              },
+                              error=>{
+                                  statusBar.backgroundColorByHexString("#0cbbe7");
+                              })
+                        }
+                        else{
+        					this.global.standalonePwa = null;
+                            statusBar.backgroundColorByHexString("#0cbbe7");
+                        }
+                        window["mobileAndTabletCheck"] = function() {
+                            let check = false;
+                            (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window["opera"]);
+                            return check;
+                          };
+        
+                        window["__c8o__translate"] = this.translate;
+        				this.global.since = "" + new Date().getTime();
+                        
+                        this.c8o.logC8o = true; 
+                        /* Uncomment the following lines to enable the i18n feature.
+                         * You should add a json per language in the assets/i18n folder. */
+                       /* this.translate.use(''es'');
+                        this.translate.use(''it'');
+                        this.translate.use(''fr'');*/
+                        
+                        let localLang = window.localStorage.getItem("lang");
+                        if(localLang !=  undefined && localLang != "undefined"){
+                            this.translate.setDefaultLang(localLang);
+                            this.translate.use(localLang);
+                        }
+                        else{
+                            try {
+                               
+                                let navLang = navigator.language;
+                                if(navLang.indexOf("fr") == 0){
+                                    localLang = "fr";
+                                    this.translate.setDefaultLang(''fr'');  
+                                }
+                                else if(navLang.indexOf("en") == 0){
+                                    localLang = "en";
+                                    this.translate.setDefaultLang(''en'');  
+                                }
+                                else if(navLang.indexOf("es") == 0){
+                                    localLang = "es";
+                                    this.translate.setDefaultLang(''es'');  
+                                }
+                                else{
+                                    localLang = "en";
+                                    this.translate.setDefaultLang(''en''); 
+                                }
+                                
+                            }
+                            catch(e){
+                                localLang = "en";
+                                this.translate.setDefaultLang(''en''); 
+                            }
+                           this.global["__secretL"] = localLang;                    
+                        }
+        				window.document.getElementsByTagName("html")[0].setAttribute("lang", localLang);
+        			   	this.translate.onLangChange.subscribe((e) => {
+        			   		window.document.getElementsByTagName("html")[0].setAttribute("lang",e.lang);
+        			   	});
+        				if(Object.keys(this.global.settings).length <= 1){
+        					this.global.settings["language"] = localLang;
+        				}
+                        this.global["platform"] = {};
+                        this.global["platform"]["width"] = platform.width();
+                        this.global["platform"]["info"] = platform.platforms();
+                        this.global["platform"]["name"] = [""]
+                        this.global.platform.name = {};
+                        if(platform.platforms()[0] == "android" || platform.platforms()[0] == "cordova" || platform.platforms()[0] == "mobile" || platform.platforms()[0] == "ios" ){
+                            this.global["platform"]["name"][0] =  "mobile";
+                            this.global["mobilePlat"] = true;
+                        }
+                        
+                        //this.global["platform"]["name"][0] =  "web";
+                        platform.resize.subscribe((ev) => {
+                            this.global["platform"]["width"] = window.innerWidth;
+                            this.global["platform"]["info"] = platform.platforms();
+                           // this.global["platform"]["name"] = [""]
+                            if(platform.platforms()[0] == "android" || platform.platforms()[0] == "cordova" || platform.platforms()[0] == "mobile" || platform.platforms()[0] == "ios" ){
+                                this.global["platform"]["name"][0] =  "mobile";
+                                this.global["mobilePlat"] = true;
+                            }
+                            this.tick();
+                          });
+        				class gdrp {
+        					private _text: string = "";
+        					private translate: any;
+        					constructor(translate: any){
+        						this.translate = translate;
+        					}
+        				    get text(): string {
+        						try{
+        							let parsed = JSON.parse(this._text);
+        							return parsed[this.translate.currentLang];
+        						}
+        						catch(e){
+        							return this._text;
+        						}
+        				    }
+        				    set text(value: string) {
+        				        this._text = value;
+        				    }
+        				}
+        				this.c8o.callJson("C8Oforms.getGDRPmenu", C8oLocalCache.PARAM, new C8oLocalCache(Priority.SERVER, 99999999999999999999))
+        				.then((resp: any)=>{
+        					if(resp.ok == "true"){
+        						this.global.c8oGDRPmenu = new gdrp(translate);
+        						this.global.c8oGDRPmenu.text = resp.text;
+        					}
+        					else{
+        						this.global.c8oGDRPmenu = null;
+        					}
+        					return null;
+        				})
+        				.fail((e)=>{
+        					
+        				})
+        				this.c8o.callJson("C8Oforms.getGDRPtoast", C8oLocalCache.PARAM, new C8oLocalCache(Priority.SERVER, 99999999999999999999))
+        				.then((resp: any)=>{
+        					if(resp.ok == "true"){
+        						this.global.c8oGDRPtoast = new gdrp(translate);
+        						this.global.c8oGDRPtoast.text = resp.text;
+        					}
+        					else{
+        						this.global.c8oGDRPtoast = null;
+        					}
+        					return null;
+        				})
+        				.fail((e)=>{
+        					
+        				})
+        				 
+        				this.c8o.subscriber_session_changed.subscribe(()=>{
+        					if(this.global.doingLogin == true){
+        						this.c8o.log.debug("Session authenticated user has changed (form this tab)");
+        					}
+        					else{
+        						this.c8o.log.debug("Session authenticated user has changed (form another tab) we will prompt to reload the page")
+        						const alertCtrl: AlertController = this.getInstance(AlertController);
+        						const translate: TranslateService = this.getInstance(TranslateService);
+        						const prompt = alertCtrl.create({
+        						      message: this["translate"].instant("connect_another_forms"),
+        						      cssClass: ''c8o-alert-create-form'',
+        						      backdropDismiss: false,
+        						      buttons: [
+        						        {
+        						          text: this["translate"].instant("relaunch"),
+        						          handler: (data) => {
+        						            window.location.reload();
+        						          }
+        						        }
+        						      ]
+        						    }).then((res)=>{
+        								res.present();
+        							});
+        						    
+        					}
+        					
+        				})
+                        /* Uncomment the following lines to enable the custom status bar color. */
+                        // statusBar.overlaysWebView(false);
+                        // statusBar.backgroundColorByHexString("#000000");
+                        // statusBar.styleBlackOpaque();
+                        
+                        /* Uncomment the following lines to enable the Service Worker Update. */
+                    
+        			/* let updates = this.getInstance(SwUpdate);
+                        let alertCtrl = this.getInstance(AlertController);
+                        let fu = ()=>{
+                           this.c8o.log.debug("[SW] checking for updates each 60000 ms")
+                           updates.checkForUpdate()
+                          .then((res)=>{
+                              this.c8o.log.debug("[SW] updates checked")
+                          })
+                          .catch((e)=>{
+                              this.c8o.log.error("[SW] updates error")
+                              console.log(JSON.stringify(e));
+                          });
+                        }
+                        fu()
+                        setInterval(fu, 60000)
+                        
+                        updates.available.subscribe(event => {
+                           this.c8o.log.debug("[SW] update available");
+        					let eventStr = "";
+        					try{
+        						eventStr = JSON.stringify(event);
+        					}
+        					catch(e){
+        						
+        					}
+                           this.c8o.log.debug(''new version is ''+ event.current + " total event is "+eventStr);
+                           const prompt = alertCtrl.create({
+                              title: this.translate.instant("convertigo_update_service"),
+                              message: this.translate.instant("new_version_available"),
+                              buttons: [
+                              {
+                                 text: this.translate.instant("Restart_app"),
+                                 handler: data => {
+                                     this.c8o.log.debug("update available we will reload app");
+                                     updates.activateUpdate().then(() => document.location.reload());
+                                 }
+                              }
+                             ]
+                           });
+                           prompt.present();
+                        },
+        		      error => {
+        				let errorStr = "";
+        					try{
+        						errorStr = JSON.stringify(error);
+        					}
+        					catch(e){
+        						
+        					}
+        		        this.c8o.log.error(`An error were rejected in service worker` + errorStr);
+        		      },);
+        				/*updates.unrecoverable.subscribe(event => {
+              				this.c8o.log._error(`An error occurred that we cannot recover from:\n${event.reason}\n\n`);
+            			});*/
+        			/*End_c8o_AppInitialization*/
+        /*Begin_c8o_AppFunction*/
+        	/*End_c8o_AppFunction*/
+        /*Begin_c8o_function:CTS1616432315186*/
+        		let lang = event.toString();
+        		if(lang != undefined && lang != ""){
+        		    localStorage.setItem(''lang'', lang);
+        	        window["__c8o__translate"]["use"](lang);
+        	       	this.global.settings.language = lang;
+        			this.local.visible = true;
+        			this.global.relaodAgGrid = true
+        	        page.ref.detectChanges();
+        			resolve(lang);
+        		}
+        		setTimeout(()=>{
+        			this.global.relaodAgGrid = undefined
+        			this.local.visible = undefined;
+        		},0);
+        		/*End_c8o_function:CTS1616432315186*/
+        /*Begin_c8o_function:CTS1629305095098*/
+        		this.c8o.session.user.name = "anonymous";
+        		window.sessionStorage.removeItem("loggedInOffline");
+        		resolve();
+        		/*End_c8o_function:CTS1629305095098*/
+        /*Begin_c8o_function:CTS1616432477027*/
+        		let lang = event.toString();
+        		if(lang != undefined && lang != ""){
+        		    localStorage.setItem(''lang'', lang);
+        	        window["__c8o__translate"]["use"](lang);
+        	       	this.global.settings.laguage = lang;
+        			this.local.visible = true;
+        	        resolve(lang);
+        		}
+        		setTimeout(()=>{
+        			this.local.visible = undefined;
+        		},0);
+        		/*End_c8o_function:CTS1616432477027*/
+        /*Begin_c8o_function:CTS1629305127080*/
+        		this.c8o.session.user.name = "anonymous";
+        		window.sessionStorage.removeItem("loggedInOffline");
+        		resolve();
+        		/*End_c8o_function:CTS1629305127080*/
+        /*Begin_c8o_function:CTS1629304880673*/
+        		this.c8o.session.user.name = "anonymous";
+        		window.sessionStorage.removeItem("loggedInOffline");
+        		resolve();
+        		/*End_c8o_function:CTS1629304880673*/
+        /*Begin_c8o_function:CTS1615223142157*/
+        		if(this.global.settings.language != undefined && this.global.settings.language != ""){
+        			page["translate"].setDefaultLang(this.global.settings.language);
+                    page["translate"].use(this.global.settings.language);
+        		}
+        		else{
+        			page["translate"].setDefaultLang(window.navigator.language.substring(0,2));
+        			page["translate"].use(window.navigator.language.substring(0,2));
+        		}
+        		if(event.apply){
+        			if(page.global.settings != undefined && page.global.settings.advancedEditing != undefined){
+        				event.p.local.advancedEditing = page.global.settings.advancedEditing;
+        			}
+        			else{
+        				event.p.local.advancedEditing = false;
+        			}
+        		}
+        		resolve();
+        		/*End_c8o_function:CTS1615223142157*/
+        /*Begin_c8o_function:CTS1615203057107*/
+        			let checkForDeletion = ()=>{
+        				page.c8o.log.debug("[group deletion] we will check for local deletions (groups)");
+        				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
+        			 	Object.assign(headersObject, page.c8o.headers);
+        			 	let params = {
+        	                headers: this.c8o.httpInterface.getHeaders(headersObject),
+        	                withCredentials: true,
+        	            }
+        				page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
+        				.subscribe(
+        			        response => {
+        						let remote = response.results.map((x)=>{
+        							return x.id;
+        						})
+        						this.c8o.callJson("fs://c8oforms_fs.all")
+        						.then((resp: any)=>{
+        							let local = resp.rows.map((x)=>{
+        								return x.id;
+        							})
+        							var toBeRemoved = local.filter(function(n) {
+        						    	return remote.indexOf(n) === -1;
+        							})
+        							page.c8o.log.debug("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
+        							toBeRemoved.forEach((el)=>{
+        								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
+        								.then((re)=>{
+        									page.c8o.log.debug("[group deletion] "+ el +" succesfully removed");
+        									return null;
+        								})
+        								.fail((e)=>{
+        									page.c8o.log.error("[group deletion] "+ el +" an error occured");
+        								})
+        								resolve();
+        							})
+        							return null;
+        						})
+        						.fail((err)=>{
+        							page.c8o.log.error("[group deletion] an error occured while fetching .all");
+        						});
+        			        },
+        			        error => {
+        						page.c8o.log.error("[group deletion] an error occured while fetching changes");
+        			     })
+        			}
+        			let checkLiveDeletion = ()=>{
+        				page.c8o.callJson("fs://c8oforms_fs.view", "ddoc", "control_documents", "view", "control_local_doc_check_delete", "__live","liveCheckDeletion")
+        				.then((res: any)=>{
+        					if(res.rows.length > 0){
+        						var newHash = sha256(JSON.stringify(res.rows));
+        						if(this.local.hashDeletion == undefined || this.local.hashDeletion != newHash){
+        							this.local.hashDeletion = newHash;
+        							for(let elem of res.rows){
+        								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
+        								.then((re)=>{
+        									return null;
+        								})
+        								.fail((e)=>{
+        								})
+        							}
+        							setTimeout(()=>{
+        								checkForDeletion();
+        							});
+        							setTimeout(()=>{
+        								checkForDeletion();
+        							},3000);
+        						}
+        					}
+        					
+        					return null;
+        				})
+        				.fail((err)=>{
+        					
+        				})
+        			}
+        			
+        			if(page.global.initialGroupDeletion == undefined){
+        				checkForDeletion();
+        				page.global.initialGroupDeletion = true;
+        			}
+        			if(page.global.checkLiveDeletion == undefined){
+        				checkLiveDeletion();
+        				page.global.checkLiveDeletion = true;
+        			}
+        			
+             
+        		
+        		/*End_c8o_function:CTS1615203057107*/
+        /*Begin_c8o_function:CTS1629301305546*/
+        		let sessionInfo: any = window.sessionStorage.getItem(''loggedInOffline'');
+        		if(sessionInfo != null){
+        			sessionInfo = JSON.parse(sessionInfo);
+        			page.c8o.callJsonObject(
+        				"C8Oforms."+sessionInfo.type,
+        				sessionInfo
+        			)
+        			.then((res, params)=>{
+        				page.c8o.log.debug(`User ${sessionInfo.email} has been silent loggedIn`);
+        				window.sessionStorage.removeItem("loggedInOffline");
+        				return null;
+        			})
+        			.fail((err)=>{
+        				page.c8o.log.debug(`An error occured while trying to silent loggin user ${sessionInfo.email}`);
+        				console.error("C8Oforms.login err => ", err);
+        			})
+        		}
+        		resolve();
+        		/*End_c8o_function:CTS1629301305546*/
+        '
+isPWA: true
+tplProjectName: mobilebuilder_tpl_8_0_0_ngx
+useClickForTap: true
+↓Menu [ngx.components.UIDynamicMenu-1500890597895]: 🗏 mobileMenus/Menu.yaml
+↓MenuLogin [ngx.components.UIDynamicMenu-1543518219237]: 🗏 mobileMenus/MenuLogin.yaml
+↓MenuSelector [ngx.components.UIDynamicMenu-1543518260629]: 🗏 mobileMenus/MenuSelector.yaml
+↓checkAndRegister [ngx.components.UIActionStack-1554977978587]: 🗏 mobileSharedActions/checkAndRegister.yaml
+↓updateState [ngx.components.UIActionStack-1554989913269]: 🗏 mobileSharedActions/updateState.yaml
+↓getTranslate [ngx.components.UIActionStack-1554994860699]: 🗏 mobileSharedActions/getTranslate.yaml
+↓tick [ngx.components.UIActionStack-1554994873907]: 🗏 mobileSharedActions/tick.yaml
+↓deleteForm [ngx.components.UIActionStack-1567065814961]: 🗏 mobileSharedActions/deleteForm.yaml
+↓getSizeObject [ngx.components.UIActionStack-1567071335977]: 🗏 mobileSharedActions/getSizeObject.yaml
+↓addtoFavorites [ngx.components.UIActionStack-1567086142984]: 🗏 mobileSharedActions/addtoFavorites.yaml
+↓callViewLiveAndFillFormList [ngx.components.UIActionStack-1567094239807]: 🗏 mobileSharedActions/callViewLiveAndFillFormList.yaml
+↓recursiveSearch [ngx.components.UIActionStack-1568966756123]: 🗏 mobileSharedActions/recursiveSearch.yaml
+↓cancelLive [ngx.components.UIActionStack-1567095732829]: 🗏 mobileSharedActions/cancelLive.yaml
+↓dragElementTolist [ngx.components.UIActionStack-1568121437300]: 🗏 mobileSharedActions/dragElementTolist.yaml
+↓sublim [ngx.components.UIActionStack-1568215700164]: 🗏 mobileSharedActions/sublim.yaml
+↓closeOptions [ngx.components.UIActionStack-1568216812347]: 🗏 mobileSharedActions/closeOptions.yaml
+↓allowDrop [ngx.components.UIActionStack-1568965893471]: 🗏 mobileSharedActions/allowDrop.yaml
+↓switchHighlights [ngx.components.UIActionStack-1568967051985]: 🗏 mobileSharedActions/switchHighlights.yaml
+↓callViewLiveAndFillFormListViewer [ngx.components.UIActionStack-1571648311071]: 🗏 mobileSharedActions/callViewLiveAndFillFormListViewer.yaml
+↓checkUserStatus [ngx.components.UIActionStack-1572265266397]: 🗏 mobileSharedActions/checkUserStatus.yaml
+↓checkForDuplicate [ngx.components.UIActionStack-1573571094732]: 🗏 mobileSharedActions/checkForDuplicate.yaml
+↓syncAndUpdateGetOnPull [ngx.components.UIActionStack-1574429452233]: 🗏 mobileSharedActions/syncAndUpdateGetOnPull.yaml
+↓sharePublishedDocAnonymous [ngx.components.UIActionStack-1575992997152]: 🗏 mobileSharedActions/sharePublishedDocAnonymous.yaml
+↓ProcessSubmitFormViewerPage [ngx.components.UIActionStack-1576328658272]: 🗏 mobileSharedActions/ProcessSubmitFormViewerPage.yaml
+↓ProcessSubmitFormViewerPageFINISH [ngx.components.UIActionStack-1576513234915]: 🗏 mobileSharedActions/ProcessSubmitFormViewerPageFINISH.yaml
+↓setSpinner [ngx.components.UIActionStack-1586254399526]: 🗏 mobileSharedActions/setSpinner.yaml
+↓removeSpinner [ngx.components.UIActionStack-1586254487958]: 🗏 mobileSharedActions/removeSpinner.yaml
+↓syncAndInvokeViewer [ngx.components.UIActionStack-1586254608477]: 🗏 mobileSharedActions/syncAndInvokeViewer.yaml
+↓addAnyOption [ngx.components.UIActionStack-1586263120266]: 🗏 mobileSharedActions/addAnyOption.yaml
+↓sharedTapOnActionSubmit [ngx.components.UIActionStack-1586453262123]: 🗏 mobileSharedActions/sharedTapOnActionSubmit.yaml
+↓setLocal [ngx.components.UIActionStack-1587563852086]: 🗏 mobileSharedActions/setLocal.yaml
+↓showToast [ngx.components.UIActionStack-1587565281898]: 🗏 mobileSharedActions/showToast.yaml
+↓detectChanges [ngx.components.UIActionStack-1588860701071]: 🗏 mobileSharedActions/detectChanges.yaml
+↓detectChangesDoble [ngx.components.UIActionStack-1588862475826]: 🗏 mobileSharedActions/detectChangesDoble.yaml
+↓dragPage [ngx.components.UIActionStack-1592508984330]: 🗏 mobileSharedActions/dragPage.yaml
+↓executeGoToPageIfCondition [ngx.components.UIActionStack-1596618881610]: 🗏 mobileSharedActions/executeGoToPageIfCondition.yaml
+↓dragEnd [ngx.components.UIActionStack-1600441248536]: 🗏 mobileSharedActions/dragEnd.yaml
+↓dragStartAction [ngx.components.UIActionStack-1600334272427]: 🗏 mobileSharedActions/dragStartAction.yaml
+↓CheckListenerHasBeenExecuted [ngx.components.UIActionStack-1604330825068]: 🗏 mobileSharedActions/CheckListenerHasBeenExecuted.yaml
+↓addElementonDblClick [ngx.components.UIActionStack-1604399476887]: 🗏 mobileSharedActions/addElementonDblClick.yaml
+↓getViewAndParametersForSelector [ngx.components.UIActionStack-1604669954453]: 🗏 mobileSharedActions/getViewAndParametersForSelector.yaml
+↓createNewForm [ngx.components.UIActionStack-1605185431262]: 🗏 mobileSharedActions/createNewForm.yaml
+↓searchForm [ngx.components.UIActionStack-1605199050514]: 🗏 mobileSharedActions/searchForm.yaml
+↓ZXing_sa_forms [ngx.components.UIActionStack-1606311206408]: 🗏 mobileSharedActions/ZXing_sa_forms.yaml
+↓popOverEditView [ngx.components.UIActionStack-1606727065524]: 🗏 mobileSharedActions/popOverEditView.yaml
+↓popOverVisualizeView [ngx.components.UIActionStack-1606728678097]: 🗏 mobileSharedActions/popOverVisualizeView.yaml
+↓popOverPublishDoc [ngx.components.UIActionStack-1606729290054]: 🗏 mobileSharedActions/popOverPublishDoc.yaml
+↓popOverVizualiseResponses [ngx.components.UIActionStack-1606729949504]: 🗏 mobileSharedActions/popOverVizualiseResponses.yaml
+↓popOverDownloadCsv [ngx.components.UIActionStack-1606730370814]: 🗏 mobileSharedActions/popOverDownloadCsv.yaml
+↓replaceEmptyFunction [ngx.components.UIActionStack-1606731053716]: 🗏 mobileSharedActions/replaceEmptyFunction.yaml
+↓getOffsetFunction [ngx.components.UIActionStack-1606731751926]: 🗏 mobileSharedActions/getOffsetFunction.yaml
+↓isVisibleFunction [ngx.components.UIActionStack-1606750399163]: 🗏 mobileSharedActions/isVisibleFunction.yaml
+↓popOverCreatePwa [ngx.components.UIActionStack-1606752424750]: 🗏 mobileSharedActions/popOverCreatePwa.yaml
+↓popOverGetLinkShare [ngx.components.UIActionStack-1606753067983]: 🗏 mobileSharedActions/popOverGetLinkShare.yaml
+↓popOverGetLinkSharePublic [ngx.components.UIActionStack-1606815237125]: 🗏 mobileSharedActions/popOverGetLinkSharePublic.yaml
+↓popOverDisableSharePublic [ngx.components.UIActionStack-1606815643143]: 🗏 mobileSharedActions/popOverDisableSharePublic.yaml
+↓popOverManageAccessRights [ngx.components.UIActionStack-1606819651922]: 🗏 mobileSharedActions/popOverManageAccessRights.yaml
+↓popOverManageAccessRightsResponses [ngx.components.UIActionStack-1606819826094]: 🗏 mobileSharedActions/popOverManageAccessRightsResponses.yaml
+↓popOverManageLabels [ngx.components.UIActionStack-1606819977341]: 🗏 mobileSharedActions/popOverManageLabels.yaml
+↓popOverCopy [ngx.components.UIActionStack-1606820276458]: 🗏 mobileSharedActions/popOverCopy.yaml
+↓popOverCopyTo [ngx.components.UIActionStack-1606821705396]: 🗏 mobileSharedActions/popOverCopyTo.yaml
+↓popOverThumnail [ngx.components.UIActionStack-1606825399935]: 🗏 mobileSharedActions/popOverThumnail.yaml
+↓popOverAddToFav [ngx.components.UIActionStack-1606826327707]: 🗏 mobileSharedActions/popOverAddToFav.yaml
+↓popOverRemoveFromFav [ngx.components.UIActionStack-1606828487741]: 🗏 mobileSharedActions/popOverRemoveFromFav.yaml
+↓popOverExport [ngx.components.UIActionStack-1606828765731]: 🗏 mobileSharedActions/popOverExport.yaml
+↓blobToBase64Function [ngx.components.UIActionStack-1606829529555]: 🗏 mobileSharedActions/blobToBase64Function.yaml
+↓popOverDeleteView [ngx.components.UIActionStack-1606843476348]: 🗏 mobileSharedActions/popOverDeleteView.yaml
+↓createFormFromTemplate [ngx.components.UIActionStack-1606992860587]: 🗏 mobileSharedActions/createFormFromTemplate.yaml
+↓UpdateFunctionsToBeCalledToDataSource [ngx.components.UIActionStack-1609767708127]: 🗏 mobileSharedActions/UpdateFunctionsToBeCalledToDataSource.yaml
+↓getPositonAndAddr [ngx.components.UIActionStack-1609948084476]: 🗏 mobileSharedActions/getPositonAndAddr.yaml
+↓CopyLinkToClipBoard [ngx.components.UIActionStack-1613575066489]: 🗏 mobileSharedActions/CopyLinkToClipBoard.yaml
+↓viewNotifs [ngx.components.UIActionStack-1613732629864]: 🗏 mobileSharedActions/viewNotifs.yaml
+↓functionPublishDoc [ngx.components.UIActionStack-1617883870737]: 🗏 mobileSharedActions/functionPublishDoc.yaml
+↓functionPublishAndCreatePwa [ngx.components.UIActionStack-1617887998186]: 🗏 mobileSharedActions/functionPublishAndCreatePwa.yaml
+↓importNg2Tooltips [ngx.components.UIActionStack-1624006469484]: 🗏 mobileSharedActions/importNg2Tooltips.yaml
+↓showThreeDotsMenu [ngx.components.UIActionStack-1628788704080]: 🗏 mobileSharedActions/showThreeDotsMenu.yaml
+↓dragFormIntoFolder [ngx.components.UIActionStack-1628791011914]: 🗏 mobileSharedActions/dragFormIntoFolder.yaml
+↓SynchronousSync [ngx.components.UIActionStack-1630954573412]: 🗏 mobileSharedActions/SynchronousSync.yaml
+↓FormImg [ngx.components.UISharedRegularComponent-1568125160774]: 🗏 mobileSharedComponents/FormImg.yaml
+↓itemTextViewer [ngx.components.UISharedRegularComponent-1570455165983]: 🗏 mobileSharedComponents/itemTextViewer.yaml
+↓itemImgViewer [ngx.components.UISharedRegularComponent-1570455192839]: 🗏 mobileSharedComponents/itemImgViewer.yaml
+↓itemCheckboxViewer [ngx.components.UISharedRegularComponent-1570465415178]: 🗏 mobileSharedComponents/itemCheckboxViewer.yaml
+↓itemCheckboxGroupViewer [ngx.components.UISharedRegularComponent-1575885462526]: 🗏 mobileSharedComponents/itemCheckboxGroupViewer.yaml
+↓itemRadioViewver [ngx.components.UISharedRegularComponent-1570521386137]: 🗏 mobileSharedComponents/itemRadioViewver.yaml
+↓itemRadioGroupViewver [ngx.components.UISharedRegularComponent-1574980433028]: 🗏 mobileSharedComponents/itemRadioGroupViewver.yaml
+↓itemTitleViewver [ngx.components.UISharedRegularComponent-1570465481624]: 🗏 mobileSharedComponents/itemTitleViewver.yaml
+↓itemLabelViewver [ngx.components.UISharedRegularComponent-1570474765064]: 🗏 mobileSharedComponents/itemLabelViewver.yaml
+↓itemDateTimeViewver [ngx.components.UISharedRegularComponent-1570476357007]: 🗏 mobileSharedComponents/itemDateTimeViewver.yaml
+↓itemTimeViewver [ngx.components.UISharedRegularComponent-1571411661277]: 🗏 mobileSharedComponents/itemTimeViewver.yaml
+↓itemSignatureViewver [ngx.components.UISharedRegularComponent-1570477969257]: 🗏 mobileSharedComponents/itemSignatureViewver.yaml
+↓itemBarcodeViewver [ngx.components.UISharedRegularComponent-1570487126259]: 🗏 mobileSharedComponents/itemBarcodeViewver.yaml
+↓itemSliderViewver [ngx.components.UISharedRegularComponent-1570487961899]: 🗏 mobileSharedComponents/itemSliderViewver.yaml
+↓itemSelectViewver [ngx.components.UISharedRegularComponent-1570521148238]: 🗏 mobileSharedComponents/itemSelectViewver.yaml
+↓itemFileViewver [ngx.components.UISharedRegularComponent-1570521387467]: 🗏 mobileSharedComponents/itemFileViewver.yaml
+↓itemCardViewer [ngx.components.UISharedRegularComponent-1570527222903]: 🗏 mobileSharedComponents/itemCardViewer.yaml
+↓sharedHeader [ngx.components.UISharedRegularComponent-1571069560308]: 🗏 mobileSharedComponents/sharedHeader.yaml
+↓sharedHeaderFile [ngx.components.UISharedRegularComponent-1571668344011]: 🗏 mobileSharedComponents/sharedHeaderFile.yaml
+↓sharedHeaderMobile [ngx.components.UISharedRegularComponent-1571069818059]: 🗏 mobileSharedComponents/sharedHeaderMobile.yaml
+↓sharedHeaderWeb [ngx.components.UISharedRegularComponent-1571069820644]: 🗏 mobileSharedComponents/sharedHeaderWeb.yaml
+↓sharedHeaderFileWebFile [ngx.components.UISharedRegularComponent-1571668382082]: 🗏 mobileSharedComponents/sharedHeaderFileWebFile.yaml
+↓sharedHeaderButtonMenu [ngx.components.UISharedRegularComponent-1571075804071]: 🗏 mobileSharedComponents/sharedHeaderButtonMenu.yaml
+↓sharedHeaderImageConvertigo [ngx.components.UISharedRegularComponent-1571075899569]: 🗏 mobileSharedComponents/sharedHeaderImageConvertigo.yaml
+↓sharedHeaderTextFormBuilder [ngx.components.UISharedRegularComponent-1571075984554]: 🗏 mobileSharedComponents/sharedHeaderTextFormBuilder.yaml
+↓sharedHeaderTextInsertFile [ngx.components.UISharedRegularComponent-1571668487801]: 🗏 mobileSharedComponents/sharedHeaderTextInsertFile.yaml
+↓sharedHeaderSvgProfil [ngx.components.UISharedRegularComponent-1571076066226]: 🗏 mobileSharedComponents/sharedHeaderSvgProfil.yaml
+↓sharedHeaderSvgStar [ngx.components.UISharedRegularComponent-1571076103026]: 🗏 mobileSharedComponents/sharedHeaderSvgStar.yaml
+↓sharedHeaderSvgBell [ngx.components.UISharedRegularComponent-1571076105101]: 🗏 mobileSharedComponents/sharedHeaderSvgBell.yaml
+↓sharedHeaderButtonCreate [ngx.components.UISharedRegularComponent-1571076107073]: 🗏 mobileSharedComponents/sharedHeaderButtonCreate.yaml
+↓sharedHeaderButtonCreateMobile [ngx.components.UISharedRegularComponent-1571077313031]: 🗏 mobileSharedComponents/sharedHeaderButtonCreateMobile.yaml
+↓itemTextEditor [ngx.components.UISharedRegularComponent-1571131321170]: 🗏 mobileSharedComponents/itemTextEditor.yaml
+↓itemLabelEditor [ngx.components.UISharedRegularComponent-1571131585459]: 🗏 mobileSharedComponents/itemLabelEditor.yaml
+↓itemTitleEditor [ngx.components.UISharedRegularComponent-1571131332542]: 🗏 mobileSharedComponents/itemTitleEditor.yaml
+↓itemCheckboxEditor [ngx.components.UISharedRegularComponent-1571231678766]: 🗏 mobileSharedComponents/itemCheckboxEditor.yaml
+↓itemCheckboxGroupEditor [ngx.components.UISharedRegularComponent-1575900730250]: 🗏 mobileSharedComponents/itemCheckboxGroupEditor.yaml
+↓itemRadioListEditor [ngx.components.UISharedRegularComponent-1571302375402]: 🗏 mobileSharedComponents/itemRadioListEditor.yaml
+↓itemRadioListGroupEditor [ngx.components.UISharedRegularComponent-1575550725099]: 🗏 mobileSharedComponents/itemRadioListGroupEditor.yaml
+↓itemSliderEditor [ngx.components.UISharedRegularComponent-1571323040740]: 🗏 mobileSharedComponents/itemSliderEditor.yaml
+↓itemSelectEditor [ngx.components.UISharedRegularComponent-1571389776888]: 🗏 mobileSharedComponents/itemSelectEditor.yaml
+↓itemDateSelector [ngx.components.UISharedRegularComponent-1571406886674]: 🗏 mobileSharedComponents/itemDateSelector.yaml
+↓itemTimeSelector [ngx.components.UISharedRegularComponent-1571412574119]: 🗏 mobileSharedComponents/itemTimeSelector.yaml
+↓itemCardEditor [ngx.components.UISharedRegularComponent-1571758206225]: 🗏 mobileSharedComponents/itemCardEditor.yaml
+↓itemCameraSelector [ngx.components.UISharedRegularComponent-1571650492865]: 🗏 mobileSharedComponents/itemCameraSelector.yaml
+↓itemBarcodeSelector [ngx.components.UISharedRegularComponent-1571660946257]: 🗏 mobileSharedComponents/itemBarcodeSelector.yaml
+↓itemFileSelector [ngx.components.UISharedRegularComponent-1571662483715]: 🗏 mobileSharedComponents/itemFileSelector.yaml
+↓itemSignatureSelector [ngx.components.UISharedRegularComponent-1571675415050]: 🗏 mobileSharedComponents/itemSignatureSelector.yaml
+↓itemRowSaveEditor [ngx.components.UISharedRegularComponent-1571844749687]: 🗏 mobileSharedComponents/itemRowSaveEditor.yaml
+↓sharedHeaderMobileViewer [ngx.components.UISharedRegularComponent-1571848151552]: 🗏 mobileSharedComponents/sharedHeaderMobileViewer.yaml
+↓sharedHeaderViewer [ngx.components.UISharedRegularComponent-1571848248991]: 🗏 mobileSharedComponents/sharedHeaderViewer.yaml
+↓sharedHeaderWebViewer [ngx.components.UISharedRegularComponent-1571848275886]: 🗏 mobileSharedComponents/sharedHeaderWebViewer.yaml
+↓ItemTitleSub [ngx.components.UISharedRegularComponent-1572009834372]: 🗏 mobileSharedComponents/ItemTitleSub.yaml
+↓sharedHeaderData [ngx.components.UISharedRegularComponent-1572517786339]: 🗏 mobileSharedComponents/sharedHeaderData.yaml
+↓sharedQuestionElem [ngx.components.UISharedRegularComponent-1573662577792]: 🗏 mobileSharedComponents/sharedQuestionElem.yaml
+↓sharedLabelElem [ngx.components.UISharedRegularComponent-1573663157513]: 🗏 mobileSharedComponents/sharedLabelElem.yaml
+↓colorPalet [ngx.components.UISharedRegularComponent-1573746896372]: 🗏 mobileSharedComponents/colorPalet.yaml
+↓colorPicker [ngx.components.UISharedRegularComponent-1602843941010]: 🗏 mobileSharedComponents/colorPicker.yaml
+↓sharedHeaderButtonImport [ngx.components.UISharedRegularComponent-1574356090443]: 🗏 mobileSharedComponents/sharedHeaderButtonImport.yaml
+↓sharedStatsInputText [ngx.components.UISharedRegularComponent-1580308950214]: 🗏 mobileSharedComponents/sharedStatsInputText.yaml
+↓sharedStatsCheckbox [ngx.components.UISharedRegularComponent-1581589785221]: 🗏 mobileSharedComponents/sharedStatsCheckbox.yaml
+↓sharedStatsRadio [ngx.components.UISharedRegularComponent-1581601986463]: 🗏 mobileSharedComponents/sharedStatsRadio.yaml
+↓sharedStatsCheckboxGroup [ngx.components.UISharedRegularComponent-1581609353396]: 🗏 mobileSharedComponents/sharedStatsCheckboxGroup.yaml
+↓sharedStatsSlider [ngx.components.UISharedRegularComponent-1581680106929]: 🗏 mobileSharedComponents/sharedStatsSlider.yaml
+↓sharedStatsImg [ngx.components.UISharedRegularComponent-1581690229070]: 🗏 mobileSharedComponents/sharedStatsImg.yaml
+↓footerMenuVersion [ngx.components.UISharedRegularComponent-1582105855735]: 🗏 mobileSharedComponents/footerMenuVersion.yaml
+↓menuVersion [ngx.components.UISharedRegularComponent-1582106107923]: 🗏 mobileSharedComponents/menuVersion.yaml
+↓cardSelector [ngx.components.UISharedRegularComponent-1586272511108]: 🗏 mobileSharedComponents/cardSelector.yaml
+↓listSelector [ngx.components.UISharedRegularComponent-1586351141705]: 🗏 mobileSharedComponents/listSelector.yaml
+↓itemActionSubmitEditor [ngx.components.UISharedRegularComponent-1586443759128]: 🗏 mobileSharedComponents/itemActionSubmitEditor.yaml
+↓itemActionSubmitViewer [ngx.components.UISharedRegularComponent-1586443901688]: 🗏 mobileSharedComponents/itemActionSubmitViewer.yaml
+↓itemActionSubmitLabel [ngx.components.UISharedRegularComponent-1587544330402]: 🗏 mobileSharedComponents/itemActionSubmitLabel.yaml
+↓itemAddCheckBoxOrRadio [ngx.components.UISharedRegularComponent-1587560724400]: 🗏 mobileSharedComponents/itemAddCheckBoxOrRadio.yaml
+↓itemCardEditorViewer [ngx.components.UISharedRegularComponent-1588774890254]: 🗏 mobileSharedComponents/itemCardEditorViewer.yaml
+↓conditionVisibleIf [ngx.components.UISharedRegularComponent-1595231667236]: 🗏 mobileSharedComponents/conditionVisibleIf.yaml
+↓conditionVisibleIfPrev [ngx.components.UISharedRegularComponent-1595246801579]: 🗏 mobileSharedComponents/conditionVisibleIfPrev.yaml
+↓inputTextAndField [ngx.components.UISharedRegularComponent-1595423161001]: 🗏 mobileSharedComponents/inputTextAndField.yaml
+↓conditiongoToPageIf [ngx.components.UISharedRegularComponent-1595924991979]: 🗏 mobileSharedComponents/conditiongoToPageIf.yaml
+↓conditiongoToPageIfPrev [ngx.components.UISharedRegularComponent-1596115004349]: 🗏 mobileSharedComponents/conditiongoToPageIfPrev.yaml
+↓inputMultiVal [ngx.components.UISharedRegularComponent-1596119585918]: 🗏 mobileSharedComponents/inputMultiVal.yaml
+↓itemCheckboxGroupViewerConditions [ngx.components.UISharedRegularComponent-1596187732432]: 🗏 mobileSharedComponents/itemCheckboxGroupViewerConditions.yaml
+↓itemCheckboxViewerConditions [ngx.components.UISharedRegularComponent-1596548897194]: 🗏 mobileSharedComponents/itemCheckboxViewerConditions.yaml
+↓searchableSelect [ngx.components.UISharedRegularComponent-1599133889431]: 🗏 mobileSharedComponents/searchableSelect.yaml
+↓sharedDropIndicator [ngx.components.UISharedRegularComponent-1600440285429]: 🗏 mobileSharedComponents/sharedDropIndicator.yaml
+↓DraggableElementActionPalette [ngx.components.UISharedRegularComponent-1600348879029]: 🗏 mobileSharedComponents/DraggableElementActionPalette.yaml
+↓networkStatus [ngx.components.UISharedRegularComponent-1601462295965]: 🗏 mobileSharedComponents/networkStatus.yaml
+↓itemDescriptionViewer [ngx.components.UISharedRegularComponent-1604668853717]: 🗏 mobileSharedComponents/itemDescriptionViewer.yaml
+↓itemDescriptionEditor [ngx.components.UISharedRegularComponent-1604671136611]: 🗏 mobileSharedComponents/itemDescriptionEditor.yaml
+↓sharedHeaderButtonImportMobile [ngx.components.UISharedRegularComponent-1606499225059]: 🗏 mobileSharedComponents/sharedHeaderButtonImportMobile.yaml
+↓itemGridViewer [ngx.components.UISharedRegularComponent-1608286885281]: 🗏 mobileSharedComponents/itemGridViewer.yaml
+↓itemGridEditor [ngx.components.UISharedRegularComponent-1608288821075]: 🗏 mobileSharedComponents/itemGridEditor.yaml
+↓datasource [ngx.components.UISharedRegularComponent-1608302126817]: 🗏 mobileSharedComponents/datasource.yaml
+↓itemLocationViewer [ngx.components.UISharedRegularComponent-1609942463032]: 🗏 mobileSharedComponents/itemLocationViewer.yaml
+↓itemLocationEditor [ngx.components.UISharedRegularComponent-1609942857023]: 🗏 mobileSharedComponents/itemLocationEditor.yaml
+↓itemActionBusinessLogicViewer [ngx.components.UISharedRegularComponent-1610539997802]: 🗏 mobileSharedComponents/itemActionBusinessLogicViewer.yaml
+↓itemHeaderEdit [ngx.components.UISharedRegularComponent-1610543278205]: 🗏 mobileSharedComponents/itemHeaderEdit.yaml
+↓dataSourceEditor [ngx.components.UISharedRegularComponent-1610637118444]: 🗏 mobileSharedComponents/dataSourceEditor.yaml
+↓itemActionBusinessLogicEditor [ngx.components.UISharedRegularComponent-1610650936321]: 🗏 mobileSharedComponents/itemActionBusinessLogicEditor.yaml
+↓dataSourceEditorDescription [ngx.components.UISharedRegularComponent-1610653321882]: 🗏 mobileSharedComponents/dataSourceEditorDescription.yaml
+↓ngxTagInputCustomC8oForms [ngx.components.UISharedRegularComponent-1613566718054]: 🗏 mobileSharedComponents/ngxTagInputCustomC8oForms.yaml
+↓SharedHeaderStats [ngx.components.UISharedRegularComponent-1613996690303]: 🗏 mobileSharedComponents/SharedHeaderStats.yaml
+↓sharedStatsActions [ngx.components.UISharedRegularComponent-1615560039142]: 🗏 mobileSharedComponents/sharedStatsActions.yaml
+↓itemVideoCallViewerInEditionPage [ngx.components.UISharedRegularComponent-1620389799932]: 🗏 mobileSharedComponents/itemVideoCallViewerInEditionPage.yaml
+↓itemVideoCallEditor [ngx.components.UISharedRegularComponent-1620389800133]: 🗏 mobileSharedComponents/itemVideoCallEditor.yaml
+↓itemVideoCallViewer [ngx.components.UISharedRegularComponent-1620390962313]: 🗏 mobileSharedComponents/itemVideoCallViewer.yaml
+↓sharedQuestionElemSimplified [ngx.components.UISharedRegularComponent-1623745388370]: 🗏 mobileSharedComponents/sharedQuestionElemSimplified.yaml
+↓sharedQuestionElemSimplified1 [ngx.components.UISharedRegularComponent-1623746901029]: 🗏 mobileSharedComponents/sharedQuestionElemSimplified1.yaml
+↓buttonGDRPmenu [ngx.components.UISharedRegularComponent-1624961537663]: 🗏 mobileSharedComponents/buttonGDRPmenu.yaml
+↓SharedGrabHeader [ngx.components.UISharedRegularComponent-1627486635556]: 🗏 mobileSharedComponents/SharedGrabHeader.yaml
+↓sharedDropIndicatorSelector [ngx.components.UISharedRegularComponent-1629125567474]: 🗏 mobileSharedComponents/sharedDropIndicatorSelector.yaml
+↓editorPage [ngx.components.PageComponent-1531323370377]: 🗏 mobilePages/editorPage.yaml
+↓loginPage [ngx.components.PageComponent-1645091279476]: 🗏 mobilePages/loginPage.yaml
+↓viewerPage [ngx.components.PageComponent-1537364775769]: 🗏 mobilePages/viewerPage.yaml
+↓selectorPage [ngx.components.PageComponent-1537533843062]: 🗏 mobilePages/selectorPage.yaml
+↓settingsPage [ngx.components.PageComponent-1539697882469]: 🗏 mobilePages/settingsPage.yaml
+↓dropFilePage [ngx.components.PageComponent-1550679966506]: 🗏 mobilePages/dropFilePage.yaml
+↓progressPage [ngx.components.PageComponent-1551263814512]: 🗏 mobilePages/progressPage.yaml
+↓popOverPageSelector [ngx.components.PageComponent-1566923445332]: 🗏 mobilePages/popOverPageSelector.yaml
+↓wallPaperSelection [ngx.components.PageComponent-1568043517943]: 🗏 mobilePages/wallPaperSelection.yaml
+↓thumbnailSelection [ngx.components.PageComponent-1594649062231]: 🗏 mobilePages/thumbnailSelection.yaml
+↓colorPage [ngx.components.PageComponent-1573822715521]: 🗏 mobilePages/colorPage.yaml
+↓sharingPage [ngx.components.PageComponent-1576167330165]: 🗏 mobilePages/sharingPage.yaml
+↓labelsPage [ngx.components.PageComponent-1578920292168]: 🗏 mobilePages/labelsPage.yaml
+↓dataPage [ngx.components.PageComponent-1580149521095]: 🗏 mobilePages/dataPage.yaml
+↓linkPage [ngx.components.PageComponent-1581417374949]: 🗏 mobilePages/linkPage.yaml
+↓resetPasswordPage [ngx.components.PageComponent-1582285252110]: 🗏 mobilePages/resetPasswordPage.yaml
+↓which_question [ngx.components.PageComponent-1585242209198]: 🗏 mobilePages/which_question.yaml
+↓wallpaperSelectionCustom [ngx.components.PageComponent-1586163368703]: 🗏 mobilePages/wallpaperSelectionCustom.yaml
+↓WallpaperSelectionTemplates [ngx.components.PageComponent-1586163425615]: 🗏 mobilePages/WallpaperSelectionTemplates.yaml
+↓wallpaperSelectionColorPicker [ngx.components.PageComponent-1602852973049]: 🗏 mobilePages/wallpaperSelectionColorPicker.yaml
+↓ThumbnailSelectionTemplates [ngx.components.PageComponent-1594652578338]: 🗏 mobilePages/ThumbnailSelectionTemplates.yaml
+↓ThumbnailSelectionCustom [ngx.components.PageComponent-1594652602129]: 🗏 mobilePages/ThumbnailSelectionCustom.yaml
+↓ThumbnailSelectionColorPicker [ngx.components.PageComponent-1603355266845]: 🗏 mobilePages/ThumbnailSelectionColorPicker.yaml
+↓ManageAccessRights [ngx.components.PageComponent-1591800959561]: 🗏 mobilePages/ManageAccessRights.yaml
+↓ConditionalPage [ngx.components.PageComponent-1594972557889]: 🗏 mobilePages/ConditionalPage.yaml
+↓PopOverInputs [ngx.components.PageComponent-1594988076230]: 🗏 mobilePages/PopOverInputs.yaml
+↓PreviewMultiple [ngx.components.PageComponent-1596119915426]: 🗏 mobilePages/PreviewMultiple.yaml
+↓modalActions [ngx.components.PageComponent-1599824848869]: 🗏 mobilePages/modalActions.yaml
+↓NetworkStatus [ngx.components.PageComponent-1601463021137]: 🗏 mobilePages/NetworkStatus.yaml
+↓exportCsvPage [ngx.components.PageComponent-1602171219295]: 🗏 mobilePages/exportCsvPage.yaml
+↓CreatePwa [ngx.components.PageComponent-1603800513347]: 🗏 mobilePages/CreatePwa.yaml
+↓PopOverNotifs [ngx.components.PageComponent-1603904590598]: 🗏 mobilePages/PopOverNotifs.yaml
+↓modalVideo [ngx.components.PageComponent-1605871344928]: 🗏 mobilePages/modalVideo.yaml
+↓ShareRights [ngx.components.PageComponent-1612961196848]: 🗏 mobilePages/ShareRights.yaml
+↓indexationPage [ngx.components.PageComponent-1624286506366]: 🗏 mobilePages/indexationPage.yaml
+↓GDRPpage [ngx.components.PageComponent-1624960791598]: 🗏 mobilePages/GDRPpage.yaml
+↓Theme [ngx.components.UITheme-1491635018260]: 
+  comment: Global color themes can be customized here
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '// Ionic Variables and Theming. For more info, please see:
+          // http://ionicframework.com/docs/theming/
+             $widthRadioGroup: 185px;
+          	$widthRadioGroupLine: 189px;
+          /** Ionic CSS Variables **/
+          :root {
+          	/** some customs variables **/
+          	$font-family-base: "Open Sans";
+          	--ion-font-family: "Open Sans";
+          	$widthRadioGroup: 185px;
+          	--widthRadioGroup: 185px;
+          	$widthRadioGroupLine: 189px;
+          	--widthRadioGroupLine: 189px;
+          	/** define global font family*/
+              --ion-font-family: $font-family-base;
+          	
+          	/** Custom Convertigo Forms color: primary (root declaration) **/
+             	--ion-color-primary: #0cbbe7;
+          	--ion-color-primary-rgb: 12,187,231;
+          	--ion-color-primary-contrast: #000000;
+          	--ion-color-primary-contrast-rgb: 0,0,0;
+          	--ion-color-primary-shade: #0ba5cb;
+          	--ion-color-primary-tint: #24c2e9;
+          	/** Custom Convertigo Forms color: primaryB (root declaration) **/
+          	--ion-color-primaryB: #488aff;
+          	--ion-color-primaryB-rgb: 72,138,255;
+          	--ion-color-primaryB-contrast: #000000;
+          	--ion-color-primaryB-contrast-rgb: 0,0,0;
+          	--ion-color-primaryB-shade: #3f79e0;
+          	--ion-color-primaryB-tint: #5a96ff;
+          	/** Custom Convertigo Forms color: secondary (root declaration) **/
+          	--ion-color-secondary: #32db64;
+          	--ion-color-secondary-rgb: 50,219,100;
+          	--ion-color-secondary-contrast: #000000;
+          	--ion-color-secondary-contrast-rgb: 0,0,0;
+          	--ion-color-secondary-shade: #2cc158;
+          	--ion-color-secondary-tint: #47df74;
+          	/** Custom Convertigo Forms color: danger (root declaration) **/
+          	--ion-color-danger: #f53d3d;
+          	--ion-color-danger-rgb: 245,61,61;
+          	--ion-color-danger-contrast: #ffffff;
+          	--ion-color-danger-contrast-rgb: 255,255,255;
+          	--ion-color-danger-shade: #d83636;
+          	--ion-color-danger-tint: #f65050;
+          	/** Custom Convertigo Forms color: otherDanger (root declaration) **/
+          	--ion-color-otherDanger: #950000;
+          	--ion-color-otherDanger-rgb: 149,0,0;
+          	--ion-color-otherDanger-contrast: #ffffff;
+          	--ion-color-otherDanger-contrast-rgb: 255,255,255;
+          	--ion-color-otherDanger-shade: #830000;
+          	--ion-color-otherDanger-tint: #a01a1a;
+          	/** Custom Convertigo Forms color: light (root declaration) **/
+          	--ion-color-light: #f4f4f4;
+          	--ion-color-light-rgb: 244,244,244;
+          	--ion-color-light-contrast: #000000;
+          	--ion-color-light-contrast-rgb: 0,0,0;
+          	--ion-color-light-shade: #d7d7d7;
+          	--ion-color-light-tint: #f5f5f5;
+          	/** Custom Convertigo Forms color: dark (root declaration) **/
+          	--ion-color-dark: #222;
+          	--ion-color-dark-rgb: 34,34,34;
+          	--ion-color-dark-contrast: #ffffff;
+          	--ion-color-dark-contrast-rgb: 255,255,255;
+          	--ion-color-dark-shade: #1e1e1e;
+          	--ion-color-dark-tint: #383838;
+          	/** Custom Convertigo Forms color: dark (root declaration) **/
+          	--ion-color-white: #ffffff;
+          	--ion-color-white-rgb: 255,255,255;
+          	--ion-color-white-contrast: #000000;
+          	--ion-color-white-contrast-rgb: 0,0,0;
+          	--ion-color-white-shade: #e0e0e0;
+          	--ion-color-white-tint: #ffffff;
+          	/** Custom Convertigo Forms color: convertigo (root declaration) **/
+          	--ion-color-convertigo: #0cbbe7;
+          	--ion-color-convertigo-rgb: 12,187,231;
+          	--ion-color-convertigo-contrast: #000000;
+          	--ion-color-convertigo-contrast-rgb: 0,0,0;
+          	--ion-color-convertigo-shade: #0ba5cb;
+          	--ion-color-convertigo-tint: #24c2e9;
+          	/** Custom Convertigo Forms color: greenSelector (root declaration) **/
+          	--ion-color-greenSelector: #25e056;
+          	--ion-color-greenSelector-rgb: 37,224,86;
+          	--ion-color-greenSelector-contrast: #000000;
+          	--ion-color-greenSelector-contrast-rgb: 0,0,0;
+          	--ion-color-greenSelector-shade: #21c54c;
+          	--ion-color-greenSelector-tint: #3be367;
+          	/** Custom Convertigo Forms color: greyFab (root declaration) **/
+          	--ion-color-greyFab: #333333;
+          	--ion-color-greyFab-rgb: 51,51,51;
+          	--ion-color-greyFab-contrast: #ffffff;
+          	--ion-color-greyFab-contrast-rgb: 255,255,255;
+          	--ion-color-greyFab-shade: #2d2d2d;
+          	--ion-color-greyFab-tint: #474747;
+          	/** Custom Convertigo Forms color: greyButton (root declaration) **/
+          	--ion-color-greyButton: #979797;
+          	--ion-color-greyButton-rgb: 151,151,151;
+          	--ion-color-greyButton-contrast: #000000;
+          	--ion-color-greyButton-contrast-rgb: 0,0,0;
+          	--ion-color-greyButton-shade: #858585;
+          	--ion-color-greyButton-tint: #a1a1a1;
+          	/** Custom Convertigo Forms color: btLight (root declaration) **/
+          	--ion-color-btLight: #ff8206;
+          	--ion-color-btLight-rgb: 255,130,6;
+          	--ion-color-btLight-contrast: #000000;
+          	--ion-color-btLight-contrast-rgb: 0,0,0;
+          	--ion-color-btLight-shade: #e07205;
+          	--ion-color-btLight-tint: #ff8f1f;
+          	/** Custom Convertigo Forms color: otherBtLight (root declaration) **/
+          	--ion-color-otherBtLight: #ffc906;
+          	--ion-color-otherBtLight-rgb: 255,201,6;
+          	--ion-color-otherBtLight-contrast: #000000;
+          	--ion-color-otherBtLight-contrast-rgb: 0,0,0;
+          	--ion-color-otherBtLight-shade: #e0b105;
+          	--ion-color-otherBtLight-tint: #ffce1f;
+          	/** Custom Convertigo Forms color: greenCsv (root declaration) **/
+          	--ion-color-greenCsv: #1D6F42;
+          	--ion-color-greenCsv-rgb: 29,111,66;
+          	--ion-color-greenCsv-contrast: #ffffff;
+          	--ion-color-greenCsv-contrast-rgb: 255,255,255;
+          	--ion-color-greenCsv-shade: #1a623a;
+          	--ion-color-greenCsv-tint: #347d55;
+          	/** Custom Convertigo Forms color: black (root declaration) **/
+          	--ion-color-black: #000000;
+          	--ion-color-black-rgb: 0,0,0;
+          	--ion-color-black-contrast: #ffffff;
+          	--ion-color-black-contrast-rgb: 255,255,255;
+          	--ion-color-black-shade: #000000;
+          	--ion-color-black-tint: #1a1a1a;
+          	
+          }
+          
+          
+          /** Custom Convertigo Forms color: primary (css declaration) **/
+          .ion-color-primary {
+          	--ion-color-base: var(--ion-color-primary);
+          	--ion-color-base-rgb: var(--ion-color-primary-rgb);
+          	--ion-color-contrast: var(--ion-color-primary-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-primary-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-primary-shade);
+          	--ion-color-tint: var(--ion-color-primary-tint);
+          }
+          /** Custom Convertigo Forms color: primaryB (css declaration) **/
+          .ion-color-primaryB {
+          	--ion-color-base: var(--ion-color-primaryB);
+          	--ion-color-base-rgb: var(--ion-color-primaryB-rgb);
+          	--ion-color-contrast: var(--ion-color-primaryB-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-primaryB-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-primaryB-shade);
+          	--ion-color-tint: var(--ion-color-primaryB-tint);
+          }
+          /** Custom Convertigo Forms color: secondary (css declaration) **/
+          .ion-color-secondary {
+          	--ion-color-base: var(--ion-color-secondary);
+          	--ion-color-base-rgb: var(--ion-color-secondary-rgb);
+          	--ion-color-contrast: var(--ion-color-secondary-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-secondary-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-secondary-shade);
+          	--ion-color-tint: var(--ion-color-secondary-tint);
+          }
+          /** Custom Convertigo Forms color: danger (css declaration) **/
+          .ion-color-danger {
+          	--ion-color-base: var(--ion-color-danger);
+          	--ion-color-base-rgb: var(--ion-color-danger-rgb);
+          	--ion-color-contrast: var(--ion-color-danger-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-danger-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-danger-shade);
+          	--ion-color-tint: var(--ion-color-danger-tint);
+          }
+          /** Custom Convertigo Forms color: otherDanger (css declaration) **/
+          .ion-color-otherDanger {
+          	--ion-color-base: var(--ion-color-otherDanger);
+          	--ion-color-base-rgb: var(--ion-color-otherDanger-rgb);
+          	--ion-color-contrast: var(--ion-color-otherDanger-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-otherDanger-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-otherDanger-shade);
+          	--ion-color-tint: var(--ion-color-otherDanger-tint);
+          }
+          /** Custom Convertigo Forms color: light (css declaration) **/
+          .ion-color-light {
+          	--ion-color-base: var(--ion-color-light);
+          	--ion-color-base-rgb: var(--ion-color-light-rgb);
+          	--ion-color-contrast: var(--ion-color-light-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-light-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-light-shade);
+          	--ion-color-tint: var(--ion-color-light-tint);
+          }
+          /** Custom Convertigo Forms color: dark (css declaration) **/
+          .ion-color-dark {
+          	--ion-color-base: var(--ion-color-dark);
+          	--ion-color-base-rgb: var(--ion-color-dark-rgb);
+          	--ion-color-contrast: var(--ion-color-dark-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-dark-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-dark-shade);
+          	--ion-color-tint: var(--ion-color-dark-tint);
+          }
+          /** Custom Convertigo Forms color: white (css declaration) **/
+          .ion-color-white {
+          	--ion-color-base: var(--ion-color-white);
+          	--ion-color-base-rgb: var(--ion-color-white-rgb);
+          	--ion-color-contrast: var(--ion-color-white-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-white-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-white-shade);
+          	--ion-color-tint: var(--ion-color-white-tint);
+          }
+          /** Custom Convertigo Forms color: convertigo (css declaration) **/
+          .ion-color-convertigo {
+          	--ion-color-base: var(--ion-color-convertigo);
+          	--ion-color-base-rgb: var(--ion-color-convertigo-rgb);
+          	--ion-color-contrast: var(--ion-color-convertigo-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-convertigo-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-convertigo-shade);
+          	--ion-color-tint: var(--ion-color-convertigo-tint);
+          }
+          /** Custom Convertigo Forms color: greenSelector (css declaration) **/
+          .ion-color-greenSelector {
+          	--ion-color-base: var(--ion-color-greenSelector);
+          	--ion-color-base-rgb: var(--ion-color-greenSelector-rgb);
+          	--ion-color-contrast: var(--ion-color-greenSelector-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-greenSelector-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-greenSelector-shade);
+          	--ion-color-tint: var(--ion-color-greenSelector-tint);
+          }
+          /** Custom Convertigo Forms color: greyFab (css declaration) **/
+          .ion-color-greyFab {
+          	--ion-color-base: var(--ion-color-greyFab);
+          	--ion-color-base-rgb: var(--ion-color-greyFab-rgb);
+          	--ion-color-contrast: var(--ion-color-greyFab-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-greyFab-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-greyFab-shade);
+          	--ion-color-tint: var(--ion-color-greyFab-tint);
+          }
+          /** Custom Convertigo Forms color: greyButton (css declaration) **/
+          .ion-color-greyButton {
+          	--ion-color-base: var(--ion-color-greyButton);
+          	--ion-color-base-rgb: var(--ion-color-greyButton-rgb);
+          	--ion-color-contrast: var(--ion-color-greyButton-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-greyButton-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-greyButton-shade);
+          	--ion-color-tint: var(--ion-color-greyButton-tint);
+          }
+          /** Custom Convertigo Forms color: btLight (css declaration) **/
+          .ion-color-btLight {
+          	--ion-color-base: var(--ion-color-btLight);
+          	--ion-color-base-rgb: var(--ion-color-btLight-rgb);
+          	--ion-color-contrast: var(--ion-color-btLight-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-btLight-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-btLight-shade);
+          	--ion-color-tint: var(--ion-color-btLight-tint);
+          }
+          /** Custom Convertigo Forms color: otherBtLight (css declaration) **/
+          .ion-color-otherBtLight {
+          	--ion-color-base: var(--ion-color-otherBtLight);
+          	--ion-color-base-rgb: var(--ion-color-otherBtLight-rgb);
+          	--ion-color-contrast: var(--ion-color-otherBtLight-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-otherBtLight-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-otherBtLight-shade);
+          	--ion-color-tint: var(--ion-color-otherBtLight-tint);
+          }
+          /** Custom Convertigo Forms color: greenCsv (css declaration) **/
+          .ion-color-greenCsv {
+          	--ion-color-base: var(--ion-color-greenCsv);
+          	--ion-color-base-rgb: var(--ion-color-greenCsv-rgb);
+          	--ion-color-contrast: var(--ion-color-greenCsv-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-greenCsv-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-greenCsv-shade);
+          	--ion-color-tint: var(--ion-color-greenCsv-tint);
+          }
+          /** Custom Convertigo Forms color: black (css declaration) **/
+          .ion-color-black {
+          	--ion-color-base: var(--ion-color-black);
+          	--ion-color-base-rgb: var(--ion-color-black-rgb);
+          	--ion-color-contrast: var(--ion-color-black-contrast);
+          	--ion-color-contrast-rgb: var(--ion-color-black-contrast-rgb);
+          	--ion-color-shade: var(--ion-color-black-shade);
+          	--ion-color-tint: var(--ion-color-black-tint);
+          }'
+↓Style [ngx.components.UIStyle-1491635462437]: 
+  comment: You can add some global application styles here
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '$font-family-base: "Open Sans";
+          $widthRadioGroup: 185px;
+          $widthRadioGroupLine: 189px;
+          @supports (-webkit-touch-callout: none) {
+             /* CSS specific to iOS devices */ 
+          	.picker-wrapper{
+          		transform: translateY(-100%) !important;
+          	}
+          }
+          .toastError {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: var(--ion-color-danger);
+          	}
+          }
+          .toastSuccess {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: var(--ion-color-secondary);
+          	}
+          }
+          .toastPending {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: var(--ion-color-convertigo);
+          	}
+          }
+          .toastWarn {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: var(--ion-color-btLight);
+          	}
+          }
+          .ng2-menu-item {
+          	padding:0 !important;
+          }
+          tooltip-box {
+          	z-index:100000 !important;
+          }
+          .popOverNotifs {
+          	max-width:100% !important;
+          	max-height:100% !important;
+          }
+          .hugeModal{
+          	.modal-wrapper {
+                
+                width: 90%; 
+               height: 90%; 
+               top: 5%; 
+               left: 5%; 
+               right: 5%; 
+               bottom: 5%;
+              } 
+          }
+          .alwaysFullScreen {
+          	.modal-wrapper {
+          	      position: absolute;
+          	      top: 0 !important;
+          	      left: 0 !important;
+          	      display: block;
+          	      width: 100% !important;
+          	      height: 100% !important;
+              	}
+          }
+          
+          .modalCSV{
+          	/* if width is less than 1200px */
+          	@media (max-width: 1200px) { 
+          		.modal-wrapper {
+          	      position: absolute;
+          	      top: 0 !important;
+          	      left: 0 !important;
+          	      display: block;
+          	      width: 100% !important;
+          	      height: 100% !important;
+              	}
+          	}
+          	/* if width is more than 1200px */
+          	@media (max-height: 600px) { 
+          		.modal-wrapper {
+          	      position: absolute;
+          	      top: 0 !important;
+          	      left: 0 !important;
+          	      display: block;
+          	      width: 100% !important;
+          	      height: 100% !important;
+              	}
+          	}
+          }
+          
+          .modal100{
+          	.modal-wrapper {
+                position: absolute;
+                top: 0 !important;
+                left: 0 !important;
+                display: block;
+                width: 100% !important;
+                height: 100% !important;
+              } 
+          }
+          .mobileModal{
+          	.modal-wrapper {
+                position: absolute;
+                top: 0 !important;
+                left: 0 !important;
+                display: block;
+                width: 100% !important;
+                height: 100% !important;
+              } 
+          }
+          .alertcustom{
+          	.alert-message{
+          	min-height:40px !important;
+          	}
+          }
+          @media (min-width: 680px) {
+            .mymodal {  
+            .modal-wrapper{
+            width: 90%; 
+               height: 90%; 
+               top: 5%; 
+               left: 5%; 
+               right: 5%; 
+               bottom: 5%;
+            }
+               
+            }
+          }
+          
+          .tox-notifications-container{
+          	display: none !important;
+          }
+          .label{
+          		font-size: 1.4rem !important;
+          	}
+          .arrowAuthorised{
+          	cursor:pointer;
+          }
+          .arrowNonAuthorised{
+          	cursor: not-allowed;
+          }
+          .button-rounded {
+          	margin-top: 3px !important;
+          	margin-right: 12.60px !important;
+            float:right;
+            display: block !important;
+            width: 30px !important;
+            height: 30px !important;
+            line-height: 30px !important;
+            border: 2px solid white !important;
+            border-radius: 50% !important;
+            color: #ff8206 !important;
+            text-align: center !important;
+            text-decoration: none !important;
+            font-size: 10px !important;
+            font-weight: bold !important;
+            background-color: #ff8206 !important;
+          }
+          .requiredgregoryv::before {
+          content: "*";
+          color: red;
+          position: absolute;
+          top: 5%;
+          left: -13px;
+          }
+          .requiredgregoryvpadding::before {
+          content: "*";
+          color: red;
+          position: absolute;
+          top: 5%;
+          left: 7px;
+          }
+          .alert-message {
+          	height: 0px !important;
+          }
+          
+          
+          body {
+          	@media (pointer:none), (pointer:coarse) {
+          		
+          	}
+          	@media (pointer: fine){
+          	user-select: text;
+          	}
+          	
+          
+          }
+          .popover-content {
+          width:auto !important;
+          min-width: 250px !important;
+          }
+          .color-picker{
+          	margin-right:0px !important;
+          	vertical-align: middle;
+          	
+          }
+          .text-input{
+          user-drag: none; 
+          /*user-select: none;
+          -moz-user-select: none;
+          -webkit-user-drag: none;
+          -webkit-user-select: none;
+          -ms-user-select: none;*/
+          }
+          .label-md[stacked] {
+              font-size: 1.4rem !important;
+          }
+          .rangeSLiderActivated {
+          	.range-pin::before{
+          		background-color: #0cbbe7 !important;
+          		color: #0cbbe7 !important;
+          	}
+          	.range-pin{
+          		background-color: #0cbbe7 !important;
+          		//color: #0cbbe7 !important;
+          	}
+          }
+          .lds-roller {
+          	text-align: center;
+            display: inline-block;
+            position: relative;
+            width: 64px;
+            height: 64px;
+          }
+          .lds-roller div {
+            animation: lds-roller 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+            transform-origin: 32px 32px;
+          }
+          .lds-roller div:after {
+            content: " ";
+            display: block;
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ff8206;
+            margin: -3px 0 0 -3px;
+          }
+          .lds-roller div:nth-child(1) {
+            animation-delay: -0.036s;
+          }
+          .lds-roller div:nth-child(1):after {
+            top: 50px;
+            left: 50px;
+          }
+          .lds-roller div:nth-child(2) {
+            animation-delay: -0.072s;
+          }
+          .lds-roller div:nth-child(2):after {
+            top: 54px;
+            left: 45px;
+          }
+          .lds-roller div:nth-child(3) {
+            animation-delay: -0.108s;
+          }
+          .lds-roller div:nth-child(3):after {
+            top: 57px;
+            left: 39px;
+          }
+          .lds-roller div:nth-child(4) {
+            animation-delay: -0.144s;
+          }
+          .lds-roller div:nth-child(4):after {
+            top: 58px;
+            left: 32px;
+          }
+          .lds-roller div:nth-child(5) {
+            animation-delay: -0.18s;
+          }
+          .lds-roller div:nth-child(5):after {
+            top: 57px;
+            left: 25px;
+          }
+          .lds-roller div:nth-child(6) {
+            animation-delay: -0.216s;
+          }
+          .lds-roller div:nth-child(6):after {
+            top: 54px;
+            left: 19px;
+          }
+          .lds-roller div:nth-child(7) {
+            animation-delay: -0.252s;
+          }
+          .lds-roller div:nth-child(7):after {
+            top: 50px;
+            left: 14px;
+          }
+          .lds-roller div:nth-child(8) {
+            animation-delay: -0.288s;
+          }
+          .lds-roller div:nth-child(8):after {
+            top: 45px;
+            left: 10px;
+          }
+          @keyframes lds-roller {
+            0% {
+              transform: rotate(0deg);
+            }
+            100% {
+              transform: rotate(360deg);
+            }
+          }
+          
+          
+          .yesnobt{
+          	color: #ff8206 !important;
+          }
+          * {
+              font-family: $font-family-base;
+          }
+          
+          .update-profile-modal .modal-wrapper{
+          
+          box-shadow: 0 16px 24px 2px rgba(0, 0, 0, 0.14), 0 6px 30px 5px rgba(0, 0, 0, 0.12), 0 8px 10px -5px rgba(0, 0, 0, 0.3);
+          	
+          
+          }
+          .ionic .checkbox input:before, 
+          .ionic .checkbox-icon:before {
+            background: #333;    /* use your color hex instead of #333 */
+            border-color: #333;
+          }
+          
+          
+          
+          
+          .image-upload > input
+          {
+              display: none;
+          }
+          .attach-doc
+          {
+              cursor: pointer;
+          }
+          .my-drop-zone { 
+          	border: dotted 3px lightgray;
+           }
+          .nv-file-over { 
+          	border: dotted 3px red;
+          } /* Default class applied to drop zones on over */
+          .another-file-over-class { 
+          	border: dotted 3px green; 
+          }
+          .dot {
+            height: 25px;
+            width: 25px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+          }
+          
+          .shadow{
+          	box-shadow: 0 16px 24px 2px rgba(0, 0, 0, 0.14), 0 6px 30px 5px rgba(0, 0, 0, 0.12), 0 8px 10px -5px rgba(0, 0, 0, 0.3);
+          
+          border-left: 3px solid #488aff;
+          }
+          
+          .shadow2{
+          	box-shadow: 0 16px 24px 2px rgba(0, 0, 0, 0.14), 0 6px 30px 5px rgba(0, 0, 0, 0.12), 0 8px 10px -5px rgba(0, 0, 0, 0.3);
+          border: 3px solid #488aff;
+          }
+          .shadow3{
+          	box-shadow: 0 16px 24px 2px rgba(0, 0, 0, 0.14), 0 6px 30px 5px rgba(0, 0, 0, 0.12), 0 8px 10px -5px rgba(0, 0, 0, 0.3);
+          border: 3px solid var(--ion-color-convertigo);
+          }
+          
+          .cardPers{
+          	position: relative;
+              text-align: center;
+          }
+          
+          .card-title {
+              position: absolute;
+              top: 36%;
+              font-size: 2.0em;
+              width: 100%;
+              font-weight: bold;
+              color: #fff;
+            }
+          
+          .card-subtitle {
+             font-size: 3.0em;
+             position: absolute;
+             bottom: 5%;
+             width: 100%;
+             color: #fff;
+             text-align:center;
+           }
+           
+          
+          .alertCustomCss {
+              // text color for basic alerts
+              color: white; 
+              // alert modal page bg color. Warning this will remove the alert transparency
+          
+              button {
+                  color: white !important; // button text color
+                  background-color: var(--ion-color-secondary, base) !important;
+              }
+          
+              .alert-wrapper {
+                  background-color: var(--ion-color-dark, base); // bg color of alert content
+              }
+            }
+            
+          .changeToast3 {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: var(--ion-color-primary);
+          		transform: translateX(-500px) !important;
+          	}
+          }
+          .changeToast {
+          	.toast-wrapper {
+          		text-align: center !important;
+          		border-radius: 5px !important;
+          		background: var(--ion-color-primary);
+          	}
+          }
+          .styledivred {
+              background-color: #ffebee;
+              margin-top: 2px;
+              
+              padding: 16px 17px;
+          }
+          .styledivnormal {
+              margin-top: 2px;
+              margin: 0px 17px;
+          }
+          .styledivnormal34 {
+              margin: 0px 34px;
+          	margin-top: 13px;
+          }
+          .styleselectnormal {
+          	background-color: transparent;
+          	margin:0px;
+          	margin-bottom:5px;
+          	padding:0px;
+          	font-size: 1.6rem;
+          }
+          .stylegenerictextred {
+            	background-color: transparent;
+          	border-bottom-color: #ff0000;
+          	box-shadow: inset 0 -1px 0 0 #ff0000;
+          	margin:0px;
+          	margin-bottom:5px;
+          	padding:0px;
+          	font-size: 1.6rem;
+          }
+          .stylegenerictextnormal{
+          	background-color: transparent;
+          	border-bottom-color: #999999;
+          	box-shadow: inset 0 -1px 0 0 #999999;
+          	margin:0px;
+          	margin-bottom:5px;
+          	padding:0px;
+          	font-size: 1.6rem;
+          }
+          
+          .stylegenerictextnormalWithoutBorderBottom{
+          	background-color: transparent;
+          	border-bottom-color: #ffffff;
+          	border-bottom-width: 0px !important;
+          	box-shadow: inset 0 -1px 0 0 #999999;
+          	margin:0px;
+          	margin-bottom:5px;
+          	padding:0px;
+          	font-size: 1.6rem;
+          }
+          
+          .stylegenerictexteditor{
+          	background-color: transparent;
+          	border-bottom-color: #999999;
+          	box-shadow: inset 0 -1px 0 0 #999999;
+          	margin:0px;
+          	padding:0px;
+          	font-size: 1.6rem;
+          	margin-left:16px;
+          	margin-right:32px;
+          	padding-left:0px !important;
+          }
+          
+          ion-item {
+            --border-color: var(--ion-color-danger, #f1453d);
+          }
+          
+          .stylegenericcheckboxnormal {
+          	background-color: transparent;
+          	margin:0px;
+          	padding:0px;
+          	font-size: 16px;
+          }
+          
+          
+          .item-inner {
+                box-shadow: none;
+          
+              }
+          
+          .content {
+          	
+          	
+          	/* add some styling CSS rules here for the body of your app
+          	   for example,
+          	 		background-color: your color; 
+          	 		background-image: url(some background image);
+          	*/
+          }
+          
+          .toolbar-background {
+          	/* add some styling CSS rules here for the Headers and Footers
+          	   for example,
+          	 		background-color: your color; 
+          	*/
+          }
+          .scroll-zoom-wrapper {
+          height: 100% !important;
+          }
+          
+          .formView {
+          	width: 100%;
+          	height: 100%;
+          	border: 1px solid var(--ion-color-primary, base);
+          	border-radius: 4px;
+          	background-color: #efefef;
+          }
+          
+          .componentsView {
+          	width: 100%;
+          	height: 100%;
+          	border: 1px solid var(--ion-color-secondary);
+          	border-radius: 4px;
+          	background-color: #efefef;
+          }
+          
+          .componentsView ion-list ion-list-header {
+          	background-color: var(--ion-color-secondary, #fff) !important;
+          	color: #fff;
+          /* 	font-weight: bold; */
+          	border-radius: 8px !important;
+          }
+          
+          .componentsView ion-list ion-item {
+          /* 	background-color: var(--ion-color-primary, #fff); */
+          	margin: 5px 0;
+          	border-radius: 12px !important;
+          }
+          
+          .elementView {
+          	border: 4px solid #808080;
+          	border-radius: 12px;
+          	background-color: #e4e4e4;
+          }
+          
+          .containcol {
+          	display: table;
+              width: 100%;
+          }
+          .col {
+          	display: table-cell;
+              width:50%;
+          }
+          
+          
+          
+          
+          
+          
+           ion-grid {
+              padding: 0 !important;
+              ion-row {
+                padding: 0 !important;
+                ion-col {
+                  padding: 0 !important;
+          
+                  ion-card {
+                    padding: 0 !important;
+                    ion-card-header {
+                      margin-top: 1px !important;
+                      margin-bottom: 1px !important;
+                    }
+                    ion-card-content {
+                      margin-inside: 1px !important;
+          
+                      padding: 0 !important;
+          
+                      ion-list {
+                        margin-inside: 1px !important;
+                        padding: 0 !important;
+          
+                        ion-item {
+                          margin-inside: 1px !important;
+                          padding: 0 !important;
+          
+                          ion-row {
+                            ion-col {
+                              p {
+                                color: var(--ion-color-secondary, base) !important;
+                                font-size: small !important;
+                              }
+                              color: var(--ion-color-secondary, base) !important;
+                              font-size: small !important;
+          
+                            }
+          
+                          }
+          
+                        }
+          
+                      }
+          
+                    }
+                  }
+                }
+              }
+            }
+            .modal-wrapper {
+           position: absolute;
+                      top: 0;
+                      left: 0;
+                      right:0;
+                      display: block;
+                      width: 60%;
+                      height: 60%;
+                      top: 20%; 
+               left: 20%; 
+               right: 20%; 
+          }
+          
+          .c8o-alert-create-form .alert-wrapper {
+          	max-width: unset;
+            min-width: 400px;
+          .alert-message{
+          	word-wrap: break-word;	
+          	overflow: auto;
+          	flex: 1;
+          }
+          
+          }
+          .c8o-ngxTag-larger {
+          	tag-input-form, tag-input-form input {
+          		width: 100%;
+          	}
+          }'
+↓AppEvent [ngx.components.UIAppEvent-1587480742427]: 
+  appEvent: onSessionLost
+  ↓If [ngx.components.UIDynamicAction-1632522656732]: 
+    beanData: '{"ionBean":"IfAction","condition":"script:window.navigator.onLine == true"}'
+    ↓RootPage [ngx.components.UIDynamicAction-1587480764144]: 
+      beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms_NGX.MobileApplication.Application.loginPage"}'
+↓StyleRemoveScrollBarOnMobileDevices [ngx.components.UIStyle-1600364375227]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '
+          body { 
+          	/* Webkit scrollbar */
+          	*::-webkit-scrollbar {
+          	  width: 6px;
+          	  height: 6px;
+          	}
+          	*::-webkit-scrollbar-thumb {
+          	  background-color: var(--ion-color-convertigo);
+          	  border-radius: 20px;
+          	}
+          	/* Firefox scrollbar */
+          	* {
+          	  scrollbar-width: thin;
+          	  scrollbar-color: var(--ion-color-convertigo) #ffffff;
+          	}
+          	/** Use to remove scroll bar on mobile devices **/
+          	@media (pointer:none), (pointer:coarse) {
+          		::-webkit-scrollbar { 
+          			width:0;
+          		}
+          		overflow: -moz-scrollbars-none;
+          		 .scroll-content{
+          		 	scrollbar-width:none !important;
+          		 }
+          		 .popover-content{
+          		  	scrollbar-width:none !important;
+          		 }
+          		 ion-scroll .scroll-content{
+          			scrollbar-width: none;
+          			-webkit-scrollbar: hidden;
+          			overflow: -moz-scrollbars-none;
+          		}
+          	}
+           }
+           '
+↓Subscribe_Handler [ngx.components.UIEventSubscriber-1601368537502]: 
+  topic: anyInitalSyncFinished
+  ↓GetData [ngx.components.UIDynamicAction-1601368580350]: 
+    beanData: |
+      '{
+       "ionBean": "FullSyncGetAction",
+       "requestable": "plain:C8Oforms_NGX.c8oforms_fs",
+       "noLoading": "plain:true",
+       "_id": "script:''C8Oreserved_'' +this.c8o.session.user.name"
+      }'
+    ↓SetGlobal [ngx.components.UIDynamicAction-1601368670890]: 
+      beanData: |
+        '{
+         "ionBean": "SetGlobalAction",
+         "Property": "plain:settings",
+         "Value": "script:parent.out"
+        }'
+      ↓ReApplyLang [ngx.components.UICustomAction-1615223142157]: 
+        actionValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                		if(this.global.settings.language != undefined && this.global.settings.language != ""){
+                			page["translate"].setDefaultLang(this.global.settings.language);
+                            page["translate"].use(this.global.settings.language);
+                		}
+                		else{
+                			page["translate"].setDefaultLang(window.navigator.language.substring(0,2));
+                			page["translate"].use(window.navigator.language.substring(0,2));
+                		}
+                		if(event.apply){
+                			if(page.global.settings != undefined && page.global.settings.advancedEditing != undefined){
+                				event.p.local.advancedEditing = page.global.settings.advancedEditing;
+                			}
+                			else{
+                				event.p.local.advancedEditing = false;
+                			}
+                		}
+                		resolve();
+                
+  ↓CheckInvalidDocs [ngx.components.UICustomAction-1615203057107]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '			let checkForDeletion = ()=>{
+            				page.c8o.log.debug("[group deletion] we will check for local deletions (groups)");
+            				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
+            			 	Object.assign(headersObject, page.c8o.headers);
+            			 	let params = {
+            	                headers: this.c8o.httpInterface.getHeaders(headersObject),
+            	                withCredentials: true,
+            	            }
+            				page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
+            				.subscribe(
+            			        response => {
+            						let remote = response.results.map((x)=>{
+            							return x.id;
+            						})
+            						this.c8o.callJson("fs://c8oforms_fs.all")
+            						.then((resp: any)=>{
+            							let local = resp.rows.map((x)=>{
+            								return x.id;
+            							})
+            							var toBeRemoved = local.filter(function(n) {
+            						    	return remote.indexOf(n) === -1;
+            							})
+            							page.c8o.log.debug("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
+            							toBeRemoved.forEach((el)=>{
+            								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
+            								.then((re)=>{
+            									page.c8o.log.debug("[group deletion] "+ el +" succesfully removed");
+            									return null;
+            								})
+            								.fail((e)=>{
+            									page.c8o.log.error("[group deletion] "+ el +" an error occured");
+            								})
+            								resolve();
+            							})
+            							return null;
+            						})
+            						.fail((err)=>{
+            							page.c8o.log.error("[group deletion] an error occured while fetching .all");
+            						});
+            			        },
+            			        error => {
+            						page.c8o.log.error("[group deletion] an error occured while fetching changes");
+            			     })
+            			}
+            			let checkLiveDeletion = ()=>{
+            				page.c8o.callJson("fs://c8oforms_fs.view", "ddoc", "control_documents", "view", "control_local_doc_check_delete", "__live","liveCheckDeletion")
+            				.then((res: any)=>{
+            					if(res.rows.length > 0){
+            						var newHash = sha256(JSON.stringify(res.rows));
+            						if(this.local.hashDeletion == undefined || this.local.hashDeletion != newHash){
+            							this.local.hashDeletion = newHash;
+            							for(let elem of res.rows){
+            								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
+            								.then((re)=>{
+            									return null;
+            								})
+            								.fail((e)=>{
+            								})
+            							}
+            							setTimeout(()=>{
+            								checkForDeletion();
+            							});
+            							setTimeout(()=>{
+            								checkForDeletion();
+            							},3000);
+            						}
+            					}
+            					
+            					return null;
+            				})
+            				.fail((err)=>{
+            					
+            				})
+            			}
+            			
+            			if(page.global.initialGroupDeletion == undefined){
+            				checkForDeletion();
+            				page.global.initialGroupDeletion = true;
+            			}
+            			if(page.global.checkLiveDeletion == undefined){
+            				checkLiveDeletion();
+            				page.global.checkLiveDeletion = true;
+            			}
+            			
+                 
+            		
+            '
+    package_dependencies: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: js-sha256
+              - java.lang.String: 
+                - ↑value: 0.9.0
+    page_ts_imports: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: sha256
+              - java.lang.String: 
+                - ↑value: js-sha256
+↓AppEvent1 [ngx.components.UIAppEvent-1601462085416]: 
+  isEnabled: false
+↓TabSelected [ngx.components.UIStyle-1602496360884]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.TabSelected {
+          	min-width:70px;
+          	padding: 7px 12px 8px!important;
+          	margin: 0;
+          	color: #24292e;
+          	background-color: #fff;
+          	border: 1px solid transparent;
+          	border-top: 3px solid transparent;
+          	border-radius: 3px 3px 0 0;
+          	box-sizing: border-box;
+          	border-color: var(--ion-color-btLight) #e1e4e8 transparent;
+          	z-index:100;
+          	border-bottom:0px !important;
+          	display: flex;
+          	align-items: center;
+          	justify-content: center;
+          	height: 45px;
+          	font-size: 1.6rem;
+          }
+          
+          .TabSelected:hover {
+          	cursor:pointer;
+          }
+          '
+↓TabNotSelected [ngx.components.UIStyle-1602496590780]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.TabNotSelected{
+          	min-width:70px;
+          	float: left;
+          	padding: 7px 15px 8px;
+          	color: #586069;
+          	white-space: nowrap;
+          	border: 1px solid transparent;
+          	border-top: 3px solid transparent;
+          	border-radius: 3px 3px 0 0;
+          	padding: 7px 12px 8px!important;
+          	margin: 0;
+          	display: flex;
+          	align-items: center;
+          	justify-content: center;
+          	border-bottom: 1px solid #e1e4e8;
+          	height: 45px !important;
+          }
+          
+          .TabNotSelected:hover{
+          	cursor:pointer;
+          	background-color: #f0f0f0 !important;
+          }'
+↓StyleSVG [ngx.components.UIStyle-1603725859557]: 
+  isEnabled: false
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '// Custom icons
+          // Overriding the ion-icon behavior
+          // All custom icons will start with "custom-" prefix
+          ion-icon {
+              &[class*="custom-"] {
+                  // Instead of using the font-based icons
+                  // We''re applying SVG masks
+                  mask-size: contain;
+                  mask-position: 50% 50%;
+                  mask-repeat: no-repeat;
+                  background: currentColor;
+          		width: 3rem;
+          		height: 3rem;
+              }
+              // custom icons
+              &[class*="custom-csv"] {
+                  mask-image: url(../assets/images/svg/icon/csv.svg);
+              }
+              &[class*="custom-pwa"] {
+                  mask-image: url(../assets/images/svg/icon/pwa.svg);
+              }
+              &[class*="custom-qr_code"] {
+                  mask-image: url(../assets/images/svg/icon/qr_code.svg);
+              }
+              &[class*="custom-add-circle"] {
+                  mask-image: url(../assets/images/svg/icon/add-circle.svg);
+              }
+              &[class*="custom-grid"] {
+                  mask-image: url(../assets/images/svg/icon/grid.svg);
+              }
+              &[class*="custom-list"] {
+                  mask-image: url(../assets/images/svg/icon/list.svg);
+              }
+          	&[class*="custom-location"] {
+                  mask-image: url(../assets/images/svg/component/location.svg);
+              }
+          	&[class*="custom-ts-active"] {
+                  mask-image: url(../assets/images/svg/icon/ts_active.svg);
+              }
+          	&[class*="custom-txt-inactive"] {
+                  mask-image: url(../assets/images/svg/icon/text_inactive.svg);
+              }
+          	&[class*="custom-share-social"] {
+                  mask-image: url(../assets/images/svg/icon/share-social-outline.svg);
+              }
+          	&[class*="custom-videocam"] {
+                  mask-image: url(../assets/images/svg/icon/videocam.svg);
+              }
+          	&[class*="custom-icn_hang_up"] {
+                  mask-image: url(../assets/images/svg/component/icn_hang_up.svg);
+              }
+          	&[class*="custom-folder"] {
+                  mask-image: url(../assets/images/svg/icon/folder-outline.svg);
+              }
+          	&[class*="custom-refresh"] {
+                  mask-image: url(../assets/images/svg/icon/icn_refresh.svg);
+              }
+          	&[class*="custom-cloud"] {
+                  mask-image: url(../assets/images/svg/component/icn_cloud.svg);
+              }
+          	&[class*="custom-clouddone"] {
+                  mask-image: url(../assets/images/svg/component/icn_cloud-done.svg);
+              }
+          	&[class*="custom-cloudempty"] {
+                  mask-image: url(../assets/images/svg/component/icn_cloudempty.svg);
+              }
+          	&[class*="custom-gears"] {
+                  mask-image: url(../assets/images/svg/component/icn_gears.svg);
+              }
+          	&[class*="custom-offline"] {
+                  mask-image: url(../assets/images/svg/component/icn_no-wifi.svg);
+              }
+          	&[class*="custom-home"] {
+                  mask-image: url(../assets/images/svg/component/icn_home.svg);
+              }
+          }
+          
+          '
+↓AgGridStyle [ngx.components.UIStyle-1608287559840]: 
+  comment: You can add some global application styles here
+  isEnabled: false
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.custom-header-weel {
+          	background-image: url(data:image/gif;base64,R0lGODlhEAAQAMQAAORHHOVSKudfOulrSOp3WOyDZu6QdvCchPGolfO0o/XBs/fNwfjZ0frl3/zy7////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAkAABAALAAAAAAQABAAAAVVICSOZGlCQAosJ6mu7fiyZeKqNKToQGDsM8hBADgUXoGAiqhSvp5QAnQKGIgUhwFUYLCVDFCrKUE1lBavAViFIDlTImbKC5Gm2hB0SlBCBMQiB0UjIQA7);
+          	background-repeat: no-repeat;
+          	background-position: center;
+          }
+          @import "../../node_modules/ag-grid-community/dist/styles/ag-grid.scss";
+          @import "../../node_modules/ag-grid-community/dist/styles/ag-theme-material/sass/ag-theme-material.scss";
+          
+          
+          
+          .ag-cell-focus {
+          	background-color: rgba(0, 123, 255, 0.3);border: 1px solid #4B74FF !important;border-radius: 2px !important;
+          	@media (pointer:none), (pointer:coarse) {
+          		overflow: hidden;
+          	}
+          }
+          
+          /* ROW SELECTION */
+          #grid-theme-wrapper.blue-theme .ag-theme-material .ag-row-selected {
+            background-color: rgba(0, 123, 255, 0.3);border: 1px solid #4B74FF !important;border-radius: 2px !important;
+          	@media (pointer:none), (pointer:coarse) {
+          		overflow: hidden;
+          	}
+          }
+          
+          /* RANGE SELECTION */
+          #grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-cell-range-selected:not(.ag-cell-focus),
+          #grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-body-viewport:not(.ag-has-focus)
+            .ag-cell-range-single-cell:not(.ag-cell-inline-editing) {
+            background-color: rgba(0, 123, 255, 0.2);
+          }
+          
+          /* RANGE SELECTION ITERSECTION LEVELS */
+          
+          
+            .ag-theme-material
+            .ag-body-viewport:not(.ag-has-focus)
+            .ag-cell-range-selected-1:not(.ag-cell-inline-editing) {
+            background-color: rgba(0, 123, 255, 0.2);
+          }
+          
+          #grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-cell-range-selected-1:not(.ag-cell-focus),
+          grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-body-viewport:not(.ag-has-focus)
+            .ag-cell-range-selected-1 {
+            background-color: rgba(0, 123, 255, 0.2);
+          }
+          
+          #grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-cell-range-selected-2:not(.ag-cell-focus),
+          grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-body-viewport:not(.ag-has-focus)
+            .ag-cell-range-selected-2 {
+            background-color: rgba(0, 123, 255, 0.36);
+          }
+          
+          #grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-cell-range-selected-3:not(.ag-cell-focus),
+          grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-body-viewport:not(.ag-has-focus)
+            .ag-cell-range-selected-3 {
+            background-color: rgba(0, 123, 255, 0.488);
+          }
+          
+          #grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-cell-range-selected-4:not(.ag-cell-focus),
+          grid-theme-wrapper.blue-theme
+            .ag-theme-material
+            .ag-body-viewport:not(.ag-has-focus)
+            .ag-cell-range-selected-4 {
+            background-color: rgba(0, 123, 255, 0.5904);
+          }
+          '
+↓StyleFixIssue310 [ngx.components.UIStyle-1616501581433]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.tox-dialog__body-content{
+          	padding:0 !important;
+          }
+          .tox-image-tools__image{
+          	margin-top: 0 !important;
+          }
+          .tox-image-tools__toolbar {
+          	margin-top:0 !important;
+          }
+          .tox-image-tools__sidebar{
+          	margin-top:0 !important;
+          }
+          .tox-dialog__footer {
+          	padding-top:0 !important;
+          	padding-bottom:0 !important;
+          }
+          .tox-dialog__header{
+          	padding-top:0 !important;
+          	padding-bottom:0 !important;
+          }
+          .tox-form{
+          	height: unset !important;
+          }
+          .tox-tbtn{
+          	margin-top:0 !important;
+          	margin-bottom:0 !important;
+          }'
+↓AppEvent2 [ngx.components.UIAppEvent-1629299810813]: 
+  appEvent: onNetworkReachable
+  ↓Toast [ngx.components.UIDynamicAction-1629299835290]: 
+    beanData: '{"ionBean":"ToastAction","message":"plain:Network Reachable"}'
+    isEnabled: false
+  ↓CustomAction [ngx.components.UICustomAction-1629301305546]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '		let sessionInfo: any = window.sessionStorage.getItem(''loggedInOffline'');
+            		if(sessionInfo != null){
+            			sessionInfo = JSON.parse(sessionInfo);
+            			page.c8o.callJsonObject(
+            				"C8Oforms."+sessionInfo.type,
+            				sessionInfo
+            			)
+            			.then((res, params)=>{
+            				page.c8o.log.debug(`User ${sessionInfo.email} has been silent loggedIn`);
+            				window.sessionStorage.removeItem("loggedInOffline");
+            				return null;
+            			})
+            			.fail((err)=>{
+            				page.c8o.log.debug(`An error occured while trying to silent loggin user ${sessionInfo.email}`);
+            				console.error("C8Oforms.login err => ", err);
+            			})
+            		}
+            		resolve();
+            '
+↓StyleFixWillChangeFirefox [ngx.components.UIStyle-1634742707835]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '@-moz-document url-prefix() {
+          	
+          	.reorder-list-active .item-wrapper {
+          		will-change: auto !important;
+          	}
+          	
+          	.item.activated {
+          		will-change: auto !important;
+          	}
+          	
+          	.picker-opt {
+          		will-change: auto !important;
+          	}
+          	
+          	.toggle-ios .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	
+          	.toggle-md .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	
+          	.toggle-wp .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	
+          	.reorder-list-active .item-wrapper {
+          		will-change: auto !important;
+          	}
+          	
+          	ion-item-sliding.active-slide .item.activated {
+          		will-change: auto !important;
+          	}
+          	
+          	.picker-opt {
+          		will-change: auto !important;
+          	}
+          	
+          	.toggle-ios .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	.toggle-md .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	.toggle-wp .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	
+          	.reorder-list-active .item-wrapper{
+          		will-change: auto !important;
+          	}
+          	ion-item-sliding.active-slide .item.activated {
+          		will-change: auto !important;
+          	}
+          	
+          	.picker-opt {
+          		will-change: auto !important;
+          	}
+          	
+          	.toggle-ios .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	
+          	.toggle-md .toggle-inner {
+          		will-change: auto !important;
+          	}
+          	
+          	.toggle-wp .toggle-inner {
+          		will-change: auto !important;
+          	}
+          }'
