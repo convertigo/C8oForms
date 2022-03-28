@@ -4,7 +4,8 @@ componentScriptContent:
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
         '/*Begin_c8o_AppImport*/
-        import { C8oFullSyncChangeListener, C8oLocalCache, Priority } from "c8osdkangular";
+        import { C8oFullSyncChangeListener, C8oLocalCache, Priority, C8oSessionStatus } from "c8osdkangular";
+        import { APP_BASE_HREF } from ''@angular/common'';
         /*End_c8o_AppImport*/
         /*Begin_c8o_AppDeclaration*/
             
@@ -110,17 +111,19 @@ componentScriptContent:
         /*Begin_c8o_AppConstructor*/
         		/*End_c8o_AppConstructor*/
         /*Begin_c8o_AppInitialization*/
+                        
                         let indexPWA = window.location.pathname.indexOf("pwas");
-                        let indexMobile = window.location.pathname.indexOf("mobile");
-                        // if we started in standalone pwa mode
-                        if(indexPWA != -1 && indexMobile == -1){
-                            this.global.pwa = true;
-                            let indexHtml = window.location.pathname.indexOf("index.html");
-                            let standalonePwa = window.location.pathname.substring(indexPWA + 5, indexHtml -1)
+        			    let indexMobile = window.location.pathname.indexOf("mobile");
+        			    // if we started in standalone pwa mode
+        			    if (indexPWA != -1 && indexMobile == -1) {
+        			        // get url base
+        			        this.global.pwa = true;
+        			        const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
+        			        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
+                            let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
                           	this.global.standalonePwa = standalonePwa;
         					// get url base
-                          const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
-                          this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "/manifest.json");
+                          //this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "/manifest.json");
         				  this.global.pwaGet
                             .subscribe(
                               response => {
@@ -429,7 +432,7 @@ componentScriptContent:
         /*Begin_c8o_function:CTS1615203057107*/
         			let checkForDeletion = ()=>{
         				page.c8o.log.debug("[group deletion] we will check for local deletions (groups)");
-        				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
+        				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion, "Content-Type": "application/json" };
         			 	Object.assign(headersObject, page.c8o.headers);
         			 	let params = {
         	                headers: this.c8o.httpInterface.getHeaders(headersObject),
@@ -610,25 +613,19 @@ componentScriptContent:
         			
         			switch(event.pageName){
         				case "loginPage":
-        			  		indexPWA = window.location.pathname.indexOf("pwas");
-        					indexMobile = window.location.pathname.indexOf("mobile");
-        					// if we started in standalone pwa mode
-        					if (indexPWA != -1 && indexMobile == -1) {
-        					    let indexHtml = window.location.pathname.indexOf("index.html");
-        					    var standalonePwa = "";
-        					    // for ios sometimes there is no index.html
-        					    if (indexHtml == -1) {
-        					        let splitted = window.location.pathname.split("/");
-        					        let iPWA = splitted.indexOf("pwas");
-        					        standalonePwa = splitted[iPWA + 1];
-        					    }
-        					    else {
-        					        standalonePwa = window.location.pathname.substring(indexPWA + 5, indexHtml - 1)
-        					    }
-        					    // get url base
-        					    const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
+        				
+        					let indexPWA = window.location.pathname.indexOf("pwas");
+        				    let indexMobile = window.location.pathname.indexOf("mobile");
+        				    // if we started in standalone pwa mode
+        				    if (indexPWA != -1 && indexMobile == -1) {
+        				        // get url base
+        				        this.global.pwa = true;
+        				        const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
+        				        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
+        	                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
+        	                  	this.global.standalonePwa = standalonePwa;
         					    try{
-        							let response = await page.c8o.httpPublic.get(baseUrl + "/manifest.json").toPromise();
+        							let response = await page.c8o.httpPublic.get(baseUrl + "/manifest.webmanifest").toPromise();
         							// if PWAS is anonymous, then no login needed 
         			                if (response["anonymous"] == true) {
         			                    let data = { u: standalonePwa };
@@ -726,23 +723,185 @@ componentScriptContent:
         						}  
         					}
         			break;
-        			
         			case "selectorPage":
         			
-        			indexPWA = window.location.pathname.indexOf("pwas");
-                    indexMobile = window.location.pathname.indexOf("mobile");
-                      // if we started in standalone pwa mode
-                    if(indexPWA != -1 && indexMobile == -1){
-                        setTimeout(()=>{
-                            page.routerProvider.setRoot("loginPage", {}, null); 
-                        }, 200);
-                        return false;
-                    }
-                    else{
-            		    await page.c8o.promiseFinInit;
+        				indexPWA = window.location.pathname.indexOf("pwas");
+        	            indexMobile = window.location.pathname.indexOf("mobile");
+        	              // if we started in standalone pwa mode
+        	            if(indexPWA != -1 && indexMobile == -1){
+        	                setTimeout(()=>{
+        	                    page.routerProvider.setRoot("loginPage", {}, null); 
+        	                }, 200);
+        	                return false;
+        	            }
+        	            else{
+        	    		    await page.c8o.promiseFinInit;
+        			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+        			            page.global.user = page.c8o.session.user.name;
+        	                    page.local.user = page.c8o.session.user.name;
+        	                    return true;
+        		            }
+        		            else{
+        						try{
+        							let res: any = await page.c8o.httpInterface.getUserServiceStatus();
+        							if(res.user.length == 64 || res.user.authenticated == false){
+        		    		            setTimeout(()=>{
+        		                            page.routerProvider.setRoot("loginPage", {published:page.local.published, page: "selectorPage"}, null); 
+        		                        }, 200);
+        		                        return false;
+        		                    }
+        		                    else{
+        		                        page.global.user = res.user;
+        		                        return true;
+        		                    }
+        						}
+        						catch(e){
+        							if(window.navigator.onLine == true){
+        	            		        setTimeout(()=>{
+        	            		            page.routerProvider.setRoot("loginPage", {published:page.local.published, page: "selectorPage"}, null); 
+        	            		        }, 200);
+        	            		        return false;
+        	        		        }
+        	        		        else{
+        	        		            // Offline mode
+        	        		            page.global.user = page.c8o.session.user.name;
+        	        		            return true;
+        	        		        }
+        						}
+        						
+        					}
+        				}
+        			break;
+        			case "editorPage":
+        				let p = "editor";
+        				event.route.params[""]
+        				let formId = event.route.params["formId"]
+        				indexPWA = window.location.pathname.indexOf("pwas");
+        	            indexMobile = window.location.pathname.indexOf("mobile");
+        	              // if we started in standalone pwa mode
+        	            if(indexPWA != -1 && indexMobile == -1){
+        	                setTimeout(()=>{
+        	                    page.routerProvider.setRoot("loginPage", {}, null); 
+        	                }, 200);
+        	                return false;
+        	            }
+        	            else{
+        					await page.c8o.promiseFinInit;
+        			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+        						if(formId != null && formId != '':formId'' &&  formId.indexOf("published") == -1){
+        							page.global.user = page.c8o.session.user.name;
+        			            	// TO BE REPORTED
+        	                    	//page.local.user = page.c8o.session.user.name;
+        	                        return true;
+        	                    }
+        						else {
+        							setTimeout(()=>{
+        	                            page.routerProvider.setRoot("selectorPage", {}, null); 
+        	                        }, 200);
+        	                        return false;
+        						}
+        			            
+        	                    return true;
+        		            }
+        		            else{
+        						try{
+        							let res: any = await page.c8o.httpInterface.getUserServiceStatus();
+        							if(res.user.length == 64 || res.user.authenticated == false){
+        		    		            setTimeout(()=>{
+        		                            page.routerProvider.setRoot("loginPage", {page:''editorPage'', formId:page.local.formId}, null); 
+        		                        }, 200);
+        		                        return false;
+        		                    }
+        		                    else{
+        		                        page.global.user = res.user;
+        		                        if(formId != null && formId != '':formId'' && formId.indexOf("published") == -1){
+        	                                return true;
+        	                       		}
+        								else {
+        									setTimeout(()=>{
+        			                            page.routerProvider.setRoot("selectorPage", {}, null); 
+        			                        }, 200);
+        			                        return false;
+        								}
+        	                    	}
+        						}
+        						catch(e){
+        							if(window.navigator.onLine == true){
+        	            		        setTimeout(()=>{
+        	            		            page.routerProvider.setRoot("loginPage", {page:''editorPage'', formId:formId}, null); 
+        	            		        }, 200);
+        	            		        return false;
+        	        		        }
+        	        		        else{
+        	        		            // Offline mode
+        	        		            page.global.user = page.c8o.session.user.name;
+        	        		            return true;
+        	        		        }
+        						}
+        						
+        					}
+        				}
+        			
+        			break;
+        			case "viewerPage":
+        				page.local.p = "viewer";
+        			    page.local.errorViewer = false;
+        			    page.local.formId = event.route.params[''formId''];
+        		    
+        			    page.local.published = page.local.formId != undefined ?page.local.formId.indexOf("published") != -1 ? true : false: false;
+        			    page.global.published = page.local.published;
+        				page.local.user = event.route.params[''i''];
+        			    // if we are in anonymous mode
+        			    if(page.local.user != undefined && page.local.user != ":i"){ 	        
+        			        page.local.grp = {};
+        	                page.local.anonymous = true;
+        					page.global.anonymous = page.local.anonymous;
+        	                return true;
+        	            }
+        	            else{
+        					await page.c8o.promiseFinInit;
+        			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+        						page.global.user = page.c8o.session.user.name;
+        		            	// TO BE REPORTED
+                            	//page.local.user = page.c8o.session.user.name;
+                                return true;
+        		            }
+        		            else{
+        						try{
+        							let res: any = await page.c8o.httpInterface.getUserServiceStatus();
+        							if(res.user.length == 64 || res.user.authenticated == false){
+        		    		            setTimeout(()=>{
+        		                            page.routerProvider.setRoot("loginPage", {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit}, null); 
+        		                        }, 200);
+        		                        return false;
+        		                    }
+        		                    else{
+        		                        page.global.user = res.user;
+        		                        return true;
+        	                    	}
+        						}
+        						catch(e){
+        							if(window.navigator.onLine == true){
+        	            		        setTimeout(()=>{
+        	            		            page.routerProvider.setRoot("loginPage", {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit}, null); 
+        	            		        }, 200);
+        	            		        return false;
+        	        		        }
+        	        		        else{
+        	        		            // Offline mode
+        	        		            page.global.user = page.c8o.session.user.name;
+        	        		            return true;
+        	        		        }
+        						}
+        						
+        					}
+        				}
+        			case "settingsPage":
+        				await page.c8o.promiseFinInit;
         		        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-        		            page.global.user = page.c8o.session.user.name;
-                            page.local.user = page.c8o.session.user.name;
+        					page.global.user = page.c8o.session.user.name;
+        	            	// TO BE REPORTED
+                        	//page.local.user = page.c8o.session.user.name;
                             return true;
         	            }
         	            else{
@@ -750,32 +909,77 @@ componentScriptContent:
         						let res: any = await page.c8o.httpInterface.getUserServiceStatus();
         						if(res.user.length == 64 || res.user.authenticated == false){
         	    		            setTimeout(()=>{
-        	                            page.routerProvider.setRoot("loginPage", {published:page.local.published, page: "selectorPage"}, null); 
+        	                            page.routerProvider.setRoot("loginPage", {page:''settingsPage''}, null); 
         	                        }, 200);
         	                        return false;
         	                    }
         	                    else{
         	                        page.global.user = res.user;
         	                        return true;
-        	                    }
+                            	}
         					}
         					catch(e){
         						if(window.navigator.onLine == true){
                     		        setTimeout(()=>{
-                    		            page.routerProvider.setRoot("loginPage", {published:page.local.published, page: "selectorPage"}, null); 
+                    		            page.routerProvider.setRoot("loginPage", {page:''settingsPage''}, null); 
                     		        }, 200);
                     		        return false;
                 		        }
                 		        else{
                 		            // Offline mode
+                		            page.global.user = page.c8o.session.user.name;
                 		            return true;
                 		        }
         					}
         					
         				}
-        			}
+        			
         			break;
+        			case "dataPage":
+        				page.local.formId = page.navParams.get(''formId'');
+        		    	page.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
+        				await page.c8o.promiseFinInit;
+        		        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+        					page.global.user = page.c8o.session.user.name;
+        	            	// TO BE REPORTED
+                        	//page.local.user = page.c8o.session.user.name;
+                            return true;
+        	            }
+        	            else{
+        					try{
+        						let res: any = await page.c8o.httpInterface.getUserServiceStatus();
+        						if(res.user.length == 64 || res.user.authenticated == false){
+        	    		            setTimeout(()=>{
+        	                            page.routerProvider.setRoot("loginPage", {page:''editorPage'', formId:page.local.formId}, null); 
+        	                        }, 200);
+        	                        return false;
+        	                    }
+        	                    else{
+        	                        page.global.user = res.user;
+        	                        return true;
+                            	}
+        					}
+        					catch(e){
+        						if(window.navigator.onLine == true){
+                    		        setTimeout(()=>{
+                    		            page.routerProvider.setRoot("loginPage", {page:''editorPage'', formId:page.local.formId}, null); 
+                    		        }, 200);
+                    		        return false;
+                		        }
+                		        else{
+                		            // Offline mode
+                		            page.global.user = page.c8o.session.user.name;
+                		            return true;
+                		        }
+        					}
+        					
+        				}
+        			
+        			break;
+        			    
         			default:
+        			
+        			/*
         				// in PWA mode refuse any page except loginPage, and viewer page
         				indexPWA = window.location.pathname.indexOf("pwas");
                     	indexMobile = window.location.pathname.indexOf("mobile");
@@ -785,11 +989,12 @@ componentScriptContent:
         	                    page.routerProvider.setRoot("loginPage", {}, null); 
         	                }, 200);
         	                return false;
-                        }
+                        }*/
                     break;
         			
         			
         		}
+        			
         			return true;
         			
         			
@@ -821,7 +1026,7 @@ componentScriptContent:
         		/*End_c8o_function:CTS1629301305546*/
         '
 isPWA: true
-tplProjectName: mobilebuilder_tpl_8_0_0_ngx
+tplProjectName: C8Oforms
 useClickForTap: true
 ↓Menu [ngx.components.UIDynamicMenu-1500890597895]: 🗏 mobileMenus/Menu.yaml
 ↓MenuLogin [ngx.components.UIDynamicMenu-1543518219237]: 🗏 mobileMenus/MenuLogin.yaml
@@ -979,7 +1184,7 @@ useClickForTap: true
 ↓searchableSelect [ngx.components.UISharedRegularComponent-1599133889431]: 🗏 mobileSharedComponents/searchableSelect.yaml
 ↓sharedDropIndicator [ngx.components.UISharedRegularComponent-1600440285429]: 🗏 mobileSharedComponents/sharedDropIndicator.yaml
 ↓DraggableElementActionPalette [ngx.components.UISharedRegularComponent-1600348879029]: 🗏 mobileSharedComponents/DraggableElementActionPalette.yaml
-↓networkStatus [ngx.components.UISharedRegularComponent-1601462295965]: 🗏 mobileSharedComponents/networkStatus.yaml
+↓networkStatusComp [ngx.components.UISharedRegularComponent-1601462295965]: 🗏 mobileSharedComponents/networkStatusComp.yaml
 ↓itemDescriptionViewer [ngx.components.UISharedRegularComponent-1604668853717]: 🗏 mobileSharedComponents/itemDescriptionViewer.yaml
 ↓itemDescriptionEditor [ngx.components.UISharedRegularComponent-1604671136611]: 🗏 mobileSharedComponents/itemDescriptionEditor.yaml
 ↓sharedHeaderButtonImportMobile [ngx.components.UISharedRegularComponent-1606499225059]: 🗏 mobileSharedComponents/sharedHeaderButtonImportMobile.yaml
@@ -2512,302 +2717,6 @@ useClickForTap: true
           	}
           }'
 ↓AppGuard [ngx.components.UIAppGuard-1645552009429]: 
-  ↓CustomAction [ngx.components.UICustomAction-1645552030707]: 
-    actionValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-          →: |
-            '		let indexPWA;
-            		let indexMobile;
-            		
-            		let get_not_supported_translations = async()=>{
-            			let res = await page.translate.get("brower_not_supported").toPromise();
-            			// in case of translation file fails to load
-            			if(res == "brower_not_supported"){
-            				if(window.navigator.language.indexOf("fr") == 0){
-            					res = "Votre navigateur n''est pas supporté. Veuillez essayer Chrome, Firefox, Safari, ou Edge (>90)."
-            				}
-            				else if(window.navigator.language.indexOf("en") == 0){
-            					res ="Your browser is not supported. Please try Chrome, Firefox, Safari, or Edge (>90).";
-            				}
-            				else if(window.navigator.language.indexOf("es") == 0){
-            					res = "Su navegador no es compatible. Por favor, prueba con Chrome, Firefox, Safari o Edge (>90).";
-            				}
-            				else if(window.navigator.language.indexOf("it") == 0){
-            					res = "Il tuo browser non è supportato. Prova con Chrome, Firefox, Safari o Edge (>90).";
-            				}
-            			}
-            			return res;
-            		};
-            		let do_the_stuff_async = async ()=>{
-            			debugger;
-            			if(page.global.__reserved_c8o_settings == undefined){
-            				page.global.__reserved_c8o_settings = {}
-            			}
-            			// if Internet explorer hasn''t been checked before check it
-            			if(page.global.__reserved_c8o_settings["notsupported"] == undefined){
-            				//check that browser is not Internet explorer 
-            				var ua = window.navigator.userAgent;
-            				var isIE = /MSIE|Trident/.test(ua);
-            				// if its Internet explorer show an alert with an error message 
-            				if(isIE){
-            					page.global.__reserved_c8o_settings["notsupported"] = true;
-            					page.local["notsupported"] = true;
-            					let res = await get_not_supported_translations();
-            					window.alert(res);
-            					return !page.global.__reserved_c8o_settings["notsupported"];
-            				}
-            				else{
-            					page.global.__reserved_c8o_settings["notsupported"] = false;
-            					
-            				}
-            			}
-            			// if we already detected Internet Explorer show an alert with an error message 
-            			else if(page.global.__reserved_c8o_settings["notsupported"] == true){
-            				page.local["notsupported"] = true;
-            				let res = await get_not_supported_translations();
-            				window.alert(res);
-            				return !page.global.__reserved_c8o_settings["notsupported"];
-            			}
-            			// if IndexedDB hasn''t been checked before check it
-            			if(page.global.__reserved_c8o_settings["IndexedDBnotsupported"] == undefined){
-            				let testIndexedDB = async ()=>{
-            					const request = window["indexedDB"]["open"]("MyTestDatabase", 3);
-            					request.onsuccess = ()=>{
-            						page.global.__reserved_c8o_settings["IndexedDBnotsupported"] = false;
-            						return !page.global.__reserved_c8o_settings["IndexedDBnotsupported"];
-            					}
-            				    request.onerror = (event)=> {
-            						page.global.__reserved_c8o_settings["IndexedDBnotsupported"] = true;
-            						page.local["notsupported"] = true;
-            						let res = get_not_supported_translations()
-            						.then((res)=>{
-            							window.alert(res);
-            							return !page.global.__reserved_c8o_settings["IndexedDBnotsupported"];
-            						})
-            				    };
-            				};
-            				let resultTestIndexedDB: any = await testIndexedDB();
-            				if(resultTestIndexedDB == false){
-            					return resultTestIndexedDB;
-            				}
-            			}
-            			else if(page.global.__reserved_c8o_settings["IndexedDBnotsupported"] == true){
-            				page.local["notsupported"] = true;
-            				let res = await get_not_supported_translations();
-            				window.alert(res);
-            				return !page.global.__reserved_c8o_settings["IndexedDBnotsupported"];
-            			}
-            			switch(event.pageName){
-            				case "loginPage":
-            			  		indexPWA = window.location.pathname.indexOf("pwas");
-            					indexMobile = window.location.pathname.indexOf("mobile");
-            					// if we started in standalone pwa mode
-            					if (indexPWA != -1 && indexMobile == -1) {
-            					    let indexHtml = window.location.pathname.indexOf("index.html");
-            					    var standalonePwa = "";
-            					    // for ios sometimes there is no index.html
-            					    if (indexHtml == -1) {
-            					        let splitted = window.location.pathname.split("/");
-            					        let iPWA = splitted.indexOf("pwas");
-            					        standalonePwa = splitted[iPWA + 1];
-            					    }
-            					    else {
-            					        standalonePwa = window.location.pathname.substring(indexPWA + 5, indexHtml - 1)
-            					    }
-            					    // get url base
-            					    const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
-            					    try{
-            							let response = await page.c8o.httpPublic.get(baseUrl + "/manifest.json").toPromise();
-            							// if PWAS is anonymous, then no login needed 
-            			                if (response["anonymous"] == true) {
-            			                    let data = { u: standalonePwa };
-            			                    let pagex = "sharingPage";
-            			                    setTimeout(() => {
-            			                        page.routerProvider.setRoot(pagex, data, null);
-            			                    }, 200);
-            			                    return false;
-            			                }
-            			                else {
-            								// if PWA is authenticated one
-            			                    this.local.formId = standalonePwa;
-            			                    this.local.page = "viewerPage";
-            			                    if (navigator.onLine) {
-            									try{
-            										let res = await page.c8o.httpInterface.getUserServiceStatus();
-            		                                if (res.user.length == 64 || res.user.authenticated == false) {
-            		                                	return true;
-            		                                }
-            		                                else {
-            		                                    let data = { "formId": page.local.formId };
-            		                                    let pagex = "viewerPage";
-            		                                    setTimeout(() => {
-            		                                        page.routerProvider.setRoot(pagex, data, null)
-            		                                    }, 200);
-            		                                    return false;
-            		                                }
-            									}
-            									catch(e){
-            										return true;
-            									}
-            			                    }
-            			                    else if (this.c8o.session.user.name != "" && this.c8o.session.user.name != "anonymous") {
-            			                        let data = { "formId": page.local.formId };
-            			                        let pagex = "viewerPage";
-            			                        setTimeout(() => {
-            			                            page.routerProvider.setRoot(pagex, data, null)
-            			                        }, 200);
-            			                        return false;
-            			                    }
-            			                    else {
-            			                        return true;
-            			                    }
-            			                }
-            						}
-            						catch(e){
-            							return true;
-            						}        
-            					}
-            					else {
-            					   	page.local.formId = event.route.params["formId"] != undefined && event.route.params["formId"] != ":formId" ? event.route.params["formId"] : null;
-            					   	page.local.page = event.route.params["page"] != undefined && event.route.params["page"] != ":page" ? event.route.params["page"] : null;
-            					   	page.local.edit = event.route.params["edit"] != undefined && event.route.params["edit"] != ":edit" ? event.route.params["edit"] : null;
-            					   	page.local.published = event.route.params["published"] != undefined && event.route.params["published"] != ":published" ? event.route.params["published"] : null;
-            					   	page.local.e = event.route.params["e"] != undefined && event.route.params["e"] != ":e" ? event.route.params["e"] : null;
-            					   	page.local.d = event.route.params["d"] != undefined && event.route.params["d"] != ":d" ? event.route.params["d"] : null;
-            					   	
-            					    try{
-            							let res = await page.c8o.httpInterface.getUserServiceStatus()
-            							if (res.user.length == 64 || res.user.authenticated == false) {
-            					                return true;
-            					        }
-            				            else {
-            				                let data = {};
-            				                let pagex = "selectorPage";
-            				                if (this.local.page != undefined && this.local.page != '':page'') {
-            				                    pagex = this.local.page;
-            				                    switch (pagex) {
-            				                        case "editorPage":
-            				                            if (this.local.formId != undefined) {
-            				                                data["formId"] = page.local.formId;
-            				                            }
-            				                            break;
-            				                        case "viewerPage":
-            				                            if (this.local.formId != undefined) {
-            				                                data["formId"] = page.local.formId;
-            				                            }
-            				                            if (this.local.edit != undefined) {
-            				                                data["edit"] = page.local.edit;
-            				                            }
-            				                            break;
-            				                        case "selectorPage":
-            				                            data["published"] = page.local.published;
-            				                            break;
-            				                    }
-            				                }
-            				                setTimeout(() => {
-            				                    page.routerProvider.setRoot(pagex, data, null)
-            				                }, 200);
-            				                return false;
-            				            }
-            						}
-            						catch(e){
-            							return true;
-            						}  
-            					}
-            			break;
-            			
-            			case "selectorPage":
-            			
-            			indexPWA = window.location.pathname.indexOf("pwas");
-                        indexMobile = window.location.pathname.indexOf("mobile");
-                          // if we started in standalone pwa mode
-                        if(indexPWA != -1 && indexMobile == -1){
-                            setTimeout(()=>{
-                                page.routerProvider.setRoot("loginPage", {}, null); 
-                            }, 200);
-                            return false;
-                        }
-                        else{
-                		    await page.c8o.promiseFinInit;
-            		        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-            		            page.global.user = page.c8o.session.user.name;
-                                page.local.user = page.c8o.session.user.name;
-                                return true;
-            	            }
-            	            else{
-            					try{
-            						let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-            						if(res.user.length == 64 || res.user.authenticated == false){
-            	    		            setTimeout(()=>{
-            	                            page.routerProvider.setRoot("loginPage", {published:page.local.published, page: "selectorPage"}, null); 
-            	                        }, 200);
-            	                        return false;
-            	                    }
-            	                    else{
-            	                        page.global.user = res.user;
-            	                        return true;
-            	                    }
-            					}
-            					catch(e){
-            						if(window.navigator.onLine == true){
-                        		        setTimeout(()=>{
-                        		            page.routerProvider.setRoot("loginPage", {published:page.local.published, page: "selectorPage"}, null); 
-                        		        }, 200);
-                        		        return false;
-                    		        }
-                    		        else{
-                    		            // Offline mode
-                    		            return true;
-                    		        }
-            					}
-            					
-            				}
-            			}
-            			break;
-            			default:
-            				// in PWA mode refuse any page except loginPage, and viewer page
-            				indexPWA = window.location.pathname.indexOf("pwas");
-                        	indexMobile = window.location.pathname.indexOf("mobile");
-                          	// if we started in standalone pwa mode
-                        	if(indexPWA != -1 && indexMobile == -1){
-            	                setTimeout(()=>{
-            	                    page.routerProvider.setRoot("loginPage", {}, null); 
-            	                }, 200);
-            	                return false;
-                            }
-                        break;
-            			
-            			
-            		}
-            		return true;
-            			
-            			
-            		
-            		}
-            		do_the_stuff_async().then((res)=>{
-            			resolve(res);
-            		})
-            		
-            		
-            		
-            		console.log("event", event);
-            		//debugger;
-            		//resolve(true);
-            '
-    isEnabled: false
-    page_ts_imports: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-        - com.twinsoft.convertigo.beans.common.XMLVector: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: C8oSessionStatus
-              - java.lang.String: 
-                - ↑value: c8osdkangular
   ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1645783653455]: 
     actionValue: 
       - xmlizable: 
@@ -2909,25 +2818,19 @@ useClickForTap: true
             			
             			switch(event.pageName){
             				case "loginPage":
-            			  		indexPWA = window.location.pathname.indexOf("pwas");
-            					indexMobile = window.location.pathname.indexOf("mobile");
-            					// if we started in standalone pwa mode
-            					if (indexPWA != -1 && indexMobile == -1) {
-            					    let indexHtml = window.location.pathname.indexOf("index.html");
-            					    var standalonePwa = "";
-            					    // for ios sometimes there is no index.html
-            					    if (indexHtml == -1) {
-            					        let splitted = window.location.pathname.split("/");
-            					        let iPWA = splitted.indexOf("pwas");
-            					        standalonePwa = splitted[iPWA + 1];
-            					    }
-            					    else {
-            					        standalonePwa = window.location.pathname.substring(indexPWA + 5, indexHtml - 1)
-            					    }
-            					    // get url base
-            					    const baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
+            				
+            					let indexPWA = window.location.pathname.indexOf("pwas");
+            				    let indexMobile = window.location.pathname.indexOf("mobile");
+            				    // if we started in standalone pwa mode
+            				    if (indexPWA != -1 && indexMobile == -1) {
+            				        // get url base
+            				        this.global.pwa = true;
+            				        const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
+            				        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
+            	                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
+            	                  	this.global.standalonePwa = standalonePwa;
             					    try{
-            							let response = await page.c8o.httpPublic.get(baseUrl + "/manifest.json").toPromise();
+            							let response = await page.c8o.httpPublic.get(baseUrl + "/manifest.webmanifest").toPromise();
             							// if PWAS is anonymous, then no login needed 
             			                if (response["anonymous"] == true) {
             			                    let data = { u: standalonePwa };
@@ -3145,8 +3048,7 @@ useClickForTap: true
             				}
             			
             			break;
-            			case "editorPage":
-            			break;
+            			case "viewerPage":
             				page.local.p = "viewer";
             			    page.local.errorViewer = false;
             			    page.local.formId = event.route.params[''formId''];
