@@ -59,6 +59,8 @@ export class /*=c8o_CompName*/ extends C8oPageBase implements OnInit, OnDestroy,
 		this.actionBeans = this.owner ? this.owner["actionBeans"] : this.getInstance(ActionBeans);
 		
 		/*=c8o_CompInitializations*/
+
+		this.onInit();
 		
 		/*Begin_c8o_CompInitialization*/
 		/*End_c8o_CompInitialization*/
@@ -67,6 +69,8 @@ export class /*=c8o_CompName*/ extends C8oPageBase implements OnInit, OnDestroy,
 	ngOnDestroy() {
 		/*=c8o_CompFinallizations*/
 		
+		this.onDestroy();
+
 		/*Begin_c8o_CompFinalization*/
 		/*End_c8o_CompFinalization*/
 		
@@ -78,8 +82,46 @@ export class /*=c8o_CompName*/ extends C8oPageBase implements OnInit, OnDestroy,
 		if(changes.owner != undefined && changes.owner.previousValue == undefined){
 			this.pageOwner = this.findPageOwner();
 		}
+
+		this.onChanges(changes);
+		
 		/*Begin_c8o_CompChanges*/
 		/*End_c8o_CompChanges*/
+	}
+	
+	ngDoCheck() {
+		this.onDoCheck();
+		
+		/*Begin_c8o_CompDoCheck*/
+		/*End_c8o_CompDoCheck*/
+	}
+	
+	ngAfterContentInit() {
+		this.onAfterContentInit();
+		
+		/*Begin_c8o_CompAfterContentInit*/
+		/*End_c8o_CompAfterContentInit*/
+	}
+	
+	ngAfterContentChecked() {
+		this.onAfterContentChecked();
+		
+		/*Begin_c8o_CompAfterContentChecked*/
+		/*End_c8o_CompAfterContentChecked*/
+	}
+	
+	ngAfterViewInit() {
+		this.onAfterViewInit();
+		
+		/*Begin_c8o_CompAfterViewInit*/
+		/*End_c8o_CompAfterViewInit*/
+	}
+
+	ngAfterViewChecked() {
+		this.onAfterViewChecked();
+		
+		/*Begin_c8o_CompAfterViewChecked*/
+		/*End_c8o_CompAfterViewChecked*/
 	}
 	
 	instance() {
