@@ -1,11 +1,11 @@
 ↓IfElse [ngx.components.UIDynamicIf-1648569391724]: 
-  beanData: '{"ionBean":"IfElseAction","condition":"script:c8oPage.local.spinner == false"}'
+  beanData: '{"ionBean":"IfElseAction","condition":"script:params.selectedForm != null || c8oPage.local.spinner == false"}'
   ↓ModalPage [ngx.components.UIDynamicAction-1648569391727]: 
     beanData: |
       '{
        "ionBean": "ModalAction",
        "page": "plain:C8Oforms.MobileApplication.Application.wallPaperSelection",
-       "data": "script:{form: c8oPage.form, wallpaper: params.wallpaper}",
+       "data": "script:params.selectedForm != null ? {form: params.selectedForm, wallpaper: params.wallpaper}: {form: c8oPage.form, wallpaper: params.wallpaper}",
        "animated": "plain:false",
        "blockWhileDisplayed": "plain:true",
        "cssClass": "plain:modalCSV"
@@ -16,7 +16,8 @@
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
-              '		    let args = vars.arg.data;
+              '		if(vars.selectedForm == null){
+              			let args = vars.arg.data;
               		    const key = vars.wallpaper === true ? "wallpaper" : "thumbnail";
               		    page.form[key]["enabled"] = args.enabled;
               		    page.form[key]["type"] = args.type;
@@ -39,6 +40,40 @@
               		            resolve({"put_attach": false});
               		        }
               		    })
+              		}
+              		else{
+              			debugger;
+              			let args = vars.arg.data;
+              		    const key = vars.wallpaper === true ? "wallpaper" : "thumbnail";
+              		    let obj = { [key]: vars.selectedForm[key], "_id": vars.selectedForm["_id"]};
+              		    obj[key]["enabled"] = args.enabled;
+              		    obj[key]["type"] = args.type;
+              		    switch(args.type){
+              				case "color":
+              					obj[key]["color"] = args.color;
+              				break;
+              				case "custom":
+              					//legacy
+              					obj[key]["link"] = undefined;
+              				break;
+              			}
+              			const use_merge = "_use_merge_" + key;
+              			page.c8o.callJsonObject("fs://c8oforms_fs.post", {
+              				...obj,
+              				"_use_policy": "merge",
+              				[use_merge]:"override"
+              			})
+              			.then((res)=>{
+              				if(args.type === "custom"){
+              		            resolve({"key": key,"put_attach": true, "content": args.filePreview.source, "type" : args.filePreview.type });
+              		        }
+              		        else {
+              		            resolve({"put_attach": false});
+              		        }
+              				return null;
+              			})
+              		}
+              		    
               '
       ↓arg [ngx.components.UIControlVariable-1648569391733]: 
         varValue: 
@@ -47,6 +82,7 @@
             - MobileSmartSourceType: script:parent.out
       ↓IfElse [ngx.components.UIDynamicIf-1648569391736]: 
         beanData: '{"ionBean":"IfElseAction","condition":"script:parent.out.put_attach == true"}'
+        isEnabled: false
         ↓PutAttachment [ngx.components.UIDynamicAction-1648569391739]: 
           beanData: |
             '{
@@ -99,5 +135,12 @@
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: script:params.wallpaper
+      ↓selectedForm [ngx.components.UIControlVariable-1649779813474]: 
+        varValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:params.selectedForm
 ↓wallpaper [ngx.components.UIStackVariable-1648655578638]: 
   value: true
+↓selectedForm [ngx.components.UIStackVariable-1649779465013]: 
+  value: null
