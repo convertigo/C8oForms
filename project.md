@@ -21,7 +21,7 @@ see [documentation](http://localhost:18080/convertigo/xsd/couchdb/CouchDb.xsd)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.0.0.1#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -40,15 +40,6 @@ see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/172f326f
 
 
 see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8.0.0#readme)
-</p></blockquote></details>
-
-<details><summary><b>lib_Geocoding</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Geocoding
-
-
-see [readme](https://github.com/convertigo/c8oprj-lib-geocoding/tree/f512cfd65fe4d66ab6124310c46b5559cd140872#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Geocoding_ui_ngx</b></summary><blockquote><p>
