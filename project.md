@@ -1,7 +1,7 @@
 
 # ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/core/images/project_color_16x16.png?raw=true "Project") C8Oforms
 
-Convertigo Mobile builder Project
+Convertigo No Code Studio
 
 <details><summary><span style="color:DarkGoldenRod"><i>References</i></span></summary><blockquote><p>
 
@@ -7503,14 +7503,6 @@ Video tag identifier to output video camera. Default: 'video'. Optional
 
 <details><summary><span style="color:DarkGoldenRod"><i>Shared Components</i></span></summary><blockquote><p>
 
-
-<details><summary><b>buttonGDRPmenu</b></summary><blockquote><p>
-
-
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedregular_color_16x16.png?raw=true "UISharedRegularComponent") buttonGDRPmenu
-
-
-</p></blockquote></details>
 
 <details><summary><b>cardSelector</b></summary><blockquote><p>
 
