@@ -40,17 +40,26 @@ export class /*=c8o_PageName*/  extends C8oPage {
 		super(routerProvider, loadingCtrl, sanitizer, ref, injector, menuCtrl);
 		this.events = this.getInstance(Events);
 		this.actionBeans = this.getInstance(ActionBeans);
+
+        let updateNavParams = function(route: ActivatedRoute) {
+			let params = {}
+			Object.assign(params, route.snapshot.params)
+			Object.assign(params, route.snapshot.queryParams)
+			return new NavParams(params)
+		}
+
 		try {
 			// for PopoverController, ModalController
-			this.navParams = new NavParams(this.getInstance(NavParams).data)
+			let params = this.getInstance(NavParams).data
+			this.navParams = new NavParams(params)
 		} catch (e) {
 			// for NavController (based on angular router)
-			let params = {}
-			this.merge(params, this.route.snapshot.params)
-			this.merge(params, this.route.snapshot.queryParams)
-			this.navParams = new NavParams(params)
+			this.navParams = updateNavParams(this.route)
+			this.route.queryParams.subscribe(queryParameters => {
+				this.navParams = updateNavParams(this.route)
+			})
 		}
-		
+				
 		/*=c8o_PageConstructors*/
 		
 		/*Begin_c8o_PageConstructor*/
