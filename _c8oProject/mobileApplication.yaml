@@ -2374,48 +2374,53 @@ useClickForTap: true
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             '			let checkForDeletion = ()=>{
+            				page.c8o.log.warn("[group deletion] session status " + page.c8o.session.status);
             				page.c8o.log.debug("[group deletion] we will check for local deletions (groups)");
-            				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion, "Content-Type": "application/json" };
-            			 	Object.assign(headersObject, page.c8o.headers);
-            			 	let params = {
-            	                headers: this.c8o.httpInterface.getHeaders(headersObject),
-            	                withCredentials: true,
-            	            }
-            				page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
-            				.subscribe(
-            			        response => {
-            						let remote = response.results.map((x)=>{
-            							return x.id;
-            						})
-            						this.c8o.callJson("fs://c8oforms_fs.all")
-            						.then((resp: any)=>{
-            							let local = resp.rows.map((x)=>{
+            				if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+            					let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion, "Content-Type": "application/json" };
+            				 	Object.assign(headersObject, page.c8o.headers);
+            				 	let params = {
+            		                headers: this.c8o.httpInterface.getHeaders(headersObject),
+            		                withCredentials: true,
+            		            }
+            					page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
+            					.subscribe(
+            				        response => {
+            							let remote = response.results.map((x)=>{
             								return x.id;
             							})
-            							var toBeRemoved = local.filter(function(n) {
-            						    	return remote.indexOf(n) === -1;
-            							})
-            							page.c8o.log.debug("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
-            							toBeRemoved.forEach((el)=>{
-            								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
-            								.then((re)=>{
-            									page.c8o.log.debug("[group deletion] "+ el +" succesfully removed");
-            									return null;
+            							this.c8o.callJson("fs://c8oforms_fs.all")
+            							.then((resp: any)=>{
+            								let local = resp.rows.map((x)=>{
+            									return x.id;
             								})
-            								.fail((e)=>{
-            									page.c8o.log.error("[group deletion] "+ el +" an error occured");
+            								var toBeRemoved = local.filter(function(n) {
+            							    	return remote.indexOf(n) === -1;
             								})
-            								resolve();
+            								page.c8o.log.warn("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
+            								toBeRemoved.forEach((el)=>{
+            									if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+            										page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
+            										.then((re)=>{
+            											page.c8o.log.warn("[group deletion] "+ el +" succesfully removed");
+            											return null;
+            										})
+            										.fail((e)=>{
+            											page.c8o.log.error("[group deletion] "+ el +" an error occured");
+            										})
+            									}
+            									resolve();
+            								})
+            								return null;
             							})
-            							return null;
-            						})
-            						.fail((err)=>{
-            							page.c8o.log.error("[group deletion] an error occured while fetching .all");
-            						});
-            			        },
-            			        error => {
-            						page.c8o.log.error("[group deletion] an error occured while fetching changes");
-            			     })
+            							.fail((err)=>{
+            								page.c8o.log.error("[group deletion] an error occured while fetching .all");
+            							});
+            				        },
+            				        error => {
+            							page.c8o.log.error("[group deletion] an error occured while fetching changes");
+            				     })	
+            				}
             			}
             			let checkLiveDeletion = ()=>{
             				page.c8o.callJson("fs://c8oforms_fs.view", "ddoc", "control_documents", "view", "control_local_doc_check_delete", "__live","liveCheckDeletion")
@@ -2424,13 +2429,17 @@ useClickForTap: true
             						var newHash = sha256(JSON.stringify(res.rows));
             						if(this.local.hashDeletion == undefined || this.local.hashDeletion != newHash){
             							this.local.hashDeletion = newHash;
-            							for(let elem of res.rows){
-            								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
-            								.then((re)=>{
-            									return null;
-            								})
-            								.fail((e)=>{
-            								})
+            							page.c8o.log.warn("[checkLiveDeletion] we will remove " + JSON.stringify(res.rows));
+            							page.c8o.log.warn("[checkLiveDeletion] session status " + page.c8o.session.status);
+            							if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+            								for(let elem of res.rows){
+            									page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
+            									.then((re)=>{
+            										return null;
+            									})
+            									.fail((e)=>{
+            									})
+            								}
             							}
             							setTimeout(()=>{
             								checkForDeletion();
@@ -2482,6 +2491,13 @@ useClickForTap: true
                 - ↑value: sha256
               - java.lang.String: 
                 - ↑value: js-sha256
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: C8oSessionStatus
+              - java.lang.String: 
+                - ↑value: c8osdkangular
 ↓StyleTabs [ngx.components.UIStyle-1602496360884]: 
   styleContent: 
     - xmlizable: 
