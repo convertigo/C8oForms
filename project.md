@@ -11655,6 +11655,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>SharedTabs</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedregular_color_16x16.png?raw=true "UISharedRegularComponent") SharedTabs
+
+
+</p></blockquote></details>
+
 <details><summary><b>switchItemEdition</b></summary><blockquote><p>
 
 
