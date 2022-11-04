@@ -78,6 +78,7 @@ scriptContent:
             
             /*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.local.cacheComputeHtml$ = {};
         		this.local.gridAndCheckboxStyleOnScroll = {}
         		window["this"] = this;
         		this.local.tagName = "div";
@@ -1775,48 +1776,263 @@ scriptContent:
         	}
         	
         	public computeHtml$(str){
-        		const regex = /([$$$$START]{2}\w+)(((?![END]{1}\w+[$$]{2}).)*)([END]{1}\w+[$$]{2})|[$$]{2}\w+[$$]{2}/gm
-        		str = "`" + str.replace(/`/g, "\\`") + "`";
-        		let match;
-        		let cpt = 0;
-        		while((match = regex.exec(str)) != null) {
-        			cpt++;
-        			let elem = match[0];
-        			let iStart = str.indexOf(elem);
-                    let iEnd = iStart + elem.length;
-        			// if its a non preview $$
-        			if(match[4] == undefined){
-                        let id = elem.substring(2, elem.length -2);
-        				//ObjectThatHaveToCallFunc.push(id);
-                        let path = this.getPathById(+id);
-        				let currentVal = "";
-        				/*if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
-        					currentVal = path;
+        		if(this.local.cacheComputeHtml$[str] == undefined){
+        			let oStr = "" + str;
+        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
+        			str = "`" + str.replace(/`/g, "\\`") + "`";
+        			let match;
+        			let cpt = 0;
+        			while((match = regex.exec(str)) != null) {
+        				cpt++;
+        				let elem = match[0];
+        				let iStart = match.index;
+        	            let iEnd = match.index + match[0].length;
+        				// if its a non preview $$
+        				if(match[2] == undefined){
+        	                let id = match[1];
+        	                let path = this.getPathById(+id);
+        					let currentVal = "";
+        					currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`"
+        					str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
         				}
-        				else{*/
-        					 currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`"
-        				//}
-        				str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
-        			}
-        			// if its a preview $$START END$$
-        			else{
-        				let id = match[1].substring("$$START".length);
-        				//ObjectThatHaveToCallFunc.push(id);
-        				let defElem = this.getItemById(id);
-        				let valElem = this.getPathById(+id)
-        				let meta = JSON.parse(match[2]);
-        				if(defElem != null){
-        					str = str.substring(0, iStart) + "`+this.getBadge("+id+", "+ JSON.stringify(defElem)+", " +valElem+", "+ JSON.stringify(meta)+", false, ''html'')+`" + str.substring(iEnd);
+        				// if its a preview $$START END$$
+        				else{
+        					let id = match[1];
+        					let defElem: any = this.getItemById(id);
+        					let valElem = this.getPathById(+id)
+        					let meta = JSON.parse(match[2]);
+        					if(defElem != null){
+        						if((defElem != null && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")){
+        							str = str.substring(0, iStart) + "`+this.getBadge("+id+", "+ JSON.stringify(defElem)+", " +valElem+", "+ JSON.stringify(meta)+", false, ''html'')+`" + str.substring(iEnd);
+        						}
+        						else{
+        							let currentVal = "";
+        							let path = this.getPathById(+id);
+        							/*case "grid":	
+        									console.log("meta", meta);
+        									console.log("path", path);
+        									currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`";
+        									
+        								break;*/
+        							switch(defElem.type){
+        								case "grid":
+        								case "checkbox":
+        								case "radio_group":
+        								case "checkbox_group":
+        								case "radio":
+        								case "slider":
+        								case "select":
+        								case "datetime":
+        								case "time":
+        									// default for str checkbox_grp
+        									if(meta.c8opath == ""){
+        										currentVal = "`+"+this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format")+"+`";
+        									}
+        									else{
+        										let splitted = meta.c8opath.split(".");
+        										if(meta.c8obuiltin == "true" || meta.c8obuiltin == true){
+        											let typeTargeted = splitted[1];
+        											let verb = splitted[2];
+        											if(verb == null){
+        												verb = typeTargeted;
+        											}
+        											currentVal = "`+"+this[verb](path, defElem.type, typeTargeted)+"+`";
+        										}
+        										else if(defElem.type == "grid" && meta.c8otype == "path"){
+        											//let basePath = "page.local.techGrid["+splitted[0]+"]";
+        											let basePath = "page.local.techGrid";
+        											let diffUndefined = " != undefined";
+        											let st = "(" + ("" + basePath) + diffUndefined + " && ";
+        											let splittedLen = splitted.length -1;
+        											splitted.forEach((value, index)=>{
+        												basePath += "[''" + value + "'']";
+        												st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        												if(index == 0){
+        													basePath +=  "[''data'']";
+        													st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        												}
+        											})
+        											st+= "? " + basePath +" : ''''" + ")";
+        											console.log(st);
+        											currentVal = "`+"+st+"+`";
+        										}
+        										
+        										
+        									}
+        								break;
+        								case "location":
+        									console.log("meta loc", meta);
+        									console.log("path", path);
+        									// default for str checkbox_grp
+        									if(meta.c8opath == ""){
+        										currentVal = "`+"+this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format")+"+`";
+        									}
+        									else{
+        										let splitted = meta.c8opath.split(".");
+        										if(meta.c8obuiltin == "true" || meta.c8obuiltin == true){
+        											let typeTargeted = splitted[1];
+        											let verb = splitted[2];
+        											if(verb == null){
+        												verb = typeTargeted;
+        											}
+        											currentVal = "`+"+this[typeTargeted](path, defElem.type, verb)+"+`";
+        										}
+        										
+        										
+        									}
+        								break;
+        								default:
+        									console.log("meta", meta);
+        									console.log("path", path);
+        									currentVal = "`+"+path+"+`";
+        									
+        								break;
+        							}
+        							//currentVal = currentVal.replace(/`/g, "\\`");
+        							str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        						}
+        						
+        					}
         				}
         			}
+        			str = str.replace(/\\`/g, "`");
+        			this.local.cacheComputeHtml$[oStr] = str;
+        		}
+        		else{
+        			str = this.local.cacheComputeHtml$[str];
         		}
         		let page = this;
         		return eval(str);
         	}
+        	public get_compl(elem, type){
+        		
+        	}
+        	public selected_data_c8o_separated_by_coma(path, targeType, type){
+        		if(type == "TEXT_format"){
+        			if(targeType == "checkbox_group"){
+        				return "Object.keys("+path+").filter(((x)=>{return Object.keys("+path+"[x]).filter((y)=>{ return "+path+"[x][y].selected }).length > 0})).map((z)=>{ return "+path+"[z].filter((b)=>{return b.selected}).map((a, i)=>{var prefix = ''''; if(i == 0){prefix = z + '' :'' } return prefix + a.value}).join('', '') }).join(''; '')";
+        			}
+        			else if(targeType == "radio_group"){
+        				return "Object.keys("+path+").filter((x)=>{return "+path+"[x] != ''''}).map((y)=>{return y + '': '' +"+path+"[y]}).join('' ;'')"
+        			}
+        			else if(targeType == "checkbox"){
+        				return path + ".filter((x)=>{return x.selected}).map((y)=>{return y.value})"
+        			}
+        			else if(targeType == "radio" || targeType == "slider" || targeType == "select" || targeType == "datetime" || targeType == "time"){
+        				return path;
+        			}
+        			else if(targeType == "location"){
+        				return "(" + path + ".addr != undefined && " + path + ".addr.FormattedAddress != undefined ? "+path + ".addr.FormattedAddress : '''')";
+        			}
+        		}
+        		
+        		
+        	}
+        	public not_selected_data_c8o_separated_by_coma(path, targeType, type){
+        		if(type == "TEXT_format"){
+        			if(targeType == "checkbox_group"){
+        				return "Object.keys("+path+").filter(((x)=>{return Object.keys("+path+"[x]).filter((y)=>{ return "+path+"[x][y].selected == false }).length > 0})).map((z)=>{ return "+path+"[z].filter((b)=>{return b.selected == false}).map((a, i)=>{var prefix = ''''; if(i == 0){prefix = z + '' :'' } return prefix + a.value}).join('', '') }).join(''; '')";
+        			}
+        			else if(targeType == "checkbox"){
+        				return path + ".filter((x)=>{return !x.selected}).map((y)=>{return y.value})"
+        			}
+        		}
+        	}
+        	public all_data(elem, type){
+        		
+        	}
+        	public selected_data(elem, type){
+        		
+        	}
+        	public not_selected_data(elem, type){
+        		
+        	}
+        	public TEXT_format(path, targeType, type){
+        		if(targeType == "radio" || targeType == "slider" || targeType == "select"){
+        			return path;
+        		}
+        		else if(targeType == "location"){
+        			let obj = "null";
+        			switch(type){
+        				case "AddressLine":
+        				case "AdminDistrict":
+        				case "AdminDistrict2":
+        				case "CountryRegion":
+        				case "FormattedAddress":
+        				case "Locality":
+        				case "PostalCode":
+        					obj = "addr";
+        				break;
+        				case "latitude":
+        				case "longitude":
+        				case "altitude":
+        				case "accuracy":
+        				case "altitudeAccuracy": 
+        					obj = "gps";
+        				break;
+        			}
+        			if(obj != "null"){
+        				return "(" + path + "."+obj+" != undefined && " + path + "."+obj+"."+type+" != undefined ? "+path + "."+obj+"."+type+" : '''')";
+        			}
+        			else{
+        				return "(" + path + ".addr != undefined && " + path + ".addr.FormattedAddress != undefined ? "+path + ".addr.FormattedAddress : '''')";
+        			}
+        			
+        			
+        		}
+        		
+        	}
+        	public Number_format(path, targeType, type){
+        		if(targeType == "slider"){
+        			return "(+" + path +")";
+        		}
+        	}
+        	public fulldate(path, targeType, type){
+        		if(targeType == "datetime"){
+        			return path;
+        		}
+        	}
+        	public day(path, targeType, type){
+        		if(targeType == "datetime"){
+        			return "(" +path + ".length > 0 ? " + path + ".split(''-'')[2] : ''''" + ")";
+        		}
+        	}
+        	public month(path, targeType, type){
+        		if(targeType == "datetime"){
+        			return "(" +path + ".length > 0 ? " + path + ".split(''-'')[1] : ''''" + ")";
+        		}
+        	}
+        	public year(path, targeType, type){
+        		if(targeType == "datetime"){
+        			return "(" + path + ".length > 0 ? " + path + ".split(''-'')[0] : ''''" + ")";
+        		}
+        	}
+        	public fullhours(path, targeType, type){
+        		if(targeType == "time"){
+        			return path;
+        		}
+        	}
+        	public hours(path, targeType, type){
+        		if(targeType == "time"){
+        			return "(" +path + ".length > 0 ? " + path + ".split('':'')[0] : ''''" + ")";
+        		}
+        	}
+        	public mins(path, targeType, type){
+        		if(targeType == "time"){
+        			return "(" +path + ".length > 0 ? " + path + ".split('':'')[1] : ''''" + ")";
+        		}
+        	}
+        	public location(path, targeType, type){
+        		
+        	}
+        	
         	public getBadge(id, defElem, valElem, meta = null, newBadge = false, targetType){
         		let elem: any = defElem;
         		let str = "";
-        		if(elem != null && targetType == "html"){
+        		if(meta == null){
+        			meta = {};
+        		}
+        		if((elem != null && targetType == "html" && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")){
         			switch(elem.type){
         				case "radio_group":
         				case "checkbox_group":
@@ -1825,8 +2041,7 @@ scriptContent:
         					let linesLength = elem.lines.length;
         					let colwidth = 100 / (childrenLength + 1);
         					
-        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">
-        						<span class="tooltiptext" contenteditable="false" >${name}</span>`;
+        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">`;
         					if(newBadge){
         						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`
         					}
@@ -1880,8 +2095,7 @@ scriptContent:
         				case "checkbox":
         				case "select":
         					let childrenLength2 = elem.children.length;
-        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%">
-        						<span class="tooltiptext" contenteditable="false" >${name}</span>`;
+        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%">`;
         					if(newBadge){
         						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`;
         					}
@@ -1920,8 +2134,7 @@ scriptContent:
         				break;
         				case "grid":
         				let length = 0;
-        					str += `<${this.local.tagName} ${this.local.tagId}="${id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">
-        						<span class="tooltiptext" contenteditable="false" >${name}</span>`;
+        					str += `<${this.local.tagName} ${this.local.tagId}="${id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">`;
         					if(newBadge){
         						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`
         					}
@@ -2123,6 +2336,15 @@ scriptContent:
         			return str;
         		}
         		else{
+        			
+        			switch(elem.type){
+        				case "text":
+        				let path = this.getPathById(+id);
+        				str = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`";
+        				break;
+        			}
+        			return str;
+        			console.log("else, meta= ", meta);
         			return ''<''+ this.local.tagName +'' ''+this.local.tagId+''="''+id+''" class="styleBadge badge badge-md badge-md-convertigo" color="convertigo" contenteditable="false" style="display: inline-block;">''+name+''</''+ this.local.tagName +''>'';
         		}
         	    
@@ -4628,7 +4850,7 @@ title: Visualisateur
           beanData: |
             '{
              "ionBean": "Image",
-             "url": "script:''assets\/images\/svg\/logo\/logo_convertigo_no_code_studio.svg''",
+             "url": "script:''assets\/images\/svg\/logo\/logo_no_code_studio.svg''",
              "alt": "plain:Convertigo No Code Studio"
             }'
           selfClose: true
