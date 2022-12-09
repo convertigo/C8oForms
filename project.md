@@ -21,7 +21,7 @@ see [documentation](http://localhost:18080/convertigo/xsd/couchdb/CouchDb.xsd)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Actions_C8Oforms
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/master#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/45c27d58aa77a5cebd607ffe27b90a89c37d7784#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
@@ -39,7 +39,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_FullSyncGrp
 
 Reference to fs group
-see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/7.9.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/e6674a8b08e21ac87e9c337b3d766ac1447188cc#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_GeneratePWAAssets</b></summary><blockquote><p>
@@ -48,7 +48,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/7.9.0#re
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_GeneratePWAAssets
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/41f90f9e9c11a99add90bf06990f276df7e0de0a#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Geocoding_ui_ngx</b></summary><blockquote><p>
@@ -57,7 +57,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Geocoding_ui_ngx
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/a7a42457ce55cf84a5700f5c47ec57065d0d76cf#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
@@ -66,7 +66,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/8.0.
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_OAuth
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/bf120fcf0e880098e3ac992b86c8a1076864564d#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager</b> : Reference to secured login library</summary><blockquote><p>
@@ -75,7 +75,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/8.0.0#readme)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/7.9.0.1#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/f8941d93af0db63dc16c052daad77de2f6329747#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Vonage_ui_ngx</b></summary><blockquote><p>
@@ -7916,6 +7916,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>chooseIcon</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") chooseIcon
+
+
+</p></blockquote></details>
+
 <details><summary><b>colorPicker</b></summary><blockquote><p>
 
 
@@ -10874,84 +10882,6 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>modalTreeview</b></summary><blockquote><p>
-
-
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") modalTreeview
-
-
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;currentElement
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;graphic
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;handler
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;name
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;path
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;tree
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;treebuiltin
-</td>
-<td>
-
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
 <details><summary><b>networkStatusComp</b></summary><blockquote><p>
 
 
@@ -11987,6 +11917,100 @@ comment
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;path
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;showHeader
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;tree
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;treebuiltin
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>treeviewContent</b> : if this compenent is renamed it must be also renamed in editorPage (edit page class)</summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") treeviewContent
+
+if this compenent is renamed it must be also renamed in editorPage (edit page class)
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;currentElement
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;graphic
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;handler
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;name
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;path
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;showHeader
 </td>
 <td>
 

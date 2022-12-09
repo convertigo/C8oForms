@@ -1808,21 +1808,44 @@ scriptContent:
         								currentVal = "`+"+this[verb](path, defElem.type, typeTargeted)+"+`";
         							}
         							else if(defElem.type == "grid" && meta.c8otype == "path"){
-        								//let basePath = "page.local.techGrid["+splitted[0]+"]";
+        								debugger;
+        								// default base path is :
         								let basePath = "page.local.techGrid";
+        								let indexBased = false;
+        								// if returned value is either all_the_data or nothing, we will use local source value
+        								if(defElem.config.returned_value == "all_the_data" || defElem.config.returned_value == "nothing"){
+        									basePath = "this.local.sourceValue";
+        									indexBased = true;
+        								}
         								let diffUndefined = " != undefined";
         								let st = "(" + ("" + basePath) + diffUndefined + " && ";
         								let splittedLen = splitted.length -1;
         								splitted.forEach((value, index)=>{
-        									basePath += "[''" + value + "'']";
-        									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
-        									if(index == 0){
-        										basePath +=  "[''data'']";
+        									// if user first configured it''s grid returned_value to all_the_data or nothing and then changed it, ignore index key
+        									if(index == 1 && !isNaN(+value) && !indexBased){
+        										// do nothing and ignore first value key index
+        									}
+        									// if user first configured it''s grid returned_value to cell_selected or row_selected and then changed it, include index key
+        									else if(index == 1 && isNaN(+value) && indexBased){
+        										// add default 0 index key
+        										basePath += "[''" + 0 + "'']";
         										st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        										// then add the current key value
+        										basePath += "[''" + value + "'']";
+        										st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        									}
+        									// nominal case everything has been confired correctly
+        									else{
+        										basePath += "[''" + value + "'']";
+        										st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        										// if experssion is not indexed based, we need to search into data key
+        										if(index == 0){
+        											basePath +=  "[''data'']";
+        											st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        										}
         									}
         								})
         								st+= "? " + basePath +" : ''''" + ")";
-        								console.log(st);
         								if(ts){
         									currentVal = st;
         								}
@@ -1834,8 +1857,6 @@ scriptContent:
         						}
         					break;
         					case "location":
-        						console.log("meta loc", meta);
-        						console.log("path", path);
         						// default for str checkbox_grp
         						if(meta.c8opath == ""){
         							currentVal = "`+"+this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format")+"+`";
@@ -1858,8 +1879,6 @@ scriptContent:
         						}
         					break;
         					default:
-        						console.log("meta", meta);
-        						console.log("path", path);
         						if(ts){
         							currentVal = path;
         						}
@@ -1873,6 +1892,10 @@ scriptContent:
         				str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
         			}
         			
+        		}
+        		else{
+        			//element doesn''t exists any more return empty string
+        			str = "";
         		}
         		return str;
         	}
@@ -2043,7 +2066,27 @@ scriptContent:
         		if(meta == null){
         			meta = {};
         		}
-        		if((elem != null && targetType == "html" && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")){
+        		if(((elem != null && targetType == "html" && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")) && (elem.type == "radio_group" || elem.type == "checkbox_group" || elem.type == "select" || elem.type == "checkbox" || elem.type == "radio" || elem.type == "grid" )){
+        			if(meta["c8ostyles"] == undefined){
+        				newBadge = true;
+        			}
+        			// Create header of table
+        			let defaultStyles = {style: "border-collapse: collapse; width: 99.1426%; height: 72px;", border: "1", class: "mceNonEditable" };
+        			// get meta and c8ostyles, Converts from old syntax to new one if needed.
+        			let result = this.extractMetaAndStyles(meta, newBadge, defaultStyles);
+        			meta = result.meta;
+        			let style = result.c8ostyles;
+        						
+        			str += `<${this.local.tagName} ${this.local.tagId}="${id}" class="tooltip mceNonEditable"  contenteditable="false">`;
+        			// apply c8ostyles to table
+        			str += `<table`;
+        			if(style != null){
+        				for(let elem in style){
+        					str += ` ${elem}="${style[elem]}"`;
+        				}
+        			}
+        			str += `>`;
+        			
         			switch(elem.type){
         				case "radio_group":
         				case "checkbox_group":
@@ -2052,19 +2095,6 @@ scriptContent:
         					let linesLength = elem.lines.length;
         					let colwidth = 100 / (childrenLength + 1);
         					
-        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">`;
-        					if(newBadge){
-        						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`
-        					}
-        					else{
-        						str += `<table`;
-        						if(meta != null){
-        							for(let elem in meta){
-        								str += ` ${elem}="${meta[elem]}"`;
-        							}
-        						}
-        						str += `>`;
-        					}
         					str += `
         						<tbody>
         						<tr style="height: 18px;">
@@ -2095,31 +2125,11 @@ scriptContent:
         						cptOpts ++;
         	
         					}
-        					str += `</tbody>
-        							</table>
-        							</${this.local.tagName}>`;
-        					if(newBadge){
-        						str += `<p></p>`;
-        					}
         				break;
         				case "radio":
         				case "checkbox":
         				case "select":
-        					let childrenLength2 = elem.children.length;
-        					str += `<${this.local.tagName} ${this.local.tagId}="${elem.id}" class="tooltip mceNonEditable" style="width:100%">`;
-        					if(newBadge){
-        						str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`;
-        					}
-        					else{
-        						str += `<table`;
-        						if(meta != null){
-        							for(let elem in meta){
-        								str += ` ${elem}="${meta[elem]}"`;
-        							}
-        						}
-        						str += `>`;
-        					}
-        					
+        					let childrenLength2 = elem.children.length;				
         					str += `<tbody>
         						<tr style="height: 18px;">
         						<th style="text-align: center; height: 18px; width: 99.2498%;" colspan="2"><span id="1234"><!--START1123-->${elem.config.html}<!--END1123--></span></th>
@@ -2136,34 +2146,14 @@ scriptContent:
         						</tr>
         						`;
         					}
-        					str += `</tbody>
-        						</table>
-        						</${this.local.tagName}>`;
-        					if(newBadge){
-        						str += `<p></p>`;
-        					}
         				break;
         				case "grid":
         					try{
-        						let length = 0;
-        						str += `<${this.local.tagName} ${this.local.tagId}="${id}" class="tooltip mceNonEditable" style="width:100%"  contenteditable="false">`;
-        						if(newBadge){
-        							str += `<table style="border-collapse: collapse; width: 99.1426%; height: 72px;" border="1" class="mceNonEditable">`
-        						}
-        						else{
-        							str += `<table`;
-        							if(meta != null){
-        								for(let elem in meta){
-        									str += ` ${elem}="${meta[elem]}"`;
-        								}
-        							}
-        							str += `>`;
-        						}
         						for(let el of this.local.sourceValue[elem.name].colDef){
-        									if(el.hide != true){
-        										length ++;
-        									}
-        								}
+        							if(el.hide != true){
+        								length ++;
+        							}
+        						}
         						str += `
         							<tbody>
         							<tr style="height: 18px;">
@@ -2188,15 +2178,8 @@ scriptContent:
         											</td>`
         								})
         								str +=`</tr>`;
-        								str += `</tbody>
-        										</table>
-        										</${this.local.tagName}>`;
-        									if(newBadge){
-        										str += `<p></p>`;
-        									}
         							break;
         							case "all_the_data":
-        								
         								for(let el of this.local.sourceValue[elem.name].colDef){
         									if(el.hide != true){
         										colsName.push(el.field);
@@ -2232,12 +2215,6 @@ scriptContent:
         											</td>`
         										}
         										str +=`</tr>`;
-        									}
-        									str += `</tbody>
-        										</table>
-        										</${this.local.tagName}>`;
-        									if(newBadge){
-        										str += `<p></p>`;
         									}
         								break;
         								case "row_selected":
@@ -2316,12 +2293,6 @@ scriptContent:
         									else{
         										str += `<tr style="height: 18px;"><td colspan="${length} style="width: 100%; height: 18px; text-align: center; color: rgba(0, 0, 0, 0.54);font-family: "Open Sans";">&nbsp;</td></tr>`;
         									}
-        									str += `</tbody>
-        										</table>
-        										</${this.local.tagName}>`;
-        									if(newBadge){
-        										str += `<p></p>`;
-        									}
         								break;
         								case "cell_selected":
         									for(let el of this.local.sourceValue[elem.name].colDef){
@@ -2341,22 +2312,20 @@ scriptContent:
         												${this.formsSubmit[elem.name].value}
         												</td>`;
         									str +=`</tr>`;
-        									str += `</tbody>
-        										</table>
-        										</${this.local.tagName}>`;
-        									if(newBadge){
-        										str += `<p></p>`;
-        									}
         								break;
         						}		
         					}
         					catch(e){
         						str = " ";
         					}					
-        				break;
-        				default:
-        				break;
-        			
+        				break;			
+        			}
+        			// in any case add end of table
+        			str += `</tbody>
+        					</table>
+        					</${this.local.localTagName}>`;
+        			if(newBadge){
+        				str += `<p>&nbsp;</p>`;
         			}
         		}
         		if(str != ""){
@@ -2382,7 +2351,27 @@ scriptContent:
         	    
         	}
         	
-        	
+        	/** extractMetaAndStyles
+        		
+        		@description mainly used in getBadge function. Converts from old syntax to new one if needed 
+        		@returns meta and c8ostyles
+        		
+        	*/
+        	public extractMetaAndStyles(meta, newBadge, defaultStyles): any{
+        		// deep copy c8ostyles key if exists or create it
+        		let style = meta.c8ostyles != undefined ? JSON.parse(JSON.stringify(meta.c8ostyles)) : null;
+        		// convert to new syntax (c8otype, c8opath, c8oPrettyPath, c8obuiltin, c8oisobject, c8ostyles) etc...
+        		if(meta.c8otype == undefined && Object.keys(meta).length > 0){
+        			style = JSON.parse(JSON.stringify(meta));
+        		}
+        		// if newBadge
+        		else if(style == null || newBadge){
+        			style = defaultStyles;
+        		}
+        		// delete c8ostyle from meta 
+        		delete meta.c8ostyles;
+        		return {meta: meta, c8ostyles: style};
+        	}	
         	
         	public fillActionsVars(list): void {
         		let page = this;
