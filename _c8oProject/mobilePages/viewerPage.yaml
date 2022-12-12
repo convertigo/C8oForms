@@ -78,6 +78,7 @@ scriptContent:
             
             /*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.local.techSelect = {};
         		this.local.cacheComputeHtml$ = {};
         		this.local.gridAndCheckboxStyleOnScroll = {}
         		window["this"] = this;
@@ -709,41 +710,43 @@ scriptContent:
         						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
         						let sha = sources.sha;
         						let variables = {};
-        						this.functionsById[sha] = ()=>{
+        						this.functionsById[sha] = async ()=>{
         							page["computeVariable"](findVars, variables, item);
         							// if value has changed update it and call functions
         							if(page["actions"][item["name"]]["value"] != variables["selfVar"]){ 
         								page["actions"][item["name"]]["value"] = variables["selfVar"];
         								try{
-        								if(page.local["processingDataS"] == undefined){
-        									page.local["processingDataS"] = {};
-        								}
-        								if(page.local.functionsToBeCalled[item.id] != undefined){
-        									if(page.local["processingDataS"][item.id] != undefined){
-        										try{
-        											clearTimeout(page.local["processingDataS"][item.id]);
-        										}
-        										catch(e){
-        											console.error("catch9", e);
-        										}
+        									if(page.local["processingDataS"] == undefined){
+        										page.local["processingDataS"] = {};
         									}
-        									page.local["processingDataS"][item.id] = setTimeout(()=>{
-        										page.local.functionsToBeCalled[item.id]
-        										.forEach((id)=>{
-        											page["functionsById"][id](); 
-        										})
-        									}, 200)
-        									
+        									if(page.local.functionsToBeCalled[item.id] != undefined){
+        										if(page.local["processingDataS"][item.id] != undefined){
+        											try{
+        												clearTimeout(page.local["processingDataS"][item.id]);
+        											}
+        											catch(e){
+        												console.error("catch9", e);
+        											}
+        										}
+        										await new Promise((resolve_set)=>{
+        											page.local["processingDataS"][item.id] = setTimeout(()=>{
+        												page.local.functionsToBeCalled[item.id]
+        												.forEach((id)=>{
+        													page["functionsById"][id](); 
+        												})
+        												resolve_set();
+        											}, 0)
+        										});
+        										
+        										
+        									}
         								}
-        							}
-        							catch(e){
-        								console.error("catch10", e);
-        								page.c8o.log.error("Error while trying to refresh a data source", e);
-        							}
+        								catch(e){
+        									page.c8o.log.error("Error while trying to refresh a data source", e);
+        								}
         							}
         							
         						}
-        						//funcTocall();
         						this.functionsById[sha](); 
         						this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         				}
@@ -1369,22 +1372,15 @@ scriptContent:
         											return;
         										}
         										try{
-        											//res = await page.c8o.callJsonObject(requestable, params).async();
-        											page.c8o.callJsonObject(requestable, params).then((resp)=>{
-        												res = resp;
-        												followingCode();
-        												return null;
-        											})
-        											.fail((err)=>{
-        												this.c8o.log.error("An error occured while running data source\n" + JSON.stringify(err));
-        											})
+        											res = await page.c8o.callJsonObject(requestable, params).async();
+        											await followingCode();
         										}
         										catch(e){
         											this.c8o.log.error("An error occured while running data source\n" + JSON.stringify(e));
         										}
         									}
         									else{
-        										followingCode();
+        										await followingCode();
         									}
         									
         														
@@ -1417,7 +1413,7 @@ scriptContent:
         								}
         								
         							}
-        							// has we now parameters, we not each object that have to call this sequence do it once
+        							// has we know parameters, we not each object that have to call this sequence do it once
         							this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
         						}
         						if(item.type == "grid"){
@@ -1595,6 +1591,7 @@ scriptContent:
         							// postload function for select
         							postFunc = (res)=>{
         								let defaultSelected ="";
+        								let defaultBinded ="";
         								// find Colomn definitions
         								let urlParams = page.local.urlParams.get(item["name"]);
         								if(formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0){
@@ -1626,13 +1623,15 @@ scriptContent:
         									let selected2 = false;
                                             if(child == urlParams){
                                                 defaultSelected = child;
+                                                defaultBinded = child;
         										selected2 = true;
                                             }
         									else if(child != undefined && urlParams != undefined && child.value != undefined && JSON.stringify(child.value) == JSON.stringify(urlParams)){
         										defaultSelected = child.value;
+        										defaultBinded = child;
         										selected2 = true;
         									}
-        									//let childToAgreragte = typeof(child) == "string" ? child: child.value != undefined ? child.value: child.displayValue;
+        									
         									let objectToPush = {selected: selected2};
         									if(typeof(child) == "string"){
         										// simple value mode
@@ -1648,11 +1647,19 @@ scriptContent:
         									}
                                             formSubmit[item["name"]]["children"].push(objectToPush);
                                         }
+                                        // fill helper to get select value
+        								try{
+        									this.local.techSelect[item["name"]] = defaultBinded;
+        								}
+        								catch(e){
+        									
+        								}
                                         formSubmit[item["name"]]["value"] = defaultSelected;
         								page.local.sourceValue[item.name] = array;
         								page.local.updating[item.id] = 1;
         								
         								formSubmit[item["name"]]["value"] = defaultSelected;
+        								
         							}
         							// fail function for grid
         							failFunc = (err)=>{
@@ -1757,7 +1764,7 @@ scriptContent:
         								let path = this.getPathById(+id);
         								let defElem = this.getItemById(id);
         								let valElem = this.getPathById(+id)
-        								let meta = JSON.parse(match[2]);							
+        								let meta = JSON.parse(match[2].replace(/\\/g, ""));							
         								if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
         									str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, true)
         								}
@@ -1777,7 +1784,20 @@ scriptContent:
         	
         	public $$toVal(defElem, meta, str, iStart, valElem, iEnd, id, ts): string{
         		if(defElem != null){
-        			if((defElem != null && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")){
+        			
+        			if(meta == false){
+        				let currentVal = "";
+        			let path = this.getPathById(+id);
+        				if(ts){
+        					currentVal = path;
+        				}
+        				else{
+        					//currentVal = "`+(eval("+ path +"))+`"
+        					currentVal = "`+"+path+"+`";
+        				}
+        				str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        			}
+        			else if((defElem != null && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")){
         				str = str.substring(0, iStart) + "`+this.getBadge("+id+", "+ JSON.stringify(defElem)+", " +valElem+", "+ JSON.stringify(meta)+", false, ''html'')+`" + str.substring(iEnd);
         			}
         			else{
@@ -1799,16 +1819,7 @@ scriptContent:
         						}
         						else{
         							let splitted = meta.c8opath.split(".");
-        							if(meta.c8obuiltin == "true" || meta.c8obuiltin == true){
-        								let typeTargeted = splitted[1];
-        								let verb = splitted[2];
-        								if(verb == null){
-        									verb = typeTargeted;
-        								}
-        								currentVal = "`+"+this[verb](path, defElem.type, typeTargeted)+"+`";
-        							}
-        							else if(defElem.type == "grid" && meta.c8otype == "path"){
-        								debugger;
+        							if(defElem.type == "grid" && meta.c8otype == "path"){
         								// default base path is :
         								let basePath = "page.local.techGrid";
         								let indexBased = false;
@@ -1854,7 +1865,37 @@ scriptContent:
         								}
         								
         							}
+        							else if (meta.c8obuiltin == "true"){
+        								//{c8otype: ''path'', c8opath: ''select1.value'', c8oPrettyPath: '''', c8obuiltin: ''false''}
+        								//{c8otype: ''path'', c8opath: ''select1.TEXT_format'', c8oPrettyPath: '''', c8obuiltin: ''true''}
+        								let typeTargeted = splitted[1];
+        								let verb = splitted[2];
+        								if(verb == null){
+        									verb = typeTargeted;
+        								}
+        								currentVal = "`+"+this[verb](path, defElem.type, typeTargeted)+"+`";
+        							}
+        							else{
+        								// default base path is :
+        								let basePath = "page.local.techSelect";
+        								let diffUndefined = " != undefined";
+        								let st = "(" + ("" + basePath) + diffUndefined + " && ";
+        								let splittedLen = splitted.length -1;
+        								splitted.forEach((value, index)=>{
+        									basePath += "[''" + value + "'']";
+        									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        									
+        								})
+        								st+= "? " + basePath +" : ''''" + ")";
+        								if(ts){
+        									currentVal = st;
+        								}
+        								else{
+        									currentVal = "`+"+st+"+`";
+        								}
+        							}
         						}
+        						
         					break;
         					case "location":
         						// default for str checkbox_grp
@@ -1883,6 +1924,7 @@ scriptContent:
         							currentVal = path;
         						}
         						else{
+        							//currentVal = "`+(eval("+ path +"))+`"
         							currentVal = "`+"+path+"+`";
         						}
         						
@@ -1901,7 +1943,7 @@ scriptContent:
         	}
         	
         	public computeHtml$(str){
-        		if(this.local.cacheComputeHtml$[str] == undefined){
+        		//if(this.local.cacheComputeHtml$[str] == undefined){
         			let oStr = "" + str;
         			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
         			str = "`" + str.replace(/`/g, "\\`") + "`";
@@ -1913,7 +1955,7 @@ scriptContent:
         				let iStart = match.index;
         	            let iEnd = match.index + match[0].length;
         				// if its a non preview $$
-        				if(match[2] == undefined){
+        				if(match[2] == undefined || match[2] == ''false''){
         	                let id = match[1];
         	                let path = this.getPathById(+id);
         					let currentVal = "";
@@ -1925,16 +1967,16 @@ scriptContent:
         					let id = match[1];
         					let defElem: any = this.getItemById(id);
         					let valElem = this.getPathById(+id)
-        					let meta = JSON.parse(match[2]);
+        					let meta = JSON.parse(match[2].replace(/\\/g, ""));
         					str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, false)
         				}
         			}
         			str = str.replace(/\\`/g, "`");
         			this.local.cacheComputeHtml$[oStr] = str;
-        		}
+        		/*}
         		else{
         			str = this.local.cacheComputeHtml$[str];
-        		}
+        		}*/
         		let page = this;
         		return eval(str);
         	}
