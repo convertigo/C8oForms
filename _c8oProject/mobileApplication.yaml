@@ -6,99 +6,47 @@ componentScriptContent:
         '/*Begin_c8o_AppImport*/
         import { C8oFullSyncChangeListener, C8oLocalCache, Priority, C8oSessionStatus } from "c8osdkangular";
         import { APP_BASE_HREF } from ''@angular/common'';
+        import { VersionEvent } from ''@angular/service-worker'';
         /*End_c8o_AppImport*/
         /*Begin_c8o_AppDeclaration*/
             
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
-        		var toastCtrl = null;
-        		var toast = null;
-        		let updates: any = this.getInstance(SwUpdate);
-        		let checkingUpdate = false;
-        		if(updates.isEnabled){
-        			let doCheckUpdate = ()=>{
-        				this.c8o.log.debug("Checking for pwa update");
-        				updates.checkForUpdate()   
-        				.then(()=>{
-        					let taostDownloading = false;
-        					let toastReload = false;
-        					updates.available.subscribe(event => {
-        						checkingUpdate = true;	
-        						if(event.available.appData["version"] != event.current.appData["version"]){
-        							this.c8o.log.warn("A new version of the app is downoloading ... current: "+ event.current.appData != undefined ? event.current.appData["version"] : "..."+ "\n available: "+ event.available.appData["version"]);
-        							if(!taostDownloading){
-        								taostDownloading = true;
-        								toastCtrl = this.getInstance(ToastController);
-        								toast = toastCtrl.create({
-        								    message: this.translate.instant("toastUpdateAvailable"),
-        								    duration: 300000,
-        								    position: ''bottom'',
-        									cssClass:"toastPending",
-        									["buttons"]: [{text: this.translate.instant("close"), role: ''cancel'', side: ''end''}]
-        								});
-        								toast.present();
-        								
-        							}
-        							
-        						}
-        						updates.activateUpdate().then(() => {
-        							if(event.available.appData["version"] != event.current.appData["version"]){
-        								if(!toastReload){
-        									toastReload = true;
-        									if(toastCtrl == undefined){
-        										toastCtrl = this.getInstance(ToastController);
-        									}
-        									let toast2 = toastCtrl.create({
-        									    message: this.translate.instant("toastUpdateReady", {version: event.available.appData["version"] + ""}),
-        										duration: 300000,
-        									    position: ''bottom'',
-        										cssClass:"toastWarn",
-        										["buttons"] : [{text: this.translate.instant("restart_app_update"), role: ''cancel'', side: ''end''}]
-        									});
-        									let closedByTimeout = false;
-        							      	let timeoutHandle = setTimeout(() => { closedByTimeout = true; toast2.dismiss(); }, 300000);
-        									toast2.onDidDismiss(() => {
-        										if (closedByTimeout) return;
-        										clearTimeout(timeoutHandle);
-        									    // Dismiss manually
-        										this.c8o.log.warn("User asked to reload app to install update");
-        										document.location.reload();
-        									});
-        									try{
-        										toast.dismiss();	
-        									}
-        									catch(e){
-        										
-        									}
-        									toast2.present();
-        									this.c8o.log.warn("A new version of the app has been installed, relaunch the application to activate it:\n current version is: "+event.current.appData != undefined ? event.current.appData["version"] : "..." +"\n  new version is: "+event.available.appData["version"]);
-        								
-        								}
-        							}
-        							
-        							this.c8o.log.warn("A new version of the app has been installed but version doesn''t differs we won''t toast to update'', relaunch the application to activate it:\n current version is: "+event.current.appData != undefined ? event.current.appData["version"] : "..." +"\n  new version is: "+event.available.appData["version"]);
-        						});
-        					})
-        				})
-        			}
-        			doCheckUpdate();
-        			setInterval(()=>{
-        				if(checkingUpdate == false){
-        					doCheckUpdate();
-        				}
-        			}, 10000);
-        			
-        		}
-        		
-                //settings.setNormalizeParameters(true);
-                const localStorage = window.localStorage.getItem("c8oforms_log_level");
-                const logLevel = localStorage != undefined && localStorage != '''' ? localStorage : ''WARN'';
-                settings.setEnablePrefixBase(true)
-        		.setUseWorker(true);
-        		
-        		//.setLogLevelLocal(C8oLogLevel[logLevel]);
                 
-                this.global["platform"] = {"name":[""]};
+                // get preference log level from local storage
+        		let logLevel = this.getStoredLogLevel();
+                // enable database prefix, and worker usage for pouchdb fullsync
+                settings.setEnablePrefixBase(true)
+        		.setUseWorker(true)
+        		//.setLogLevelLocal(C8oLogLevel[logLevel]);
+        		// monitor PWA updates
+                this.monitorPwaUpdates();
+        		// set some globals vars
+                this.initializeGlobals();
+                /*End_c8o_AppSettings*/
+        /*Begin_c8o_AppConstructor*/
+        		/*End_c8o_AppConstructor*/
+        /*Begin_c8o_AppInitialization*/
+        				// configure pwa behavior
+                        this.configurePWA();
+        				// set log to true
+                        this.c8o.logC8o = true;
+                        // configure language pref and fix chrome''s translate issue
+                        this.configureLang();
+                        // get and set platform informations
+                        this.definePlatformInfos(platform);
+        				// set GDRP structure
+        				this.defineGdrp(translate);
+        				/** monitor session changes */
+        				this.monitorSessions();
+        				/** In dev mode only set version from i18n */
+        				this.monitorDEVPwaUpdates();
+        			/*End_c8o_AppInitialization*/
+        /*Begin_c8o_AppFunction*/
+            
+            /** Init some globals var */
+            public initializeGlobals(){
+        		this.global["platform"] = {"name":[""]};
                 this.global[''visibleoptions''] = [];
         		if(this.global["settings"] == undefined){
         			this.global["settings"] = {"editing_rights": false};
@@ -106,268 +54,283 @@ componentScriptContent:
         		else{
         			this.global["settings"]["editing_rights"] = false;
         		}
-                
-                /*End_c8o_AppSettings*/
-        /*Begin_c8o_AppConstructor*/
-        		/*End_c8o_AppConstructor*/
-        /*Begin_c8o_AppInitialization*/
-                        
-                        let indexPWA = window.location.pathname.indexOf("pwas");
-        			    let indexMobile = window.location.pathname.indexOf("mobile");
-        			    // if we started in standalone pwa mode
-        			    if (indexPWA != -1 && indexMobile == -1) {
-        			        // get url base
-        			        this.global.pwa = true;
-        			        const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
-        			        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
-                            let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
-                          	this.global.standalonePwa = standalonePwa;
-        					// get url base
-                          //this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "/manifest.json");
-        				  this.global.pwaGet
-                            .subscribe(
-                              response => {
-                                  if(response["theme_color"] != undefined){
-                                      statusBar.backgroundColorByHexString(response["theme_color"]);
-        							  this.global.pwaThemeColor = response["theme_color"];
-                                  }
-                                  else{
-                                      statusBar.backgroundColorByHexString("#0cbbe7");
-                                  }
-                                  
-                              },
-                              error=>{
-                                  statusBar.backgroundColorByHexString("#0cbbe7");
-                              })
-                        }
-                        else{
-        					this.global.standalonePwa = null;
-                            statusBar.backgroundColorByHexString("#0cbbe7");
-                        }
-                        window["mobileAndTabletCheck"] = function() {
-                            let check = false;
-                            (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window["opera"]);
-                            return check;
-                          };
+        		// helper to allow changing language from menus
+        		window["__c8o__translate"] = this.translate;
+        		this.global.since = "" + new Date().getTime();
+        	}
+        	
+        	/** retrive local store user preferences about logging */
+        	public getStoredLogLevel(): string{
+        		let localStorage = window.localStorage.getItem("c8oforms_log_level");
+                return (localStorage != undefined && localStorage != '''' ? localStorage : ''WARN'');
+        	}
+        	
+            /** get and set platform informations */
+            public definePlatformInfos(platform){
+        		this.global["platform"] = {};
+        		this.global["platform"]["width"] = platform.width();
+        		this.global["platform"]["info"] = platform.platforms();
+        		this.global["platform"]["name"] = [""]
+        		this.global.platform.name = {};
+        		if(platform.platforms()[0] == "android" || platform.platforms()[0] == "cordova" || platform.platforms()[0] == "mobile" || platform.platforms()[0] == "ios" ){
+        			this.global["platform"]["name"][0] =  "mobile";
+        			this.global["mobilePlat"] = true;
+        		}
+        		platform.resize.subscribe((ev) => {
+        			this.global["platform"]["width"] = window.innerWidth;
+        			this.global["platform"]["info"] = platform.platforms();
+        			if(platform.platforms()[0] == "android" || platform.platforms()[0] == "cordova" || platform.platforms()[0] == "mobile" || platform.platforms()[0] == "ios" ){
+        				this.global["platform"]["name"][0] =  "mobile";
+        				this.global["mobilePlat"] = true;
+        			}
+        			this.tick();
+        		});
+        	}
         
-                        window["__c8o__translate"] = this.translate;
-        				this.global.since = "" + new Date().getTime();
-                        
-                        this.c8o.logC8o = true; 
-                        /* Uncomment the following lines to enable the i18n feature.
-                         * You should add a json per language in the assets/i18n folder. */
-                       /* this.translate.use(''es'');
-                        this.translate.use(''it'');
-                        this.translate.use(''fr'');*/
-                        
-                        let localLang = window.localStorage.getItem("lang");
-                        if(localLang !=  undefined && localLang != "undefined"){
-                            this.translate.setDefaultLang(localLang);
-                            this.translate.use(localLang);
-                        }
-                        else{
-                            try {
-                               
-                                let navLang = navigator.language;
-                                if(navLang.indexOf("fr") == 0){
-                                    localLang = "fr";
-                                    this.translate.setDefaultLang(''fr'');  
-                                }
-                                else if(navLang.indexOf("en") == 0){
-                                    localLang = "en";
-                                    this.translate.setDefaultLang(''en'');  
-                                }
-                                else if(navLang.indexOf("es") == 0){
-                                    localLang = "es";
-                                    this.translate.setDefaultLang(''es'');  
-                                }
-                                else{
-                                    localLang = "en";
-                                    this.translate.setDefaultLang(''en''); 
-                                }
-                                
-                            }
-                            catch(e){
-                                localLang = "en";
-                                this.translate.setDefaultLang(''en''); 
-                            }
-                           this.global["__secretL"] = localLang;                    
-                        }
-        				window.document.getElementsByTagName("html")[0].setAttribute("lang", localLang);
-        			   	this.translate.onLangChange.subscribe((e) => {
-        			   		window.document.getElementsByTagName("html")[0].setAttribute("lang",e.lang);
-        			   	});
-        				if(Object.keys(this.global.settings).length <= 1){
-        					this.global.settings["language"] = localLang;
+        	/** Determine and configure pwa behavior */
+            public configurePWA(){
+        		// determine if we are in pwa mode or not
+        		let indexPWA = window.location.pathname.indexOf("pwas");
+        		let indexMobile = window.location.pathname.indexOf("mobile");
+        		// if we started in standalone pwa mode
+        		if (indexPWA != -1 && indexMobile == -1) {
+        			// get url base
+        			this.global.pwa = true;
+        			const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
+        			this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
+        			let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
+        			  this.global.standalonePwa = standalonePwa;
+        			// try to get manifest.webmanifest to detdermine themes
+        			  this.global.pwaGet
+        			.subscribe(
+        			  response => {
+        				  if(response["theme_color"] != undefined){
+        					  this.statusBar.backgroundColorByHexString(response["theme_color"]);
+        					  this.global.pwaThemeColor = response["theme_color"];
+        				  }
+        				  else{
+        					  this.statusBar.backgroundColorByHexString("#0cbbe7");
+        				  }
+        				  
+        			  },
+        			  error=>{
+        				  this.statusBar.backgroundColorByHexString("#0cbbe7");
+        			  })
+        		}
+        		// if we started in no-code studio mode
+        		else{
+        			this.global.standalonePwa = null;
+        			this.statusBar.backgroundColorByHexString("#0cbbe7");
+        		}
+        	}
+        
+        	/** configure language pref and fix chrome''s translate issue */
+        	public configureLang(){
+        		// get logs preference from local storage
+        		let localLang = window.localStorage.getItem("lang");
+        		if(localLang !=  undefined && localLang != "undefined"){
+        			this.translate.setDefaultLang(localLang);
+        			this.translate.use(localLang);
+        		}
+        		else{
+        			try {
+        				let navLang = navigator.language;
+        				if(navLang.indexOf("fr") == 0){
+        					localLang = "fr";
+        					this.translate.setDefaultLang(''fr'');  
         				}
-                        this.global["platform"] = {};
-                        this.global["platform"]["width"] = platform.width();
-                        this.global["platform"]["info"] = platform.platforms();
-                        this.global["platform"]["name"] = [""]
-                        this.global.platform.name = {};
-                        if(platform.platforms()[0] == "android" || platform.platforms()[0] == "cordova" || platform.platforms()[0] == "mobile" || platform.platforms()[0] == "ios" ){
-                            this.global["platform"]["name"][0] =  "mobile";
-                            this.global["mobilePlat"] = true;
-                        }
-                        
-                        //this.global["platform"]["name"][0] =  "web";
-                        platform.resize.subscribe((ev) => {
-                            this.global["platform"]["width"] = window.innerWidth;
-                            this.global["platform"]["info"] = platform.platforms();
-                           // this.global["platform"]["name"] = [""]
-                            if(platform.platforms()[0] == "android" || platform.platforms()[0] == "cordova" || platform.platforms()[0] == "mobile" || platform.platforms()[0] == "ios" ){
-                                this.global["platform"]["name"][0] =  "mobile";
-                                this.global["mobilePlat"] = true;
-                            }
-                            this.tick();
-                          });
-        				class gdrp {
-        					private _text: string = "";
-        					private translate: any;
-        					constructor(translate: any){
-        						this.translate = translate;
-        					}
-        				    get text(): string {
-        						try{
-        							let parsed = JSON.parse(this._text);
-        							return parsed[this.translate.currentLang];
-        						}
-        						catch(e){
-        							return this._text;
-        						}
-        				    }
-        				    set text(value: string) {
-        				        this._text = value;
-        				    }
+        				else if(navLang.indexOf("en") == 0){
+        					localLang = "en";
+        					this.translate.setDefaultLang(''en'');  
         				}
+        				else if(navLang.indexOf("es") == 0){
+        					localLang = "es";
+        					this.translate.setDefaultLang(''es'');  
+        				}
+        				else{
+        					localLang = "en";
+        					this.translate.setDefaultLang(''en''); 
+        				}
+        				
+        			}
+        			catch(e){
+        				localLang = "en";
+        				this.translate.setDefaultLang(''en''); 
+        			}
+        		   this.global["__secretL"] = localLang;                    
+        		}
+        		// fix chrome''s translate issue
+        		window.document.getElementsByTagName("html")[0].setAttribute("lang", localLang);
+        		   this.translate.onLangChange.subscribe((e) => {
+        			   window.document.getElementsByTagName("html")[0].setAttribute("lang",e.lang);
+        		   });
+        		if(Object.keys(this.global.settings).length <= 1){
+        			this.global.settings["language"] = localLang;
+        		}
+        	}
+        
+        	/** set gdrp structure */
+        	public async defineGdrp(translate){
+        		class gdrp {
+        			private _text: string = "";
+        			private translate: any;
+        			constructor(translate: any){
+        				this.translate = translate;
+        			}
+        			get text(): string {
         				try{
-        					this.c8o.callJson("C8Oforms.getGDRPmenu", C8oLocalCache.PARAM, new C8oLocalCache(Priority.SERVER, 99999999999999999999))
-        					.then((resp: any)=>{
-        						if(resp.ok == "true"){
-        							this.global.c8oGDRPmenu = new gdrp(translate);
-        							this.global.c8oGDRPmenu.text = resp.text;
-        						}
-        						else{
-        							this.global.c8oGDRPmenu = null;
-        						}
-        						return null;
-        					})
-        					.fail((e)=>{
-        						
-        					})
-        					this.c8o.callJson("C8Oforms.getGDRPtoast", C8oLocalCache.PARAM, new C8oLocalCache(Priority.SERVER, 99999999999999999999))
-        					.then((resp: any)=>{
-        						if(resp.ok == "true"){
-        							this.global.c8oGDRPtoast = new gdrp(translate);
-        							this.global.c8oGDRPtoast.text = resp.text;
-        						}
-        						else{
-        							this.global.c8oGDRPtoast = null;
-        						}
-        						return null;
-        					})
-        					.fail((e)=>{
-        						
-        					})
+        					let parsed = JSON.parse(this._text);
+        					return parsed[this.translate.currentLang];
         				}
         				catch(e){
+        					return this._text;
         				}
-        				
-        		
-        				
-        				 
-        				this.c8o.subscriber_session_changed.subscribe(()=>{
-        					if(this.global.doingLogin == true){
-        						this.c8o.log.debug("Session authenticated user has changed (form this tab)");
-        					}
-        					else{
-        						this.c8o.log.debug("Session authenticated user has changed (form another tab) we will prompt to reload the page")
-        						const alertCtrl: AlertController = this.getInstance(AlertController);
-        						const translate: TranslateService = this.getInstance(TranslateService);
-        						const prompt = alertCtrl.create({
-        						      message: this["translate"].instant("connect_another_forms"),
-        						      cssClass: ''c8o-alert-create-form'',
-        						      backdropDismiss: false,
-        						      buttons: [
-        						        {
-        						          text: this["translate"].instant("relaunch"),
-        						          handler: (data) => {
-        						            window.location.reload();
-        						          }
-        						        }
-        						      ]
-        						    }).then((res)=>{
-        								res.present();
-        							});
-        						    
-        					}
+        			}
+        			set text(value: string) {
+        				this._text = value;
+        			}
+        		}
+        		try{
+        			let resp = await this.c8o.callJson("C8Oforms.getGDRPmenu", C8oLocalCache.PARAM, new C8oLocalCache(Priority.SERVER, 99999999999999999999)).async();
+        			if(resp.ok == "true"){
+        				this.global.c8oGDRPmenu = new gdrp(translate);
+        				this.global.c8oGDRPmenu.text = resp.text;
+        			}
+        			else{
+        				this.global.c8oGDRPmenu = null;
+        			}
+        		}
+        		catch(e){
+        			// silent error
+        		}
+        		try{
+        			let resp = await this.c8o.callJson("C8Oforms.getGDRPtoast", C8oLocalCache.PARAM, new C8oLocalCache(Priority.SERVER, 99999999999999999999)).async()
+        			if(resp.ok == "true"){
+        				this.global.c8oGDRPtoast = new gdrp(translate);
+        				this.global.c8oGDRPtoast.text = resp.text;
+        			}
+        			else{
+        				this.global.c8oGDRPtoast = null;
+        			}
+        		}
+        		catch(e){
+        			// silent error
+        		}
+        	}
+        
+        	/** monitor session changes */
+        	public monitorSessions(){
+        		this.c8o.subscriber_session_changed.subscribe(()=>{
+        			if(this.global.doingLogin == true){
+        				this.c8o.log.debug("Session authenticated user has changed (form this tab)");
+        			}
+        			else{
+        				this.c8o.log.debug("Session authenticated user has changed (form another tab) we will prompt to reload the page")
+        				const alertCtrl: AlertController = this.getInstance(AlertController);
+        				const translate: TranslateService = this.getInstance(TranslateService);
+        				const prompt = alertCtrl.create({
+        					  message: this["translate"].instant("connect_another_forms"),
+        					  cssClass: ''c8o-alert-create-form'',
+        					  backdropDismiss: false,
+        					  buttons: [
+        						{
+        						  text: this["translate"].instant("relaunch"),
+        						  handler: (data) => {
+        							window.location.reload();
+        						  }
+        						}
+        					  ]
+        					}).then((res)=>{
+        						res.present();
+        					});
+        			}
+        		})
+        	}
+        	
+        	/** monitor dev PWA updates */
+        	public async monitorDEVPwaUpdates(){
+        		let updates: SwUpdate = this.getInstance(SwUpdate);
+        		// if running in dev mode
+        		if(!updates.isEnabled){
+        			// dev mode
+        			let v = await this.translate.get(''version_c8o'').toPromise();
+        			this.global.app = {state: 1, currentVersion: v, latestVersion: null};
+        		}
+        	}
+        	/** monitor PWA updates */
+        	public async monitorPwaUpdates(){
+        		let updates: SwUpdate = this.getInstance(SwUpdate);
+        		this.global.app = {state : 0, currentVersion:null, latestVersion: null};
+        		// if running in production
+        		if(updates.isEnabled){
+        			// regsister to updates
+        			updates.versionUpdates.subscribe(async (event: VersionEvent)=>{
+        				switch(event.type){
+        					// Has checked the version of the app on the server and did not find a new version.
+        					case "NO_NEW_VERSION_DETECTED":
+        						this.global.app.currentVersion = event.version.appData["version"];
+        						this.global.app.state = 1;
+        						this.c8o.log.debug(`NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
+        						console.log(`NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`, event);
+        					break;
+        					// A new version is detected on the server.
+        					case "VERSION_DETECTED":
+        						this.global.app.currentVersion = event.version.appData["version"];
+        						this.global.app.state = 2;
+        						this.c8o.log.debug(`VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
+        						console.log(`VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`, event);
+        					break;
+        					// A new version has been downloaded and is ready for activation.
+        					case "VERSION_READY":
+        						this.global.app.currentVersion = event.currentVersion.appData["version"];
+        						this.global.app.latestVersion = event.latestVersion.appData["version"];
+        						this.global.app.state = 3;
+        						this.c8o.log.debug(`VERSION_READY for PWA: ${event.currentVersion.appData["name"]}. current version is: ${event.currentVersion.appData["version"]}.\n new version is: ${event.latestVersion.appData["version"]}.`);
+        						console.log(`VERSION_READY for PWA: ${event.currentVersion.appData["name"]}. current version is: ${event.currentVersion.appData["version"]}.\n new version is: ${event.latestVersion.appData["version"]}.`, event);
+        						if(event.currentVersion.appData["version"] == event.latestVersion.appData["version"]){
+        							this.c8o.log.debug(`VERSION_READY since app versions are the same, we wont toast the update, update will be done at next reload`);
+        						}
+        						else{
+        							this.c8o.log.debug(`VERSION_READY since app versions differs from each other, we will toast the update, user will be promt to reload to install new update`);
+        							let toastCtrl = this.getInstance(ToastController);
+        							const toast = await toastCtrl.create({
+        						      message: this.translate.instant("toastUpdateReady", {version: event.latestVersion.appData["version"] + ""}),
+        							  duration: 300000,
+        						      icon: ''refresh-outline'',
+        						      buttons:[{text: this.translate.instant("restart_app_update"), role: ''update'', side: ''end'', handler: () => { document.location.reload(); }}],
+        						      cssClass:"toastWarn",
+        						    });
+        						    await toast.present();
+        						}
         					
-        				})
-                        /* Uncomment the following lines to enable the custom status bar color. */
-                        // statusBar.overlaysWebView(false);
-                        // statusBar.backgroundColorByHexString("#000000");
-                        // statusBar.styleBlackOpaque();
-                        
-                        /* Uncomment the following lines to enable the Service Worker Update. */
-                    
-        			/* let updates = this.getInstance(SwUpdate);
-                        let alertCtrl = this.getInstance(AlertController);
-                        let fu = ()=>{
-                           this.c8o.log.debug("[SW] checking for updates each 60000 ms")
-                           updates.checkForUpdate()
-                          .then((res)=>{
-                              this.c8o.log.debug("[SW] updates checked")
-                          })
-                          .catch((e)=>{
-                              this.c8o.log.error("[SW] updates error")
-                              console.log(JSON.stringify(e));
-                          });
-                        }
-                        fu()
-                        setInterval(fu, 60000)
-                        
-                        updates.available.subscribe(event => {
-                           this.c8o.log.debug("[SW] update available");
-        					let eventStr = "";
-        					try{
-        						eventStr = JSON.stringify(event);
-        					}
-        					catch(e){
-        						
-        					}
-                           this.c8o.log.debug(''new version is ''+ event.current + " total event is "+eventStr);
-                           const prompt = alertCtrl.create({
-                              header: this.translate.instant("convertigo_update_service"),
-                              message: this.translate.instant("new_version_available"),
-                              buttons: [
-                              {
-                                 text: this.translate.instant("Restart_app"),
-                                 handler: data => {
-                                     this.c8o.log.debug("update available we will reload app");
-                                     updates.activateUpdate().then(() => document.location.reload());
-                                 }
-                              }
-                             ]
-                           }).then((res)=>{res.prensent()});
-                        },
-        		      error => {
-        				let errorStr = "";
-        					try{
-        						errorStr = JSON.stringify(error);
-        					}
-        					catch(e){
-        						
-        					}
-        		        this.c8o.log.error(`An error were rejected in service worker` + errorStr);
-        		      },);
-        				/*updates.unrecoverable.subscribe(event => {
-              				this.c8o.log._error(`An error occurred that we cannot recover from:\n${event.reason}\n\n`);
-            			});*/
-        			/*End_c8o_AppInitialization*/
-        /*Begin_c8o_AppFunction*/
+        					break;
+        					// Checking for or downloading a new version fails.
+        					case "VERSION_INSTALLATION_FAILED":
+        						this.global.app.currentVersion = event.version.appData["version"];
+        						this.global.app.state = 4;
+        						this.c8o.log.debug(`VERSION_INSTALLATION_FAILED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}.\n error is: ${event.error}`);
+        						console.log(`VERSION_INSTALLATION_FAILED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}.\n error is: ${event.error}`, event);
+        					break;
+        				}
+        			})
+        			
+        		}
+        		else{
+        			// dev mode
+        			let v = await this.translate.get(''version_c8o'').toPromise();
+        			this.global.app = {state: 1, currentVersion: v, latestVersion: null};
+        		}
+        	}
         	/*End_c8o_AppFunction*/
-        /*Begin_c8o_function:CTS1616432315186*/
-        		let lang = event.toString();
+        /*Begin_c8o_function:CTS1663174471180*/
+        		let lang;
+        		try{
+        			lang = event.detail.value
+        		}
+        		catch(e){
+        			lang = event.toString();	
+        		}
+        		
         		if(lang != undefined && lang != ""){
         		    localStorage.setItem(''lang'', lang);
         	        window["__c8o__translate"]["use"](lang);
@@ -380,18 +343,80 @@ componentScriptContent:
         		setTimeout(()=>{
         			this.global.relaodAgGrid = undefined
         			this.local.visible = undefined;
+        			try{
+        				let id = "#c8oSpinnerRgaa";
+        				document.getElementById(id).innerHTML = page["translate"].instant("my_lang_selected");
+        				setTimeout(()=>{
+        					document.getElementById(id).innerHTML = "";
+        				}, 1000)
+        			}
+        			catch(e){
+        				
+        			}
         		},0);
-        		/*End_c8o_function:CTS1616432315186*/
-        /*Begin_c8o_function:CTS1649837875317*/
+        		/*End_c8o_function:CTS1663174471180*/
+        /*Begin_c8o_function:CTS1663852338212*/
+        		//done for rgaa / wcag
+        		try {
+        			setTimeout(()=>{
+        				let elems = document.getElementsByClassName("my-custom-interface")[0].querySelectorAll("ion-item ion-label");
+        				elems[0]["lang"]= "fr";
+        				elems[1]["lang"]= "en";
+        				elems[2]["lang"]= "es";
+        				elems[3]["lang"]= "it";
+        			},1000)
+        		} catch (e) {
+        		
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1663852338212*/
+        /*Begin_c8o_function:CTS1663174471255*/
         		this.c8o.session.user.name = "anonymous";
         		window.sessionStorage.removeItem("loggedInOffline");
         		resolve();
-        		/*End_c8o_function:CTS1649837875317*/
-        /*Begin_c8o_function:CTS1629304880673*/
+        		/*End_c8o_function:CTS1663174471255*/
+        /*Begin_c8o_function:CTS1663174974473*/
+        		try {
+        			let menu = page.getInstance(MenuController);
+        			menu.close()
+        		} catch (e) {
+        			console.log("err", e)
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1663174974473*/
+        /*Begin_c8o_function:CTS1666258151960*/
+        		try {
+        			document.querySelectorAll("#menubuttonviewer")[0].shadowRoot.querySelectorAll("button")[0].setAttribute("aria-expanded", "true");
+        			document.querySelectorAll("ion-button").forEach((x: any)=>{
+        				x.removeAttribute("type");
+        				x.role = "button";
+        				x.tabindex = "0";
+        				x.shadowRoot.querySelectorAll("button").forEach((y: any)=>{
+        					y.removeAttribute("role");
+        				})
+        			})
+        		} catch (e) {
+        		
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1666258151960*/
+        /*Begin_c8o_function:CTS1666258685848*/
+        		try {
+        			document.querySelectorAll("#menubuttonviewer")[0].shadowRoot.querySelectorAll("button")[0].setAttribute("aria-expanded", "false")
+        		} catch (e) {
+        		
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1666258685848*/
+        /*Begin_c8o_function:CTS1656494481842*/
         		this.c8o.session.user.name = "anonymous";
         		window.sessionStorage.removeItem("loggedInOffline");
         		resolve();
-        		/*End_c8o_function:CTS1629304880673*/
+        		/*End_c8o_function:CTS1656494481842*/
         /*Begin_c8o_function:CTS1615223142157*/
         		if(this.global.settings.language != undefined && this.global.settings.language != ""){
         			page["translate"].setDefaultLang(this.global.settings.language);
@@ -413,48 +438,53 @@ componentScriptContent:
         		/*End_c8o_function:CTS1615223142157*/
         /*Begin_c8o_function:CTS1615203057107*/
         			let checkForDeletion = ()=>{
+        				page.c8o.log.warn("[group deletion] session status " + page.c8o.session.status);
         				page.c8o.log.debug("[group deletion] we will check for local deletions (groups)");
-        				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion, "Content-Type": "application/json" };
-        			 	Object.assign(headersObject, page.c8o.headers);
-        			 	let params = {
-        	                headers: this.c8o.httpInterface.getHeaders(headersObject),
-        	                withCredentials: true,
-        	            }
-        				page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
-        				.subscribe(
-        			        response => {
-        						let remote = response.results.map((x)=>{
-        							return x.id;
-        						})
-        						this.c8o.callJson("fs://c8oforms_fs.all")
-        						.then((resp: any)=>{
-        							let local = resp.rows.map((x)=>{
+        				if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+        					let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion, "Content-Type": "application/json" };
+        				 	Object.assign(headersObject, page.c8o.headers);
+        				 	let params = {
+        		                headers: this.c8o.httpInterface.getHeaders(headersObject),
+        		                withCredentials: true,
+        		            }
+        					page.c8o.httpPublic.get(page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs",params)
+        					.subscribe(
+        				        response => {
+        							let remote = response.results.map((x)=>{
         								return x.id;
         							})
-        							var toBeRemoved = local.filter(function(n) {
-        						    	return remote.indexOf(n) === -1;
-        							})
-        							page.c8o.log.debug("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
-        							toBeRemoved.forEach((el)=>{
-        								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
-        								.then((re)=>{
-        									page.c8o.log.debug("[group deletion] "+ el +" succesfully removed");
-        									return null;
+        							this.c8o.callJson("fs://c8oforms_fs.all")
+        							.then((resp: any)=>{
+        								let local = resp.rows.map((x)=>{
+        									return x.id;
         								})
-        								.fail((e)=>{
-        									page.c8o.log.error("[group deletion] "+ el +" an error occured");
+        								var toBeRemoved = local.filter(function(n) {
+        							    	return remote.indexOf(n) === -1;
         								})
-        								resolve();
+        								page.c8o.log.warn("[group deletion] there are " + toBeRemoved.length +" item(s) to be removed");
+        								toBeRemoved.forEach((el)=>{
+        									if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+        										page.c8o.callJson("fs://c8oforms_fs.delete", "docid", el)
+        										.then((re)=>{
+        											page.c8o.log.warn("[group deletion] "+ el +" succesfully removed");
+        											return null;
+        										})
+        										.fail((e)=>{
+        											page.c8o.log.error("[group deletion] "+ el +" an error occured");
+        										})
+        									}
+        									resolve();
+        								})
+        								return null;
         							})
-        							return null;
-        						})
-        						.fail((err)=>{
-        							page.c8o.log.error("[group deletion] an error occured while fetching .all");
-        						});
-        			        },
-        			        error => {
-        						page.c8o.log.error("[group deletion] an error occured while fetching changes");
-        			     })
+        							.fail((err)=>{
+        								page.c8o.log.error("[group deletion] an error occured while fetching .all");
+        							});
+        				        },
+        				        error => {
+        							page.c8o.log.error("[group deletion] an error occured while fetching changes");
+        				     })	
+        				}
         			}
         			let checkLiveDeletion = ()=>{
         				page.c8o.callJson("fs://c8oforms_fs.view", "ddoc", "control_documents", "view", "control_local_doc_check_delete", "__live","liveCheckDeletion")
@@ -463,13 +493,17 @@ componentScriptContent:
         						var newHash = sha256(JSON.stringify(res.rows));
         						if(this.local.hashDeletion == undefined || this.local.hashDeletion != newHash){
         							this.local.hashDeletion = newHash;
-        							for(let elem of res.rows){
-        								page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
-        								.then((re)=>{
-        									return null;
-        								})
-        								.fail((e)=>{
-        								})
+        							page.c8o.log.warn("[checkLiveDeletion] we will remove " + JSON.stringify(res.rows));
+        							page.c8o.log.warn("[checkLiveDeletion] session status " + page.c8o.session.status);
+        							if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+        								for(let elem of res.rows){
+        									page.c8o.callJson("fs://c8oforms_fs.delete", "docid", res.rows._id)
+        									.then((re)=>{
+        										return null;
+        									})
+        									.fail((e)=>{
+        									})
+        								}
         							}
         							setTimeout(()=>{
         								checkForDeletion();
@@ -501,6 +535,7 @@ componentScriptContent:
         		/*End_c8o_function:CTS1615203057107*/
         /*Begin_c8o_function:CTS1645783653455*/
         		try {
+        			document.body.classList.toggle(''dark'', false);
         			// define some variables
         			let indexPWA;
         			let indexMobile;
@@ -595,7 +630,8 @@ componentScriptContent:
         			
         			switch(event.pageName){
         				case "loginPage":
-        				
+        					this.global.tempFormId = null;
+        					this.global.tempPage = null;
         					let indexPWA = window.location.pathname.indexOf("pwas");
         				    let indexMobile = window.location.pathname.indexOf("mobile");
         				    // if we started in standalone pwa mode
@@ -619,6 +655,8 @@ componentScriptContent:
         			                }
         			                else {
         								// if PWA is authenticated one
+        								this.global.tempFormId = standalonePwa;
+        								this.global.tempPage = "viewerPage";
         			                    this.local.formId = standalonePwa;
         			                    this.local.page = "viewerPage";
         			                    if (navigator.onLine) {
@@ -1183,6 +1221,7 @@ useClickForTap: true
 ↓treeview [ngx.components.UISharedRegularComponent-1666694668065]: 🗏 mobileSharedComponents/treeview.yaml
 ↓treeviewContent [ngx.components.UISharedRegularComponent-1670505045599]: 🗏 mobileSharedComponents/treeviewContent.yaml
 ↓chooseIcon [ngx.components.UISharedRegularComponent-1670608048107]: 🗏 mobileSharedComponents/chooseIcon.yaml
+↓SharedVersion [ngx.components.UISharedRegularComponent-1670965959010]: 🗏 mobileSharedComponents/SharedVersion.yaml
 ↓editorPage [ngx.components.PageComponent-1531323370377]: 🗏 mobilePages/editorPage.yaml
 ↓loginPage [ngx.components.PageComponent-1645091279476]: 🗏 mobilePages/loginPage.yaml
 ↓viewerPage [ngx.components.PageComponent-1537364775769]: 🗏 mobilePages/viewerPage.yaml
