@@ -290,6 +290,247 @@ componentScriptContent:
             			});*/
         			/*End_c8o_AppInitialization*/
         /*Begin_c8o_AppFunction*/
+        	public getSessionInfo(){
+        		let session = {sessionStatus: "", userName: ""}
+        		try{
+        			session.sessionStatus = "" + this.c8o.session.status;
+        		}
+        		catch(e){
+        			this.c8o.log.warn("[group deletion][checkForDeletion] can''t retrive session status");
+        		}
+        		try{
+        			session.userName = "" + JSON.stringify(this.c8o.session.user);
+        		}
+        		catch(e){
+        			this.c8o.log.warn("[group deletion][checkForDeletion] can''t retrive user name");
+        		}
+        		return session;
+        	}
+        	public getChangesHeader() :Object{
+        		// define const headers object
+        		let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': this.c8o.sdkVersion };
+        		Object.assign(headersObject, this.c8o.headers);
+        		let params = {
+        			headers: this.c8o.httpInterface.getHeaders(headersObject),
+        			withCredentials: true,
+        		};
+        		return params
+        	}
+        	public async getChange (since = 0, accumulatedData = [], cpt = 0, id){
+        		// called to eval id and check if this execution should be canceled
+        		this.throwBecauseId(id, "[group deletion][checkForDeletion][getChange]");
+        		this.c8o.log.warn(`[group deletion][checkForDeletion][getChange]${this.prefixIdC(id)} page ${cpt}, current accumulatedData ${JSON.stringify(accumulatedData)}`);
+        		let params = this.getChangesHeader();
+        		try{
+        			let res: any = await new Promise((resolve, reject)=>{
+        				this.c8o.log.warn(`[group deletion][checkForDeletion][getChange]${this.prefixIdC(id)} page ${cpt}, will call changes with since = ${since}`);
+        				this.c8o.httpPublic.get(`${this.c8o.endpointConvertigo}/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs&limit=100&since=${since}`, params)
+        				.subscribe(
+        					response => {
+        						this.c8o.log.warn(`[group deletion][checkForDeletion][getChange]${this.prefixIdC(id)} page ${cpt}, with since = ${since}, raw response length = ${JSON.stringify(response).length}`);
+        						resolve(response);
+        					},
+        					error => {
+        						this.c8o.log.error(`[group deletion][checkForDeletion][getChange]${this.prefixIdC(id)} page ${cpt}, with since=${since}, an error occured while fetching changes error = ${JSON.stringify(error)}`);
+        						reject(error);
+        					}
+        				)
+        			})
+        			accumulatedData = accumulatedData.concat(res.results);
+        			if(res.results.length > 0 || res.pending > 0){
+        				this.c8o.log.warn(`[group deletion][checkForDeletion][getChange]${this.prefixIdC(id)} page ${cpt}, with since = ${since}, as (res.results.length > 0 || res.pending > 0) recursive call of getChange`);
+        				cpt ++;
+        				return this.getChange(res.last_seq, accumulatedData, cpt, id)
+        			}
+        			else{
+        				this.c8o.log.warn(`[group deletion][checkForDeletion][getChange]${this.prefixIdC(id)} page ${cpt}, with since = ${since}, as !(res.results.length > 0 || res.pending > 0) return response`);
+        				return accumulatedData;
+        			}
+        		}
+        		catch(e){
+        			if(e.cause == "throwBecauseId"){
+        													
+        			}
+        			else{
+        				this.c8o.log.error("[group deletion][checkForDeletion][getChange]${this.prefixIdC(id)} an error occured while fetching changes " + JSON.stringify(e));
+        			}
+        			// if an error occured cancel exec;
+        			throw e;
+        		}
+        
+        	}
+        	
+        	public async checkForDeletion(id){
+        		let sess = this.getSessionInfo();
+        		let sessionStatus = sess.sessionStatus
+        		let userName = sess.userName;
+        		this.c8o.log.warn(`[group deletion][checkForDeletion]${this.prefixIdC(id)} user: ${userName} | session status: ${sessionStatus}`);
+        		try{
+        			this.c8o.log.warn("[group deletion][checkForDeletion]${this.prefixIdC(id)} we will get remote changes paginating");
+        			// called to eval id and check if this execution should be canceled
+        			this.throwBecauseId(id, "[group deletion][checkForDeletion]");
+        			let remoteChanges = await this.getChange(0, [], 0, id);
+        			// called to eval id and check if this execution should be canceled
+        			this.throwBecauseId(id, "[group deletion][checkForDeletion]");
+        			this.c8o.log.warn(`[group deletion][checkForDeletion]${this.prefixIdC(id)} remote changes paginated response  = ${JSON.stringify(remoteChanges)}`);
+        			let remote = remoteChanges.map((x)=>{
+        				return x.id;
+        			})
+        			this.c8o.log.warn(`[group deletion][checkForDeletion]${this.prefixIdC(id)} remote changes paginated response mapped = ${JSON.stringify(remote)}`);
+        			try{
+        				let localResp = await this.c8o.callJson("fs://c8oforms_fs.all").async();
+        				// called to eval id and check if this execution should be canceled
+        				this.throwBecauseId(id, "[group deletion][checkForDeletion]");
+        				this.c8o.log.warn(`[group deletion][checkForDeletion]${this.prefixIdC(id)} raw local response = ${JSON.stringify(localResp)}`);
+        				let local = localResp.rows.map((x)=>{
+        					return x.id;
+        				})
+        				this.c8o.log.warn(`[group deletion][checkForDeletion]${this.prefixIdC(id)} raw local response mapped = ${JSON.stringify(local)}`);
+        				var toBeRemoved = local.filter(function(n) {
+        			    	return remote.indexOf(n) === -1;
+        				})
+        				this.c8o.log.warn(`[group deletion][checkForDeletion]${this.prefixIdC(id)} toBeRemoved = ${JSON.stringify(toBeRemoved)}`);
+        				this.c8o.log.warn(`[group deletion][checkForDeletion]${this.prefixIdC(id)} there are = ${toBeRemoved.length} item(s) to be removed`);
+        				// called to eval id and check if this execution should be canceled
+        				this.throwBecauseId(id, "[group deletion][checkForDeletion]");
+        				for(let el of toBeRemoved){
+        					// called to eval id and check if this execution should be canceled
+        					this.throwBecauseId(id, "[group deletion][checkForDeletion]");
+        					sess = this.getSessionInfo();
+        					sessionStatus = sess.sessionStatus
+        					userName = sess.userName;
+        					// if user is connected
+        					if(this.c8o.session.status == 1){
+        						this.c8o.log.warn(`[group deletion][deleting]${this.prefixIdC(id)} user: ${userName} | session status: ${sessionStatus}`);
+        						// don''t try catch to abort deletion in case of any error occured, errow will throw and stop exec
+        						let re = await this.c8o.callJson("fs://c8oforms_fs.post", "_id", el, "_use_policy", "override", "_deleted", true, "c8odontPush", true).async();
+        						this.c8o.log.warn("[group deletion][checkForDeletion]${this.prefixIdC(id)} "+ el +" succesfully removed");
+        					}
+        					else {
+        						// errow will throw and stop exec
+        						this.c8o.log.error(`[group deletion][deleting][wont delete]${this.prefixIdC(id)} user: ${userName} | session status: ${sessionStatus}`);
+        						// must abort
+        						throw new Error(`[group deletion][deleting][wont delete]${this.prefixIdC(id)} user: ${userName} | session status: ${sessionStatus}`);
+        					}
+        				}
+        			}
+        			catch(e){
+        				// must abort
+        				throw e;
+        			}
+        			
+        		}
+        		catch(e){
+        			if(e.cause == "throwBecauseId"){
+        													
+        			}
+        			else{
+        				this.c8o.log.error(`[group deletion][deleting] an error occured ${JSON.stringify(e)}`);
+        			}
+        			debugger;
+        			// must abort
+        		}
+        	}
+        	
+        	public async checkForDeletionLive(){
+        		debugger;
+        		this.c8o.log.warn(`[group deletion][checkLiveDeletion] called`);
+        		if(this.global.checkingForDeletion === undefined){
+        			this.global.PromisesCheckForDeletion = [];
+        			this.global.checkingForDeletion = true;
+        			let id = "deletionId"+ (new Date().getTime());
+        			this.global.id = "" + id;
+        			Promise.all(this.global.PromisesCheckForDeletion).then(()=>{
+        				//wait for other execution to be finished
+        				if(this.global.id == id){
+        					this.c8o.log.warn(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} previous PromisesCheckForDeletion resolved, and id still equals this.global.id`);
+        					try{
+        						this.checkForDeletion(id);
+        					}
+        					catch(e){
+        						if(e.cause == "throwBecauseId"){
+        													
+        						}
+        						else{
+        							this.c8o.log.error(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} any error occured ${JSON.stringify(e)}`);
+        						}
+        					}
+        					
+        				}
+        				else{
+        					this.c8o.log.warn(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} previous PromisesCheckForDeletion resolved, but ${this.cancelIdC(id)}`);
+        				}
+        				
+        			})			
+        			this.c8o.callJson("fs://c8oforms_fs.view", "ddoc", "control_documents", "view", "control_local_doc_check_delete", "__live","liveCheckDeletion")
+        			.then((res: any)=>{
+        					if(res.rows.length > 0){
+        						var newHash = sha256(JSON.stringify(res.rows));
+        						if(this.local.hashDeletion == undefined || this.local.hashDeletion != newHash){
+        							let id = "deletionId"+ (new Date().getTime());
+        							this.global.id = "" + id;
+        							this.local.hashDeletion = newHash;
+        							this.c8o.log.warn(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} c8oforms_fs.view control_documents/control_local_doc_check_delete response triggerd. res: ${JSON.stringify(res.rows)}`);
+        							let sess = this.getSessionInfo();
+        							let sessionStatus = sess.sessionStatus
+        							let userName = sess.userName;
+        							// if user is connected
+        							if(this.c8o.session.status == 1){
+        								this.c8o.log.warn(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} user: ${userName} | session status: ${sessionStatus}`);
+        								this.c8o.log.warn(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} wait for PromisesCheckForDeletion before executing checkForDeletion`);
+        								Promise.all(this.global.PromisesCheckForDeletion).then(()=>{
+        									setTimeout(()=>{
+        										//wait for other execution to be finished
+        										if(this.global.id == id){
+        											this.c8o.log.warn(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} previous PromisesCheckForDeletion resolved, and id still equals this.global.id`);
+        											try{
+        												this.checkForDeletion(id);
+        											}
+        											catch(e){
+        												if(e.cause == "throwBecauseId"){
+        													
+        												}
+        												else{
+        													this.c8o.log.error(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} any error occured ${JSON.stringify(e)}`);
+        												}
+        											}
+        										}
+        										else{
+        											this.c8o.log.warn(`[group deletion][checkLiveDeletion]${this.prefixIdC(id)} previous PromisesCheckForDeletion resolved, but ${this.cancelIdC(id)}`);
+        										}
+        									},3000)
+        									
+        								})
+        							}
+        							else{
+        								this.c8o.log.warn(`[group deletion][deleting][wont delete] user: ${userName} | session status: ${sessionStatus}`);
+        							}
+        						}
+        					}
+        					return null;
+        				})
+        				.fail((err)=>{
+        					this.c8o.log.warn(`[group deletion][checkLiveDeletion] live view failed`);
+        				})
+        		}
+        		else{
+        			this.c8o.log.warn(`[group deletion][checkLiveDeletion] wont''t execute another execution already performing`);
+        		}
+        		
+        	}
+        	public prefixIdC(id){
+        		return `[id][${id}]`
+        	}
+        	public cancelIdC(id){
+        		return `execution canceled because of id=${id} != this.global.id=${this.global.id}`
+        	}
+        	public throwBecauseId(id, prefixStr){
+        		if(id != this.global.id){
+        			let cancelId = `${this.cancelIdC(id)}`
+        			this.c8o.log.warn(`${prefixStr} ${cancelId}`);
+        			throw new Error(cancelId, {message: cancelId, cause: "throwBecauseId"});
+        		}
+        	}
         	/*End_c8o_AppFunction*/
         /*Begin_c8o_function:CTS1616432315186*/
         		let lang = event.toString();
@@ -340,6 +581,52 @@ componentScriptContent:
         		resolve();
         		/*End_c8o_function:CTS1615223142157*/
         /*Begin_c8o_function:CTS1615203057107*/
+        		this["checkForDeletionLive"]();
+        		/*let getChange = async (since = 0, accumulatedData = [], last = false)=>{
+        				page.c8o.log.warn("[group deletion][checkForDeletion] we will get remote changes");
+        				// define const headers object
+        				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': page.c8o.sdkVersion };
+        				Object.assign(headersObject, page.c8o.headers);
+        				let params = {
+        					headers: page.c8o.httpInterface.getHeaders(headersObject),
+        					withCredentials: true,
+        				};
+        				let queryString = `${page.c8o.endpointConvertigo}/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs&limit=100&since=${since}`;
+        				try{
+        					let res: any = await new Promise((resolve, reject)=>{
+        						page.c8o.httpPublic.get(queryString, params)
+        						.subscribe(
+        							response => {
+        								page.c8o.log.debug("[group deletion][checkForDeletion] response " + JSON.stringify(response));
+        								resolve(response);
+        							},
+        							error => {
+        								reject(error);
+        								page.c8o.log.error("[group deletion][checkForDeletion] an error occured while fetching changes " + JSON.stringify(error));
+        							}
+        						)
+        					})
+        					accumulatedData = accumulatedData.concat(res.results);
+        					debugger;
+        					if(res.results.length > 0 || res.pending > 0){
+        						return getChange(res.last_seq, accumulatedData)
+        					}
+        					else{
+        						return accumulatedData;
+        					}
+        				}
+        				catch(e){
+        					//cancel
+        				}
+        				
+        				
+        
+        			}
+        			getChange().then((res)=>{
+        				console.log("myRESSS", res);
+        			});
+        			
+        			
         			let checkForDeletion = ()=>{
         				let sessionStatus = "";
         				let userName = "";
@@ -526,7 +813,7 @@ componentScriptContent:
         			}
         			
              
-        		
+        		**/
         		/*End_c8o_function:CTS1615203057107*/
         '
 isPWA: true
@@ -1589,7 +1876,53 @@ useClickForTap: true
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            '			let checkForDeletion = ()=>{
+            '		this["checkForDeletionLive"]();
+            		/*let getChange = async (since = 0, accumulatedData = [], last = false)=>{
+            				page.c8o.log.warn("[group deletion][checkForDeletion] we will get remote changes");
+            				// define const headers object
+            				let headersObject = { ''Accept'': ''application/json'', ''x-convertigo-sdk'': page.c8o.sdkVersion };
+            				Object.assign(headersObject, page.c8o.headers);
+            				let params = {
+            					headers: page.c8o.httpInterface.getHeaders(headersObject),
+            					withCredentials: true,
+            				};
+            				let queryString = `${page.c8o.endpointConvertigo}/fullsync/c8oforms_fs/_changes?timeout=25000&style=all_docs&limit=100&since=${since}`;
+            				try{
+            					let res: any = await new Promise((resolve, reject)=>{
+            						page.c8o.httpPublic.get(queryString, params)
+            						.subscribe(
+            							response => {
+            								page.c8o.log.debug("[group deletion][checkForDeletion] response " + JSON.stringify(response));
+            								resolve(response);
+            							},
+            							error => {
+            								reject(error);
+            								page.c8o.log.error("[group deletion][checkForDeletion] an error occured while fetching changes " + JSON.stringify(error));
+            							}
+            						)
+            					})
+            					accumulatedData = accumulatedData.concat(res.results);
+            					debugger;
+            					if(res.results.length > 0 || res.pending > 0){
+            						return getChange(res.last_seq, accumulatedData)
+            					}
+            					else{
+            						return accumulatedData;
+            					}
+            				}
+            				catch(e){
+            					//cancel
+            				}
+            				
+            				
+            
+            			}
+            			getChange().then((res)=>{
+            				console.log("myRESSS", res);
+            			});
+            			
+            			
+            			let checkForDeletion = ()=>{
             				let sessionStatus = "";
             				let userName = "";
             				try{
@@ -1775,7 +2108,7 @@ useClickForTap: true
             			}
             			
                  
-            		
+            		**/
             '
     page_ts_imports: 
       - xmlizable: 
