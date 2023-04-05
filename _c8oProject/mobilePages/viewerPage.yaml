@@ -1728,58 +1728,75 @@ scriptContent:
         						
         					}
         					else{
-        						let str = findVars[va].str;
-        		                if(str == undefined){
-        		                    str = "";
-        		                }
-        		                //var arrayFound = str.match(regex);
-        						if(!(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts")){
-        		                	str = "`" + str.replace(/`/g, "\\`") + "`";
-        						}
-        						let match;
-        						let cpt = 0;
-        						while((match = regex.exec(str)) != null) {
-        							cpt++;
-        							let elem = match[0];
-        							let iStart = match.index;
-        				            let iEnd = match.index + match[0].length;
-        							// if its a non preview $$
-        							if(match[2] == undefined){
-                            			let id = match[1];
-        								ObjectThatHaveToCallFunc.push(id);
-        			                    let path = this.getPathById(+id);
-        								let currentVal = "";
-        								if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
-        									currentVal = path;
-        								}
-        								else{
-        									 currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`"
-        								}
-        								str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        						if(findVars[va]["type"] == "filter"){
+        							let res = {filters: [], mode: null};
+        							res.mode = findVars[va].condVisible.toUpperCase();
+        							for(let cond of findVars[va].conds){
+        								res.filters.push({
+        									"field": cond.val1.name,
+        									"op": cond.operator,
+        									"value":  this.subSearchForSources(cond.val2.str, cond.val2.type,ObjectThatHaveToCallFunc, regex) 
+        								})
         							}
-        							// if its a preview $$START END$$
-        							else{
-        								let id = match[1];
-        								ObjectThatHaveToCallFunc.push(id);
-        								let path = this.getPathById(+id);
-        								let defElem = this.getItemById(id);
-        								let valElem = this.getPathById(+id)
-        								let meta = JSON.parse(match[2].replace(/\\/g, ""));							
-        								if(findVars[va]["type"] != undefined && findVars[va]["type"] == "ts"){
-        									str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, true)
-        								}
-        								else{
-        									 str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, false)
-        								}
-        							}
+        							findVars[va] = res;
         						}
-        		                findVars[va] = str;	
+        						else{
+        							let str = this.subSearchForSources(findVars[va].str, findVars[va].type,ObjectThatHaveToCallFunc, regex);
+        							findVars[va] = str;	
+        						}
+        						
         					}
         					
         				}
         			}
         		}
         		return {findVars: findVars, findName: findName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha, fullSyncArgs: fullSyncArgs }
+        	}
+        	public subSearchForSources(str, type, ObjectThatHaveToCallFunc,regex){
+                if(str == undefined){
+                    str = "";
+                }
+        		if(!(type != undefined && type == "ts")){
+                	str = "`" + str.replace(/`/g, "\\`") + "`";
+        		}
+        		let match;
+        		let cpt = 0;
+        		while((match = regex.exec(str)) != null) {
+        			cpt++;
+        			let elem = match[0];
+        			let iStart = match.index;
+                    let iEnd = match.index + match[0].length;
+        			// if its a non preview $$
+        			if(match[2] == undefined){
+            			let id = match[1];
+        				ObjectThatHaveToCallFunc.push(id);
+                        let path = this.getPathById(+id);
+        				let currentVal = "";
+        				if(type != undefined && type == "ts"){
+        					currentVal = path;
+        				}
+        				else{
+        					 currentVal = "`+("+ path +" instanceof Object ? JSON.stringify("+path+") : "+path+")+`"
+        				}
+        				str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        			}
+        			// if its a preview $$START END$$
+        			else{
+        				let id = match[1];
+        				ObjectThatHaveToCallFunc.push(id);
+        				let path = this.getPathById(+id);
+        				let defElem = this.getItemById(id);
+        				let valElem = this.getPathById(+id)
+        				let meta = JSON.parse(match[2].replace(/\\/g, ""));							
+        				if(type != undefined && type == "ts"){
+        					str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, true)
+        				}
+        				else{
+        					 str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, false)
+        				}
+        			}
+        		}
+                return str;
         	}
         	
         	public $$toVal(defElem, meta, str, iStart, valElem, iEnd, id, ts): string{
@@ -2442,10 +2459,22 @@ scriptContent:
         				else{
         					
         				}
-        				variables[va] = eval(findVars[va]);
-        				if(variables[va] == undefined || variables[va] == "undefined"){
-        					delete variables[va];
+        				if(typeof findVars[va] == ''string''){
+        					variables[va] = eval(findVars[va]);
+        					if(variables[va] == undefined || variables[va] == "undefined"){
+        						delete variables[va];
+        					}
         				}
+        				// assume its filter
+        				else{
+        					let res = JSON.parse(JSON.stringify(findVars[va]));
+        					res.filters = res.filters.map((x)=>{
+        						x.value = eval(x.value);
+        						return x;
+        					})
+        					variables[va] = JSON.stringify(res);
+        				}
+        				
         			}
         			catch(e){
         				this.c8o.log.warn("An error occured while computing variables for "+item.name+" data sources, maybe the source has still not been created");
