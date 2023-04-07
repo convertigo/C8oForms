@@ -42,13 +42,16 @@ For more technical informations : [documentation](./project.md)
             - [GetViewByKeys](#getviewbykeys)
             - [GetViewIncludeDocs](#getviewincludedocs)
             - [GetViewPublishedbyAcl](#getviewpublishedbyacl)
+            - [HeadDocument](#headdocument)
             - [PostBulkDocuments_1](#postbulkdocuments_1)
             - [PostDocument](#postdocument)
             - [PostDocument_PWA](#postdocument_pwa)
+            - [PostDocument_restore_deleted](#postdocument_restore_deleted)
             - [PostDocumentAddArgc8o_view_type_pwa_document](#postdocumentaddargc8o_view_type_pwa_document)
             - [PostDocumentCreateNotif](#postdocumentcreatenotif)
             - [PostDocumentCreateUserSettings](#postdocumentcreateusersettings)
             - [PostDocumentFromAclKey](#postdocumentfromaclkey)
+            - [PostDocumentFromAclKeyMerge](#postdocumentfromaclkeymerge)
             - [PostDocumentJSONBASE](#postdocumentjsonbase)
             - [PostDocumentJsonBaseKeepACL](#postdocumentjsonbasekeepacl)
             - [PostDocumentMigrationAll](#postdocumentmigrationall)
@@ -105,11 +108,13 @@ For more technical informations : [documentation](./project.md)
         - [dropFilePage](#dropfilepage)
         - [editorPage](#editorpage)
         - [exportCsvPage](#exportcsvpage)
+        - [GDRPpage](#gdrppage)
         - [labelsPage](#labelspage)
         - [linkPage](#linkpage)
         - [loginPage](#loginpage)
         - [ManageAccessRights](#manageaccessrights)
         - [modalActions](#modalactions)
+        - [modalConfigure](#modalconfigure)
         - [modalVideo](#modalvideo)
         - [NetworkStatus](#networkstatus)
         - [PopOverInputs](#popoverinputs)
@@ -121,6 +126,7 @@ For more technical informations : [documentation](./project.md)
         - [selectorPage](#selectorpage)
         - [settingsPage](#settingspage)
         - [sharingPage](#sharingpage)
+        - [startCloud](#startcloud)
         - [viewerPage](#viewerpage)
         - [wallPaperSelection](#wallpaperselection)
     - [Shared Actions](#shared-actions)
@@ -203,6 +209,7 @@ For more technical informations : [documentation](./project.md)
         - [ZXing_sa_forms](#zxing_sa_forms)
     - [Shared Components](#shared-components)
         - [cardSelector](#cardselector)
+        - [chooseIcon](#chooseicon)
         - [colorPicker](#colorpicker)
         - [conditiongoToPageIf](#conditiongotopageif)
         - [conditiongoToPageIfPrev](#conditiongotopageifprev)
@@ -212,6 +219,7 @@ For more technical informations : [documentation](./project.md)
         - [dataSourceEditor](#datasourceeditor)
         - [dataSourceEditorDescription](#datasourceeditordescription)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
+        - [editorToolbarButton](#editortoolbarbutton)
         - [inputMultiVal](#inputmultival)
         - [inputTextAndField](#inputtextandfield)
         - [itemActionBusinessLogicEditor](#itemactionbusinesslogiceditor)
@@ -262,10 +270,13 @@ For more technical informations : [documentation](./project.md)
         - [itemVideoCallEditor](#itemvideocalleditor)
         - [itemVideoCallViewer](#itemvideocallviewer)
         - [itemVideoCallViewerInEditionPage](#itemvideocallviewerineditionpage)
+        - [labelFieldMustBeFilled](#labelfieldmustbefilled)
         - [listSelector](#listselector)
+        - [mdReader](#mdreader)
         - [menuVersion](#menuversion)
         - [networkStatusComp](#networkstatuscomp)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
+        - [PopOverSourceCompletion](#popoversourcecompletion)
         - [searchableSelect](#searchableselect)
         - [sharedDropIndicator](#shareddropindicator)
         - [sharedDropIndicatorSelector](#shareddropindicatorselector)
@@ -287,9 +298,13 @@ For more technical informations : [documentation](./project.md)
         - [sharedStatsInputText](#sharedstatsinputtext)
         - [sharedStatsRadio](#sharedstatsradio)
         - [sharedStatsSlider](#sharedstatsslider)
+        - [SharedTabs](#sharedtabs)
+        - [SharedVersion](#sharedversion)
         - [switchItemEdition](#switchitemedition)
         - [switchItemEdtionAndViewer](#switchitemedtionandviewer)
         - [switchItemViewer](#switchitemviewer)
+        - [treeview](#treeview)
+        - [treeviewContent](#treeviewcontent)
 
 
 ## Installation
@@ -515,6 +530,18 @@ Fullsync connector that holds all forms and user settings
 <td>_use_view</td><td></td>
 </tr>
 </table>
+##### HeadDocument
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_docid</td><td></td>
+</tr>
+</table>
 ##### PostBulkDocuments_1
 
 **variables**
@@ -668,6 +695,18 @@ Fullsync connector that holds all forms and user settings
 <td>themeColor</td><td></td>
 </tr>
 </table>
+##### PostDocument_restore_deleted
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>data</td><td></td>
+</tr>
+</table>
 ##### PostDocumentAddArgc8o_view_type_pwa_document
 
 **variables**
@@ -774,6 +813,66 @@ Fullsync connector that holds all forms and user settings
 </tr>
 </table>
 ##### PostDocumentFromAclKey
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td></td>
+</tr>
+<tr>
+<td>_id</td><td></td>
+</tr>
+<tr>
+<td>_use_merge</td><td></td>
+</tr>
+<tr>
+<td>actions</td><td></td>
+</tr>
+<tr>
+<td>c8oGrp</td><td></td>
+</tr>
+<tr>
+<td>creator</td><td></td>
+</tr>
+<tr>
+<td>descform</td><td></td>
+</tr>
+<tr>
+<td>descformPosition</td><td></td>
+</tr>
+<tr>
+<td>formulaire</td><td></td>
+</tr>
+<tr>
+<td>name</td><td></td>
+</tr>
+<tr>
+<td>namePosition</td><td></td>
+</tr>
+<tr>
+<td>pages</td><td></td>
+</tr>
+<tr>
+<td>parentId</td><td></td>
+</tr>
+<tr>
+<td>parentRev</td><td></td>
+</tr>
+<tr>
+<td>respNameRequired</td><td></td>
+</tr>
+<tr>
+<td>version</td><td></td>
+</tr>
+<tr>
+<td>wallpaper</td><td></td>
+</tr>
+</table>
+##### PostDocumentFromAclKeyMerge
 
 **variables**
 
@@ -1455,6 +1554,8 @@ Form Creator
 
 #### exportCsvPage
 
+#### GDRPpage
+
 #### labelsPage
 
 #### linkPage
@@ -1470,6 +1571,8 @@ login/:formId/:page/:edit/:published/:d/:e
 Page to share a form, or add collaborators
 
 #### modalActions
+
+#### modalConfigure
 
 #### modalVideo
 
@@ -1496,6 +1599,8 @@ Form chooser
 Settings
 
 #### sharingPage
+
+#### startCloud
 
 #### viewerPage
 
@@ -2445,6 +2550,8 @@ Update the state of a field
 <td>offsetObject</td><td></td>
 </tr>
 </table>
+#### chooseIcon
+
 #### colorPicker
 
 **variables**
@@ -2556,6 +2663,18 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>currentMeta</td><td></td>
+</tr>
+<tr>
+<td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>dragging</td><td></td>
+</tr>
+<tr>
+<td>isSource</td><td></td>
+</tr>
+<tr>
 <td>item</td><td></td>
 </tr>
 <tr>
@@ -2566,6 +2685,19 @@ Update the state of a field
 </tr>
 <tr>
 <td>thingIndex</td><td></td>
+</tr>
+<tr>
+<td>type</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>save</td><td></td>
 </tr>
 </table>
 #### dataSourceEditorDescription
@@ -2593,6 +2725,37 @@ Update the state of a field
 </tr>
 <tr>
 <td>targetType</td><td></td>
+</tr>
+</table>
+#### editorToolbarButton
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>color</td><td></td>
+</tr>
+<tr>
+<td>icon</td><td></td>
+</tr>
+<tr>
+<td>text</td><td></td>
+</tr>
+<tr>
+<td>textTooltip</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>clicked</td><td></td>
 </tr>
 </table>
 #### inputMultiVal
@@ -3037,6 +3200,9 @@ Update the state of a field
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>fromViewer</td><td></td>
 </tr>
 <tr>
 <td>item</td><td></td>
@@ -3552,6 +3718,24 @@ Update the state of a field
 <td>redList</td><td>this.redList[item['name']]</td>
 </tr>
 </table>
+#### labelFieldMustBeFilled
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>name</td><td></td>
+</tr>
+<tr>
+<td>text</td><td></td>
+</tr>
+</table>
 #### listSelector
 
 **variables**
@@ -3571,6 +3755,18 @@ Update the state of a field
 </tr>
 <tr>
 <td>offsetObject</td><td></td>
+</tr>
+</table>
+#### mdReader
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>data</td><td></td>
 </tr>
 </table>
 #### menuVersion
@@ -3666,6 +3862,21 @@ Update the state of a field
 </tr>
 <tr>
 <td>ngxTagInputValidationError</td><td></td>
+</tr>
+</table>
+#### PopOverSourceCompletion
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>currentItem</td><td></td>
+</tr>
+<tr>
+<td>keyName</td><td></td>
 </tr>
 </table>
 #### searchableSelect
@@ -3910,6 +4121,10 @@ Update the state of a field
 <td>element</td><td></td>
 </tr>
 </table>
+#### SharedTabs
+
+#### SharedVersion
+
 #### switchItemEdition
 
 **variables**
@@ -3949,6 +4164,74 @@ Update the state of a field
 </tr>
 <tr>
 <td>disabled</td><td></td>
+</tr>
+</table>
+#### treeview
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>currentElement</td><td></td>
+</tr>
+<tr>
+<td>graphic</td><td></td>
+</tr>
+<tr>
+<td>handler</td><td></td>
+</tr>
+<tr>
+<td>name</td><td></td>
+</tr>
+<tr>
+<td>path</td><td></td>
+</tr>
+<tr>
+<td>showHeader</td><td></td>
+</tr>
+<tr>
+<td>tree</td><td></td>
+</tr>
+<tr>
+<td>treebuiltin</td><td></td>
+</tr>
+</table>
+#### treeviewContent
+
+if this compenent is renamed it must be also renamed in editorPage (edit page class)
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>currentElement</td><td></td>
+</tr>
+<tr>
+<td>graphic</td><td></td>
+</tr>
+<tr>
+<td>handler</td><td></td>
+</tr>
+<tr>
+<td>name</td><td></td>
+</tr>
+<tr>
+<td>path</td><td></td>
+</tr>
+<tr>
+<td>showHeader</td><td></td>
+</tr>
+<tr>
+<td>tree</td><td></td>
+</tr>
+<tr>
+<td>treebuiltin</td><td></td>
 </tr>
 </table>
 
