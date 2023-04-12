@@ -2427,6 +2427,170 @@ scriptContent:
         		};
         		return ev;
         	}
+        	
+        	
+        	public async searchCompletionWithElem(currentElem, graphic = false){
+        		let structure = {"compl":{}, "builtin":{}};
+        		try{
+        			// if its a sourced elem
+        			if(currentElem.sources != undefined){
+        				for(let source in currentElem.sources){
+        					if(currentElem.sources[source].enabled){
+        						//try to compute default vars values
+        						let defaultVars = {};
+        						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
+        						try{
+        							defaultVars = Object.keys(currentElem.sources[source].vars).map((x=>{return {key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" }})).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
+        						}
+        						catch(e){
+        							
+        						}
+        						let res = await this.c8o.callJsonObject(source,{model: true, ...defaultVars}).async();
+        						switch(currentElem.type){
+        							case "grid":
+        								if(currentElem.config.returned_value == "nothing" || currentElem.config.returned_value == "all_the_data"){
+        									// here insert index selector and explain
+        									structure.compl = {__c8o__index__reserved: res.data[0]};
+        								}
+        								else{
+        									structure.compl = res.data[0];
+        								}
+        							break;
+        							case "select":
+        								if(typeof(res.value[0]) == "string"){
+        									structure.compl = {value: ''''};
+        								}
+        								else{
+        									structure.compl = {displayValue: '''', value: ''''};
+        								}
+        							break;
+        						}
+        						
+        					}
+        				}
+        			}
+        			switch(currentElem.type){
+        				case "checkbox":
+        				case "checkbox_group":
+        					structure.builtin =
+        						{
+        							"TEXT_format":{
+        									"selected_data_c8o_separated_by_coma":"string",
+        									"not_selected_data_c8o_separated_by_coma":"string"
+        							},
+        							"JSON_format":{
+        									"all_data":"Object",
+        									"selected_data": "Object",
+        									"not_selected_data" :"Object"
+        							}
+        						};
+        						if(graphic){
+        							structure.builtin["graphic_formatting"] = "";
+        						}						
+        				break;
+        				case "radio":
+        				case "radio_group":
+        					structure.builtin =
+        						{
+        							"TEXT_format":{
+        									"selected_data_c8o_separated_by_coma":"string"
+        							},
+        							"JSON_format":{
+        									"all_data":"Object",
+        									"selected_data": "Object"
+        							}
+        						};	
+        						if(graphic){
+        							structure.builtin["graphic_formatting"] = "";
+        						}					
+        				break;
+        				case "grid":
+        					structure.builtin =
+        						{
+        							
+        						};
+        					if(graphic){
+        						structure.builtin["graphic_formatting"] = "";
+        					}
+        				break;
+        				case "select":
+        					structure.builtin =
+        						{
+        							"TEXT_format":"string"
+        						};
+        					if(graphic){
+        						structure.builtin["graphic_formatting"] = "";
+        					}
+        				break;
+        				case "slider":
+        					structure.builtin =
+        						{
+        							"Number_format":"number",
+        							"TEXT_format":"string"
+        						};
+        				break;
+        				case "datetime":
+        					structure.builtin =
+        						{
+        							"TEXT_format":{
+        									"fulldate":"string",
+        									"day":"string",
+        									"month":"string",
+        									"year":"string"
+        							},
+        							"JSON_format":{
+        									"fulldate":"Object",
+        									"day":"Object",
+        									"month":"Object",
+        									"year":"Object"
+        							},
+        						};
+        				break;
+        				case "time":
+        					structure.builtin =
+        						{
+        							"TEXT_format":{
+        									"fullhours":"string",
+        									"hours":"string",
+        									"mins":"string"
+        							},
+        						};
+        				break;
+        				case "location":
+        					structure.builtin =
+        						{
+        							"TEXT_format":{
+        									"AddressLine":"string",
+        									"AdminDistrict":"string",
+        									"AdminDistrict2":"string",
+        									"CountryRegion":"string",
+        									"FormattedAddress":"string",
+        									"Locality":"string",
+        									"PostalCode":"string",
+        									"latitude":"string",
+        									"longitude":"string",
+        									"altitude":"string",
+        									"accuracy":"string",
+        									"altitudeAccuracy":"string"
+        							},
+        							"JSON_format":{
+        									"addr":"Object",
+        									"gps":"Object"
+        							},
+        						};
+        				break;
+        			}
+        		
+        		}
+        		catch(e){
+        			
+        		}
+        		finally{
+        			this.local.loaded = true;
+        			this.c8o.log.debug("structure founded " + JSON.stringify(structure))
+        			return structure;
+        		}
+        	}
         	/*End_c8o_PageFunction*/
         '
 segment: editor/:formId
