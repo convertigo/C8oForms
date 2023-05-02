@@ -116,39 +116,349 @@ scriptContent:
         		return defs;
         		
         	}
+        	
+        	public inspectValue(node, arrayNodes, str = '''', memberExpressions = null, parentNode = null) {
+        	  if (parentNode == null) {
+        	  	parentNode = node;
+        	  }
+        	  if (node.property != undefined) {
+        	    // if this memberExpression has already been computed and is within another
+        	    if (memberExpressions[node.property.range[0]] != undefined) {
+        	      let randomSave = new Date().getTime() + ''_'' + ('''' + Math.random()).substring(2);
+        	      str = '''' + `.$$START_SUB${randomSave}END_SUB$$` + str;
+        	      parentNode.nested = true;
+        	      if (parentNode.nestedByRandom == undefined) {
+        	        parentNode.nestedByRandom = {};
+        	      }
+        	      parentNode.nestedByRandom[randomSave] = memberExpressions[node.property.range[0]];
+        	      delete memberExpressions[node.property.range[0]];
+        	    } else {
+        	      	if (node.property.type == ''Literal'') {
+        			  str = ''.'' + node.property.value + str;
+        			} else {
+        			  str = ''.'' + node.property.name + str;
+        			}
+        	    }
+        	    return this.inspectValue(
+        	      node.object,
+        	      arrayNodes,
+        	      str,
+        	      memberExpressions,
+        	      parentNode
+        	    );
+        	  }
+        	  else {
+        	    parentNode.computedValue = node.name + str;
+        	    return parentNode;
+        	  }
+        	}
+        	public tsMonacoto$$(memberExpressions, splitted, prefixAndSuffix = true) {
+        	    let id = this.pageOwner.getElementIdByName(splitted[1]);
+        	    let pathPrefix = splitted[0];
+        	    let splittedSliced = splitted.slice(1);
+        	    let path = splittedSliced.length > 1 ? splittedSliced.join(''.'') : '''';
+        	    let prefix = `$$START${id}`;
+        	    let suffix = `END${id}$$`;
+        	    let obj : any = 
+        	    {"c8otype": "path", "c8opath": path, "c8oPrettyPath":null, "c8obuiltin": null, "id": id, "pathPrefix": pathPrefix,
+        	     "nested": memberExpressions.nested ? memberExpressions.nestedByRandom : null, "name": splitted[1] };
+        		if(prefixAndSuffix){
+        			return prefix+JSON.stringify(obj)+suffix;
+        		}
+        		else{
+        			return obj;
+        		}
+        	    /*let str = `$$START${id}{"c8otype": "path", "c8opath": "${path}", "c8oPrettyPath":null, "c8obuiltin": null, "nested": "${
+        	      memberExpressions.nested
+        	        ? JSON.stringify(memberExpressions.nestedByRandom)
+        	        : null
+        	    }", "name":"${splitted[1]}" }END${id}$$`;
+        	    return str;*/
+        	}
+        	public transform$toTsMonaco(str): string{
+        	    try{
+        			const regex = /\$\$START(\d+)(.*?)(END\d+)\$\$/;
+        			let match;
+        			while((match = regex.exec(str)) != null) {
+        				// the whole string
+        				let elem = match[0];
+        				// start index
+        				let iStart = match.index;
+        				// end index
+        	            let iEnd = match.index + match[0].length;
+        	            // id based on substring
+        				let id = match[1];
+        				// target name
+        				let name = this.pageOwner.getElementNameById(id);
+        				// metas attached to expression
+        				let meta = JSON.parse(match[2]);
+        				// compute current type
+        				let type = "";
+        				if(meta.__c8otype != undefined){
+        					type = meta.c8otype;
+        				}
+        				// if object name is not found, it''s mean that object has been deleted, use current name from meta
+        				if(name == ""){
+        					name = meta.name;
+        				}
+        				
+        				let computedMeta = {};
+        				if(meta.nested != null){
+        					for(let nestIndex in meta.nested){
+        						computedMeta[nestIndex] = this.evalMetaForTransform$toTsMonaco(meta.nested[nestIndex]);
+        					}
+        				}
+        				let tpmstr = this.evalMetaForTransform$toTsMonaco(meta);
+        				for(let nestIndex in computedMeta){
+        					let strToReplace = ''"$$START_SUB''+ nestIndex+ ''END_SUB$$"'';
+        					tpmstr = tpmstr.replace(strToReplace, computedMeta[nestIndex]);
+        				}
+        				str = str.substring(0, iStart) + tpmstr + str.substring(iEnd);
+        			} 
+        			if(str == undefined){
+                        return "";
+                    }
+                    else{
+                        return str;    
+                    }
+        	    }
+        	    catch(e){
+        	        this.c8o.log.error("An error occurend into transform$toHtml: \n see: \n "+ JSON.stringify(e));
+        	        return "";
+        	    }
+        	}
+        	public evalMetaForTransform$toTsMonaco(current): string{
+        		let currentNestedName = this.pageOwner.getElementNameById(current.id);
+        		let splitted = current.c8opath.split(".");
+        		splitted[0] = currentNestedName;
+        		let expression = current.pathPrefix + "." + splitted.join(".");
+        		const regex = /\.([\w$]+)(?=(?:[^"]*"[^"]*")*[^"]*$)/g;
+        		expression = expression.replace(regex, ''["$1"]'').replace(/^(\w+)/, ''$1'');
+        		return expression;
+        	}
+        	public parse(b) {
+        	    console.log(''[parse] called'');
+        	    let arrayNodes = [];
+        	    let memberExpressions = {};
+        	    // call esprima to get member expressions
+        	    console.log(''[parse][esprima] called'');
+        	    esprima.parse(b, { range: true }, (node, meta) => {
+        	      if (node.type == ''MemberExpression'') {
+        	        // its a start member
+        	        if (node.object.name === ''fields'' || node.object.name === ''actions'') {
+        	          memberExpressions[node.range[0]] = node;
+        	        } else if (memberExpressions[node.range[0]] != undefined) {
+        	          memberExpressions[node.range[0]] = node;
+        	        }
+        	      }
+        	    });
+        	    // call each memberExpressions by reverse order and extract ours
+        	    Object.keys(memberExpressions)
+        	      .sort((a, b) => {
+        	        return +b - +a;
+        	      })
+        	      .forEach((key, i) => {
+        	        let currentMemberExpression = memberExpressions[key];
+        	        let range = currentMemberExpression.range;
+        	        let res = '''';
+        	        res = this.inspectValue(
+        	          currentMemberExpression,
+        	          arrayNodes,
+        	          '''',
+        	          memberExpressions
+        	        );
+        	        memberExpressions[range[0]] = res;
+        	        arrayNodes.push({
+        	          node: currentMemberExpression,
+        	          range: range,
+        	          childs: [],
+        	          value: res,
+        	        });
+        	      });
+        	    window[''arrayNodes''] = arrayNodes;
+        	    window[''memberExpressions''] = memberExpressions;
+        	    let workingB = '''' + b;
+        	    console.log(''workingB'', workingB);
+        	    // call each our memberExpressions by reverse order and extract ours. It will also allow to find nested expressions
+        	    Object.keys(memberExpressions)
+        	      .sort((a, b) => {
+        	        return +b - +a;
+        	      })
+        	      .forEach((key, i) => {
+        	        //$$START1681726766941{\"c8otype\":\"path\",\"c8opath\":\"grid1.0.Title.displayValue\",\"c8oPrettyPath\":\"\",\"c8obuiltin\":\"false\"}END1681726766941$$
+        	        //"$$START1681735957413{\"c8otype\":\"path\",\"c8opath\":\"checkboxGroup1.TEXT_format.selected_data_c8o_separated_by_coma\",\"c8oPrettyPath\":\"\",\"c8obuiltin\":\"true\"}END1681735957413$$"
+        	        let currentMemberExpression = memberExpressions[key];
+        	        let range = currentMemberExpression.range;
+        	        if (currentMemberExpression.nested) {
+        	          // do stuff for nested
+        	
+        	          for (let rand in currentMemberExpression.nestedByRandom) {
+        	            let curr = currentMemberExpression.nestedByRandom[rand];
+        	            let splitted = curr.computedValue.split(''.'');
+        	            currentMemberExpression.nestedByRandom[rand] = this.tsMonacoto$$(curr, splitted, false);
+        	          }
+        	        }
+        	        let splitted = currentMemberExpression.computedValue.split(''.'');
+        	        let firstArg = splitted[0];
+        	        console.log(''splitted'', splitted);
+        	        if (firstArg === ''fields'' || firstArg === ''actions'') {
+        	        }
+        	        let st = this.tsMonacoto$$(currentMemberExpression, splitted);
+        	        console.log(''st'', st);
+        	        workingB = workingB.substring(0, range[0]) + st + workingB.substring(range[1]);
+        	      });
+        	    console.log(''workingB'', workingB);
+        	    let ts = this.transform$toTsMonaco(workingB);
+        	    console.log("ts", ts);
+        	    return workingB;
+        	}
+        	
         	public async onMonacoInit(editor){
+        		editor.onDidBlurEditorText(()=>{
+        			let val = editor.getValue();
+        			this.parse(val);
+        		})
         		console.log("onMonacoInit");
-        		let defs = await this.computeDefs()
-        		/*let defs = `
-        		interface Select {
-        			displayValue: string;
-        			value: any;
-        			getText(): string;
+        		let defs = await this.computeDefs();
+        		window["n"] = this;
+        		window["esprima"] = esprima;
+        		//window["jscodeshift"] = jscodeshift;
+        		window["monaco"].editor.createModel(defs, ''typescript'');
+        	}
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	
+        	public OldinspectValue(node, arrayNodes, str = ""){
+        		if(node.property != undefined && node.object != undefined){
+        			// if this memberExpression has already been computed and is within another
+        			if(arrayNodes[node.property.range[0]] != undefined && arrayNodes[node.property.range[0]].node.range[1] == node.range[1]){
+        				str = "" + `[${arrayNodes[node.property.range[0]].value}]`;
+        			}
+        			else{
+        				if(node.object.property){
+        					str = node.object.property.name + str;
+        				}
+        				else{
+        					str = node.object.name + str;
+        				}
+        				
+        			}
+        			str = this.inspectValue(node.object, arrayNodes, str) + "." + str;
         		}
-        		interface InputText {
-        			value: string
+        		else{
+        			return str;
         		}
-        		interface Fields {
-        		    select1: Select;
-        			select2: Select;
-        			inputText1: InputText;
+        	}
+        	public OldespirimaParse(){
+        		let arrayNodes = [];
+        		let rangeStartToInspect = [];
+        		let memberExpressions = {};
+        		let alreayInsideMemberExpression = false;
+        		let tmpNode = null;
+        		let tmpStart = null;
+        		esprima.parse(this.local.code, { range: true }, (node, meta)=>{
+        		    if(node.type == "MemberExpression"){
+        				// its a start member
+        				if((node.object.name ==="fields" || node.object.name ==="actions" )){
+        					memberExpressions[node.range[0]] = node;
+        				}
+        				else if(memberExpressions[node.range[0]] != undefined){
+        					memberExpressions[node.range[0]] = node;
+        				}
+        			}
+        		})
+        		// get all keys by reverse order
+        		Object.keys(memberExpressions).sort((a, b)=>{
+        			return +b - +a;
+        		})
+        		.forEach((key, i)=>{
+        			let currentMemberExpression = memberExpressions[key];
+        			let range = currentMemberExpression.range;
+        			let res = this.inspectValue(currentMemberExpression, arrayNodes);
+        			arrayNodes.push({node: currentMemberExpression, range: range, childs: [], value: res})
+        		})
+        			//let be = fields.checkboxGroup1[fields.grid1.col1.displayName].abc;
+        			/*	
+        				
+        				
+        				
+        				// if not yet inspecting member expression
+        				if(!alreayInsideMemberExpression){
+        					// if its a start node
+        					if((node.object.name ==="fields" || node.object.name ==="actions" )){
+        						tmpNode = node;
+        						tmpStart = node.range[0];
+        						alreayInsideMemberExpression = true;
+        					}
+        				}
+        				// if inspecting member expression
+        				else{
+        					// if next member expression was from same start
+        					if(node.range[0] == tmpStart){ 
+        			        	tmpNode = node;
+        			        	alreayInsideMemberExpression = true;
+        					}
+        				}
+        				
+        				
+        				console.log("=>>currentNode", node);
+        				console.log("=>>currentNode range", node.range);
+        				console.log("alreayInsideMemberExpression",alreayInsideMemberExpression);
+        				console.log("tmpStart",tmpStart);
+        				console.log("tmpNode",tmpNode);
+        				
+        				if(!alreayInsideMemberExpression && (node.object.name ==="fields" || node.object.name ==="actions" )){
+        					tmpNode = node;
+        					tmpStart = node.range[0];
+        					alreayInsideMemberExpression = true;
+        				}
+        				else if(node.range[0] == tmpStart){ 
+        		        	tmpNode = node;
+        		        	alreayInsideMemberExpression = true;
+        				}
+        				else {
+        					debugger;
+        					arrayNodes.push(JSON.parse(JSON.stringify(tmpNode)));
+        					tmpNode = null;
+        					tmpStart = null;
+        					alreayInsideMemberExpression = false;
+        				}		       
+        		    }
+        		})
+        		*/
+        		arrayNodes = arrayNodes.reverse();
+        		let code = ""+ this.local.code;
+        		for(let node of arrayNodes){
+        			
         		}
         		
-        		interface Pages {
-        			count: number;
-        			current: number;
-        			navigateTo(pageNumber): void;
-        			navigateNext(): void;
-        			navigatePrevious(): void;
+        	}
+        	
+        	public OldparseNode(elem){
+        		if(elem.type == "ExpressionStatement"){
+        			if(elem.expression.object.name === "actions"){
+        				// replace at elem.expression.range [[31, 54]]
+        			}
         		}
-        		interface Form {
-        			pages: Pages;
+        		else{
+        			
         		}
-        		// global object
-        		declare const fields: Fields;
-        		declare const form: Form;
-        		`*/
-        		window["monaco"].editor.createModel(defs, ''typescript'');
         	}
         	/*End_c8o_CompFunction*/
         '
@@ -261,24 +571,38 @@ scriptContent:
                 - ↑value: ngx-monaco-editor
               - java.lang.String: 
                 - ↑value: 12.0.0
-↓Div [ngx.components.UIDynamicElement-1681289356813]: 
-  beanData: '{"ionBean":"DivTag"}'
-  isEnabled: false
-  tagName: div
-  ↓id [ngx.components.UIAttribute-1681289362770]: 
-    attrName: id
-    attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: esprima
+              - java.lang.String: 
+                - ↑value: 4.0.1
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: jscodeshift
+              - java.lang.String: 
+                - ↑value: 0.14.0
+    page_ts_imports: 
       - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: plain:container
-  ↓Style [ngx.components.UIStyle-1681289376561]: 
-    styleContent: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-          →: |
-            	height:100%;
-            
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: '* as esprima'
+              - java.lang.String: 
+                - ↑value: esprima
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: '* as jscodeshift'
+              - java.lang.String: 
+                - ↑value: jscodeshift
 ↓ngx_monaco_editor [ngx.components.UIElement-1681292694675]: 
   identifier: monacoEditor
   tagName: ngx-monaco-editor
@@ -300,4 +624,21 @@ scriptContent:
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
         - MobileSmartSourceType: script:onMonacoInit($event)
+  ↓attr2 [ngx.components.UIControlEvent-1681739640253]: 
+    attrName: (onDidBlurEditorWidget)
+    eventName: (onDidBlurEditorWidget)
+    ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1681739673034]: 
+      actionValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              		try {
+              			console.log("blmout");
+              		} catch (e) {
+              		
+              		} finally {
+              			return;
+              		}
+              
 ↓code [ngx.components.UICompVariable-1681294557081]: 
