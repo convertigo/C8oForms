@@ -299,11 +299,7 @@ scriptContent:
                 this.local.objectComponents = "";
         		this.local.selectFilter = {};
         		/*End_c8o_PageConstructor*/
-        /*Begin_c8o_PageFunction*/
-        	public getTodayDateFomatted(){
-        		return new Date().toISOString().split(''T'')[0]
-        	}
-        	
+        /*Begin_c8o_PageFunction*/	
         	getIndexOfNormalized(item, filterActions){
         		return item.name.toLowerCase().normalize(''NFD'').replace(/[\u0300-\u036f]/g, "").indexOf(filterActions.toLowerCase().normalize(''NFD'').replace(/[\u0300-\u036f]/g, "")) != -1
         	}
@@ -2453,43 +2449,45 @@ scriptContent:
         	}
         	
         	
-        	public async searchCompletionWithElem(currentElem, graphic = false){
+        	public async searchCompletionWithElem(currentElem, graphic = false, remote = true){
         		let structure = {"compl":{}, "builtin":{}};
         		try{
-        			// if its a sourced elem
-        			if(currentElem.sources != undefined){
-        				for(let source in currentElem.sources){
-        					if(currentElem.sources[source].enabled){
-        						//try to compute default vars values
-        						let defaultVars = {};
-        						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
-        						try{
-        							defaultVars = Object.keys(currentElem.sources[source].vars).map((x=>{return {key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" }})).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
-        						}
-        						catch(e){
+        			if(remote){
+        				// if its a sourced elem
+        				if(currentElem.sources != undefined){
+        					for(let source in currentElem.sources){
+        						if(currentElem.sources[source].enabled){
+        							//try to compute default vars values
+        							let defaultVars = {};
+        							let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
+        							try{
+        								defaultVars = Object.keys(currentElem.sources[source].vars).map((x=>{return {key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" }})).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
+        							}
+        							catch(e){
+        								
+        							}
+        							let res = await this.c8o.callJsonObject(source,{model: true, ...defaultVars}).async();
+        							switch(currentElem.type){
+        								case "grid":
+        									if(currentElem.config.returned_value == "nothing" || currentElem.config.returned_value == "all_the_data"){
+        										// here insert index selector and explain
+        										structure.compl = {__c8o__index__reserved: res.data[0]};
+        									}
+        									else{
+        										structure.compl = res.data[0];
+        									}
+        								break;
+        								case "select":
+        									if(typeof(res.value[0]) == "string"){
+        										structure.compl = {value: ''''};
+        									}
+        									else{
+        										structure.compl = {displayValue: '''', value: ''''};
+        									}
+        								break;
+        							}
         							
         						}
-        						let res = await this.c8o.callJsonObject(source,{model: true, ...defaultVars}).async();
-        						switch(currentElem.type){
-        							case "grid":
-        								if(currentElem.config.returned_value == "nothing" || currentElem.config.returned_value == "all_the_data"){
-        									// here insert index selector and explain
-        									structure.compl = {__c8o__index__reserved: res.data[0]};
-        								}
-        								else{
-        									structure.compl = res.data[0];
-        								}
-        							break;
-        							case "select":
-        								if(typeof(res.value[0]) == "string"){
-        									structure.compl = {value: ''''};
-        								}
-        								else{
-        									structure.compl = {displayValue: '''', value: ''''};
-        								}
-        							break;
-        						}
-        						
         					}
         				}
         			}
@@ -2520,7 +2518,6 @@ scriptContent:
         									"selected_data_c8o_separated_by_coma":"string"
         							},
         							"JSON_format":{
-        									"all_data":"Object",
         									"selected_data": "Object"
         							}
         						};	
@@ -8809,7 +8806,7 @@ title: Title for editor
                                               varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:item
+                                                  - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357060263}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
                                             ↓child [ngx.components.UIControlVariable-1650357060731]: 
                                               varValue: 
                                                 - xmlizable: 
@@ -8943,6 +8940,7 @@ title: Title for editor
                                           tagName: ng-template
                                           ↓Badge [ngx.components.UIDynamicElement-1650357060806]: 
                                             beanData: '{"ionBean":"Badge","IonColor":"plain:convertigo"}'
+                                            isEnabled: false
                                             tagName: ion-badge
                                             ↓Style [ngx.components.UIStyle-1650357060809]: 
                                               styleContent: 
