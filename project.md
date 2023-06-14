@@ -5294,6 +5294,14 @@ Describes the mobile application global properties 2
 <details><summary><span style="color:DarkGoldenRod"><i>Pages</i></span></summary><blockquote><p>
 
 
+<details><summary><b>aiDialog</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") aiDialog
+
+
+</p></blockquote></details>
+
 <details><summary><b>colorPage</b></summary><blockquote><p>
 
 
@@ -6153,6 +6161,14 @@ name
 <th>
 comment
 </th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;ai
+</td>
+<td>
+
+</td>
 </tr>
 <tr>
 <td>
