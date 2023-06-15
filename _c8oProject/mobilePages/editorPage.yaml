@@ -2886,7 +2886,7 @@ scriptContent:
         		return ev;
         	}
         	
-        	public generateFromAiJson(res, replace: boolean = true){
+        	public async generateFromAiJson(res, replace: boolean = true){
         		let time = new Date().getTime();
         		let glob_index = 0;
         		let page = this;
@@ -2936,70 +2936,118 @@ scriptContent:
         				//iterrate over each fields of current page
         				for(let [j, field] of page.fields.entries()){
         					let obj = null;
-        					switch(field.type){
-        						case "text":
-        						case "textarea":
-        							obj = this.getObjToInsert("text", (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							obj.config.placeholder = field.placeholder;
-        							if(field.type == "textarea"){
-        								obj.config.short = false;
-        							}
-        							break;
-        						case "camera":
-        							obj = this.getObjToInsert("img", (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							break;
-        						case "slider":
-        							obj = this.getObjToInsert("slider", (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							obj.config.min = field.min;
-        							obj.config.min = field.max;
-        							obj.config.step = 1;
-        							break;
-        						case "description":
-        							obj = this.getObjToInsert("description", (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							break;
-        						case "radio":
-        						case "checkbox":
-        						case "select":
-        							obj = this.getObjToInsert(field.type, (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							obj.children = field.values.map((x)=>{
-        								return {
-        									"value":x, "selected":false,"label_color":"#202124","position": ''unset'',"id":(Math.random() + "").substring(2)
+        					try{
+        						switch(field.type){
+        							case "text":
+        							case "textarea":
+        								obj = this.getObjToInsert("text", (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								obj.config.placeholder = field.placeholder;
+        								if(field.type == "textarea"){
+        									obj.config.short = false;
         								}
-        							});
-        							break;
-        						case "location":
-        							obj = this.getObjToInsert("location", (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							break;
-        						case "date_range":
-        						case "date":
-        							obj = this.getObjToInsert("datetime", (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							break;
-        						case "radio_group":
-        							obj = this.getObjToInsert("radio_group", (time ++), currentPage.pageTechName, field.name);
-        							obj.config.html = field.description;
-        							field.rows.map((x)=>{
-        								return {"title":"Line 1","value":"","id":(Math.random() + "").substring(2)}
-        								
-        							})
-        							//{"title":"Line 1","value":"","id":(Math.random() + "").substring(2)}
-        							//{"value":"Option 1","id":(Math.random() + "").substring(2)}
-        							break;
-        						default:
-        							console.warn(`[generateFromAiJson] page [${i}] ${field.type} ignored`);
-        							break;
+        								break;
+        							case "camera":
+        								obj = this.getObjToInsert("img", (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								break;
+        							case "slider":
+        								obj = this.getObjToInsert("slider", (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								try{
+        									if(+field.min < +field.max){
+        										obj.config.min = field.min;
+        										obj.config.max = field.max;
+        									}
+        								}
+        								catch(e){
+        									obj.config.min = 0;
+        									obj.config.max = 10;
+        								}
+        								obj.config.step= field.step;						
+        								break;
+        							case "description":
+        								obj = this.getObjToInsert("description", (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								break;
+        							case "radio":
+        							case "checkbox":
+        							case "select":
+        								obj = this.getObjToInsert(field.type, (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								obj.children = field.values.map((x)=>{
+        									return {
+        										"value":x, "selected":false,"label_color":"#202124","position": ''unset'',"id":(Math.random() + "").substring(2)
+        									}
+        								});
+        								break;
+        							case "location":
+        								obj = this.getObjToInsert("location", (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								break;
+        							case "date_range":
+        							case "date":
+        								obj = this.getObjToInsert("datetime", (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								break;
+        							case "radio_group":
+        							case "checkbox_group":
+        								obj = this.getObjToInsert("radio_group", (time ++), currentPage.pageTechName, field.name);
+        								obj.config.html = field.description;
+        								obj.lines = field.rows.map((x)=>{
+        									return {"title":x,"value":"","id":(Math.random() + "").substring(2)}
+        								});
+        								let key = null;
+        								if(field.col){
+        									key = "col";
+        								}
+        								else if(field.columns){
+        									key = "columns";
+        								}
+        								obj.children = field[key].map((x)=>{
+        									return {"value":x,"id":(Math.random() + "").substring(2)}
+        								});
+        								break;
+        							default:
+        								console.warn(`[generateFromAiJson] page [${i}] ${field.type} ignored`);
+        								break;
+        						}
+        						if(obj != null){
+        							this.formsList.push(obj);
+        							console.log(`[generateFromAiJson] page [${i}] ${field.type} added`);
+        							this.ref.detectChanges();
+        						}
         					}
-        					if(obj != null){
-        						this.formsList.push(obj);
-        						console.log(`[generateFromAiJson] page [${i}] ${field.type} added`);
-        						this.ref.detectChanges();
+        					catch(e){
+        						console.error(`[generateFromAiJson] page [${i}] an error occured while generating ${field.type}, it will be skipped`);
         					}
+        					
+        				}
+        				try{
+        					let response = await fetch(res.thumbnailUrl);
+        					let blob = await response.blob();
+          
+        				    const key = "thumbnail";
+        				    let obj = { [key]: this.form[key], "_id": this.form["_id"]};
+        				    obj[key]["enabled"] = true;
+        				    obj[key]["type"] = "custom";
+        				    obj[key]["link"] = undefined;
+        					const use_merge = "_use_merge_" + key;
+        					await this.c8o.callJsonObject("fs://c8oforms_fs.post", {
+        						...obj,
+        						"_use_policy": "merge",
+        						[use_merge]:"override"
+        					}).async();
+        					await this.c8o.callJsonObject("fs://c8oforms_fs.put_attachment", {
+        						docid: this.form["_id"],
+        						name: key,
+        						content: blob,
+        						content_type: blob.type
+        					}).async();
+        					this.ref.detectChanges();
+        				}
+        				catch(e){
+        					console.log("an error occured while getting thumbnail")
         				}
         			}
         		}
