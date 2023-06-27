@@ -48,7 +48,6 @@ scriptContent:
         }
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
-        	
             public formsList: Array<object> = [];
             public formsSubmit = {};
         	public actions = {};
@@ -145,42 +144,42 @@ scriptContent:
         		}
         		this.local.selectFilter = {};
         		if(window["document"] != undefined){
-                			window["document"].addEventListener(''backbutton'', ()=>{
-                				console.log("backbutton called");
-                			  if(this.local.currentIndex != 0) {
-                				this.local.currentIndex --;
-                	   		  	return false;
-                			  }
-                			  else //nothing is visible, exit the app
-                			  {
-                			    navigator["app"].exitApp();
-                			  }
-                			});
-                			this.local.listenerPopState = (event)=>{
-                				event.preventDefault();
-                				console.log("popstate", event);
-                				if(event.state != undefined && event.state.page != undefined){
-                					if(this["local"]["currentIndex"] == 0){
-                						this["local"]["currentIndex"] = 0;
-                					}
-                					else{
-                						this["local"]["currentIndex"] = event.state.page;
-                					}
-                				}
-                				else{
-                					this["local"]["currentIndex"] = 0;
-                				}
-                			}
-                			window.addEventListener(''popstate'', this.local.listenerPopState);
-                		}
-                		window["this"] = this;
-                		//support RGAA
-                		try{
-        					document.querySelectorAll("#menubuttonviewer")[0].shadowRoot.querySelectorAll("button")[0].setAttribute("aria-expanded", "false")
+        			window["document"].addEventListener(''backbutton'', ()=>{
+        				console.log("backbutton called");
+        			  if(this.local.currentIndex != 0) {
+        				this.local.currentIndex --;
+        	   		  	return false;
+        			  }
+        			  else //nothing is visible, exit the app
+        			  {
+        			    navigator["app"].exitApp();
+        			  }
+        			});
+        			this.local.listenerPopState = (event)=>{
+        				event.preventDefault();
+        				if(event.state != undefined && event.state.page != undefined){
+        					if(this["local"]["currentIndex"] == 0){
+        						this["local"]["currentIndex"] = 0;
+        					}
+        					else{
+        						this["local"]["currentIndex"] = event.state.page;
+        					}
         				}
-        				catch(e){
-        					
+        				else{
+        					this["local"]["currentIndex"] = 0;
         				}
+        			}
+        			window.addEventListener(''popstate'', this.local.listenerPopState);
+        		}
+        		window["this"] = this;
+        		//support RGAA
+        		try{
+        			document.querySelectorAll("#menubuttonviewer")[0].shadowRoot.querySelectorAll("button")[0].setAttribute("aria-expanded", "false")
+        		}
+        		catch(e){
+        			
+        		}
+        		this.instanciateApi();
                 /*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/	
         	
@@ -1601,7 +1600,8 @@ scriptContent:
         					if (vars[va].from_attachment != undefined && vars[va].from_attachment == true) { }
         					// otherwise
         					else {
-        						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        						//let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        						let regex = /\$\$START(\d+)(.*?)(END\d+)\$\$/;
         						// if its a convertigo x baserow builtin compatible var, then formate it  
         						if (vars[va]["type"] == "filter") {
         							// prepare the expected format
@@ -1689,16 +1689,33 @@ scriptContent:
         				let valElem = this.getPathById(+id);
         				// get metadata 
         				let meta = JSON.parse(match[2].replace(/\\/g, ""));
+        				let computedMeta = {};
+        				if(meta.nested != null){
+        					for(let nestIndex in meta.nested){
+        						let currentNested = meta.nested[nestIndex];
+        						computedMeta[nestIndex] = this.$$toVal(this.getItemById(currentNested.id),currentNested, "", 0, this.getPathById(+currentNested.id), 0, +currentNested.id, true);
+        					}
+        				}
+        				
+        				
+        				let tmpStr = "";
         				// if it''s a "ts" expression
         				if (type != undefined && type == "ts") {
-        					stringOf$$ = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true)
+        					tmpStr = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false)
         				}
         				// if it''s an "Aa" expression
         				else {
-        					stringOf$$ = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, false)
+        					tmpStr = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, false, false)
         				}
+        				for(let nestIndex in computedMeta){
+        					let strToReplace = ".$$START_SUB"+ nestIndex+ "END_SUB$$";
+        					tmpStr = tmpStr.replace(strToReplace, "?.["+computedMeta[nestIndex] + "]");
+        				}
+        				
+        				stringOf$$ = stringOf$$.substring(0, iStart) + tmpStr + stringOf$$.substring(iEnd);
         			}
         		}
+        		console.log("computed stringOf$$: ", stringOf$$);
         		return stringOf$$;
         	}
         
@@ -1714,15 +1731,22 @@ scriptContent:
         	 * @param ts if its a "ts" expression
         	 * @returns string 
         	 */
-        	public $$toVal(defElem: any, meta: any, str: string, iStart: number, valElem: any, iEnd: number, id: any, ts: boolean): string {
+        	public $$toVal(defElem: any, meta: any, str: string, iStart: number, valElem: any, iEnd: number, id: any, ts: boolean, replaceInstr = true): string {
         		// if defElem is null or undefined there is nothing to compute
         		if (defElem == null) {
         			return "";
         		}
         		// if it''s not a path expression or it''s a graphic formatting expression then generate adequate expression
         		if ((defElem != null && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")) {
-        			str = str.substring(0, iStart) + "`+this.getBadge(" + id + ", " + JSON.stringify(defElem) + ", " + valElem + ", " + JSON.stringify(meta) + ", false, ''html'')+`" + str.substring(iEnd);
-        			return str;
+        			let s = "`+this.getBadge(" + id + ", " + JSON.stringify(defElem) + ", " + valElem + ", " + JSON.stringify(meta) + ", false, ''html'')+`" ;
+        			if(replaceInstr){
+        				str = str.substring(0, iStart) + s + str.substring(iEnd);
+        				return str;
+        			}
+        			else{
+        				return s;
+        			}
+        			
         		}
         		// for any other kind of expression
         		else {
@@ -1856,11 +1880,13 @@ scriptContent:
         							if (verb == null) {
         								verb = typeTargeted;
         							}
+        							let sliced3 = splitted.slice(3);
+        							let strThen = sliced3.length > 0 ? "." +sliced3.join(".") :"";
         							if (ts) {
-        								currentVal = this[typeTargeted](path, defElem.type, verb, ts)
+        								currentVal = this[typeTargeted](path, defElem.type, verb, ts) + strThen;
         							}
         							else {
-        								currentVal = "`+" + this[typeTargeted](path, defElem.type, verb, ts) + "+`";
+        								currentVal = "`+" + this[typeTargeted](path, defElem.type, verb, ts) + "." + strThen + "+`";
         							}
         						}
         					}
@@ -1875,8 +1901,14 @@ scriptContent:
         					}
         					break;
         			}
-        			str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
-        			return str;
+        			if(replaceInstr){
+        				str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        				return str;
+        			}
+        			else{
+        				return currentVal;
+        			}
+        			
         		}
         	}
         
@@ -4133,6 +4165,142 @@ scriptContent:
         	    return "";
         	}
         
+        	private instanciateApi(){
+        		window["api"] = {
+        			router: {
+        				/**
+        				 * Navigate to next page
+        				 * @param force boolean, if true we force navigation to next page, even if condtions are not met. Default is false
+        				 * @returns boolean success
+        				 */
+        				nextPage: async (force?: boolean) => {
+        					let nextPageIndex = this.getNextPageIndex();
+        					// if we are at last page: fail
+        					if(nextPageIndex == this.local.currentIndex){
+        						return false;
+        					}
+        					else{
+        						let res = await this.actionBeans.STS1576328658272(this, {}, {indexPage: this.local.currentIndex, pages: this.local.pages, doAll: false}, event);
+        						let next = false;
+        						if(res.nextPage){
+        							next = true;
+        						}
+        						else if(force == true){
+        							next = true;
+        						}
+        						if(next){
+        							this.local.currentIndex = nextPageIndex;
+        						    this.myContent1.scrollToTop();
+        						    let i = this["navParams"].get("i") != undefined ? this["navParams"].get("i") : ":i";
+        							let edit = this["navParams"].get("edit") != undefined ? this["navParams"].get("edit") : ":edit";
+        							let formId = this["navParams"].get("formId") != undefined ? this["navParams"].get("formId") : ":formId";
+        							history.pushState({page: this["local"]["currentIndex"], formId: formId, edit: edit, i: i}, "", "index.html" + "#/viewer/" + formId + "/" + edit + "/" + i);
+        							this.moveFocus();
+        							this.setTitleRGAA();
+        							return true;
+        						}
+        						else{
+        							return false;
+        						}
+        					}
+        				},
+        				/**
+        				 * Navigate to previous page
+        				 * @param force boolean, if true we force navigation to previous page, even if condtions are not met. Default is false
+        				 * @returns boolean success
+        				 */
+        				previousPage: async (force?: boolean) => {
+        					let previousPageIndex = this.getPreviousPageIndex();
+        					// if we are at first page: fail
+        					if(previousPageIndex == this.local.currentIndex){
+        						return false;
+        					}
+        					else{
+        						this.local.currentIndex = previousPageIndex;
+        					    let i = this["navParams"].get("i") != undefined ? this["navParams"].get("i") : ":i";
+        						let edit = this["navParams"].get("edit") != undefined ? this["navParams"].get("edit") : ":edit";
+        						let formId = this["navParams"].get("formId") != undefined ? this["navParams"].get("formId") : ":formId";
+        						history.pushState({page: this["local"]["currentIndex"], formId: formId, edit: edit, i: i}, "", "index.html" + "#/viewer/" + formId + "/" + edit + "/" + i);
+        						this.setTitleRGAA();
+        						return true;
+        					}
+        				},
+        				/**
+        				 * Navigate to a given index
+        				 * @param index number, the index page to navigate
+        				 * @param force boolean, if true we force navigation given index page, even if condtions are not met. Default is false
+        				 * @returns boolean success
+        				 */
+        				navigateAtIndex: async (index: number, force?: boolean) => {
+        					let count = window["api"].router.count() -1;
+        					if(index >= 0 && index <= count){
+        						let res = await this.actionBeans.STS1576328658272(this, {}, {indexPage: this.local.currentIndex, pages: this.local.pages, doAll: false}, event);
+        						let next = false;
+        						if(res.nextPage){
+        							next = true;
+        						}
+        						else if(force == true){
+        							next = true;
+        						}
+        						if(next){
+        							this.local.currentIndex = index;
+        						    this.myContent1.scrollToTop();
+        						    let i = this["navParams"].get("i") != undefined ? this["navParams"].get("i") : ":i";
+        							let edit = this["navParams"].get("edit") != undefined ? this["navParams"].get("edit") : ":edit";
+        							let formId = this["navParams"].get("formId") != undefined ? this["navParams"].get("formId") : ":formId";
+        							history.pushState({page: this["local"]["currentIndex"], formId: formId, edit: edit, i: i}, "", "index.html" + "#/viewer/" + formId + "/" + edit + "/" + i);
+        							this.moveFocus();
+        							this.setTitleRGAA();
+        							return true;
+        						}
+        					}
+        					else{
+        						return false;
+        					}
+        				},
+        				/**
+        				 * Get current index page
+        				 * @returns number current index page
+        				 */
+        				currentIndex: () => {
+        					return this.local.currentIndex;
+        				},
+        			
+        				/**
+        				 * Count pages
+        				 * @returns number count pages
+        				 */
+        				count: () => {
+        					this.local.pages.filter(x=> x.enabled).length +1;
+        				},
+        				/**
+        				 * Submit the form
+        				 * @returns Promise<void>
+        				 */
+        				submit: async () => {
+        					let r = await this.actionBeans.STS1576328658272(this, {}, {}, event);
+        					if(r){
+        						let i = this["navParams"].get("i") != undefined ? this["navParams"].get("i") : ":i"; 
+        						let edit = this["navParams"].get("edit") != undefined ? this["navParams"].get("edit") : ":edit";
+        						let formId = this["navParams"].get("formId") != undefined ? this["navParams"].get("formId") : ":formId";
+        						history.pushState({page: 0, formId: formId, edit: edit, i: i}, "", "index.html" + "#/viewer/" + formId + "/" + edit + "/" + i);
+        						return true;
+        					}
+        					else{
+        						return false;
+        					}
+        					
+        				},
+        				/**
+        				 * Reload the form
+        				 * @returns void
+        				 */
+        				reload: () => {
+        					
+        				}
+        			}
+        		}
+        	}
             /*End_c8o_PageFunction*/
         '
 segment: viewer/:formId/:edit/:i
