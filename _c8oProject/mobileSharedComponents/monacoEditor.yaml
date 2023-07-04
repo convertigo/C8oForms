@@ -4,6 +4,7 @@ scriptContent:
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
         '/*Begin_c8o_CompImport*/
+        import { C8o } from "c8osdkangular";
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	/*End_c8o_CompDeclaration*/
@@ -133,17 +134,17 @@ scriptContent:
         			 * @param force boolean, if true we force navigation given index page, even if condtions are not met. Default is false
         			 * @returns Promise<boolean> success
         			 */
-        			navigateAtIndex (index: number, force?: boolean): Promise<boolean>;
+        			navigateAtIndex(index: number, force?: boolean): Promise<boolean>;
         			/**
         			 * Get current index page
         			 * @returns number current index page
         			 */
-        			currentIndex(): number;
+        			currentIndex: number;
         			/**
         			 * Count pages
         			 * @returns number count pages
         			 */
-        			count(): number;
+        			readonly count: number;
         			/**
         			 * Submit the form
         			 * @param force boolean, if true we force form submition, even if condtions are not met. Default is false
@@ -154,12 +155,124 @@ scriptContent:
         			 * Reload the form
         			 * @returns void
         			 */
-        			reload():void;
+        			reload(): void;
         		}
+        				${ this.getSdkCompletion() }
+        		
+        		/**
+        		 * Holds translate service
+        		 */
+        		interface Translate {
+        			/**
+        			 * returns current language used
+        			 */
+        			currentLang: string;
+        			/**
+        			 * returns current browser language
+        			 */
+        			getBrowserLang(): string;
+        			/**
+        			 * set new language to use
+        			 */
+        			use(lang): void;
+        		}
+        		/**
+        		 * Holds translate service
+        		 */
+        		interface App {
+        			/**
+        			 * returns current state
+        			 */
+        			readonly state: number,
+        			/**
+        			 * returns current No code studio''s version
+        			 */
+        			readonly currentVersion: string,
+        			/**
+        			 * returns latest No code studio''s version if a new one is available
+        			 */
+        			readonly latestVersion: string
+        		}
+        		interface Form {
+        			/**
+        			 * returns current form''s version
+        			 */
+        			readonly version: string,
+        			/**
+        			 * returns a boolean that indicates if we are actually on a published form instance
+        			 */
+        			readonly published: boolean,
+        		
+        		}
+        		interface User {
+        			/**
+        			 * returns true if current client user is authenticated
+        			 */
+        			readonly authenticated: boolean,
+        			/**
+        			 * returns an Array of strings groups of current user
+        			 */
+        			readonly groups: Array<string>,
+        			/**
+        			 * returns max inactive session (seconds)
+        			 */
+        			readonly maxInactive: number,
+        			/**
+        			 * returns current username
+        			 */
+        			readonly name: string,
+        			/**
+        			 * returns current sessionId
+        			 */
+        			readonly sessionId: string
+        		}
+        		/**
+        		 * Form''s page
+        		 */
+        		interface Page {
+        			/**
+        			 * "No Code Studio''s" router
+        			 */
+        			form: {
+        				_id: string,
+        				_rev: string,
+        				creator: string,
+        				descform: string,
+        				formulaire:Array<any>,
+        				pages: Array<any>,
+        				name: string,
+        				namePosition: string
+        				wallpaper: any,
+        				c8oGrp: any,
+        				version: string,
+        				thumbnail: any,
+        				actions: Array<any>,
+        				creationDate: string,
+        				lastMofification: string				
+        			},
+        			formSubmit: any
+        		}
+        		/**
+        		 * Api object that holds "No Code Studio''s" interfaces
+        		 */
         		interface Api {
-        			router: Router
+        			/**
+        			 * "No Code Studio''s" router
+        			 */
+        			router: Router,
+        			/**
+        			 * Convertigo sdk
+        			 */
+        			c8o: C8o,
+        			translate: Translate,
+        			app: App,
+        			form: Form,
+        			user:User,
+        			page: Page
         		}
         		declare const api: Api;
+        		declare const page: Page
+        		}
         		`
         		console.log("final defs", defs);
         		console.log("computeDefs end");
@@ -265,6 +378,17 @@ scriptContent:
         					for(let nestIndex in meta.nested){
         						computedMeta[nestIndex] = this.evalMetaForTransform$toTsMonaco(meta.nested[nestIndex]);
         					}
+        				}
+        				// in case of coming from palette or txt
+        				if(meta.id == undefined && meta.pathPrefix == undefined){
+        					let cat = this.pageOwner.getElementById(id).cat;
+        					if(cat == "action"){
+        						meta.pathPrefix = "actions";
+        					}
+        					else{
+        						meta.pathPrefix = "fields"
+        					}
+        					meta.id = id;
         				}
         				let tpmstr = this.evalMetaForTransform$toTsMonaco(meta);
         				for(let nestIndex in computedMeta){
@@ -383,12 +507,18 @@ scriptContent:
         			let evt = C8oCafUtils.merge({"object": this, "target": this["elRef"].nativeElement}, {code: this.code})
                 	this.onBlur.emit(evt);
         		})
+        		editor.onDropIntoEditor((event)=>{ setTimeout(()=>{editor.trigger('''', ''editor.action.triggerSuggest'');})});
+        		//window["editor"] = editor;
         		console.log("onMonacoInit");
+        		setTimeout(() => {
+                    window.dispatchEvent(new Event(''resize''));
+                }, 0);
         		let defs = await this.computeDefs();
         		window["n"] = this;
         		window["esprima"] = esprima;
         		//window["jscodeshift"] = jscodeshift;
-        		window["monaco"].editor.createModel(defs, ''javascript'');
+        		window["monaco"].languages.typescript.javascriptDefaults.addExtraLib(defs);
+        		window["monaco"].editor.createModel(defs, ''typescript'');
         	}
         	
         	public OldinspectValue(node, arrayNodes, str = ""){
@@ -412,6 +542,7 @@ scriptContent:
         			return str;
         		}
         	}
+        	
         	public OldespirimaParse(){
         		let arrayNodes = [];
         		let rangeStartToInspect = [];
@@ -507,6 +638,1732 @@ scriptContent:
         			
         		}
         	}
+        	
+        	private getSdkCompletion(){
+        		return `declare class C8o extends C8oCore {
+        		    constructor(http: any);
+        		    http: any;
+        		    _http: any;
+        		    /**
+        		     * get current sdk version
+        		     */
+        		    get sdkVersion(): string;
+        		    /**
+        		     * Method to bastract http get
+        		     * @param uri the uri for given request
+        		     */
+        		    httpGetObservable(uri: any): any;
+        		    /**
+        		     * Init http interface in client sdk
+        		     */
+        		    initC8oHttInterface(): void;
+        		    httpInterface: C8oHttpInterface;
+        		}
+        		declare namespace C8o {
+        		    let ɵfac: any;
+        		    let ɵprov: any;
+        		}
+        		declare class C8oAlldocsLocal {
+        		    constructor(c8o: any);
+        		    c8o: any;
+        		    DB_VERSION: number;
+        		    LOCAL_STORE: string;
+        		    ATTACH_STORE: string;
+        		    alldocs(opts: any, db: any): any;
+        		    openBase(DB_NAME: any, resolve?: any, reject?: any): any;
+        		    doOpenBase(DB_NAME: any, resolve?: any, reject?: any): void;
+        		    restaureDb(DB_NAME: any): any;
+        		    idbAllDocs(opts: any, callback: any, DB_NAME: any): Promise<any>;
+        		    runBatchedCursor(objectStore: any, keyRange: any, descending: any, batchSize: any, onBatch: any): void;
+        		    getAll(objectStore: any, keyRange: any, onSuccess: any): void;
+        		    allDocsKeys(keys: any, docStore: any, onBatch: any): void;
+        		    decodeMetadata(storedObject: any): {
+        		        winningRev: any;
+        		        id: any;
+        		    };
+        		    openTransactionSafely(idb: any, stores: any, mode: any): {
+        		        txn: any;
+        		        error?: undefined;
+        		    } | {
+        		        error: any;
+        		        txn?: undefined;
+        		    };
+        		    isRemote(db: any): any;
+        		    allDocsKeysParse(opts: any): void;
+        		    createKeyRange(start: any, end: any, inclusiveEnd: any, key: any, descending: any): IDBKeyRange | {
+        		        error: any;
+        		    };
+        		}
+        		declare class C8oBase {
+        		    _timeout: number;
+        		    _retry: number;
+        		    _cookies: {};
+        		    _logRemote: boolean;
+        		    _initialLogRemote: boolean;
+        		    _logLevelLocal: C8oLogLevel;
+        		    _logPouchDB: boolean;
+        		    _logC8o: boolean;
+        		    _defaultDatabaseName: any;
+        		    _authenticationCookieValue: any;
+        		    _fullSyncLocalSuffix: any;
+        		    _fullSyncServerUrl: string;
+        		    _useEncryption: boolean;
+        		    _disableSSL: boolean;
+        		    _useworker: boolean;
+        		    _keepSessionAlive: boolean;
+        		    _errorConvertigoIntoFail: boolean;
+        		    _resetBase: boolean;
+        		    _prefixBase: boolean;
+        		    _headers: {};
+        		    /** Getters **/
+        		    /**
+        		     * Gets if normalize parameters.<br/>
+        		     * Default is <b>false</b>.
+        		     * @returns The timeout.
+        		     */
+        		    get usewroker(): boolean;
+        		    /**
+        		     * Gets if normalize parameters.<br/>
+        		     * Default is <b>false</b>.
+        		     * @returns The timeout.
+        		     */
+        		    get normalizeParameters(): any;
+        		    /**
+        		     * Gets if session has to be keep alive.<br/>
+        		     * Default is <b>true</b>.
+        		     * @returns The KeepSessionAlive status.
+        		     */
+        		    get keepSessionAlive(): boolean;
+        		    /**
+        		     * Gets if error convertigo are thrown into fail.<br/>
+        		     * Default is <b>false</b>.
+        		     * @returns The errorConvertigoIntoFail status.
+        		     */
+        		    get errorConvertigoIntoFail(): boolean;
+        		    /**
+        		     * Gets if reset database is disabled.<br/>
+        		     * Default is <b>true</b>.
+        		     * @returns The disable reset base status.
+        		     */
+        		    get resetBase(): boolean;
+        		    /**
+        		     * Gets if we have to prefix databases with user name.<br/>
+        		     * Default is <b>false</b>.
+        		     * @returns The prefix base status.
+        		     */
+        		    get prefixBase(): boolean;
+        		    /**
+        		     * Gets the connection timeout to Convertigo in milliseconds. A value of zero means the timeout is not used.<br/>
+        		     * Default is <b>0</b>.
+        		     * @returns The timeout.
+        		     */
+        		    get timeout(): number;
+        		    /**
+        		     * Gets the http connection attempt before failing.<br/>
+        		     * Default is <b>1</b>.
+        		     * @returns The timeout.
+        		     */
+        		    get retry(): number;
+        		    /**
+        		     * Gets a value indicating whether https calls trust all certificates or not.<br/>
+        		     * Default is <b>false</b>.
+        		     * @returns <b>true</b> if https calls trust all certificates; otherwise, <b>false</b>.
+        		     */
+        		    /**
+        		     * Gets initial cookies to send to the Convertigo server.<br/>
+        		     * Default is <b>null</b>.
+        		     * @returns List of cookies.
+        		     */
+        		    get cookies(): {};
+        		    /**
+        		     * Gets a value indicating if logs are sent to the Convertigo server.<br/>
+        		     * Default is <b>true</b>.
+        		     * @returns <b>true</b> if logs are sent to the Convertigo server; otherwise, <b>false</b>.
+        		     */
+        		    get logRemote(): boolean;
+        		    /**
+        		     * Gets a value indicating if pouchDB logs are enabled.<br/>
+        		     * Default is <b>false</b>.
+        		     * @returns <b>true</b> if pouchDB logs are enabled; otherwise, <b>false</b>.
+        		     */
+        		    get logPouchDB(): boolean;
+        		    /**
+        		     * Gets a value indicating logs level local
+        		     *
+        		     * @returns C8oLogLevel object
+        		     */
+        		    get logLevelLocal(): C8oLogLevel;
+        		    get logC8o(): boolean;
+        		    get defaultDatabaseName(): any;
+        		    get authenticationCookieValue(): any;
+        		    get fullSyncLocalSuffix(): any;
+        		    get fullSyncServerUrl(): string;
+        		    get fullSyncUsername(): any;
+        		    get fullSyncPassword(): any;
+        		    get logOnFail(): any;
+        		    /**
+        		     * Gets the endpoint define in C8oSettings<br/>
+        		     * @returns The current <b>endpoint</b>, if defined by c8oSettings.
+        		     */
+        		    get endpoint(): any;
+        		    get headers(): {};
+        		    copy(c8oBase: any): void;
+        		    _logOnFail: any;
+        		    _fullSyncUsername: any;
+        		    _fullSyncPassword: any;
+        		    /** Date **/
+        		    _normalizeParameters: any;
+        		}
+        		declare class C8oCallTask {
+        		    constructor(c8o: any, parameters: any, c8oResponseListener: any, c8oExceptionListener: any);
+        		    c8o: any;
+        		    set parameters(arg: any);
+        		    get parameters(): any;
+        		    c8oResponseListener: any;
+        		    c8oExceptionListener: any;
+        		    _parameters: any;
+        		    run(fromLive?: boolean): void;
+        		    _sha: any;
+        		    executeFromLive(): void;
+        		    handleRequest(): Promise<any>;
+        		    c8oCallUrl: string;
+        		    handleResponse(result: any): void;
+        		}
+        		/**
+        		 * Allows to send requests to a Convertigo Server (or Studio), these requests are called c8o calls.<br/>
+        		 * C8o calls are done thanks to a HTTP request or a CouchbaseLite usage.<br/>
+        		 * An instance of C8o is connected to only one Convertigo and can''t change it.<br/>
+        		 * To use it, you have to first initialize the C8o instance with the Convertigo endpoint, then use call methods with Convertigo variables as parameter.
+        		 */
+        		declare class C8oCore extends C8oBase {
+        		    /**
+        		     * Transforms siblings values as key/value of a Map.
+        		     *
+        		     * @param parameters pair of values to transform a object
+        		     * @return a Map that contains all parameters
+        		     */
+        		    static toParameters(parameters: any): {};
+        		    lastChangeTimeStamp: number;
+        		    lastChangeSetTimeout: any;
+        		    threshold: number;
+        		    observanleHandleFullSyncLive: any;
+        		    _automaticRemoveSplashsCreen: boolean;
+        		    lives: any[];
+        		    livesDb: any[];
+        		    _reply: any;
+        		    _couchUrl: any;
+        		    xsrfUsed: boolean;
+        		    handleFullSyncLive: C8oFullSyncChangeListener;
+        		    data: any;
+        		    c8oLogger: C8oLogger;
+        		    subscriber_session: any;
+        		    subscriber_session_changed: any;
+        		    subscriber_network: any;
+        		    subscriber_login: any;
+        		    subscriber_database_reset: any;
+        		    network: C8oManagerNetwork;
+        		    database: C8oManagerDatabase;
+        		    session: C8oManagerSession;
+        		    promiseManagerNetwork: Promise<void>;
+        		    set couchUrl(arg: any);
+        		    get couchUrl(): any;
+        		    set logC8o(arg: boolean);
+        		    get logC8o(): boolean;
+        		    set logPouchDB(arg: boolean);
+        		    get logPouchDB(): boolean;
+        		    set logRemote(arg: boolean);
+        		    get logRemote(): boolean;
+        		    _initalLogLevel: boolean;
+        		    set logLevelLocal(arg: C8oLogLevel);
+        		    get logLevelLocal(): C8oLogLevel;
+        		    get log(): C8oLogger;
+        		    set endpoint(arg: any);
+        		    get endpoint(): any;
+        		    _endpoint: any;
+        		    set endpointConvertigo(arg: any);
+        		    get endpointConvertigo(): any;
+        		    _endpointConvertigo: any;
+        		    set endpointIsSecure(arg: any);
+        		    get endpointIsSecure(): any;
+        		    _endpointIsSecure: any;
+        		    set endpointHost(arg: any);
+        		    get endpointHost(): any;
+        		    _endpointHost: any;
+        		    set endpointPort(arg: any);
+        		    get endpointPort(): any;
+        		    _endpointPort: any;
+        		    set endpointProject(arg: any);
+        		    get endpointProject(): any;
+        		    _endpointProject: any;
+        		    get deviceUUID(): any;
+        		    get httpPublic(): any;
+        		    set resetBase(arg: boolean);
+        		    get resetBase(): boolean;
+        		    set prefixBase(arg: boolean);
+        		    get prefixBase(): boolean;
+        		    get coreVersion(): string;
+        		    importLoginState(c8o: any): void;
+        		    extractendpoint(): void;
+        		    /**
+        		     * Makes a c8o call with c8o requestable out of parameters.<br/>
+        		     * To not use a C8oExceptionListener you can set the parameter to null
+        		     *
+        		     * @param requestable - Contains the Convertigo Sequence or Transaction targeted  (Syntax: "<project>.<sequence>" or "<project>.<connector>.<transaction>")
+        		     * @param parameters - Contains c8o variables
+        		     * @param c8oResponseListener - Define the behavior with the c8o call response
+        		     * @param c8oExceptionListener - Define the behavior when there is an exception during execution
+        		     */
+        		    call(requestable: any, parameters?: any, c8oResponseListener?: any, c8oExceptionListener?: any): void;
+        		    /**
+        		     * Makes a c8o call with c8o requestable in parameters (''__project'' and (''__sequence'' or (''__connector'' and ''__transaction''))).<br/>
+        		     * To not use a C8oExceptionListener you can set the parameter to null.
+        		     *
+        		     * @param parameters - Contains c8o variables
+        		     * @param c8oResponseListener - Define the behavior with the c8o call response
+        		     * @param c8oExceptionListener - Define the behavior when there is an exception during execution
+        		     */
+        		    _call(parameters?: any, c8oResponseListener?: any, c8oExceptionListener?: any): void;
+        		    /**
+        		     * Makes a c8o call with c8o requestable out of parameters, expecting a JSON response through a C8oPromise.<br/>
+        		     * The C8oPromise allow to register response handler with .then and .thenUI,
+        		     * error handler with .fail and failUI,
+        		     * replication handler with .progress
+        		     * and synchronous response with .sync().
+        		     *
+        		     * @param requestable - Contains the Convertigo Sequence or Transaction targeted  (Syntax: "<project>.<sequence>" or "<project>.<connector>.<transaction>")
+        		     * @param parameters: Object - Contains c8o variables as key/value pair in the Map
+        		     * @return A C8oPromise that can deliver the JSON response
+        		     */
+        		    callJsonObject(requestable: any, parameters: any): C8oPromise;
+        		    /**
+        		     * Makes a c8o call with c8o requestable out of parameters, expecting a JSON response through a C8oPromise.<br/>
+        		     * The C8oPromise allow to register response handler with .then and .thenUI,
+        		     * error handler with .fail and failUI,
+        		     * replication handler with .progress
+        		     * and synchronous response with .sync().
+        		     *
+        		     * @param requestable - Contains the Convertigo Sequence or Transaction targeted  (Syntax: "<project>.<sequence>" or "<project>.<connector>.<transaction>")
+        		     * @param parameters - Contains c8o variables as key/value
+        		     * @return A C8oPromise that can deliver the JSON response
+        		     */
+        		    callJson(requestable: any, ...parameters: any[]): C8oPromise;
+        		    /**
+        		     * Remove null value from parameters
+        		     *
+        		     * @param parameters an object
+        		     * @return a Map that contains all parameters
+        		     */
+        		    removeNull(parameters: any): void;
+        		    /**
+        		     * Calls the exception listener callback if it is not null, else prints the exception stack trace.
+        		     *
+        		     * @param c8oExceptionListener
+        		     * @param requestParameters
+        		     * @param exception
+        		     */
+        		    handleCallException(c8oExceptionListener: any, requestParameters: any, exception: any): void;
+        		    /**
+        		     * Return an subject that call next if session has been lost
+        		     */
+        		    handleSessionLost(): any;
+        		    /**
+        		     * Return an subject that call next if session authenticated user change
+        		     */
+        		    handleSessionAuthenticatedUserChanged(): any;
+        		    /**
+        		     * Return an subject that call next if network has change
+        		     */
+        		    handleNetworkEvents(): any;
+        		    /**
+        		     * Return an subject that call next if autologin is triggered with its result
+        		     */
+        		    handleAutoLoginResponse(): any;
+        		    /**
+        		     * Return an subject that call next if database has been reset
+        		     */
+        		    handleResetDatabase(): any;
+        		    /**
+        		     * get an attachment for a given object
+        		     *
+        		     * @param id: string
+        		     * @param attachment_name: string
+        		     *
+        		     * @returns a promise containing a buffer
+        		     */
+        		    get_attachment(id: any, attachment_name: any, database_name: any): Promise<any>;
+        		    /**
+        		     * Add a listener to monitor all changes of the ''db''.
+        		     *
+        		     * @param db the name of the fullsync database to monitor. Use the default database for a blank or a null value.
+        		     * @param listener the listener to trigger on change.
+        		     */
+        		    addFullSyncChangeListener(db: any, listener: any, parameters?: {}): void;
+        		    /**
+        		     * Remove a listener for changes of the ''db''.
+        		     *
+        		     * @param db the name of the fullsync database to monitor. Use the default database for a blank or a null value.
+        		     * @param listener the listener instance to remove.
+        		     */
+        		    removeFullSyncChangeListener(db: any, listener: any): void;
+        		    addLive(liveid: any, db: any, task: any): void;
+        		    cancelLive(liveid: any): void;
+        		    executeHandleFullSyncLive(): void;
+        		    doAlog(): void;
+        		    debounce(func: any, timeout?: number): (...args: any[]) => void;
+        		    truc(): void;
+        		    /**
+        		     * This is the base object representing a Convertigo Server end point. This object should be instantiated
+        		     * when the apps starts and be accessible from any class of the app. Although this is not common , you may have
+        		     * several C8o objects instantiated in your app.
+        		     *
+        		     * @param c8oSettings Initialization options.<br/>
+        		     *                    Example: new C8oSettings().setLogRemote(false).setDefaultDatabaseName("sample")
+        		     *
+        		     * @throws C8oException In case of invalid parameter or initialization failure.
+        		     */
+        		    init(c8oSettings: any): any;
+        		    promiseConstructor: any;
+        		    promiseInit: any;
+        		    c8oFullSync: C8oFullSyncCbl;
+        		    /**
+        		     * This should be called OnPlatform Ready to remove splashscreen if necessary
+        		     *
+        		     */
+        		    finalizeInit(): any;
+        		    promiseFinInit: any;
+        		}
+        		declare namespace C8oCore {
+        		    let RE_REQUESTABLE: RegExp;
+        		    let RE_ENDPOINT: RegExp;
+        		    let ENGINE_PARAMETER_PROJECT: string;
+        		    let ENGINE_PARAMETER_SEQUENCE: string;
+        		    let ENGINE_PARAMETER_CONNECTOR: string;
+        		    let ENGINE_PARAMETER_TRANSACTION: string;
+        		    let ENGINE_PARAMETER_ENCODED: string;
+        		    let ENGINE_PARAMETER_DEVICE_UUID: string;
+        		    let ENGINE_PARAMETER_PROGRESS: string;
+        		    let ENGINE_PARAMETER_FROM_LIVE: string;
+        		    let use_merge_prefix: string;
+        		    let FS_POLICY: string;
+        		    let FS_POLICY_NONE: string;
+        		    let FS_POLICY_CREATE: string;
+        		    let FS_POLICY_OVERRIDE: string;
+        		    let FS_POLICY_MERGE: string;
+        		    let FS_SUBKEY_SEPARATOR: string;
+        		    let SEQ_AUTO_LOGIN_OFF: string;
+        		    let FS_LIVE: string;
+        		    let LOCAL_CACHE_DOCUMENT_KEY_RESPONSE: string;
+        		    let LOCAL_CACHE_DOCUMENT_KEY_RESPONSE_TYPE: string;
+        		    let LOCAL_CACHE_DOCUMENT_KEY_EXPIRATION_DATE: string;
+        		    let LOCAL_CACHE_DATABASE_NAME: string;
+        		    let RESPONSE_TYPE_XML: string;
+        		    let RESPONSE_TYPE_JSON: string;
+        		}
+        		declare class C8oCouchBaseLiteException extends C8oException {
+        		    constructor(message: any, cause?: any);
+        		}
+        		/**
+        		 * Thrown specific exceptions to Convertigo.
+        		 */
+        		declare class C8oException extends Error {
+        		    constructor(message: any, cause?: any, all?: boolean);
+        		    message: any;
+        		    _cause: any;
+        		    get cause(): any;
+        		    toJSON(): {};
+        		    toString(): {};
+        		}
+        		declare class C8oExceptionListener {
+        		    constructor(onException: any);
+        		    onException: any;
+        		}
+        		/**
+        		 * Contains static Functions returning the exception messages
+        		 * in order to make simpler their modification and avoid duplication.
+        		 */
+        		declare class C8oExceptionMessage {
+        		    /** TAG Illegal argument **/
+        		    static notImplementedFullSyncInterface(): string;
+        		    static invalidParameterValue(parameterName: any, details?: any): string;
+        		    static illegalArgumentInvalidEndpoint(endpoint: any): string;
+        		    static wrongListener(c8oListener: any): string;
+        		    static illegalArgumentNullParameter(parameterName: any): string;
+        		    static missingValue(valueName: any): string;
+        		    static unknownValue(valueName: any, value: any): string;
+        		    static unknownType(variableName: any, variable: any): string;
+        		    static ressourceNotFound(ressourceName: any): string;
+        		    /** TAG Illegal argument */
+        		    static illegalArgumentInvalidFullSyncDatabaseUrl(fullSyncDatabaseUrlStr: any): string;
+        		    static FullSyncDatabaseInitFailed(databaseName: any): string;
+        		    static MissParameter(parameterName: any): string;
+        		    static illegalArgumentInvalidURL(urlStr: any): string;
+        		    static InvalidArgumentInvalidURL(urlStr: any): string;
+        		    static UnknownFullSyncPolicy(policy: any): string;
+        		    static InvalidArgumentInvalidEndpoint(endpoint: any): string;
+        		    static InvalidRequestable(requestable: any): string;
+        		    static InvalidParameterType(parameterName: any, wantedParameterType: any, actualParameterType: any): string;
+        		    static illegalArgumentIncompatibleListener(listenerType: any, responseType: any): string;
+        		    static InvalidArgumentNullParameter(parameterName: any): string;
+        		    /** TAG Initialization */
+        		    static InitError(): string;
+        		    static InitRsainternalKey(): string;
+        		    static InitCouchManager(): string;
+        		    static InitSslSocketFactory(): string;
+        		    static InitDocumentBuilder(): string;
+        		    /** TAG Parse */
+        		    static ParseStreamToJson(): string;
+        		    static ParseStreamToXml(): string;
+        		    static parseInputStreamToString(): string;
+        		    static parseXmlToString(): string;
+        		    static parseRsainternalKey(): string;
+        		    static parseQueryEnumeratorToJson(): string;
+        		    static parseLogsToJson(): string;
+        		    static parseLogsStreamToJson(): string;
+        		    static parseC8oReplicationResultToJson(): string;
+        		    static parseFullSyncDefaultResponseToJson(): string;
+        		    static parseFullSyncPostDocumentResponseToJson(): string;
+        		    static parseStringToJson(): string;
+        		    static ParseStringToObject(type: any): string;
+        		    static StringToJsonValue(str: any): string;
+        		    /** TAG HTTP */
+        		    static retrieveRsainternalKey(): string;
+        		    static httpLogs(): string;
+        		    /** TAG Couch */
+        		    static couchRequestGetView(): string;
+        		    static couchRequestCreateIndex(): string;
+        		    static couchRequestFind(): string;
+        		    static couchRequestExplain(): string;
+        		    static couchRequestGetIndexes(): string;
+        		    static couchRequestDeleteIndex(): string;
+        		    static couchRequestSearch(): string;
+        		    static couchRequestAllDocuments(): string;
+        		    static couchRequestResetDatabase(): string;
+        		    static couchRequestDeleteDocument(): string;
+        		    static couchRequestInvalidRevision(): string;
+        		    static couchRequestPostDocument(): string;
+        		    static unableToGetFullSyncDatabase(databaseName: any): string;
+        		    static couchNullResult(): string;
+        		    static couchFullSyncNotActive(): string;
+        		    static CouchDeleteFailed(): string;
+        		    static fullSyncPutProperties(properties: any): string;
+        		    static fullSyncGetOrCreateDatabase(databaseName: any): string;
+        		    static fullSyncHandleResponse(): string;
+        		    /** TAG Certificate */
+        		    static loadKeyStore(): string;
+        		    static trustAllCertificates(): string;
+        		    static clientKeyStore(): string;
+        		    static serverKeyStore(): string;
+        		    /** TAG Not found */
+        		    static illegalArgumentNotFoundFullSyncView(viewName: any, databaseName: any): string;
+        		    /** TAG Other */
+        		    static unhandledResponseType(responseType: any): string;
+        		    static unhandledListenerType(listenerType: any): string;
+        		    static WrongListener(c8oListener: any): string;
+        		    static wrongResult(result: any): string;
+        		    static unhandledFullSyncRequestable(fullSyncRequestableValue: any): string;
+        		    static closeInputStream(): string;
+        		    static deserializeJsonObjectFromString(str: any): string;
+        		    static postDocument(): string;
+        		    static getNameValuePairObjectValue(name: any): string;
+        		    static queryEnumeratorToJSON(): string;
+        		    static queryEnumeratorToXML(): string;
+        		    static addparametersToQuery(): string;
+        		    static putJson(): string;
+        		    static changeEventToJson(): string;
+        		    static initC8oSslSocketFactory(): string;
+        		    static createSslContext(): string;
+        		    static keyManagerFactoryInstance(): string;
+        		    static initKeyManagerFactory(): string;
+        		    static InitHttpInterface(): string;
+        		    static trustManagerFactoryInstance(): string;
+        		    static initTrustManagerFactory(): string;
+        		    static initSslContext(): string;
+        		    static initCipher(): string;
+        		    static urlEncode(): string;
+        		    static getParametersStringBytes(): string;
+        		    static encodeParameters(): string;
+        		    static RunHttpRequest(): string;
+        		    static generateRsainternalKey(): string;
+        		    static keyFactoryInstance(): string;
+        		    static getCipherInstance(): string;
+        		    static entryNotFound(entryKey: any): string;
+        		    static c8oCallRequestToJson(): string;
+        		    static getJsonKey(key: any): string;
+        		    static jsonValueToXML(): string;
+        		    static inputStreamToXML(): string;
+        		    static inputStreamReaderEncoding(): string;
+        		    static readLineFromBufferReader(): string;
+        		    static GetLocalCacheParameters(): string;
+        		    static GetLocalCachePolicy(policy: any): string;
+        		    static fullSyncJsonToXML(): string;
+        		    static takeLog(): string;
+        		    static remoteLogHttpRequest(): string;
+        		    static getInputStreamFromHttpResponse(): string;
+        		    static inputStreamToJSON(): string;
+        		    static httpInterfaceInstance(): string;
+        		    static FullSyncInterfaceInstance(): string;
+        		    static getDocumentFromDatabase(documentId: any): string;
+        		    static FullSyncReplicationFail(databaseName: any, way: any): string;
+        		    static localCachePolicyIsDisable(): string;
+        		    static localCacheDocumentJustCreated(): string;
+        		    static illegalArgumentInvalidLocalCachePolicy(localCachePolicyString: any): string;
+        		    static timeToLiveExpired(): string;
+        		    static InvalidLocalCacheResponseInformation(): string;
+        		    static overrideDocument(): string;
+        		    static handleFullSyncRequest(): string;
+        		    static serializeC8oCallRequest(): string;
+        		    static getResponseFromLocalCache(): string;
+        		    static getResponseFromLocalCacheDocument(): string;
+        		    static handleC8oCallRequest(): string;
+        		    static runHttpRequest(): string;
+        		    static saveResponseToLocalCache(): string;
+        		    static RemoteLogFail(): string;
+        		    static FullSyncRequestFail(): string;
+        		    static MissingLocalCacheResponseDocument(): string;
+        		}
+        		declare class C8oFullSync {
+        		    /**
+        		     * Checks if request parameters correspond to a fullSync request.
+        		     */
+        		    static isFullSyncRequest(requestParameter: any): boolean;
+        		    constructor(c8o: any);
+        		    c8o: any;
+        		    fullSyncDatabaseUrlBase: string;
+        		    localSuffix: any;
+        		    /**
+        		     * Handles a fullSync request.<br/>
+        		     * It determines the type of the request thanks to parameters.
+        		     *
+        		     * @param _parameters
+        		     * @param listener
+        		     * @return promise<any>
+        		     * @throws C8oException
+        		     */
+        		    handleFullSyncRequest(_parameters: any, listener: any): Promise<any>;
+        		    /**
+        		     *
+        		     * @param response
+        		     * @param listener
+        		     * @return response
+        		     * @throws C8oException Failed to parse response.
+        		     */
+        		    handleFullSyncResponse(response: any, listener: any): any;
+        		}
+        		declare namespace C8oFullSync {
+        		    let FULL_SYNC_URL_PATH: string;
+        		    let FULL_SYNC_PROJECT: string;
+        		    let FULL_SYNC__ID: string;
+        		    let FULL_SYNC__REV: string;
+        		    let FULL_SYNC__ATTACHMENTS: string;
+        		}
+        		declare class C8oFullSyncCbl extends C8oFullSync {
+        		    /**
+        		     * Allow to clone object whithout reference
+        		     *
+        		     * @param obj Object: object to be cloned
+        		     */
+        		    static deepCloneObject(obj: any): any;
+        		    /**
+        		     * Recursive function that browse object to be modified and apply delete
+        		     *
+        		     * @param objToChange Object: the object to be modified
+        		     * @param path string: The path where to find object to be modified
+        		     * @param index number: index
+        		     * @param subPolicy Object: subPolicy to be applied
+        		     */
+        		    static applySubPolicyDelete(objToChange: any, path: any, index: any, subPolicy: any): void;
+        		    /**
+        		     * Recursive function that browse object to be modified and apply override
+        		     *
+        		     * @param objToChange Object: the object to be modified
+        		     * @param path string: The path where to find object to be modified
+        		     * @param index number: index
+        		     * @param source Object: the object posted
+        		     * @param subPolicy Object: subPolicy to be applied
+        		     */
+        		    static applySubPolicyOverride(objToChange: any, path: any, index: any, source: any, subPolicy: any): void;
+        		    /**
+        		     * Global function that will apply sub policy for merge
+        		     *
+        		     * @param override boolean: if we have to perform override sub policy or not
+        		     * @param source Object: the object posted
+        		     * @param objToChange Object: the object to be modified
+        		     * @param subPolicy Object: subPolicy to be applied
+        		     */
+        		    static applySubPolicyForMerge(override: any, source: any, objToChange: any, subPolicy: any): void;
+        		    static mergeProperties(newProperties: any, oldProperties: any, useMergePolicy?: string): void;
+        		    static mergeArrayProperties(newArray: any, oldArray: any): void;
+        		    fullSyncChangeListeners: any[];
+        		    cblChangeListeners: any[];
+        		    replicationsToRestart: any[];
+        		    canceled: boolean;
+        		    fullSyncDatabases: {};
+        		    /**
+        		     * Returns the database with this name in the list.<br/>
+        		     * If it does not already exist yet then creates it and adds it to the list.
+        		     *
+        		     * @param databaseName
+        		     * @return C8oFullSyncDatabase
+        		     * @throws C8oException Failed to create a new fullSync database.
+        		     */
+        		    getOrCreateFullSyncDatabase(databaseName: any, isLocalCache?: boolean): Promise<any>;
+        		    handleFullSyncResponse(response: any, listener: any): any;
+        		    handleGetAttachmentUrlRequest(fullSyncDatabaseName: any, docid: any, parameters: any): Promise<any>;
+        		    handleGetDocumentRequest(fullSyncDatabaseName: any, docid: any, parameters: any): Promise<any>;
+        		    handleDeleteDocumentRequest(DatabaseName: any, docid: any, parameters: any): Promise<any>;
+        		    handlePostDocumentRequest(databaseName: any, fullSyncPolicy: any, parameters: any, fullsyncPolicySubMerge?: any): Promise<any>;
+        		    handlePutAttachmentRequest(databaseName: any, docid: any, attachmentName: any, attachmentType: any, attachmentContent: any): Promise<any>;
+        		    handleGetAttachmentRequest(databaseName: any, docid: any, attachmentName: any, parameters: any): Promise<any>;
+        		    handleDeleteAttachmentRequest(databaseName: any, docid: any, attachmentName: any): Promise<any>;
+        		    handleAllDocumentsRequest(databaseName: any, parameters: any): Promise<any>;
+        		    handleAllLocalDocumentsRequest(databaseName: any, parameters: any): Promise<any>;
+        		    handleGetViewRequest(databaseName: any, ddocName: any, viewName: any, parameters: any): Promise<any>;
+        		    handleCreateIndexRequest(databaseName: any, fields: any, parameters: any): Promise<any>;
+        		    handleGetFindRequest(databaseName: any, selector: any, parameters: any): Promise<any>;
+        		    handleExplainRequest(databaseName: any, selector: any, parameters: any): Promise<any>;
+        		    handleGetIndexesRequest(databaseName: any, parameters: any): Promise<any>;
+        		    handleDeleteIndexRequest(databaseName: any, parameters: any): Promise<any>;
+        		    handleSearchRequest(databaseName: any, query: any, fields: any, parameters: any): Promise<any>;
+        		    /**
+        		     * Check network status before starting a replication
+        		     */
+        		    checkState(): any;
+        		    handleSyncRequest(databaseName: any, parameters: any, c8oResponseListener: any): Promise<any>;
+        		    handleReplicatePullRequest(databaseName: any, parameters: any, c8oResponseListener: any): Promise<any>;
+        		    handleReplicatePushRequest(databaseName: any, parameters: any, c8oResponseListener: any): Promise<any>;
+        		    handleResetDatabaseRequest(databaseName: any): any;
+        		    handleCreateDatabaseRequest(databaseName: any): Promise<FullSyncDefaultResponse>;
+        		    handleBulkRequest(databaseName: any, parameters: any): Promise<any>;
+        		    handleInfoRequest(databaseName: any): Promise<any>;
+        		    handleDestroyDatabaseRequest(databaseName: any): Promise<any>;
+        		    getDocucmentFromDatabase(c8o: any, databaseName: any, documentId: any): Promise<any>;
+        		    overrideDocument(document: any, properties: any, databaseName: any): Promise<void>;
+        		    getResponseFromLocalCache(c8oCallRequestIdentifier: any): Promise<any>;
+        		    saveResponseToLocalCache(c8oCallRequestIdentifier: any, localCacheResponse: any): Promise<any>;
+        		    addFullSyncChangeListener(db: any, listener: any, parameters?: {}): Promise<void>;
+        		    removeFullSyncChangeListener(db: any, listener: any): Promise<void>;
+        		}
+        		declare namespace C8oFullSyncCbl {
+        		    let ATTACHMENT_PROPERTY_KEY_CONTENT_URL: string;
+        		}
+        		declare class C8oFullSyncChangeListener {
+        		    constructor(change: any);
+        		    _onchange: any;
+        		    onChange(changes: any): void;
+        		}
+        		/**
+        		 * Created by charlesg on 10/01/2017.
+        		 */
+        		declare class C8oFullSyncDatabase {
+        		    /**
+        		     * Creates a fullSync database with the specified name and its location.
+        		     *
+        		     * @param c8o
+        		     * @param databaseName
+        		     * @param fullSyncDatabases
+        		     * @param localSuffix
+        		     * @throws C8oException Failed to get the fullSync database.
+        		     */
+        		    constructor(c8o: any, databaseName: any, fullSyncDatabases: any, localSuffix: any, localPrefix: any);
+        		    /**
+        		     * The fullSync Database instance.
+        		     */
+        		    database: any;
+        		    /**
+        		     * Used to make pull replication (uploads changes from the local database to the remote one).
+        		     */
+        		    pullFullSyncReplication: FullSyncReplication;
+        		    /**
+        		     * Used to make push replication (downloads changes from the remote database to the local one).
+        		     */
+        		    pushFullSyncReplication: FullSyncReplication;
+        		    /**
+        		     * Used to make pull replication (uploads changes from the local database to the remote one).
+        		     */
+        		    syncFullSyncReplication: FullSyncReplication;
+        		    manual_canceled: boolean;
+        		    to_cancel: any[];
+        		    c8o: any;
+        		    remotePouchHeader: {
+        		        fetch: (url: any, opts: any) => any;
+        		    };
+        		    c8oFullSyncDatabaseUrl: any;
+        		    remotedatabaseName: any;
+        		    databaseName: any;
+        		    remoteDatabaseVersion(): Promise<any>;
+        		    localDatabaseVersion(): Promise<any>;
+        		    checkResetBase(): Promise<boolean>;
+        		    resetMyBase(): Promise<void>;
+        		    /**
+        		     * Start pull and push replications.
+        		     * @returns Promise<any>
+        		     */
+        		    startAllReplications(parameters: any, c8oResponseListener: any, handler: any, id?: any, mutex?: any): Promise<any>;
+        		    /**
+        		     * Start pull replication.
+        		     * @returns Promise<any>
+        		     */
+        		    startPullReplication(parameters: any, c8oResponseListener: any, handler: any, id?: any, mutex?: any): Promise<any>;
+        		    /**
+        		     * Start push replication.
+        		     * @returns Promise<any>
+        		     */
+        		    startPushReplication(parameters: any, c8oResponseListener: any, handler: any, id?: any, mutex?: any): Promise<any>;
+        		    startSync(fullSyncReplication: any, parameters: any, c8oResponseListener: any, handler: any, id?: any, mutex?: any): any;
+        		    _id: any;
+        		    /**
+        		     * Starts a replication taking into account parameters.<br/>
+        		     * This action does not directly return something but setup a callback raised when the replication raises change events.
+        		     *
+        		     * @param fullSyncReplication
+        		     * @param c8oResponseListener
+        		     * @param parameters
+        		     */
+        		    startReplication(fullSyncReplication: any, parameters: any, c8oResponseListener: any, handler: any, id?: any, mutex?: any): any;
+        		    get getdatabseName(): any;
+        		    get getdatabase(): any;
+        		    deleteDB(): any;
+        		    /**
+        		     * cancel Pull Replication
+        		     */
+        		    cancelPullReplication(): void;
+        		    /**
+        		     * cancel Push Replication
+        		     */
+        		    cancelPushReplication(): void;
+        		    /**
+        		     * cancel Sync Replication
+        		     */
+        		    cancelSyncReplication(): void;
+        		}
+        		declare class C8oFullSyncTranslator {
+        		    static fullSyncDocumentOperationResponseToJson(fullSyncDocumentOperationResponse: any): any;
+        		    static fullSyncDefaultResponseToJson(fullSyncDefaultResponse: any): any;
+        		}
+        		declare namespace C8oFullSyncTranslator {
+        		    let FULL_SYNC_RESPONSE_KEY_COUNT: string;
+        		    let FULL_SYNC_RESPONSE_KEY_ROWS: string;
+        		    let FULL_SYNC_RESPONSE_KEY_CURRENT: string;
+        		    let FULL_SYNC_RESPONSE_KEY_DIRECTION: string;
+        		    let FULL_SYNC_RESPONSE_KEY_TOTAL: string;
+        		    let FULL_SYNC_RESPONSE_KEY_OK: string;
+        		    let FULL_SYNC_RESPONSE_KEY_STATUS: string;
+        		    let FULL_SYNC_RESPONSE_VALUE_DIRECTION_PUSH: string;
+        		    let FULL_SYNC_RESPONSE_VALUE_DIRECTION_PULL: string;
+        		    let XML_KEY_DOCUMENT: string;
+        		    let XML_KEY_COUCHDB_OUTPUT: string;
+        		}
+        		declare class C8oHttpInterface extends C8oHttpInterfaceCore {
+        		    constructor(c8o: any);
+        		    /**
+        		     * get headers;
+        		     * @param object headers object
+        		     */
+        		    getHeaders(object: any): any;
+        		    /**
+        		     * Angular implementation to post with progress
+        		     * @param url the url to post
+        		     * @param form the form data to post
+        		     * @param headersObject Headers to use
+        		     */
+        		    getuploadRequester(url: any, form: any, headersObject: any): any;
+        		    /**
+        		     * test type of request
+        		     * @param event any
+        		     */
+        		    isHttpResponse(event: any): boolean;
+        		}
+        		declare class C8oHttpInterfaceCore {
+        		    constructor(c8o: any, js?: boolean);
+        		    firstCall: boolean;
+        		    _isCordova: boolean;
+        		    js: boolean;
+        		    session: string;
+        		    from: any;
+        		    c8o: any;
+        		    timeout: any;
+        		    firstcheckSessionR: boolean;
+        		    _notifySessionLost: boolean;
+        		    forceInit(): void;
+        		    /**
+        		     * Method to bastract http get
+        		     * @param uri the uri for given request
+        		     */
+        		    httpGetObservable(uri: any, param1?: any, param2?: any): any;
+        		    /**
+        		     * Method to bastract http post
+        		     * @param uri the uri for given request
+        		     */
+        		    httpPostObservable(uri: any, param1: any, param2: any): any;
+        		    /**
+        		     * Call user service
+        		     * @param headers headers for request
+        		     */
+        		    getUserServiceStatus(observe: any): any;
+        		    /**
+        		    * Make an http post
+        		    * @param {string} url
+        		    * @param {Object} parameters
+        		    * @return {Promise<any>}
+        		    */
+        		    httpPost(url: string, parameters: any): Promise<any>;
+        		    p1: any;
+        		    /**
+        		     * Execute http Posts
+        		     * @param url
+        		     * @param parameters
+        		     * @param headers
+        		     * @param resolve
+        		     * @param reject
+        		     */
+        		    execHttpPosts(url: any, parameters: any, headers: any, resolve: any, reject: any, headers_return?: boolean, doLogin?: boolean): void;
+        		    /**
+        		     * Handle response of http Posts
+        		     * @param response
+        		     * @param headers
+        		     * @param resolve
+        		     */
+        		    handleResponseHttpPost(response: any, headers: any, resolve: any, urlReq: any, parametersReq: any, headersReq: any, returns_header?: boolean, reject?: any, doLogin?: boolean): void;
+        		    /**
+        		     * Handle errors of http Posts
+        		     * @param error
+        		     * @param reject
+        		     */
+        		    handleErrorHttpPost(error: any, reject: any, url?: any): void;
+        		    /**
+        		     * Check type of file given in parameters
+        		     * 0 : No file to upload
+        		     * 1 : FileList Or File
+        		     * 2 : url when running in cordova
+        		     * @param {Object} parameters
+        		     * @return {number}
+        		     */
+        		    checkFile(parameters: any): number;
+        		    /**
+        		     * Check if we are in cordova environment
+        		     * @return {boolean}
+        		     */
+        		    isCordova(): boolean;
+        		    /**
+        		     * Url encode parameters
+        		     * @param {Object} parameters
+        		     * @return {string}
+        		     */
+        		    transformRequest(parameters: any): string;
+        		    /**
+        		     * Transform FormData parameters
+        		     * @param {Object} parameters
+        		     * @return {FormData}
+        		     */
+        		    transformRequestformdata(parameters: any): FormData;
+        		    /**
+        		     * Extract file from parameters and return and array containing a file and params
+        		     * @param {Object} parameters
+        		     * @return {any}
+        		     */
+        		    transformRequestfileNative(parameters: any): any;
+        		    /**
+        		     * Handle the request
+        		     * @param {string} url
+        		     * @param {Object} parameters
+        		     * @param {C8oResponseListener} c8oResponseListener
+        		     * @return {Promise<any>}
+        		     */
+        		    handleRequest(url: string, parameters: any, c8oResponseListener: C8oResponseListener): Promise<any>;
+        		    /**
+        		     * Upload file with native plugin
+        		     * @param {string} url
+        		     * @param {Object} parameters
+        		     * @param {C8oResponseListener} c8oResponseListener
+        		     * @return {Promise<any>}
+        		     */
+        		    uploadFilePluginNative(url: string, parameters: any, c8oResponseListener: C8oResponseListener): Promise<any>;
+        		    /**
+        		     * Upload File using an Http client
+        		     * @param {string} url
+        		     * @param {FormData} form
+        		     * @param {Object} parameters
+        		     * @param {C8oResponseListener} c8oResponseListener
+        		     * @return {Promise<any>}
+        		     */
+        		    uploadFileHttp(url: string, form: FormData, parameters: any, c8oResponseListener: C8oResponseListener): Promise<any>;
+        		    /**
+        		     * handle FileuploadResponses
+        		     * @param event
+        		     * @param progress
+        		     * @param parameters
+        		     * @param c8oResponseListener
+        		     * @param varNull
+        		     * @param resolve
+        		     */
+        		    handleResponseFileUpload(event: any, progress: any, parameters: any, c8oResponseListener: any, varNull: any, resolve: any): void;
+        		    /**
+        		     * Handle errors for file upload
+        		     * @param error
+        		     * @param resolve
+        		     */
+        		    handleErrorFileUpload(error: any, resolve: any): void;
+        		    /**
+        		     * Handle progress
+        		     * @param event
+        		     * @param {C8oProgress} progress
+        		     * @param parameters
+        		     * @param {C8oResponseListener} c8oResponseListener
+        		     * @param {JSON} varNull
+        		     */
+        		    handleProgress(event: any, progress: C8oProgress, parameters: any, c8oResponseListener: C8oResponseListener, varNull: JSON): void;
+        		}
+        		/**
+        		 * Thrown during an HTTP request.
+        		 */
+        		declare class C8oHttpRequestException extends C8oException {
+        		    constructor(message: any, cause?: any);
+        		    originalException: any;
+        		}
+        		declare class C8oLocalCache {
+        		    constructor(priority: any, ttl?: number, enabled?: boolean);
+        		    priority: any;
+        		    ttl: number;
+        		    enabled: boolean;
+        		}
+        		declare namespace C8oLocalCache {
+        		    let PARAM: string;
+        		}
+        		declare class C8oLocalCacheResponse {
+        		    constructor(response: any, responseType: any, expirationDate: any);
+        		    response: any;
+        		    responseType: any;
+        		    expirationDate: any;
+        		    isExpired(): boolean;
+        		    getResponse(): any;
+        		    getResponseType(): any;
+        		    getExpirationDate(): any;
+        		}
+        		declare class C8oLogLevel {
+        		    static getC8oLogLevel(name: any): C8oLogLevel;
+        		    constructor(name: any, priority: any);
+        		    name: any;
+        		    priority: any;
+        		}
+        		declare namespace C8oLogLevel {
+        		    let NULL: C8oLogLevel;
+        		    let NONE: C8oLogLevel;
+        		    let TRACE: C8oLogLevel;
+        		    let DEBUG: C8oLogLevel;
+        		    let INFO: C8oLogLevel;
+        		    let WARN: C8oLogLevel;
+        		    let ERROR: C8oLogLevel;
+        		    let FATAL: C8oLogLevel;
+        		    let C8O_LOG_LEVELS: C8oLogLevel[];
+        		}
+        		declare class C8oLogger {
+        		    constructor(c8o: any, first: any);
+        		    initDone: boolean;
+        		    waitForSending: boolean;
+        		    pInit: any;
+        		    affect_val(c8o: any, first: any): any;
+        		    c8o: any;
+        		    remoteLogUrl: string;
+        		    remoteLogs: Queue;
+        		    pending_remoteLogsLevel: Queue;
+        		    pending_remoteLogs: Queue;
+        		    alreadyRemoteLogging: any[];
+        		    remoteLogLevel: C8oLogLevel;
+        		    startTimeRemoteLog: number;
+        		    uidRemoteLogs: string;
+        		    env: string;
+        		    isLoggableRemote(logLevel: any): boolean;
+        		    isLoggableConsole(logLevel: any): boolean;
+        		    canLog(logLevel: any): boolean;
+        		    get isFatal(): boolean;
+        		    get isError(): boolean;
+        		    get isWarn(): boolean;
+        		    get isInfo(): boolean;
+        		    get isDebug(): boolean;
+        		    get isTrace(): boolean;
+        		    log(logLevel: any, message: any, exception: any): void;
+        		    fatal(message: any, exceptions?: any): void;
+        		    error(message: any, exceptions?: any): void;
+        		    warn(message: any, exceptions?: any): void;
+        		    info(message: any, exceptions?: any): void;
+        		    debug(message: any, exceptions?: any): void;
+        		    trace(message: any, exceptions?: any): void;
+        		    _log(logLevel: any, messages: any, exceptions?: any): void;
+        		    _fatal(message: any, exceptions?: any): void;
+        		    _error(message: any, exceptions?: any): void;
+        		    _warn(message: any, exceptions?: any): void;
+        		    _info(message: any, exceptions?: any): void;
+        		    _debug(message: any, exceptions?: any): void;
+        		    _trace(message: any, exceptions?: any): void;
+        		    logRemoteInit(): Promise<void>;
+        		    checkInitDone(resolve?: any): any;
+        		    logTest(): Promise<any>;
+        		    logTestAction(): any;
+        		    timeout(ms: any): any;
+        		    logRemote(wait?: number): Promise<void>;
+        		    logMethodCall(methodName: any, ...parameters: any[]): void;
+        		    logC8oCall(url: any, parameters: any): void;
+        		    logC8oCallJSONResponse(response: any, url: any, parameters: any): void;
+        		    logC8oCallXMLResponse(response: any, url: any, parameters: any): void;
+        		    logC8oCallResponse(responseStr: any, responseType: any, url: any, parameters: any): void;
+        		}
+        		declare namespace C8oLogger {
+        		    let LOG_INTERNAL_PREFIX: string;
+        		    let REMOTE_LOG_LIMIT: number;
+        		    let JSON_KEY_REMOTE_LOG_LEVEL: string;
+        		    let JSON_KEY_TIME: string;
+        		    let JSON_KEY_LEVEL: string;
+        		    let JSON_KEY_MESSAGE: string;
+        		    let JSON_KEY_LOGS: string;
+        		    let JSON_KEY_ENV: string;
+        		}
+        		declare class C8oManagerDatabase {
+        		    constructor(c8o: any);
+        		    replications: Object;
+        		    c8o: any;
+        		    mutexCreateReplication: Semaphore;
+        		    localName(baseName: any, log?: boolean): any;
+        		    get registeredReplications(): Object;
+        		    /**
+        		     * Register a request attaching it to the current user
+        		     * @param listener The listener for this request
+        		     * @param parameters The parameters of this request
+        		     * @param type The type of réplication (SYNC, PULL, PUSH)
+        		     */
+        		    registerRequest(listener: any, parameters: any, type: any, fullSyncDatabase: any, handler?: any): any[];
+        		    cancelAndPopRequest(id: any): void;
+        		    cancelAllForbase(baseName: any): void;
+        		    /**
+        		     * Restart all replications for a given user
+        		     * @param user The name of the user
+        		     */
+        		    restartReplications(user: any): Promise<void>;
+        		    /**
+        		     * Stop all replications for a given user
+        		     * @param user The name of the user
+        		     */
+        		    stopReplications(user: any): void;
+        		    /**
+        		     * Remove state an delte top all replications for a given user
+        		     * @param user The name of the user
+        		     */
+        		    removeReplications(user: any): void;
+        		}
+        		declare class C8oManagerLogin {
+        		    constructor(c8o: any);
+        		    c8o: any;
+        		    mutexL: Semaphore;
+        		    setRequestLogin(url: any, parameters: any, headers: any, id: any): Promise<void>;
+        		    requestLogin: any;
+        		    defineRequestLogin(id: any): Promise<void>;
+        		    doLogin(): any;
+        		}
+        		declare class C8oManagerNetwork {
+        		    constructor(c8o: any);
+        		    _listen: boolean;
+        		    c8o: any;
+        		    /**
+        		     * init NetworkManager
+        		     */
+        		    init(): Promise<void>;
+        		    /**
+        		     * Set network status, and notify if its had change
+        		     * @params c8oNetworkStatus : C8oNetworkStatus
+        		     */
+        		    set status(arg: any);
+        		    /**
+        		     * get network status
+        		     *
+        		     * @returns C8oNetworkStatus
+        		     */
+        		    get status(): any;
+        		    _status: any;
+        		    listen(): Promise<void>;
+        		    processOnline(): Promise<void>;
+        		    processOffline(): Promise<void>;
+        		    checkReachable(): Promise<boolean>;
+        		}
+        		declare class C8oManagerSession {
+        		    constructor(c8o: any);
+        		    resumeListener: () => void;
+        		    c8o: any;
+        		    _status: number;
+        		    loginManager: C8oManagerLogin;
+        		    ignored: number;
+        		    _user: C8oSessionUser;
+        		    mutex: Semaphore;
+        		    mutexNetwork: Semaphore;
+        		    mutexCheckSession: Semaphore;
+        		    set status(arg: number);
+        		    /**
+        		     * Get status of the session
+        		     *
+        		     * @returns: C8oSessionStatus
+        		     *
+        		     * Can be:
+        		     * C8oSessionStatus.Connected
+        		     * C8oSessionStatus.HasBeenConnected
+        		     * C8oSessionStatus.HasBeenDisconnected
+        		     * C8oSessionStatus.Disconnected
+        		     * C8oSessionStatus.Ignore
+        		     */
+        		    get status(): number;
+        		    set user(arg: C8oSessionUser);
+        		    /**
+        		     * Get status of the session
+        		     *
+        		     * @returns: C8oSessionStatus
+        		     *
+        		     * Can be:
+        		     * C8oSessionStatus.Connected
+        		     * C8oSessionStatus.HasBeenConnected
+        		     * C8oSessionStatus.HasBeenDisconnected
+        		     * C8oSessionStatus.Disconnected
+        		     * C8oSessionStatus.Ignore
+        		     */
+        		    get user(): C8oSessionUser;
+        		    /**
+        		     * Get previous status of the session
+        		     *
+        		     * @returns: C8oSessionStatus
+        		     *
+        		     * Can be:
+        		     * C8oSessionStatus.Connected
+        		     * C8oSessionStatus.HasBeenConnected
+        		     * C8oSessionStatus.HasBeenDisconnected
+        		     * C8oSessionStatus.Disconnected
+        		     * C8oSessionStatus.Ignore
+        		     */
+        		    get olduser(): C8oSessionUser;
+        		    _olduser: C8oSessionUser;
+        		    setInitalState(): Promise<void>;
+        		    getInitalState(): Promise<void>;
+        		    sessId: any;
+        		    sort(response: any, headers: any, urlReq: any, parametersReq: any, headersReq: any, resolve: any, status: any): Promise<any>;
+        		    doAuthReachable(): Promise<void>;
+        		    /**
+        		     * defineSessionStatus
+        		     *
+        		     * if haderStatus is not null => we are connected
+        		     * else if headerStatus is not null and this.id is not null, we has lost session
+        		     * else we were never connected
+        		     *
+        		     * @param response the http header response
+        		     */
+        		    defineSessionStatus(response: any, headers: any, urlReq: any, parametersReq: any, headersReq: any, fromSetInitalState: any): Promise<number>;
+        		    id: any;
+        		    checkUser(fromSetInitalState: any): Promise<C8oSessionUser>;
+        		    checkSession(headers: any, time: any, resolve: any, fromSetInitalState: any): Promise<void>;
+        		    checker: any;
+        		}
+        		declare class C8oNetworkStatus {
+        		}
+        		declare namespace C8oNetworkStatus {
+        		    let Reachable: string;
+        		    let NotReachable: string;
+        		    let Offline: string;
+        		}
+        		declare class C8oProgress {
+        		    constructor(progress: any);
+        		    _changed: boolean;
+        		    _continuous: boolean;
+        		    _finished: boolean;
+        		    _pull: boolean;
+        		    _current: number;
+        		    _total: number;
+        		    _status: string;
+        		    _taskInfo: string;
+        		    _raw: any;
+        		    set changed(arg: boolean);
+        		    get changed(): boolean;
+        		    set continuous(arg: boolean);
+        		    get continuous(): boolean;
+        		    set finished(arg: boolean);
+        		    get finished(): boolean;
+        		    set pull(arg: boolean);
+        		    get pull(): boolean;
+        		    get push(): boolean;
+        		    set current(arg: number);
+        		    get current(): number;
+        		    set total(arg: number);
+        		    get total(): number;
+        		    get direction(): string;
+        		    set status(arg: string);
+        		    get status(): string;
+        		    set taskInfo(arg: string);
+        		    get taskInfo(): string;
+        		    set raw(arg: any);
+        		    get raw(): any;
+        		    toString(): string;
+        		}
+        		declare class C8oPromise {
+        		    constructor(c8o: any);
+        		    c8o: any;
+        		    async(): any;
+        		    toObservable(): any;
+        		    then(c8oOnResponse: any): any;
+        		    c8oResponse: any;
+        		    nextPromise: any;
+        		    progress(c8oOnProgress: any): any;
+        		    c8oProgress: any;
+        		    fail(c8oOnFail: any): any;
+        		    c8oFail: any;
+        		    _onResponse(): void;
+        		    onResponse(response: any, parameters: any): void;
+        		    lastResponse: any;
+        		    lastParameters: any;
+        		    onProgress(progress: any): void;
+        		    onFailure(error: any, parameters: any): void;
+        		    lastFailure: any;
+        		}
+        		declare class C8oReplicationStatus {
+        		    constructor(user: any, listener: any, parameters: any, type: any, authenticated: any, canceled: any, finished: any, fullSyncDatabase: any, id: any);
+        		    user: any;
+        		    listener: any;
+        		    parameters: any;
+        		    type: any;
+        		    authenticated: any;
+        		    canceled: any;
+        		    database: any;
+        		    finished: any;
+        		    id: any;
+        		}
+        		declare class C8oResponseJsonListener {
+        		    constructor(onJsonResponse: any);
+        		    onJsonResponse: any;
+        		}
+        		declare class C8oResponseProgressListener {
+        		    constructor(onProgressResponse: any);
+        		    onProgressResponse: any;
+        		}
+        		declare class C8oRessourceNotFoundException extends C8oException {
+        		    constructor(message: any, cause?: any);
+        		}
+        		declare class C8oSessionStatus {
+        		}
+        		declare namespace C8oSessionStatus {
+        		    let Connected: number;
+        		    let HasBeenConnected: number;
+        		    let HasBeenDisconnected: number;
+        		    let Disconnected: number;
+        		    let Ignore: number;
+        		    let HasBeenConnectedToAnother: number;
+        		}
+        		declare class C8oSessionUser {
+        		    constructor(user?: any);
+        		    authenticated: boolean;
+        		    groups: any;
+        		    maxInactive: any;
+        		    sessionId: any;
+        		    name: any;
+        		    hash: string;
+        		}
+        		/**
+        		 * Contains optional parameters of a C8o class instantiation.<br/>
+        		 * Note that setters return the setting instance thereby C8oSettings can be instantiate like that:<br/>
+        		 * new C8oSettings().setTimeout(5000).setTrustAllCertificates(true).setUseEncryption(true);
+        		 *
+        		 */
+        		declare class C8oSettings extends C8oBase {
+        		    constructor(c8oSettings?: any);
+        		    /**
+        		     * Clone C8osettings object
+        		     * @return {C8oSettings}
+        		     */
+        		    clone(): C8oSettings;
+        		    /**
+        		     * Sets the normalizeParameters. define if we normalize parameters of every calls using JSON.parse(JSON.stringify(parameters))<br/>
+        		     * @param normalize boolean.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setUseWorker(worker: any): this;
+        		    /**
+        		     * Sets the normalizeParameters. define if we normalize parameters of every calls using JSON.parse(JSON.stringify(parameters))<br/>
+        		     * @param normalize boolean.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setNormalizeParameters(normalize: any): this;
+        		    /**
+        		     * Sets the if session has to be maintain alive<br/>
+        		     * @param keepAlive if session has to be keep Alive
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setKeepSessionAlive(keepAlive: any): this;
+        		    /**
+        		     * Sets if the error convertigo is throw in fail or not<br/>
+        		     * @param errorConvertigoIntoFail boolean
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setErrorConvertigoIntoFail(errorConvertigoIntoFail: any): this;
+        		    /**
+        		     * Sets the if base has to be reseted on dectecting diffrent versions<br/>
+        		     * @param resetBase if you to able reset base
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setDisableResetBase(resetBase: any): this;
+        		    /**
+        		     * Sets the if base has to be prefixed by user name<br/>
+        		     * @param prefixBase if you to able prefix base
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setEnablePrefixBase(prefixBase: any): this;
+        		    /**
+        		     * Sets the endpoint (override env.json).<br/>
+        		     * @param endpoint The endpoint.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setEndPoint(endpoint: any): this;
+        		    _endpointSettings: any;
+        		    /**
+        		     * Sets the connection timeout to Convertigo in milliseconds. A value of zero means the timeout is not used.<br/>
+        		     * Default is <b>0</b>.
+        		     * @param timeout The timeout.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setTimeout(timeout: any): this;
+        		    /**
+        		     * Gets the http connection attempt before failing.<br/>
+        		     * Default is <b>1</b>.
+        		     * @param retry amount of http retry.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setRetry(retry: any): this;
+        		    /**
+        		     * Add a header
+        		     * @param name The name of header.
+        		     * @param value The value of header.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    addHeader(name: any, value: any): this;
+        		    /**
+        		     * addClientCertificate
+        		     * @param anyCertificate
+        		     * @param {string} password
+        		     * @return {C8oSettings}
+        		     */
+        		    addClientCertificate(anyCertificate: any, password: string): C8oSettings;
+        		    _clientCertificateFiles: {};
+        		    _clientCertificateBinaries: {};
+        		    /**
+        		     * Add a new cookie to the initial cookies send to the Convertigo server.
+        		     * @param name The name of the new cookie.
+        		     * @param value The value of the new cookie.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    addCookie(name: any, value: any): this;
+        		    /**
+        		     * Sets a value indicating if logs are sent to the Convertigo server.<br/>
+        		     * Default is <b>true</b>.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setLogRemote(logRemote: any): this;
+        		    /**
+        		     * Sets a value indicating the log level you want in the device console
+        		     * 0: ALL, 1: NONE, 2: TRACE, 3: DEBUG, 4: INFO, 5: WARN, 6: ERROR, 7: FATAL
+        		     * or use the android.util.Log constants
+        		     * Default is <b>0</b>.
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setLogLevelLocal(logLevelLocal: any): this;
+        		    /**
+        		     * setLogC8o
+        		     * @param {boolean} logC8o
+        		     * @return {C8oSettings}
+        		     */
+        		    setLogC8o(logC8o: boolean): C8oSettings;
+        		    /**
+        		     * setLogOnFail
+        		     * @param {(exception: Error, parameters: Object) => void} logOnFail
+        		     * @return {C8oSettings}
+        		     */
+        		    setLogOnFail(logOnFail: (exception: Error, parameters: any) => void): C8oSettings;
+        		    /**
+        		     * Specify the default FullSync database name. Must match a Convertigo Server
+        		     * FullSync connector name
+        		     *
+        		     * @param defaultDatabaseName: string
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setDefaultDatabaseName(defaultDatabaseName: any): this;
+        		    /**
+        		     * setAuthenticationCookieValue
+        		     * @param {string} authenticationCookieValue
+        		     * @return {C8oSettings}
+        		     */
+        		    setAuthenticationCookieValue(authenticationCookieValue: string): C8oSettings;
+        		    /**
+        		     * setFullSyncServerUrl
+        		     * @param {string} fullSyncServerUrl
+        		     * @return {C8oSettings}
+        		     */
+        		    setFullSyncServerUrl(fullSyncServerUrl: string): C8oSettings;
+        		    /**
+        		     * setFullSyncUsername
+        		     * @param {string} fullSyncUsername
+        		     * @return {C8oSettings}
+        		     */
+        		    setFullSyncUsername(fullSyncUsername: string): C8oSettings;
+        		    /**
+        		     * setFullSyncPassword
+        		     * @param {string} fullSyncPassword
+        		     * @return {C8oSettings}
+        		     */
+        		    setFullSyncPassword(fullSyncPassword: string): C8oSettings;
+        		    /**
+        		     * setFullSyncLocalSuffix
+        		     * @param {string} fullSyncLocalSuffix
+        		     * @return {C8oSettings}
+        		     */
+        		    setFullSyncLocalSuffix(fullSyncLocalSuffix: string): C8oSettings;
+        		    /**
+        		     * Set if c8o calls variables are encrypted or not
+        		     *
+        		     * @param useEncryption
+        		     * @returns The current <b>C8oSettings</b>, for chaining.
+        		     */
+        		    setUseEncryption(useEncryption: any): this;
+        		}
+        		declare class C8oTranslator {
+        		    static stringToJSON(jsonValueString: any): any;
+        		}
+        		/**
+        		 * This Exception is not thrown to the user, it is used to know if the requested response from the local cache is available or no.
+        		 */
+        		declare class C8oUnavailableLocalCacheException extends C8oException {
+        		    constructor(detailMessage: any, cause?: any);
+        		}
+        		declare class C8oUtils extends C8oUtilsCore {
+        		    constructor(http: any);
+        		    http: any;
+        		}
+        		declare namespace C8oUtils {
+        		    let ɵfac_1: any;
+        		    declare { ɵfac_1 as ɵfac };
+        		    let ɵprov_1: any;
+        		    declare { ɵprov_1 as ɵprov };
+        		}
+        		declare class C8oUtilsCore {
+        		    /**
+        		     * Returns the class name of the object as a String, if the object is null then returns the String "null".
+        		     *
+        		     * @param object
+        		     * @returns string
+        		     */
+        		    static getObjectClassName(object: any): "string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function";
+        		    static isValidUrl(url: any): boolean;
+        		    /**
+        		     * returns 128 bits hash using MD5 algo
+        		     * @param str any string
+        		     */
+        		    static MD5(str: any): string;
+        		    /**
+        		     *
+        		     * @param str any string
+        		     */
+        		    static MD5ArrayBuffer(str: any): any;
+        		    static getNewGUIDString(): string;
+        		    /** TAG Parameter **/
+        		    static getParameter(parameters: any, name: any, useName: any): {};
+        		    /**
+        		     * Searches in the list the parameter with this specific name (or the same name with the prefix ''_use_'') and returns it.<br/>
+        		     * Returns null if the parameter is not found.
+        		     *
+        		     * @param parameters
+        		     * @param name
+        		     * @param useName
+        		     * @returns string
+        		     */
+        		    static getParameterStringValue(parameters: any, name: any, useName: any): string;
+        		    static getParameterObjectValue(parameters: any, name: any, useName?: boolean): any;
+        		    static peekParameterStringValue(parameters: any, name: any, exceptionIfMissing: any): string;
+        		    static peekParameterObjectValue(parameters: any, name: any, exceptionIfMissing: any): any;
+        		    /**
+        		     * Serializes a c8o call request thanks to its parameters and response type.
+        		     *
+        		     * @param parameters
+        		     * @param responseType
+        		     * @returns string
+        		     * @throws C8oException
+        		     */
+        		    static identifyC8oCallRequest(parameters: any, responseType: any): string;
+        		    static checkHeaderArgument(response: any, argument: any): any;
+        		}
+        		declare namespace C8oUtilsCore {
+        		    let USE_PARAMETER_IDENTIFIER: string;
+        		}
+        		/**
+        		 * Returned by a fullSync operation without return data.
+        		 */
+        		declare class FullSyncAbstractResponse {
+        		    constructor(operationStatus: any);
+        		    operationStatus: any;
+        		    getProperties(): {};
+        		}
+        		declare class FullSyncAttachmentParameter {
+        		    constructor(name: any);
+        		    name: any;
+        		}
+        		declare namespace FullSyncAttachmentParameter {
+        		    let DOCID: FullSyncAttachmentParameter;
+        		    let NAME: FullSyncAttachmentParameter;
+        		    let CONTENT_TYPE: FullSyncAttachmentParameter;
+        		    let CONTENT: FullSyncAttachmentParameter;
+        		}
+        		/**
+        		 * Represents a default fullSync response.
+        		 */
+        		declare class FullSyncDefaultResponse extends FullSyncAbstractResponse {
+        		}
+        		declare class FullSyncDeleteDocumentParameter {
+        		    constructor(name: any);
+        		    name: any;
+        		}
+        		declare namespace FullSyncDeleteDocumentParameter {
+        		    let DOCID_1: FullSyncDeleteDocumentParameter;
+        		    declare { DOCID_1 as DOCID };
+        		    declare let REV: FullSyncDeleteDocumentParameter;
+        		}
+        		/**
+        		 * Returned by a fullSync document operation without return data.
+        		 */
+        		declare class FullSyncDocumentOperationResponse extends FullSyncAbstractResponse {
+        		    constructor(documentId: any, documentRevision: any, operationStatus: any);
+        		    documentId: any;
+        		    documentRevision: any;
+        		}
+        		declare class FullSyncGetDocumentParameter {
+        		    constructor(name: any);
+        		    name: any;
+        		}
+        		declare namespace FullSyncGetDocumentParameter {
+        		    let DOCID_2: FullSyncGetDocumentParameter;
+        		    declare { DOCID_2 as DOCID };
+        		}
+        		declare class FullSyncGetViewParameter {
+        		    constructor(name: any);
+        		    name: any;
+        		}
+        		declare namespace FullSyncGetViewParameter {
+        		    let VIEW: FullSyncGetViewParameter;
+        		    let DDOC: FullSyncGetViewParameter;
+        		}
+        		declare class FullSyncPolicy {
+        		    static values(): FullSyncPolicy[];
+        		    static getFullSyncPolicy(value: any): FullSyncPolicy;
+        		    constructor(value: any, action: any);
+        		    value: any;
+        		    action: any;
+        		}
+        		declare namespace FullSyncPolicy {
+        		    let NONE_1: FullSyncPolicy;
+        		    declare { NONE_1 as NONE };
+        		    declare let CREATE: FullSyncPolicy;
+        		    declare let OVERRIDE: FullSyncPolicy;
+        		    declare let MERGE: FullSyncPolicy;
+        		}
+        		declare class FullSyncPostDocumentParameter {
+        		    static values(): FullSyncPostDocumentParameter[];
+        		    constructor(name: any);
+        		    name: any;
+        		}
+        		declare namespace FullSyncPostDocumentParameter {
+        		    let POLICY: FullSyncPostDocumentParameter;
+        		    let SUBKEY_SEPARATOR: FullSyncPostDocumentParameter;
+        		}
+        		declare class FullSyncReplication {
+        		    constructor(pull?: any);
+        		    pull: any;
+        		    sync: boolean;
+        		}
+        		/**
+        		 * Created by charlesg on 10/01/2017.
+        		 */
+        		declare class FullSyncRequestable {
+        		    static getFullSyncRequestable(value: any): FullSyncRequestable;
+        		    static values(): FullSyncRequestable[];
+        		    constructor(value: any, handleFullSyncRequestOp: any);
+        		    value: any;
+        		    handleFullSyncRequestOp: any;
+        		    handleFullSyncRequest(c8oFullSync: any, databaseName: any, parameters: any, c8oResponseListener: any): any;
+        		}
+        		declare namespace FullSyncRequestable {
+        		    declare let GET: FullSyncRequestable;
+        		    declare let DELETE: FullSyncRequestable;
+        		    declare let POST: FullSyncRequestable;
+        		    declare let PUT_ATTACHMENT: FullSyncRequestable;
+        		    declare let GET_ATTACHMENT: FullSyncRequestable;
+        		    declare let DELETE_ATTACHMENT: FullSyncRequestable;
+        		    declare let ALL: FullSyncRequestable;
+        		    declare let ALL_LOCAL: FullSyncRequestable;
+        		    let VIEW_1: FullSyncRequestable;
+        		    declare { VIEW_1 as VIEW };
+        		    declare let CREATEINDEX: FullSyncRequestable;
+        		    declare let FIND: FullSyncRequestable;
+        		    declare let EXPLAIN: FullSyncRequestable;
+        		    declare let GETINDEXES: FullSyncRequestable;
+        		    declare let DELETEINDEX: FullSyncRequestable;
+        		    declare let SEARCH: FullSyncRequestable;
+        		    declare let SYNC: FullSyncRequestable;
+        		    declare let REPLICATE_PULL: FullSyncRequestable;
+        		    declare let REPLICATE_PUSH: FullSyncRequestable;
+        		    declare let RESET: FullSyncRequestable;
+        		    let CREATE_1: FullSyncRequestable;
+        		    declare { CREATE_1 as CREATE };
+        		    declare let BULK: FullSyncRequestable;
+        		    let INFO_1: FullSyncRequestable;
+        		    declare { INFO_1 as INFO };
+        		    declare let DESTROY: FullSyncRequestable;
+        		}
+        		declare class FullSyncResponse {
+        		}
+        		declare namespace FullSyncResponse {
+        		    let RESPONSE_KEY_OK: string;
+        		    let RESPONSE_KEY_DOCUMENT_ID: string;
+        		    let RESPONSE_KEY_DOCUMENT_REVISION: string;
+        		}
+        		declare class HttpXsrfInterceptor {
+        		    constructor(tokenExtractor: any, c8o: any);
+        		    tokenExtractor: any;
+        		    c8o: any;
+        		    headerName: string;
+        		    fetch: string;
+        		    intercept(req: any, next: any): any;
+        		}
+        		declare namespace HttpXsrfInterceptor {
+        		    let ɵfac_2: any;
+        		    declare { ɵfac_2 as ɵfac };
+        		    let ɵprov_2: any;
+        		    declare { ɵprov_2 as ɵprov };
+        		}
+        		/**
+        		 * Defines whether the response should be retrieved from local cache or from Convertigo server when the device can access the network.<br/>
+        		 * When the device has no network access, the local cache response is used, if existing.
+        		 */
+        		declare class Priority {
+        		    constructor(isAvailable: any);
+        		    isAvailable: any;
+        		}
+        		declare namespace Priority {
+        		    let SERVER: Priority;
+        		    let LOCAL: Priority;
+        		}
+        		declare class Queue {
+        		    _store: any[];
+        		    push(val: any): void;
+        		    pop(): any;
+        		    count(): number;
+        		}
+        		declare class Semaphore {
+        		    constructor(max: any);
+        		    counter: number;
+        		    waiting: any[];
+        		    max: any;
+        		    take(): void;
+        		    acquire(): any;
+        		    release(arg?: any): void;
+        		    purge(): number;
+        		}`
+        	}
         	/*End_c8o_CompFunction*/
         '
 ↓SharedComponent_Event [ngx.components.UISharedComponentEvent-1681289095919]: 
@@ -517,54 +2374,7 @@ scriptContent:
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             '		try {
-            			page.local.editorOptions = {theme: ''vs-dark'', language: ''javascript''};
-              			page.local.code = ''function x() {\nconsole.log("Hello world!");\n}'';
-            			/*let code = `(() => {
-            				console.log(fields.select1.value);
-            				let sel1 = fields.select1;
-            			})()`;
-            			
-            			let defs = `
-            			
-            			interface Select {
-            				displayValue: string;
-            				value: any;
-            				getText(): string;
-            			}
-            			interface InputText {
-            				value: string
-            			}
-            			interface Fields {
-            			    select1: Select;
-            				select2: Select;
-            				inputText1: InputText;
-            			}
-            			
-            			interface Pages {
-            				count: number;
-            				current: number;
-            				navigateTo(pageNumber): void;
-            				navigateNext(): void;
-            				navigatePrevious(): void;
-            			}
-            			interface Form {
-            				pages: Pages;
-            			}
-            			// global object
-            			declare const fields: Fields;
-            			declare const form: Form;
-            			`
-            			
-            			monaco.editor.create(document.getElementById("container"), {
-            				value: code,
-            				language: "typescript",
-            				automaticLayout: true,
-            			});
-            			monaco.editor.createModel(defs, ''typescript'');*/
-            			
-            			/*setTimeout(()=>{
-            				monaco.editor.createModel(defs, ''typescript'');
-            			}, 10000)*/
+            			page.local.editorOptions = {theme: ''vs'', language: ''javascript''};
             		} catch (e) {
             			console.log("[CompMonacoEditor][afterViewInit][error]", e);
             		} finally {
@@ -610,7 +2420,7 @@ scriptContent:
               - java.lang.String: 
                 - ↑value: monaco-editor
               - java.lang.String: 
-                - ↑value: 0.37.1
+                - ↑value: 0.39.0
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
             - com.twinsoft.convertigo.beans.common.XMLVector: 
