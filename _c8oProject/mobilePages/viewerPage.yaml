@@ -72,7 +72,7 @@ scriptContent:
         	public previousAndPostFunctions = {};
         	public functionsExecById = {};
         	public shaById = {};
-        	
+        	public page = this;
         	//public imageCompression = require("browser-image-compression");
             
             
@@ -1896,8 +1896,16 @@ scriptContent:
         						currentVal = path;
         					}
         					else {
+        						let page = this;
+        						let e = eval(path);
         						//currentVal = "`+(eval("+ path +"))+`"
-        						currentVal = "`+" + path + "+`";
+        						if(e.then != undefined){
+        							currentVal = "`+ (" + path + " | async)+`";
+        						}
+        						else{
+        							currentVal = "`+" + path + "+`";
+        						}
+        						
         					}
         					break;
         			}
@@ -1918,38 +1926,48 @@ scriptContent:
         	 * @returns 
         	 */
         	public computeHtml$(str) {
-        		let oStr = "" + str;
-        		const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
-        		str = "`" + str.replace(/`/g, "\\`") + "`";
-        		let match;
-        		let cpt = 0;
-        		while ((match = regex.exec(str)) != null) {
-        			cpt++;
-        			let elem = match[0];
-        			let iStart = match.index;
-        			let iEnd = match.index + match[0].length;
-        			// if its a non preview $$
-        			if (match[2] == undefined || match[2] == ''false'') {
-        				let id = match[1];
-        				let path = this.getPathById(+id);
-        				let currentVal = "";
-        				currentVal = "`+(" + path + " instanceof Object ? JSON.stringify(" + path + ") : " + path + ")+`"
-        				str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
-        			}
-        			// if its a preview $$START END$$
-        			else {
-        				let id = match[1];
-        				let defElem: any = this.getItemById(id);
-        				let valElem = this.getPathById(+id)
-        				let meta = JSON.parse(match[2].replace(/\\/g, ""));
-        				str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, false)
-        			}
+        		
+        		if(this.local.cacheComputeHtml$[str] !== undefined){
+        			console.log(`this.local.cacheComputeHtml$[${str}] `, this.local.cacheComputeHtml$[str]);
+        			let page = this;
+        			return eval(this.local.cacheComputeHtml$[str]);
         		}
-        		str = str.replace(/\\`/g, "`");
-        		this.local.cacheComputeHtml$[oStr] = str;
-        
-        		let page = this;
-        		return eval(str);
+        		else{
+        			let oStr = "" + str;
+        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
+        			str = "`" + str.replace(/`/g, "\\`") + "`";
+        			let match;
+        			let cpt = 0;
+        			while ((match = regex.exec(str)) != null) {
+        				cpt++;
+        				let elem = match[0];
+        				let iStart = match.index;
+        				let iEnd = match.index + match[0].length;
+        				// if its a non preview $$
+        				if (match[2] == undefined || match[2] == ''false'') {
+        					let id = match[1];
+        					let path = this.getPathById(+id);
+        					let currentVal = "";
+        					currentVal = "`+(" + path + " instanceof Object ? JSON.stringify(" + path + ") : " + path + ")+`"
+        					str = str.substring(0, iStart) + currentVal + str.substring(iEnd);
+        				}
+        				// if its a preview $$START END$$
+        				else {
+        					let id = match[1];
+        					let defElem: any = this.getItemById(id);
+        					let valElem = this.getPathById(+id)
+        					let meta = JSON.parse(match[2].replace(/\\/g, ""));
+        					str = this.$$toVal(defElem, meta, str, iStart, valElem, iEnd, id, false)
+        				}
+        			}
+        			str = str.replace(/\\`/g, "`");
+        			this.local.cacheComputeHtml$[oStr] = str;
+        			let page = this;
+        			return eval(str);
+        			//let page = this;
+        			//let exec = eval(`(async ()=>{ return ${str}})()`);
+        			//return eval(str);
+        		}
         	}
         
         	/**
@@ -4181,6 +4199,7 @@ scriptContent:
         	private instanciateApi(){
         		window["api"] = {
         			router: {
+        				// more definitions below in Object.defineProperty section
         				/**
         				 * Navigate to next page
         				 * @param force boolean, if true we force navigation to next page, even if condtions are not met. Default is false
@@ -4300,16 +4319,24 @@ scriptContent:
         			c8o: this.c8o,
         			translate:window["__c8o__translate"],
         			app: {
-        				state: this.global.app.state,
-        				currentVersion: this.global.app.currentVersion,
-        				latestVersion: this.global.app.latestVersion,
+        				state: async()=>{
+        					await this.global._appPromise();
+        					return this.global.app.state;
+        				},
+        				currentVersion: async()=>{
+        					await this.global._appPromise();
+        					this.global.app.currentVersion;
+        				},
+        				latestVersion: async()=>{
+        					await this.global._appPromise();
+        					this.global.app.latestVersion;
+        				}
         			},
         			form:{
-        				version: this.form?.version != undefined ? this.form?.version :"test_version",
-        				published: this.form?.c8o_view_type_published_form === true,
+        				// definitions below in Object.defineProperty section
         			},
         			user:{
-        				
+        				// definitions below in Object.defineProperty section
         			}
         		}
         		Object.defineProperty(window["api"]["router"], ''currentIndex'', {
@@ -4360,6 +4387,16 @@ scriptContent:
         		Object.defineProperty(window["api"]["user"], ''sessionId'', {
         		  	get: function() {
         			  return this.c8o.session.user.sessionId;
+        			}.bind(this)
+        		});
+        		Object.defineProperty(window["api"]["form"], ''version'', {
+        		  	get: function() {
+        			  return this.form?.version != undefined ? this.form?.version :"test_version"
+        			}.bind(this)
+        		});
+        		Object.defineProperty(window["api"]["form"], ''published'', {
+        		  	get: function() {
+        			  return this.form?.c8o_view_type_published_form === true
         			}.bind(this)
         		});
         	}
@@ -6064,7 +6101,8 @@ title: Visualisateur
                   attrValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.computeHtml$(this.form.pages[this['local']['currentIndex']].desc))
+                      - MobileSmartSourceType: script:this.computeHtml$(this.form.pages[this['local']['currentIndex']].desc)
+                  comment: this.router.sanitizer.bypassSecurityTrustHtml((this.computeHtml$(this.form.pages[this['local']['currentIndex']].desc)))
                 ↓Attr2 [ngx.components.UIAttribute-1592563520010]: 
                   attrName: '[ngClass]'
                   attrValue: 
