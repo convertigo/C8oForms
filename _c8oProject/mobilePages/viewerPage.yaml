@@ -14,7 +14,7 @@ scriptContent:
         import { delay } from ''rxjs/operators'';
         import { of, zip } from ''rxjs'';
         
-        import { Observable } from ''rxjs/observable'';
+        import { Observable, Subject } from ''rxjs'';
         import ''rxjs/add/observable/zip'';
         import { map } from ''rxjs/operators/map'';
         
@@ -78,6 +78,7 @@ scriptContent:
             
             /*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.local.strCacheComputeHtml = {};
         		this.local.techSelect = {};
         		this.local.cacheComputeHtml$ = {};
         		this.local.gridAndCheckboxStyleOnScroll = {}
@@ -620,7 +621,7 @@ scriptContent:
         	 * this function is responsible to handle actions from the form. It will compute them
         	 * @param list An array containing all elements that defines the actions usally comming from form.actions
         	 */
-        	public fillActions(list): void {
+        	public async fillActions(list): Promise<any> {
         		let page = this;
         		try {
         			for (let item of list) {
@@ -631,7 +632,7 @@ scriptContent:
         					let sha = sources.sha;
         					let variables = {};
         					this.functionsById[sha] = async () => {
-        						page["computeVariable"](findVars, variables, item);
+        						await page["computeVariable"](findVars, variables, item);
         						// if value has changed update it and call functions
         						if (page["actions"][item["name"]]["value"] != variables["selfVar"]) {
         							page["actions"][item["name"]]["value"] = variables["selfVar"];
@@ -664,7 +665,7 @@ scriptContent:
         							}
         						}
         					}
-        					this.functionsById[sha]();
+        					await this.functionsById[sha]();
         					this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         				}
         			}
@@ -797,7 +798,7 @@ scriptContent:
         				args.push(variables[vars]);
         			}
         			//@ts-ignore
-        			return await eval("(async " + functionStr + ").apply({...this, ...{ready: ready,allReady:allReady }},args)");
+        			return await eval("( " + functionStr + ").apply({...this, ...{ready: ready,allReady:allReady }},args)");
         		}
         		catch (e) {
         			return {};
@@ -1899,8 +1900,8 @@ scriptContent:
         						let page = this;
         						let e = eval(path);
         						//currentVal = "`+(eval("+ path +"))+`"
-        						if(e.then != undefined){
-        							currentVal = "`+ (" + path + " | async)+`";
+        						if(e && e.then != undefined){
+        							currentVal = "`+ (await (" + path + "))+`";
         						}
         						else{
         							currentVal = "`+" + path + "+`";
@@ -1927,10 +1928,9 @@ scriptContent:
         	 */
         	public computeHtml$(str) {
         		
-        		if(this.local.cacheComputeHtml$[str] !== undefined){
-        			console.log(`this.local.cacheComputeHtml$[${str}] `, this.local.cacheComputeHtml$[str]);
+        		if(this.local.strCacheComputeHtml[str] !== undefined){
         			let page = this;
-        			return eval(this.local.cacheComputeHtml$[str]);
+        			return eval(this.local.strCacheComputeHtml[str]);
         		}
         		else{
         			let oStr = "" + str;
@@ -1961,12 +1961,9 @@ scriptContent:
         				}
         			}
         			str = str.replace(/\\`/g, "`");
-        			this.local.cacheComputeHtml$[oStr] = str;
+        			this.local.strCacheComputeHtml[oStr] = str;
         			let page = this;
-        			return eval(str);
-        			//let page = this;
-        			//let exec = eval(`(async ()=>{ return ${str}})()`);
-        			//return eval(str);
+        			return eval(this.local.strCacheComputeHtml[oStr]);
         		}
         	}
         
@@ -2667,13 +2664,25 @@ scriptContent:
         	 * @param item target item
         	 * @param findName 
         	 */
-        	public computeVariable(findVars, variables, item, findName = null) : void {
+        	public async computeVariable(findVars, variables, item, findName = null) : Promise<any> {
         		let page = this;
                 let names = {};
         		for(let va in findVars){
         			try{
         				if(typeof findVars[va] == ''string''){
+        					/*let resol = null;
+        					let r = new Promise((resolve)=>{
+        						resol = resolve;
+        					})
+        					eval("(async ()=> { return "+findVars[va]+" })().then((r)=>{if(this.local.cacheComputeHtml$[va] != undefined){this.local.cacheComputeHtml$[va].next(r);};variables[va] = r;})");
+        					*/
         					variables[va] = eval(findVars[va]);
+        					if(variables[va] == undefined || variables[va] == "undefined"){
+        						delete variables[va];
+        					}
+        					else if(variables[va].then){
+        						variables[va] = await variables[va]
+        					}
         					if(variables[va] == undefined || variables[va] == "undefined"){
         						delete variables[va];
         					}
@@ -4325,11 +4334,11 @@ scriptContent:
         				},
         				currentVersion: async()=>{
         					await this.global._appPromise();
-        					this.global.app.currentVersion;
+        					return this.global.app.currentVersion;
         				},
         				latestVersion: async()=>{
         					await this.global._appPromise();
-        					this.global.app.latestVersion;
+        					return this.global.app.latestVersion;
         				}
         			},
         			form:{
@@ -6101,8 +6110,13 @@ title: Visualisateur
                   attrValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.computeHtml$(this.form.pages[this['local']['currentIndex']].desc)
-                  comment: this.router.sanitizer.bypassSecurityTrustHtml((this.computeHtml$(this.form.pages[this['local']['currentIndex']].desc)))
+                      - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.computeHtml$(this.form.pages[this['local']['currentIndex']].desc))
+                  comment: |
+                    'this.router.sanitizer.bypassSecurityTrustHtml((this.computeHtml$(this.form.pages[this[''local''][''currentIndex'']].desc)))
+                    
+                    //this.computeHtml$(this.form.pages[this[''local''][''currentIndex'']].desc) | async
+                    
+                    //this.local.cacheComputeHtml$[this.form.pages[this[''local''][''currentIndex'']].desc] == undefined ?  (this.computeHtml$(this.form.pages[this[''local''][''currentIndex'']].desc) | async ) : this.local.cacheComputeHtml$[this.form.pages[this[''local''][''currentIndex'']].desc] | async'
                 ↓Attr2 [ngx.components.UIAttribute-1592563520010]: 
                   attrName: '[ngClass]'
                   attrValue: 
@@ -6723,7 +6737,7 @@ title: Visualisateur
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:(this.local.pages != undefined && this.local.pages[this.local.currentIndex] != undefined && this.local.pages[this.local.currentIndex].enabledButtons == undefined) || (this.local.pages[this.local.currentIndex].enabledButtons == true && this.local.pages[this.local.currentIndex].positionButtons == 'standard')
+                  - MobileSmartSourceType: script:this.local.pages != undefined && (this.local.pages[this.local.currentIndex] != undefined && this.local.pages[this.local.currentIndex].enabledButtons == undefined) || (this.local.pages[this.local.currentIndex].enabledButtons == true && this.local.pages[this.local.currentIndex].positionButtons == 'standard')
               ↓Directive1 [ngx.components.UIControlDirective-1592514107460]: 
                 directiveName: If
                 directiveSource: 
