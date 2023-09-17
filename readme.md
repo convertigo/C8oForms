@@ -21,7 +21,7 @@ Even more, data entry can trigger complex actions and workflows in their back- e
 
 [Try convertigo on the cloud](https://fr.www.convertigo.com/get-started-page)
 
-[Installing Convertigo Form Builder Standalone](https://www.convertigo.com/documentation/latest/operating-guide/using-c8o-forms-standalone/)
+[Installing Convertigo Form Builder Standalone](https://doc.convertigo.com/documentation/latest/no-code-forms/using-c8o-forms-standalone/)
 
 For more technical informations : [documentation](./project.md)
 
