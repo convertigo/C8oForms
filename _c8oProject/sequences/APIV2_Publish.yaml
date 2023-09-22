@@ -1,0 +1,336 @@
+↓Publish [steps.SimpleStep-1694612307357]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    // start functions
+    
+    let postPublish = function (doc, id) {
+    	// set creator in group _C8O_HIDDEN_123456789
+    	callSequence("C8Oforms", "SetUserInGroup", { user: doc.creator, group: "_C8O_HIDDEN_published_" + id });
+    	// create future new_doc_published to post
+    	let new_doc_published = {};
+    	// manage groups, same groups as none published form must be set + collabsResponse
+    	new_doc_published.c8oGrp = {};
+    	if (doc.c8oGrp) {
+    		new_doc_published.c8oGrp = doc.c8oGrp;
+    	}
+    	if (doc.collabsResponse) {
+    		for (let collabResponse of doc.collabsResponse) {
+    			new_doc_published.c8oGrp[collabResponse] = true;
+    		}
+    	}
+    	// manage collabs, just copy
+    	new_doc_published.collabs = [];
+    	if (doc.collabs) {
+    		new_doc_published.collabs = doc.collabs;
+    	}
+    	// manage collabsResponse, just copy
+    	new_doc_published.collabsResponse = [];
+    	if (doc.collabsResponse) {
+    		new_doc_published.collabsResponse = doc.collabsResponse;
+    	}
+    	// copy wallpaper
+    	new_doc_published.wallpaper = {};
+    	new_doc_published.wallpaper = doc.wallpaper;
+    	// copy thumbnail
+    	if (doc.thumbnail) {
+    		new_doc_published.thumbnail = doc.thumbnail;
+    	}
+    	// compute new id
+    	new_doc_published._id = "published_" + id;
+    	// get existing published doc if exists
+    	let doc_published = toJSON(fsclient.getDocument("c8oforms_fs", new_doc_published._id));
+    	console.log("doc_published", doc_published, logLevel);
+    	// compute new version
+    	new_doc_published.version = doc_published.version != undefined && doc_published.version != "" ? "" + (+doc_published.version + 1) : "" + 1;
+    	// affect or create creationDate
+    	if (doc_published.creationDate) {
+    		new_doc_published.creationDate = doc_published.creationDate;
+    	}
+    	else {
+    		new_doc_published.creationDate = "" + new Date().getTime();
+    	}
+    	new_doc_published.lastMofification = "" + new Date().getTime();
+    
+    	let create_new_anonymous = false
+    	// compute whether it''s a new anonymous shared form or not
+    	if (doc_published.sharedAnonymous == undefined && meta.pwa.notAnonymous == false) {
+    		create_new_anonymous = true;
+    	}
+    	//affect old vars from doc_published to new doc_published
+    	new_doc_published.parentId = doc._id;
+    	new_doc_published.parentRev = doc._rev;
+    	new_doc_published.creator = doc.creator;
+    	new_doc_published.descForm = doc.descForm;
+    	new_doc_published.descformPosition = doc.descformPosition;
+    	new_doc_published.name = doc.name;
+    	new_doc_published.namePosition = doc.namePosition;
+    	new_doc_published.respNameRequired = doc.respNameRequired;
+    	new_doc_published.formulaire = doc.formulaire;
+    	new_doc_published.pages = doc.pages;
+    	new_doc_published.sharedAnonymous = doc_published.sharedAnonymous != undefined ? doc_published.sharedAnonymous : meta.pwa.notAnonymous == false;
+    	new_doc_published.tag = doc_published.tag;
+    	new_doc_published.subTag = doc_published.subTag;
+    	new_doc_published.actions = doc.actions;
+    	new_doc_published.pwa_enabled = doc_published.pwa_enabled != undefined ? doc_published.pwa_enabled : false;
+    	new_doc_published.c8o_view_type_published_form = true;
+    	new_doc_published["~c8oAcl"] = authenticatedUserID;
+    
+    	// prepare merge params
+    	let mergeRules = new HashMap();
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String("formulaire")), new java.lang.String("override"));
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String("pages")), new java.lang.String("override"));
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String("actions")), new java.lang.String("override"));
+    	// post new_doc_published 
+    	console.log("new_doc_published", new_doc_published, logLevel);
+    	let response_published = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_published), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    	console.log("response_published", response_published, logLevel);
+    	return {create_new_anonymous: create_new_anonymous, new_doc_published: new_doc_published};
+    }
+    
+    let postPublishAnonymous = function (doc, new_doc_published, create_new_anonymous) {
+    	//evaluate if we already have new_doc_published or get it
+    	if (!new_doc_published) {
+    		new_doc_published = toJSON(fsclient.getDocument("c8oforms_fs", "published_" + doc._id));
+    	}
+    	// create future new_doc_published_anonymous to post
+    	let new_doc_published_anonymous = {};
+    	// now build and publish shared anonymous document
+    	let userNameAnonymous = null;
+    	if (new_doc_published.sharedAnonymous || create_new_anonymous) {
+    		// compute new id
+    		new_doc_published_anonymous._id = new_doc_published._id + "_anonymous";
+    
+    		// compute new user and set user in group to allow access to form
+    		if (create_new_anonymous) {
+    			userNameAnonymous = createUserNameForAnonymous(new_doc_published._id);
+    			let group = "_C8O_HIDDEN_" + new_doc_published._id;
+    			callSequence("lib_UserManager", "AddUser", { user: userNameAnonymous, password: userNameAnonymous });
+    			callSequence("lib_FullSyncGrp", "SetUserInGroup", { user: new_doc_published.creator, group: group });
+    			callSequence("lib_FullSyncGrp", "SetUserInGroup", { user: userNameAnonymous, group: group });
+    		}
+    		// get existing published anonymous doc if exists
+    		let doc_published_anonymous = toJSON(fsclient.getDocument("c8oforms_fs", new_doc_published_anonymous._id));
+    		console.log("doc_published_anonymous", doc_published_anonymous, logLevel);
+    
+    		//affect old vars from doc_published_anonymous to new_doc_published_anonymous
+    		new_doc_published_anonymous.parentId = response_published.id;
+    		new_doc_published_anonymous.parentRev = response_published.rev;
+    		new_doc_published_anonymous.creator = doc.creator;
+    		new_doc_published_anonymous.descForm = doc.descForm;
+    		new_doc_published_anonymous.descformPosition = doc.descformPosition;
+    		new_doc_published_anonymous.name = doc.name;
+    		new_doc_published_anonymous.namePosition = doc.namePosition;
+    		new_doc_published_anonymous.respNameRequired = doc.respNameRequired;
+    		new_doc_published_anonymous.formulaire = doc.formulaire;
+    		new_doc_published_anonymous.pages = doc.pages;
+    		new_doc_published_anonymous.actions = doc.actions;
+    		new_doc_published_anonymous.wallpaper = doc.wallpaper;
+    		new_doc_published_anonymous.version = new_doc_published.version;
+    		new_doc_published_anonymous.sharedAnonymous = new_doc_published.sharedAnonymous;
+    		new_doc_published_anonymous["~c8oAcl"] = userNameAnonymous != null ? userNameAnonymous : doc_published_anonymous["~c8oAcl"];
+    		new_doc_published_anonymous.sharedAnonymous = new_doc_published.sharedAnonymous;
+    
+    		// prepare merge params
+    		let mergeRules = new HashMap();
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("formulaire")), new java.lang.String("override"));
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("pages")), new java.lang.String("override"));
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("actions")), new java.lang.String("override"));
+    		// post new_doc_published_anonymous
+    		console.log("new_doc_published_anonymous", new_doc_published_anonymous, logLevel);
+    		let response_published_anonymous = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_published_anonymous), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    		console.log("response_published_anonymous", response_published_anonymous, logLevel);
+    	}
+    	return {userNameAnonymous:userNameAnonymous, new_doc_published_anonymous:new_doc_published_anonymous};
+    }
+    
+    // end functions
+    
+    // environment variables
+    let logLevel = "warn";
+    let authenticatedUserID = context.getAuthenticatedUser();
+    
+    // main code
+    
+    // try to parse metadata
+    try {
+    	meta = JSON.parse(meta);
+    }
+    catch (e) {
+    	meta = {};
+    }
+    let res = {};
+    let response_published;
+    let response_published_anonymous;
+    
+    
+    //if no meta.pwa is provided then ensure pwa already exists
+    if(!meta.pwa){
+    	let pwa = getDoc("published_"+id+"_pwa_document", null);
+    	if(pwa.error){
+    		res.pwa_required = true;
+    	}
+    }
+    
+    /** 
+     * publish form
+     * if it''s a first publication then only published doc is created. In this case, published_anonymous doc will be created in a second time in if (meta.pwa) section.
+     * if it''s a new version then published doc is updated and published_anonymous doc is updated if it''s an anonymous app.
+     *  */
+    if (meta.publishing == true && !res.pwa_required) {
+    	// if during pwa publishing icon changed, first update form
+    	if(meta.pwa && meta.pwa.attachment && file){
+    		// get file attachment
+    		let attfile = new java.io.File(file);
+    		// then put it in pwa document
+    		let resp = fsclient.putDocumentAttachment("c8oforms_fs", id, "thumbnail", new HashMap(), attfile, enums.MimeType.OctetStream.value());
+    		rev = resp.rev;
+    	}
+    	// get non published form
+    	let doc = getDoc(id, rev);
+    	
+    	// post publish	form
+    	response_published = postPublish(doc, id);
+    
+    	// evaluate if we have to create new anonymous form and perform it
+    	response_published_anonymous = postPublishAnonymous(doc, response_published.new_doc_published, response_published.create_new_anonymous);
+    
+    	// now check for attachments
+    	if (doc._attachments) {
+    		// create a prefix to ensure temp store files in unique path
+    		let prefixForTempPath = Math.floor(new Date().getTime() * Math.random());
+    		for (let k in doc._attachments) {
+    			// create an empty file attachment
+    			let attpath = "" + prefixForTempPath + "_" + k; context.getProjectName()
+    			attpath = theApp.filePropertyManager.getFilepathFromProperty(attpath, context.projectName);
+    			attfile = new java.io.File(attpath);
+    			let query = new HashMap();
+    			if(rev){
+    				query.put(new java.lang.String("rev"), new java.lang.String(rev));
+    			}
+    			// query attachment from non published doc
+    			fsclient.getDocumentAttachment("c8oforms_fs", id, k, query, attfile);
+    
+    			// then put it in published document
+    			fsclient.putDocumentAttachment("c8oforms_fs", response_published.new_doc_published._id, k, new HashMap(), attfile, enums.MimeType.OctetStream.value());
+    
+    			// and if it''s a shared anonymous form then put it also in published document anonymous
+    			if (response_published.new_doc_published.sharedAnonymous) {
+    				fsclient.putDocumentAttachment("c8oforms_fs", response_published_anonymous.new_doc_published_anonymous._id, k, new HashMap(), attfile, enums.MimeType.OctetStream.value());
+    			}
+    			// then delete temp file attachment
+    			attfile.delete();
+    
+    		}
+    	}
+    	// set creator in group _C8O_HIDDEN_123456789_published
+    	callSequence("C8Oforms", "SetUserInGroup", { user: doc.creator, group: "_C8O_HIDDEN_" + response_published.new_doc_published._id });
+    }
+    // perform pwa creation
+    if (meta.pwa && !res.pwa_required) {
+    	console.log("start_pwa 1", {}, logLevel);
+    	// equivalent of docsToCreatePwa
+    	let new_pwa_doc = {};
+    	if (!response_published.new_doc_published) {
+    		response_published.new_doc_published = toJSON(fsclient.getDocument("c8oforms_fs", meta.pwa.originalFormId));
+    	}
+    	console.log("start_pwa 2", {}, logLevel);
+    	let old_pwa_doc = getDoc()
+    	let targetId;
+    	// meta.pwa.notAnonymous == false means it is anonymous
+    	if (meta.pwa.notAnonymous == "false" || meta.pwa.notAnonymous == false) {
+    		if(!meta.publishing){
+    			new_pwa_doc.targetId = postPublishAnonymous(response_published.new_doc_published, response_published.new_doc_published, true);
+    		}
+    		else{
+    			new_pwa_doc.targetId = createUserNameForAnonymous(meta.pwa.originalFormId);
+    		}
+    		meta.pwa.notAnonymous = false;
+    	}
+    	else if(meta.pwa.notAnonymous == "true" || meta.pwa.notAnonymous == true){
+    		new_pwa_doc.targetId = meta.pwa.originalFormId;
+    	}
+    	console.log("start_pwa 3", {}, logLevel);
+    	// get collabs from published doc and format it to define it as groups of pwa doc
+    	new_pwa_doc.c8oGrp = {}
+    	try {
+    		for (let elem of new_doc_published.collabs) {
+    			new_pwa_doc.c8oGrp[elem] = true;
+    		}
+    	}
+    	catch (e) {
+    		console.log("An error occured while computing groups for pwa", null, "error");
+    	}
+    	console.log("start_pwa 4", {}, logLevel);
+    	new_pwa_doc["~c8oAcl"] = response_published.new_doc_published["creator"];
+    	new_pwa_doc.backgroundColor = meta.pwa.backgroundColor;
+    	new_pwa_doc.name = meta.pwa.name;
+    	new_pwa_doc.originalFormId = meta.pwa.originalFormId;
+    	new_pwa_doc.queryStr = meta.pwa.queryStr;
+    	new_pwa_doc.shortName = meta.pwa.shortName;
+    	new_pwa_doc.themeColor = meta.pwa.themeColor;
+    
+    	new_pwa_doc._id = meta.pwa.originalFormId + "_pwa_document";
+    	new_pwa_doc.c8o_view_type_pwa_document = true;
+    	
+    	new_pwa_doc.themeColor = meta.pwa.themeColor;
+    	new_pwa_doc.themeColor = meta.pwa.themeColor;
+    
+    	// post new_doc_published 
+    	console.log("new_pwa_doc", new_pwa_doc, logLevel);
+    	let mergeRules = new HashMap();
+    	let response_new_pwa_doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_pwa_doc), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    	console.log("response_new_pwa_doc", response_new_pwa_doc, logLevel);
+    	// now check for icon in pwa
+    	if (meta.pwa.thumbnail) {
+    		// create an empty file attachment
+    		let attfile;
+    		let attContentType;
+    		if(meta.pwa.thumbnail.fromVar){
+    			attfile = new java.io.File(file);
+    			attContentType = meta.pwa.thumbnail.content_type;
+    		}
+    		else{
+    			console.log("there else 1", {}, logLevel);
+    			let prefixForTempPath = Math.floor(new Date().getTime() * Math.random());
+    			let attpath = "" + prefixForTempPath + "_" + "thumbnail"; context.getProjectName()
+    			console.log("attpath 1", attpath, logLevel);
+    			attpath = theApp.filePropertyManager.getFilepathFromProperty(attpath, context.projectName);
+    			attfile = new java.io.File(attpath);
+    			let query = new HashMap();
+    			if(rev){
+    				query.put(new java.lang.String("rev"), new java.lang.String(rev));
+    			}
+    			// query attachment from non published doc
+    			fsclient.getDocumentAttachment("c8oforms_fs", id, "thumbnail", query, attfile);
+    			attContentType = enums.MimeType.OctetStream.value();
+    		}
+    		 
+    		//let contentType = getContentType(file);
+    		// then put it in pwa document
+    		fsclient.putDocumentAttachment("c8oforms_fs", new_pwa_doc._id, "icon", new HashMap(), attfile, attContentType);
+    		// then delete temp file attachment
+    		attfile.delete();
+    		
+    	}
+    }
+    '
+↓object2 [steps.JsonToXmlStep-1694613048462]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓id [variables.RequestableVariable-1694612287089]: 
+↓rev [variables.RequestableVariable-1694613184876]: 
+↓meta [variables.RequestableVariable-1694614176250]: 
+↓file [variables.RequestableVariable-1695042591245]: 
+  isFileUpload: true

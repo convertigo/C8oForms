@@ -20,116 +20,89 @@ comment: Process a tick (Refresh define in caf)
           	            page.local.hash = undefined;
           	            page.local.hashFolders = undefined;
           	            page.local.count = undefined;
-          	            
-                          // if we are inside a folder
-                          if(page.local.folder != ""){
-                              let requestObjectIntoFolders = {
-                                      "ddoc": page.local["ddoc"],
-                                      "view": "in_folders",
-                                      "__live": "viewLiveInFolders",
-                                      "descending": true,
-                                      "endkey":[page.local.folder],
-                                      "startkey":[page.local.folder, {}]
-                              };
-                              page.c8o.callJsonObject("fs://c8oforms_fs.view", requestObjectIntoFolders)
-                              .then((response: any, parameters: any)=>{
-                                  const newHash = sha256(JSON.stringify(response));
-                                  if(page.local.hash != newHash){
-                                      page["list"] = response.rows;
-                                      page.local.hash = newHash;
-                                      countOut = response.rows.length;
-                                      page.local.count = countFolders + countOut;
-                                  }
-                                  page.local.alreadyFinished = true;
-                                  page.local.spinner = false;
-                                  return null;
-                              })
-                              .fail((error)=>{
-                                  const obj : any = {};
-                                  obj["message"] = page["translate"].instant("error_occured");
-                                  obj["duration"] = 3000;
-                                  obj["position"] = "bottom";
-                                  //obj["cssClass"] = "";
-                                  (this as any).ToastAction(page, obj, null);
-                              })
-                              
-                          }
-                          // if we are not into a folder
-                          else{
-                           // view for documents inside of folder
-                              let requestObjectFolders = {
-                                      "ddoc": page.local["ddoc"],
-                                      "view": "folders",
-                                      "__live": "viewLiveFolders",
-                                      "descending": true,
-                                      "reduce": true,
-                                      "group": true
-                              };
-                              page.c8o.callJsonObject("fs://c8oforms_fs.view", requestObjectFolders)
-                              .then((response: any, parameters: any)=>{
-          						if((page.local.folder == "") && ((parameters.ddoc == "formsV2" && page.local.published == false) || (parameters.ddoc != "formsV2" && page.local.published))){
-          							const newHash = sha256(JSON.stringify(response));
-          	                        if(page.local.hashFolders != newHash){
-          								countFolders = response.rows.length;
-          	                            page.local.count = countFolders + countOut;
-          	                            page["local"].response2Array = response.rows;
-          	                            page["list"] = page["local"].response2Array.concat(page.local.response2ArrayForms)
-          	                            page.local.hashFolders = newHash;
-          	                        }
+          	            let execQuery = ()=>{
+          	                // if we are inside a folder
+          	                if(page.local.folder != ""){
+          	                   
+          					   page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/in_folders", "acl": true, dynamicParams: JSON.stringify({folder: page.local.folder})})
+          	                    .then((response: any, parameters: any)=>{
+          							countOut = response.res.docs.length;
+          	                        page.local.count = countFolders + countOut;	
+          	                        page.local.response2ArrayForms = response.res.docs;
+          	                        page["list"] = page["local"].response2Array.concat(page.local.response2ArrayForms);
           	                        page.local.alreadyFinished = true;
           	                        page.local.spinner = false;
-          						}
-                                  return null;
-                              })
-                              .fail((error)=>{
-                                  const obj : any = {};
-                                  obj["message"] = page["translate"].instant("error_occured");
-                                  obj["duration"] = 3000;
-                                  obj["position"] = "bottom";
-                                  //obj["cssClass"] = "";
-                                  //this.ToastAction(page, obj, null);
-                              });
-                              // view for documents outside of folder
-                              let requestObject = {
-                                      "ddoc": page.local["ddoc"],
-                                      "view": "out_folders",
-                                      "__live": "viewLiveOut",
-                                      "descending": true
-                              };
-                              page.c8o.callJsonObject("fs://c8oforms_fs.view", requestObject)
-                              .then((response: any, parameters: any)=>{
-          						if((page.local.folder == "") && ((parameters.ddoc == "formsV2" && page.local.published == false) || (parameters.ddoc != "formsV2" && page.local.published))){
-          	                        const newHash = sha256(JSON.stringify(response));
-          	                        if(page.local.hash != newHash){
-          								countOut = response.rows.length;
-          	                            page.local.count = countFolders + countOut;	
-          	                            page.local.response2ArrayForms = response.rows;
-          	                            page["list"] = page["local"].response2Array.concat(page.local.response2ArrayForms)
-          	                            page.local.hash = newHash;
-          	                        }
+          	                        return null;
+          	                    })
+          	                    .fail((error)=>{
+          							page.c8o.log.error("[DoCallViewLiveAndFillFormList] an error occured "+ JSON.stringify(error));
+          	                    })
+          	                }
+          	                // if we are not into a folder
+          	                else{
+          	                 // view for documents inside of folder
+          	                 
+          	                    page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/out_folder", "acl": true, dynamicParams: JSON.stringify({folder: page.local.folder})})
+          	                    .then((response: any, parameters: any)=>{
+          							countOut = response.res.docs.length;
+          	                        page.local.count = countFolders + countOut;	
+          	                        page.local.response2ArrayForms = response.res.docs;
+          	                        page["list"] = page["local"].response2Array.concat(page.local.response2ArrayForms);
           	                        page.local.alreadyFinished = true;
           	                        page.local.spinner = false;
-          						}
-                                  return null;
-                              })
-                              .fail((error)=>{
-                                  const obj : any = {};
-                                  obj["message"] = page["translate"].instant("error_occured");
-                                  obj["duration"] = 3000;
-                                  obj["position"] = "bottom";
-                                  //obj["cssClass"] = "";
-                                  //this.ToastAction(page, obj, null);
-                              })
+          	                        return null;
+          	                    })
+          	                    .fail((error)=>{
+          							page.c8o.log.error("[DoCallViewLiveAndFillFormList] an error occured "+ JSON.stringify(error));
+          	                    })
+          	                }
                           }
+                          execQuery();
+                          // live changes
+          	            let p = Pouch["default"];
+          				window["p"] = p;
+          				const header = {
+          					"x-convertigo-sdk": page.c8o.sdkVersion,
+          				};
+          				if (page.c8o.xsrfUsed) {
+          					const headerName = "x-xsrf-token";
+          					const fetch = "Fetch";
+          					header[headerName] = window.localStorage.getItem(headerName) != undefined ? window.localStorage.getItem(headerName) : fetch;
+          				}
+          				Object.assign(header, page.c8o.headers);
+          				let remotePouchHeader = {
+          					fetch: (url, opts) => {
+          						opts.credentials = ''include'';
+          						for (let key in header) {
+          							opts.headers.set(key, header[key]);
+          						}
+          						var fecthPouch: Promise<Response> = p.fetch(url, opts);
+          						fecthPouch.then((response) => {
+          							page.c8o.session.sort(response, header, null, null, null);
+          						})
+          							.catch((e) => {
+          	
+          							});
+          						return fecthPouch;
+          					}
+          				};
+          				let dbChanges = new p("http://localhost:18080/convertigo/fullsync/c8oforms_fs", remotePouchHeader);
+          				dbChanges.changes({
+          					live: true, since: ''now''
+          					})
+          					.on(''change'', function (change) {
+          						// handle change
+          						execQuery();
+          						console.log("change", change)
+          					}).on(''complete'', function (info) {
+          						// changes() was canceled
+          						console.log("complete", info);
+          					}).on(''error'', function (err) {
+          						console.log("error", err);
+          					});
+          		            // end lives changes
           	            
           		    });
-          		    
-          		    
-          		    
-          		    
-          		    
-          		    
-          		
           '
   package_dependencies: 
     - xmlizable: 
@@ -153,4 +126,11 @@ comment: Process a tick (Refresh define in caf)
               - ↑value: sha256
             - java.lang.String: 
               - ↑value: js-sha256
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: '* as Pouch'
+            - java.lang.String: 
+              - ↑value: pouchdb-browser
 ↓keys [ngx.components.UIStackVariable-1567094333170]: 

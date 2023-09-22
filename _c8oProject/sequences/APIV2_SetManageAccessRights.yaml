@@ -1,0 +1,282 @@
+↓setCollabsOrShare [steps.SimpleStep-1695143831484]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    let logLevel = "warn";
+    
+    // ensure params are ok ....
+    if (collab == "true") {
+    	collab = true;
+    }
+    else if (collab == "false") {
+    	collab = false;
+    }
+    try {
+    	meta = JSON.parse(meta);
+    }
+    catch (e) {
+    	meta = {};
+    }
+    
+    let res = {};
+    let authenticatedUserID = context.getAuthenticatedUser();
+    
+    // get doc and check rights
+    let doc = callSequence("C8Oforms", "APIV2_getDocument", { id: id }).document.res;
+    
+    if (doc) {
+    	let groupsToAdd = {};
+    	let invite_new = [];
+    	if (collab) {
+    
+    		let newCollabsGrp = meta.newUsersOrGroups;
+    		let modifiedExistingCollabsGrp = meta.existingGrpsOrUsersArray;
+    
+    		let newCollabs = [];
+    		let newCollabsResponse = [];
+    		// copy whithout refs
+    		let oldCollabs = doc.collabs != undefined ? doc.collabs.slice() : [];
+    		// copy whithout refs
+    		let oldCollabsResponse = doc.collabsResponse != undefined ? doc.collabsResponse.slice() : [];
+    		
+    		let hasLostRightsToCollab = [];
+    		let hasWonRightsToCollab = [];
+    		let hasLostRightsToResponses = [];
+    		let hasWonRightsToResponses = [];
+    
+    		// define new objects collabs collabsResponse
+    		newCollabsGrp.concat(modifiedExistingCollabsGrp).forEach((elem) => {
+    			if (elem.rights == "Responses") {
+    				newCollabsResponse.push(elem.value);
+    			}
+    			else if (elem.rights == "Edition") {
+    				newCollabs.push(elem.value);
+    			}
+    			else if (elem.rights == "Edition_Responses") {
+    				newCollabsResponse.push(elem.value);
+    				newCollabs.push(elem.value);
+    			}
+    			groupsToAdd[elem.value] = true;
+    		});
+    		// compare with olds ones
+    
+    		// search if has lost rights to responses
+    		oldCollabsResponse.forEach((elem, index) => {
+    			if (newCollabsResponse.indexOf(elem) == -1) {
+    				hasLostRightsToResponses.push(elem);
+    			}
+    		})
+    		// search if has won rights to responses
+    		newCollabsResponse.forEach((elem, index) => {
+    			if (oldCollabsResponse.indexOf(elem) == -1) {
+    				hasWonRightsToResponses.push(elem);
+    			}
+    		})
+    
+    		// search if has lost rights to responses
+    		oldCollabs.forEach((elem, index) => {
+    			if (newCollabs.indexOf(elem) == -1) {
+    				hasLostRightsToCollab.push(elem);
+    			}
+    		})
+    		// search if has won rights to responses
+    		newCollabs.forEach((elem, index) => {
+    			if (oldCollabs.indexOf(elem) == -1) {
+    				hasWonRightsToCollab.push(elem);
+    			}
+    		})
+    
+    		//TODO search this.local.shared
+    		// search if still exists to any one group (included normal ones)
+    		oldCollabsResponse.concat(oldCollabs).forEach((elem) => {
+    			if (!(newCollabsResponse.concat(newCollabs).indexOf(elem) == -1)) {
+    				groupsToAdd[elem] = true;
+    			}
+    			else {
+    				groupsToAdd[elem] = false;
+    			}
+    		})
+    
+    		if (groupsToAdd == undefined) {
+    			groupsToAdd = {};
+    		}
+    		let removedGrps = [];
+    		if (doc.c8oGrp != undefined) {
+    			Object.keys(doc.c8oGrp).forEach((key) => {
+    				if (doc.c8oGrp[key] == true && groupsToAdd[key] == false) {
+    					removedGrps.push(key);
+    				}
+    			})
+    		}
+    		groupsToAdd["C8Oreserved_" + doc.creator] = true;
+    		if (newCollabs.indexOf("C8Oreserved_" + doc.creator) == -1) {
+    			newCollabs.push("C8Oreserved_" + doc.creator);
+    		}
+    		if (newCollabsResponse.indexOf("C8Oreserved_" + doc.creator) == -1) {
+    			newCollabsResponse.push("C8Oreserved_" + doc.creator);
+    		}
+    		
+    		// compute ids
+    		let currentIsPublished = id.indexOf("published_") == 0;
+    		let idPublished;
+    		let idEdition;
+    		let idPwaDoc;
+    		if (currentIsPublished) {
+    			idPublished = id;
+    			idEdition = id.substring((id.indexOf("published_") + 10));
+    			idPwaDoc = idPublished + "_pwa_document";
+    		}
+    		else {
+    			idPublished = "published_" + id;
+    			idEdition = id;
+    			idPwaDoc = idPublished + "_pwa_document";
+    		}
+    
+    		let existsPublished = false;
+    		let existsEdition = false;
+    		let existsPWAdoc = false;
+    		let docPublished = callSequence("C8Oforms", "APIV2_getDocument", { id: idPublished }).document.res;
+    		if (docPublished) {
+    			existsPublished = true;
+    			// prepare args to post new_doc_published with adequate rights
+    			let new_doc_published = {
+    				"c8oGrp": groupsToAdd,
+    				"collabs": newCollabs,
+    				"collabsResponse": newCollabsResponse,
+    				"_id": idPublished
+    			}
+    			let mergeRules = new HashMap();
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabs")), new java.lang.String("override"));
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabsResponse")), new java.lang.String("override"));
+    			// post new_doc_published
+    			toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_published), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    		}
+    		// adjust groups for edition form and pwa
+    		var grpEdition = {};
+    		newCollabs.forEach((e) => {
+    			grpEdition[e] = true;
+    		})
+    		hasLostRightsToCollab.forEach((e) => {
+    			grpEdition[e] = false;
+    		})
+    		grpEdition["C8Oreserved_" + doc.creator] = true;
+    
+    		let docEdition = callSequence("C8Oforms", "APIV2_getDocument", { id: idEdition }).document.res;
+    		if (docEdition) {
+    			existsEdition = true;
+    			let new_doc_edition = {
+    				"c8oGrp": grpEdition,
+    				"collabs": newCollabs,
+    				"collabsResponse": newCollabsResponse,
+    				"_id": idEdition
+    			}
+    			let mergeRules = new HashMap();
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabs")), new java.lang.String("override"));
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabsResponse")), new java.lang.String("override"));
+    			// post new_doc_published 
+    			toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_edition), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    		}
+    
+    		let docPWA = callSequence("C8Oforms", "APIV2_getDocument", { id: idPwaDoc }).document.res;
+    		if (existsPWAdoc) {
+    			existsEdition = true;
+    			existsEdition = true;
+    			let new_doc_pwa = {
+    				"c8oGrp": grpEdition,
+    				"collabs": newCollabs,
+    				"collabsResponse": newCollabsResponse,
+    				"_id": idPwaDoc
+    			}
+    			let mergeRules = new HashMap();
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabs")), new java.lang.String("override"));
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabsResponse")), new java.lang.String("override"));
+    			// post new_doc_published 
+    			toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_pwa), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    		}
+    	}
+    	// if it''s a sharing
+    	else {
+    		let newSharedGrp = meta.newUsersOrGroups;
+    		let modifiedExistingSharedGrp = meta.existingGrpsOrUsersArray;
+    		let newShared = [];
+    
+    		let oldCollabs = doc.collabs != undefined ? doc.collabs.slice() : [];
+    		let oldCollabsResponse = doc.collabsResponse != undefined ? doc.collabsResponse.slice() : [];
+    		let oldShared = doc.shared != undefined ? doc.shared.slice() : [];
+    
+    		newSharedGrp.forEach((elem) => {
+    			if (elem.type != undefined) {
+    				groupsToAdd[elem.value] = true;
+    
+    			}
+    			else {
+    				invite_new.push(elem.value);
+    			}
+    		});
+    
+    		// define new objects collabs collabsResponse
+    		newSharedGrp.concat(modifiedExistingSharedGrp).forEach((elem) => {
+    			newShared.push(elem.value);
+    			groupsToAdd[elem.value] = true;
+    		});
+    
+    
+    		// search if still exists to any one group (included to collabs or collabsResponse ones)
+    		oldShared.forEach((elem) => {
+    			if (!(oldCollabs.concat(oldCollabsResponse).concat(newSharedGrp.map((x) => { return x.value })).concat(modifiedExistingSharedGrp.map((x) => { return x.value })).indexOf(elem) == -1)) {
+    				groupsToAdd[elem] = true;
+    			}
+    			else {
+    				groupsToAdd[elem] = false;
+    			}
+    		})
+    		if (groupsToAdd == undefined) {
+    			groupsToAdd = {};
+    		}
+    		groupsToAdd["C8Oreserved_" + doc.creator] = true;
+    
+    		let removedGrps = [];
+    		if (doc.c8oGrp != undefined) {
+    			Object.keys(doc.c8oGrp).forEach((key) => {
+    				if (doc.c8oGrp[key] == true && groupsToAdd[key] == false) {
+    					removedGrps.push(key);
+    				}
+    			})
+    		}
+    
+    		// prepare args to post new_doc_published with adequate rights
+    		let new_doc_published = {
+    			"c8oGrp": groupsToAdd,
+    			"shared": newShared,
+    			"_use_merge_shared": "override",
+    			"invited": invite_new.concat(meta.invite_new),
+    			"_use_policy": "merge",
+    			"_id": id
+    		}
+    		let mergeRules = new HashMap();
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("shared")), new java.lang.String("override"));
+    		// post new_doc_published 
+    		toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_published), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    	}
+    
+    }
+    else {
+    	res.unauthorized = true;
+    }'
+↓object2 [steps.JsonToXmlStep-1695143831487]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓id [variables.RequestableVariable-1695144070094]: 
+↓collab [variables.RequestableVariable-1695144076048]: 
+↓meta [variables.RequestableVariable-1695144866933]: 

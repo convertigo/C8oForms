@@ -150,3 +150,110 @@ comment: used to publish or/and create/update pwa
           		asyncF();
           		resolve();
           '
+  isEnabled: false
+↓Call_APIV2_Publish [ngx.components.UICustomAsyncAction-1695216215314]: 
+  actionValue: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '		try {
+          			// define an async function to be able to use async await
+          			let asyncCanvasToBlob = (canvas) => {
+          				return new Promise((resolve) => {
+          					canvas.toBlob((res) => {
+          						resolve(res);
+          					},"image/png", 0.95);
+          				})
+          
+          			}
+          			let asyncGetCanavsFromColor = async (color) => {
+          				var cvs: any = document.createElement("CANVAS");
+          				cvs.height = 300;
+          				cvs.width = 300;
+          				var ctx = cvs.getContext(''2d'');
+          				ctx.fillStyle = color
+          				ctx.fillRect(0, 0, 300, 300);
+          				return await asyncCanvasToBlob(cvs);
+          			}
+          
+          			let idEdit, idPublished, revEdit;
+          			// if it''s coming from the edition form then compute id
+          			if (page.form["_id"].indexOf("published_") == -1) {
+          				idEdit = "" + page.form["_id"];
+          				idPublished = "published_" + idEdit;
+          				revEdit = "" + page.form["_rev"];
+          			}
+          			// if it''s coming from the published form then compute id
+          			else {
+          				idPublished = "" + page.form["_id"];
+          				idEdit = "" + page.form["_id"].substring(10);
+          			}
+          
+          			let meta =
+          			{
+          				publishing: page["publish"],
+          				pwa:{
+          					"backgroundColor": page["pwa"].backgroundColor,
+          					"name": page["pwa"].name,
+          					"notAnonymous": page["pwa"].notAnonymous,
+          					"originalFormId": idPublished,
+          					"querystr": page["pwa"].querystr,
+          					"shortName": page["pwa"].shortName,
+          					"themeColor": page["pwa"].themeColor,
+          					"thumbnail": {
+          						"fromVar": false,
+          						"fromId": "",
+          						"content_type": ""
+          					}
+          				}
+          				
+          			}
+          			let file;
+          			// if it''s a new PWA and icon (thumbnail) did not change from the one defined in the edition form
+          			if (page["new"] && !page.local.updatedImg) {
+          				// if its an image
+          				if (page["pwa"].thumbnail.type == "custom") {
+          					meta.pwa.thumbnail.fromVar = false;
+          					meta.pwa.thumbnail.fromId = idEdit;
+          					//blob = await page.c8o.callJson("fs://c8oforms_fs.get_attachment", "docid", idEdit, "name", "thumbnail").async();
+          				}
+          				// if image has to be created from color
+          				else if (page["pwa"].thumbnail.type == "color") {
+          					meta.pwa.thumbnail.fromVar = true;
+          					file = await asyncGetCanavsFromColor(page["publishInfos"].thumbnail.color);
+          					meta.pwa.thumbnail.content_type = "image/png";
+          				}
+          			}
+          			// if icon (thumbnail) did change from the one defined in the edition form
+          			else if (page.local.updatedImg) {
+          				if (page["pwa"].thumbnail.type == "custom") {
+          					// if its an image
+          					const nB64 = page["detectContentType"](page.local.meta.source);
+          					let contentType = nB64[0];
+          					let b64 = nB64[1];
+          					file = page["b64toBlob"](b64, contentType);
+          					meta.pwa.thumbnail.fromVar = true;
+          					meta.pwa.thumbnail.content_type = contentType;
+          				}
+          				// if image has to be created from color
+          				else if (page["pwa"].thumbnail.type == "color") {
+          					file = await asyncGetCanavsFromColor(page["publishInfos"].thumbnail.color);
+          					meta.pwa.thumbnail.fromVar = true;
+          					meta.pwa.thumbnail.content_type = "image/png";
+          				}
+          
+          			}
+          			let resp = await page.c8o.callJsonObject("C8Oforms.APIV2_Publish",{
+          				id: idEdit,
+          				rev: revEdit,
+          				file: file,
+          				meta: JSON.stringify(meta)
+          			}).async();
+          			console.log("resp", resp);
+          		} catch (e) {
+          			console.log("catch", e);
+          		} finally {
+          			return;
+          		}
+          '

@@ -1,0 +1,179 @@
+↓getCollabsOrShare [steps.SimpleStep-1695134647168]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    let logLevel = "warn";
+    
+    // ensure params are ok ....
+    if (collab == "true") {
+       collab = true;
+    }
+    else if (collab == "false") {
+       collab = false;
+    }
+    let res = { grpsOrUsers: [] };
+    let authenticatedUserID = context.getAuthenticatedUser();
+    
+    // get doc and check rights
+    let doc = callSequence("C8Oforms", "APIV2_getDocument", { id: id }).document.res;
+    
+    if (doc) {
+       // keep only properties that we need
+       res.doc = { c8oGrp: doc.c8oGrp, collabs: doc.collabs, collabsResponse: doc.collabsResponse, shared: doc.shared, creator: doc.creator, name: doc.name };
+       // if we want to add collabs
+       let existingGrpsOrUsersArray = [];
+       let existingGrpsOrUsersArrayFormated = [];
+    
+       // extract existing groups from document, in c8oGrp
+       let existingGrps = doc[''c8oGrp''] != undefined ? doc[''c8oGrp''] : [];
+       for (let i in existingGrps) {
+          if (existingGrps[i] == true || existingGrps[i] == "true") {
+             existingGrpsOrUsersArray.push(i);
+          }
+       }
+       // add also referenced responses collabs that has no acces to non publish doc
+       if (doc["collabsResponse"] != undefined) {
+          for (let elem of doc["collabsResponse"]) {
+             if (existingGrpsOrUsersArray.indexOf(elem) == -1) {
+                existingGrpsOrUsersArray.push(elem)
+             }
+          }
+       }
+    
+       // get current user groups
+       query = new HashMap();
+       query.put(''reduce'', ''false'');
+       keys = toJettison([authenticatedUserID]);
+       groups = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows.map((x) => { return x.value });
+    
+       //prevent from bug when there are only 1 response
+       if (!isArray(groups)) {
+          groups = [groups];
+       }
+       // hide C8Oforms technicals groups
+       groups = groups.filter((x) => {
+          return x.indexOf("_C8O_HIDDEN_") == -1 && x.indexOf("C8Oreserved_") == -1;
+       });
+       //format grp
+       groups = groups.map((x) => {
+          const type = {
+             "type": "group",
+             "value": x,
+             "display": x.indexOf("ad:") == 0 ? x.substring(3) : x,
+             "picture": "assets/images/svg/icon/icn_people.svg"
+          };
+          return type
+    
+       });
+       res.grpsOrUsers = res.grpsOrUsers.concat(groups);
+       users = callSequence("C8Oforms", "getKnownUsers", {})["document"]["transaction"]["document"]["couchdb_output"]["rows"];
+       //prevent from bug when there are only 1 response
+       if (!isArray(users)) {
+          users = [users];
+       }
+       users = users.map((x) => {
+          return {
+             "value": x.id,
+             "displayName": x.value.displayName != undefined ? x.value.displayName : "",
+             "displayMail": x.value.mail != undefined ? x.value.mail : "",
+             "display": x.value.displayName + (x.value.displayName != undefined && x.value.mail != undefined ? " " : "") + x.value.mail,
+             "picture": x.value.picture,
+             "type": "user"
+          }
+       });
+       res.grpsOrUsers = res.grpsOrUsers.concat(users);
+       // ???
+       res.grpsOrUsers = res.grpsOrUsers.reduce((filtered, x) => {
+          if (existingGrpsOrUsersArray.indexOf(x.value) == -1) {
+             if (collab == true) {
+                x.rights = "Edition_Responses";
+             }
+             filtered.push(x);
+          }
+          else {
+             existingGrpsOrUsersArrayFormated.push(x);
+          }
+          return filtered;
+       }, []);
+    
+       if (!collab) {
+          existingGrpsOrUsersArrayFormated = existingGrpsOrUsersArrayFormated.filter((x) => {
+             let isSimpleShare = true;
+             if (doc.collabs != undefined) {
+                isSimpleShare = !(doc.collabs.indexOf(x.value) != -1);
+             }
+             if (doc.collabsResponse != undefined && isSimpleShare == true) {
+                isSimpleShare = !(doc.collabsResponse.indexOf(x.value) != -1);
+             }
+             if (!isSimpleShare) {
+                res.grpsOrUsers.push(x);
+             }
+             return isSimpleShare;
+          })
+       }
+       else {
+          existingGrpsOrUsersArrayFormated = existingGrpsOrUsersArrayFormated.reduce((filtered, x) => {
+             let isCollab = false;
+             let isCollabResponse = false;
+             if (doc.collabs != undefined) {
+                isCollab = (doc.collabs.indexOf(x.value) != -1);
+             }
+             if (doc.collabsResponse != undefined) {
+                isCollabResponse = (doc.collabsResponse.indexOf(x.value) != -1);
+             }
+             if (isCollab && isCollabResponse) {
+                x.rights = "Edition_Responses";
+                filtered.push(x);
+             }
+             else if (isCollab && !isCollabResponse) {
+                x.rights = "Edition";
+                filtered.push(x);
+             }
+             else if (!isCollab && isCollabResponse) {
+                x.rights = "Responses";
+                filtered.push(x);
+             }
+             else {
+                if (collab == true) {
+                   x.rights = "Edition_Responses";
+                }
+                res.grpsOrUsers.push(x);
+             }
+             return filtered;
+          }, []);
+       }
+       // filter unwanted users to appear like self for example
+       res.grpsOrUsers = res.grpsOrUsers.filter((val) => {
+          if (val.value == "C8Oreserved_" + res.doc.creator) {
+             return false;
+          }
+          // don''t include bug that includes annonymous users (to be investigated)
+          else if (val.value.length == 76 && val.value.indexOf("@") == -1) {
+             return false;
+          }
+          else {
+             return true;
+          }
+       });
+       //res.existingGrpsOrUsersArray = existingGrpsOrUsersArray;
+       res.existingGrpsOrUsersArrayFormated = existingGrpsOrUsersArrayFormated;
+    }
+    else {
+       res.unauthorized = true;
+    }'
+↓object2 [steps.JsonToXmlStep-1695135881700]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓id [variables.RequestableVariable-1695136974278]: 
+↓collab [variables.RequestableVariable-1695140091901]: 
