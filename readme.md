@@ -1,9 +1,9 @@
 
 
 
-# C8Oforms
+# Convertigo No-Code Studio
 
-Convertigo No Code Studio
+<p align="center"><img src="https://uploads-ssl.webflow.com/62d55bc018a5be3f0b91fcf3/64ac14ce30c48087b9a31b7d_No_Code_Studio_2.0.gif" alt="Convertigo No-Code Studio" width="1000px" /></p>
 
 ## Introducing Convertigo No Code Studio ##
 
@@ -15,13 +15,13 @@ Using Forms, Enterprises will be able to quickly recreate all these paper-based 
 
 Even more, data entry can trigger complex actions and workflows in their back- end systems interfacing with some compulsory legacy applications running and managed by IT.
 
-[Providing backend services to no-code Form Builder](https://www.convertigo.com/documentation/develop/programming-guide/creating-data-for-c8o-forms/)
+[Providing backend services to no-code Form Builder](https://doc.convertigo.com/documentation/latest/no-code-forms/creating-data-for-c8o-forms/)
 
 [See more on convertigo.com](https://www.convertigo.com/no-code-form-application-builder/)
 
-[Try convertigo on the cloud](https://c8ocloud.convertigo.net/convertigo/projects/C8oCloudSignup/DisplayObjects/mobile/index.html#/signup)
+[Try convertigo on the cloud](https://fr.www.convertigo.com/get-started-page)
 
-[Installing Convertigo Form Builder Standalone](https://www.convertigo.com/documentation/latest/operating-guide/using-c8o-forms-standalone/)
+[Installing Convertigo Form Builder Standalone](https://doc.convertigo.com/documentation/latest/no-code-forms/using-c8o-forms-standalone/)
 
 For more technical informations : [documentation](./project.md)
 
