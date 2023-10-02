@@ -1,0 +1,155 @@
+↓GeneratePwaAsset [steps.SimpleStep-1695645774873]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    let isWindows = getIsWindows();
+    let separator = getSeparator(isWindows);
+    let projectPath = getProjectPath("C8Oforms");
+    
+    let logLevel = "warn";
+    
+    console.log("Sequence C8oforms.APIV2_GenaratePwaAsset has been called", {}, logLevel);
+    //start functions
+    
+    let deleteOldPWA = function (notAnonymous, separator, pwaPath, formId) {
+        try{
+            // if pwa is authenticated
+            if(!(notAnonymous == false || notAnonymous == "false")){
+                // imports
+                var MessageDigest = use("java.security.MessageDigest");
+                var JString = use("java.lang.String");
+                var StandardCharsets = use("java.nio.charset.StandardCharsets");
+                var StringBuffer = use("java.lang.StringBuffer");
+                var Integer = use("java.lang.Integer");
+                var FileUtils = use("org.apache.commons.io.FileUtils");
+                var File = use("java.io.File");
+                
+                var digest = MessageDigest.getInstance("SHA-256");
+                var text = new JString(formId);
+                hash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+                var hexString = new StringBuffer();
+                for (var i = 0; i < hash.length; i++) {
+                    var hex = Integer.toHexString(0xff & hash[i]);
+                    if(hex.length() == 1) hexString.append(''0'');
+                    hexString.append(hex);
+                }
+                var pwaAnonymousId = hexString.toString();
+                var path = pwaPath + pwaAnonymousId + separator;
+                FileUtils.deleteDirectory(new File(path));
+            }
+        }
+        catch(e){
+            console.log("Error while deleting old PWA", e, logLevel);
+        }
+    }
+    
+    // end functions
+    
+    // start main code
+    let can_exec = true;
+    let onlyReGenerateNGSW = "false";
+    let pwaPath;
+    let currentPath;
+    //TODO 
+    try{
+    	meta = JSON.parse(meta);
+    }
+    catch(e){
+    	
+    }
+    let targetId = meta.targetId;
+    
+    if(from_start_server == "true"){
+        // compute dir for pwas
+        pwaPath = projectPath + separator +"DisplayObjects"+separator+"pwas"+separator;
+        currentPath = Paths.get(pwaPath + targetId)
+        if (!Files.exists(currentPath)) {
+            console.log("PWA "+ targetId +" doesn''t exists, need to create it", {}, logLevel);
+        }
+        else{
+            console.log("PWA "+ targetId +" still exists, no need to recreate it, but need to update ngsw.json", {}, logLevel);
+            onlyReGenerateNGSW = "true";
+        }
+    }
+    if(can_exec){
+        let authUser = meta["~c8oAcl"];
+        // disabled: set done in doc meta._id
+    
+        // PostDocumentSetStatus
+        let mergeRules = new HashMap();
+        let status = {status: "doing", _id: meta.originalFormId};
+        toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(status), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    
+        // disabled: if from start server == false => setNotif
+    
+        // ComputeFilePath
+        //let fp = projectPath + separator + "csv" + separator + (Math.random()+"").substring(2);
+        // create a prefix to ensure temp store files in unique path
+    	let prefixForTempPath = Math.floor(new Date().getTime() * Math.random());
+    		
+    
+        // getDocument attachment
+        let attpath = "" + prefixForTempPath + "_" + "icon"; context.getProjectName()
+        attpath = theApp.filePropertyManager.getFilepathFromProperty(attpath, context.projectName);
+        attfile = new java.io.File(attpath);
+        let query = new HashMap();
+        // query attachment
+        fsclient.getDocumentAttachment("c8oforms_fs", meta._id, "icon", query, attfile);
+    
+        let notAnonymous = meta.notAnonymous;
+    
+        // PrepareAditionalParameters
+        let additionalParametersJSONObjectString = JSON.stringify({"anonymous": (notAnonymous == "false" || notAnonymous == false)});
+    
+        //deleteOldPWA
+        deleteOldPWA(notAnonymous, separator, pwaPath, meta.originalFormId);
+    
+        // Call sequence lib_GeneratePWAAssets.generateAssets
+        let params = {
+            image: attpath,
+            projectName: "C8Oforms",
+            target: targetId,
+            pwaName: meta.name,
+            pwaShortName: meta.shortName,
+            pwaBackgroundColor: meta.backgroundColor,
+            pwaThemeColor: meta.themeColor,
+            additionalParametersJSONObjectString: additionalParametersJSONObjectString,
+            queryParameters: meta.querystr,
+            scrape: false,
+            onlyReGenerateNGSW: onlyReGenerateNGSW,
+            ngswFileName: "ngsw-config-sub-pwa.json"
+        };
+        callSequence("lib_GeneratePWAAssets", "generateAssets", params);
+    
+        attfile.delete();
+    
+        // PostDocumentSetStatus and PostDocumentSetPwaEnabled
+        // prepare merge params
+    	mergeRules = new HashMap();
+        let new_status = {
+            status: "done",
+            _id: meta.originalFormId,
+            pwaEnabled: true,
+            pwa_subPath: "pwas" + "" + "/index.html"
+        };
+    	fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_status), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false)
+    
+    }'
+↓object2 [steps.JsonToXmlStep-1695645779555]: 
+  isEnabled: false
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓from_start_server [variables.RequestableVariable-1695647202254]: 
+  value: false
+↓meta [variables.RequestableVariable-1695737225597]: 

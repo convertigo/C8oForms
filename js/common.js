@@ -12,6 +12,10 @@ var Files = java.nio.file.Files;
 var Path = java.nio.file.Path;
 var Paths = java.nio.file.Paths;
 
+var isWindows = org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
+var separator = isWindows ? "\\" :"/";
+var projectPath = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName("C8Oforms").getDirPath();
+
 /**
  * Parse a JSON string into a JavaScript object.
  * 
@@ -165,4 +169,16 @@ let getContentType = function(pathToFile){
 		console.log("eeee", JSON.stringify(e), "warn");
 		return enums.MimeType.OctetStream.value();
 	}*/
+}
+
+let getIsWindows = function(){
+	return org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
+}
+
+let getSeparator = function(_isWindows){
+	return _isWindows ? "\\" :"/";
+}
+
+let getProjectPath = function(_projectName){
+	return com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName(_projectName).getDirPath();
 }
