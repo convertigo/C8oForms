@@ -379,6 +379,7 @@
                             reject();
                         }); 
           '
+  isEnabled: false
   package_dependencies: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -401,3 +402,79 @@
               - ↑value: sha256
             - java.lang.String: 
               - ↑value: js-sha256
+↓DoGetDoc [ngx.components.UICustomAsyncAction-1696259419797]: 
+  actionValue: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '		try {
+          			let execQuery = async ()=>{
+          				let doc =  (await page.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id: page.local.formId}).async()).res;
+          				if(doc){
+          					console.log("recieved doc at rev: "+doc._rev, doc);
+          					page["formsList"] = doc.formulaire;
+          	                page["form"] = doc;
+          	                page.ref.detectChanges();
+                          }
+          			};
+          			// exec First launch
+          			await execQuery();
+                      // live changes
+                      let p = Pouch["default"];
+          			const header = {
+          				"x-convertigo-sdk": page.c8o.sdkVersion,
+          			};
+          			if (page.c8o.xsrfUsed) {
+          				const headerName = "x-xsrf-token";
+          				const fetch = "Fetch";
+          				header[headerName] = window.localStorage.getItem(headerName) != undefined ? window.localStorage.getItem(headerName) : fetch;
+          			}
+          			Object.assign(header, page.c8o.headers);
+          			let remotePouchHeader = {
+          				fetch: (url, opts) => {
+          					opts.credentials = ''include'';
+          					for (let key in header) {
+          						opts.headers.set(key, header[key]);
+          					}
+          					var fecthPouch: Promise<Response> = p.fetch(url, opts);
+          					fecthPouch.then((response) => {
+          						page.c8o.session.sort(response, header, null, null, null);
+          					})
+          					.catch((e) => {
+          
+          					});
+          					return fecthPouch;
+          				}
+          			};
+          			let dbChanges = new p("http://localhost:18080/convertigo/fullsync/c8oforms_fs", remotePouchHeader);
+          			page.local.live = dbChanges.changes({
+          				live: true, since: ''now''
+          				})
+          				.on(''change'', (change)=> {
+          					// if change is on current id
+          					if(change.id === page["form"]["_id"]){
+          						console.log("its current id")
+          						for (let currentChange of change.changes){
+          							if(currentChange.rev != page["form"]["_rev"]){
+          								console.log("revs are diffrent");
+          								execQuery();
+          								break;
+          							}
+          						}
+          					}
+          				}).on(''complete'', function (info) {
+          					// changes() was canceled
+          					console.log("complete", info);
+          				}).on(''error'', function (err) {
+          					console.log("error", err);
+          				});
+          	            // end lives changes
+          			
+          			
+          		} catch (e) {
+          			console.error("GetDOcerror", e);
+          		} finally {
+          			return;
+          		}
+          '

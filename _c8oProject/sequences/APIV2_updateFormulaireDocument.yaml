@@ -1,0 +1,92 @@
+↓getAuthorizedDoc [steps.SimpleStep-1696261644247]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    let authenticatedUserID = context.getAuthenticatedUser();
+    let authGranted = false;
+    let new_doc = false;
+    
+    try{
+       meta = JSON.parse(meta);
+    }
+    catch(e){
+       meta = {};
+    }
+    
+    let existing_doc = getDoc(meta._id, null);
+    //check if new
+    if (existing_doc && existing_doc.error === "not_found") {
+       new_doc = true;
+       meta["_id"] = "" + new Date().getTime();
+       meta["formulaire"] = [];
+       meta["wallpaper"] = {''enabled'': false, ''index'': null, ''random'': "assets/images/svg/imgplaceholder/placeholder" + (Math.floor(Math.random() * Math.floor(3)))+".svg"};
+       meta["descform"] = "";
+       meta["namePosition"] = "text-center";
+       meta["descformPosition"] = "text-left";
+       meta["pages"] = [{name: "Page 1", pageTechName: "Page"+new Date().getTime(), positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", iconName: "book-outline" }];
+       meta["actions"] = [];
+       meta["creationDate"] = "" + new Date().getTime();
+       meta["creator"] = authenticatedUserID;
+       meta["~c8oAcl"] = authenticatedUserID;
+       meta["technicalVersion"] = "1.0.6";
+       meta["c8o_view_type_drafts_form"] = true;           
+    }
+    if (!new_doc) {
+       // now check if existing_doc is authorized for currentUser
+       if (existing_doc._deleted == null && ((existing_doc["~c8oAcl"] == null && existing_doc.c8oGrp == null) || existing_doc["~c8oAcl"] == authenticatedUserID)) {
+          authGranted = true;
+       }
+       // if acl is not enough to grant access, check with used groups and existing_doc.grp is not null
+       let grpIsArray = isArray(existing_doc.c8oGrp);
+       let grpIsObject = isObject(existing_doc.c8oGrp);
+       if (!authGranted && existing_doc.c8oGrp != null && ((grpIsArray && existing_doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(existing_doc.c8oGrp).length > 0))) {
+          // call c8ofullsyncgrp =>  design/get_groups_by_user
+          query = new java.util.HashMap();
+          query.put(''reduce'', ''false'');
+          keys = toJettison([authenticatedUserID]);
+          rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
+    
+          // call c8oforms_fs =>  authentication/distinctGroups
+          query = new java.util.HashMap();
+          query.put(''reduce'', ''true'');
+          query.put(''group'', ''true'');
+          _use_keys = rows.map((x) => { return x.value });
+          keys = toJettison(_use_keys);
+          usedGroups = toJSON(fsclient.postView("c8oforms_fs", ''authentication'', ''distinctGroups'', query, keys));
+          usedGroups = usedGroups.rows.map((x) => { return x.key });
+          if (usedGroups.length > 0 && ((grpIsArray && existing_doc.c8oGrp.some(function (value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function (group) { return (existing_doc.c8oGrp[group] == true || existing_doc.c8oGrp[group] == "true") })))) {
+             authGranted = true;
+          }
+       }
+       if (!authGranted) {
+          existing_doc = null;
+       }
+    }
+    // we can proceed to the action
+    if(new_doc || authGranted){
+       // add timestamp to store last modification date
+       meta["lastMofification"] = "" + new Date().getTime(); 
+    
+       // prepare merge params
+    	let mergeRules = new HashMap();
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String("formulaire")), new java.lang.String("override"));
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String("pages")), new java.lang.String("override"));
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String("actions")), new java.lang.String("override"));
+    	// post doc 
+    	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(meta), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    }'
+↓object2 [steps.JsonToXmlStep-1696261644250]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: doc
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓meta [variables.RequestableVariable-1696262383951]: 
