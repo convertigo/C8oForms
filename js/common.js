@@ -106,11 +106,17 @@ var createUserNameForAnonymous = function (id) {
  * @param {string} [rev] - The revision of the document. (optional)
  * @returns {Object} The retrieved document.
  */
-let getDoc = function (id, rev) {
+let getDoc = function (id, parametersJS) {
 	// get non published form
 	var parameters = new HashMap();
-	if (rev) {
-		parameters.put("rev", new java.lang.String(rev));
+	// legacy before, parametersJS was string rev
+	if(typeof parametersJS == "string"){
+		parameters.put("rev", new java.lang.String(parametersJS));
+	}
+	else if(parametersJS != null){
+		for(let i in parametersJS){
+			parameters.put(i, new java.lang.String(parametersJS[i]));
+		}
 	}
 	let doc = toJSON(fsclient.getDocument("c8oforms_fs", id, parameters));
 	return doc;
