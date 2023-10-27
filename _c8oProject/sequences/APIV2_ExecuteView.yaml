@@ -3,6 +3,8 @@
     '// Imports and helpers functions
     include("js/common.js");
     
+    
+    
     let authenticatedUserID = context.getAuthenticatedUser();
     // get dynamic params
     let params = {};
@@ -11,6 +13,10 @@
     }
     catch (e) {
        log.warn("parse failed" + JSON.stringify(e));
+    }
+    let targetDB = "c8oforms_fs";
+    if(fromResponses == "true"){
+    	targetDB = "c8oforms_response_fs";
     }
     // Requests definitions
     let requests = {
@@ -129,6 +135,9 @@
              }
           ],
           "fields": ["name", "_id"]
+       },
+       "getResponseByVersion":{
+    	   selector: [],
        }
     }
     
@@ -137,8 +146,13 @@
           "$and": []
        }
     };
+    
+    // get admin attr
+    let admin = authenticatedUserID == "c8o:admin";
+    
+    
     // request is acl or group based create filter
-    if (requests[target]["acl"] != false) {
+    if (!admin && requests[target]["acl"] != false) {
        // call c8ofullsyncgrp =>  design/get_groups_by_user
        query = new java.util.HashMap();
        query.put(''reduce'', ''false'');
@@ -150,7 +164,7 @@
        query.put(''group'', ''true'');
        _use_keys = rows.map((x) => { return x.value });
        keys = toJettison(_use_keys);
-       usedGroups = toJSON(fsclient.postView("c8oforms_fs", ''authentication'', ''distinctGroups'', query, keys));
+       usedGroups = toJSON(fsclient.postView(targetDB, ''authentication'', ''distinctGroups'', query, keys));
        usedGroups = usedGroups.rows.map((x) => { return x.key.replace(/\./g, ''\\.'') });
     
        // build mangofilter
@@ -256,12 +270,17 @@
        }
     
     }
+    if(target == "getResponseByVersion"){
+    	
+          mangoquery.selector["$and"].push({ "formId": params["formId"] });
+    
+    }
     mangoquery.fields = requests[target].fields;
     mangoquery.sort = requests[target].sort;
     mangoquery.limit = 10000;
     mangoquery.execution_stats = true;
     
-    let res = toJSON(fsclient.postFind("c8oforms_fs", toJettison(mangoquery)));
+    let res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
     
     
     if ((target == "formsV2/out_folder" || target == "published_formsV2/out_folder") && res.docs) {
@@ -333,3 +352,5 @@
         - →→: res
 ↓target [variables.RequestableVariable-1694183672486]: 
 ↓dynamicParams [variables.RequestableVariable-1694446121764]: 
+↓fromResponses [variables.RequestableVariable-1697534800512]: 
+  value: false

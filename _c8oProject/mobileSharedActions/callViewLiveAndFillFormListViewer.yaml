@@ -452,33 +452,44 @@
         →: |
           '		/*inner marker removed!*/
           		let dontReload = false;
-          		let args = null;
-          		let verb = null;
-          		let respInit = null;
+          		let args: any = null;
+          		let verb: any = null;
+          		let respInit: any = null;
           		page.local.hash = undefined;
           		page.local.sizeWallPaper = undefined;
           		let isProd = page.local.published == true || page.local.anonymous == true;
           		// if in fullsync mode
-          		if(vars.fs){
+          		if (vars.fromId) {
+          			let r: any = await page.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id:vars.fromId, fromResponse: "true"}).async();
+          			respInit = r.res.resp;
+          		}
+          		if (vars.fs) {
           			let key;
-                      let respInit;
-                      if(page.local["formId"]!= null){
-                          key = page.local["formId"];
-                          if(page.local["respInit"] != null){
-                              respInit = page.local["respInit"];
-                              page["edit"] = true;
-                          }
-                      }
+          			let respInit;
+          			if (page.local["formId"] != null) {
+          				key = page.local["formId"];
+          				if (page.local["respInit"] != null) {
+          					respInit = page.local["respInit"];
+          					page["edit"] = true;
+          				}
+          			}
+          			/*
           			verb = "fs://c8oforms_fs.view";
           			args = {
           				"ddoc": "forms",
           				"view": "view",
           				"__live": "viewLiveViewerPage",
           				"key": key
-                     };
+          		   };
+          		   */
+          			args = {
+          				"id": key,
+          				[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)
+          			}
+          			verb = ".APIV2_getDocument";
           		}
           		// if in sequence mode
-          		else{
+          		else {
           			page.global.errorViewer = false;
           			page.local.user = page["navParams"].get(''i'');
           			args = {
@@ -486,294 +497,329 @@
           				"__disableAutologin": true,
           				[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)
           			}
-          			verb = ".getAnonymousForm"; 
+          			verb = ".getAnonymousForm";
           		}
-                  
-                  try {
-          			let response: any = await page.c8o.callJsonObject(verb,args).async();
-          			let cond: boolean;
-          			if(vars.fs){
-          				cond = !page.local.submitting;
-          			}
-          			else{
-          				cond = response.transaction != undefined && response.transaction.document != undefined && response.transaction.document.couchdb_output != undefined && response.transaction.document.couchdb_output.rows != undefined && response.transaction.document.couchdb_output.rows[0] != undefined;
-          				response = response.transaction.document.couchdb_output;
-          				var myIdP = response.rows[0].value.doc._id;
-          	            const key = "_C8O_HIDDEN_" +  myIdP.substring(0, myIdP.indexOf("_anonymous"));
-          	            page.local.grp[key] = true;
-          	            page.local.formId = response.rows[0].value.doc._id;
-          			}
-          			try{
-          				var newHash = sha256(JSON.stringify(response.rows[0]));
-          			}
-          			catch(e){}
-          			if(cond && response.rows != undefined && response.rows[0] != undefined && newHash != page.local.hash && response.rows.length > 0){	
-          				page.local.callEndInitC8o = async ()=>{
-          					//page.ref.reattach();
-          					
-          					// remove errorViewer
-          					page.local.errorViewer = false;
-          					//updates value except page.formsList
-          					page["form"] = response.rows[0].value.doc;
-          					page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
-          		            page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
-          					if(response.rows[0].value.doc.collabsResponse != undefined && response.rows[0].value.doc.collabsResponse.length > 0){
-          						if(page.local.grp == undefined){
-          							page.local.grp = {};
-          						}
-          						response.rows[0].value.doc.collabsResponse.forEach((e)=>{
-          							page.local.grp[e] = true; 
-          						})
+          
+          		try {
+          			//Define functions
+          			page.local.callEndInitC8o = async (response, newHash) => {
+          				//page.ref.reattach();
+          
+          				// remove errorViewer
+          				page.local.errorViewer = false;
+          				//updates value except page.formsList
+          				page["form"] = response.rows[0].value.doc;
+          				page["local"]["_rev"] = response.rows[0].value.doc[''_rev''];
+          				page["link"] = response.rows[0].value.doc["wallpaper"]["link"];
+          				if (response.rows[0].value.doc.collabsResponse != undefined && response.rows[0].value.doc.collabsResponse.length > 0) {
+          					if (page.local.grp == undefined) {
+          						page.local.grp = {};
           					}
-          					var isInitial = true;
-          					// if response is diffrent from previous
-          					if(page.local.hash == undefined){
-          						// this was inital loading of form so do nothing
+          					response.rows[0].value.doc.collabsResponse.forEach((e) => {
+          						page.local.grp[e] = true;
+          					})
+          				}
+          				var isInitial = true;
+          				// if response is diffrent from previous
+          				if (page.local.hash == undefined) {
+          					// this was inital loading of form so do nothing
+          				}
+          				// if there is an update while consulting 
+          				else {
+          					isInitial = false;
+          					// if we are in production 
+          					if (isProd) {
+          						dontReload = true;
+          						//return;//window.location.reload();
           					}
-          					// if there is an update while consulting 
-          					else{
-          						isInitial = false;
-          						// if we are in production 
-          						if(isProd){
-          							dontReload = true;
-          							//return;//window.location.reload();
-          						}
-          						// if we are in preview
-          						else{
-          							if(!page.local.displayIngToast){
-          								page.local.displayIngToast = true;
-          								let toastCtrl = page.getInstance(ToastController);
-          								let toast = toastCtrl.create({
-          								    message: page["translate"].instant("the_form_has_been_updated"),
-          								    duration: 3000,
-          								    position: ''bottom'',
-          									  ["buttons"] : [{text: page["translate"].instant("close"), role: ''cancel'', side: ''end''}],
-          									cssClass: "changeToast"
-          								}).then((res)=>{
+          					// if we are in preview
+          					else {
+          						if (!page.local.displayIngToast) {
+          							page.local.displayIngToast = true;
+          							let toastCtrl = page.getInstance(ToastController);
+          							let toast = toastCtrl.create({
+          								message: page["translate"].instant("the_form_has_been_updated"),
+          								duration: 3000,
+          								position: ''bottom'',
+          								["buttons"]: [{ text: page["translate"].instant("close"), role: ''cancel'', side: ''end'' }],
+          								cssClass: "toastSuccess"
+          							}).then((res) => {
           								res.present();
-          								})
-          								setTimeout(()=>{
-          									page.local.displayIngToast = false;
-          								},3000)
-          								if(page.local.databsesTosync != undefined){
-          									for(let db in page.local.databsesTosync){
-          										//page.c8o.callJsonObject("fs://"+db+".replicate_pull",{cancel: true});
-          										page.c8o.log.debug("canceled "+db+" pull replication (brefore updating form)");
-          									}
-          								}
-          								if(page.local.liveToCancel != undefined){
-          									for(let liveQuery of page.local.liveToCancel){
-          										page.c8o.cancelLive(liveQuery);
-          										page.c8o.log.debug("canceled "+liveQuery+" live query (brefore updating form)");
-          									}
-          									page.local.liveToCancel = [];
+          							})
+          							setTimeout(() => {
+          								page.local.displayIngToast = false;
+          							}, 3000)
+          							if (page.local.databsesTosync != undefined) {
+          								for (let db in page.local.databsesTosync) {
+          									//page.c8o.callJsonObject("fs://"+db+".replicate_pull",{cancel: true});
+          									page.c8o.log.debug("canceled " + db + " pull replication (brefore updating form)");
           								}
           							}
-          							
-          							
+          							if (page.local.liveToCancel != undefined) {
+          								for (let liveQuery of page.local.liveToCancel) {
+          									page.c8o.cancelLive(liveQuery);
+          									page.c8o.log.debug("canceled " + liveQuery + " live query (brefore updating form)");
+          								}
+          								page.local.liveToCancel = [];
+          							}
+          						}
+          
+          
+          					}
+          				}
+          				page.local.hash = newHash;
+          				if (isInitial) {
+          					page.local.sourceValue = {};
+          					page.local.functionsToBeCalled = {};
+          				}
+          				if (!dontReload) {
+          
+          				}
+          				try {
+          					if (isInitial) {
+          						page["local"]["pages"] = response.rows[0].value.doc["pages"]
+          						for (let i in page.local.pages) {
+          							if (page["local"]["pages"][i]["enabled"] == undefined) {
+          								page["local"]["pages"][i]["enabled"] = true;
+          							}
+          						}
+          						page["local"]["currentIndex"] = 0;
+          					}
+          					else {
+          						// get previous pageTechNameByIndex
+          						let indexPageTechName = page["local"]["pages"].map((x) => x.Page1607421989682);
+          						for (let i in response.rows[0].value.doc["pages"]) {
+          							// getting previous status of pageTechName if exists
+          							let ArrayCorrespondigPage = page["local"]["pages"].filter((x) => x.pageTechName == response.rows[0].value.doc["pages"][i].pageTechName);
+          							if (ArrayCorrespondigPage.length > 0) {
+          								response.rows[0].value.doc["pages"][i]["enabled"] = ArrayCorrespondigPage[0]["enabled"];
+          							}
+          							else {
+          								response.rows[0].value.doc["pages"][i]["enabled"] = true;
+          							}
           						}
           					}
-          					page.local.hash = newHash;
-          					if(isInitial){
-          						page.local.sourceValue = {};
-          						page.local.functionsToBeCalled = {};
+          
+          				}
+          				catch (e) {
+          					page["local"]["pages"] = undefined;
+          					page["local"]["currentIndex"] = 0;
+          					console.error("catch1", e);
+          				}
+          				page.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
+          
+          				// Load wallpaper
+          				if (response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined && page["form"]["wallpaper"]["type"] != ''color'') {
+          					if (page.local.url != page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper") {
+          						page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper";
+          						page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
           					}
-          					if(!dontReload){
-          						
+          				}
+          				else {
+          					page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
+          				}
+          
+          				// if we have reloaded the form charge again the currents values
+          				if (!isInitial) {
+          					respInit = { ...page["formsSubmit"] };
+          					page.local.functionsToBeCalled = {};
+          					(page as any).functionsById = {};
+          					(page as any).previousAndPostFunctions = {};
+          				}
+          				// calling fillFormSubmit
+          				page["fillFormSubmit"](response.rows[0].value.doc.formulaire, page["redList"], page["formsSubmit"], respInit);
+          				// then affetct value of form
+          				page["formsList"] = page["form"]["formulaire"];
+          				//affect page title
+          				page["setTitleRGAA"]();
+          				// calling fillActionsVars
+          				if (page["form"]["actions"] != undefined) {
+          					page["fillActionsVars"](page["form"]["actions"])
+          					// calling fillActions
+          					await page["fillActions"](page["form"]["actions"], null, null);
+          				}
+          				// calling fillSources
+          				//if(isInitial){
+          				let idsToCall = page["fillSources"](page["formsList"], page["redList"], page["formsSubmit"]);
+          
+          				idsToCall.forEach((id) => {
+          					try {
+          						page["functionsById"][id]();
           					}
-          		            try{
-          						if(isInitial){
-          							page["local"]["pages"] =  response.rows[0].value.doc["pages"]  
-          			                for(let i in page.local.pages){
-          								if(page["local"]["pages"][i]["enabled"] == undefined){
-          									page["local"]["pages"][i]["enabled"] = true;
-          								}
-          			                }
-          							page["local"]["currentIndex"] = 0;
+          					catch (e) {
+          						console.error("an error occured idsToCall", e)
+          					}
+          				});
+          
+          
+          				//}
+          
+          
+          				//²if(isInitial){
+          				// check conditions
+          				page["checkForAnyCondition"]();
+          				//}	
+          
+          				// do stuff to support upload files
+          				if (page.global["__C8O_TODELETE"] == undefined) {
+          					page.global["__C8O_TODELETE"] = [];
+          				}
+          
+          				for (let item of page["formsList"]) {
+          					if (item[''type''] == "file") {
+          						if (page.global[page["idFiles"]][item["id"]] == null) {
+          							page.global[page["idFiles"]][item["id"]] = [];
           						}
-          						else{
-          							// get previous pageTechNameByIndex
-          							let indexPageTechName = page["local"]["pages"].map((x)=> x.Page1607421989682);
-          							for(let i in response.rows[0].value.doc["pages"]){
-          								// getting previous status of pageTechName if exists
-          								let ArrayCorrespondigPage = page["local"]["pages"].filter((x)=> x.pageTechName == response.rows[0].value.doc["pages"][i].pageTechName);
-          								if(ArrayCorrespondigPage.length > 0){
-          									response.rows[0].value.doc["pages"][i]["enabled"] = ArrayCorrespondigPage[0]["enabled"];
-          								}
-          								else{
-          									response.rows[0].value.doc["pages"][i]["enabled"] = true;
+          					}
+          					if (item["type"] == "ion-card") {
+          						for (let child of item["children"]) {
+          							if (child[''type''] == "file") {
+          								if (page.global[page["idFiles"]][child["id"]] == null) {
+          									page.global[page["idFiles"]][child["id"]] = [];
           								}
           							}
           						}
-          						
-          		            }
-          		            catch(e){
-          		                page["local"]["pages"] = undefined;
-          		                page["local"]["currentIndex"] = 0;
-          						console.error("catch1", e);
-          		            }
-          		            page.c8o.log.debug("CallViewLiveAndFillFormList: formsList object has been updated from live view");
-          		            
-          					// Load wallpaper
-          					if(vars.fs){
-          						// load background image if we are in new support mode image
-          		                if(response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined && page["form"]["wallpaper"]["type"] != ''color''){
-          		                    page.c8o.get_attachment(page["form"]["_id"], "wallpaper", "c8oforms_fs")
-          		                    .then((res) => {
-          								if(res.size != page.local.sizeWallPaper){
-          									page.local.sizeWallPaper = res.size;
-          									 var urlCreator = window["URL"] || window["webkitURL"];
-          			                        page.local.url = urlCreator.createObjectURL(res);
-          			                        page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-          			                        //page.tick();
-          								}
-          		                    }).catch((err) => {
-          								console.error("catch2", err);
-          		                        page.c8o.log.error("Error loading wallpaper from local base", err);
-          		                    }); 
-          		                }
-          		                else{
-          		                    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-          		                }
           					}
-          					else{
-          						if (response.rows[0].value.doc["wallpaper"]["enabled"] && page["form"]["wallpaper"]["type"] != undefined) {
-          							if(page.local.url != page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper"){
-          								page.local.url = page.c8o.endpointConvertigo + "/fullsync/c8oforms_fs/" + page.form["_id"] + "/wallpaper";
-          							    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-          							    //page.tick();
-          							}
-          						}
-          						else {
-          						    page["enabled"] = response.rows[0].value.doc["wallpaper"]["enabled"];
-          						}
+          				}
+          				return;
+          			}
+          			let checkOffline = async (response) => {
+          				//check for offline sources
+          				page.global.waitFSBaseStatus = {};
+          				page.local["databsesTosync"] = {};
+          				page["getDatabasesToSync"](page.local["databsesTosync"], response.rows[0].value.doc.formulaire);
+          				if (Object.keys(page.local["databsesTosync"]).length > 0) {
+          					page.local.isOfflinesource = true;
+          					//page.ref.detach();
+          					let hasToRestart = await page["getFullsyncSources"](response.rows[0].value.doc.formulaire);
+          					if (hasToRestart != undefined && hasToRestart.restart == true) {
+          						return hasToRestart;
           					}
-          					
-          					// if we have reloaded the form charge again the currents values
-          					if(!isInitial){
-          						respInit = {...page["formsSubmit"]};
-          						page.local.functionsToBeCalled = {};
-          						(page as any).functionsById = {};
-          						(page as any).previousAndPostFunctions = {};
-          					}
-          					// calling fillFormSubmit
-          		            page["fillFormSubmit"](response.rows[0].value.doc.formulaire, page["redList"], page["formsSubmit"], respInit);
-          					// then affetct value of form
-          					page["formsList"] = page["form"]["formulaire"];
-          					//affect page title
-          					page["setTitleRGAA"]();
-          					// calling fillActionsVars
-          					if(page["form"]["actions"] != undefined){
-          						page["fillActionsVars"](page["form"]["actions"])
-          						// calling fillActions
-          						await page["fillActions"](page["form"]["actions"], null, null);
-          					}
-          					// calling fillSources
-          					//if(isInitial){
-          					let idsToCall = page["fillSources"](page["formsList"], page["redList"], page["formsSubmit"]); 
-          					
-          						idsToCall.forEach((id)=>{
-          							try{
-          								page["functionsById"][id]();
-          							}
-          							catch(e){
-          								console.error("an error occured idsToCall", e) 
-          							}
+          					else {
+          						page["startSyncDatabases"](page.local["databsesTosync"]);
+          						let promisesSync = [];
+          						Object.keys(page.local.promisesFS).forEach((e) => {
+          							promisesSync.push(page.local.promisesFS[e]);
           						});
-          						
-          					
-          					//}
-          					
-          					
-          					//²if(isInitial){
-          			            // check conditions
-          						page["checkForAnyCondition"]();
-          					//}	
-          		            
-          		            // do stuff to support upload files
-          		            if(page.global["__C8O_TODELETE"] == undefined){
-          		                page.global["__C8O_TODELETE"] = [];
-          		            }
-          		            
-          		            for(let item of page["formsList"]){
-          		                if( item[''type''] == "file"){
-          		                    if(page.global[page["idFiles"]][item["id"]] == null){
-          		                        page.global[page["idFiles"]][item["id"]] = [];
-          		                    }
-          		                }
-          		                if(item["type"] =="ion-card"){
-          		                    for(let child of item["children"]){
-          		                        if(child[''type''] == "file"){
-          		                            if(page.global[page["idFiles"]][child["id"]] == null){
-          		                                page.global[page["idFiles"]][child["id"]] = [];
-          		                            }
-          		                        }
-          		                    }
-          		                }
-          		            }
-          		            return;
+          						Promise.all(promisesSync)
+          							.then(() => {
+          								//page.local.callEndInitC8o();
+          							})
+          						return { restart: false };
+          					}
+          
+          
           				}
-          				let checkOffline = async ()=>{
-                    					//check for offline sources
-                    					page.global.waitFSBaseStatus = {};
-                    					page.local["databsesTosync"] = {};
-                    					page["getDatabasesToSync"](page.local["databsesTosync"], response.rows[0].value.doc.formulaire);
-                    					if(Object.keys(page.local["databsesTosync"]).length > 0){
-                    						page.local.isOfflinesource = true;
-                    						//page.ref.detach();
-                    						let hasToRestart = await page["getFullsyncSources"](response.rows[0].value.doc.formulaire);
-                    						if(hasToRestart != undefined && hasToRestart.restart == true){
-          									return hasToRestart;
-          								}
-          								else{
-          									page["startSyncDatabases"](page.local["databsesTosync"]);
-          	          						let promisesSync = [];
-          	          						Object.keys(page.local.promisesFS).forEach((e)=>{
-          	          							promisesSync.push(page.local.promisesFS[e]);
-          	          						});
-          	          						Promise.all(promisesSync)
-          	          						.then(()=>{
-          	          							//page.local.callEndInitC8o();
-          	          						})
-          									return {restart: false};
-          								}
-          								
-                    						
-                    					}
-                    					else{
-                    						//page.local.callEndInitC8o();
-          								return {restart: false};
-                    					}
-                    				}
-          				
-          				let res = await checkOffline()
-          				if(res != undefined && res.restart == true){
-          					
-          				}
-          				else{
-          					await page.local.callEndInitC8o();
+          				else {
+          					//page.local.callEndInitC8o();
+          					return { restart: false };
           				}
           			}
-          			else if(response.rows.length == 0){
-          				console.log("response.rows.length == 0");
-          				page.local.spinner = false
-          				page.local.errorMsgViewer = ''error_not_found'';
-          				page.local.errorViewer = true;
-          				page[''events''].publish("anyInitalSyncFinished");
-          			}
-          			else if(response.document != undefined && response.document.error != undefined){
-          				if(response.document.error.message == "Max number of sessions exceeded for Standard Edition"){
-          					page.c8o.log.fatal("Max number of sessions exceeded for Standard Edition")
+          			//end define functions
+          			let exec = async () => {
+          				let response: any = await page.c8o.callJsonObject(verb, args).async();
+          				let cond: boolean;
+          				if (vars.fs) {
+          					cond = !page.local.submitting;
+          					if (response.res) {
+          						//by formating as it, emulating view old view structure
+          						response = { rows: [{ id: response.res._id, key: response.res._id, value: { doc: response.res } }] };
+          					}
           				}
-          				
+          				else {
+          					cond = response.transaction != undefined && response.transaction.document != undefined && response.transaction.document.couchdb_output != undefined && response.transaction.document.couchdb_output.rows != undefined && response.transaction.document.couchdb_output.rows[0] != undefined;
+          					response = response.transaction.document.couchdb_output;
+          					var myIdP = response.rows[0].value.doc._id;
+          					const key = "_C8O_HIDDEN_" + myIdP.substring(0, myIdP.indexOf("_anonymous"));
+          					page.local.grp[key] = true;
+          					page.local.formId = response.rows[0].value.doc._id;
+          				}
+          				try {
+          					var newHash = sha256(JSON.stringify(response.rows[0]));
+          				}
+          				catch (e) { }
+          				if (cond && response.rows != undefined && response.rows[0] != undefined && newHash != page.local.hash && response.rows.length > 0) {
+          
+          
+          					let res = await checkOffline(response)
+          					if (res != undefined && res.restart == true) {
+          
+          					}
+          					else {
+          						await page.local.callEndInitC8o(response, newHash);
+          					}
+          				}
+          				else if (response.rows.length == 0) {
+          					console.log("response.rows.length == 0");
+          					page.local.spinner = false
+          					page.local.errorMsgViewer = ''error_not_found'';
+          					page.local.errorViewer = true;
+          					page[''events''].publish("anyInitalSyncFinished");
+          				}
+          				else if (response.document != undefined && response.document.error != undefined) {
+          					if (response.document.error.message == "Max number of sessions exceeded for Standard Edition") {
+          						page.c8o.log.fatal("Max number of sessions exceeded for Standard Edition")
+          					}
+          
+          				}
+          			}
+          			//initial
+          			await exec();
+          			//live
+          			if(!isProd){
+          				try {
+          					let p = Pouch["default"];
+          					const header = {
+          						"x-convertigo-sdk": page.c8o.sdkVersion,
+          					};
+          					if (page.c8o.xsrfUsed) {
+          						const headerName = "x-xsrf-token";
+          						const fetch = "Fetch";
+          						header[headerName] = window.localStorage.getItem(headerName) != undefined ? window.localStorage.getItem(headerName) : fetch;
+          					}
+          					Object.assign(header, page.c8o.headers);
+          					let remotePouchHeader = {
+          						fetch: (url, opts) => {
+          							opts.credentials = ''include'';
+          							for (let key in header) {
+          								opts.headers.set(key, header[key]);
+          							}
+          							var fecthPouch: Promise<Response> = p.fetch(url, opts);
+          							fecthPouch.then((response) => {
+          								page.c8o.session.sort(response, header, null, null, null);
+          							})
+          								.catch((e) => {
+          	
+          								});
+          							return fecthPouch;
+          						}
+          					};
+          					let dbChanges = new p(page.c8o.endpointConvertigo+"/fullsync/c8oforms_fs", remotePouchHeader);
+          					page.local.live = dbChanges.changes({
+          						live: true, since: ''now''
+          					})
+          					.on(''change'', function (change) {
+          						// handle change
+          						if(change.id == page.local["formId"]){
+          							exec();
+          						}
+          					}).on(''complete'', function (info) {
+          						console.log("complete", info);
+          					}).on(''error'', function (err) {
+          						console.log("error", err);
+          					});
+          				}
+          				catch (e) {
+          	
+          				}
           			}
           			
-          			return null;
+          
           		}
-          		catch(e){
+          		catch (e) {
           			console.log("MYYYerror", e);
           			page.c8o.log.error("An error occured into CallViewLiveAndFillFormList viewer " + JSON.stringify(e.message));
-                      throw e;
+          			throw e;
           		}
           '
   package_dependencies: 
@@ -888,3 +934,10 @@
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
         - MobileSmartSourceType: script:stack.callViewLiveAndFillFormListViewer.in.vars.fs
+  ↓fromId [ngx.components.UIControlVariable-1697472800388]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:stack.callViewLiveAndFillFormListViewer.in.vars.fromId
+↓fromId [ngx.components.UIStackVariable-1697472767987]: 
+  value: 

@@ -106,7 +106,10 @@ var createUserNameForAnonymous = function (id) {
  * @param {string} [rev] - The revision of the document. (optional)
  * @returns {Object} The retrieved document.
  */
-let getDoc = function (id, parametersJS) {
+let getDoc = function (id, parametersJS, db) {
+	if(!db){
+		db = "c8oforms_fs";
+	}
 	// get non published form
 	var parameters = new HashMap();
 	// legacy before, parametersJS was string rev
@@ -118,7 +121,7 @@ let getDoc = function (id, parametersJS) {
 			parameters.put(i, new java.lang.String(parametersJS[i]));
 		}
 	}
-	let doc = toJSON(fsclient.getDocument("c8oforms_fs", id, parameters));
+	let doc = toJSON(fsclient.getDocument(db, id, parameters));
 	return doc;
 }
 
@@ -188,3 +191,29 @@ let getSeparator = function(_isWindows){
 let getProjectPath = function(_projectName){
 	return com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName(_projectName).getDirPath();
 }
+
+let createArray = function(value) {
+  return Array.from({ length: +value }, (_, i) => i + 1);
+}
+
+Object.defineProperty(Array.prototype, 'flatMap', {
+    enumerable: false,
+    value: function (f, ctx) {
+    return this.reduce
+      ( (r, x, i, a) =>
+          r.concat(f.call(ctx, x, i, a))
+      , []
+      )
+  }
+});
+
+//if (!Array.prototype.flatMap) {
+//  function flatMap (f, ctx) {
+//    return this.reduce
+//      ( (r, x, i, a) =>
+//          r.concat(f.call(ctx, x, i, a))
+//      , []
+//      )
+//  }
+//  Array.prototype.flatMap = flatMap
+//}
