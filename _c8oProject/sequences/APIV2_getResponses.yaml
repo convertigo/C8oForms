@@ -22,10 +22,16 @@
     				break;
     			case "signature":
     			case "img":
-    				let att_type = false;
-    				try { att_type = response.att_type == true; }catch (e) {}
-                    response.att_type = att_type;
-                    flatResponses[j].value.push(response);
+    				if (i == 0) {
+    					try { flatResponses[j].att_type = response.att_type == true; }catch (e) {}
+    				}
+                    if(flatResponses[j].att_type){
+    					let _val = context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.name);
+    					flatResponses[j].value.push(_val);
+    				}
+    				else{
+    					flatResponses[j].value.push(response);
+    				}
     				break;
     			case "location":
     				if (Object.keys(response.value.gps).length > 0) {
@@ -84,10 +90,10 @@
                                 flatResponses[j].value[k] = 0;
                             }
                             if (response["children"][k].other == true) {
-                                flatResponses[j].sets[k] = Otherkey;
+                                flatResponses[j].categories[k] = Otherkey;
                             }
                             else {
-                                flatResponses[j].sets[k] = response["children"][k]["value"].length > 12 ? response["children"][k]["value"].substring(0, 12) + "..." : response["children"][k]["value"];
+                                flatResponses[j].categories[k] = response["children"][k]["value"].length > 12 ? response["children"][k]["value"].substring(0, 12) + "..." : response["children"][k]["value"];
                             }
                         }
                         if (response["children"][k]["selected"] == true) {
@@ -98,13 +104,13 @@
     			case "checkbox_group":
                     let m = 0;
                     for (let k in response["children"]) {
-                        flatResponses[j]["sets"][m] = k.length > 12 ? k.substring(0, 12) + "..." : k;
+                        flatResponses[j]["categories"][m] = k.length > 12 ? k.substring(0, 12) + "..." : k;
                         for (let l in response["children"][k]) {
                             if (flatResponses[j]["value"][+l] == undefined) {
                                 flatResponses[j]["value"][+l] = {};
                             }
-                            if (flatResponses[j]["value"][+l]["label"] == undefined) {
-                                flatResponses[j]["value"][+l]["label"] = response["children"][k][l]["value"].length > 12 ? response["children"][k][l]["value"].substring(0, 12) + "..." : response["children"][k][l]["value"];
+                            if (flatResponses[j]["value"][+l]["name"] == undefined) {
+                                flatResponses[j]["value"][+l]["name"] = response["children"][k][l]["value"].length > 12 ? response["children"][k][l]["value"].substring(0, 12) + "..." : response["children"][k][l]["value"];
                             }
                             if (flatResponses[j]["value"][+l]["data"] == undefined) {
                                 flatResponses[j]["value"][+l]["data"] = [];
@@ -122,13 +128,13 @@
     			case "radio_group":
     				m = 0;
                     for (let k in response["children"]) {
-                        flatResponses[j]["sets"][m] = k.substring(0, 12) + "...";
+                        flatResponses[j]["categories"][m] = k.substring(0, 12) + "...";
                         for (let l in response["children_label"]) {
                             if (flatResponses[j]["value"][+l] == undefined) {
                                 flatResponses[j]["value"][+l] = {};
                             }
-                            if (flatResponses[j]["value"][+l]["label"] == undefined) {
-                                flatResponses[j]["value"][+l]["label"] = response["children_label"][+l]["value"].length > 12 ? response["children_label"][+l]["value"].substring(0, 12) + "..." : response["children_label"][+l]["value"];
+                            if (flatResponses[j]["value"][+l]["name"] == undefined) {
+                                flatResponses[j]["value"][+l]["name"] = response["children_label"][+l]["value"].length > 12 ? response["children_label"][+l]["value"].substring(0, 12) + "..." : response["children_label"][+l]["value"];
                             }
                             if (flatResponses[j]["value"][+l]["data"] == undefined) {
                                 flatResponses[j]["value"][+l]["data"] = [];
@@ -145,6 +151,9 @@
     				break;
     			case "slider":
                     if (response["value"] !== "") {
+    					if(flatResponses[j]["categories"].length === 0){
+    						flatResponses[j]["categories"].push("");
+    					}
                         if (table == undefined) {
                             table = [];
                         }
@@ -152,7 +161,7 @@
                             table[j] = {};
                         }
                         if (table[j][response["value"]] == undefined) {
-                            table[j][response["value"]] = flatResponses[j]["value"].push({ data: [1], label: response["value"] }) - 1;
+                            table[j][response["value"]] = flatResponses[j]["value"].push({ data: [1], name: response["value"] }) - 1;
                         }
                         else {
                             let index = table[j][response["value"]];
@@ -219,6 +228,7 @@
     	
     	let len = sortedsIds.length;
     	let lenResponses = responses.length;
+    	res["raw_responses"] = responses;
     
     	// go over each fields of the form
     	for(let i = 0; i < len; i++){
@@ -234,7 +244,7 @@
     			}
     			if(response){
     				if(j == 0){
-    					flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, value: [], sets: [], "name": response.name};
+    					flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, value: [], categories: [], "name": response.name};
     				}
     				extractResponse(response, i, sortedsIds[i].type, responses[j].id);
     			}
