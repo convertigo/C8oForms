@@ -10,268 +10,31 @@ scriptContent:
         /*Begin_c8o_PageConstructor*/
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
-        	public processResults(){
-        	    let length = this.local.index.length;
-                let currentIndex = this.local.currentIndex;
-                this.local.flatObj = [];
-        		this.local.flatObj2 = [];
-                this.local.show = [];
-                this.local.currentResponses = this.local.versions[this.local.index[this.local.currentIndex]];
-                let i  = 0;
-                this.local.table = [];
-        		const iterrateOverActionsValue = (firstElem: any, k: number)=>{
-        			if(firstElem.actionsValue != undefined){
-        				for(let elem in firstElem.actionsValue){
-        					if(this.local.flatObj2[k] == undefined){
-        						this.local.flatObj2[k] = {"label":elem,"labelHtml": elem, "type":"actions","valueType": firstElem.actionsValue[elem].valueType,value: [], "name": elem};
-        						this.local.show[elem] = false;
-        					}
-        					let e = {value:""}
-        					if(firstElem.actionsValue[elem].valueType == "attachment"){
-        						let url = this.c8o.endpointConvertigo+"/fullsync/c8oforms_response_fs/" + encodeURIComponent(firstElem["_id"]) + "/" + encodeURIComponent(firstElem.actionsValue[elem].value);
-        						e.value = ''<ul> <li><a download="''+elem+''" href="''+url+''" target="_blank">''+firstElem.actionsValue[elem].value+''</a> </li>'';	
-        					}
-        					else{
-        						e.value = firstElem.actionsValue[elem].value;
-        					}
-        					this.local.flatObj2[k].value.push(e);
-        					k++;
-        				}	
-        			}	
+        	public async getResponses(version? : string){
+        		try {
+        			this.local.spinner = true;
+        			this.local.formId = this.navParams.get(''formId'');
+        		    this.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
+        			let responses = (await this.c8o.callJsonObject("C8Oforms.APIV2_getResponses", {formId: this.local.formId, version: version}).async()).res;
+        			if(this.local.currentIndex == null){
+        				if(version == null){
+        					this.local.currentIndex = responses?.versions?.length - 1;
+        				}
+        				else{
+        					this.local.currentIndex = responses?.versions.indexOf(+version);
+        				}
+        			}
+        			this.local.versions = responses?.versions;
+        			this.local.responses[this.local.currentIndex] = responses?.response;
+        			this.local.published_form =  responses?.published_form;
+        			
+        		} catch (e) {
+        			console.log("error", e)
+        		} finally {
+        			this.local.spinner = false;
+        			this.local.noresponse = false;
+        			return;
         		}
-                const iterrateOverChildrens = (firstElem: any, j: number, pathToSearch: string, _id: string) => {
-                    for(let elem in firstElem[pathToSearch]){
-                        if(firstElem[pathToSearch][elem].type == "text" || firstElem[pathToSearch][elem].type == "grid" || firstElem[pathToSearch][elem].type == "location" || firstElem[pathToSearch][elem].type == "datetime" || firstElem[pathToSearch][elem].type == "time" || firstElem[pathToSearch][elem].type == "barcode" || firstElem[pathToSearch][elem].type == "signature" || firstElem[pathToSearch][elem].type == "img" || firstElem[pathToSearch][elem].type == "file"){
-                            if(i == 0){
-        						let att_type = false;
-        						try{
-        							att_type = firstElem[pathToSearch][elem].att_type == true;
-        						}
-        						catch(e){
-        							
-        						}
-                                this.local.flatObj[j] = {"id" : "", att_type: false, "label":firstElem[pathToSearch][elem].label,"labelHtml": firstElem[pathToSearch][elem].labelHtml, "type":firstElem[pathToSearch][elem].type, value: [], "name": firstElem[pathToSearch][elem]["name"]};
-                                this.local.show[firstElem[pathToSearch][elem]["name"]] = false;
-                                
-                            }
-        					if(firstElem[pathToSearch][elem].type == "signature" || firstElem[pathToSearch][elem].type == "img"){
-        						let att_type = false;
-        						try{
-        							att_type = firstElem[pathToSearch][elem].att_type == true;
-        						}
-        						catch(e){
-        							
-        						}
-        						let e  = JSON.parse(JSON.stringify(firstElem[pathToSearch][elem]));
-        						
-        						e.id = _id;
-        						e.att_type = att_type;
-        						
-        						this.local.flatObj[j]["value"]["push"](e);
-        					}
-        					else if(firstElem[pathToSearch][elem].type == "location"){
-        						if(Object.keys(firstElem[pathToSearch][elem].value.gps).length > 0){
-        							let e  = JSON.parse(JSON.stringify(firstElem[pathToSearch][elem]));
-        							if(firstElem[pathToSearch][elem]["value"]["bounding_box"] != undefined){
-        								e.value = JSON.stringify(firstElem[pathToSearch][elem]["value"]["bounding_box"]);
-        							}
-        							else if(firstElem[pathToSearch][elem]["value"]["addr"] != undefined && firstElem[pathToSearch][elem]["value"]["addr"]["FormattedAddress"] != undefined && firstElem[pathToSearch][elem]["value"]["addr"]["FormattedAddress"] != ""){
-        								e.value = firstElem[pathToSearch][elem]["value"]["addr"]["FormattedAddress"];
-        							}
-        							else{
-        								e.value = "latitude: " + firstElem[pathToSearch][elem]["value"]["gps"]["latitude"] + ", longitude: "+ firstElem[pathToSearch][elem]["value"]["gps"]["longitude"];
-        							}
-        							this.local.flatObj[j]["value"]["push"](e);
-        						}
-        					}
-        					else if(firstElem[pathToSearch][elem].type == "grid" && firstElem[pathToSearch][elem].value != "" && JSON.stringify(firstElem[pathToSearch][elem].value) != "{}"){
-        						let e = JSON.parse(JSON.stringify(firstElem[pathToSearch][elem]));
-        						if(!(e.value instanceof String)){
-        							e.value = JSON.stringify(firstElem[pathToSearch][elem]["value"]);
-        						}
-        						this.local.flatObj[j]["value"]["push"](e);
-        					}	
-                            else if(firstElem[pathToSearch][elem].value != "" && firstElem[pathToSearch][elem].type != "location" && firstElem[pathToSearch][elem].type != "grid"){
-                                if(firstElem[pathToSearch][elem].type == "file"){
-                                    let e = JSON.parse(JSON.stringify(firstElem[pathToSearch][elem]));
-                                    let first = true;
-                                    if(firstElem[pathToSearch][elem]["value"] instanceof Array){
-                                        for(let thing of firstElem[pathToSearch][elem]["value"]){
-        									try{
-        										let url = this.c8o.endpointConvertigo+"/fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(thing);
-        	                                    let file_name = thing.split("_C80C80_")[1];
-        	                                   
-        	                                    if(first){                                                
-        	                                        e["value"] =  ''<ul> <li><a download="''+file_name+''" href="''+url+''" target="_blank">''+file_name+''</a> </li>'';
-        	                                        first = false;
-        	                                    }
-        	                                    else{
-        	                                        e["value"] = e["value"]  + ''<li><a download="''+file_name+''" href="''+url+''" target="_blank">''+file_name+''</a></li>'';
-        	                                    }
-        									}
-        									catch(e​){
-        									}​​​​​​​​​​​​​​​​​​​​​​​​​​
-                                            
-                                            
-                                        }
-                                        if(e["value"] != undefined && e["value"] != ""){
-                                            e["value"] = e["value"]  + "</ul>"
-                                        }
-                                    }
-                                    this.local.flatObj[j]["value"]["push"](e);
-                                }
-                                else{
-                                    this.local.flatObj[j]["value"]["push"](firstElem[pathToSearch][elem]);
-                                }
-        						
-                            }    
-                            }
-                        else if(firstElem[pathToSearch][elem].type == "checkbox" || firstElem[pathToSearch][elem].type == "radio" || firstElem[pathToSearch][elem].type == "select"){
-                            if(i == 0){
-                                this.local.flatObj[j] = {"label":firstElem[pathToSearch][elem].label, "labelHtml": firstElem[pathToSearch][elem].labelHtml, "type":firstElem[pathToSearch][elem].type, value: [], sets:[], "name": firstElem[pathToSearch][elem]["name"]};   
-                            }
-                            for(let k in firstElem[pathToSearch][elem]["children"]){
-                                if(i == 0){
-                                    if(this.local.flatObj[j]["value"][k] == undefined){
-                                        this.local.flatObj[j]["value"][k] = 0;    
-                                    }
-                                    if(firstElem[pathToSearch][elem]["children"][k].other == true){
-                                        this.local.flatObj[j]["sets"][k] = this.translate.instant(''Other'')
-                                    }
-                                    else{
-                                        this.local.flatObj[j]["sets"][k] = firstElem[pathToSearch][elem]["children"][k]["value"].length > 12 ? firstElem[pathToSearch][elem]["children"][k]["value"].substring(0, 12) + "..." : firstElem[pathToSearch][elem]["children"][k]["value"];
-                                    }
-                                     
-                                }
-                                if(firstElem[pathToSearch][elem]["children"][k]["selected"] == true){
-                                    this.local.flatObj[j]["value"][k] ++
-                                } 
-                            }
-                        }
-                        else if(firstElem[pathToSearch][elem].type == "checkbox_group"){
-                            if(i == 0){
-                                this.local.flatObj[j] = {"label":firstElem[pathToSearch][elem].label, "labelHtml": firstElem[pathToSearch][elem].labelHtml, "type":firstElem[pathToSearch][elem].type, value: [], sets:[], "name": firstElem[pathToSearch][elem]["name"], color:[]};   
-                            }
-                            let m = 0;
-                            for(let k in firstElem[pathToSearch][elem]["children"]){
-                                //k == Line1 ... etc
-                                if(this.local.flatObj[j]["sets"][m] == undefined){
-                                    this.local.flatObj[j]["color"] = [{backgroundColor: [''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'',''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'',''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'']},{backgroundColor: [''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'',''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'',''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'']},{backgroundColor: [''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'']},{backgroundColor: [''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'']},{backgroundColor: [''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'']},{backgroundColor: [''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'']},{backgroundColor: [''rgba(255,99,132,1)'']},{backgroundColor: [''rgba(54, 162, 235, 1)'']},{backgroundColor: [''rgba(255, 206, 86, 1)'']},{backgroundColor: [''rgba(75, 192, 192, 1)'']},{backgroundColor: [''rgba(153, 102, 255, 1)'']},{backgroundColor: [''rgba(255, 159, 64, 1)'']}];
-                                }
-                                this.local.flatObj[j]["sets"][m] = k.length > 12 ? k.substring (0, 12) + "..." : k;
-                                for(let l in firstElem[pathToSearch][elem]["children"][k]){
-                                    if(this.local.flatObj[j]["value"][+l] == undefined){
-                                        this.local.flatObj[j]["value"][+l] = [];
-                                    }
-                                    if(this.local.flatObj[j]["value"][+l]["label"] == undefined){
-                                        this.local.flatObj[j]["value"][+l]["label"] = firstElem[pathToSearch][elem]["children"][k][l]["value"].length > 12 ? firstElem[pathToSearch][elem]["children"][k][l]["value"].substring(0,12) + "..." : firstElem[pathToSearch][elem]["children"][k][l]["value"];
-                                    }
-                                    if(this.local.flatObj[j]["value"][+l]["data"] == undefined){
-                                        this.local.flatObj[j]["value"][+l]["data"] = []; 
-                                    }
-                                    if(this.local.flatObj[j]["value"][+l]["data"][m] == undefined){
-                                        this.local.flatObj[j]["value"][+l]["data"][m] = 0;
-                                    }
-                                    if(firstElem[pathToSearch][elem]["children"][k][l]["selected"] == true){
-                                        this.local.flatObj[j]["value"][+l]["data"][m] ++;    
-                                    }
-                                }
-                                m++;
-                            }
-                        }
-                        else if(firstElem[pathToSearch][elem].type == "radio_group"){
-                            if(i == 0){
-                                this.local.flatObj[j] = {"label":firstElem[pathToSearch][elem].label, "labelHtml": firstElem[pathToSearch][elem].labelHtml, "type":firstElem[pathToSearch][elem].type, value: [], sets:[], "name": firstElem[pathToSearch][elem]["name"], color:[]};   
-                            }
-                            let m = 0;
-                            for(let k in firstElem[pathToSearch][elem]["children"]){
-                                //k == Line1 ... etc
-                                if(this.local.flatObj[j]["sets"][m] == undefined){
-                                    this.local.flatObj[j]["color"] = [{backgroundColor: [''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'',''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'',''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'', ''rgba(255, 99, 132, 1)'']},{backgroundColor: [''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'',''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'',''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'', ''rgba(54, 162, 235, 1)'']},{backgroundColor: [''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'',''rgba(255, 206, 86, 1)'']},{backgroundColor: [''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'',''rgba(75, 192, 192, 1)'']},{backgroundColor: [''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'',''rgba(153, 102, 255, 1)'']},{backgroundColor: [''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'',''rgba(255, 159, 64, 1)'']},{backgroundColor: [''rgba(255,99,132,1)'']},{backgroundColor: [''rgba(54, 162, 235, 1)'']},{backgroundColor: [''rgba(255, 206, 86, 1)'']},{backgroundColor: [''rgba(75, 192, 192, 1)'']},{backgroundColor: [''rgba(153, 102, 255, 1)'']},{backgroundColor: [''rgba(255, 159, 64, 1)'']}];
-                                }
-                                this.local.flatObj[j]["sets"][m] = k.substring(0, 12) + "...";
-                                for(let l in firstElem[pathToSearch][elem]["children_label"]){
-                                    /*
-                                    "children": {
-                                        "Line 1": "Option 1",
-                                        "Line 2": "Option 2",
-                                        "Line 3": "Option 1"
-                                      },
-                                      "children_label": [
-                                        {
-                                          "value": "Option 1"
-                                        },
-                                        {
-                                          "value": "Option 2"
-                                        }
-                                      ]
-                                    */
-                                    if(this.local.flatObj[j]["value"][+l] == undefined){
-                                        this.local.flatObj[j]["value"][+l] = [];
-                                    }
-                                    if(this.local.flatObj[j]["value"][+l]["label"] == undefined){
-                                        this.local.flatObj[j]["value"][+l]["label"] = firstElem[pathToSearch][elem]["children_label"][+l]["value"].length > 12 ? firstElem[pathToSearch][elem]["children_label"][+l]["value"].substring(0, 12) + "..." : firstElem[pathToSearch][elem]["children_label"][+l]["value"];
-                                    }
-                                    if(this.local.flatObj[j]["value"][+l]["data"] == undefined){
-                                        this.local.flatObj[j]["value"][+l]["data"] = []; 
-                                    }
-                                    if(this.local.flatObj[j]["value"][+l]["data"][m] == undefined){
-                                        this.local.flatObj[j]["value"][+l]["data"][m] = 0;
-                                    }
-                                    if(firstElem[pathToSearch][elem]["children_label"][l].value == firstElem[pathToSearch][elem]["children"][k]){
-                                        this.local.flatObj[j]["value"][+l]["data"][m] ++;    
-                                    }   
-                                }
-                                m++;
-                            }
-                        }
-                        else if(firstElem[pathToSearch][elem].type == "slider"){
-                            if(i == 0){
-                                this.local.flatObj[j] = {"label":firstElem[pathToSearch][elem].label, "labelHtml": firstElem[pathToSearch][elem].labelHtml, "type":firstElem[pathToSearch][elem].type, value: [], sets:[], "name": firstElem[pathToSearch][elem]["name"]};   
-                            }
-                            // val == firstElem[pathToSearch][elem]["value"]
-                            if(firstElem[pathToSearch][elem]["value"] !== "" ){
-                                if(this.local.table == undefined){
-                                    this.local.table = [];    
-                                }
-                                if(this.local.table[j] == undefined){
-                                    this.local.table[j] = {};    
-                                }
-                                if(this.local.table[j][firstElem[pathToSearch][elem]["value"]] == undefined){
-                                    this.local.table[j][firstElem[pathToSearch][elem]["value"]] = this.local.flatObj[j]["value"].push({data:[1], label:firstElem[pathToSearch][elem]["value"]}) -1;
-                                }
-                                else{
-                                    let index = this.local.table[j][firstElem[pathToSearch][elem]["value"]];
-                                    let count = this.local.flatObj[j]["value"][index]["data"][0];
-                                    this.local.flatObj[j]["value"][index]["data"] = [count +1];   //
-                                }
-                            }
-                        }
-                        else if(firstElem[pathToSearch][elem].type == "ion-card"){
-                            j = iterrateOverChildrens(firstElem[pathToSearch][elem], j, "children", firstElem["_id"]);
-                        }
-                        j++;
-                    }
-                    return j;
-                };
-                let flatenize = (Obj: any) => {
-                    
-                    for(let firstElem of Obj){
-                        this.local.countResponses = Obj.length;
-                        let j = 0;
-                        iterrateOverChildrens(firstElem, j, "resp", firstElem["_id"]);
-        				iterrateOverActionsValue(firstElem, 0);
-                        i++;
-                    }
-                };
-                if(this.local.currentResponses != undefined){
-                    flatenize(this.local.currentResponses);
-                    this.local.noresponse = false;
-                    this.tick();
-                }
-                else{
-                    this.local.noresponse = true;
-                }
         	}
         	/*End_c8o_PageFunction*/
         '
@@ -377,546 +140,471 @@ title: Title for dataPage
            "SizeXs": "plain:12"
           }'
         tagName: ion-col
-        ↓Directive1 [ngx.components.UIControlDirective-1580388124895]: 
-          directiveName: If
-          directiveSource: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.local.spinner == false && this.local.noresponse == false
-          ↓CardContainer [ngx.components.UIDynamicElement-1580302368242]: 
-            beanData: '{"ionBean":"Card"}'
-            tagName: ion-card
-            ↓Style [ngx.components.UIStyle-1580302368497]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      'background-color: rgba(255,255,255,0.9);
-                      border-radius: 5px;
-                      
-                      '
-            ↓CardContent [ngx.components.UIDynamicElement-1698247234128]: 
-              beanData: '{"ionBean":"CardContent"}'
-              tagName: ion-card-content
-              ↓DivContainer [ngx.components.UIDynamicElement-1698246872796]: 
+        ↓CardContainer [ngx.components.UIDynamicElement-1580302368242]: 
+          beanData: '{"ionBean":"Card"}'
+          tagName: ion-card
+          ↓Style [ngx.components.UIStyle-1580302368497]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    'background-color: rgba(255,255,255,0.9);
+                    border-radius: 5px;
+                    
+                    '
+          ↓CardContent [ngx.components.UIDynamicElement-1698247234128]: 
+            beanData: '{"ionBean":"CardContent"}'
+            tagName: ion-card-content
+            ↓DivContainer [ngx.components.UIDynamicElement-1698246872796]: 
+              beanData: '{"ionBean":"DivTag"}'
+              tagName: div
+              ↓Style [ngx.components.UIStyle-1698246877936]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '	display: flex;
+                        	flex-direction: column;
+                        	padding: 0 16px 16px 16px;
+                        '
+              ↓DivHeader [ngx.components.UIDynamicElement-1698246939003]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
-                ↓Style [ngx.components.UIStyle-1698246877936]: 
+                ↓Style [ngx.components.UIStyle-1698246969282]: 
                   styleContent: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                         →: |
                           '	display: flex;
-                          	flex-direction: column;
-                          	padding: 0 16px 16px 16px;
+                          	flex-direction: row;
+                          	justify-content: space-between;
+                          	align-items: center;
                           '
-                ↓DivHeader [ngx.components.UIDynamicElement-1698246939003]: 
-                  beanData: '{"ionBean":"DivTag"}'
-                  tagName: div
-                  ↓Style [ngx.components.UIStyle-1698246969282]: 
+                ↓H1 [ngx.components.UIDynamicElement-1698247038119]: 
+                  beanData: '{"ionBean":"Heading1"}'
+                  tagName: h1
+                  ↓some_text [ngx.components.UIText-1698247038118]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:local?.published_form?.name
+                  ↓Style [ngx.components.UIStyle-1698247103192]: 
                     styleContent: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
-                            '	display: flex;
-                            	flex-direction: row;
-                            	justify-content: space-between;
-                            	align-items: center;
+                            	color:var(--ion-color-primary);
+                            
+                ↓DivButtons [ngx.components.UIDynamicElement-1698247122522]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1698247140232]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'ion-button{
+                            		--padding-start: 0px !important;
+                            		--padding-end: 0px !important;
+                            	}
                             '
-                  ↓H1 [ngx.components.UIDynamicElement-1698247038119]: 
-                    beanData: '{"ionBean":"Heading1"}'
-                    tagName: h1
-                    ↓some_text [ngx.components.UIText-1698247038118]: 
-                      textValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:local?.published_form?.name
-                    ↓Style [ngx.components.UIStyle-1698247103192]: 
+                  ↓Button1 [ngx.components.UIDynamicElement-1698247163843]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Button",
+                       "IonFill": "plain:clear",
+                       "IonSize": "plain:large",
+                       "IconSlot": "plain:end"
+                      }'
+                    tagName: ion-button
+                    ↓Icon [ngx.components.UIDynamicElement-1698247163846]: 
+                      beanData: '{"ionBean":"Icon","IconName":"plain:trash"}'
+                      tagName: ion-icon
+                    ↓Style [ngx.components.UIStyle-1698247163849]: 
                       styleContent: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                             →: |
-                              	color:var(--ion-color-primary);
+                              '/**
+                               * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                               * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                               * They are set using custom property notation, e.g.: --main-color: black;
+                               * and are accessed using the var() function, e.g.: color: var(--main-color);
+                               * You can find below your component''s properties you can customize within the page.
+                               * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                               * For more informations see https://ionicframework.com/docs/theming.
+                              **/
+                              //--background	//Background of the button
+                              //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
+                              //--background-activated-opacity	//Opacity of the button when pressed
+                              //--background-focused	//Background of the button when focused with the tab key
+                              //--background-focused-opacity	//Opacity of the button when focused with the tab key
+                              //--background-hover	//Background of the button on hover
+                              //--background-hover-opacity	//Opacity of the background on hover
+                              //--border-color	//Border color of the button
+                              //--border-radius	//Border radius of the button
+                              //--border-style	//Border style of the button
+                              //--border-width	//Border width of the button
+                              //--box-shadow	//Box shadow of the button
+                              //--color	//Text color of the button
+                              //--color-activated	//Text color of the button when pressed
+                              //--color-focused	//Text color of the button when focused with the tab key
+                              //--color-hover	//Text color of the button when hover
+                              //--opacity	//Opacity of the button
+                              //--padding-bottom	//Bottom padding of the button
+                              //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
+                              //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
+                              //--padding-top	//Top padding of the button
+                              //--ripple-color	//Color of the button ripple effect
+                              //--transition	//Transition of the button
                               
-                  ↓DivButtons [ngx.components.UIDynamicElement-1698247122522]: 
-                    beanData: '{"ionBean":"DivTag"}'
-                    tagName: div
-                    ↓Style [ngx.components.UIStyle-1698247140232]: 
-                      styleContent: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                            →: |
-                              'ion-button{
-                              		--padding-start: 0px !important;
-                              		--padding-end: 0px !important;
-                              	}
+                              ion-icon{
+                              	color: var(--ion-color-danger);
+                              }
                               '
-                    ↓Button1 [ngx.components.UIDynamicElement-1698247163843]: 
-                      beanData: |
-                        '{
-                         "ionBean": "Button",
-                         "IonFill": "plain:clear",
-                         "IonSize": "plain:large",
-                         "IconSlot": "plain:end"
-                        }'
-                      tagName: ion-button
-                      ↓Icon [ngx.components.UIDynamicElement-1698247163846]: 
-                        beanData: '{"ionBean":"Icon","IconName":"plain:trash"}'
-                        tagName: ion-icon
-                      ↓Style [ngx.components.UIStyle-1698247163849]: 
-                        styleContent: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '/**
-                                 * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                 * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                 * They are set using custom property notation, e.g.: --main-color: black;
-                                 * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                 * You can find below your component''s properties you can customize within the page.
-                                 * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                 * For more informations see https://ionicframework.com/docs/theming.
-                                **/
-                                //--background	//Background of the button
-                                //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                                //--background-activated-opacity	//Opacity of the button when pressed
-                                //--background-focused	//Background of the button when focused with the tab key
-                                //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                                //--background-hover	//Background of the button on hover
-                                //--background-hover-opacity	//Opacity of the background on hover
-                                //--border-color	//Border color of the button
-                                //--border-radius	//Border radius of the button
-                                //--border-style	//Border style of the button
-                                //--border-width	//Border width of the button
-                                //--box-shadow	//Box shadow of the button
-                                //--color	//Text color of the button
-                                //--color-activated	//Text color of the button when pressed
-                                //--color-focused	//Text color of the button when focused with the tab key
-                                //--color-hover	//Text color of the button when hover
-                                //--opacity	//Opacity of the button
-                                //--padding-bottom	//Bottom padding of the button
-                                //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                                //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                                //--padding-top	//Top padding of the button
-                                //--ripple-color	//Color of the button ripple effect
-                                //--transition	//Transition of the button
-                                
-                                ion-icon{
-                                	color: var(--ion-color-danger);
-                                }
-                                '
-                      ↓Event [ngx.components.UIControlEvent-1698247163852]: 
-                        ↓Alert [ngx.components.UIDynamicAction-1698247163855]: 
-                          beanData: |
-                            '{
-                             "ionBean": "AlertAction",
-                             "header": "script:this.translate.instant(''delete_for_version'') + '' ?''",
-                             "subHeader": "script:this.translate.instant(''Supprimer'')",
-                             "message": "plain:",
-                             "cssClass": "plain:alertCustom c8o-alert-create-form",
-                             "button1": "script:this.translate.instant(''non'')",
-                             "button2": "script:this.translate.instant(''oui'')",
-                             "value1": "script:0",
-                             "value2": "script:1",
-                             "cancel1": "plain:cancel",
-                             "css1": "plain:yesnobt",
-                             "css2": "plain:yesnobt"
-                            }'
-                          ↓If [ngx.components.UIDynamicAction-1698247163858]: 
-                            beanData: '{"ionBean":"IfAction","condition":"script:parent.out.data == 1"}'
-                            ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1698247163861]: 
-                              actionValue: 
-                                - xmlizable: 
-                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                    →: |
-                                      		try {
-                                      			for(let elem of this.local.versions[this.local.index[this.local.currentIndex]]){
-                                      			    this.c8o.callJson("fs://c8oforms_response_fs.delete", "docid", elem._id)
-                                      			    .then((res)=>{
-                                      			        return null;
-                                      			    })
-                                      			    .fail((err)=>{
-                                      			    })
-                                      			}
-                                      		} catch (e) {
-                                      		
-                                      		} finally {
-                                      			return;
-                                      		}
-                                      
-                    ↓Button11 [ngx.components.UIDynamicElement-1698247163864]: 
-                      beanData: |
-                        '{
-                         "ionBean": "Button",
-                         "IonFill": "plain:clear",
-                         "IonSize": "plain:large",
-                         "IconSlot": "plain:end"
-                        }'
-                      tagName: ion-button
-                      ↓Icon [ngx.components.UIDynamicElement-1698247163867]: 
+                    ↓Event [ngx.components.UIControlEvent-1698247163852]: 
+                      ↓Alert [ngx.components.UIDynamicAction-1698247163855]: 
                         beanData: |
                           '{
-                           "ionBean": "Icon",
-                           "IconName": "plain:trash",
-                           "IconSource": "plain:assets\/images\/svg\/icon\/csv.svg"
+                           "ionBean": "AlertAction",
+                           "header": "script:this.translate.instant(''delete_for_version'') + '' ?''",
+                           "subHeader": "script:this.translate.instant(''Supprimer'')",
+                           "message": "plain:",
+                           "cssClass": "plain:alertCustom c8o-alert-create-form",
+                           "button1": "script:this.translate.instant(''non'')",
+                           "button2": "script:this.translate.instant(''oui'')",
+                           "value1": "script:0",
+                           "value2": "script:1",
+                           "cancel1": "plain:cancel",
+                           "css1": "plain:yesnobt",
+                           "css2": "plain:yesnobt"
                           }'
-                        tagName: ion-icon
-                      ↓Style [ngx.components.UIStyle-1698247163870]: 
-                        styleContent: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '/**
-                                 * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                 * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                 * They are set using custom property notation, e.g.: --main-color: black;
-                                 * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                 * You can find below your component''s properties you can customize within the page.
-                                 * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                 * For more informations see https://ionicframework.com/docs/theming.
-                                **/
-                                //--background	//Background of the button
-                                //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                                //--background-activated-opacity	//Opacity of the button when pressed
-                                //--background-focused	//Background of the button when focused with the tab key
-                                //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                                //--background-hover	//Background of the button on hover
-                                //--background-hover-opacity	//Opacity of the background on hover
-                                //--border-color	//Border color of the button
-                                //--border-radius	//Border radius of the button
-                                //--border-style	//Border style of the button
-                                //--border-width	//Border width of the button
-                                //--box-shadow	//Box shadow of the button
-                                //--color	//Text color of the button
-                                //--color-activated	//Text color of the button when pressed
-                                //--color-focused	//Text color of the button when focused with the tab key
-                                //--color-hover	//Text color of the button when hover
-                                //--opacity	//Opacity of the button
-                                //--padding-bottom	//Bottom padding of the button
-                                //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                                //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                                //--padding-top	//Top padding of the button
-                                //--ripple-color	//Color of the button ripple effect
-                                //--transition	//Transition of the button
-                                
-                                ion-icon{
-                                	color: var(--ion-color-greenCsv);
-                                }
-                                '
-                      ↓Event [ngx.components.UIControlEvent-1698247163873]: 
-                        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1698247163876]: 
-                          beanData: '{"ionBean":"InvokeAction"}'
-                          stack: C8Oforms.MobileApplication.Application.replaceEmptyFunction
-                          ↓name [ngx.components.UIControlVariable-1698247163879]: 
-                            varValue: 
+                        ↓If [ngx.components.UIDynamicAction-1698247163858]: 
+                          beanData: '{"ionBean":"IfAction","condition":"script:parent.out.data == 1"}'
+                          ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1698247163861]: 
+                            actionValue: 
                               - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this.local.formName
-                          ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1698247163882]: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    		try {
+                                    			for(let elem of this.local.versions[this.local.index[this.local.currentIndex]]){
+                                    			    this.c8o.callJson("fs://c8oforms_response_fs.delete", "docid", elem._id)
+                                    			    .then((res)=>{
+                                    			        return null;
+                                    			    })
+                                    			    .fail((err)=>{
+                                    			    })
+                                    			}
+                                    		} catch (e) {
+                                    		
+                                    		} finally {
+                                    			return;
+                                    		}
+                                    
+                  ↓Button11 [ngx.components.UIDynamicElement-1698247163864]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Button",
+                       "IonFill": "plain:clear",
+                       "IonSize": "plain:large",
+                       "IconSlot": "plain:end"
+                      }'
+                    tagName: ion-button
+                    ↓Icon [ngx.components.UIDynamicElement-1698247163867]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IconName": "plain:trash",
+                         "IconSource": "plain:assets\/images\/svg\/icon\/csv.svg"
+                        }'
+                      tagName: ion-icon
+                    ↓Style [ngx.components.UIStyle-1698247163870]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              '/**
+                               * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                               * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                               * They are set using custom property notation, e.g.: --main-color: black;
+                               * and are accessed using the var() function, e.g.: color: var(--main-color);
+                               * You can find below your component''s properties you can customize within the page.
+                               * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                               * For more informations see https://ionicframework.com/docs/theming.
+                              **/
+                              //--background	//Background of the button
+                              //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
+                              //--background-activated-opacity	//Opacity of the button when pressed
+                              //--background-focused	//Background of the button when focused with the tab key
+                              //--background-focused-opacity	//Opacity of the button when focused with the tab key
+                              //--background-hover	//Background of the button on hover
+                              //--background-hover-opacity	//Opacity of the background on hover
+                              //--border-color	//Border color of the button
+                              //--border-radius	//Border radius of the button
+                              //--border-style	//Border style of the button
+                              //--border-width	//Border width of the button
+                              //--box-shadow	//Box shadow of the button
+                              //--color	//Text color of the button
+                              //--color-activated	//Text color of the button when pressed
+                              //--color-focused	//Text color of the button when focused with the tab key
+                              //--color-hover	//Text color of the button when hover
+                              //--opacity	//Opacity of the button
+                              //--padding-bottom	//Bottom padding of the button
+                              //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
+                              //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
+                              //--padding-top	//Top padding of the button
+                              //--ripple-color	//Color of the button ripple effect
+                              //--transition	//Transition of the button
+                              
+                              ion-icon{
+                              	color: var(--ion-color-greenCsv);
+                              }
+                              '
+                    ↓Event [ngx.components.UIControlEvent-1698247163873]: 
+                      ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1698247163876]: 
+                        beanData: '{"ionBean":"InvokeAction"}'
+                        stack: C8Oforms.MobileApplication.Application.replaceEmptyFunction
+                        ↓name [ngx.components.UIControlVariable-1698247163879]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this.local.formName
+                        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1698247163882]: 
+                          beanData: '{"ionBean":"InvokeAction"}'
+                          stack: C8Oforms.MobileApplication.Application.getOffsetFunction
+                          ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1698247163885]: 
                             beanData: '{"ionBean":"InvokeAction"}'
-                            stack: C8Oforms.MobileApplication.Application.getOffsetFunction
-                            ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1698247163885]: 
-                              beanData: '{"ionBean":"InvokeAction"}'
-                              stack: C8Oforms.MobileApplication.Application.popOverDownloadCsv
-                              ↓selectedForm [ngx.components.UIControlVariable-1698247163888]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:this.local.form
-                              ↓name [ngx.components.UIControlVariable-1698247163891]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1646918916933,"rootEvent":false,"pageLocals":false},{"priority":1646917477567,"rootEvent":true,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"","custom":"","useCustom":false}}
-                              ↓offset [ngx.components.UIControlVariable-1698247163894]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1646918998232,"rootEvent":false,"pageLocals":false},{"priority":1646917477567,"rootEvent":true,"pageLocals":false},{"priority":1646918916933,"rootEvent":false,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"","custom":"","useCustom":false}}
-                              ↓version [ngx.components.UIControlVariable-1698247163897]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:"" + this.local.index[this.local.currentIndex]
-                ↓DivVersion [ngx.components.UIDynamicElement-1698308687717]: 
+                            stack: C8Oforms.MobileApplication.Application.popOverDownloadCsv
+                            ↓selectedForm [ngx.components.UIControlVariable-1698247163888]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.local.form
+                            ↓name [ngx.components.UIControlVariable-1698247163891]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1646918916933,"rootEvent":false,"pageLocals":false},{"priority":1646917477567,"rootEvent":true,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"","custom":"","useCustom":false}}
+                            ↓offset [ngx.components.UIControlVariable-1698247163894]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1646918998232,"rootEvent":false,"pageLocals":false},{"priority":1646917477567,"rootEvent":true,"pageLocals":false},{"priority":1646918916933,"rootEvent":false,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"","custom":"","useCustom":false}}
+                            ↓version [ngx.components.UIControlVariable-1698247163897]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:"" + this.local.index[this.local.currentIndex]
+              ↓DivVersion [ngx.components.UIDynamicElement-1698308687717]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1698308701317]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          '	display: flex;
+                          	flex-direction: row;
+                          	justify-content: space-between;
+                          	align-items: center;
+                          '
+                ↓DivArrowLeft [ngx.components.UIDynamicElement-1698308711079]: 
                   beanData: '{"ionBean":"DivTag"}'
                   tagName: div
-                  ↓Style [ngx.components.UIStyle-1698308701317]: 
-                    styleContent: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            '	display: flex;
-                            	flex-direction: row;
-                            	justify-content: space-between;
-                            	align-items: center;
-                            '
-                  ↓DivArrowLeft [ngx.components.UIDynamicElement-1698308711079]: 
-                    beanData: '{"ionBean":"DivTag"}'
-                    tagName: div
-                    ↓Icon [ngx.components.UIDynamicElement-1698308772083]: 
-                      beanData: '{"ionBean":"Icon","IconName":"plain:arrow-back"}'
-                      tagName: ion-icon
-                      ↓Style [ngx.components.UIStyle-1698308772086]: 
-                      ↓Event [ngx.components.UIControlEvent-1698308772089]: 
-                        ↓moveBackward [ngx.components.UICustomAction-1698308772092]: 
-                          actionValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  		let length = page.local.index.length;
-                                  		let currentIndex = page.local.currentIndex;
-                                  		if(currentIndex == 0){
-                                  		    //then we can't move backward
-                                  		}
-                                  		else{
-                                  		    page.local.currentIndex = page.local.currentIndex - 1;
-                                  		    this.processResults();
-                                  		}
-                                  		resolve();
-                                  
-                      ↓Attr [ngx.components.UIAttribute-1698308772095]: 
-                        attrName: '[ngClass]'
-                        attrValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: 'script:this.local.currentIndex == 0 ? ''arrowNonAuthorised'' : ''arrowAuthorised'' '
-                      ↓Attr1 [ngx.components.UIAttribute-1698308772098]: 
-                        attrName: '[attr.disabled]'
-                        attrValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.local.currentIndex == 0
-                  ↓DivVersion [ngx.components.UIDynamicElement-1698308752659]: 
-                    beanData: '{"ionBean":"DivTag"}'
-                    tagName: div
-                    ↓Paragraph [ngx.components.UIDynamicElement-1698308865227]: 
-                      beanData: '{"ionBean":"Paragraph"}'
-                      tagName: p
-                      ↓some_text [ngx.components.UIText-1698308865226]: 
-                        textValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:('version' | translate) + local?.versions?.[local?.currentIndex]
-                      ↓Style [ngx.components.UIStyle-1698680616958]: 
-                        styleContent: 
+                  ↓Icon [ngx.components.UIDynamicElement-1698308772083]: 
+                    beanData: '{"ionBean":"Icon","IconName":"plain:arrow-back"}'
+                    tagName: ion-icon
+                    ↓Style [ngx.components.UIStyle-1698308772086]: 
+                    ↓Event [ngx.components.UIControlEvent-1698308772089]: 
+                      ↓moveBackward [ngx.components.UICustomAction-1698308772092]: 
+                        actionValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '	font-size: 16px;
-                                '
-                  ↓DivArrowRight [ngx.components.UIDynamicElement-1698308721063]: 
-                    beanData: '{"ionBean":"DivTag"}'
-                    tagName: div
-                    ↓Icon [ngx.components.UIDynamicElement-1698308793009]: 
-                      beanData: '{"ionBean":"Icon","IconName":"plain:arrow-forward"}'
-                      tagName: ion-icon
-                      ↓Style [ngx.components.UIStyle-1698308793012]: 
-                        styleContent: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                position:relative;
-                                float:right;
+                                		if(page.local.currentIndex == 0){
+                                		    //then we can't move backward
+                                		}
+                                		else{
+                                		    page.local.currentIndex = page.local.currentIndex - 1;
+                                		    if(page.local.responses[page.local.currentIndex] == null){
+                                				page.getResponses(page.local.versions[page.local.currentIndex]);
+                                			}
+                                		}
+                                		resolve();
                                 
-                      ↓Event [ngx.components.UIControlEvent-1698308793015]: 
-                        ↓moveForward [ngx.components.UICustomAction-1698308793018]: 
-                          actionValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  		let last = page.local.index.length -1;
-                                  		let currentIndex = page.local.currentIndex;
-                                  		if(currentIndex == last){
-                                  		    //then we can't move forward
-                                  		}
-                                  		else{
-                                  		    page.local.currentIndex = page.local.currentIndex + 1;
-                                  		    this.processResults();
-                                  		}
-                                  		resolve();
-                                  
-                      ↓Attr [ngx.components.UIAttribute-1698308793021]: 
-                        attrName: '[ngClass]'
-                        attrValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: 'script:this.local.currentIndex == this.local.index?.length -1 ? ''arrowNonAuthorised'' : ''arrowAuthorised'' '
-                ↓DivCountResponses [ngx.components.UIDynamicElement-1698308316948]: 
+                    ↓Attr [ngx.components.UIAttribute-1698308772095]: 
+                      attrName: '[ngClass]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: 'script:this.local.currentIndex == 0 ? ''arrowNonAuthorised'' : ''arrowAuthorised'' '
+                    ↓Attr1 [ngx.components.UIAttribute-1698308772098]: 
+                      attrName: '[attr.disabled]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.currentIndex == 0
+                ↓DivVersion [ngx.components.UIDynamicElement-1698308752659]: 
                   beanData: '{"ionBean":"DivTag"}'
                   tagName: div
-                  ↓Paragraph [ngx.components.UIDynamicElement-1698308362318]: 
+                  ↓Paragraph [ngx.components.UIDynamicElement-1698308865227]: 
                     beanData: '{"ionBean":"Paragraph"}'
                     tagName: p
-                    ↓some_text [ngx.components.UIText-1698308362317]: 
+                    ↓some_text [ngx.components.UIText-1698308865226]: 
                       textValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:(local?.responses?.[local?.currentIndex]?.length ?? '...' ) + ' ' + ('answer_s' | translate)
-            ↓Style1 [ngx.components.UIStyle-1698680728756]: 
-              styleContent: 
+                          - MobileSmartSourceType: script:('version' | translate) + (local?.versions?.[local?.currentIndex] ?? '...')
+                    ↓Style [ngx.components.UIStyle-1698680616958]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              '	font-size: 16px;
+                              '
+                ↓DivArrowRight [ngx.components.UIDynamicElement-1698308721063]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Icon [ngx.components.UIDynamicElement-1698308793009]: 
+                    beanData: '{"ionBean":"Icon","IconName":"plain:arrow-forward"}'
+                    tagName: ion-icon
+                    ↓Style [ngx.components.UIStyle-1698308793012]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              position:relative;
+                              float:right;
+                              
+                    ↓Event [ngx.components.UIControlEvent-1698308793015]: 
+                      ↓moveForward [ngx.components.UICustomAction-1698308793018]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		let last = page.local.versions.length -1;
+                                		let currentIndex = page.local.currentIndex;
+                                		if(currentIndex == last){
+                                		    //then we can't move forward
+                                		}
+                                		else{
+                                		    page.local.currentIndex = page.local.currentIndex + 1;
+                                		    if(page.local.responses[page.local.currentIndex] == null){
+                                				page.getResponses(page.local.versions[page.local.currentIndex]);
+                                			}
+                                		}
+                                		resolve();
+                                
+                    ↓Attr [ngx.components.UIAttribute-1698308793021]: 
+                      attrName: '[ngClass]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: 'script:this.local.currentIndex == local.versions?.length -1 ? ''arrowNonAuthorised'' : ''arrowAuthorised'' '
+              ↓DivCountResponses [ngx.components.UIDynamicElement-1698308316948]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Paragraph [ngx.components.UIDynamicElement-1698308362318]: 
+                  beanData: '{"ionBean":"Paragraph"}'
+                  tagName: p
+                  ↓some_text [ngx.components.UIText-1698308362317]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:(local?.responses?.[local?.currentIndex]?.length ?? '...' ) + ' ' + ('answer_s' | translate)
+          ↓Style1 [ngx.components.UIStyle-1698680728756]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '	--color: black;
+                    '
+        ↓Directive2 [ngx.components.UIControlDirective-1698309099889]: 
+          directiveItemName: item1
+          directiveSource: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.value
+          ↓UseSharedComponent [ngx.components.UIUseShared-1698309099892]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsInputText
+            ↓element [ngx.components.UIUseVariable-1698309099895]: 
+              varValue: 
                 - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      '	--color: black;
-                      '
-          ↓Directive2 [ngx.components.UIControlDirective-1698309099889]: 
-            directiveItemName: item1
-            directiveSource: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.value
-            ↓UseSharedComponent [ngx.components.UIUseShared-1698309099892]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsInputText
-              ↓element [ngx.components.UIUseVariable-1698309099895]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent1 [ngx.components.UIUseShared-1698309099898]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckbox
-              ↓element [ngx.components.UIUseVariable-1698309099901]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-              ↓total [ngx.components.UIUseVariable-1698416982189]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
-            ↓UseSharedComponent2 [ngx.components.UIUseShared-1698309099904]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsRadio
-              ↓element [ngx.components.UIUseVariable-1698309099907]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-              ↓total [ngx.components.UIUseVariable-1698420442201]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
-            ↓UseSharedComponent3 [ngx.components.UIUseShared-1698309099910]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckboxGroup
-              ↓element [ngx.components.UIUseVariable-1698309099913]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-              ↓total [ngx.components.UIUseVariable-1698657122140]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
-            ↓UseSharedComponent4 [ngx.components.UIUseShared-1698309099916]: 
-              isEnabled: false
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsSlider
-              ↓element [ngx.components.UIUseVariable-1698309099919]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent41 [ngx.components.UIUseShared-1698309099922]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsImg
-              ↓element [ngx.components.UIUseVariable-1698309099925]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent5 [ngx.components.UIUseShared-1698750581988]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsFiles
-              ↓element [ngx.components.UIUseVariable-1698750581991]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent6 [ngx.components.UIUseShared-1698753167698]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsLocation
-              ↓element [ngx.components.UIUseVariable-1698753167701]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-          ↓Directive [ngx.components.UIControlDirective-1580314535530]: 
-            directiveItemName: item1
-            directiveSource: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.local.flatObj
-            isEnabled: false
-            ↓UseSharedComponent [ngx.components.UIUseShared-1580314535533]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsInputText
-              ↓element [ngx.components.UIUseVariable-1580314535536]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent1 [ngx.components.UIUseShared-1581589904135]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckbox
-              ↓element [ngx.components.UIUseVariable-1581589971706]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent2 [ngx.components.UIUseShared-1581602120389]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsRadio
-              ↓element [ngx.components.UIUseVariable-1581602135412]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent3 [ngx.components.UIUseShared-1581609594330]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckboxGroup
-              ↓element [ngx.components.UIUseVariable-1581609606886]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent4 [ngx.components.UIUseShared-1581680232054]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsSlider
-              ↓element [ngx.components.UIUseVariable-1581680249159]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-            ↓UseSharedComponent41 [ngx.components.UIUseShared-1581690429848]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsImg
-              ↓element [ngx.components.UIUseVariable-1581690429851]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1
-          ↓Directive1 [ngx.components.UIControlDirective-1615559995639]: 
-            directiveItemName: item3
-            directiveSource: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.local.flatObj2
-            isEnabled: false
-            ↓UseSharedComponent [ngx.components.UIUseShared-1615560259928]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsActions
-              ↓element [ngx.components.UIUseVariable-1615560271382]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item3
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:item1
+          ↓UseSharedComponent1 [ngx.components.UIUseShared-1698309099898]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckbox
+            ↓element [ngx.components.UIUseVariable-1698309099901]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:item1
+            ↓total [ngx.components.UIUseVariable-1698416982189]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
+          ↓UseSharedComponent2 [ngx.components.UIUseShared-1698309099904]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsRadio
+            ↓element [ngx.components.UIUseVariable-1698309099907]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:item1
+            ↓total [ngx.components.UIUseVariable-1698420442201]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
+          ↓UseSharedComponent3 [ngx.components.UIUseShared-1698309099910]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckboxGroup
+            ↓element [ngx.components.UIUseVariable-1698309099913]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:item1
+            ↓total [ngx.components.UIUseVariable-1698657122140]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
+          ↓UseSharedComponent41 [ngx.components.UIUseShared-1698309099922]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsImg
+            ↓element [ngx.components.UIUseVariable-1698309099925]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:item1
+          ↓UseSharedComponent5 [ngx.components.UIUseShared-1698750581988]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsFiles
+            ↓element [ngx.components.UIUseVariable-1698750581991]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:item1
+          ↓UseSharedComponent6 [ngx.components.UIUseShared-1698753167698]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsLocation
+            ↓element [ngx.components.UIUseVariable-1698753167701]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:item1
         ↓Grid1Spinner [ngx.components.UIDynamicElement-1580302368500]: 
-          beanData: '{"ionBean":"Grid"}'
+          beanData: '{"ionBean":"Grid","Height":"plain"}'
           tagName: ion-grid
           ↓GridRow [ngx.components.UIDynamicElement-1580302368503]: 
             beanData: |
@@ -1022,277 +710,14 @@ title: Title for dataPage
         tagName: ion-col
 ↓PageEvent [ngx.components.UIPageEvent-1580149618480]: 
   viewEvent: onWillEnter
-  ↓Error_Handler [ngx.components.UIActionErrorEvent-1586424813357]: 
-    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1586424830437]: 
-      beanData: '{"ionBean":"InvokeAction"}'
-      stack: C8Oforms.MobileApplication.Application.removeSpinner
-  ↓Finally_Handler [ngx.components.UIActionFinallyEvent-1613988439931]: 
-    ↓sync [ngx.components.UICustomAction-1580301887001]: 
-      actionValue: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-            →: |
-              '		    
-              		    page.local.versions = {};
-              		    page.local.index = [];
-              		    page.local.currentIndex = 0;
-              		    let parameters = {
-              		            "ddoc":"Design_document",
-              		            "view":"getResponseByVersion",
-              		            "__live": "dataPageView",
-              		            "startkey":  page.local.formId,
-              		            "endkey":  page.local.formId + "\ufff0",
-              		            "group": true
-              		            };
-              		    
-              		    
-              		    page.c8o.callJsonObject("fs://c8oforms_response_fs.view", parameters)
-              		    .then((response: any, params)=>{
-              				var newHash = sha256(JSON.stringify(response));
-              				if(newHash != this.local.hash){
-              					page.local.hash = newHash;
-              					page.local.versions = {};
-              			        page.local.index = [];
-              		            page.local.currentIndex = 0;
-              			        let count = -1;
-              			        for (let elem of response["rows"]){
-              						// search for substring of "__" to compute version
-              			            let version_number = elem.key.substring(elem.key.indexOf("__") + 2);
-              			            version_number == "t"? "test": version_number;
-              			            page.local.versions[version_number] = elem.value;
-              			            page.local.index.push(version_number);
-              			            count ++;
-              			        }
-              					// re-order versions
-              					page.local.versions = Object.keys(page.local.versions).sort().reduce(
-              					  (obj, key) => { 
-              					    obj[key] = page.local.versions[key]; 
-              					    return obj;
-              					  }, 
-              					  {}
-              					);
-              					// re-order indexes
-              					page.local.index = page.local.index.sort((a, b)=> {
-              					  return a - b;
-              					})
-              			        this.local.currentIndex = count;
-              					page["processResults"]();
-              				}
-              		        resolve();
-              		        return null;
-              		    })
-              		    .fail((error)=>{
-              		        page.c8o.log.error("Error: dataPage => sync",error);
-              		    })
-              			let params2 = {"docid": this.local.formId};
-              		    page.c8o.callJsonObject("fs://c8oforms_fs.get", params2)
-              		    .then((resp:any, parameters:any)=>{
-              				this.local.form = resp;
-              		        this.local.formName = resp.name;
-              				this.local.headers = {};
-              		        return null;
-              		    })
-              		    .fail((error)=>{
-              		        page.c8o.log.error("Error: dataPage => sync",error);
-              		    })
-              		    
-              		    
-              '
-      isEnabled: false
-      package_dependencies: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-          - com.twinsoft.convertigo.beans.common.XMLVector: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-              - com.twinsoft.convertigo.beans.common.XMLVector: 
-                - java.lang.String: 
-                  - ↑value: js-sha256
-                - java.lang.String: 
-                  - ↑value: 0.9.0
-      page_ts_imports: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-          - com.twinsoft.convertigo.beans.common.XMLVector: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-              - com.twinsoft.convertigo.beans.common.XMLVector: 
-                - java.lang.String: 
-                  - ↑value: C8oFullSyncChangeListener
-                - java.lang.String: 
-                  - ↑value: c8osdkangular
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-              - com.twinsoft.convertigo.beans.common.XMLVector: 
-                - java.lang.String: 
-                  - ↑value: sha256
-                - java.lang.String: 
-                  - ↑value: js-sha256
-      ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1586424833202]: 
-        beanData: '{"ionBean":"InvokeAction"}'
-        stack: C8Oforms.MobileApplication.Application.removeSpinner
-    ↓GetData [ngx.components.UIDynamicAction-1614087005899]: 
-      beanData: |
-        '{
-         "ionBean": "FullSyncGetAction",
-         "requestable": "plain:C8Oforms.c8oforms_fs",
-         "noLoading": "plain:true",
-         "_id": "script:''C8Oreserved_'' +this.c8o.session.user.name"
-        }'
-      isEnabled: false
-      ↓SetGlobal [ngx.components.UIDynamicAction-1614087005902]: 
-        beanData: |
-          '{
-           "ionBean": "SetGlobalAction",
-           "Property": "plain:settings",
-           "Value": "script:parent.out"
-          }'
-  ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1646902817012]: 
-    actionValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-          →: |
-            		try {
-            			page.local.formId = page.navParams.get('formId');
-            		    page.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
-            		} catch (e) {
-            		
-            		} finally {
-            			return;
-            		}
-            
-    isEnabled: false
-    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1586424841956]: 
-      beanData: '{"ionBean":"InvokeAction"}'
-      stack: C8Oforms.MobileApplication.Application.setSpinner
-    ↓SyncDataResponses [ngx.components.UIDynamicAction-1580226984294]: 
-      beanData: '{"ionBean":"FullSyncSyncAction","requestable":"plain:C8Oforms.c8oforms_response_fs"}'
-    ↓SyncData [ngx.components.UIDynamicAction-1580226984303]: 
-      beanData: '{"ionBean":"FullSyncSyncAction","requestable":"plain:C8Oforms.c8oforms_fs"}'
   ↓getResponses [ngx.components.UICustomAsyncAction-1698242506324]: 
     actionValue: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            '		try {
-            			window["p"] = page;
-            			//formId:page.local.formId
-            			page.local.formId = page.navParams.get(''formId'');
-            		    page.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
-            			let responses = (await page.c8o.callJsonObject("C8Oforms.APIV2_getResponses", {formId: page.local.formId}).async()).res;
-            			page.local.currentIndex = responses?.versions?.length - 1;
-            			page.local.versions = responses?.versions;
-            			page.local.responses = [];
-            			page.local.responses[page.local.currentIndex] = responses?.response;
-            			page.local.published_form =  responses?.published_form;
-            			
-            //			page.local.repsonse = responses.response;
-            //			page.local.versions = responses.versions;
-            //			page.local.currentVersion = responses.currentVersion;
-            //			page.local.form =  responses.published_form;
-            //			page.local.index = responses.res.versions;
-            //			page.local.currentIndex = responses.res.versions.length;
-            //			page.local.formName = page.local.form.name;
-            			
-            //			page.local.flatObj = responses.res.flatResponses;
-            //			page.local.form =  responses.res.published_form;
-            //			
-            //			page.local.headers = {};
-            //			page.local.versions = responses.res.versions;
-            			
-            		} catch (e) {
-            			console.log("error", e)
-            		} finally {
-            			page.local.spinner = false;
-            			this.local.noresponse = false;
-            			return;
-            		}
+            '		page.local.responses = [];
+            		let target_version = page.navParams.get(''version'');
+            		target_version = target_version != null && target_version != ":version" ? target_version : null;
+            		await page.getResponses(target_version);
             '
-↓PageEvent1 [ngx.components.UIEventSubscriber-1645090139951]: 
-  comment: Old implementation of onCanEnter. Prefer using AppGuard now.
-  isEnabled: false
-  topic: CanEnter
-  ↓CheckUser1 [ngx.components.UICustomAction-1580149618534]: 
-    actionValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-          →: |
-            			page.local.formId = this.navParams.get('formId');
-            		    this.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
-            		    if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-                            resolve(true);
-                        }
-            			var ua = window.navigator.userAgent;
-            			var isIE = /MSIE|Trident/.test(ua);
-            			if(isIE){
-            				resolve(false);
-                            setTimeout(()=>{
-                                page.routerProvider.setRoot("loginPage", {page:'editorPage', formId:page.local.formId}, null); 
-                            }, 200);
-                            return;
-            			}
-            		    const request = window["indexedDB"]["open"]("MyTestDatabase", 3);
-                        request.onerror = (event)=> {
-                            resolve(false);
-                            setTimeout(()=>{
-                                page.routerProvider.setRoot("loginPage", {page:'editorPage', formId:page.local.formId}, null); 
-                            }, 200);
-                            return;
-                          };
-                          request.onsuccess = (event)=> {
-            		    // Getting user status (whenever he is logged or not)
-            		    page.c8o.httpInterface.getUserServiceStatus()
-            		    .then((res)=>{
-            		        if(res.user.length == 64 || res.user.authenticated == false){
-            		            setTimeout(()=>{
-            	                    page.routerProvider.setRoot("loginPage", {page:'dataPage'}, null); 
-            	                }, 200);
-                                resolve(false);
-                            }
-                            else{
-                                page.local.user = res.user;
-                                resolve(true);
-                            }
-            		    })
-            		    .catch((err)=>{
-            		        setTimeout(()=>{
-            		            page.routerProvider.setRoot("loginPage", {page:'historyPage'}, null); 
-            		        }, 200);
-            		        resolve(false);
-            		    })
-                          };
-            		   /* this.local.debug = {};
-                        let formId = this.navParams.get('formId');
-                        if(formId != undefined){
-                            this.local.formId = formId;
-                            resolve(true);
-                        }
-                        else{
-                            resolve(true);
-                        }*/
-                       
-                        
-            		/*
-            		if(this.global.user == '' || this.global.user == undefined){
-            		    window.location.href = './';
-            		    resolve(false);
-            		}
-            		else{
-            		    resolve(true);
-            		}*/
-            
-    page_ts_imports: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-        - com.twinsoft.convertigo.beans.common.XMLVector: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: C8oSessionStatus
-              - java.lang.String: 
-                - ↑value: c8osdkangular
