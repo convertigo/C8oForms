@@ -55,7 +55,7 @@
     				if (!(response.value instanceof String)) {
     					val = JSON.stringify(response.value);
     				}
-    				else{
+    				else {
     					val = response.value;
     				}
     				flatResponses[j].value.push(val);
@@ -165,37 +165,38 @@
     			}
     			break;
     		case "actionValue":
-    				if(response["valueType"] == "attachment"){
-    					if (i == 0) {
-    						flatResponses[j].att_type = true;
-    					}					
-    					flatResponses[j].value.push({ "name": response.value, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
+    			if (response["valueType"] == "attachment") {
+    				if (i == 0) {
+    					flatResponses[j].att_type = true;
     				}
-    				else{
-    					flatResponses[j].value.push(response.value);
-    				}
+    				flatResponses[j].value.push({ "name": response.value, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
+    			}
+    			else {
+    				flatResponses[j].value.push(response.value);
+    			}
     			break;
     	}
     }
     //start code
-    let resp;
+    let published_form;
     try {
-    	resp = (callSequence("C8Oforms", "APIV2_getDocument", { id: formId })).document.res;
+    	published_form = (callSequence("C8Oforms", "APIV2_getDocument", { id: formId })).document.res;
     }
     catch (e) {
     
     }
     // if authorized and exists doc
-    if (resp) {
-    	res["published_form"] = resp;
+    if (published_form) {
+    	res["raw_published_form"] = published_form;
+    	res["published_form"] = { name: published_form.name };
     	let currentVersion;
     	// define all existing version for this form
-    	res["versions"] = createArray(resp.version);
-    	if (version && res.versions.indexOf(+version) != -1) {
+    	res["versions"] = createArray(published_form.version);
+    	if (version) {
     		currentVersion = +version;
     	}
     	else {
-    		currentVersion = +resp.version;
+    		currentVersion = +published_form.version;
     	}
     	query = new java.util.HashMap();
     	query.put(''reduce'', ''false'');
@@ -205,35 +206,69 @@
     	let responses;
     	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
     	res.response = { length: responses.length };
-    
-    	let sortedsIds = [];
-    	const pageOrder = {};
-    
-    	res["published_form"].pages.forEach((page, index) => {
-    		let _tempArr = res["published_form"].formulaire.filter((x) => {
-    			return x.config.page == page.pageTechName;
-    		}).flatMap((x) => {
-    			if (x.type === "ion-card") {
-    				let prefix = x.name;
-    				const _temp_subArray = x.children.map((y) => {
-    					return { path: prefix + ".children." + y.name, type: y.type };
-    				});
-    				return _temp_subArray;
-    			}
-    			else {
-    				return { path: x.name, type: x.type };
-    
-    			}
-    		});
-    		sortedsIds = sortedsIds.concat(_tempArr);
-    	});
-    	// sorted responses for current versions
-    	//res["sorted"] = sortedsIds;
-    
-    	let len = sortedsIds.length;
-    	let lenResponses = responses.length;
     	res["raw_responses"] = responses;
     
+    	let sortedsIds = [];
+    	let lenActions = 0;
+    
+    	// if we are in forms 2.0 responses, sortedsIds are stored in response itself
+    	if (responses[0] && responses[0].doc && responses[0].doc.sortedsIds) {
+    		sortedsIds = responses[0].doc.sortedsIds;
+    		lenActions = responses[0].doc.lenActions;
+    		res.response.sort = true;
+    	}
+    	// if form was created before forms 2.0 release, responses doean''t contains sortedsIds. => we can compute it from actual publidhed form
+    	else if (+published_form.version == +currentVersion) {
+    		published_form.pages.forEach((page, index) => {
+    			let _tempArr = published_form.formulaire.filter((x) => {
+    				return x.config.page == page.pageTechName;
+    			}).flatMap((x) => {
+    				if (x.type === "ion-card") {
+    					let prefix = x.name;
+    					const _temp_subArray = x.children.map((y) => {
+    						return { path: prefix + ".children." + y.name, type: y.type };
+    					});
+    					return _temp_subArray;
+    				}
+    				else {
+    					return { path: x.name, type: x.type };
+    
+    				}
+    			});
+    			sortedsIds = sortedsIds.concat(_tempArr);
+    		});
+    		lenActions = published_form.actions.filter((x) => { return x.type === "submit" }).length;
+    		res.response.sort = true;
+    	}
+    	// if none of both previous conditions are met, we can''t sort responses.
+    	else {
+    		// not sorted responses for old versions
+    		let _tempArr = [];
+    		for(let e in responses[0].doc.resp){
+    			x = responses[0].doc.resp[e];
+    			if (x.type === "ion-card") {
+    				let prefix = x.name;
+    				for(let f in x.children){
+    					y = x.children[f];
+    					_tempArr.push({ path: prefix + ".children." + y.name, type: y.type });
+    				}
+    			}
+    			else {
+    				_tempArr.push({ path: x.name, type: x.type });
+    
+    			}
+    		}
+    		sortedsIds = sortedsIds.concat(_tempArr);
+    		console.log("sortedIds", sortedsIds, logLevel);
+    		res.response.sort = false;
+    		if (responses[0].doc.actionsValue) {
+    			lenActions = Object.keys(responses[0].doc.actionsValue).length;
+    		}
+    	}
+    
+    	// sorted responses for current versions
+    	let len = sortedsIds.length;
+    	let lenResponses = responses.length;
     	// go over each fields of the form
     	for (let i = 0; i < len; i++) {
     		// go over each responses
@@ -255,17 +290,15 @@
     		}
     	}
     	let k = +("" + flatResponses.length);
-    	let lenActions = res["published_form"].actions.filter((x)=>{return x.type === "submit"}).length;
+    
     	// go over each actions of the form
-    	for(i = 0; i < lenActions; i++){
+    	for (i = 0; i < lenActions; i++) {
     		// go over each responses
     		for (let j = 0; j < lenResponses; j++) {
-    			if(responses[j].doc.actionsValue){
+    			if (responses[j].doc.actionsValue) {
     				let keys = Object.keys(responses[j].doc.actionsValue);
     				let indexName = keys[i];
     				let response = responses[j].doc.actionsValue[indexName];
-    				
-    				
     				if (response) {
     					response.type = "actionValue";
     					if (j == 0) {
@@ -274,17 +307,13 @@
     					extractResponse(response, k + i, response.type, responses[j].id);
     				}
     			}
-    			
+    
     		}
-    		
+    
     	}
-    	res["published_form"].pages
     	res.response.value = flatResponses;
     	res["currentVersion"] = currentVersion;
-    
-    }
-    
-    '
+    }'
 ↓object2 [steps.JsonToXmlStep-1697532248609]: 
   jsonObject: 
     - xmlizable: 
