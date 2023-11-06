@@ -6,32 +6,31 @@
     const logLevel = "warn";
     let res = {};
     let i = 0;
-    let flatResponses = [];
     let table = [];
     // start functions
     // used to format responses, will be used recursively
-    let extractResponse = (response, j, type, _id) => {
+    let extractResponse = (response, j, type, _id, responseArray, structure) => {
     	switch (type) {
     		case "text":
     		case "datetime":
     		case "time":
     		case "barcode":
     			if (response.value != "") {
-    				flatResponses[j].value.push(response.value);
+    				responseArray[j].value.push(response.value);
     			}
     			break;
     		case "signature":
     		case "img":
     			if (response.value != "") {
     				if (i == 0) {
-    					try { flatResponses[j].att_type = response.att_type == true; } catch (e) { }
+    					try { structure[j].att_type = response.att_type == true; } catch (e) { }
     				}
-    				if (flatResponses[j].att_type) {
+    				if (structure[j].att_type) {
     					let _val = context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.name);
-    					flatResponses[j].value.push(_val);
+    					responseArray[j].value.push(_val);
     				}
     				else {
-    					flatResponses[j].value.push(response.value);
+    					responseArray[j].value.push(response.value);
     				}
     			}
     			break;
@@ -46,7 +45,7 @@
     				else {
     					response.value = { text: "Latitude : " + response["value"]["gps"]["latitude"] + ", Longitude : " + response["value"]["gps"]["longitude"] + ", précision : " + ("" + response["value"]["gps"]["accuracy"]).split(".")[0] + " métres", gps: response["value"]["gps"] };
     				}
-    				flatResponses[j].value.push(response.value);
+    				responseArray[j].value.push(response.value);
     			}
     			break;
     		case "grid":
@@ -58,7 +57,7 @@
     				else {
     					val = response.value;
     				}
-    				flatResponses[j].value.push(val);
+    				responseArray[j].value.push(val);
     			}
     			break;
     		case "file":
@@ -72,7 +71,7 @@
     						}
     					}
     				}
-    				flatResponses[j].value = flatResponses[j].value.concat(values);
+    				responseArray[j].value = responseArray[j].value.concat(values);
     			}
     			break;
     		case "checkbox":
@@ -80,40 +79,40 @@
     		case "select":
     			for (let k in response["children"]) {
     				if (i == 0) {
-    					if (flatResponses[j].value[k] == undefined) {
-    						flatResponses[j].value[k] = 0;
+    					if (responseArray[j].value[k] == undefined) {
+    						responseArray[j].value[k] = 0;
     					}
     					if (response["children"][k].other == true) {
-    						flatResponses[j].categories[k] = Otherkey;
+    						structure[j].categories[k] = Otherkey;
     					}
     					else {
-    						flatResponses[j].categories[k] = response["children"][k]["value"].length > 12 ? response["children"][k]["value"].substring(0, 12) + "..." : response["children"][k]["value"];
+    						structure[j].categories[k] = response["children"][k]["value"].length > 12 ? response["children"][k]["value"].substring(0, 12) + "..." : response["children"][k]["value"];
     					}
     				}
     				if (response["children"][k]["selected"] == true) {
-    					flatResponses[j].value[k]++
+    					responseArray[j].value[k]++
     				}
     			}
     			break;
     		case "checkbox_group":
     			let m = 0;
     			for (let k in response["children"]) {
-    				flatResponses[j]["categories"][m] = k.length > 12 ? k.substring(0, 12) + "..." : k;
+    				structure[j]["categories"][m] = k.length > 12 ? k.substring(0, 12) + "..." : k;
     				for (let l in response["children"][k]) {
-    					if (flatResponses[j]["value"][+l] == undefined) {
-    						flatResponses[j]["value"][+l] = {};
+    					if (responseArray[j]["value"][+l] == undefined) {
+    						responseArray[j]["value"][+l] = {};
     					}
-    					if (flatResponses[j]["value"][+l]["name"] == undefined) {
-    						flatResponses[j]["value"][+l]["name"] = response["children"][k][l]["value"].length > 12 ? response["children"][k][l]["value"].substring(0, 12) + "..." : response["children"][k][l]["value"];
+    					if (responseArray[j]["value"][+l]["name"] == undefined) {
+    						responseArray[j]["value"][+l]["name"] = response["children"][k][l]["value"].length > 12 ? response["children"][k][l]["value"].substring(0, 12) + "..." : response["children"][k][l]["value"];
     					}
-    					if (flatResponses[j]["value"][+l]["data"] == undefined) {
-    						flatResponses[j]["value"][+l]["data"] = [];
+    					if (responseArray[j]["value"][+l]["data"] == undefined) {
+    						responseArray[j]["value"][+l]["data"] = [];
     					}
-    					if (flatResponses[j]["value"][+l]["data"][m] == undefined) {
-    						flatResponses[j]["value"][+l]["data"][m] = 0;
+    					if (responseArray[j]["value"][+l]["data"][m] == undefined) {
+    						responseArray[j]["value"][+l]["data"][m] = 0;
     					}
     					if (response["children"][k][l]["selected"] == true) {
-    						flatResponses[j]["value"][+l]["data"][m]++;
+    						responseArray[j]["value"][+l]["data"][m]++;
     					}
     				}
     				m++;
@@ -122,22 +121,22 @@
     		case "radio_group":
     			m = 0;
     			for (let k in response["children"]) {
-    				flatResponses[j]["categories"][m] = k.substring(0, 12) + "...";
+    				structure[j]["categories"][m] = k.substring(0, 12) + "...";
     				for (let l in response["children_label"]) {
-    					if (flatResponses[j]["value"][+l] == undefined) {
-    						flatResponses[j]["value"][+l] = {};
+    					if (responseArray[j]["value"][+l] == undefined) {
+    						responseArray[j]["value"][+l] = {};
     					}
-    					if (flatResponses[j]["value"][+l]["name"] == undefined) {
-    						flatResponses[j]["value"][+l]["name"] = response["children_label"][+l]["value"].length > 12 ? response["children_label"][+l]["value"].substring(0, 12) + "..." : response["children_label"][+l]["value"];
+    					if (responseArray[j]["value"][+l]["name"] == undefined) {
+    						responseArray[j]["value"][+l]["name"] = response["children_label"][+l]["value"].length > 12 ? response["children_label"][+l]["value"].substring(0, 12) + "..." : response["children_label"][+l]["value"];
     					}
-    					if (flatResponses[j]["value"][+l]["data"] == undefined) {
-    						flatResponses[j]["value"][+l]["data"] = [];
+    					if (responseArray[j]["value"][+l]["data"] == undefined) {
+    						responseArray[j]["value"][+l]["data"] = [];
     					}
-    					if (flatResponses[j]["value"][+l]["data"][m] == undefined) {
-    						flatResponses[j]["value"][+l]["data"][m] = 0;
+    					if (responseArray[j]["value"][+l]["data"][m] == undefined) {
+    						responseArray[j]["value"][+l]["data"][m] = 0;
     					}
     					if (response["children_label"][l].value == response["children"][k]) {
-    						flatResponses[j]["value"][+l]["data"][m]++;
+    						responseArray[j]["value"][+l]["data"][m]++;
     					}
     				}
     				m++;
@@ -145,8 +144,8 @@
     			break;
     		case "slider":
     			if (response["value"] !== "") {
-    				if (flatResponses[j]["categories"].length === 0) {
-    					flatResponses[j]["categories"].push("");
+    				if (structure[j]["categories"].length === 0) {
+    					structure[j]["categories"].push("");
     				}
     				if (table == undefined) {
     					table = [];
@@ -155,24 +154,24 @@
     					table[j] = {};
     				}
     				if (table[j][response["value"]] == undefined) {
-    					table[j][response["value"]] = flatResponses[j]["value"].push({ data: [1], name: response["value"] }) - 1;
+    					table[j][response["value"]] = responseArray[j]["value"].push({ data: [1], name: response["value"] }) - 1;
     				}
     				else {
     					let index = table[j][response["value"]];
-    					let count = flatResponses[j]["value"][index]["data"][0];
-    					flatResponses[j]["value"][index]["data"] = [count + 1];
+    					let count = responseArray[j]["value"][index]["data"][0];
+    					responseArray[j]["value"][index]["data"] = [count + 1];
     				}
     			}
     			break;
     		case "actionValue":
     			if (response["valueType"] == "attachment") {
     				if (i == 0) {
-    					flatResponses[j].att_type = true;
+    					structure[j].att_type = true;
     				}
-    				flatResponses[j].value.push({ "name": response.value, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
+    				responseArray[j].value.push({ "name": response.value, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
     			}
     			else {
-    				flatResponses[j].value.push(response.value);
+    				responseArray[j].value.push(response.value);
     			}
     			break;
     	}
@@ -187,17 +186,18 @@
     }
     // if authorized and exists doc
     if (published_form) {
-    	res["raw_published_form"] = published_form;
+    	//res["raw_published_form"] = published_form;
     	res["published_form"] = { name: published_form.name };
     	let currentVersion;
     	// define all existing version for this form
     	res["versions"] = createArray(published_form.version);
-    	if (version) {
+    	if (version && version != "") {
     		currentVersion = +version;
     	}
     	else {
     		currentVersion = +published_form.version;
     	}
+    	res["currentVersion"] = currentVersion;
     	query = new java.util.HashMap();
     	query.put(''reduce'', ''false'');
     	query.put(''startkey'', JSON.stringify([formId, "" + currentVersion]));
@@ -206,7 +206,7 @@
     	let responses;
     	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
     	res.response = { length: responses.length };
-    	res["raw_responses"] = responses;
+    	//res["raw_responses"] = responses;
     
     	let sortedsIds = [];
     	let lenActions = 0;
@@ -244,11 +244,11 @@
     	else {
     		// not sorted responses for old versions
     		let _tempArr = [];
-    		for(let e in responses[0].doc.resp){
+    		for (let e in responses[0].doc.resp) {
     			x = responses[0].doc.resp[e];
     			if (x.type === "ion-card") {
     				let prefix = x.name;
-    				for(let f in x.children){
+    				for (let f in x.children) {
     					y = x.children[f];
     					_tempArr.push({ path: prefix + ".children." + y.name, type: y.type });
     				}
@@ -269,6 +269,14 @@
     	// sorted responses for current versions
     	let len = sortedsIds.length;
     	let lenResponses = responses.length;
+    
+    	// if export to csv mode
+    	let nestedResponses;
+    	if (summary != "true") {
+    		nestedResponses = [];
+    	}
+    	let flatResponses = [];
+    	
     	// go over each fields of the form
     	for (let i = 0; i < len; i++) {
     		// go over each responses
@@ -283,9 +291,24 @@
     			}
     			if (response) {
     				if (j == 0) {
-    					flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, value: [], categories: [], "name": response.name };
+    					flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, categories: [], "name": response.name };
+    					if(nestedResponses == undefined){
+    						flatResponses[i]["value"] = [];
+    					}
     				}
-    				extractResponse(response, i, sortedsIds[i].type, responses[j].id);
+    				if(nestedResponses != undefined){
+    					if (nestedResponses[j] == undefined) {
+    						nestedResponses[j] = [];
+    					}
+    					if(nestedResponses[j][i] == undefined){
+    						nestedResponses[j][i] = { value: []};
+    					}
+    					extractResponse(response, i, sortedsIds[i].type, responses[j].id, nestedResponses[j], flatResponses);
+    				}
+    				else{
+    					extractResponse(response, i, sortedsIds[i].type, responses[j].id, flatResponses, flatResponses);
+    				}
+    				
     			}
     		}
     	}
@@ -302,9 +325,23 @@
     				if (response) {
     					response.type = "actionValue";
     					if (j == 0) {
-    						flatResponses[k + i] = { "id": indexName, att_type: false, "label": indexName, "labelHtml": indexName, "type": "actionValue", value: [], "name": indexName };
+    						flatResponses[k + i] = { "id": indexName, att_type: false, "label": indexName, "labelHtml": indexName, "type": "actionValue", "name": indexName };
+    						if(nestedResponses == undefined){
+    							flatResponses[k + i]["value"] = [];
+    						}
     					}
-    					extractResponse(response, k + i, response.type, responses[j].id);
+    					if(nestedResponses != undefined){
+    						if (nestedResponses[j] == undefined) {
+    							nestedResponses[j] = [];
+    						}
+    						if(nestedResponses[j][k + i] == undefined){
+    							nestedResponses[j][k + i] = { value: []};
+    						}
+    						extractResponse(response, k + i, response.type, responses[j].id, nestedResponses[j], flatResponses);
+    					}
+    					else{
+    						extractResponse(response, k + i, response.type, responses[j].id, flatResponses, flatResponses);
+    					}
     				}
     			}
     
@@ -312,7 +349,13 @@
     
     	}
     	res.response.value = flatResponses;
-    	res["currentVersion"] = currentVersion;
+    	if(nestedResponses){
+    		res.response.nestedResponses = nestedResponses;
+    		res.response.summerized = false;
+    	}
+    	else{
+    		res.response.summerized = true;
+    	}
     }'
 ↓object2 [steps.JsonToXmlStep-1697532248609]: 
   jsonObject: 
@@ -330,3 +373,5 @@
 ↓formId [variables.RequestableVariable-1697532236824]: 
   value: published_1697531850821
 ↓version [variables.RequestableVariable-1697536095803]: 
+↓summary [variables.RequestableVariable-1699003881651]: 
+  value: true
