@@ -4,23 +4,22 @@
     include("js/common.js");
     
     let authenticatedUserID = context.getAuthenticatedUser();
-    console.log("toto",authenticatedUserID, "warn");
+    
+    let loglevel = "warn";
     let authGranted = false;
     let db = "c8oforms_fs";
-    if(fromResponse == "true"){
-    	db = "c8oforms_response_fs";
+    if (fromResponse == "true") {
+       db = "c8oforms_response_fs";
     }
-    
     let doc = getDoc(id, rev, db);
-    console.log("doc",doc, "warn");
     // now check if doc is authorized for currentUser
-    if(doc._deleted == null && ((doc["~c8oAcl"] == null && doc.c8oGrp == null) || doc["~c8oAcl"] == authenticatedUserID)){
+    if (doc._deleted == null && ((doc["~c8oAcl"] == null && doc.c8oGrp == null) || doc["~c8oAcl"] == authenticatedUserID)) {
        authGranted = true;
     }
     // if acl is not enough to grant access, check with used groups and doc.grp is not null
     let grpIsArray = isArray(doc.c8oGrp);
     let grpIsObject = isObject(doc.c8oGrp);
-    if(!authGranted && doc.c8oGrp != null && ((grpIsArray && doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(doc.c8oGrp).length > 0) )){
+    if (!authGranted && doc.c8oGrp != null && ((grpIsArray && doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(doc.c8oGrp).length > 0))) {
        // call c8ofullsyncgrp =>  design/get_groups_by_user
        query = new java.util.HashMap();
        query.put(''reduce'', ''false'');
@@ -35,15 +34,56 @@
        keys = toJettison(_use_keys);
        usedGroups = toJSON(fsclient.postView(db, ''authentication'', ''distinctGroups'', query, keys));
        usedGroups = usedGroups.rows.map((x) => { return x.key });
-       if(usedGroups.length > 0 && ((grpIsArray && doc.c8oGrp.some(function(value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function(group) { return (doc.c8oGrp[group] == true || doc.c8oGrp[group] == "true") })))){
+       if (usedGroups.length > 0 && ((grpIsArray && doc.c8oGrp.some(function (value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function (group) { return (doc.c8oGrp[group] == true || doc.c8oGrp[group] == "true") })))) {
           authGranted = true;
        }
     }
-    if(!authGranted){
+    if (!authGranted) {
        doc = null;
     }
-    if(doc && doc.error){
-    	doc = null;
+    if (doc && doc.error) {
+       doc = null;
+    }
+    if (doc != null && exportForm == "true") {
+       let _attachments = doc._attachments;
+       if (_attachments) {
+          let prefixForTempPath = Math.floor(new Date().getTime() * Math.random());
+          for (let k in _attachments) {
+             let attfile;
+             try {
+                // create an empty file attachment
+                let attpath = "" + prefixForTempPath + "_" + k;
+                attpath = theApp.filePropertyManager.getFilepathFromProperty(attpath, context.projectName);
+                attfile = new java.io.File(attpath);
+                let query = new HashMap();
+                // query attachment from doc
+                fsclient.getDocumentAttachment(db, doc._id, k, query, attfile);
+    
+                let b64 = encodeFileToBase64Binary(attfile);
+                b64 = "data:" + _attachments[k].content_type + ";base64," + b64 + "";
+                doc[k].b64 = b64;
+             }
+             catch (e) {
+                doc.error = true;
+                doc.errorMessage = "an error occured while trying to extract attachment: " + k;
+                console.log("an error occured while trying to extract attachment: " + k, e, loglevel);
+             }
+             finally {
+                try {
+                   // in any case remove temp file attachment, error can occured if file where not created yet when error occured
+                   attfile.delete();
+                }
+                catch (e) { }
+             }
+          }
+       }
+       delete doc._attachments;
+       delete doc._rev;
+       delete doc._c8oMeta;
+    }
+    
+    if(target == "bin"){
+    	val = encodeTxtToBase64Binary(JSON.stringify(doc) + "");
     }'
 ↓object2 [steps.JsonToXmlStep-1695130350652]: 
   jsonObject: 
@@ -58,7 +98,27 @@
       - SmartType: 
         - ↑mode: PLAIN
         - →→: res
+↓jIf [steps.IfStep-1699546839489]: 
+  condition: target == "bin"
+  ↓attachment [steps.ElementStep-1699547046875]: 
+    expression: val
+    nodeName: attachment
+    ↓jAttribute2 [steps.AttributeStep-1699546834093]: 
+      expression: doc.name + '.c8oforms'
+      nodeName: name
+    ↓jAttribute3 [steps.AttributeStep-1699546834096]: 
+      nodeName: type
+      nodeText: attachment
+    ↓jAttribute [steps.AttributeStep-1699546834087]: 
+      nodeName: content-type
+      nodeText: application/json
+    ↓jAttribute4 [steps.AttributeStep-1699547164119]: 
+      nodeName: encoding
+      nodeText: base64
 ↓id [variables.RequestableVariable-1695130384939]: 
 ↓rev [variables.RequestableVariable-1695130389024]: 
 ↓fromResponse [variables.RequestableVariable-1697472248791]: 
   value: false
+↓exportForm [variables.RequestableVariable-1699527736739]: 
+  value: false
+↓target [variables.RequestableVariable-1699546875078]: 

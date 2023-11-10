@@ -13,7 +13,7 @@ var Path = java.nio.file.Path;
 var Paths = java.nio.file.Paths;
 
 var isWindows = org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
-var separator = isWindows ? "\\" :"/";
+var separator = isWindows ? "\\" : "/";
 var projectPath = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName("C8Oforms").getDirPath();
 
 /**
@@ -54,10 +54,10 @@ var callSequence = function (project, sequence, parametersJS) {
 	parameters.put("__context", "syncContext_" + java.lang.System.currentTimeMillis());
 	let keys = Object.keys(parametersJS);
 	for (var i = 0; i < keys.length; i++) {
-		if(parametersJS[keys[i]] != null){
+		if (parametersJS[keys[i]] != null) {
 			parameters.put(keys[i], parametersJS[keys[i]]);
 		}
-		
+
 	}
 	var request = new InternalHttpServletRequest();
 	// copy session attributes for the inner call
@@ -107,21 +107,29 @@ var createUserNameForAnonymous = function (id) {
  * @returns {Object} The retrieved document.
  */
 let getDoc = function (id, parametersJS, db) {
-	if(!db){
+	if (!db) {
 		db = "c8oforms_fs";
 	}
 	// get non published form
 	var parameters = new HashMap();
 	// legacy before, parametersJS was string rev
-	if(typeof parametersJS == "string"){
+	if (typeof parametersJS == "string") {
 		parameters.put("rev", new java.lang.String(parametersJS));
 	}
-	else if(parametersJS != null){
-		for(let i in parametersJS){
+	else if (parametersJS != null) {
+		for (let i in parametersJS) {
 			parameters.put(i, new java.lang.String(parametersJS[i]));
 		}
 	}
 	let doc = toJSON(fsclient.getDocument(db, id, parameters));
+	return doc;
+}
+
+let deleteDoc = function(id, rev, db) {
+	if (!db) {
+		db = "c8oforms_fs";
+	}
+	let doc = toJSON(fsclient.deleteDocument(db, id, rev));
 	return doc;
 }
 
@@ -166,13 +174,13 @@ let isObject = function (value) {
 	return value !== null && typeof value === 'object' && !isArray(value);
 }
 
-let getContentType = function(pathToFile){
+let getContentType = function (pathToFile) {
 	//try{
-		path = Paths.get(pathToFile);
-		log.warn("tttt path " +path.toString());
-		let mimeType = Files.probeContentType(path);
-		log.warn("tttt " +mimeType.toString());
-		return mimeType;
+	path = Paths.get(pathToFile);
+	log.warn("tttt path " + path.toString());
+	let mimeType = Files.probeContentType(path);
+	log.warn("tttt " + mimeType.toString());
+	return mimeType;
 	/*}
 	catch(e){
 		console.log("eeee", JSON.stringify(e), "warn");
@@ -180,40 +188,46 @@ let getContentType = function(pathToFile){
 	}*/
 }
 
-let getIsWindows = function(){
+let getIsWindows = function () {
 	return org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
 }
 
-let getSeparator = function(_isWindows){
-	return _isWindows ? "\\" :"/";
+let getSeparator = function (_isWindows) {
+	return _isWindows ? "\\" : "/";
 }
 
-let getProjectPath = function(_projectName){
+let getProjectPath = function (_projectName) {
 	return com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName(_projectName).getDirPath();
 }
 
-let createArray = function(value) {
-  return Array.from({ length: +value }, (_, i) => i + 1);
+let createArray = function (value) {
+	return Array.from({ length: +value }, (_, i) => i + 1);
+}
+
+let encodeFileToBase64Binary = function (file) {
+	try{
+		fileContent = Files.readAllBytes(file.toPath());
+		return java.util.Base64.getEncoder().encodeToString(fileContent);
+	}
+	catch(e){
+		log.warn(e);
+		console.log("encodeFileToBase64Binary", e, "warn");
+	}
+	
+}
+
+let encodeTxtToBase64Binary = function (text){
+	let val = new java.lang.String(text).getBytes('utf8')
+	return java.util.Base64.getEncoder().encodeToString(val);
 }
 
 Object.defineProperty(Array.prototype, 'flatMap', {
-    enumerable: false,
-    value: function (f, ctx) {
-    return this.reduce
-      ( (r, x, i, a) =>
-          r.concat(f.call(ctx, x, i, a))
-      , []
-      )
-  }
+	enumerable: false,
+	value: function (f, ctx) {
+		return this.reduce
+			((r, x, i, a) =>
+				r.concat(f.call(ctx, x, i, a))
+				, []
+			)
+	}
 });
-
-//if (!Array.prototype.flatMap) {
-//  function flatMap (f, ctx) {
-//    return this.reduce
-//      ( (r, x, i, a) =>
-//          r.concat(f.call(ctx, x, i, a))
-//      , []
-//      )
-//  }
-//  Array.prototype.flatMap = flatMap
-//}

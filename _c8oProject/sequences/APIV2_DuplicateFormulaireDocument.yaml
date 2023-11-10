@@ -1,0 +1,142 @@
+↓duplicateFormulaireDocument [steps.SimpleStep-1699524675479]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    let loglevel = "warn";
+    let authenticatedUserID = context.getAuthenticatedUser();
+    let authGranted = false;
+    let res = {};
+    try {
+    	meta = JSON.parse(meta);
+    }
+    catch (e) {
+    	meta = {};
+    }
+    
+    let existing_doc = getDoc(_id, null, "c8oforms_fs");
+    // check if new doc
+    if (existing_doc && existing_doc.error !== "not_found") {
+    	// now check if existing_doc is authorized for currentUser
+    	if (existing_doc._deleted == null && ((existing_doc["~c8oAcl"] == null && existing_doc.c8oGrp == null) || existing_doc["~c8oAcl"] == authenticatedUserID)) {
+    		authGranted = true;
+    	}
+    	// if acl is not enough to grant access, check with used groups and existing_doc.grp is not null
+    	let grpIsArray = isArray(existing_doc.c8oGrp);
+    	let grpIsObject = isObject(existing_doc.c8oGrp);
+    	if (!authGranted && existing_doc.c8oGrp != null && ((grpIsArray && existing_doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(existing_doc.c8oGrp).length > 0))) {
+    		// call c8ofullsyncgrp =>  design/get_groups_by_user
+    		query = new java.util.HashMap();
+    		query.put(''reduce'', ''false'');
+    		keys = toJettison([authenticatedUserID]);
+    		rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
+    
+    		// call c8oforms_fs =>  authentication/distinctGroups
+    		query = new java.util.HashMap();
+    		query.put(''reduce'', ''true'');
+    		query.put(''group'', ''true'');
+    		_use_keys = rows.map((x) => { return x.value });
+    		keys = toJettison(_use_keys);
+    		usedGroups = toJSON(fsclient.postView("c8oforms_fs", ''authentication'', ''distinctGroups'', query, keys));
+    		usedGroups = usedGroups.rows.map((x) => { return x.key });
+    		if (usedGroups.length > 0 && ((grpIsArray && existing_doc.c8oGrp.some(function (value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function (group) { return (existing_doc.c8oGrp[group] == true || existing_doc.c8oGrp[group] == "true") })))) {
+    			authGranted = true;
+    		}
+    	}
+    	if (!authGranted) {
+    		existing_doc = null;
+    	}
+    }
+    
+    // we can proceed to the action
+    if (authGranted) {
+    	let _attachments;
+    	try {
+    		_attachments = JSON.parse(JSON.stringify(existing_doc._attachments));
+    	}
+    	catch (e) { }
+    	delete existing_doc._attachments
+    	doc = existing_doc;
+    	doc._id = new Date().getTime() + "";
+    	res._id = doc._id;
+    	delete doc._rev;
+    	delete doc._c8oMeta;
+    	doc.c8oGrp = {};
+    	doc["~c8oAcl"] = authenticatedUserID;
+    	doc.creator = authenticatedUserID;
+    	doc["c8oGrp"] = {};
+    	doc["c8oGrp"][authenticatedUserID] = true;
+    	doc.collabs = [];
+    	doc.collabsResponse = [];
+    	doc.shared = [];
+    	doc.name += doc.name + "_copy";
+    	let mergeRules = new HashMap();
+    
+    	let response_duplicate;
+    	try {
+    		response_duplicate = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(doc), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    	}
+    	catch (e) {
+    		res.error = true;
+    		res.errorMessage = "an error occured while trying to duplicate document: " + e;
+    	}
+    	if (!response_duplicate.error) {
+    		// now check for attachments
+    		if (_attachments) {
+    			let prefixForTempPath = Math.floor(new Date().getTime() * Math.random());
+    			for (let k in _attachments) {
+    				let attfile;
+    				try {
+    					// create an empty file attachment
+    					let attpath = "" + prefixForTempPath + "_" + k;
+    					attpath = theApp.filePropertyManager.getFilepathFromProperty(attpath, context.projectName);
+    					attfile = new java.io.File(attpath);
+    					let query = new HashMap();
+    					// query attachment from doc
+    					fsclient.getDocumentAttachment("c8oforms_fs", _id, k, query, attfile);
+    
+    					// then put it in duplicate document
+    					fsclient.putDocumentAttachment("c8oforms_fs", doc._id, k, new HashMap(), attfile, enums.MimeType.OctetStream.value());
+    				}
+    				catch (e) {
+    					res.error = true;
+    					res.errorMessage = "an error occured while trying to duplicate attachment: " + k;
+    					console.log("an error occured while trying to duplicate attachment: " + k, e, loglevel);
+    				}
+    				finally {
+    					try {
+    						// in any case remove temp file attachment, error can occured if file where not created yet when error occured
+    						attfile.delete();
+    					}
+    					catch (e) { }
+    				}
+    			}
+    		}
+    	}
+    	else {
+    		res.error = true;
+    		res.errorMessage = "an error occured while trying to duplicate document: " + response_duplicate.error;
+    	}
+    }
+    else {
+    	res.error = true;
+    	res.errorMessage = "You are not authorized to duplicate this document";
+    }
+    
+    if(!res.error){
+    	res.success = true;
+    }'
+↓object2 [steps.JsonToXmlStep-1699524675482]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓_id [variables.RequestableVariable-1699524675485]: 
