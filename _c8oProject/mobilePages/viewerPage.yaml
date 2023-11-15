@@ -3879,6 +3879,30 @@ scriptContent:
         	    }
         	}
         	
+        	public checkcurrentPageIndex(): boolean {
+        		const currentIndex = this.local.currentIndex;
+        		const pages = this.local.pages;
+        		try {
+        			if (
+        				pages[currentIndex].enabled !== undefined &&
+        				((pages[currentIndex].enabled === true) ||
+        					(pages[currentIndex].enabled instanceof Object &&
+        						Object.keys(pages[currentIndex].enabled)
+        							.map((e) => this.local.pages[currentIndex].enabled[e])
+        							.includes(true)))
+        			) {
+        				return true;
+        			}
+        		} catch (e) {
+        			if (pages[currentIndex].enabled === true) {
+        				return true;
+        			}
+        			return false;
+        
+        		}
+        		return false;
+        	}
+        	
         	/**
         	 * Returns the index of the previous available page.
         	 * @returns The index of the previous available page.
@@ -3934,6 +3958,33 @@ scriptContent:
         	
         	    return false;
         	}
+        	public isThereAPreviousPage(): boolean {
+        		try{
+        			const pages = this.local.pages;
+        	    const currentIndex = this.local.currentIndex;
+        	
+        	    if (pages !== undefined && currentIndex < pages.length - 1) {
+        	        for (let i = 0; i < currentIndex -1; i++) {
+        	            if (
+        	                pages[i].enabled !== undefined &&
+        	                ((pages[i].enabled === true) ||
+        	                    (pages[i].enabled instanceof Object &&
+        	                        Object.keys(pages[i].enabled)
+        	                            .map((e) => this.local.pages[i].enabled[e])
+        	                            .includes(true)))
+        	            ) {
+        	                return true;
+        	            }
+        	        }
+        	    }
+        	
+        	    return false;
+        		}
+        		catch(e){
+        			return true;
+        		}
+        	    
+        	}
         	
         	/**
         	 * Checks for any existing condition and initializes the value of some objects.
@@ -3953,12 +4004,10 @@ scriptContent:
         	                elem.conditions.goToPageIf !== undefined &&
         	                elem.conditions.goToPageIf.conds !== undefined
         	            ) {
-        	                if (true) {
-        	                    if (this.local.initDone[elem.id] === null) {
-        	                        this.detectTypeAndComplete(elem.conditions.goToPageIf.conds, elem);
-        	                        this.local.initDone[elem.id] = true;
-        	                    }
-        	                }
+        	                if (this.local.initDone[elem.id] == null) {
+                                this.detectTypeAndComplete(elem.conditions.goToPageIf.conds, elem);
+                                this.local.initDone[elem.id] = true;
+                            }
         	            }
         	
         	            if (elem.type === "ion-card") {
@@ -3968,6 +4017,9 @@ scriptContent:
         	            console.log(e);
         	        }
         	    }
+        	    if(!this.checkcurrentPageIndex()){
+        			this.local.currentIndex = this.getNextPageIndex();
+        		}
         	}
         	
         	/**
@@ -4004,10 +4056,10 @@ scriptContent:
         	 */
         	public getSelectSelectedOne(arr: any[], val: any): string {
         	    const filt = arr.filter((x) => {
-        	        return typeof x === "string" ? x === val : x.value !== undefined ? x.value === val : x.displayValue === val;
+        	        return typeof x === "string" ? x == val : x.value != undefined ? x.value == val : x.displayValue == val;
         	    });
         	
-        	    return filt.length > 0 ? (filt[0].displayValue !== undefined ? filt[0].displayValue : filt[0]) : "";
+        	    return filt.length > 0 ? (filt[0].displayValue != undefined ? filt[0].displayValue : filt[0]) : "";
         	}
         
         
@@ -4434,30 +4486,36 @@ scriptContent:
         		}
         	}
         	
-        	public replicatePushResponse(): void {
-            	try {
+        	public replicatePushResponse(): Promise<any> {
+        		return new Promise((resolve, reject)=>{
+        		try {
         			this.local.response_sub = {
-        				complete: false,
-        				total: 0			
-        			}
-        			let a = this.c8o.callJsonObject("fs://c8oforms_response_fs.replicate_push", {retry: true})
-        				.then((res)=>{
-        					console.log(''res'', res);
-        					return null;
-        				})
-        				.progress((progress)=>{
-        					this.local.response_sub.total = progress.total;
-        					if(progress.status == "complete"){
-        						this.local.response_sub.complete = true;
-        						
-        					}
-        					else{
-        						this.local.response_sub.complete = false;
-        					}
-        				})
-        		} catch (e) {
-        		
+        			complete: false,
+        			total: 0			
         		}
+        		this.c8o.promiseFinInit.then((r)=>{
+        			this.c8o.callJsonObject("fs://c8oforms_response_fs.replicate_push", {retry: true})
+        			.then((res)=>{
+        				console.log(''res'', res);
+        				resolve();
+        				return null;
+        			})
+        			.progress((progress)=>{
+        				this.local.response_sub.total = progress.total;
+        				if(progress.status == "complete"){
+        					this.local.response_sub.complete = true;
+        					
+        				}
+        				else{
+        					this.local.response_sub.complete = false;
+        				}
+        			})
+        		})
+        		
+        			} catch (e) {
+        				reject();
+        			}
+        		})
         	}
         	
         	public cancelReplicatePushResponse(): any{
