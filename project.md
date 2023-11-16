@@ -3414,6 +3414,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_createIndexes</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_createIndexes
+
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_csv</b></summary><blockquote><p>
 
 
