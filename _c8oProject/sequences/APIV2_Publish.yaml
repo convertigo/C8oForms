@@ -239,8 +239,8 @@
     if (meta.pwa && !res.pwa_required) {
     	console.log("start_pwa 1", {}, logLevel);
     	// equivalent of docsToCreatePwa
-    	let new_pwa_doc = {};
-    	if (!response_published.new_doc_published) {
+    	let new_pwa_doc = {notAnonymous: meta.pwa.notAnonymous == "true" || meta.pwa.notAnonymous == true};
+    	if (response_published && !response_published.new_doc_published) {
     		response_published.new_doc_published = toJSON(fsclient.getDocument("c8oforms_fs", meta.pwa.originalFormId));
     	}
     	console.log("start_pwa 2", {}, logLevel);
@@ -271,7 +271,9 @@
     		console.log("An error occured while computing groups for pwa", null, "error");
     	}
     	console.log("start_pwa 4", {}, logLevel);
-    	new_pwa_doc["~c8oAcl"] = response_published.new_doc_published["creator"];
+    	if(response_published){
+    		new_pwa_doc["~c8oAcl"] = response_published.new_doc_published["creator"];
+    	}
     	new_pwa_doc.backgroundColor = meta.pwa.backgroundColor;
     	new_pwa_doc.name = meta.pwa.name;
     	new_pwa_doc.originalFormId = meta.pwa.originalFormId;
@@ -299,7 +301,7 @@
     			attfile = new java.io.File(file);
     			attContentType = meta.pwa.thumbnail.content_type;
     		}
-    		else{
+    		else if(response_published){
     			console.log("there else 1", {}, logLevel);
     			let prefixForTempPath = Math.floor(new Date().getTime() * Math.random());
     			let attpath = "" + prefixForTempPath + "_" + "thumbnail"; context.getProjectName()
@@ -314,17 +316,27 @@
     			fsclient.getDocumentAttachment("c8oforms_fs", id, "thumbnail", query, attfile);
     			attContentType = enums.MimeType.OctetStream.value();
     		}
-    		 
-    		//let contentType = getContentType(file);
-    		// then put it in pwa document
-    		fsclient.putDocumentAttachment("c8oforms_fs", new_pwa_doc._id, "icon", new HashMap(), attfile, attContentType);
-    		// then delete temp file attachment
-    		attfile.delete();
+    		 if(meta.pwa.thumbnail.fromVar || response_published){
+    			 //let contentType = getContentType(file);
+    			// then put it in pwa document
+    			fsclient.putDocumentAttachment("c8oforms_fs", new_pwa_doc._id, "icon", new HashMap(), attfile, attContentType);
+    			// then delete temp file attachment
+    			attfile.delete();
+    		 }
+    		
     		
     	}
     	meta.pwa._id = new_pwa_doc._id
     	meta.pwa["~c8oAcl"] = new_pwa_doc["~c8oAcl"];
     	meta.pwa.targetId = new_pwa_doc.targetId;
+    	if(!response_published){
+    		let d1 = {"thumbnail": meta.pwa.originalThumbnail};
+    		d1._id = id;
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("thumbnail")), new java.lang.String("override"));
+    		toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(d1), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    		d1._id = "published_"+id;
+    		toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(d1), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    	}
     	callSequence("C8Oforms", "APIV2_GeneratePwaAsset", {meta:JSON.stringify(meta.pwa)});
     	
     }
