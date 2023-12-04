@@ -1,0 +1,149 @@
+accessibility: Hidden
+authenticatedContextRequired: true
+responseTimeout: 60000
+↓DelteB64FromExistingResponses_Sequence_JS [steps.SimpleStep-1701783204951]: 
+  expression: |
+    'var Jsoup = use("org.jsoup.Jsoup");
+    var enums = com.twinsoft.convertigo.engine.enums;
+    var HashMap = java.util.HashMap;
+    var theApp = com.twinsoft.convertigo.engine.Engine.theApp;
+    var fsclient = theApp.couchDbManager.getFullSyncClient();
+    var mss = [];
+    var toJSON = function(json) {
+    	return JSON.parse(json.toString());
+    }
+    var toJettison = function(json) {
+    	var txt = (typeof json == "string") ? json : JSON.stringify(json);
+    	return txt.startsWith("{") ? new org.codehaus.jettison.json.JSONObject(txt) : new org.codehaus.jettison.json.JSONArray(txt);
+    }
+    var computeTime = (d1, d2)=> {
+        let difference = Math.abs(d2 - d1);
+    
+        let hours = Math.floor(difference / 3600000); 
+        var minutes = Math.floor((difference % 3600000) / 60000);
+        var seconds = Math.floor((difference % 60000) / 1000);
+    
+        return hours + '' hours : '' + minutes + '' minutes : '' + seconds + '' seconds'';
+    }
+    var convertMsToTime = (milliseconds) => {
+        let seconds = Math.floor(milliseconds / 1000);
+        let minutes = Math.floor(seconds / 60);
+        seconds = seconds % 60;
+        let hours = Math.floor(minutes / 60);
+        minutes = minutes % 60;
+    
+        return hours + '' hours : '' + minutes + '' minutes : '' + seconds + '' seconds'';
+    }
+    var avg = (arr)=> {
+        var sum = 0;
+        arr.forEach(function (item, idx) {
+          sum += item;
+        });
+        return sum / arr.length;
+      }
+    var computeEta = (startTime, totalDone, totalToDo) => {
+    	mss.push(new Date().getTime() - startTime.getTime());
+    	ms = avg(mss);
+    	let msToFinish = ((+totalToDo - +totalDone) /chunkSize)* ms;
+    	return convertMsToTime(msToFinish);
+    }
+    
+    let startDate = new Date();
+    var success = context.addTextNodeUnderRoot("success", "");
+    var errors = context.addTextNodeUnderRoot("errors", "");
+    let running = true;
+    let skip = 0;
+    let max = 0;
+    while(running){
+    	let innerStartDate = new Date();
+    	context.getRootContext().lastAccessTime = new Date().getTime();
+    	query = new java.util.HashMap();
+    	query.put(''reduce'', ''false'');
+    	query.put(''include_docs'', ''true'');
+    	query.put(''limit'', ''''+chunkSize);
+    	query.put(''skip'', ''''+skip);
+    	log.warn("calling with params: limit: " + chunkSize+ " skip: "+ skip);
+    	let doc = toJSON(fsclient.getView("c8oforms_response_fs", ''DeleteOldB64'', ''allResponses'', query));
+    	let totalRows = doc.total_rows
+    	let rows = doc.rows;
+    	try {
+    		iToSplice = [];
+    		for (let row of rows) {
+    			if (row.doc && row.doc.resp) {
+    				error = false;
+    				for (let i in row.doc.resp) {
+    					try {
+    						let html = row.doc.resp[i].labelHtml;
+    						if(html){
+    							let div = Jsoup.parse(html);
+    							//log.warn("Value before" + JSON.stringify(html));
+    							row.doc.resp[i].labelHtml = div.text();
+    							//log.warn("Value after" + JSON.stringify(row.doc.resp[i].labelHtml));
+    						}
+    						if (row.doc.resp[i].children) {
+    							for (let j in row.doc.resp[i].children) {
+    								let html2 = row.doc.resp[i].children[j].labelHtml;
+    								if (html2) {
+    									//log.warn("Value before sub" + JSON.stringify(html2))
+    									let div2 = Jsoup.parse(html2)
+    									row.doc.resp[i].children[j].labelHtml = div2.text();
+    									//log.warn("Value after sub" + JSON.stringify(row.doc.resp[i].children[j].labelHtml));
+    								}
+    							}
+    						}
+    					}
+    					catch (e) {
+    						//remove this entry from rows
+    						log.error("an error occured" + JSON.stringify(e));
+    						error = true;
+    					}
+    				}
+    				if (error == true) {
+    					iToSplice.push(row);
+    					context.addTextNode(errors, "_id", row.doc._id);
+    				}
+    			}
+    		}
+    		if(execute == "true"){
+    			rows = rows.filter((element, index) => !iToSplice.includes(index)).map((x) => x.doc);
+    			// prepare merge params
+    			let mergeRules = new HashMap();
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("resp")), new java.lang.String("override"));
+    			//post bulk docs
+    			doc = toJSON(fsclient.postBulkDocs(java.lang.String("c8oforms_response_fs"), toJettison(rows), false, true, enums.CouchPostDocumentPolicy.merge, mergeRules, false));			
+    			log.warn(""+JSON.stringify(doc));
+    			let _success = (""+doc._c8oMeta.statusCode).indexOf("20") == 0;
+    			docs_done = rows.map((row) => row._id);
+    			if(_success == true){
+    				docs_done.forEach((x)=> context.addTextNode(success, "_id", x));
+    			}
+    			else{
+    				docs_done.forEach((x)=> context.addTextNode(errors, "_id", x));
+    				log.error("an error occured");
+    			}
+    			log.warn("post "+_success ? "succeeded" : "failed" +" on following docs:\n"+docs_done.join(''\n''));
+    			let totalDone = ((+skip)+(+chunkSize));
+    			log.warn("done "+ totalDone+"/"+ totalRows);
+    			log.warn("ETA: "+computeEta(innerStartDate, totalDone, totalRows));
+    			log.warn("total time running: "+computeTime(startDate, new Date()));
+    		}
+    		if(error == false && execute != "true"){
+    			rows = rows.filter((element, index) => !iToSplice.includes(index)).map((x) => x.doc);
+    			docs_done = rows.map((row) => row._id);
+    			docs_done.forEach((x)=> context.addTextNode(success, "_id", x));
+    		}
+    	}
+    	catch (e) {
+    		running = false;
+    		log.error("An error occured while running DelteB64FromExistingResponses : " + e);
+    	}
+    	skip += (+chunkSize);
+    	if(rows.length == 0){
+    		running = false;
+    	}
+    }
+    '
+↓execute [variables.RequestableVariable-1701793615752]: 
+  value: false
+↓chunkSize [variables.RequestableVariable-1701870654701]: 
+  value: 100
