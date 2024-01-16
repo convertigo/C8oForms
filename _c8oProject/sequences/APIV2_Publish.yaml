@@ -164,10 +164,10 @@
     let response_published;
     let response_published_anonymous;
     
-    
+    let pwa; 
     //if no meta.pwa is provided then ensure pwa already exists
-    if(!meta.pwa){
-    	let pwa = getDoc("published_"+id+"_pwa_document", null, "c8oforms_fs");
+    if(!meta.pwa || response_published == null){
+    	pwa = getDoc("published_"+id+"_pwa_document", null, "c8oforms_fs");
     	if(pwa.error){
     		res.pwa_required = true;
     	}
@@ -240,24 +240,32 @@
     	console.log("start_pwa 1", {}, logLevel);
     	// equivalent of docsToCreatePwa
     	let new_pwa_doc = {notAnonymous: meta.pwa.notAnonymous == "true" || meta.pwa.notAnonymous == true};
+    	if(!response_published){
+    		// Copier les propriétés de ''pwa'' dans ''new_pwa_doc''
+    		for (var key in pwa) {
+    			if (pwa.hasOwnProperty(key) && !new_pwa_doc.hasOwnProperty(key)) {
+    				new_pwa_doc[key] = pwa[key];
+    			}
+    		}
+    	}
     	if (response_published && !response_published.new_doc_published) {
     		response_published.new_doc_published = toJSON(fsclient.getDocument("c8oforms_fs", meta.pwa.originalFormId));
     	}
     	console.log("start_pwa 2", {}, logLevel);
-    	let old_pwa_doc = getDoc()
-    	let targetId;
     	// meta.pwa.notAnonymous == false means it is anonymous
-    	if (meta.pwa.notAnonymous == "false" || meta.pwa.notAnonymous == false) {
-    		if(!meta.publishing){
-    			new_pwa_doc.targetId = postPublishAnonymous(response_published.new_doc_published, response_published.new_doc_published, true);
+    	if(response_published){
+    		if (meta.pwa.notAnonymous == "false" || meta.pwa.notAnonymous == false) {
+    			if(!meta.publishing){
+    				new_pwa_doc.targetId = postPublishAnonymous(response_published.new_doc_published, response_published.new_doc_published, true);
+    			}
+    			else{
+    				new_pwa_doc.targetId = createUserNameForAnonymous(meta.pwa.originalFormId);
+    			}
+    			meta.pwa.notAnonymous = false;
     		}
-    		else{
-    			new_pwa_doc.targetId = createUserNameForAnonymous(meta.pwa.originalFormId);
+    		else if(meta.pwa.notAnonymous == "true" || meta.pwa.notAnonymous == true){
+    			new_pwa_doc.targetId = meta.pwa.originalFormId;
     		}
-    		meta.pwa.notAnonymous = false;
-    	}
-    	else if(meta.pwa.notAnonymous == "true" || meta.pwa.notAnonymous == true){
-    		new_pwa_doc.targetId = meta.pwa.originalFormId;
     	}
     	console.log("start_pwa 3", {}, logLevel);
     	// get collabs from published doc and format it to define it as groups of pwa doc
