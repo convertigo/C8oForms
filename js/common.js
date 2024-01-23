@@ -11,6 +11,9 @@ var enums = com.twinsoft.convertigo.engine.enums;
 var Files = java.nio.file.Files;
 var Path = java.nio.file.Path;
 var Paths = java.nio.file.Paths;
+var FileUtils = org.apache.commons.io.FileUtils;
+var File = java.io.File;
+
 
 var isWindows = org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
 var separator = isWindows ? "\\" : "/";
@@ -219,6 +222,10 @@ let encodeFileToBase64Binary = function (file) {
 let encodeTxtToBase64Binary = function (text){
 	let val = new java.lang.String(text).getBytes('utf8')
 	return java.util.Base64.getEncoder().encodeToString(val);
+}
+
+let deleteDir = function(dirName) {
+	FileUtils.deleteDirectory(new File(dirName));
 }
 
 Object.defineProperty(Array.prototype, 'flatMap', {
