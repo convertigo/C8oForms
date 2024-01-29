@@ -62,6 +62,37 @@ var callSequence = function (project, sequence, parametersJS) {
 		}
 
 	}
+	var requester = new InternalRequester(parameters, context.httpServletRequest);
+	let response = requester.processRequest();
+	response = toJSON(XmlToJson(response.getDocumentElement(), true, true, enums.JsonOutput.JsonRoot.docNode));
+	org.apache.log4j.MDC.put("ContextualParameters", context.logParameters);
+	var ctx2 = requester.getContext();
+	theApp.contextManager.remove(ctx2);
+	return response;
+}
+
+/**
+ * Calls a sequence within a project and returns its response.
+ * 
+ * @param {string} project - The project name.
+ * @param {string} sequence - The sequence name.
+ * @param {Object} parametersJS - The parameters for the sequence.
+ * @returns {Object} The response from the sequence call.
+ */
+/**var callSequenceAsync = function (project, sequence, parametersJS) {
+	var parameters = new HashMap();
+	var __project = java.lang.reflect.Array.newInstance(java.lang.String, 1);
+	__project[0] = project;
+	parameters.put("__project", __project);
+	parameters.put("__sequence", sequence);
+	parameters.put("__context", "syncContext_" + java.lang.System.currentTimeMillis());
+	let keys = Object.keys(parametersJS);
+	for (var i = 0; i < keys.length; i++) {
+		if (parametersJS[keys[i]] != null) {
+			parameters.put(keys[i], parametersJS[keys[i]]);
+		}
+
+	}
 	var request = new InternalHttpServletRequest();
 	// copy session attributes for the inner call
 	var session = request.getSession(true);
@@ -78,7 +109,7 @@ var callSequence = function (project, sequence, parametersJS) {
 	theApp.contextManager.remove(ctx2);
 	return response;
 }
-
+*/
 /**
  * Create a hashed user name for an anonymous user based on an ID using SHA-256.
  * 
