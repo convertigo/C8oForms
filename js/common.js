@@ -5,6 +5,7 @@ var theApp = com.twinsoft.convertigo.engine.Engine.theApp;
 var fsclient = theApp.couchDbManager.getFullSyncClient();
 var InternalHttpServletRequest = com.twinsoft.convertigo.engine.requesters.InternalHttpServletRequest;
 var XmlToJson = com.twinsoft.convertigo.engine.util.XMLUtils.XmlToJson;
+var jsonToXml = com.twinsoft.convertigo.engine.util.XMLUtils.jsonToXml;
 var InternalRequester = com.twinsoft.convertigo.engine.requesters.InternalRequester;
 var HashMap = java.util.HashMap;
 var enums = com.twinsoft.convertigo.engine.enums;
@@ -18,6 +19,25 @@ var File = java.io.File;
 var isWindows = org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
 var separator = isWindows ? "\\" : "/";
 var projectPath = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName("C8Oforms").getDirPath();
+
+
+
+let JsonToDomElement = function(json) {
+	let DocumentBuilderFactory = javax.xml.parsers.DocumentBuilderFactory;
+	let DocumentBuilder = javax.xml.parsers.DocumentBuilder;
+	let Document = org.w3c.dom.Document;
+	let Element = org.w3c.dom.Element;
+	let XPathAPI = org.apache.xpath.XPathAPI;
+	let txt = (typeof json == "string") ? json : JSON.stringify(json);
+	json = new org.codehaus.jettison.json.JSONObject(txt);
+	let factory = DocumentBuilderFactory.newInstance();
+	let builder = factory.newDocumentBuilder();
+	let document = builder.newDocument();
+	let newElement = document.createElement("item");
+	jsonToXml(json, newElement);
+	let all = XPathAPI.selectNodeList(newElement, "./*");
+	return all;
+}
 
 /**
  * Parse a JSON string into a JavaScript object.
@@ -72,44 +92,74 @@ var callSequence = function (project, sequence, parametersJS) {
 }
 
 /**
- * Calls a sequence within a project and returns its response.
+ * Calls a sequence within a project into a duplicated session and returns its response.
+ * 
+ * @param {string} project - The project name.
+ * @param {string} sequence - The sequence name.
+ * @param {Object} parametersJS - The parameters for the sequence.
+ * @param {Object} parametersJS - The http session attributes to to be set in current session. Null value is provided we will get from current session
+ * @returns {Object} The response from the sequence call.
+ */
+var callSequenceInDuplicateSession = function (project, sequence, parametersJS, httpSessionAttributes) {
+	let session;
+	let response;
+	try{
+		var parameters = new HashMap();
+		var __project = java.lang.reflect.Array.newInstance(java.lang.String, 1);
+		__project[0] = project;
+		parameters.put("__project", __project);
+		parameters.put("__sequence", sequence);
+		parameters.put("__context", "syncContext_" + java.lang.System.currentTimeMillis());
+		let keys = Object.keys(parametersJS);
+		for (var i = 0; i < keys.length; i++) {
+			if (parametersJS[keys[i]] != null) {
+				parameters.put(keys[i], parametersJS[keys[i]]);
+			}
+		}
+		var request = new InternalHttpServletRequest();
+		// copy session attributes for the inner call if not already provided
+		session = request.getSession(true);
+		if(httpSessionAttributes == null){
+			httpSessionAttributes = getCurrentHttpSessionAttributes();
+		}
+		let session_keys = Object.keys(httpSessionAttributes);
+		for(let i = 0; i < session_keys.length; i++){
+			session.setAttribute(session_keys[i], httpSessionAttributes[session_keys[i]]);
+		}
+		requester = new InternalRequester(parameters, request);
+		response = requester.processRequest();
+		response = toJSON(XmlToJson(response.getDocumentElement(), true, true, enums.JsonOutput.JsonRoot.docNode));
+		org.apache.log4j.MDC.put("ContextualParameters", context.logParameters);
+		var ctx2 = requester.getContext();
+		theApp.contextManager.remove(ctx2);
+	}
+	catch(e){
+		console.log("An error occured while running callSequenceInDuplicateSession", e, "warn");
+	}
+	finally{
+		session.invalidate();
+		return response;
+	}	
+}
+
+/**
+ * Gets current http session attributes
  * 
  * @param {string} project - The project name.
  * @param {string} sequence - The sequence name.
  * @param {Object} parametersJS - The parameters for the sequence.
  * @returns {Object} The response from the sequence call.
  */
-/**var callSequenceAsync = function (project, sequence, parametersJS) {
-	var parameters = new HashMap();
-	var __project = java.lang.reflect.Array.newInstance(java.lang.String, 1);
-	__project[0] = project;
-	parameters.put("__project", __project);
-	parameters.put("__sequence", sequence);
-	parameters.put("__context", "syncContext_" + java.lang.System.currentTimeMillis());
-	let keys = Object.keys(parametersJS);
-	for (var i = 0; i < keys.length; i++) {
-		if (parametersJS[keys[i]] != null) {
-			parameters.put(keys[i], parametersJS[keys[i]]);
-		}
-
-	}
-	var request = new InternalHttpServletRequest();
-	// copy session attributes for the inner call
-	var session = request.getSession(true);
+var getCurrentHttpSessionAttributes = function() {
+	let httpSessionAttributes = {};
 	var names = context.httpSession.getAttributeNames();
 	while (names.hasMoreElements()) {
 		var name = names.nextElement();
-		session.setAttribute(name, context.httpSession.getAttribute(name));
+		httpSessionAttributes[name] = context.httpSession.getAttribute(name);
 	}
-	var requester = new InternalRequester(parameters, request);
-	let response = requester.processRequest();
-	response = toJSON(XmlToJson(response.getDocumentElement(), true, true, enums.JsonOutput.JsonRoot.docNode));
-	org.apache.log4j.MDC.put("ContextualParameters", context.logParameters);
-	var ctx2 = requester.getContext();
-	theApp.contextManager.remove(ctx2);
-	return response;
+	return httpSessionAttributes;
 }
-*/
+
 /**
  * Create a hashed user name for an anonymous user based on an ID using SHA-256.
  * 

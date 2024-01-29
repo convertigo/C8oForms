@@ -1,0 +1,117 @@
+↓inputVars [steps.InputVariablesStep-1706264327436]: 
+↓_docs [steps.JsonSourceStep-1706264731359]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1706264327436
+        - java.lang.String: 
+          - ↑value: ./doc
+  variableName: _docs
+↓Execute_Sequences [steps.SimpleStep-1706263303373]: 
+  expression: |
+    'var running = false;
+    var r = new java.lang.Runnable() {
+        run: () => {
+    		// copy variables before their deletion from scope
+    		var log = log;
+    		var _log = log;
+    		var docs = _docs;
+    		// Imports and helpers functions
+    		include("js/common.js");
+    		var httpSessionAttributes = getCurrentHttpSessionAttributes();
+    		running = true;
+    		var logLevel = "warn";
+    		// start functions
+    		var checkNotAlreadyRunning = (id, rev)=>{
+    			var key = "__c8oForm_handle_ExecuteSequence_" + id + ''@'' + rev;
+    			//context.httpSession.removeAttribute(key);
+    			var cancel = context.httpSession.getAttribute(key) == true;
+    			if (!cancel) {
+    				context.httpSession.setAttribute(key, true);
+    				console.log(key + " has not been executed yet will perform it now", null, logLevel);
+    			}
+    			else{
+    				console.log(key + " has already been executed yet will perform it now"+key, null, logLevel);
+    			}
+    			return cancel;
+    		}
+    		// main code
+    		// normalize docs object
+    		if(!(docs instanceof Array)){
+    			docs = [docs];
+    		}
+    		for(var _doc of docs){
+    			var currentResponse = _doc.doc.item;
+    			// ensure doc is properly subimtted and execute sequence is not already running for this
+    			var cancel = checkNotAlreadyRunning(currentResponse._id, currentResponse._rev);
+    		
+    			if(!cancel && (currentResponse.finished == true || currentResponse.finished == "true")){
+    				// we can now walk actions.
+    				for (var h = 0; h < currentResponse.actions.submit.length; h++) {
+    				    var action = currentResponse.actions.submit[h];
+    					if(action.type == "submit"){
+    						var keys = Object.keys(action.actions);
+    						for (var i = 0; i < keys.length; i++) {
+    						    var definedAction = action.actions[keys[i]];
+    							if(definedAction.enabled){
+    								var params = {};
+    								var filesToBeDeleted = [];
+    								// we can now perform this action
+    								// get last version of published_doc associeted to this response
+    								var originalDoc = getDoc(currentResponse.formId, currentResponse.formRev, "c8oforms_fs");
+    								if(originalDoc.error){
+    									// if we can''t found version of published_doc associeted try without rev
+    									originalDoc = getDoc(currentResponse.formId, null, "c8oforms_fs");
+    								}
+    								params.originalDoc = JsonToDomElement(originalDoc);
+    								// get last version of currentResponse (in caseof another previous action having modified it)
+    								var lastResponseVersion = getDoc(currentResponse._id, null, "c8oforms_response_fs");
+    								if(lastResponseVersion.error){
+    									// if we can''t found last version of currentResponse give it current (should never happen)
+    									lastResponseVersion = currentResponse
+    								}
+    								params.doc = JsonToDomElement(lastResponseVersion);
+    								// now compute parameters
+    								var _keys = Object.keys(definedAction.vars);
+    								for (var j = 0; j < _keys.length; j++) {
+    								    var variable = definedAction.vars[_keys[j]];
+    									if(variable != undefined && variable != ""){
+    										if(variable.from_attachment != undefined && variable.from_attachment == true){
+    											var attname = variable.attchament_name;
+    											var attpath = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName("C8Oforms").getDirPath() +separator+"csv"+separator+ (new Date().getTime()+"_"+attname);
+    											attfile = new java.io.File(attpath);
+    											// query attachment
+    											fsclient.getDocumentAttachment("c8oforms_fs", currentResponse._id,attname, new HashMap(), attfile);
+    											params[_keys[j]] = attpath;
+    											filesToBeDeleted.push(attfile);
+    										}	
+    										else{
+    											params[_keys[j]] = variable;
+    										}							
+    									}
+    									
+    								}
+    								// call sequence
+    								var splitted = keys[i].split(".");
+    								var targetProjectName = splitted[0];
+    								var targetSequenceName = splitted[1];
+    								callSequenceInDuplicateSession(targetProjectName, targetSequenceName, params, httpSessionAttributes);
+    								for(var file of filesToBeDeleted){
+    									file.delete();
+    								}
+    							}
+    						}
+    					}
+    				}	
+    			}
+    		}
+    	}
+    };
+    new java.lang.Thread(r).start();
+    var cpt = 500;
+    while(running != true && --cpt){
+    	java.lang.Thread.sleep(50);
+    }'
+↓doc [variables.RequestableMultiValuedVariable-1706263370158]: 
