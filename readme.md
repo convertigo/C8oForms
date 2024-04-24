@@ -3,7 +3,7 @@
 
 # C8Oforms
 
-Convertigo No Code Studio
+Convertigo No Code Studio 
 
 ## Introducing Convertigo No Code Studio ##
 
@@ -101,6 +101,7 @@ For more technical informations : [documentation](./project.md)
             - [void](#void-1)
 - [Convertigo Forms Builder](#convertigo-forms-builder)
     - [Pages](#pages)
+        - [aiDialog](#aidialog)
         - [colorPage](#colorpage)
         - [ConditionalPage](#conditionalpage)
         - [CreatePwa](#createpwa)
@@ -123,6 +124,7 @@ For more technical informations : [documentation](./project.md)
         - [PreviewMultiple](#previewmultiple)
         - [progressPage](#progresspage)
         - [resetPasswordPage](#resetpasswordpage)
+        - [responseCompleted](#responsecompleted)
         - [selectorPage](#selectorpage)
         - [settingsPage](#settingspage)
         - [sharingPage](#sharingpage)
@@ -219,6 +221,7 @@ For more technical informations : [documentation](./project.md)
         - [dataSourceEditor](#datasourceeditor)
         - [dataSourceEditorDescription](#datasourceeditordescription)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
+        - [DraggableElementApiPalette](#draggableelementapipalette)
         - [editorToolbarButton](#editortoolbarbutton)
         - [inputMultiVal](#inputmultival)
         - [inputTextAndField](#inputtextandfield)
@@ -274,6 +277,7 @@ For more technical informations : [documentation](./project.md)
         - [listSelector](#listselector)
         - [mdReader](#mdreader)
         - [menuVersion](#menuversion)
+        - [monacoEditor](#monacoeditor)
         - [networkStatusComp](#networkstatuscomp)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
         - [PopOverSourceCompletion](#popoversourcecompletion)
@@ -316,13 +320,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=https://github.com/convertigo/C8oForms.git:branch=2.0.0-beta50.2
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=https://github.com/convertigo/C8oForms/archive/2.0.0-beta50.2.zip
      ```
      </td></tr>
     </table>
@@ -1538,6 +1542,8 @@ Describes the mobile application global properties 2
 
 ### Pages
 
+#### aiDialog
+
 #### colorPage
 
 #### ConditionalPage
@@ -1589,6 +1595,8 @@ Page to share a form, or add collaborators
 #### progressPage
 
 #### resetPasswordPage
+
+#### responseCompleted
 
 #### selectorPage
 
@@ -1859,6 +1867,9 @@ This functions is used to close an element selected on editor page
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>ai</td><td></td>
+</tr>
+<tr>
 <td>creating</td><td></td>
 </tr>
 </table>
@@ -1931,10 +1942,19 @@ This functions is used to close an element selected on editor page
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>code</td><td></td>
+</tr>
+<tr>
+<td>isTs</td><td></td>
+</tr>
+<tr>
 <td>item</td><td></td>
 </tr>
 <tr>
 <td>targetType</td><td></td>
+</tr>
+<tr>
+<td>transform_toTsMonaco</td><td></td>
 </tr>
 </table>
 #### executeGoToPageIfCondition
@@ -2663,6 +2683,27 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>apiApp</td><td></td>
+</tr>
+<tr>
+<td>apiC8o</td><td></td>
+</tr>
+<tr>
+<td>apiForm</td><td></td>
+</tr>
+<tr>
+<td>apiPage</td><td></td>
+</tr>
+<tr>
+<td>apiRouter</td><td></td>
+</tr>
+<tr>
+<td>apiTranslate</td><td></td>
+</tr>
+<tr>
+<td>apiUser</td><td></td>
+</tr>
+<tr>
 <td>currentMeta</td><td></td>
 </tr>
 <tr>
@@ -2721,10 +2762,40 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>isTs</td><td></td>
+</tr>
+<tr>
 <td>item2ActionPalette</td><td></td>
 </tr>
 <tr>
 <td>targetType</td><td></td>
+</tr>
+<tr>
+<td>transform_toTsMonaco</td><td></td>
+</tr>
+</table>
+#### DraggableElementApiPalette
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>isTs</td><td></td>
+</tr>
+<tr>
+<td>item2ActionPalette</td><td></td>
+</tr>
+<tr>
+<td>targetCode</td><td></td>
+</tr>
+<tr>
+<td>targetType</td><td></td>
+</tr>
+<tr>
+<td>transform_toTsMonaco</td><td></td>
 </tr>
 </table>
 #### editorToolbarButton
@@ -3771,6 +3842,28 @@ Update the state of a field
 </table>
 #### menuVersion
 
+#### monacoEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>code</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onBlur</td><td></td>
+</tr>
+</table>
 #### networkStatusComp
 
 #### ngxTagInputCustomC8oForms
