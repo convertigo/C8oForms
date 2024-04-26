@@ -2,18 +2,34 @@
   expression: |
     '// Imports and helpers functions
     include("js/common.js");
+    var Jsoup = use("org.jsoup.Jsoup");
     Otherkey = "Other";
     const logLevel = "warn";
     let res = {};
     // start functions
-    
     //start code
     let flatResponses;
     let csvArray = [];
+    
+    // map params
+    var formId = f;
+    var name = n;
+    var offset = o;
+    var separator = (se == ";" || se == ",") ? se : ";"
+    var encoding = (e != null && e != "") ? e : "UTF-8";
+    var string_separator = (s == "''" || s == ''"'') ? s : ''"'';
+    var column_name = c;
+    var version = v;
+    var lang = l;
+    var privacy = p;
+    
     try {
-    	flatResponses = (callSequence("C8Oforms", "APIV2_getResponses", { formId: formId, version: version, summary: false, csv: true })).document.res;
+    	flatResponses = (callSequence("C8Oforms", "APIV2_getResponses", { formId: formId, version: version, summary: false, csv: true, meta: JSON.stringify({offset, lang, authorId: privacy == "id", authorName: privacy == "name" }) })).document.res;
     	res["flatResponses"] = flatResponses;
         if(flatResponses && flatResponses.response && flatResponses.response.value){
+    		if(name == null || name =="" && flatResponses.published_form && flatResponses.published_form.name){
+    			name = flatResponses.published_form.name;
+    		}
             let key = ''id'';
             if(column_name != ''id''){
                 key = "labelHtml";
@@ -22,6 +38,13 @@
             let lineHeader = [];
             for(let header of flatResponses.response.value){
     			if(header != null){
+    				if(key == "labelHtml"){
+    					try{
+    						var doc = Jsoup.parse(header[key]);
+    						header[key] = ""+ doc.body().text();
+    					}
+    					catch(e){}
+    				}
     	            lineHeader.push(header[key]);
     			}
             }
@@ -41,6 +64,14 @@
     		}
         }
         res["csvArray"] = csvArray;
+        
+    	var options = {
+    	    fieldSeparator: separator,
+    	    stringDelimiter: string_separator,
+    	    encoding: encoding,
+    	};
+    	let fp = context.getProjectDirectory() + "/csv/" + formId + ".csv";
+        res["csvStr"] = writeArrayToCsvFile(csvArray, options, fp)
     }
     catch (e) {
         console.log("error", e, logLevel);
@@ -59,8 +90,45 @@
       - SmartType: 
         - ↑mode: PLAIN
         - →→: res
-↓formId [variables.RequestableVariable-1699366144375]: 
-  value: published_1697531850821
-↓version [variables.RequestableVariable-1699366132626]: 
-↓column_name [variables.RequestableVariable-1699366600476]: 
+↓Element [steps.XMLElementStep-1707220656205]: 
+  nodeName: attachment
+  ↓jAttribute [steps.AttributeStep-1707220656208]: 
+    nodeName: content-type
+    nodeText: application/csv
+  ↓jAttribute1 [steps.AttributeStep-1707220656211]: 
+    expression: context.getProjectDirectory() + "/csv/" + formId + ".csv";
+    nodeName: local-url
+  ↓jAttribute2 [steps.AttributeStep-1707220656214]: 
+    expression: '''toto.csv'''
+    nodeName: name
+  ↓jAttribute3 [steps.AttributeStep-1707220656217]: 
+    nodeName: type
+    nodeText: attachment
+↓f [variables.RequestableVariable-1707232389123]: 
+  comment: formId
+↓n [variables.RequestableVariable-1707232389126]: 
+  comment: name
+↓o [variables.RequestableVariable-1707232389129]: 
+  comment: offset
+  value: 0
+↓s [variables.RequestableVariable-1707232389132]: 
+  comment: separator
+  value: ;
+↓e [variables.RequestableVariable-1707232389135]: 
+  comment: encoding
+  value: UTF-8
+↓se [variables.RequestableVariable-1707232389138]: 
+  comment: string_separator
+  value: '"'
+↓c [variables.RequestableVariable-1707232389141]: 
+  comment: column_name
   value: id
+↓v [variables.RequestableVariable-1707232389144]: 
+  comment: version
+  value: 
+↓l [variables.RequestableVariable-1707232389147]: 
+  comment: lang
+  value: en
+↓p [variables.RequestableVariable-1707232389150]: 
+  comment: privacy
+  value: ${C8Oforms.default_csv_privacy =name}

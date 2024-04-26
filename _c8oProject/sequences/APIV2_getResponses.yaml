@@ -4,34 +4,88 @@
     include("js/common.js");
     Otherkey = "Other";
     const logLevel = "warn";
-    let res = {};
-    let i = 0;
-    let table = [];
+    var res = {};
+    var i = 0;
+    var table = [];
     csv = csv == "true";
+    let meta;
+    try{
+    	meta = JSON.parse(meta);
+    }
+    catch(e){
+    	
+    }
     // start functions
+    var getI18nForCsv = (key, lang) =>{
+    	if(key == "timestamp"){
+    		switch(""+lang){
+    			case "en":
+    			case "fr":
+    				return "Date";
+    			case "es":
+    				return "Fecha";
+    			case "it":
+    				return "Data";
+    			default:
+    				return "Date";
+    		}
+    	}
+    	else if(key == "author"){
+    		switch(""+lang){
+    			case "en":
+    				return "Author";
+    			case "fr":
+    				return "Auteur";
+    			case "es":
+    				return "Autor";
+    			case "it":
+    				return "Autore";
+    			default:
+    				return "Author";
+    		}
+    	}
+    	else if(key == "anonymous"){
+    		switch(""+lang){
+    			case "en":
+    				return "Anonymous user";
+    			case "fr":
+    				return "Utilisateur anonyme";
+    			case "es":
+    				return "Usuario anónimo";
+    			case "it":
+    				return "Utente anonimo";
+    			default:
+    				return "Anonymous user";
+    		}
+    	}
+    	return key;
+    	
+    }
     // used to format responses, will be used recursively
-    let extractResponse = (response, j, type, _id, responseArray, structure, csv) => {
+    
+    // used to format responses, will be used recursively
+    var extractResponse = (response, _i, type, _id, responseArray, structure, csv, opts) => {
     	switch (type) {
     		case "text":
     		case "datetime":
     		case "time":
     		case "barcode":
     			if (response.value != "") {
-    				responseArray[j].value.push(response.value);
+    				responseArray[_i].value.push(response.value);
     			}
     			break;
     		case "signature":
     		case "img":
     			if (response.value != "") {
-    				if (i == 0) {
-    					try { structure[j].att_type = response.att_type == true; } catch (e) { }
+    				if (j == 0) {
+    					try { structure[_i].att_type = response.att_type == true; } catch (e) { }
     				}
-    				if (structure[j].att_type) {
-    					let _val = context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.name);
-    					responseArray[j].value.push(_val);
+    				if (structure[_i].att_type) {
+    					var _val = context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.name);
+    					responseArray[_i].value.push(_val);
     				}
     				else {
-    					responseArray[j].value.push(response.value);
+    					responseArray[_i].value.push(response.value);
     				}
     			}
     			break;
@@ -46,86 +100,86 @@
     				else {
     					response.value = { text: "Latitude : " + response["value"]["gps"]["latitude"] + ", Longitude : " + response["value"]["gps"]["longitude"] + ", précision : " + ("" + response["value"]["gps"]["accuracy"]).split(".")[0] + " métres", gps: response["value"]["gps"] };
     				}
-    				responseArray[j].value.push(response.value);
+    				responseArray[_i].value.push(response.value);
     			}
     			break;
     		case "grid":
     			if (response.value != null && response.value != "" && JSON.stringify(response.value) != "{}") {
-    				let val;
+    				var val;
     				if (!(response.value instanceof String)) {
     					val = JSON.stringify(response.value);
     				}
     				else {
     					val = response.value;
     				}
-    				responseArray[j].value.push(val);
+    				responseArray[_i].value.push(val);
     			}
     			break;
     		case "file":
     			if (response.value != "") {
-    				let first = true;
-    				let values = [];
+    				var first = true;
+    				var values = [];
     				if (response.value instanceof Array) {
-    					for (let entryFile of response.value) {
+    					for (var entryFile of response.value) {
     						if (typeof (entryFile) === "string") {
     							values.push({ "name": entryFile.split("_C80C80_")[1], "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(entryFile) });
     						}
     					}
     				}
-    				responseArray[j].value = responseArray[j].value.concat(values);
+    				responseArray[_i].value = responseArray[_i].value.concat(values);
     			}
     			break;
     		case "checkbox":
     		case "radio":
     		case "select":
-    			for (let k in response["children"]) {
+    			for (var k in response["children"]) {
     				if (i == 0) {
-    					if (responseArray[j].value[k] == undefined) {
-    						responseArray[j].value[k] = 0;
+    					if (responseArray[_i].value[k] == undefined) {
+    						responseArray[_i].value[k] = 0;
     					}
     					if (response["children"][k].other == true) {
-    						structure[j].categories[k] = Otherkey;
+    						structure[_i].categories[k] = Otherkey;
     					}
     					else {
-    						structure[j].categories[k] = response["children"][k]["value"].length > 12 ? response["children"][k]["value"].substring(0, 12) + "..." : response["children"][k]["value"];
+    						structure[_i].categories[k] = response["children"][k]["value"].length > 12 ? response["children"][k]["value"].substring(0, 12) + "..." : response["children"][k]["value"];
     					}
     				}
     				if (response["children"][k]["selected"] == true) {
-    					responseArray[j].value[k]++
+    					responseArray[_i].value[k]++
     				}
     				if(csv){
-    					let val = responseArray[j].value;
-    					let cat = structure[j].categories;
-    					let _temp = [];
-    					for(let l = 0; l < val.length; l++){
+    					var val = responseArray[_i].value;
+    					var cat = structure[_i].categories;
+    					var _temp = [];
+    					for(var l = 0; l < val.length; l++){
     						if(val[l] == 1){
     							_temp.push(cat[l]);
     						}
     					}
-    					responseArray[j].value = _temp;
+    					responseArray[_i].value = _temp;
     				}
     			}
     			break;
     		case "checkbox_group":
-    			let offsetCreated = 0;
-    			let m = 0;
-    			for (let k in response["children"]) {
-    				structure[j]["categories"][m] = k.length > 12 ? k.substring(0, 12) + "..." : k;
-    				for (let l in response["children"][k]) {
-    					if (responseArray[j]["value"][+l] == undefined) {
-    						responseArray[j]["value"][+l] = {};
+    			var offsetCreated = 0;
+    			var m = 0;
+    			for (var k in response["children"]) {
+    				structure[_i]["categories"][m] = k.length > 12 ? k.substring(0, 12) + "..." : k;
+    				for (var l in response["children"][k]) {
+    					if (responseArray[_i]["value"][+l] == undefined) {
+    						responseArray[_i]["value"][+l] = {};
     					}
-    					if (responseArray[j]["value"][+l]["name"] == undefined) {
-    						responseArray[j]["value"][+l]["name"] = response["children"][k][l]["value"].length > 12 ? response["children"][k][l]["value"].substring(0, 12) + "..." : response["children"][k][l]["value"];
+    					if (responseArray[_i]["value"][+l]["name"] == undefined) {
+    						responseArray[_i]["value"][+l]["name"] = response["children"][k][l]["value"].length > 12 ? response["children"][k][l]["value"].substring(0, 12) + "..." : response["children"][k][l]["value"];
     					}
-    					if (responseArray[j]["value"][+l]["data"] == undefined) {
-    						responseArray[j]["value"][+l]["data"] = [];
+    					if (responseArray[_i]["value"][+l]["data"] == undefined) {
+    						responseArray[_i]["value"][+l]["data"] = [];
     					}
-    					if (responseArray[j]["value"][+l]["data"][m] == undefined) {
-    						responseArray[j]["value"][+l]["data"][m] = 0;
+    					if (responseArray[_i]["value"][+l]["data"][m] == undefined) {
+    						responseArray[_i]["value"][+l]["data"][m] = 0;
     					}
     					if (response["children"][k][l]["selected"] == true) {
-    						responseArray[j]["value"][+l]["data"][m]++;
+    						responseArray[_i]["value"][+l]["data"][m]++;
     					}
     				}
     				m++;
@@ -133,23 +187,23 @@
     			break;
     		case "radio_group":
     			m = 0;
-    			for (let k in response["children"]) {
-    				structure[j]["categories"][m] = k.substring(0, 12) + "...";
-    				for (let l in response["children_label"]) {
-    					if (responseArray[j]["value"][+l] == undefined) {
-    						responseArray[j]["value"][+l] = {};
+    			for (var k in response["children"]) {
+    				structure[_i]["categories"][m] = k.substring(0, 12) + "...";
+    				for (var l in response["children_label"]) {
+    					if (responseArray[_i]["value"][+l] == undefined) {
+    						responseArray[_i]["value"][+l] = {};
     					}
-    					if (responseArray[j]["value"][+l]["name"] == undefined) {
-    						responseArray[j]["value"][+l]["name"] = response["children_label"][+l]["value"].length > 12 ? response["children_label"][+l]["value"].substring(0, 12) + "..." : response["children_label"][+l]["value"];
+    					if (responseArray[_i]["value"][+l]["name"] == undefined) {
+    						responseArray[_i]["value"][+l]["name"] = response["children_label"][+l]["value"].length > 12 ? response["children_label"][+l]["value"].substring(0, 12) + "..." : response["children_label"][+l]["value"];
     					}
-    					if (responseArray[j]["value"][+l]["data"] == undefined) {
-    						responseArray[j]["value"][+l]["data"] = [];
+    					if (responseArray[_i]["value"][+l]["data"] == undefined) {
+    						responseArray[_i]["value"][+l]["data"] = [];
     					}
-    					if (responseArray[j]["value"][+l]["data"][m] == undefined) {
-    						responseArray[j]["value"][+l]["data"][m] = 0;
+    					if (responseArray[_i]["value"][+l]["data"][m] == undefined) {
+    						responseArray[_i]["value"][+l]["data"][m] = 0;
     					}
     					if (response["children_label"][l].value == response["children"][k]) {
-    						responseArray[j]["value"][+l]["data"][m]++;
+    						responseArray[_i]["value"][+l]["data"][m]++;
     					}
     				}
     				m++;
@@ -157,51 +211,72 @@
     			break;
     		case "slider":
     			if (response["value"] !== "") {
-    				if (structure[j]["categories"].length === 0) {
-    					structure[j]["categories"].push("");
+    				if (structure[_i]["categories"].length === 0) {
+    					structure[_i]["categories"].push("");
     				}
     				if (table == undefined) {
     					table = [];
     				}
-    				if (table[j] == undefined) {
-    					table[j] = {};
+    				if (table[_i] == undefined) {
+    					table[_i] = {};
     				}
-    				if (table[j][response["value"]] == undefined) {
-    					table[j][response["value"]] = responseArray[j]["value"].push({ data: [1], name: response["value"] }) - 1;
+    				if (table[_i][response["value"]] == undefined) {
+    					table[_i][response["value"]] = responseArray[_i]["value"].push({ data: [1], name: response["value"] }) - 1;
     				}
     				else {
-    					let index = table[j][response["value"]];
-    					let count = responseArray[j]["value"][index]["data"][0];
-    					responseArray[j]["value"][index]["data"] = [count + 1];
+    					var index = table[_i][response["value"]];
+    					var count = responseArray[_i]["value"][index]["data"][0];
+    					responseArray[_i]["value"][index]["data"] = [count + 1];
     				}
     			}
     			break;
     		case "actionValue":
     			if (response["valueType"] == "attachment") {
     				if (i == 0) {
-    					structure[j].att_type = true;
+    					structure[_i].att_type = true;
     				}
-    				responseArray[j].value.push({ "name": response.value, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
+    				responseArray[_i].value.push({ "name": response.value, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
     			}
     			else {
-    				responseArray[j].value.push(response.value);
+    				responseArray[_i].value.push(response.value);
     			}
+    			break;
+    		case "timestamp":
+    			var offsetDiff = (opts != null && opts.offsetDiff != null) ? opts.offsetDiff : 0;
+    			responseArray[_i].value.push(getFormattedDate(new Date(+response +offsetDiff)));
+    			break;
+    		case "author":
+    			if(opts && opts.transform){
+    				try {
+    					let resp = getDoc("C8Oreserved_"+response,null, "c8oforms_fs");
+    					if(!resp.error){
+    						if(resp.displayName){
+    							response = resp.displayName;
+    						}
+    						else if(resp.mail){
+    							response = resp.mail;
+    						}
+    					}
+    				}	
+    				catch(e){}
+    			}
+    			responseArray[_i].value.push(response);
     			break;
     	}
     }
     //start code
-    let published_form;
+    var published_form;
     try {
     	published_form = (callSequence("C8Oforms", "APIV2_getDocument", { id: formId })).document.res;
     }
     catch (e) {
-    
+    	var to = e;
     }
     // if authorized and exists doc
     if (published_form) {
     	//res["raw_published_form"] = published_form;
     	res["published_form"] = { name: published_form.name };
-    	let currentVersion;
+    	var currentVersion;
     	// define all existing version for this form
     	res["versions"] = createArray(published_form.version);
     	if (version && version != "") {
@@ -216,13 +291,13 @@
     	query.put(''startkey'', JSON.stringify([formId, "" + currentVersion]));
     	query.put(''endkey'', JSON.stringify([formId, "" + currentVersion]));
     	query.put("include_docs", "true");
-    	let responses;
+    	var responses;
     	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
     	res.response = { length: responses.length };
     	//res["raw_responses"] = responses;
     
-    	let sortedsIds = [];
-    	let lenActions = 0;
+    	var sortedsIds = [];
+    	var lenActions = 0;
     
     	// if we are in forms 2.0 responses, sortedsIds are stored in response itself
     	if (responses[0] && responses[0].doc && responses[0].doc.sortedsIds) {
@@ -233,11 +308,11 @@
     	// if form was created before forms 2.0 release, responses doean''t contains sortedsIds. => we can compute it from actual publidhed form
     	else if (+published_form.version == +currentVersion) {
     		published_form.pages.forEach((page, index) => {
-    			let _tempArr = published_form.formulaire.filter((x) => {
+    			var _tempArr = published_form.formulaire.filter((x) => {
     				return x.config.page == page.pageTechName;
     			}).flatMap((x) => {
     				if (x.type === "ion-card") {
-    					let prefix = x.name;
+    					var prefix = x.name;
     					const _temp_subArray = x.children.map((y) => {
     						return { path: prefix + ".children." + y.name, type: y.type };
     					});
@@ -256,12 +331,12 @@
     	// if none of both previous conditions are met, we can''t sort responses.
     	else {
     		// not sorted responses for old versions
-    		let _tempArr = [];
-    		for (let e in responses[0].doc.resp) {
+    		var _tempArr = [];
+    		for (var e in responses[0].doc.resp) {
     			x = responses[0].doc.resp[e];
     			if (x.type === "ion-card") {
-    				let prefix = x.name;
-    				for (let f in x.children) {
+    				var prefix = x.name;
+    				for (var f in x.children) {
     					y = x.children[f];
     					_tempArr.push({ path: prefix + ".children." + y.name, type: y.type });
     				}
@@ -278,33 +353,66 @@
     			lenActions = Object.keys(responses[0].doc.actionsValue).length;
     		}
     	}
+    	if(csv){
+    		let arrayCsv = [{path: ''/.doc.timestamp'', type:"timestamp", meta: {}}];
+    		if(meta){
+    			if(meta.offset){
+    				var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
+    				offset = +meta.offset;
+    				arrayCsv[0].meta.offsetDiff = offset - offSetServer;
+    			}
+    			if(meta.authorId){
+    				arrayCsv.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: false}});
+    			}
+    			else if(meta.authorName){
+    				arrayCsv.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: true}});
+    			}
+    		}
+    		sortedsIds = arrayCsv.concat(sortedsIds);
+    	}
     
     	// sorted responses for current versions
-    	let len = sortedsIds.length;
-    	let lenResponses = responses.length;
+    	var len = sortedsIds.length;
+    	var lenResponses = responses.length;
     
     	// if export to csv mode
-    	let nestedResponses;
+    	var nestedResponses;
     	if (summary != "true") {
     		nestedResponses = [];
     	}
-    	let flatResponses = [];
+    	var flatResponses = [];
     	
     	// go over each fields of the form
-    	for (let i = 0; i < len; i++) {
+    	for (var i = 0; i < len; i++) {
     		// go over each responses
-    		for (let j = 0; j < lenResponses; j++) {
+    		for (var j = 0; j < lenResponses; j++) {
     			// create resp struct
-    			let s = sortedsIds[i].path.split(".");
-    			let response = responses[j].doc.resp;
-    			let elem;
-    			for (let part of s) {
+    			var prefix = false;
+    			var s = sortedsIds[i].path.split(".");
+    			var response;
+    			if(s[0] != "/"){
+    				response = responses[j].doc.resp;
+    			}
+    			else{
+    				response = responses[j];
+    				prefix = true;
+    				s.shift();
+    			}
+    			var elem;
+    			for (var part of s) {
     				response = response[part];
     				elem = part;
     			}
     			if (response) {
     				if (j == 0) {
-    					flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, categories: [], "name": response.name };
+    					// prefix for csv as timestamp or author
+    					if(prefix){
+    						let i18nKey = getI18nForCsv(sortedsIds[i].type, (meta && meta.lang) ? meta.lang : "en");
+    						flatResponses[i] = { "id": i18nKey, att_type: false, "label": i18nKey, "labelHtml": i18nKey, "type": sortedsIds[i].type, "name": i18nKey };
+    					}
+    					else{
+    						flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, categories: [], "name": response.name };
+    					}
     					if(nestedResponses == undefined){
     						flatResponses[i]["value"] = [];
     					}
@@ -316,25 +424,26 @@
     					if(nestedResponses[j][i] == undefined){
     						nestedResponses[j][i] = { value: []};
     					}
-    					extractResponse(response, i, sortedsIds[i].type, responses[j].id, nestedResponses[j], flatResponses, csv);
+    					extractResponse(response, i, sortedsIds[i].type, responses[j].id, nestedResponses[j], flatResponses, csv, sortedsIds[i].meta);
+    					
     				}
     				else{
-    					extractResponse(response, i, sortedsIds[i].type, responses[j].id, flatResponses, flatResponses, csv);
+    					extractResponse(response, i, sortedsIds[i].type, responses[j].id, flatResponses, flatResponses, csv, null);
     				}
     				
     			}
     		}
     	}
-    	let k = +("" + flatResponses.length);
+    	var k = +("" + flatResponses.length);
     
     	// go over each actions of the form
     	for (i = 0; i < lenActions; i++) {
     		// go over each responses
-    		for (let j = 0; j < lenResponses; j++) {
+    		for (var j = 0; j < lenResponses; j++) {
     			if (responses[j].doc.actionsValue) {
-    				let keys = Object.keys(responses[j].doc.actionsValue);
-    				let indexName = keys[i];
-    				let response = responses[j].doc.actionsValue[indexName];
+    				var keys = Object.keys(responses[j].doc.actionsValue);
+    				var indexName = keys[i];
+    				var response = responses[j].doc.actionsValue[indexName];
     				if (response) {
     					response.type = "actionValue";
     					if (j == 0) {
@@ -350,10 +459,10 @@
     						if(nestedResponses[j][k + i] == undefined){
     							nestedResponses[j][k + i] = { value: []};
     						}
-    						extractResponse(response, k + i, response.type, responses[j].id, nestedResponses[j], flatResponses, csv);
+    						extractResponse(response, k + i, response.type, responses[j].id, nestedResponses[j], flatResponses, csv, null);
     					}
     					else{
-    						extractResponse(response, k + i, response.type, responses[j].id, flatResponses, flatResponses, csv);
+    						extractResponse(response, k + i, response.type, responses[j].id, flatResponses, flatResponses, csv, null);
     					}
     				}
     			}
@@ -390,3 +499,4 @@
   value: true
 ↓csv [variables.RequestableVariable-1699367933220]: 
   value: false
+↓meta [variables.RequestableVariable-1707225958131]: 

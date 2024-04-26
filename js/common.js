@@ -309,6 +309,63 @@ let deleteDir = function(dirName) {
 	FileUtils.deleteDirectory(new File(dirName));
 }
 
+// This function writes an array of data to a CSV file.
+let writeArrayToCsvFile = function(data, options, filePath) {
+    // Create an OutputStreamWriter with the specified encoding.
+    var outputStreamWriter = new java.io.OutputStreamWriter(
+        new java.io.FileOutputStream(filePath),
+        options.encoding
+    );
+
+    // Set the field separator. If not provided in options, default to ','.
+    var fieldSeparator = options.fieldSeparator || ',';
+
+    // Set the string delimiter. If not provided in options, default to '"'.
+    var stringDelimiter = options.stringDelimiter || '"';
+
+    // Set the line separator. This is currently hardcoded to '\r\n'.
+    var lineSeparator = '\r\n';
+
+    // Iterate over each row in the data array.
+    data.forEach(function(row) {
+        // Map each field in the row to a CSV-compliant string.
+        var csvLine = row.map(function(field) {
+            if (typeof field === 'string') {
+                // If the field is a string, escape the string delimiter if it is present in the field.
+                field = field.replace(new RegExp(stringDelimiter, 'g'), stringDelimiter + stringDelimiter);
+                // Enclose the field with the string delimiter.
+                return stringDelimiter + field + stringDelimiter;
+            }
+            // If the field is not a string, return it as is.
+            return field;
+        }).join(fieldSeparator) + lineSeparator; // Join all fields with the field separator and append the line separator.
+        
+        // Write the CSV line to the file.
+        outputStreamWriter.write(csvLine);
+    });
+    
+    // Flush the OutputStreamWriter to ensure all data is written to the file.
+    outputStreamWriter.flush();
+
+    // Close the OutputStreamWriter.
+    outputStreamWriter.close();
+}
+
+let getFormattedDate = function(date){
+		var year = date.getFullYear();
+		var month = (date.getMonth() + 1).toString();
+		var formatedMonth = (month.length === 1) ? ("0" + month) : month;
+		var day = date.getDate().toString();
+		var formatedDay = (day.length === 1) ? ("0" + day) : day;
+		var hour = date.getHours().toString();
+		var formatedHour = (hour.length === 1) ? ("0" + hour) : hour;
+		var minute = date.getMinutes().toString();
+		var formatedMinute = (minute.length === 1) ? ("0" + minute) : minute;
+		var second = date.getSeconds().toString();
+		var formatedSecond = (second.length === 1) ? ("0" + second) : second;
+        return formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + ':' + formatedMinute + ':' + formatedSecond;
+}
+
 Object.defineProperty(Array.prototype, 'flatMap', {
 	enumerable: false,
 	value: function (f, ctx) {
