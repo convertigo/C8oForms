@@ -15,13 +15,22 @@
     var formId = f;
     var name = n;
     var offset = o;
-    var separator = (se == ";" || se == ",") ? se : ";"
+    var separator = (s == ";" || s == ",") ? s : ";"
     var encoding = (e != null && e != "") ? e : "UTF-8";
-    var string_separator = (s == "''" || s == ''"'') ? s : ''"'';
+    var string_separator = (se == "''" || se == ''"'') ? se : ''"'';
     var column_name = c;
     var version = v;
     var lang = l;
     var privacy = p;
+    var reverse_separator = (separator == ";" ? "," : ";");
+    
+    /** 
+    	rename name of attachment to prevent from ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_DISPOSITION
+    	it seems that filename must not conatins any unicode char
+    	using doble quotes around name prevent us from this error
+    */ 
+    var nameWithoutUnicode = (''"''+name+''"'') + ".csv";
+    
     
     try {
     	flatResponses = (callSequence("C8Oforms", "APIV2_getResponses", { formId: formId, version: version, summary: false, csv: true, meta: JSON.stringify({offset, lang, authorId: privacy == "id", authorName: privacy == "name" }) })).document.res;
@@ -30,13 +39,13 @@
     		if(name == null || name =="" && flatResponses.published_form && flatResponses.published_form.name){
     			name = flatResponses.published_form.name;
     		}
-            let key = ''id'';
+            var key = ''id'';
             if(column_name != ''id''){
                 key = "labelHtml";
             }
             // build first line of the csv with headers
             let lineHeader = [];
-            for(let header of flatResponses.response.value){
+            for(var header of flatResponses.response.value){
     			if(header != null){
     				if(key == "labelHtml"){
     					try{
@@ -45,20 +54,50 @@
     					}
     					catch(e){}
     				}
-    	            lineHeader.push(header[key]);
+    				if(header["type"] == "checkbox_group" || header["type"] == "radio_group"){
+    					for(var cat of header["categories"]){
+    						lineHeader.push(header[key] + "_" + cat);
+    					}
+    				}
+    				else{
+    					lineHeader.push(header[key]);
+    				}
+    	            
     			}
             }
             csvArray.push(lineHeader);
             // build each response line of the csv
-            for(let nestedResponse of flatResponses.response.nestedResponses){
-    			let currentLineResponse = [];
-    			let i = 0;
-    			for(let col of nestedResponse){
-    				//let targetType = flatResponses.response.value[i].type;
+            for(var nestedResponse of flatResponses.response.nestedResponses){
+    			var currentLineResponse = [];
+    			var i = 0;
+    			for(var col of nestedResponse){
     				if(col != null){
-    					currentLineResponse.push(col.value.join(","));
+    					switch(col.type){
+    						case "radio_group" :
+    						case "checkbox_group" :
+    								for(var subcol of col.value){
+    									for(var j = 0; j < subcol.data.length; j++){
+    										if(currentLineResponse[i+j] == null){
+    											currentLineResponse[i+j] = "";
+    										}
+    										if(subcol.data[j] == 1){
+    											currentLineResponse[i+j] += (currentLineResponse[i+j].length > 0 ? reverse_separator : "") + subcol.name;
+    										}
+    									}
+    								}
+    								i = i + col.value[0].data.length;
+    							break;
+    						default:
+    							currentLineResponse.push(col.value.join(","));
+    							i++;
+    							break;
+    					}
+    					
     				}
-    				i++;
+    				else{
+    					i++;
+    				}
+    				
     			}
     			csvArray.push(currentLineResponse);
     		}
@@ -99,7 +138,7 @@
     expression: context.getProjectDirectory() + "/csv/" + formId + ".csv";
     nodeName: local-url
   ↓jAttribute2 [steps.AttributeStep-1707220656214]: 
-    expression: '''toto.csv'''
+    expression: nameWithoutUnicode
     nodeName: name
   ↓jAttribute3 [steps.AttributeStep-1707220656217]: 
     nodeName: type

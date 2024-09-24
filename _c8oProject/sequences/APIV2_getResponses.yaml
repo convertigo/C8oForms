@@ -9,6 +9,7 @@
     var table = [];
     csv = csv == "true";
     let meta;
+    let max_len = 120;
     try{
     	meta = JSON.parse(meta);
     }
@@ -127,50 +128,57 @@
     					}
     				}
     				responseArray[_i].value = responseArray[_i].value.concat(values);
+    				// if for csv just give file url
+    				if(csv){
+    					responseArray[_i].value = responseArray[_i].value.map((x)=>{
+    						return x.url;
+    					})
+    				}
     			}
     			break;
     		case "checkbox":
     		case "radio":
     		case "select":
     			for (var k in response["children"]) {
+    				if (responseArray[_i].value[k] == undefined) {
+    					responseArray[_i].value[k] = 0;
+    				}
     				if (j == 0) {
-    					if (responseArray[_i].value[k] == undefined) {
-    						responseArray[_i].value[k] = 0;
-    					}
     					if (response["children"][k].other == true) {
     						structure[_i].categories[k] = Otherkey;
     					}
     					else {
-    						structure[_i].categories[k] = response["children"][k]["value"].length > 12 ? response["children"][k]["value"].substring(0, 12) + "..." : response["children"][k]["value"];
+    						structure[_i].categories[k] = response["children"][k]["value"].length > max_len ? response["children"][k]["value"].substring(0, max_len) + "..." : response["children"][k]["value"];
     					}
     				}
     				if (response["children"][k]["selected"] == true) {
     					responseArray[_i].value[k]++
     				}
-    				if(csv){
-    					var val = responseArray[_i].value;
-    					var cat = structure[_i].categories;
-    					var _temp = [];
-    					for(var l = 0; l < val.length; l++){
-    						if(val[l] == 1){
-    							_temp.push(cat[l]);
-    						}
+    			}
+    			// if for csv replace number of occurence by structure value
+    			if(csv){
+    				var val = responseArray[_i].value;
+    				var cat = structure[_i].categories;
+    				var _temp = [];
+    				for(var l = 0; l < val.length; l++){
+    					if(val[l] == 1){
+    						_temp.push(cat[l]);
     					}
-    					responseArray[_i].value = _temp;
     				}
+    				responseArray[_i].value = _temp;
     			}
     			break;
     		case "checkbox_group":
     			var offsetCreated = 0;
     			var m = 0;
     			for (var k in response["children"]) {
-    				structure[_i]["categories"][m] = k.length > 12 ? k.substring(0, 12) + "..." : k;
+    				structure[_i]["categories"][m] = k.length > max_len ? k.substring(0, max_len) + "..." : k;
     				for (var l in response["children"][k]) {
     					if (responseArray[_i]["value"][+l] == undefined) {
     						responseArray[_i]["value"][+l] = {};
     					}
     					if (responseArray[_i]["value"][+l]["name"] == undefined) {
-    						responseArray[_i]["value"][+l]["name"] = response["children"][k][l]["value"].length > 12 ? response["children"][k][l]["value"].substring(0, 12) + "..." : response["children"][k][l]["value"];
+    						responseArray[_i]["value"][+l]["name"] = response["children"][k][l]["value"].length > max_len ? response["children"][k][l]["value"].substring(0, max_len) + "..." : response["children"][k][l]["value"];
     					}
     					if (responseArray[_i]["value"][+l]["data"] == undefined) {
     						responseArray[_i]["value"][+l]["data"] = [];
@@ -184,17 +192,21 @@
     				}
     				m++;
     			}
+    			// if for csv add type to allow more complexe computations in APIV2_CSV sequence
+    			if(csv){
+    				responseArray[_i].type = type;
+    			}
     			break;
     		case "radio_group":
     			m = 0;
     			for (var k in response["children"]) {
-    				structure[_i]["categories"][m] = k.substring(0, 12) + "...";
+    				structure[_i]["categories"][m] = k.length > max_len ? k.substring(0, max_len) + "..." : k;
     				for (var l in response["children_label"]) {
     					if (responseArray[_i]["value"][+l] == undefined) {
     						responseArray[_i]["value"][+l] = {};
     					}
     					if (responseArray[_i]["value"][+l]["name"] == undefined) {
-    						responseArray[_i]["value"][+l]["name"] = response["children_label"][+l]["value"].length > 12 ? response["children_label"][+l]["value"].substring(0, 12) + "..." : response["children_label"][+l]["value"];
+    						responseArray[_i]["value"][+l]["name"] = response["children_label"][+l]["value"].length > max_len ? response["children_label"][+l]["value"].substring(0, max_len) + "..." : response["children_label"][+l]["value"];
     					}
     					if (responseArray[_i]["value"][+l]["data"] == undefined) {
     						responseArray[_i]["value"][+l]["data"] = [];
@@ -207,6 +219,10 @@
     					}
     				}
     				m++;
+    			}
+    			// if for csv add type to allow more complexe computations in APIV2_CSV sequence
+    			if(csv){
+    				responseArray[_i].type = type;
     			}
     			break;
     		case "slider":
@@ -227,6 +243,12 @@
     					var index = table[_i][response["value"]];
     					var count = responseArray[_i]["value"][index]["data"][0];
     					responseArray[_i]["value"][index]["data"] = [count + 1];
+    				}
+    				if(csv){
+    					let responded = responseArray[_i]["value"][0].data[0] === 1;
+    					if(responded){
+    						responseArray[_i]["value"] = [responseArray[_i]["value"][0].name];
+    					}
     				}
     			}
     			break;
