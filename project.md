@@ -93,7 +93,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-vonage-ui-ngx/tree/8.0.0#r
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") libApexCharts
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/096fe166f8730df5dbe08c7fd4945035bb0aed32#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/8.3.0#readme)
 </p></blockquote></details>
 </p></blockquote></details>
 
