@@ -26,8 +26,12 @@
             if (props.content instanceof URL) {
                 props.content.search = "";
                 let file: File = page.getInstance(File);
-                let fileName = props.content.href.substring(props.content.href.lastIndexOf("/") + 1);
-                let path =  props.content.href.substring(0,props.content.href.lastIndexOf("/") + 1);
+                let href = props.content.href;
+				if (window["Ionic"]?.WebView?.convertFileSrc) {
+					href = href.replace(window["Ionic"].WebView.convertFileSrc("file:///"), 'file:///');
+				}
+                let fileName = href.substring(href.lastIndexOf("/") + 1);
+                let path =  href.substring(0, href.lastIndexOf("/") + 1);
                 file.readAsArrayBuffer(path, fileName)
                 .then((res)=>{
                     params["content"] = new Blob([new Uint8Array(res)], { type: props.content_type });

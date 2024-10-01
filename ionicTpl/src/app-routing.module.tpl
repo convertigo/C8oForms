@@ -1,4 +1,5 @@
 import { NgModule } from '@angular/core';
+
 import { PreloadAllModules, RouterModule, Routes, Router, UrlHandlingStrategy, UrlTree, UrlSegmentGroup, UrlSegment } from '@angular/router';
 
 class urlHandlingStrategy implements UrlHandlingStrategy{
@@ -44,7 +45,7 @@ const routes: Routes = [
   exports: [RouterModule]
 })
 export class AppRoutingModule {
-	constructor(private _router: Router){
-		this._router.urlHandlingStrategy = new urlHandlingStrategy();
+  constructor(private _router: Router){
+		//this._router.urlHandlingStrategy = new urlHandlingStrategy();
 	}
-}
+ }

@@ -58,7 +58,6 @@ export class AppComponent extends C8oPageBase {
     /*Begin_c8o_AppDeclaration*/
     /*End_c8o_AppDeclaration*/
 	
-//  	constructor(private platform: Platform, private splashScreen: SplashScreen, private statusBar: StatusBar) {
     constructor(private platform: Platform, private splashScreen: SplashScreen, private statusBar: StatusBar, routerProvider: C8oRouter, private route: ActivatedRoute, private angularRouter: Router, loadingCtrl: LoadingController, sanitizer: DomSanitizer, ref: ChangeDetectorRef, injector: Injector, menuCtrl: MenuController, public translate: TranslateService){
         super(injector, routerProvider, loadingCtrl, ref);
         this.events = this.getInstance(Events);
@@ -128,7 +127,7 @@ export class AppComponent extends C8oPageBase {
                 this.resetImageCache();
                 /*Begin_c8o_AppInitialization*/
                 /*End_c8o_AppInitialization*/
-                this.appInit.next();
+                this.appInit.next(null); //this.appInit.next();
             });
 
         });

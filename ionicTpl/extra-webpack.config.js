@@ -8,11 +8,7 @@ var oldMessage2 ="";
 var oldMessage3 ="";
 
 module.exports = {
-	resolve: {
-	    fallback: {
-	      'perf_hooks': false
-	    }
-	  },
+    parallelism: 50,
     module: {
         strictExportPresence: false,
     },
@@ -30,7 +26,6 @@ module.exports = {
 					oldMessage2 = msg2;
 					oldMessage3 = msg3;
 				}
-                
             }
         }),
 

@@ -1,4 +1,4 @@
-import { NgModule, ErrorHandler } 							from '@angular/core';
+import { NgModule, CUSTOM_ELEMENTS_SCHEMA, ErrorHandler, provideExperimentalZonelessChangeDetection }	from '@angular/core';
 import { HttpClient, HttpClientModule, HTTP_INTERCEPTORS } 	from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule }   				from '@angular/forms';
 import { BrowserModule } 									from '@angular/platform-browser';
@@ -34,8 +34,6 @@ export function createTranslateLoader(http: HttpClient) {
   declarations: [/*Begin_c8o_NgDeclarations*/
   	AppComponent,
   /*End_c8o_NgDeclarations*/],
-  entryComponents: [/*Begin_c8o_NgComponents*/
-  /*End_c8o_NgComponents*/],
   imports: [/*Begin_c8o_NgModules*/
     BrowserModule,
     BrowserAnimationsModule,
@@ -53,14 +51,14 @@ export function createTranslateLoader(http: HttpClient) {
       enabled: /*=c8o_ServiceWorkerEnabled*/,
       // Register the ServiceWorker as soon as the app is stable
       // or after 30 seconds (whichever comes first).
-      registrationStrategy: 'registerImmediately'
+      registrationStrategy: 'registerWhenStable:30000'
     }),
 	IonicModule.forRoot(), 
 	AppRoutingModule,
   /*End_c8o_NgModules*/],
-  providers: [
-	{provide: APP_BASE_HREF, useValue:window.location.href.indexOf("DisplayObjects") != -1 ? window.location.href.indexOf("DisplayObjects/mobile") != -1 ? "/convertigo/projects/C8Oforms/DisplayObjects/mobile/" : "/" + window.location.href.split("/").slice(window.location.href.split("/").indexOf("convertigo"),window.location.href.split("/").indexOf("DisplayObjects") +3).join("/")+"/": "/"},
-	/*Begin_c8o_NgProviders*/
+  providers: [/*Begin_c8o_NgProviders*/
+    provideExperimentalZonelessChangeDetection(),
+    {provide: APP_BASE_HREF, useValue:window.location.href.indexOf("DisplayObjects") != -1 ? window.location.href.indexOf("DisplayObjects/mobile") != -1 ? "/convertigo/projects/C8Oforms/DisplayObjects/mobile/" : "/" + window.location.href.split("/").slice(window.location.href.split("/").indexOf("convertigo"),window.location.href.split("/").indexOf("DisplayObjects") +3).join("/")+"/": "/"},
     StatusBar,
     SplashScreen,
     C8o,
@@ -73,6 +71,7 @@ export function createTranslateLoader(http: HttpClient) {
     },
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy }
   /*End_c8o_NgProviders*/],
+  schemas: [ CUSTOM_ELEMENTS_SCHEMA ],
   bootstrap: [AppComponent]
 })
 export class AppModule {}

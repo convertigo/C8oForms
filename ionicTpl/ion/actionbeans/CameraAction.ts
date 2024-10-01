@@ -507,9 +507,16 @@
             camera.getPicture(options)
                 .then((imageData) => {
                     page.router.c8o.log.debug("[MB] CameraAction: ", imageData.substring(0, Math.min(150, imageData.length)));
-                    if (props.destinationType == "FILE_URL") {
-                        resolve(new URL(imageData));
+                    if (props.destinationType != "DATA_URL") {
+						if (window['Ionic']?.WebView?.convertFileSrc) {
+							resolve(window['Ionic'].WebView.convertFileSrc(imageData));
+						} else {
+                        	resolve(new URL(imageData));
+                        }
                     } else {
+						if (!imageData.startsWith("data:")) {
+							imageData = "data:;base64," + imageData;
+						}
                         resolve(imageData);
                     }
                     
