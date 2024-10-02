@@ -42,52 +42,159 @@
     let mergeRules = new HashMap();
     mergeRules.put(java.util.Arrays.asList(new java.lang.String("tag")), new java.lang.String("override"));
     
-    
-    
-    for(let i = 0; i < id.length; i++){
-    	let doc = getDoc(id[i], rev[i], db);
-    	// now check if doc is authorized for currentUser in this case, tags or subtags can be modified by creator, or collabs
-    	if (doc["creator"] == authenticatedUserID) {
-    		authGranted = true;
-    	}
-    	else if(doc.collabs != undefined && doc.collabs.indexOf != undefined && doc.collabs.indexOf(authenticatedUserID) != -1){
-    		authGranted = true;
-    	}
-    	else{
-    		res.error = true;
-    	}
-    	if(authGranted){
-    		let _put = { _id: doc._id, _rev: doc._rev};
-    		let tag;
-    		if(doc.tag != null){
-    			tag = doc.tag;
+    if(meta.c8o_view_type_drafts_folder == true || meta.c8o_view_type_published_folder ==true){
+    	let targetDB = "c8oforms_fs";
+    	var mangoquery =
+    		{
+    			selector: 
+    				{
+    			      "tag": {
+    			         "$elemMatch": {
+    			            "$eq": ""
+    			         }
+    			      }
+    			   }
+    			,
+    			fields: [
+    				"_id", "_rev", "tag", "~c8oAcl", "c8o_view_type_drafts_folder", "c8o_view_type_published_folder"
+    			],
+    			sort: [
+    				{ "_id": "desc" }
+    			]
     		}
-    		else{
-    			tag = [];
+    		mangoquery.selector.tag["$elemMatch"]["$eq"] = meta.folderName;
+    		if(meta.c8o_view_type_drafts_folder == true){
+    			mangoquery.selector.c8o_view_type_drafts_folder = true;
     		}
-    		if(meta.action == "add"){
-    			tag.push(meta.tag);
+    		else if(meta.c8o_view_type_published_folder == true){
+    			mangoquery.selector.c8o_view_type_published_folder = true;
     		}
-    		else if(meta.action == "remove"){
-    			console.log("remove, meta tag", meta.tag, loglevel);
-    			let index = tag.indexOf(meta.tag);
-    			console.log("remove, index", ""+index, loglevel);
-    			if (index != -1) {
-    			console.log("remove, tag before", tag, loglevel);
-    			  tag.splice(index, 1);
-    			 console.log("remove, tag after", tag, loglevel);
+    		mangoquery.sort = mangoquery.sort;
+    		mangoquery.limit = 10000;
+    		mangoquery.execution_stats = true;
+    		var res2 = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
+    		console.log("res mango query", res2, loglevel);
+    		if(res2 && res2.docs && res2.docs[0]){
+    			var docFolder = res2.docs[0];
+    			if(docFolder["~c8oAcl"] == authenticatedUserID){
+    				// granted for deletion of folder doc itself (doesn''t always exists)
+    				var resdeletefolder = callSequence("C8Oforms", "APIV2_deleteDocument", { id: docFolder._id, rev: docFolder._rev });
+    				if(resdeletefolder && resdeletefolder.document && resdeletefolder.document.res && resdeletefolder.document.res.error == true){
+    					res.error = true;
+    					res[docFolder._id] = "notGranted";
+    				}
     			}
     		}
-    		_put.tag = tag;
-    		doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(_put), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
-    		console.log("doc", doc, loglevel);
-    		res[doc.id] = doc;
-    	}
-    	else{
-    		console.log("notGranted", id[i], loglevel);
-    		res[doc.id] = "notGranted";
+    		query = new java.util.HashMap();
+    		query.put(''reduce'', ''false'');
+    		query.put(''startkey'', JSON.stringify([meta.folderName]));
+    		query.put(''endkey'', JSON.stringify([meta.folderName, {}]));
+    		query.put("include_docs", "true");
+    		keys = toJettison([meta.folderName]);
+    		var rows = toJSON(fsclient.getView("c8oforms_fs", (meta.c8o_view_type_drafts_folder == true ? "formsV2" : "published_formsV2" ), ''in_folders'', query)).rows;
+    		console.log("rows", rows, loglevel);
+    		for(let row of rows){
+    			doc = row.doc;
+    			// now check if doc is authorized for currentUser in this case, tags or subtags can be modified by creator, or collabs
+    			if (doc["creator"] == authenticatedUserID) {
+    				authGranted = true;
+    			}
+    			else if(doc.collabs != undefined && doc.collabs.indexOf != undefined && doc.collabs.indexOf(authenticatedUserID) != -1){
+    				authGranted = true;
+    			}
+    			else{
+    				res.error = true;
+    			}
+    			if(authGranted){
+    				let _put = { _id: doc._id, _rev: doc._rev};
+    				var tag;
+    				if(doc.tag != null){
+    					tag = doc.tag;
+    				}
+    				else{
+    					tag = [];
+    				}
+    				if(meta.action == "removeAll"){
+    					var resRemoveAll = callSequence("C8Oforms", "APIV2_deleteDocument", { id: doc._id, rev: doc._rev });
+    					if(resRemoveAll && resRemoveAll.document && resRemoveAll.document.res && resRemoveAll.document.res.error == true){
+    						res.error = true;
+    						res[docFolder._id] = "notGranted";
+    					}
+    				}
+    				else{
+    					if(meta.action == "remove"){
+    						console.log("remove, meta tag", meta.folderName, loglevel);
+    						let index = tag.indexOf(meta.folderName);
+    						console.log("remove, index", ""+index, loglevel);
+    						if (index != -1) {
+    						console.log("remove, tag before", meta.folderName, loglevel);
+    						  tag.splice(index, 1);
+    						 console.log("remove, tag after", tag, loglevel);
+    						}
+    					}
+    					_put.tag = tag;
+    					doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(_put), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    					console.log("doc", doc, loglevel);
+    					res[doc.id] = doc;
+    				}
+    				
+    			}
+    			else{
+    				console.log("notGranted", id[i], loglevel);
+    				res[doc.id] = "notGranted";
+    			}
+    		}
+    	
+    }
+    else{
+    	for(let i = 0; i < id.length; i++){
+    		let doc = getDoc(id[i], rev[i], db);
+    		// now check if doc is authorized for currentUser in this case, tags or subtags can be modified by creator, or collabs
+    		if (doc["creator"] == authenticatedUserID) {
+    			authGranted = true;
+    		}
+    		else if(doc.collabs != undefined && doc.collabs.indexOf != undefined && doc.collabs.indexOf(authenticatedUserID) != -1){
+    			authGranted = true;
+    		}
+    		else{
+    			res.error = true;
+    		}
+    		if(authGranted){
+    			let _put = { _id: doc._id, _rev: doc._rev};
+    			let tag;
+    			if(doc.tag != null){
+    				tag = doc.tag;
+    			}
+    			else{
+    				tag = [];
+    			}
+    			if(meta.action == "add"){
+    				tag.push(meta.tag);
+    			}
+    			else if(meta.action == "remove"){
+    				console.log("remove, meta tag", meta.tag, loglevel);
+    				let index = tag.indexOf(meta.tag);
+    				console.log("remove, index", ""+index, loglevel);
+    				if (index != -1) {
+    				console.log("remove, tag before", tag, loglevel);
+    				  tag.splice(index, 1);
+    				 console.log("remove, tag after", tag, loglevel);
+    				}
+    			}
+    			_put.tag = tag;
+    			doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(_put), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    			console.log("doc", doc, loglevel);
+    			res[doc.id] = doc;
+    		}
+    		else{
+    			console.log("notGranted", id[i], loglevel);
+    			res[doc.id] = "notGranted";
+    		}
     	}
     }
+    
+    
+    
     
     '
 ↓object2 [steps.JsonToXmlStep-1699637342774]: 
