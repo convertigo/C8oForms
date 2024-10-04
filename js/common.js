@@ -213,7 +213,14 @@ let deleteDoc = function(id, rev, db) {
 	if (!db) {
 		db = "c8oforms_fs";
 	}
-	let doc = toJSON(fsclient.deleteDocument(db, id, rev));
+	var doc;
+	if(rev != null){
+		 doc = toJSON(fsclient.deleteDocument(db, id, rev));
+	}
+	else{
+		docRev = getDoc(id, null, db);
+		doc = toJSON(fsclient.deleteDocument(db, id, docRev._rev));
+	}
 	return doc;
 }
 
