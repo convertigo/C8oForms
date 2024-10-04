@@ -155,7 +155,9 @@ var getCurrentHttpSessionAttributes = function() {
 	var names = context.httpSession.getAttributeNames();
 	while (names.hasMoreElements()) {
 		var name = names.nextElement();
-		httpSessionAttributes[name] = context.httpSession.getAttribute(name);
+		if(name != "__c8o:contexts__"){
+			httpSessionAttributes[name] = context.httpSession.getAttribute(name);
+		}
 	}
 	return httpSessionAttributes;
 }
