@@ -12,37 +12,86 @@
     	meta = {};
     }
     
-    let addAnonymousToGroup = function (id, creator) {
+    var addAnonymousToGroup = function (id, creator) {
     	userNameAnonymous = createUserNameForAnonymous(id);
-    	let group = "_C8O_HIDDEN_" + id;
+    	var group = "_C8O_HIDDEN_" + id;
     	callSequence("lib_UserManager", "AddUser", { user: userNameAnonymous, password: userNameAnonymous });
     	callSequence("lib_FullSyncGrp", "SetUserInGroup", { user: creator, group: group });
     	callSequence("lib_FullSyncGrp", "SetUserInGroup", { user: userNameAnonymous, group: group });
     	return userNameAnonymous;
     }
     
-    let removeAnonymousFromGroup = function (id) {
+    var removeAnonymousFromGroup = function (id) {
     	userNameAnonymous = createUserNameForAnonymous(id);
     	callSequence("lib_UserManager", "DeleteUser", { user: userNameAnonymous });
     	return userNameAnonymous;
     }
     
-    let res = {};
+    let postPublishAnonymous = function (doc, new_doc_published, create_new_anonymous) {
+    	//evaluate if we already have new_doc_published or get it
+    	if (!new_doc_published) {
+    		new_doc_published = toJSON(fsclient.getDocument("c8oforms_fs", "published_" + doc._id));
+    	}
+    	// create future new_doc_published_anonymous to post
+    	let new_doc_published_anonymous = {};
+    	// now build and publish shared anonymous document
+    	let userNameAnonymous = null;
+    	if (create_new_anonymous) {
+    		// compute new id
+    		new_doc_published_anonymous._id = new_doc_published._id + "_anonymous";
+    
+    		// get existing published anonymous doc if exists
+    		let doc_published_anonymous = toJSON(fsclient.getDocument("c8oforms_fs", new_doc_published_anonymous._id));
+    		console.log("doc_published_anonymous", doc_published_anonymous, logLevel);
+    
+    		//affect old vars from doc_published_anonymous to new_doc_published_anonymous
+    		new_doc_published_anonymous.parentId = response_published.id;
+    		new_doc_published_anonymous.parentRev = response_published.rev;
+    		new_doc_published_anonymous.creator = doc.creator;
+    		new_doc_published_anonymous.descForm = doc.descForm;
+    		new_doc_published_anonymous.descformPosition = doc.descformPosition;
+    		new_doc_published_anonymous.name = doc.name;
+    		new_doc_published_anonymous.namePosition = doc.namePosition;
+    		new_doc_published_anonymous.respNameRequired = doc.respNameRequired;
+    		new_doc_published_anonymous.formulaire = doc.formulaire;
+    		new_doc_published_anonymous.pages = doc.pages;
+    		new_doc_published_anonymous.actions = doc.actions;
+    		new_doc_published_anonymous.wallpaper = doc.wallpaper;
+    		new_doc_published_anonymous.version = new_doc_published.version;
+    		new_doc_published_anonymous.sharedAnonymous = new_doc_published.sharedAnonymous;
+    		new_doc_published_anonymous["~c8oAcl"] = userNameAnonymous != null ? userNameAnonymous : doc_published_anonymous["~c8oAcl"];
+    		new_doc_published_anonymous.sharedAnonymous = new_doc_published.sharedAnonymous;
+    
+    		// prepare merge params
+    		let mergeRules = new HashMap();
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("formulaire")), new java.lang.String("override"));
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("pages")), new java.lang.String("override"));
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("actions")), new java.lang.String("override"));
+    		// post new_doc_published_anonymous
+    		console.log("new_doc_published_anonymous", new_doc_published_anonymous, logLevel);
+    		let response_published_anonymous = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_published_anonymous), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    		console.log("response_published_anonymous", response_published_anonymous, logLevel);
+    	}
+    	return { userNameAnonymous: userNameAnonymous, new_doc_published_anonymous: new_doc_published_anonymous };
+    }
+    
+    var res = {};
     
     // get doc and check rights
-    let doc = callSequence("C8Oforms", "APIV2_getDocument", { id: id }).document.res;
+    var doc = callSequence("C8Oforms", "APIV2_getDocument", { id: id }).document.res;
     
     if (doc) {
-    	let sharedAnonymous = meta.sharedAnonymous == true || meta.sharedAnonymous == "true"
-    	let new_doc_published = {_id: id,sharedAnonymous: sharedAnonymous};
-    	let response_published = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_published), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false));
+    	var sharedAnonymous = meta.sharedAnonymous == true || meta.sharedAnonymous == "true"
+    	var new_doc_published = {_id: id,sharedAnonymous: sharedAnonymous};
+    	var response_published = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(new_doc_published), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false));
     	if(sharedAnonymous){
     		addAnonymousToGroup(id, doc.creator);
+    		postPublishAnonymous(doc, doc, true);
     	}
     	else{
     		removeAnonymousFromGroup(id);
     	}
-    	let final_doc = callSequence("C8Oforms", "APIV2_getDocument", { id: id }).document.res;
+    	var final_doc = callSequence("C8Oforms", "APIV2_getDocument", { id: id }).document.res;
     	res.sharedAnonymous = final_doc.sharedAnonymous;
     }
     else {
