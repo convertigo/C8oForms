@@ -3109,6 +3109,52 @@ scriptContent:
         			return structure;
         		}
             }
+            
+            public async readableStreamToDataURL(stream) {
+        	  // Step 1: Read the stream into a Blob
+        	  const reader = stream.getReader();
+        	  const chunks = [];
+        	  let done = false;
+        	
+        	  while (!done) {
+        	    const { value, done: streamDone } = await reader.read();
+        	    if (value) {
+        	      chunks.push(value);
+        	    }
+        	    done = streamDone;
+        	  }
+        	
+        	  // Convert chunks into a Blob
+        	  const blob = new Blob(chunks);
+        	
+        	  // Step 2: Convert Blob to Data URL
+        	  return new Promise((resolve, reject) => {
+        	    const reader = new FileReader();
+        	    reader.onloadend = () => resolve(reader.result);
+        	    reader.onerror = reject;
+        	    reader.readAsDataURL(blob);
+        	  });
+        	}
+        	
+        	public async readableStreamToBlob(stream) {
+        	  // Step 1: Read the stream into a Blob
+        	  const reader = stream.getReader();
+        	  const chunks = [];
+        	  let done = false;
+        	
+        	  while (!done) {
+        	    const { value, done: streamDone } = await reader.read();
+        	    if (value) {
+        	      chunks.push(value);
+        	    }
+        	    done = streamDone;
+        	  }
+        	
+        	  // Convert chunks into a Blob
+        	 	return new Blob(chunks);
+        	 }
+        
+        
         	public async generateFromAiJson(res, replace: boolean = true){
         		let time = new Date().getTime();
         		let glob_index = 0;
@@ -3282,7 +3328,15 @@ scriptContent:
         				}
         			}
         		}
-        		this.updateState();
+        		await this.updateState();
+        		if(res.thumbnailColor == undefined && res.thumbnailUrl != undefined){
+        			let file = await fetch(res.thumbnailUrl);
+        			let blob = await this.readableStreamToBlob(file.body);
+        			let params = {file: blob, meta: JSON.stringify({"_id": page.form["_id"], _up_content_type: file.headers.get(''Content-Type''), "_up_thumbnail": true})};
+        			let _res = (await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async()).res;
+                	page.local.imgTimeStamp = "?"+new Date().getTime();
+        		}
+        		
         	}
         	/*End_c8o_PageFunction*/
         '
@@ -5127,6 +5181,11 @@ title: Title for editor
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                               - MobileSmartSourceType: script:false
+                        ↓returnBinary [ngx.components.UIControlVariable-1728393526000]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:true
                     ↓Icon [ngx.components.UIDynamicElement-1678729184535]: 
                       beanData: |
                         '{
