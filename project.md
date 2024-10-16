@@ -10329,12 +10329,12 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>itemChartEditor</b></summary><blockquote><p>
+<details><summary><b>itemChartEditor</b> : The Chart Widget configuration panel</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") itemChartEditor
 
-
+The Chart Widget configuration panel
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -10375,12 +10375,12 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>itemChartViewer</b></summary><blockquote><p>
+<details><summary><b>itemChartViewer</b> : The Chart Widget viewer</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") itemChartViewer
 
-
+The Chart Widget viewer
 
 <span style="color:DarkGoldenRod">Variables</span>
 
