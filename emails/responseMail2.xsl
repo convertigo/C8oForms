@@ -167,7 +167,7 @@
 													<td class="content-block"
 														style="font-family: sans-serif; vertical-align: top; padding-bottom: 10px; padding-top: 10px; font-size: 12px; color: #999999; text-align: center; width: 556px;">
 														<span class="apple-link"
-															style="color: #ffffff; font-size: 12px; text-align: center;">Convertigo forms builder is brought to you by Convertigo.SA</span>
+															style="color: #ffffff; font-size: 12px; text-align: center;">Convertigo No Code Studio is brought to you by Convertigo.SA</span>
 													</td>
 												</tr>
 												<tr>
