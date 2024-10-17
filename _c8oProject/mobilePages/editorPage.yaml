@@ -308,21 +308,69 @@ scriptContent:
         		window["tt"] = this;
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/	
-        	public images_upload_handler(blobInfo, success, failure) {
+        	public reduceImageSize(blobInfo, MAX_SIZE): Promise<any>{
+        		return new Promise((resolve)=>{
+        			MAX_SIZE = MAX_SIZE * 1024; // Convertir en octets
+        			const QUALITY = 0.7; // Qualité de l''image redimensionn
+        			const file = blobInfo.blob();
+        			const img = new Image();
+        	    	img.src = URL.createObjectURL(file);
+        	    	img.onload = function () {
+        		      const canvas = document.createElement(''canvas'');
+        		      const ctx = canvas.getContext(''2d'');
+        		
+        		      // Redimensionner l''image avec un facteur de réduction
+        		      const ratio = Math.sqrt(MAX_SIZE / file.size);
+        		      canvas.width = img.width * ratio;
+        		      canvas.height = img.height * ratio;
+        		
+        		      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        		
+        		      // Convertir l''image redimensionnée en blob
+        		      canvas.toBlob(function (blob) {
+        		        if (blob.size > MAX_SIZE) {
+        		          resolve({error: true});
+        		        } else {
+        					const reader = new FileReader();
+        					reader.readAsDataURL(blob);
+        					reader.onloadend = function () {
+        						resolve({ success: true, url: reader.result});
+        					};
+        		          // Convertir le nouveau blob en base64 et retourner l''image redimensionnée
+        		          
+        		        }
+        		      }, file.type, QUALITY); // Conserver le type MIME d''origine
+        		    };
+        		
+        		    img.onerror = function () {
+        		      resolve({error: true});
+        		    };
+        		});
+        	  }
+        	
+        	public async images_upload_handler(blobInfo, success, failure) {
              	console.log("blobInfo", blobInfo);
         		var image_size = blobInfo.blob().size / 1000;  // image size in kbytes
         	    var max_size   = this.local.tiny_max_size;                // max size in kbytes
-        	    if( image_size  > max_size ){        
-        	        failure('''', {remove:true});
-        			setTimeout(()=>{
-        				this.showToast(this.local.tiny_error_message, {
-        					position: "middle",
-        					cssClass: "toastError",
-        					"duration": 10000,
-        					"showCloseButton": true,
-        					"closeButtonText": this.translate.instant("close")
-        				}); 
-        			})
+        	    if( image_size  > max_size ){   
+        			let resp = await this.reduceImageSize(blobInfo, max_size);  
+        			if(resp.error){
+        				failure('''', {remove:true});
+        				window["tinymce"].activeEditor.focus();
+        				setTimeout(()=>{
+        					this.showToast(this.local.tiny_error_message, {
+        						position: "middle",
+        						cssClass: "toastError",
+        						"duration": 10000,
+        						"showCloseButton": true,
+        						"closeButtonText": this.translate.instant("close")
+        					}); 
+        //					this.lib_extendedcomponents_ui_ngx_tinymce.editor._elementRef.nativeElement.blur()
+        				})
+        			}   
+        	        else{
+        				success(resp.url);
+        			}
         			return;      
         	    }else{
         	        if(this.local.tiny_warn_message != null && this.local.tiny_warn_message){
