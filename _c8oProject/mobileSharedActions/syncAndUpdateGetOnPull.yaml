@@ -409,6 +409,247 @@
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
           '		try {
+          			page.global.localform = {};
+          		   
+          		    /**
+          		     * DESCIBES PATH TO TITLE (SIMPLE) OF EACH ELEMENT
+          		    */
+          		    
+          		    const pathToTitle = {
+          		            "text" : {"location":"config.label"},
+          		            "ion-label": {"location":"config.text"},
+          		            "checkbox":{"location":"config.label"},
+          		            "checkbox_group":{"location":"config.label"},
+          		            "radio":{"location":"config.label"},
+          		            "radio_group":{"location":"config.label"},
+          		            "slider":{"location":"config.label"},
+          		            "select":{"location":"config.label"},
+          		            "datetime":{"location":"config.label"},
+          		            "time":{"location":"config.label"},
+          		            "img":{"location":"config.label"},
+          		            "barcode":{"location":"config.label"},
+          		            "file":{"location":"config.label"},
+          		            "signature":{"location":"config.label"},
+          		            "ion-card":{"location":"config.title.text"}
+          		            };
+          		            
+          		    /**
+                       * DESCIBES PATH TO TITLE (HTML) OF EACH ELEMENT THAT WE WANTS TO CREATE
+                      */
+          		    
+          		    const pathToCopy = {
+                              "text" : {"location":"config.html"},
+                              "ion-label": {"location":"config.html"},
+                              "checkbox":{"location":"config.html"},
+                              "checkbox_group":{"location":"config.html"},
+                              "radio":{"location":"config.html"},
+                              "radio_group":{"location":"config.html"},
+                              "slider":{"location":"config.html"},
+                              "select":{"location":"config.html"},
+                              "datetime":{"location":"config.html"},
+                              "time":{"location":"config.html"},
+                              "img":{"location":"config.html"},
+                              "barcode":{"location":"config.html"},
+                              "file":{"location":"config.html"},
+                              "signature":{"location":"config.html"},
+                              "ion-card":{"location":"config.title.html"}
+                              };
+          		  
+          		    /**
+          		     * GET VALUE THAT WE WANTS TO COPY
+          		    */
+          		    const getValueToCopy = (obj: Array<any>, path: string, i: number = 0): any =>{
+          		        const arr = path.split(".")
+                          const elem = obj[arr[i]];
+                          if(i === arr.length -1){
+                              //finished
+                              return elem;
+                          }
+                          else{
+                              //call cursive
+                             return getValueToCopy(elem, path, i + 1);
+                          }
+                      };
+                      
+                      /**
+                       * COPY VALUE TO NEW PATH
+                      */
+                      const copyValueToNewPath = (obj: Array<any>, path: string, value: string, i: any) :void =>{
+                          try{
+                              if(eval("obj["+i+"]."+ pathToCopy[obj[i].type].location + "== undefined")){
+                                  eval("obj["+i+"]."+ pathToCopy[obj[i].type].location + "=''"+ value+"''");
+                              }
+                          }
+                          catch(e){
+                              page.c8o.log.error("error", e);
+                          }
+                      }
+                      
+                      /**
+                       * UPDATE FORM TO SUPPORT PAGE
+                      */
+          		    const updateToPages = (obj: Array<any>): string => {
+          		        let pageTechName = "Page_" + new Date().getTime();
+          		        for(let i in obj){
+          		            try{
+          	                    obj[i]["config"]["page"] = pageTechName;
+          		            }
+          		            catch(e){
+          		                console.log("error during migration: \n",e);
+          		            }
+          		        }
+          		        return pageTechName;
+          		    };
+          		    
+          		    /**
+                       * UPDATE FORM TO CREATE HTML PATH 
+                      */
+                      const updateHtml = (obj: Array<any>): void => {
+                          for(let i in obj){
+                              try{
+                                  var valToCopy = getValueToCopy(obj[i], pathToTitle[obj[i].type].location);
+                                  copyValueToNewPath(obj, pathToCopy[obj[i].type].location, valToCopy, i);
+                              }
+                              catch(e){
+                                  console.log("error during migration: \n",e);
+                              }
+                          }
+                      };
+                      
+                      /**
+                       * UPDATE FORM TO SUPPORT CONDITIONS
+                      */
+                      const updateToConditions = (obj: Array<any>): void => {
+                          for(let i in obj){
+                              try{
+                                  if(obj[i]["type"] == "radio_group" || obj[i]["type"] == "checkbox_group"){
+                                          for(let child of obj[i]["children"]){
+          									if(child["id"] == undefined){
+          										child["id"] = (Math.random() + "").substring(2);
+          									}
+                                          }
+                                          for(let child of obj[i]["lines"]){
+          									if(child["id"] == undefined){
+                                              	child["id"] = (Math.random() + "").substring(2);
+          									}
+                                          }
+                                  }
+                                  else if(obj[i]["type"] == "select" || obj[i]["type"] == "radio" || obj[i]["type"] == "checkbox"){
+                                      for(let child of obj[i]["children"]){
+          								if(child["id"] == undefined){
+                                          	child["id"] = (Math.random() + "").substring(2);
+                                      	}
+          							}
+                                  }
+                                  else if(obj[i]["type"] == "ion-card"){
+                                      updateToConditions(obj[i]["children"]);
+                                  }
+                              }
+                              catch(e){
+                                  console.log("error during migration: \n",e);
+                              }
+                          }
+                      };
+          
+          			/**
+          				FIX FORM GROUP PAGETECHNAME 
+          			 */
+          		    const fixGroupChildsPages = (obj: Array<any>): void => {
+                          for(let i in obj){
+                              try{
+                                  if(obj[i]["type"] == "ion-card"){
+          							let pageTechName = obj[i].config.page
+          							for(let j in obj[i]["children"]){
+          								obj[i]["children"][j].config.page = pageTechName;
+          							}
+          						}
+          					}
+                              catch(e){
+                                  console.log("error during migration: \n",e);
+                              }
+                      	}
+           			}
+          		    page.global["__helpersRadio"] = (arr)=>{
+                          for(let elem in arr){
+                              if(arr[elem]["selected"]){
+                                  return arr[elem]["value"];
+                              }
+                          }  
+                        };
+                        page.global["__helpersRadioGrp"] = (arr)=>{
+                            let obj = 
+                            {
+                            "children":
+                                {
+                                    
+                                }
+                            }
+                            for(let elem in arr){
+                                obj["children"][arr[elem]["title"]] = arr[elem]["selected"]
+                            }
+                            return obj;
+                          };
+          			const updateToSimlplified = (obj: Array<any>)=>{
+          				for(let i in obj){
+                              try{
+                                  if(obj[i]["type"] == "ion-card"){
+          							if(obj[i].config.title.personalized == false){
+          								obj[i].config.title.personalized = true;
+          								obj[i].config.title.html = "<p style=\"text-align: center;\">"+obj[i].config.title.text+"</p>";
+          							}
+                                      updateToSimlplified(obj[i]["children"]);
+                                  }
+                                  else if(obj[i]["type"] == "description"){
+                                      // do nothing
+                                  }
+                                  else {
+                                      if(obj[i].config.personalized == false){
+          								obj[i].config.personalized = true;
+          								obj[i].config.html = "<p>"+obj[i].config.label+"</p>";
+          							}
+                                  }
+                              }
+                              catch(e){
+                                  console.log("error during migration: \n",e);
+                              }
+                          }
+          			}
+          		  	const addNewProperties = (obj) => {
+          				for(let p of obj.pages){
+          					if(p["iconName"] == undefined || p["iconName"] == ""){
+          						p["iconName"] = "book-outline";
+          					}
+          					if(p["positionTab"] == undefined || p["positionTab"] == ""){
+          						p["positionTab"] = "bottom";
+          					}
+          					if(p["enabledTab"] == undefined || p["enabledTab"] == ""){
+          						p["enabledTab"] = false;
+          					}
+          					if(p["included"] == undefined || p["included"] == ""){
+          						p["included"] = true;
+          					}
+          					if(p["enabledButtons"] == undefined || p["enabledButtons"] == ""){
+          						p["enabledButtons"] = true;
+          					}
+          					if(p["positionButtons"] == undefined || p["positionButtons"] == ""){
+          						p["positionButtons"] = "standard";
+          					}
+          				}
+          			}
+          			// loopToForm
+          			const addNewPropertiesLoopToForm = (obj) => {
+          				obj["loopToForm"] =true;
+          			}
+                    // Calling sync continuous
+                    page["datetimeconfig"][''fr''] = false;
+                    page["datetimeconfig"][''en''] = false;
+                    page["datetimeconfig"][''es''] = false;
+                    
+                    page["datetimeconfig"][page.global.language] = true;
+                    let t = true;
+                    let done_call_action = false;
+                    
+                    
           			let execQuery = async ()=>{
           				let doc =  (await page.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id: page.local.formId}).async()).res;
           				if(doc){
@@ -420,6 +661,66 @@
           			};
           			// exec First launch
           			await execQuery();
+          			
+          			//migration
+          			let flag = false;
+                                if(page["form"]["technicalVersion"] == undefined){
+          						if((page["form"] as any).pages == undefined){
+          							updateHtml((page["form"] as any).formulaire); 
+                                    	let pageTechName = updateToPages((page["form"] as any).formulaire);
+                                    	let desc = (page["form"] as any).descform;
+                                    	(page["form"] as any)["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc:desc}];
+          						}
+          						(page["form"] as any)["technicalVersion"] = "1.0.2";
+                                  flag = true;
+                                }
+                                if((page["form"] as any)["technicalVersion"] == "1.0.0") {
+                                    let pageTechName = updateToPages((page["form"] as any).formulaire); 
+                                    (page["form"] as any)["technicalVersion"] = "1.0.2";
+                                    let desc = (page["form"] as any).descform;
+                                    (page["form"] as any)["pages"] = [{name : "Page 1", pageTechName:pageTechName, desc: desc}];
+                                    flag = true;
+                                }
+                                if((page["form"] as any)["technicalVersion"] == "1.0.1") {
+                                    let pageTechName = updateToPages((page["form"] as any).formulaire); 
+                                    (page["form"] as any)["technicalVersion"] = "1.0.2";
+                                    let desc = (page["form"] as any).descform;
+                                    for(let i in (page["form"] as any)["pages"]){
+                                        (page["form"] as any)["pages"][i].desc = desc;
+                                    }
+                                    
+                                    flag = true;
+                                }
+                                if((page["form"] as any)["technicalVersion"] == "1.0.2") {
+                                    updateToConditions((page["form"] as any).formulaire);  
+                                    (page["form"] as any)["technicalVersion"] = "1.0.3";
+                                    flag = true;
+                                }
+          					  if((page["form"] as any)["technicalVersion"] == "1.0.3") {
+                                    fixGroupChildsPages((page["form"] as any).formulaire);  
+                                    (page["form"] as any)["technicalVersion"] = "1.0.4";
+                                    flag = true;
+                                }
+          					  if((page["form"] as any)["technicalVersion"] == "1.0.4") {
+                                    updateToSimlplified((page["form"] as any).formulaire);  
+                                    (page["form"] as any)["technicalVersion"] = "1.0.5";
+                                    flag = true;
+                                }
+                                if((page["form"] as any)["technicalVersion"] == "1.0.5") {
+                                    addNewProperties((page["form"] as any));  
+                                    (page["form"] as any)["technicalVersion"] = "1.0.6";
+                                    flag = true;
+                                }
+                                if((page["form"] as any)["technicalVersion"] == "1.0.6") {
+                                    addNewPropertiesLoopToForm((page["form"] as any));  
+                                    (page["form"] as any)["technicalVersion"] = "1.0.7";
+                                    flag = true;
+                                }
+                                if(flag){
+                                    page[''updateState'']();
+                                }
+          			
+          			
                       // live changes
                       let p = Pouch["default"];
           			const header = {
