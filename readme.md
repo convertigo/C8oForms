@@ -1,9 +1,9 @@
 
 
 
-# Convertigo No-Code Studio
+# C8Oforms
 
-<p align="center"><img src="https://uploads-ssl.webflow.com/62d55bc018a5be3f0b91fcf3/64ac14ce30c48087b9a31b7d_No_Code_Studio_2.0.gif" alt="Convertigo No-Code Studio" width="1000px" /></p>
+Convertigo No Code Studio
 
 ## Introducing Convertigo No Code Studio ##
 
@@ -15,13 +15,13 @@ Using Forms, Enterprises will be able to quickly recreate all these paper-based 
 
 Even more, data entry can trigger complex actions and workflows in their back- end systems interfacing with some compulsory legacy applications running and managed by IT.
 
-[Providing backend services to no-code Form Builder](https://doc.convertigo.com/documentation/latest/no-code-forms/creating-data-for-c8o-forms/)
+[Providing backend services to no-code Form Builder](https://www.convertigo.com/documentation/develop/programming-guide/creating-data-for-c8o-forms/)
 
 [See more on convertigo.com](https://www.convertigo.com/no-code-form-application-builder/)
 
-[Try convertigo on the cloud](https://fr.www.convertigo.com/get-started-page)
+[Try convertigo on the cloud](https://c8ocloud.convertigo.net/convertigo/projects/C8oCloudSignup/DisplayObjects/mobile/index.html#/signup)
 
-[Installing Convertigo Form Builder Standalone](https://doc.convertigo.com/documentation/latest/no-code-forms/using-c8o-forms-standalone/)
+[Installing Convertigo Form Builder Standalone](https://www.convertigo.com/documentation/latest/operating-guide/using-c8o-forms-standalone/)
 
 For more technical informations : [documentation](./project.md)
 
@@ -39,6 +39,7 @@ For more technical informations : [documentation](./project.md)
             - [GetServerInfo1](#getserverinfo1)
             - [GetUsersByACL](#getusersbyacl)
             - [GetView](#getview)
+            - [GetViewAuth](#getviewauth)
             - [GetViewByKeys](#getviewbykeys)
             - [GetViewIncludeDocs](#getviewincludedocs)
             - [GetViewPublishedbyAcl](#getviewpublishedbyacl)
@@ -48,6 +49,7 @@ For more technical informations : [documentation](./project.md)
             - [PostDocument_PWA](#postdocument_pwa)
             - [PostDocument_restore_deleted](#postdocument_restore_deleted)
             - [PostDocumentAddArgc8o_view_type_pwa_document](#postdocumentaddargc8o_view_type_pwa_document)
+            - [PostDocumentBaserowPassword](#postdocumentbaserowpassword)
             - [PostDocumentCreateNotif](#postdocumentcreatenotif)
             - [PostDocumentCreateUserSettings](#postdocumentcreateusersettings)
             - [PostDocumentFromAclKey](#postdocumentfromaclkey)
@@ -66,6 +68,7 @@ For more technical informations : [documentation](./project.md)
             - [PostDocumentSetPWAEnabled](#postdocumentsetpwaenabled)
             - [PostDocumentSetStatus](#postdocumentsetstatus)
             - [PostDocumentUpdateRights](#postdocumentupdaterights)
+            - [PostFind](#postfind)
             - [PurgeDatabase](#purgedatabase)
             - [PutDocumentAttachment](#putdocumentattachment)
             - [PutDocumentAttachmentFromBase64](#putdocumentattachmentfrombase64)
@@ -99,8 +102,14 @@ For more technical informations : [documentation](./project.md)
     - [void](#void)
         - [Transactions](#transactions-3)
             - [void](#void-1)
+- [Rest Web Service](#rest-web-service)
+    - [Mappings](#mappings)
+        - [/forms/export/{id}](#formsexport{id})
+            - [Operations](#operations)
+                - [GetOperation](#getoperation)
 - [Convertigo Forms Builder](#convertigo-forms-builder)
     - [Pages](#pages)
+        - [aiDialog](#aidialog)
         - [colorPage](#colorpage)
         - [ConditionalPage](#conditionalpage)
         - [CreatePwa](#createpwa)
@@ -123,6 +132,7 @@ For more technical informations : [documentation](./project.md)
         - [PreviewMultiple](#previewmultiple)
         - [progressPage](#progresspage)
         - [resetPasswordPage](#resetpasswordpage)
+        - [responseCompleted](#responsecompleted)
         - [selectorPage](#selectorpage)
         - [settingsPage](#settingspage)
         - [sharingPage](#sharingpage)
@@ -140,7 +150,6 @@ For more technical informations : [documentation](./project.md)
         - [cancelLive](#cancellive)
         - [changeBackgroundImage](#changebackgroundimage)
         - [changeTabIntoSelectorPage](#changetabintoselectorpage)
-        - [checkAndRegister](#checkandregister)
         - [checkForDuplicate](#checkforduplicate)
         - [CheckListenerHasBeenExecuted](#checklistenerhasbeenexecuted)
         - [checkUserStatus](#checkuserstatus)
@@ -148,7 +157,6 @@ For more technical informations : [documentation](./project.md)
         - [CopyLinkToClipBoard](#copylinktoclipboard)
         - [createFormFromTemplate](#createformfromtemplate)
         - [createNewForm](#createnewform)
-        - [deleteForm](#deleteform)
         - [detectChanges](#detectchanges)
         - [detectChangesDoble](#detectchangesdoble)
         - [dragElementTolist](#dragelementtolist)
@@ -202,7 +210,7 @@ For more technical informations : [documentation](./project.md)
         - [syncAndInvokeViewer](#syncandinvokeviewer)
         - [syncAndUpdateGetOnPull](#syncandupdategetonpull)
         - [SynchronousSync](#synchronoussync)
-        - [tick](#tick)
+        - [tickAction](#tickaction)
         - [UpdateFunctionsToBeCalledToDataSource](#updatefunctionstobecalledtodatasource)
         - [updateState](#updatestate)
         - [viewNotifs](#viewnotifs)
@@ -219,13 +227,13 @@ For more technical informations : [documentation](./project.md)
         - [dataSourceEditor](#datasourceeditor)
         - [dataSourceEditorDescription](#datasourceeditordescription)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
+        - [DraggableElementApiPalette](#draggableelementapipalette)
         - [editorToolbarButton](#editortoolbarbutton)
         - [inputMultiVal](#inputmultival)
         - [inputTextAndField](#inputtextandfield)
         - [itemActionBusinessLogicEditor](#itemactionbusinesslogiceditor)
         - [itemActionBusinessLogicViewer](#itemactionbusinesslogicviewer)
         - [itemActionSubmitEditor](#itemactionsubmiteditor)
-        - [itemActionSubmitLabel](#itemactionsubmitlabel)
         - [itemActionSubmitViewer](#itemactionsubmitviewer)
         - [itemAddCheckBoxOrRadio](#itemaddcheckboxorradio)
         - [itemBarcodeSelector](#itembarcodeselector)
@@ -274,34 +282,28 @@ For more technical informations : [documentation](./project.md)
         - [listSelector](#listselector)
         - [mdReader](#mdreader)
         - [menuVersion](#menuversion)
-        - [networkStatusComp](#networkstatuscomp)
+        - [monacoEditor](#monacoeditor)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
         - [PopOverSourceCompletion](#popoversourcecompletion)
         - [searchableSelect](#searchableselect)
         - [sharedDropIndicator](#shareddropindicator)
         - [sharedDropIndicatorSelector](#shareddropindicatorselector)
         - [SharedGrabHeader](#sharedgrabheader)
-        - [sharedHeader](#sharedheader)
-        - [sharedHeaderButtonMenu](#sharedheaderbuttonmenu)
-        - [sharedHeaderImageConvertigo](#sharedheaderimageconvertigo)
         - [sharedHeaderMenu](#sharedheadermenu)
-        - [sharedHeaderMobile](#sharedheadermobile)
         - [SharedHeaderStats](#sharedheaderstats)
-        - [sharedHeaderTextFormBuilder](#sharedheadertextformbuilder)
-        - [sharedHeaderWeb](#sharedheaderweb)
         - [sharedLabelElem](#sharedlabelelem)
+        - [sharedNocodeDatabase](#sharednocodedatabase)
         - [sharedQuestionElem](#sharedquestionelem)
-        - [sharedStatsActions](#sharedstatsactions)
         - [sharedStatsCheckbox](#sharedstatscheckbox)
         - [sharedStatsCheckboxGroup](#sharedstatscheckboxgroup)
+        - [sharedStatsFiles](#sharedstatsfiles)
         - [sharedStatsImg](#sharedstatsimg)
         - [sharedStatsInputText](#sharedstatsinputtext)
+        - [sharedStatsLocation](#sharedstatslocation)
         - [sharedStatsRadio](#sharedstatsradio)
-        - [sharedStatsSlider](#sharedstatsslider)
         - [SharedTabs](#sharedtabs)
         - [SharedVersion](#sharedversion)
         - [switchItemEdition](#switchitemedition)
-        - [switchItemEdtionAndViewer](#switchitemedtionandviewer)
         - [switchItemViewer](#switchitemviewer)
         - [treeview](#treeview)
         - [treeviewContent](#treeviewcontent)
@@ -446,6 +448,9 @@ Fullsync connector that holds all forms and user settings
 <td>_use_ddoc</td><td></td>
 </tr>
 <tr>
+<td>_use_include_docs</td><td></td>
+</tr>
+<tr>
 <td>_use_keys</td><td></td>
 </tr>
 <tr>
@@ -474,6 +479,27 @@ Fullsync connector that holds all forms and user settings
 </tr>
 <tr>
 <td>_use_view</td><td></td>
+</tr>
+</table>
+##### GetViewAuth
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_group</td><td></td>
+</tr>
+<tr>
+<td>_use_group_level</td><td></td>
+</tr>
+<tr>
+<td>_use_keys</td><td></td>
+</tr>
+<tr>
+<td>_use_reduce</td><td></td>
 </tr>
 </table>
 ##### GetViewByKeys
@@ -723,6 +749,21 @@ Fullsync connector that holds all forms and user settings
 </tr>
 <tr>
 <td>targetId</td><td></td>
+</tr>
+</table>
+##### PostDocumentBaserowPassword
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td></td>
+</tr>
+<tr>
+<td>password</td><td></td>
 </tr>
 </table>
 ##### PostDocumentCreateNotif
@@ -1148,6 +1189,8 @@ Fullsync connector that holds all forms and user settings
 <td>editing_rights</td><td></td>
 </tr>
 </table>
+##### PostFind
+
 ##### PurgeDatabase
 
 ##### PutDocumentAttachment
@@ -1532,11 +1575,37 @@ void connector, replace or don't use it
 
 does nothing
 
+## Rest Web Service
+
+### Mappings
+
+#### /forms/export/{id}
+
+Export a forms with a given id
+
+##### Operations
+
+###### GetOperation
+
+Export a forms with a given id
+
+**Parameters**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td></td>
+</tr>
+</table>
 ## Convertigo Forms Builder
 
 Describes the mobile application global properties 2
 
 ### Pages
+
+#### aiDialog
 
 #### colorPage
 
@@ -1589,6 +1658,8 @@ Page to share a form, or add collaborators
 #### progressPage
 
 #### resetPasswordPage
+
+#### responseCompleted
 
 #### selectorPage
 
@@ -1717,6 +1788,9 @@ Process a tick (Refresh define in caf)
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>fromId</td><td></td>
+</tr>
+<tr>
 <td>fs</td><td></td>
 </tr>
 </table>
@@ -1729,6 +1803,9 @@ Process a tick (Refresh define in caf)
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>returnBinary</td><td></td>
 </tr>
 <tr>
 <td>selectedForm</td><td></td>
@@ -1749,45 +1826,10 @@ Process a tick (Refresh define in caf)
 <td>canExec</td><td></td>
 </tr>
 <tr>
+<td>changeToData</td><td></td>
+</tr>
+<tr>
 <td>changeToPublished</td><td></td>
-</tr>
-</table>
-#### checkAndRegister
-
-Check is a field is empty and reject the changes or register this change
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>allowDuplicate</td><td></td>
-</tr>
-<tr>
-<td>isNumber</td><td></td>
-</tr>
-<tr>
-<td>isSlider</td><td></td>
-</tr>
-<tr>
-<td>ngmodelChange</td><td></td>
-</tr>
-<tr>
-<td>noCondition</td><td></td>
-</tr>
-<tr>
-<td>obj</td><td></td>
-</tr>
-<tr>
-<td>obj2</td><td></td>
-</tr>
-<tr>
-<td>path2</td><td></td>
-</tr>
-<tr>
-<td>path</td><td></td>
 </tr>
 </table>
 #### checkForDuplicate
@@ -1859,22 +1901,10 @@ This functions is used to close an element selected on editor page
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>ai</td><td></td>
+</tr>
+<tr>
 <td>creating</td><td></td>
-</tr>
-</table>
-#### deleteForm
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>objectDocIds</td><td></td>
-</tr>
-<tr>
-<td>that</td><td></td>
 </tr>
 </table>
 #### detectChanges
@@ -1931,10 +1961,19 @@ This functions is used to close an element selected on editor page
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>code</td><td></td>
+</tr>
+<tr>
+<td>isTs</td><td></td>
+</tr>
+<tr>
 <td>item</td><td></td>
 </tr>
 <tr>
 <td>targetType</td><td></td>
+</tr>
+<tr>
+<td>transform_toTsMonaco</td><td></td>
 </tr>
 </table>
 #### executeGoToPageIfCondition
@@ -2081,6 +2120,12 @@ Get i118n translations
 <td>header</td><td></td>
 </tr>
 <tr>
+<td>new</td><td></td>
+</tr>
+<tr>
+<td>publish</td><td></td>
+</tr>
+<tr>
 <td>publishInfos</td><td></td>
 </tr>
 <tr>
@@ -2097,6 +2142,12 @@ Get i118n translations
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>leavePage</td><td></td>
+</tr>
+<tr>
+<td>multiple</td><td></td>
 </tr>
 <tr>
 <td>selectedForm</td><td></td>
@@ -2466,7 +2517,7 @@ This function is used to open an element selected on editor page
 
 #### SynchronousSync
 
-#### tick
+#### tickAction
 
 Process a tick (Refresh define in caf)
 
@@ -2489,6 +2540,19 @@ Process a tick (Refresh define in caf)
 
 Update the state of a field
 
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>file</td><td></td>
+</tr>
+<tr>
+<td>meta</td><td></td>
+</tr>
+</table>
 #### viewNotifs
 
 #### ZXing_sa_forms
@@ -2663,6 +2727,27 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>apiApp</td><td></td>
+</tr>
+<tr>
+<td>apiC8o</td><td></td>
+</tr>
+<tr>
+<td>apiForm</td><td></td>
+</tr>
+<tr>
+<td>apiPage</td><td></td>
+</tr>
+<tr>
+<td>apiRouter</td><td></td>
+</tr>
+<tr>
+<td>apiTranslate</td><td></td>
+</tr>
+<tr>
+<td>apiUser</td><td></td>
+</tr>
+<tr>
 <td>currentMeta</td><td></td>
 </tr>
 <tr>
@@ -2721,10 +2806,40 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>isTs</td><td></td>
+</tr>
+<tr>
 <td>item2ActionPalette</td><td></td>
 </tr>
 <tr>
 <td>targetType</td><td></td>
+</tr>
+<tr>
+<td>transform_toTsMonaco</td><td></td>
+</tr>
+</table>
+#### DraggableElementApiPalette
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>isTs</td><td></td>
+</tr>
+<tr>
+<td>item2ActionPalette</td><td></td>
+</tr>
+<tr>
+<td>targetCode</td><td></td>
+</tr>
+<tr>
+<td>targetType</td><td></td>
+</tr>
+<tr>
+<td>transform_toTsMonaco</td><td></td>
 </tr>
 </table>
 #### editorToolbarButton
@@ -2858,21 +2973,6 @@ Update the state of a field
 </tr>
 <tr>
 <td>thingIndex</td><td></td>
-</tr>
-</table>
-#### itemActionSubmitLabel
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>item</td><td></td>
-</tr>
-<tr>
-<td>lengthToRemove</td><td></td>
 </tr>
 </table>
 #### itemActionSubmitViewer
@@ -3771,8 +3871,28 @@ Update the state of a field
 </table>
 #### menuVersion
 
-#### networkStatusComp
+#### monacoEditor
 
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>code</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onBlur</td><td></td>
+</tr>
+</table>
 #### ngxTagInputCustomC8oForms
 
 **variables**
@@ -3801,6 +3921,9 @@ Update the state of a field
 </tr>
 <tr>
 <td>items</td><td></td>
+</tr>
+<tr>
+<td>keepOpen</td><td></td>
 </tr>
 <tr>
 <td>maxItems</td><td></td>
@@ -3926,6 +4049,16 @@ Update the state of a field
 </table>
 #### sharedDropIndicatorSelector
 
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>folder</td><td></td>
+</tr>
+</table>
 #### SharedGrabHeader
 
 **variables**
@@ -3938,49 +4071,8 @@ Update the state of a field
 <td>childIntoGrabHeader</td><td></td>
 </tr>
 </table>
-#### sharedHeader
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>showbuttonsright</td><td></td>
-</tr>
-</table>
-#### sharedHeaderButtonMenu
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>color</td><td></td>
-</tr>
-</table>
-#### sharedHeaderImageConvertigo
-
 #### sharedHeaderMenu
 
-#### sharedHeaderMobile
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>mobile</td><td></td>
-</tr>
-<tr>
-<td>showbuttonsright</td><td></td>
-</tr>
-</table>
 #### SharedHeaderStats
 
 **variables**
@@ -3992,22 +4084,11 @@ Update the state of a field
 <tr>
 <td>element</td><td></td>
 </tr>
-</table>
-#### sharedHeaderTextFormBuilder
-
-#### sharedHeaderWeb
-
-**variables**
-
-<table
 <tr>
-<th>name</th><th>comment</th>
+<td>show</td><td></td>
 </tr>
 <tr>
-<td>mobile</td><td></td>
-</tr>
-<tr>
-<td>showbuttonsright</td><td></td>
+<td>total</td><td></td>
 </tr>
 </table>
 #### sharedLabelElem
@@ -4025,6 +4106,8 @@ Update the state of a field
 <td>setStyle</td><td></td>
 </tr>
 </table>
+#### sharedNocodeDatabase
+
 #### sharedQuestionElem
 
 **variables**
@@ -4035,18 +4118,6 @@ Update the state of a field
 </tr>
 <tr>
 <td>item</td><td></td>
-</tr>
-</table>
-#### sharedStatsActions
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>element</td><td></td>
 </tr>
 </table>
 #### sharedStatsCheckbox
@@ -4060,6 +4131,12 @@ Update the state of a field
 <tr>
 <td>element</td><td></td>
 </tr>
+<tr>
+<td>total</td><td></td>
+</tr>
+<tr>
+<td>value</td><td></td>
+</tr>
 </table>
 #### sharedStatsCheckboxGroup
 
@@ -4071,6 +4148,27 @@ Update the state of a field
 </tr>
 <tr>
 <td>element</td><td></td>
+</tr>
+<tr>
+<td>total</td><td></td>
+</tr>
+<tr>
+<td>value</td><td></td>
+</tr>
+</table>
+#### sharedStatsFiles
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>element</td><td></td>
+</tr>
+<tr>
+<td>value</td><td></td>
 </tr>
 </table>
 #### sharedStatsImg
@@ -4084,6 +4182,9 @@ Update the state of a field
 <tr>
 <td>element</td><td></td>
 </tr>
+<tr>
+<td>value</td><td></td>
+</tr>
 </table>
 #### sharedStatsInputText
 
@@ -4095,6 +4196,24 @@ Update the state of a field
 </tr>
 <tr>
 <td>element</td><td></td>
+</tr>
+<tr>
+<td>value</td><td></td>
+</tr>
+</table>
+#### sharedStatsLocation
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>element</td><td></td>
+</tr>
+<tr>
+<td>value</td><td></td>
 </tr>
 </table>
 #### sharedStatsRadio
@@ -4108,17 +4227,11 @@ Update the state of a field
 <tr>
 <td>element</td><td></td>
 </tr>
-</table>
-#### sharedStatsSlider
-
-**variables**
-
-<table
 <tr>
-<th>name</th><th>comment</th>
+<td>total</td><td></td>
 </tr>
 <tr>
-<td>element</td><td></td>
+<td>value</td><td></td>
 </tr>
 </table>
 #### SharedTabs
@@ -4143,8 +4256,6 @@ Update the state of a field
 <td>isChild</td><td></td>
 </tr>
 </table>
-#### switchItemEdtionAndViewer
-
 #### switchItemViewer
 
 **variables**
