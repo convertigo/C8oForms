@@ -967,7 +967,7 @@ scriptContent:
         					idsToCall = idsToCall.concat(interIDs);
         				}
         				// only watch for enabled grid or select sources
-        				else if ((item["config"]["sourceEnabled"] == true && item["type"] == "select") || (item.sources && item["type"] == "grid")) {
+        				else if ((item["config"]["sourceEnabled"] == true && item["type"] == "select") || (item.sources && item["type"] == "grid") || (item.sources && item["type"] == "chart") || (item.sources && item["type"] == "map")) {
         					//search source name and params
         					let sources: any = page["searchForSources"](item, "sources", true);
         					let findName = sources.findName;
@@ -1263,6 +1263,73 @@ scriptContent:
         							// has we know parameters, we not each object that have to call this sequence do it once
         							this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
         						}
+        						
+        						if (item.type == "chart") {
+        							// preload function for chart
+        							prevFunc = () => {
+        							}
+        							
+        							// postload function for chart
+        							postFunc = (res) => {
+        								// build a model of the apx chart as :
+        								// model = {
+        								//	xaxis: ["first key of object in item 1", "The first key of object in item 2",...,  "The first key of object in item n"],
+        								//	series: [
+        								//		{data: ["value of the next key of object in item 1", "value of the next key of object in item 2",..., "value of the next key of object in item n"]},
+        								//		{data: ["value of the next key of object in item 1", "value of the next key of object in item 2",..., "value of the next key of object in item n"]},
+        								//		...
+        								//		{data: ["value of the next key of object in item 1", "value of the next key of object in item 2",..., "value of the next key of object in item n"]}
+        								//	]	
+        								//}
+        								// Build the model of the chart usins the res array of objects and build a model as shown above
+        								let model = { xaxis: {categories:[]}, series: [] };
+        								let series = {}
+        								res.data.forEach((row) => {
+        									let i = 0;
+        									Object.keys(row).forEach((col) => {
+        										// check if the col is hidden if yes skip it
+        										if (row[col].hidden == true) {
+        											return;
+        										}
+        										// only the first col is in the xaxis
+        										if (i == 0) {
+        											model.xaxis.categories.push(row[col].value);
+        										} else {
+        											// other cols are in the series
+        										}
+        										i++
+        									})
+        									// now build the series using all the array
+        									i = 0;
+        									Object.keys(row).forEach((col) => {
+        										// check if the col is hidden if yes skip it
+        										if (row[col].hidden == true) {
+        											return;
+        										}
+        										// Skip the first col
+        										if (i == 0) {
+        											i++
+        											return
+        										}
+        										if (series[col] == undefined) {
+        											series[col] = { name: col , data: [] };
+        										}
+        										if (Array.isArray(row[col].value)) {
+        											series[col].data.push(row[col].value[0].value * 1);
+        										} else {
+        											series[col].data.push(row[col].value * 1);
+        										}
+        										i++
+        									})
+        								})
+        								// for each key in series add the data to the series array
+        								Object.keys(series).forEach((key) => {
+        									model.series.push(series[key]);
+        								})
+        								page.local.sourceValue[item.name] = model
+        							}
+        						}
+        						
         						if (item.type == "grid") {
         							if (page.local.sourceValue[item.name] == undefined) {
         								page.local.sourceValue[item.name] = { colDef: [], data: [] };
@@ -7158,12 +7225,6 @@ title: Visualisateur
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:this.local.sourceValue[item['name']]
-                              ↓redList [ngx.components.UIUseVariable-1728975248263]: 
-                                binding: twoWayBinding
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:this.redList
                               ↓disabled [ngx.components.UIUseVariable-1728975248266]: 
                                 comment: this.formsSubmit[item['name']]
                                 varValue: 
@@ -7176,6 +7237,12 @@ title: Visualisateur
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                              ↓redList [ngx.components.UIUseVariable-1729187011518]: 
+                                comment: this.redList[item['name']]
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:this.redList
                         ↓Attr1 [ngx.components.UIAttribute-1670941207193]: 
                           attrName: '[ngStyle]'
                           attrValue: 
