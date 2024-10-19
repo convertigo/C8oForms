@@ -1271,58 +1271,112 @@ scriptContent:
         							
         							// postload function for chart
         							postFunc = (res) => {
-        								let model = { xaxis: {categories:[]}, series: [] };
+        								let model = { labels:[],  xaxis: {categories:[]}, series: [] };
         								let series = {}
         								let round = item.config.round != undefined ? item.config.round : 2;
         								res.data.forEach((row) => {
         									let i = 0;
         									if (item.config?.firstColAsXAxis == true) {
+        										//build Xaxis and labels using the first col
         										Object.keys(row).forEach((col) => {
         											// check if the col is hidden if yes skip it
         											if (row[col].hidden == true) {
         												return;
         											}
         											// only the first col is in the xaxis
+        											
         											if (i == 0) {
+        												let val
         												if (Array.isArray(row[col].value)) 
-        													model.xaxis.categories.push(row[col].value[0].value);
+        													val = row[col].value[0].value;
         												else 
-        													model.xaxis.categories.push(row[col].value);
+        													val = row[col].value;
+        												
+        												model.xaxis.categories.push(val)
+        												
+        												if (item.config.type == "pie") {
+        													model.labels.push(val)
+        												}
         											} 
         											i++
         										})
         									}
         									// now build the series using all the array
-        									i = 0;
-        									Object.keys(row).forEach((col) => {
-        										// check if the col is hidden if yes skip it
-        										if (row[col].hidden == true) {
-        											return;
-        										}
-        										// Skip the first col
-        										if (i == 0) {
-        											i++
-        											return
-        										}
-        										if (series[col] == undefined) {
-        											series[col] = { name: col , data: [] };
-        										}
-        										
-        										let val
-        										if (Array.isArray(row[col].value)) {
-        											// Round the value to 2 decimal
-        											val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
-        										} else {
-        											val = Math.round(row[col].value * 10 ** round) / 10 ** round;
-        										}
-        										// test if val is a number and push it to the series only if it is
-        										if (!isNaN(val)) {
-        											series[col].data.push(val);
-        										}
-        										i++
-        									})
+        									
+        									switch (item.config.type) {
+        										case ''bar'':
+        										case ''line'':
+        										case ''area'':
+        										case ''treemap'':
+        											i = 0;
+        											Object.keys(row).forEach((col) => {
+        												// check if the col is hidden if yes skip it
+        												if (row[col].hidden == true) {
+        													return;
+        												}
+        												// Skip the first col
+        												if (i == 0) {
+        													i++
+        													return
+        												}
+        												if (series[col] == undefined) {
+        													series[col] = { name: col , data: [] };
+        												}
+        												
+        												let val
+        												if (Array.isArray(row[col].value)) {
+        													// Round the value to 2 decimal
+        													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
+        												} else {
+        													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
+        												}
+        												// test if val is a number and push it to the series only if it is
+        												if (!isNaN(val)) {
+        													series[col].data.push(val);
+        												}
+        												i++
+        												// for each key in series add the data to the series array
+        											})
+                                                    break;
+        										case ''pie'':
+        										case ''donut'':
+        										case ''radar'':
+        											i = 0
+        											let colFound = false
+        											Object.keys(row).forEach((col) => {
+        												// check if the col is hidden if yes skip it
+        												if (row[col].hidden == true) {
+        													return;
+        												}
+        												if (i == 0) { // Skip first non hidden column		
+        													i++
+        													return
+        												}
+        												
+        												
+        												if (colFound)
+        													return;
+        												
+        												let val
+        												if (Array.isArray(row[col].value)) {
+        													// Round the value to 2 decimal
+        													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
+        												} else {
+        													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
+        												}
+        												// test if val is a number and push it to the series only if it is
+        												if (!isNaN(val)) {
+        													model.series.push(val)
+        													colFound = true
+        												}
+        												i++
+        											})
+        											break;
+        										default:
+        											break
+        									}
         								})
-        								// for each key in series add the data to the series array
+        								
         								Object.keys(series).forEach((key) => {
         									model.series.push(series[key]);
         								})
