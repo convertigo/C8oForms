@@ -971,7 +971,7 @@ scriptContent:
         					idsToCall = idsToCall.concat(interIDs);
         				}
         				// only watch for enabled grid or select sources
-        				else if ((item["config"]["sourceEnabled"] == true && item["type"] == "select") || (item.sources && item["type"] == "grid")) {
+        				else if ((item["config"]["sourceEnabled"] == true && item["type"] == "select") || (item.sources && item["type"] == "grid") || (item.sources && item["type"] == "chart") || (item.sources && item["type"] == "map")) {
         					//search source name and params
         					let sources: any = page["searchForSources"](item, "sources", true);
         					let findName = sources.findName;
@@ -1267,6 +1267,124 @@ scriptContent:
         							// has we know parameters, we not each object that have to call this sequence do it once
         							this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
         						}
+        						
+        						if (item.type == "chart") {
+        							// preload function for chart
+        							prevFunc = () => {
+        							}
+        							
+        							// postload function for chart
+        							postFunc = (res) => {
+        								let model = { labels:[],  xaxis: {categories:[]}, series: [] };
+        								let series = {}
+        								let round = item.config.round != undefined ? item.config.round : 2;
+        								res.data.forEach((row) => {
+        									let i = 0;
+        									if (item.config?.firstColAsXAxis == true) {
+        										//build Xaxis and labels using the first col
+        										Object.keys(row).forEach((col) => {
+        											// check if the col is hidden if yes skip it
+        											if (row[col].hidden == true) {
+        												return;
+        											}
+        											// only the first col is in the xaxis
+        											
+        											if (i == 0) {
+        												let val
+        												if (Array.isArray(row[col].value)) 
+        													val = row[col].value[0].value;
+        												else 
+        													val = row[col].value;
+        												
+        												model.xaxis.categories.push(val)
+        												model.labels.push(val)
+        											} 
+        											i++
+        										})
+        									}
+        									// now build the series using all the array
+        									
+        									switch (item.config.type) {
+        										case ''bar'':
+        										case ''line'':
+        										case ''area'':
+        										case ''treemap'':
+        											i = 0;
+        											Object.keys(row).forEach((col) => {
+        												// check if the col is hidden if yes skip it
+        												if (row[col].hidden == true) {
+        													return;
+        												}
+        												// Skip the first col
+        												if (i == 0) {
+        													i++
+        													return
+        												}
+        												if (series[col] == undefined) {
+        													series[col] = { name: col , data: [] };
+        												}
+        												
+        												let val
+        												if (Array.isArray(row[col].value)) {
+        													// Round the value to 2 decimal
+        													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
+        												} else {
+        													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
+        												}
+        												// test if val is a number and push it to the series only if it is
+        												if (!isNaN(val)) {
+        													series[col].data.push(val);
+        												}
+        												i++
+        												// for each key in series add the data to the series array
+        											})
+                                                    break;
+        										case ''pie'':
+        										case ''donut'':
+        										case ''radar'':
+        											i = 0
+        											let colFound = false
+        											Object.keys(row).forEach((col) => {
+        												// check if the col is hidden if yes skip it
+        												if (row[col].hidden == true) {
+        													return;
+        												}
+        												if (i == 0) { // Skip first non hidden column		
+        													i++
+        													return
+        												}
+        												
+        												
+        												if (colFound)
+        													return;
+        												
+        												let val
+        												if (Array.isArray(row[col].value)) {
+        													// Round the value to 2 decimal
+        													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
+        												} else {
+        													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
+        												}
+        												// test if val is a number and push it to the series only if it is
+        												if (!isNaN(val)) {
+        													model.series.push(val)
+        													colFound = true
+        												}
+        												i++
+        											})
+        											break;
+        										default:
+        											break
+        									}
+        								})
+        								
+        								Object.keys(series).forEach((key) => {
+        									model.series.push(series[key]);
+        								})
+        								page.local.sourceValue[item.name] = model
+        							}
+        						}
+        						
         						if (item.type == "grid") {
         							if (page.local.sourceValue[item.name] == undefined) {
         								page.local.sourceValue[item.name] = { colDef: [], data: [] };
@@ -7163,6 +7281,41 @@ title: Visualisateur
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:false
+                          ↓Directive13 [ngx.components.UIControlDirective-1728975248251]: 
+                            directiveExpression: '''chart'''
+                            directiveName: SwitchCase
+                            ↓UseSharedComponent [ngx.components.UIUseShared-1728975248254]: 
+                              sharedcomponent: C8Oforms.MobileApplication.Application.itemChartViewer
+                              ↓item [ngx.components.UIUseVariable-1728975248257]: 
+                                binding: twoWayBinding
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:this.formsList[index]
+                              ↓model [ngx.components.UIUseVariable-1728975248260]: 
+                                binding: twoWayBinding
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:this.local.sourceValue[item['name']]
+                              ↓disabled [ngx.components.UIUseVariable-1728975248266]: 
+                                comment: this.formsSubmit[item['name']]
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:false
+                              ↓outModel [ngx.components.UIUseVariable-1728975248269]: 
+                                binding: twoWayBinding
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                              ↓redList [ngx.components.UIUseVariable-1729187011518]: 
+                                comment: this.redList[item['name']]
+                                varValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: script:this.redList
                         ↓Attr1 [ngx.components.UIAttribute-1670941207193]: 
                           attrName: '[ngStyle]'
                           attrValue: 
