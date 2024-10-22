@@ -348,7 +348,8 @@ scriptContent:
         	}
         	public transform$toTsMonaco(str): string{
         	    try{
-        			const regex = /\$\$START(\d+)(.*?)(END\d+)\$\$/;
+        			//const regex = /\$\$START(\d+)(.*?)(END\d+)\$\$/;
+        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
         			let match;
         			while((match = regex.exec(str)) != null) {
         				// the whole string
@@ -357,30 +358,12 @@ scriptContent:
         				let iStart = match.index;
         				// end index
         	            let iEnd = match.index + match[0].length;
-        	            // id based on substring
-        				let id = match[1];
-        				// target name
-        				let name = this.pageOwner.getElementNameById(id);
-        				// metas attached to expression
-        				let meta = JSON.parse(match[2]);
-        				// compute current type
-        				let type = "";
-        				if(meta.__c8otype != undefined){
-        					type = meta.c8otype;
-        				}
-        				// if object name is not found, it''s mean that object has been deleted, use current name from meta
-        				if(name == ""){
-        					name = meta.name;
-        				}
-        				
-        				let computedMeta = {};
-        				if(meta.nested != null){
-        					for(let nestIndex in meta.nested){
-        						computedMeta[nestIndex] = this.evalMetaForTransform$toTsMonaco(meta.nested[nestIndex]);
-        					}
-        				}
-        				// in case of coming from palette or txt
-        				if(meta.id == undefined && meta.pathPrefix == undefined){
+        	            
+        	            if(match[2] == undefined || match[2] == ""){
+                            let id = match[1];
+                            let val = this.pageOwner.getElementNameById(id);
+                            let meta: any = {};
+        					
         					let cat = this.pageOwner.getElementById(id).cat;
         					if(cat == "action"){
         						meta.pathPrefix = "actions";
@@ -389,13 +372,57 @@ scriptContent:
         						meta.pathPrefix = "fields"
         					}
         					meta.id = id;
+        					
+                            if(val != ""){
+                                str = str.substring(0, iStart) + this.evalMetaForTransform$toTsMonaco(meta); + str.substring(iEnd);
+                            }
+                            else{
+        						// if element doesn''t exists any more remove it
+        						str = str.substring(0, iStart) + "" + str.substring(iEnd);
+        					}
         				}
-        				let tpmstr = this.evalMetaForTransform$toTsMonaco(meta);
-        				for(let nestIndex in computedMeta){
-        					let strToReplace = ''"$$START_SUB''+ nestIndex+ ''END_SUB$$"'';
-        					tpmstr = tpmstr.replace(strToReplace, computedMeta[nestIndex]);
+        				else{
+        					// id based on substring
+        					let id = match[1];
+        					// target name
+        					let name = this.pageOwner.getElementNameById(id);
+        					// metas attached to expression
+        					let meta = JSON.parse(match[2]);
+        					// compute current type
+        					let type = "";
+        					if(meta.__c8otype != undefined){
+        						type = meta.c8otype;
+        					}
+        					// if object name is not found, it''s mean that object has been deleted, use current name from meta
+        					if(name == ""){
+        						name = meta.name;
+        					}
+        					
+        					let computedMeta = {};
+        					if(meta.nested != null){
+        						for(let nestIndex in meta.nested){
+        							computedMeta[nestIndex] = this.evalMetaForTransform$toTsMonaco(meta.nested[nestIndex]);
+        						}
+        					}
+        					// in case of coming from palette or txt
+        					if(meta.id == undefined && meta.pathPrefix == undefined){
+        						let cat = this.pageOwner.getElementById(id).cat;
+        						if(cat == "action"){
+        							meta.pathPrefix = "actions";
+        						}
+        						else{
+        							meta.pathPrefix = "fields"
+        						}
+        						meta.id = id;
+        					}
+        					let tpmstr = this.evalMetaForTransform$toTsMonaco(meta);
+        					for(let nestIndex in computedMeta){
+        						let strToReplace = ''"$$START_SUB''+ nestIndex+ ''END_SUB$$"'';
+        						tpmstr = tpmstr.replace(strToReplace, computedMeta[nestIndex]);
+        					}
+        					str = str.substring(0, iStart) + tpmstr + str.substring(iEnd);
         				}
-        				str = str.substring(0, iStart) + tpmstr + str.substring(iEnd);
+        	            
         			} 
         			if(str == undefined){
                         return "";
@@ -411,7 +438,10 @@ scriptContent:
         	}
         	public evalMetaForTransform$toTsMonaco(current): string{
         		let currentNestedName = this.pageOwner.getElementNameById(current.id);
-        		let splitted = current.c8opath.split(".");
+        		let splitted = current?.c8opath?.split(".");
+        		if(splitted == undefined){
+        			splitted = [];
+        		}
         		splitted[0] = currentNestedName;
         		let expression = current.pathPrefix + "." + splitted.join(".");
         		const regex = /\.([\w$ ]+)(?=(?:[^"]*"[^"]*")*[^"]*$)/g;
