@@ -42,6 +42,7 @@ const routes: Routes = [
  { path: 'path-to-resetpasswordpage', loadChildren: () => import('./pages/resetpasswordpage/resetpasswordpage.module').then( m => m.resetPasswordPageModule)},
  { path: 'path-to-gdrppage', loadChildren: () => import('./pages/gdrppage/gdrppage.module').then( m => m.GDRPpageModule)},
  { path: 'path-to-responsecompleted/:name', loadChildren: () => import('./pages/responsecompleted/responsecompleted.module').then( m => m.responseCompletedModule)},
+ { path: 's/:u', loadChildren: () => import('./pages/sharingpage/sharingpage.module').then( m => m.sharingPageModule)},
 
 ];
 
