@@ -242,6 +242,8 @@ For more technical informations : [documentation](./project.md)
         - [itemCardEditor](#itemcardeditor)
         - [itemCardEditorViewer](#itemcardeditorviewer)
         - [itemCardViewer](#itemcardviewer)
+        - [itemChartEditor](#itemcharteditor)
+        - [itemChartViewer](#itemchartviewer)
         - [itemCheckboxEditor](#itemcheckboxeditor)
         - [itemCheckboxGroupEditor](#itemcheckboxgroupeditor)
         - [itemCheckboxGroupViewer](#itemcheckboxgroupviewer)
@@ -318,13 +320,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=https://github.com/convertigo/C8oForms.git:branch=feature/#731
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=https://github.com/convertigo/C8oForms/archive/feature/#731.zip
      ```
      </td></tr>
     </table>
@@ -2318,6 +2320,15 @@ Get i118n translations
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>index</td><td></td>
+</tr>
+<tr>
+<td>pOwner</td><td></td>
+</tr>
+<tr>
+<td>published</td><td></td>
+</tr>
+<tr>
 <td>selectedForm</td><td></td>
 </tr>
 </table>
@@ -3114,6 +3125,52 @@ Update the state of a field
 </tr>
 <tr>
 <td>redList</td><td></td>
+</tr>
+</table>
+#### itemChartEditor
+
+The Chart Widget configuration panel
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemChartViewer
+
+The Chart Widget viewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>outModel</td><td></td>
+</tr>
+<tr>
+<td>redList</td><td>this.redList[item['name']]</td>
 </tr>
 </table>
 #### itemCheckboxEditor

@@ -69,6 +69,15 @@ see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/a7a4
 see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/bf120fcf0e880098e3ac992b86c8a1076864564d#readme)
 </p></blockquote></details>
 
+<details><summary><b>lib_ProductTour</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ProductTour
+
+
+see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/master#readme)
+</p></blockquote></details>
+
 <details><summary><b>lib_UserManager</b> : Reference to secured login library</summary><blockquote><p>
 
 
