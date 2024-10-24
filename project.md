@@ -6,6 +6,15 @@ Convertigo No Code Studio
 <details><summary><span style="color:DarkGoldenRod"><i>References</i></span></summary><blockquote><p>
 
 
+<details><summary><b>C8Oforms_PWAs</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") C8Oforms_PWAs
+
+
+see [readme](https://github.com/convertigo/C8Oforms_PWAs/tree/master#readme)
+</p></blockquote></details>
+
 <details><summary><b>CouchDb_schema</b></summary><blockquote><p>
 
 
@@ -48,7 +57,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/e6674a8b
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_GeneratePWAAssets
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/41f90f9e9c11a99add90bf06990f276df7e0de0a#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8.0.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Geocoding_ui_ngx</b></summary><blockquote><p>
