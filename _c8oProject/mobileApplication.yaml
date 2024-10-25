@@ -2816,7 +2816,7 @@ useClickForTap: true
             							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
             							// if PWAS is anonymous, then no login needed 
             			                if (response["anonymous"] == true) {
-            			                    let data = { u: standalonePwa, ...event.route.queryParams };
+            			                    let data = { u: response?.anonymousKey ?? standalonePwa, ...event.route.queryParams };
             			                    let pagex = "sharingPage";
             			                    setTimeout(() => {
             									data = purgeWrongKeys(data);
@@ -3069,7 +3069,8 @@ useClickForTap: true
             	                return true;
             	            }
             	            else{
-            					await page.c8o.promiseFinInit;
+            					let suite = async()=>{
+            						await page.c8o.promiseFinInit;
             			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
             						page.global.user = page.c8o.session.user.name;
             		            	// TO BE REPORTED
@@ -3109,6 +3110,42 @@ useClickForTap: true
             						}
             						
             					}
+            					}
+            					indexPWA = window.location.pathname.indexOf("pwas");
+            				    indexMobile = window.location.pathname.indexOf("mobile");
+            				     //if we started in standalone pwa mode
+            				    if (indexPWA != -1 && indexMobile == -1) {
+            				        // get url base
+            				        if(event.route.params["i"] == undefined || event.route.params["i"] == ":i"){
+            							this.global.pwa = true;
+            					        const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
+            					        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
+            		                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
+            		                  	this.global.standalonePwa = standalonePwa;
+            							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
+            							// if PWAS is anonymous, then no login needed 
+            			                if (response["anonymous"] == true && response["anonymousKey"] != undefined) {
+            			                    let data = { u: response?.anonymousKey ?? standalonePwa, ...event.route.queryParams };
+            			                    let pagex = "sharingPage";
+            			                    setTimeout(() => {
+            									data = purgeWrongKeys(data);
+            			                        page.routerProvider.setRoot(pagex, data, null);
+            			                    }, 200);
+            			                    return false;
+            			                }
+            			                else {
+            								return await suite()
+            							}
+            						}
+            						else{
+            							return true;
+            						}
+            				        
+            					}
+            					else{
+            						return await suite();
+            					}
+            					
             				}
             			case "settingsPage":
             				await page.c8o.promiseFinInit;
@@ -3691,3 +3728,15 @@ useClickForTap: true
                 - ↑value: filter
               - java.lang.String: 
                 - ↑value: rxjs/operators
+↓StyleAlerts [ngx.components.UIStyle-1729787739205]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.styleAlertHeight .alert-message {
+            white-space: normal; /* Permet le retour à la ligne si le texte est trop long */
+            word-wrap: break-word; /* Coupe les mots longs si nécessaire */
+            max-height: 400px; /* Définit une hauteur maximale pour éviter que l''alerte ne soit trop grande */
+            height: auto !important
+          }'
