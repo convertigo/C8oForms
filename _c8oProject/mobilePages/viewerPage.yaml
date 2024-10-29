@@ -972,7 +972,7 @@ scriptContent:
         					idsToCall = idsToCall.concat(interIDs);
         				}
         				// only watch for enabled grid or select sources
-        				else if ((item["config"]["sourceEnabled"] == true && item["type"] == "select") || (item.sources && item["type"] == "grid") || (item.sources && item["type"] == "chart") || (item.sources && item["type"] == "map")) {
+        				else if ((item["config"]["sourceEnabled"] == true && item["type"] == "select") || (item["config"]["sourceEnabled"] == true && item["type"] == "checkbox") || (item["config"]["sourceEnabled"] == true && item["type"] == "radio") || (item.sources && item["type"] == "grid") || (item.sources && item["type"] == "chart") || (item.sources && item["type"] == "map")) {
         					//search source name and params
         					let sources: any = page["searchForSources"](item, "sources", true);
         					let findName = sources.findName;
@@ -1171,7 +1171,7 @@ scriptContent:
         																})
         																page.ref.detectChanges();
         															}
-        															else if (item.type == "select") {
+        															else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
         																page.c8o.log.debug("select loader detected, showing it");
         																page.local.updating[item.id] = 0;
         																page.ref.detectChanges();
@@ -1188,7 +1188,7 @@ scriptContent:
         																})
         																page.ref.detectChanges();
         															}
-        															else if (item.type == "select") {
+        															else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
         																page.c8o.log.debug("select loader detected, dismiss it");
         																page.local.updating[item.id] = 1;
         																page.ref.detectChanges();
@@ -1205,7 +1205,7 @@ scriptContent:
         																})
         																page.ref.detectChanges();
         															}
-        															else if (item.type == "select") {
+        															else if (item.type == "select" || item.type == "checkbox"  || item.type == "radio") {
         																page.c8o.log.debug("select loader detected, dismiss it and display error message");
         																page.local.updating[item.id] = 2;
         																page.ref.detectChanges();
@@ -1551,7 +1551,7 @@ scriptContent:
         								page.local.updating[item.id] = 2;
         							}
         						}
-        						else if (item["type"] == "select") {
+        						else if (item["type"] == "select"  || item.type == "radio") {
         							// preload function for select
         							prevFunc = () => {
         								page.local.updating[item.id] = 0;
@@ -1615,6 +1615,85 @@ scriptContent:
         								// fill helper to get select value
         								try {
         									this.local.techSelect[item["name"]] = defaultBinded;
+        								}
+        								catch (e) {
+        
+        								}
+        								formSubmit[item["name"]]["value"] = defaultSelected;
+        								page.local.sourceValue[item.name] = array;
+        								page.local.updating[item.id] = 1;
+        								formSubmit[item["name"]]["value"] = defaultSelected;
+        							}
+        							// fail function for grid
+        							failFunc = (err) => {
+        								page.c8o.log.error("an error occured while trying to laod source for a select", err);
+        								page.local.updating[item.id] = 2;
+        							}
+        						}
+        						else if (item.type == "checkbox") {
+        							// preload function for select
+        							prevFunc = () => {
+        								page.local.updating[item.id] = 0;
+        							}
+        							// postload function for select
+        							postFunc = (res) => {
+        								let defaultSelected = "";
+        								let defaultBinded = "";
+        								// find Colomn definitions
+        								let urlParams = page.local.urlParams.get(item["name"]);
+        								if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
+        									const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
+        									if (tmp != undefined && tmp.length > 0) {
+        										urlParams = tmp.map((res)=>{return res.value});
+        									}
+        								}
+        								formSubmit[item["name"]]["children"] = [];
+        								let array = [];
+        								if (!(res["value"] == undefined)) {
+        									if (typeof (res["value"]) == "string") {
+        										array.push(res["value"]);
+        									}
+        									else {
+        										if (res.value instanceof Array) {
+        											for (let child of res["value"]) {
+        												array.push(child);
+        											}
+        										}
+        										else {
+        											array.push(res["value"]);
+        										}
+        									}
+        								}
+        								for (let child of array) {
+        									let selected2 = false;
+        									if (urlParams && urlParams?.indexOf(child?.value) != -1) {
+        //										defaultSelected = child;
+        //										defaultBinded = child;
+        										selected2 = true;
+        									}
+        									else if (child != undefined && urlParams != undefined && child.value != undefined && JSON.stringify(child.value) == JSON.stringify(urlParams)) {
+        //										defaultSelected = child.value;
+        //										defaultBinded = child;
+        										selected2 = true;
+        									}
+        									let objectToPush = { selected: selected2 };
+        									if (typeof (child) == "string") {
+        										// simple value mode
+        										objectToPush["value"] = child;
+        									}
+        									else {
+        										if (child.displayValue != undefined) {
+        											objectToPush["displayValue"] = child.displayValue;
+        										}
+        										if (child.value != undefined) {
+        											objectToPush["value"] = child.value;
+        										}
+        									}
+        									formSubmit[item["name"]]["children"].push(objectToPush);
+        								}
+        								// fill helper to get select value
+        								try {
+        //									this.local.techSelect[item["name"]] = defaultBinded;
         								}
         								catch (e) {
         
@@ -1957,20 +2036,25 @@ scriptContent:
         						else if (meta.c8obuiltin == "true") {
         							//{c8otype: ''path'', c8opath: ''select1.value'', c8oPrettyPath: '''', c8obuiltin: ''false''}
         							//{c8otype: ''path'', c8opath: ''select1.TEXT_format'', c8oPrettyPath: '''', c8obuiltin: ''true''}
+        							let displayValue = false;
         							let typeTargeted = splitted[1];
         							let verb = splitted[2];
         							if (verb == null) {
         								verb = typeTargeted;
         							}
+        							else if(verb == "displayValue" || verb == "value"){
+        								verb = splitted[3] ?? typeTargeted;
+        								displayValue = true;
+        							}
         							if(ts){
-        								currentVal = this[verb](path, defElem.type, typeTargeted, ts);
+        								currentVal = this[verb](path, defElem.type, typeTargeted, ts, displayValue);
         							}
         							else{
-        								currentVal = "`+" + this[verb](path, defElem.type, typeTargeted, ts) + "+`";
+        								currentVal = "`+" + this[verb](path, defElem.type, typeTargeted, ts, displayValue) + "+`";
         							}
         							
         						}
-        						else if(defElem.type == "select" && defElem.sources != undefined && Object.values(defElem.sources).find((x: any)=>{return x.enabled == true}) && splitted?.[1] == "displayValue"){
+        						else if((defElem.type == "select" && defElem.sources != undefined && Object.values(defElem.sources).find((x: any)=>{return x.enabled == true}) && splitted?.[1] == "displayValue") || (defElem.type == "radio" && defElem.sources != undefined && Object.values(defElem.sources).find((x: any)=>{return x.enabled == true}) && splitted?.[1] == "displayValue")){
         							let basePath = "page.local.techSelect";
         							splitted.forEach((value, index) => {
         								// ensure name of grid has not changed
@@ -2135,7 +2219,7 @@ scriptContent:
         	 * @param type can only be "TEXT_format"
         	 * @returns 
         	 */
-        	public selected_data_c8o_separated_by_coma(path, targeType, type, ts) {
+        	public selected_data_c8o_separated_by_coma(path, targeType, type, ts, displayValue = false) {
         		if (type == "TEXT_format") {
         			if (targeType == "checkbox_group") {
         				return "Object.keys(" + path + ").filter(((x)=>{return Object.keys(" + path + "[x]).filter((y)=>{ return " + path + "[x][y].selected }).length > 0})).map((z)=>{ return " + path + "[z].filter((b)=>{return b.selected}).map((a, i)=>{var prefix = ''''; if(i == 0){prefix = z + '' :'' } return prefix + a.value}).join('', '') }).join(''; '')";
@@ -2144,7 +2228,8 @@ scriptContent:
         				return "Object.keys(" + path + ").filter((x)=>{return " + path + "[x] != ''''}).map((y)=>{return y + '': '' +" + path + "[y]}).join('' ;'')"
         			}
         			else if (targeType == "checkbox") {
-        				return path + ".filter((x)=>{return x.selected}).map((y)=>{return y.value}).join('', '')"
+        				return path + `.filter((x)=>{return x.selected}).map((y)=>{return y.${displayValue ? ''displayValue'' : ''value''}}).join('', '')`;
+        				
         			}
         			else if (targeType == "radio" || targeType == "slider" || targeType == "select" || targeType == "datetime" || targeType == "time") {
         				return path;
@@ -2162,7 +2247,7 @@ scriptContent:
         	 * @param type can only be "TEXT_format" or "JSON_format"
         	 * @returns all_data
         	 */
-        	public all_data(path, targeType, type, ts){
+        	public all_data(path, targeType, type, ts, displayValue = false){
         		if (type == "JSON_format") {
         			if (targeType == "checkbox") {
         				const strToReturn = path;
@@ -2201,7 +2286,7 @@ scriptContent:
         	 * @param type can only be "TEXT_format" or "JSON_format"
         	 * @returns selected_data
         	 */
-        	public selected_data(path, targeType, type, ts){
+        	public selected_data(path, targeType, type, ts, displayValue = false){
         		if (type == "JSON_format") {
         			if (targeType == "checkbox") {
         				const strToReturn = path + ".filter((x)=>{return x.selected}).map((y)=>{return y.value})";
@@ -2251,7 +2336,7 @@ scriptContent:
         	 * @param type can only be "TEXT_format" or "JSON_format"
         	 * @returns selected_data
         	 */
-        	public not_selected_data(path, targeType, type, ts){
+        	public not_selected_data(path, targeType, type, ts, displayValue = false){
         		if (type == "JSON_format") {
         			if (targeType == "checkbox") {
         				const strToReturn = path + ".filter((x)=>{return !x.selected}).map((y)=>{return y.value})";
@@ -2288,7 +2373,7 @@ scriptContent:
         	 * @param type can only be "TEXT_format"
         	 * @returns not selected data separated by coma
         	 */
-        	public not_selected_data_c8o_separated_by_coma(path, targeType, type, ts) {
+        	public not_selected_data_c8o_separated_by_coma(path, targeType, type, ts, displayValue = false) {
         		if (type == "TEXT_format") {
         			if (targeType == "checkbox_group") {
         				return "Object.keys(" + path + ").filter(((x)=>{return Object.keys(" + path + "[x]).filter((y)=>{ return " + path + "[x][y].selected == false }).length > 0})).map((z)=>{ return " + path + "[z].filter((b)=>{return b.selected == false}).map((a, i)=>{var prefix = ''''; if(i == 0){prefix = z + '' :'' } return prefix + a.value}).join('', '') }).join(''; '')";
