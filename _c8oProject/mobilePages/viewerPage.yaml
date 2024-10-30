@@ -964,7 +964,7 @@ scriptContent:
         	 * @param formSubmit An array that will hold responses with the adequate structure 
         	 * @returns functions id to be called at init
         	 */
-        	public fillSources(list, redList, formSubmit): Array<string> {
+        	public async fillSources(list, redList, formSubmit): Promise<Array<string>> {
         		let page = this;
         		let idsToCall: Array<string> = [];
         		try {
@@ -972,7 +972,7 @@ scriptContent:
         			for (let item of list) {
         				// if item is a card, recursively call
         				if (item["type"] == "ion-card") {
-        					let interIDs = this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
+        					let interIDs = await this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
         					idsToCall = idsToCall.concat(interIDs);
         				}
         				// only watch for enabled grid or select sources
@@ -1784,6 +1784,50 @@ scriptContent:
         						this.previousAndPostFunctions[sha].post.push(postFunc);
         						this.previousAndPostFunctions[sha].fail.push(failFunc);
         					}
+        				}
+        				else if(item.type == "text" || item.type == "slider" || item.type == "datetime" || item.type == "time" || item.type == "barcode"){
+        					let sources: any = page["searchForSources"](item, "sources", true);
+        					let findVars = sources.findVars;
+        					let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        					let sha = sources.sha;
+        					let variables = {};
+        					this.functionsById[sha] = async () => {
+        						await page["computeVariable"](findVars, variables, item);
+        						// if value has changed update it and call functions
+        						if (formSubmit[item["name"]]?.value != variables["selfVar"]) {
+        							formSubmit[item["name"]].value = variables["selfVar"];
+        							try {
+        								if (page.local["processingDataS"] == undefined) {
+        									page.local["processingDataS"] = {};
+        								}
+        								if (page.local.functionsToBeCalled[item.id] != undefined) {
+        									if (page.local["processingDataS"][item.id] != undefined) {
+        										try {
+        											clearTimeout(page.local["processingDataS"][item.id]);
+        										}
+        										catch (e) {
+        											this.c8o.log.error("[fillActions] An error occured " + JSON.stringify(e), e);
+        										}
+        									}
+        									await new Promise((resolve_set) => {
+        										page.local["processingDataS"][item.id] = setTimeout(() => {
+        											page.local.functionsToBeCalled[item.id]
+        												.forEach((id) => {
+        													page["functionsById"][id]();
+        												})
+        											resolve_set();
+        										}, 0)
+        									});
+        								}
+        							}
+        							catch (e) {
+        								page.c8o.log.error("[fillActions] Error while trying to refresh a data source " + JSON.stringify(e), e);
+        							}
+        						}
+        					}
+        					await this.functionsById[sha]();
+        					this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        				
         				}
         			}
         		}
