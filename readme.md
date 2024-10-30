@@ -56,6 +56,7 @@ For more technical informations : [documentation](./project.md)
             - [PostDocumentFromAclKeyMerge](#postdocumentfromaclkeymerge)
             - [PostDocumentJSONBASE](#postdocumentjsonbase)
             - [PostDocumentJsonBaseKeepACL](#postdocumentjsonbasekeepacl)
+            - [PostDocumentJsonBaseOverride](#postdocumentjsonbaseoverride)
             - [PostDocumentMigrationAll](#postdocumentmigrationall)
             - [PostDocumentMigrationDraft](#postdocumentmigrationdraft)
             - [PostDocumentMigrationPublished](#postdocumentmigrationpublished)
@@ -109,6 +110,7 @@ For more technical informations : [documentation](./project.md)
                 - [GetOperation](#getoperation)
 - [Convertigo Forms Builder](#convertigo-forms-builder)
     - [Pages](#pages)
+        - [aiChat](#aichat)
         - [aiDialog](#aidialog)
         - [colorPage](#colorpage)
         - [ConditionalPage](#conditionalpage)
@@ -320,13 +322,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=https://github.com/convertigo/C8oForms.git:branch=feature/#731
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=https://github.com/convertigo/C8oForms/archive/feature/#731.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
      ```
      </td></tr>
     </table>
@@ -1005,6 +1007,21 @@ Fullsync connector that holds all forms and user settings
 <td>_use_merge</td><td></td>
 </tr>
 </table>
+##### PostDocumentJsonBaseOverride
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_json_base</td><td></td>
+</tr>
+<tr>
+<td>_use_merge</td><td></td>
+</tr>
+</table>
 ##### PostDocumentMigrationAll
 
 **variables**
@@ -1606,6 +1623,8 @@ Export a forms with a given id
 Describes the mobile application global properties 2
 
 ### Pages
+
+#### aiChat
 
 #### aiDialog
 
