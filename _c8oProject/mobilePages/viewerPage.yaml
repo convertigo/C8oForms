@@ -488,29 +488,31 @@ scriptContent:
         				}
         				else if (item["type"] == "checkbox") {
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["config"]["label"], "children": [], "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
-        					let urlParams = page.local.urlParams.get(item["name"]);
-        					let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
-        					for (let child in item["children"]) {
-        						let selected: boolean;
-        						try {
-        							// search if we have to set current value by response init
-        							if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] != undefined && response[item["name"]]["children"][child]["selected"] != undefined) {
-        								selected = response[item["name"]]["children"][child]["selected"];
+        					if (!item.config.sourceEnabled) {
+        						let urlParams = page.local.urlParams.get(item["name"]);
+        						let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
+        						for (let child in item["children"]) {
+        							let selected: boolean;
+        							try {
+        								// search if we have to set current value by response init
+        								if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] != undefined && response[item["name"]]["children"][child]["selected"] != undefined) {
+        									selected = response[item["name"]]["children"][child]["selected"];
+        								}
+        								// search if value has been set by url params
+        								else if (arrayUrlParams.indexOf(item["children"][child].value) != -1) {
+        									selected = (arrayUrlParams.indexOf(item["children"][child].value) != -1) == true
+        								}
+        								// in this case take default value
+        								if (selected == undefined) {
+        									selected = item["children"][child].selected;
+        								}
         							}
-        							// search if value has been set by url params
-        							else if (arrayUrlParams.indexOf(item["children"][child].value) != -1) {
-        								selected = (arrayUrlParams.indexOf(item["children"][child].value) != -1) == true
+        							catch (e) {
+        								this.c8o.log.error("[fillFormSubmit] An error occured on checkbox (" + item.id + ")");
+        								selected = false;
         							}
-        							// in this case take default value
-        							if (selected == undefined) {
-        								selected = item["children"][child].selected;
-        							}
+        							formSubmit[item["name"]]["children"].push({ "value": item["children"][child].value, "selected": selected, "other": item["children"][child].other });
         						}
-        						catch (e) {
-        							this.c8o.log.error("[fillFormSubmit] An error occured on checkbox (" + item.id + ")");
-        							selected = false;
-        						}
-        						formSubmit[item["name"]]["children"].push({ "value": item["children"][child].value, "selected": selected, "other": item["children"][child].other });
         					}
         				}
         				else if (item.type == "grid") {
@@ -577,31 +579,33 @@ scriptContent:
         				}
         				else if (item["type"] == "checkbox_group") {
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["config"]["label"], children: {}, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
-        					for (let line of item.lines) {
-        						formSubmit[item["name"]].children[line.title] = [];
-        						let urlParams = page.local.urlParams.get(item["name"] + "_" + line.title);
-        						let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
-        						for (let child in item["children"]) {
-        							let selected: boolean;
-        							try {
-        								// search if we have to set current value by response init
-        								if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][line.title] != undefined && response[item["name"]]["children"][line.title][child] != undefined && response[item["name"]]["children"][line.title][child]["selected"] != undefined) {
-        									selected = response[item["name"]]["children"][line.title][child]["selected"];
+        					if (!item.config.sourceEnabled) {
+        						for (let line of item.lines) {
+        							formSubmit[item["name"]].children[line.title] = [];
+        							let urlParams = page.local.urlParams.get(item["name"] + "_" + line.title);
+        							let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
+        							for (let child in item["children"]) {
+        								let selected: boolean;
+        								try {
+        									// search if we have to set current value by response init
+        									if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][line.title] != undefined && response[item["name"]]["children"][line.title][child] != undefined && response[item["name"]]["children"][line.title][child]["selected"] != undefined) {
+        										selected = response[item["name"]]["children"][line.title][child]["selected"];
+        									}
+        									// search if value has been set by url params
+        									else if (arrayUrlParams.indexOf(item["children"][child].value) != -1) {
+        										selected = (arrayUrlParams.indexOf(item["children"][child].value) != -1) == true
+        									}
+        									// in this case take default value
+        									if (selected == undefined) {
+        										selected = item["children"][child].selected;
+        									}
         								}
-        								// search if value has been set by url params
-        								else if (arrayUrlParams.indexOf(item["children"][child].value) != -1) {
-        									selected = (arrayUrlParams.indexOf(item["children"][child].value) != -1) == true
+        								catch (e) {
+        									this.c8o.log.error("[fillFormSubmit] An error occured on checkbox_group (" + item.id + ")");
+        									selected = false;
         								}
-        								// in this case take default value
-        								if (selected == undefined) {
-        									selected = item["children"][child].selected;
-        								}
+        								formSubmit[item["name"]].children[line.title].push({ "value": item["children"][child].value, "selected": selected });
         							}
-        							catch (e) {
-        								this.c8o.log.error("[fillFormSubmit] An error occured on checkbox_group (" + item.id + ")");
-        								selected = false;
-        							}
-        							formSubmit[item["name"]].children[line.title].push({ "value": item["children"][child].value, "selected": selected });
         						}
         					}
         				}
@@ -972,7 +976,7 @@ scriptContent:
         					idsToCall = idsToCall.concat(interIDs);
         				}
         				// only watch for enabled grid or select sources
-        				else if ((item["config"]["sourceEnabled"] == true && item["type"] == "select") || (item["config"]["sourceEnabled"] == true && item["type"] == "checkbox") || (item["config"]["sourceEnabled"] == true && item["type"] == "radio") || (item.sources && item["type"] == "grid") || (item.sources && item["type"] == "chart") || (item.sources && item["type"] == "map")) {
+        				else if ((item["config"]["sourceEnabled"] && ["select", "checkbox", "radio"].includes(item["type"])) || (item.sources && ["grid", "chart", "map", "checkbox_group", "radio_group"].includes(item["type"]))) {
         					//search source name and params
         					let sources: any = page["searchForSources"](item, "sources", true);
         					let findName = sources.findName;
@@ -1551,6 +1555,69 @@ scriptContent:
         								page.local.updating[item.id] = 2;
         							}
         						}
+        						else if(item.type == "checkbox_group" || item.type == "radio_group"){
+        							if (page.local.sourceValue[item.name] == undefined) {
+        								page.local.sourceValue[item.name] = { colDef: [], data: [] };
+        							}
+        							// preload function for grid
+        							prevFunc = () => {
+        								page.local.sourceValue[item.name] = [];
+        								page.local.updating[item.id] = 0;
+        								//page.local.sourceValue[item.name]["data"] = [];
+        							}
+        							// postload function for grid
+        							postFunc = (res) => {
+        								try{
+        									// find Colomn definitions
+        									if (res.value != undefined && res.value.length > 0) {
+        										let children = [];
+        										let lines = []
+        										res.value?.forEach((x)=>{
+        											if(x?.line != null && x?.line != ""){
+        												children.push({"value": x?.line, "selected": false});
+        											}
+        										    if(x?.column != null && x?.column != ""){
+        										    	lines.push({"title": x?.column, "selected": false});
+        										    }
+        										})
+        										page.local.sourceValue[item.name]["children"] = children;
+        										page.local.sourceValue[item.name]["lines"] = lines;
+        										//formSubmit[item["name"]].children = {};
+        										let previousVal = JSON.parse(JSON.stringify(formSubmit[item["name"]].children));
+        										if(item.type == "checkbox_group"){
+        											for (let line of lines) {
+        												formSubmit[item["name"]].children[line.title] = [];
+        												let urlParams = page.local.urlParams.get(item["name"] + "_" + line.title);
+        												let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
+        												for (let child in children) {
+        													formSubmit[item["name"]].children[line.title].push({ "value": children[child].value, "selected": previousVal?.[line.title]?.find((x)=>{return x.value == children[child].value})?.selected });
+        												}
+        											}
+        										}
+        										else{
+        											for (let line of lines) {
+        												formSubmit[item["name"]].children[line.title] = "";
+        											}
+        										}
+        										page.local.updating[item.id] = 1;
+        										page.ref.detectChanges();
+        									}
+        									else {
+        										page.local.sourceValue[item.name]["data"] = [];
+        										page.local.updating[item.id] = 1;
+        									}
+        								}
+        								catch (e) {
+        		                            page.local.updating[item.id] = 2;
+        		                            page.c8o.log.error("an error occured while trying to laod source for a grid", e);
+        								}
+        							}
+        							// fail function for grid
+        							failFunc = (err) => {
+        								page.c8o.log.error("an error occured while trying to laod source for a grid", err);
+        								page.local.updating[item.id] = 2;
+        							}
+        						}
         						else if (item["type"] == "select"  || item.type == "radio") {
         							// preload function for select
         							prevFunc = () => {
@@ -1568,7 +1635,7 @@ scriptContent:
         										urlParams = tmp[0].value
         									}
         								}
-        								formSubmit[item["name"]]["children"] = [];
+        								//formSubmit[item["name"]]["children"] = [];
         								let array = [];
         								if (!(res["value"] == undefined)) {
         									if (typeof (res["value"]) == "string") {
@@ -1647,7 +1714,7 @@ scriptContent:
         										urlParams = tmp.map((res)=>{return res.value});
         									}
         								}
-        								formSubmit[item["name"]]["children"] = [];
+        								//formSubmit[item["name"]]["children"] = [];
         								let array = [];
         								if (!(res["value"] == undefined)) {
         									if (typeof (res["value"]) == "string") {
@@ -5767,14 +5834,15 @@ title: Visualisateur
               →: |
                 '		page.global.overlayNoRowsTemplate = ''<div class="justTocheckExistingLoading" style="background-color:#f4f4f450; width:100%; height:100%; display: flex;align-items: center;justify-content: center;"><div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>''
                 		//page.global.overlayNoRowsTemplate2 = ''<div style="width:100%; height:100%; display: flex;align-items: center;justify-content: center;">''+page["translate"].instant("no_result_grid")+''</div>''
-                		this.local.agGridLocaleTextFunc =
-                		(key, defaultValue) =>{
-                			let translation = page["translate"].instant("agGrid."+key)
-                			if(translation != "" && translation != "agGrid."+key){
+                		page.global.agGridLocaleTextFunc =
+                		(arg) =>{
+                			console.log("agGridLocaleTextFunc called", arg.key, arg.defaultValue);
+                			let translation = page["translate"].instant("agGrid."+arg.key);
+                			if(translation != "" && translation != "agGrid."+arg.key){
                 				return translation;
                 			}
                 			else{
-                				return defaultValue
+                				return arg.defaultValue
                 			}
                     	};
                 				
