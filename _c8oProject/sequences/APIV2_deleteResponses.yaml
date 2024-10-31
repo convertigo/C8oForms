@@ -1,0 +1,71 @@
+↓deleteAuthorizedDoc [steps.SimpleStep-1730374031000]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    let authenticatedUserID = context.getAuthenticatedUser();
+    let res = {};
+    let loglevel = "warn";
+    let authGranted = false;
+    let db = "c8oforms_fs";
+    let dbResponse = "c8oforms_response_fs";
+    
+    console.log("id", id, loglevel);
+    var doc = getDoc(id, null, db);
+    if (doc._deleted == null && ((doc["~c8oAcl"] == null && doc.c8oGrp == null) || doc["~c8oAcl"] == authenticatedUserID)) {
+       authGranted = true;
+    }
+    // if acl is not enough to grant access, check with used groups and doc.grp is not null
+    let grpIsArray = isArray(doc.c8oGrp);
+    let grpIsObject = isObject(doc.c8oGrp);
+    if (!authGranted && doc.c8oGrp != null && ((grpIsArray && doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(doc.c8oGrp).length > 0))) {
+       // call c8ofullsyncgrp =>  design/get_groups_by_user
+       query = new java.util.HashMap();
+       query.put(''reduce'', ''false'');
+       keys = toJettison([authenticatedUserID]);
+       rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
+    
+       // call c8oforms_fs =>  authentication/distinctGroups
+       query = new java.util.HashMap();
+       query.put(''reduce'', ''true'');
+       query.put(''group'', ''true'');
+       _use_keys = rows.map((x) => { return x.value });
+       keys = toJettison(_use_keys);
+       usedGroups = toJSON(fsclient.postView(db, ''authentication'', ''distinctGroups'', query, keys));
+       usedGroups = usedGroups.rows.map((x) => { return x.key });
+       if (usedGroups.length > 0 && ((grpIsArray && doc.c8oGrp.some(function (value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function (group) { return (doc.c8oGrp[group] == true || doc.c8oGrp[group] == "true") })))) {
+          if(doc.creator == authenticatedUserID || (doc.collabsResponse != null && doc.collabsResponse.indexOf(authenticatedUserID) != -1)){
+    	 	 authGranted = true;
+    	  }
+       }
+    }
+    if (authGranted) {
+    	query = new java.util.HashMap();
+    	query.put(''reduce'', ''false'');
+    	query.put(''startkey'', JSON.stringify([id, "" + version]));
+    	query.put(''endkey'', JSON.stringify([id, "" + version]));
+    	query.put("include_docs", "false");
+    	var responses;
+    	responses = toJSON(fsclient.getView(dbResponse, ''read_responses'', ''getResponsesByVersion'', query)).rows;
+    	for(var resp of responses){
+    		published_form = (callSequence("C8Oforms", "APIV2_deleteDocument", { id: resp.id, fromResponse: true }));
+    	}
+    }
+    
+    
+    '
+↓object2 [steps.JsonToXmlStep-1730374031003]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓id [variables.RequestableVariable-1730374031006]: 
+↓version [variables.RequestableVariable-1730374031012]: 

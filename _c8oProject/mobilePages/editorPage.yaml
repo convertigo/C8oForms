@@ -3375,6 +3375,13 @@ scriptContent:
         			console.log("[generateFromAiJson] form thumbnail updated");
         			this.ref.detectChanges();
         		}
+        		else if (res.thumbnailUrl != undefined) {
+        			this.form.thumbnail.type = "custom";
+        			this.form.thumbnail.enabled = true;
+        			console.log("[generateFromAiJson] form thumbnail updated");
+        			this.ref.detectChanges();
+        			
+        		}
         		// update forms title
         		if(res.pages != undefined && Array.isArray(res.pages) && res.pages.length > 0){
         			for(let [i, page] of res.pages.entries()){
@@ -3495,32 +3502,6 @@ scriptContent:
         						console.error(`[generateFromAiJson] page [${i}] an error occured while generating ${field.type}, it will be skipped`);
         					}
         					
-        				}
-        				try{
-        					let response = await fetch(res.thumbnailUrl);
-        					let blob = await response.blob();
-          
-        				    const key = "thumbnail";
-        				    let obj = { [key]: this.form[key], "_id": this.form["_id"]};
-        				    obj[key]["enabled"] = true;
-        				    obj[key]["type"] = "custom";
-        				    obj[key]["link"] = undefined;
-        					const use_merge = "_use_merge_" + key;
-        					await this.c8o.callJsonObject("fs://c8oforms_fs.post", {
-        						...obj,
-        						"_use_policy": "merge",
-        						[use_merge]:"override"
-        					}).async();
-        					await this.c8o.callJsonObject("fs://c8oforms_fs.put_attachment", {
-        						docid: this.form["_id"],
-        						name: key,
-        						content: blob,
-        						content_type: blob.type
-        					}).async();
-        					this.ref.detectChanges();
-        				}
-        				catch(e){
-        					console.log("an error occured while getting thumbnail")
         				}
         			}
         		}
@@ -11307,11 +11288,21 @@ title: Title for editor
                                                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                     →: |
-                                                      		    //this.delElementIndex(vars.i);
-                                                      		    this.form.actions.splice(vars.i, 1);
-                                                      		    this.idselected = "";
+                                                      '		let attach_to_delete = [];
+                                                      		    for(let elem in page.form.actions[vars.i].vars){
+                                                      				let current = page.form.actions[vars.i].vars[elem];
+                                                      				for(let i in current["vars"]){
+                                                      					let variables =  current["vars"][i];
+                                                      					if(variables["from_attachment"] != undefined && variables["from_attachment"] == true){
+                                                      						attach_to_delete.push({"docid": page["form"]["_id"], "name": variables["attchament_name"]});
+                                                      					}
+                                                      				}
+                                                                  }
+                                                      		    page.form.actions.splice(vars.i, 1);
+                                                      		    page.idselected = "";
                                                       		    resolve();
-                                                      
+                                                      '
+                                              isEnabled: false
                                               ↓i [ngx.components.UIControlVariable-1650357061751]: 
                                                 varValue: 
                                                   - xmlizable: 
@@ -11323,6 +11314,48 @@ title: Title for editor
                                                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357061757]: 
                                                   beanData: '{"ionBean":"InvokeAction"}'
                                                   stack: C8Oforms.MobileApplication.Application.detectChanges
+                                            ↓deleteItemAndAttach [ngx.components.UICustomAsyncAction-1730387213849]: 
+                                              actionValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                    →: |
+                                                      '		try {
+                                                      			let attach_to_delete = [];
+                                                      		    for(let elem in page.form.actions[vars.i].actions){
+                                                      				let current = page.form.actions[vars.i].actions[elem];
+                                                      				for(let i in current["vars"]){
+                                                      					let variables =  current["vars"][i];
+                                                      					if(variables["from_attachment"] != undefined && variables["from_attachment"] == true){
+                                                      						attach_to_delete.push({"docid": page["form"]["_id"], "name": variables["attchament_name"]});
+                                                      					}
+                                                      				}
+                                                                  }
+                                                      		    page.form.actions.splice(vars.i, 1);
+                                                      		    page.idselected = "";
+                                                      		    await page.updateState();
+                                                      		    if(attach_to_delete.length > 0){
+                                                      				for(let elem of attach_to_delete){
+                                                      					try{
+                                                      						let params = {meta: JSON.stringify({"_id": page.form._id, _up_delete_attach:elem.name})};
+                                                      						await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async();
+                                                      					}
+                                                      					catch(e){
+                                                      						console.error("an error not catched occured while deleting :"+ elem["name"], e);
+                                                      					}
+                                                      				}
+                                                      			}
+                                                      		} catch (e) {
+                                                      			console.error("an error occured while deleting", e);
+                                                      		} finally {
+                                                      			return;
+                                                      		}
+                                                      '
+                                              ↓i [ngx.components.UIControlVariable-1730387395926]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:stack.root.scope.t
                                     ↓Attr [ngx.components.UIAttribute-1650357061760]: 
                                       attrName: '[title]'
                                       attrValue: 
@@ -12239,25 +12272,6 @@ title: Title for editor
            "topic": "plain:anyInitalSyncFinished",
            "data": "script:{''apply'': true, ''p'': c8oPage}"
           }'
-      ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1613740368187]: 
-        beanData: '{"ionBean":"InvokeAction"}'
-        isEnabled: false
-        stack: C8Oforms.MobileApplication.Application.viewNotifs
-      ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1648581887052]: 
-        actionValue: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-              →: |
-                		try {
-                			page.getBackgroundImage();
-                		} catch (e) {
-                		
-                		} finally {
-                			return;
-                		}
-                
-        isEnabled: false
       ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1699981679793]: 
         beanData: '{"ionBean":"InvokeAction"}'
         stack: C8Oforms.MobileApplication.Application.sharedTapOnActionSubmit
