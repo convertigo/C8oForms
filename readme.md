@@ -129,7 +129,6 @@ For more technical informations : [documentation](./project.md)
         - [modalVideo](#modalvideo)
         - [NetworkStatus](#networkstatus)
         - [PopOverInputs](#popoverinputs)
-        - [PopOverNotifs](#popovernotifs)
         - [popOverPageSelector](#popoverpageselector)
         - [PreviewMultiple](#previewmultiple)
         - [progressPage](#progresspage)
@@ -153,7 +152,6 @@ For more technical informations : [documentation](./project.md)
         - [changeBackgroundImage](#changebackgroundimage)
         - [changeTabIntoSelectorPage](#changetabintoselectorpage)
         - [checkForDuplicate](#checkforduplicate)
-        - [CheckListenerHasBeenExecuted](#checklistenerhasbeenexecuted)
         - [checkUserStatus](#checkuserstatus)
         - [closeOptions](#closeoptions)
         - [CopyLinkToClipBoard](#copylinktoclipboard)
@@ -178,7 +176,6 @@ For more technical informations : [documentation](./project.md)
         - [isVisibleFunction](#isvisiblefunction)
         - [popOverAddToFav](#popoveraddtofav)
         - [popOverCopy](#popovercopy)
-        - [popOverCopyTo](#popovercopyto)
         - [popOverCreatePwa](#popovercreatepwa)
         - [popOverDeleteView](#popoverdeleteview)
         - [popOverDisableSharePublic](#popoverdisablesharepublic)
@@ -190,7 +187,6 @@ For more technical informations : [documentation](./project.md)
         - [popOverManageCollab](#popovermanagecollab)
         - [popOverManageLabels](#popovermanagelabels)
         - [popOverPublishDoc](#popoverpublishdoc)
-        - [popOverRemoveFromFav](#popoverremovefromfav)
         - [popOverShareForm](#popovershareform)
         - [popOverThumnail](#popoverthumnail)
         - [popOverVisualizeView](#popovervisualizeview)
@@ -209,13 +205,10 @@ For more technical informations : [documentation](./project.md)
         - [showToast](#showtoast)
         - [sublim](#sublim)
         - [switchHighlights](#switchhighlights)
-        - [syncAndInvokeViewer](#syncandinvokeviewer)
         - [syncAndUpdateGetOnPull](#syncandupdategetonpull)
-        - [SynchronousSync](#synchronoussync)
         - [tickAction](#tickaction)
         - [UpdateFunctionsToBeCalledToDataSource](#updatefunctionstobecalledtodatasource)
         - [updateState](#updatestate)
-        - [viewNotifs](#viewnotifs)
         - [ZXing_sa_forms](#zxing_sa_forms)
     - [Shared Components](#shared-components)
         - [cardSelector](#cardselector)
@@ -1670,8 +1663,6 @@ Page to share a form, or add collaborators
 
 #### PopOverInputs
 
-#### PopOverNotifs
-
 #### popOverPageSelector
 
 #### PreviewMultiple
@@ -1868,8 +1859,6 @@ Process a tick (Refresh define in caf)
 <td>value</td><td></td>
 </tr>
 </table>
-#### CheckListenerHasBeenExecuted
-
 #### checkUserStatus
 
 #### closeOptions
@@ -2117,18 +2106,6 @@ Get i118n translations
 <td>selectedForm</td><td></td>
 </tr>
 </table>
-#### popOverCopyTo
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>selectedForm</td><td></td>
-</tr>
-</table>
 #### popOverCreatePwa
 
 **variables**
@@ -2283,18 +2260,6 @@ Get i118n translations
 </tr>
 </table>
 #### popOverPublishDoc
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>selectedForm</td><td></td>
-</tr>
-</table>
-#### popOverRemoveFromFav
 
 **variables**
 
@@ -2541,11 +2506,7 @@ This function is used to open an element selected on editor page
 <td>local</td><td></td>
 </tr>
 </table>
-#### syncAndInvokeViewer
-
 #### syncAndUpdateGetOnPull
-
-#### SynchronousSync
 
 #### tickAction
 
@@ -2583,8 +2544,6 @@ Update the state of a field
 <td>meta</td><td></td>
 </tr>
 </table>
-#### viewNotifs
-
 #### ZXing_sa_forms
 
 **variables**
