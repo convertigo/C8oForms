@@ -235,8 +235,11 @@ For more technical informations : [documentation](./project.md)
         - [itemBarcodeViewver](#itembarcodeviewver)
         - [itemCameraSelector](#itemcameraselector)
         - [itemCardEditor](#itemcardeditor)
+        - [itemCardEditor_Elem](#itemcardeditor_elem)
         - [itemCardEditorViewer](#itemcardeditorviewer)
+        - [itemCardEditorViewer_Elem](#itemcardeditorviewer_elem)
         - [itemCardViewer](#itemcardviewer)
+        - [itemCardViewer_Elem](#itemcardviewer_elem)
         - [itemChartEditor](#itemcharteditor)
         - [itemChartViewer](#itemchartviewer)
         - [itemCheckboxEditor](#itemcheckboxeditor)
@@ -2635,6 +2638,9 @@ Update the state of a field
 <td>i</td><td></td>
 </tr>
 <tr>
+<td>item</td><td></td>
+</tr>
+<tr>
 <td>length</td><td></td>
 </tr>
 </table>
@@ -3069,6 +3075,33 @@ Update the state of a field
 <td>item</td><td></td>
 </tr>
 </table>
+#### itemCardEditor_Elem
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>idselectedC</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>item1730737782207</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
+</tr>
+</table>
 #### itemCardEditorViewer
 
 **variables**
@@ -3087,6 +3120,27 @@ Update the state of a field
 <td>item</td><td></td>
 </tr>
 </table>
+#### itemCardEditorViewer_Elem
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item1730734017789</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
+</tr>
+</table>
 #### itemCardViewer
 
 **variables**
@@ -3097,6 +3151,33 @@ Update the state of a field
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
+<td>redList</td><td></td>
+</tr>
+</table>
+#### itemCardViewer_Elem
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>item1730739256405</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
 </tr>
 <tr>
 <td>model</td><td></td>
@@ -4074,6 +4155,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>card</td><td></td>
+</tr>
+<tr>
+<td>hideText</td><td></td>
 </tr>
 <tr>
 <td>i</td><td></td>
