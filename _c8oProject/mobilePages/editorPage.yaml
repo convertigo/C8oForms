@@ -829,143 +829,94 @@ scriptContent:
                 }
         	}
         	
+        	moveElement(indexDest: number[], indexOrigin: number[]) {
+        	    let toCard = indexDest[1] != null;
+        	    let fromCard = indexOrigin[1] != null;
         	
-        	moveElement(indexDest, indexOrigin){
-        	    let toCard = false;
-        	    let fromCard = false;
-        	    let same = false;
-        	    
-        	    if(indexDest[1] != null){
-        	        toCard = true;
-        	        //this.c8o.log.debug("MoveElement: to an ion-card, or radiolist");
-        	    }
-        	    if(indexOrigin[1] != null){
-        	        fromCard = true;
-        	        //this.c8o.log.debug("MoveElement: from an ion-card");
+        	    // Récupération des éléments source et destination dans formsList
+        	    const elemToMoveId = fromCard
+        	        ? this.formsList[indexOrigin[0]]["childrenRefs"]?.[indexOrigin[1]]
+        	        : this.formsList[indexOrigin[0]]["id"];
+        	    const elemToMove = this.formsList.find(item => item["id"] === elemToMoveId);
+        	
+        	    if (!elemToMove) {
+        	        console.error("Élément à déplacer introuvable.");
+        	        return;
         	    }
         	    
+        	    const destinationParentId = toCard ? this.formsList[indexDest[0]]["id"] : null;
+        	
+        	    // Vérification des noms pour éviter les duplications
+        	    const destinationList = toCard
+        	        ? (this.formsList[indexDest[0]]["childrenRefs"] || []).map(refId => this.formsList.find(item => item["id"] === refId))
+        	        : this.formsList;
+        	
+        	    const nameExists = destinationList.some(item => item && item.name === elemToMove["name"] && item.id !== elemToMoveId);
+        	    if (nameExists) {
+        	        this.getTranslate("nameAlreadyexitsTarget").then((res: any) => {
+        	            this.showToast(res);
+        	        });
+        	        this.updateState();
+        	        return;
+        	    }
+        	
+        	    // Si l''élément est déplacé au sein de la même carte
+        		if (toCard && fromCard && indexDest[0] === indexOrigin[0]) {
+        		    const parent = this.formsList[indexOrigin[0]];
+        		
+        		    // Initialiser childrenRefs si nécessaire
+        		    if (!Array.isArray(parent["childrenRefs"])) {
+        		        parent["childrenRefs"] = [];
+        		    }
+        		
+        		    // Déplacement interne
+        		    const oldIndex = parent["childrenRefs"].indexOf(elemToMoveId);
+        		    if (oldIndex > -1) {
+        		        parent["childrenRefs"].splice(oldIndex, 1);
+        		        // Si l''index de destination est supérieur à l''ancien index, réduire l''index de destination de 1
+        		        if (indexDest[1] > oldIndex) {
+        		            indexDest[1]--;
+        		        }
+        		        parent["childrenRefs"].splice(indexDest[1], 0, elemToMoveId);
+        		    }
+        		}
+        		// Déplacement entre cartes différentes ou hors d''une carte
+        		else {
+        		    // Retirer de l''ancien parent
+        		    if (fromCard) {
+        		        const oldParent = this.formsList[indexOrigin[0]];
+        		        if (Array.isArray(oldParent["childrenRefs"])) {
+        		            const oldIndex = oldParent["childrenRefs"].indexOf(elemToMoveId);
+        		            if (oldIndex > -1) {
+        		                oldParent["childrenRefs"].splice(oldIndex, 1);
+        		            }
+        		        }
+        		    }
+        		    elemToMove["parentRef"] = destinationParentId;
+        		
+        		    // Ajouter au nouveau parent
+        		    if (toCard) {
+        		        const newParent = this.formsList[indexDest[0]];
+        		        if (!Array.isArray(newParent["childrenRefs"])) {
+        		            newParent["childrenRefs"] = [];
+        		        }
+        		        newParent["childrenRefs"].splice(indexDest[1], 0, elemToMoveId);
+        		    } else {
+        		        let indexOrigin = this.getElementIndexById(elemToMoveId);
+        		        // Si l''index de destination est supérieur ou égal à l''ancien index, réduire l''index de destination de 1
+        		        if (indexDest[0] >= indexOrigin) {
+        		            indexDest[0]--;
+        		        }
+        		        this.formsList.splice(indexOrigin, 1);
+        		        // Si déplacé au niveau de la liste principale
+        		        this.formsList.splice(indexDest[0], 0, elemToMove);
+        		    }
+        		}
         
-                // Check names
-                let objDest;
-                let name;
-                if(toCard){
-                    objDest = this.formsList[indexDest[0]]["children"];
-                }
-                else{
-                    objDest = this.formsList;
-                }
-                if(fromCard){
-                    name = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]]["name"];
-                }
-                else{
-                    name = this.formsList[indexOrigin[0]]["name"];
-                }
-                if((fromCard && toCard) || (!fromCard && !toCard)){}
-                else{
-                    for(let item of objDest){
-                        if(item.name == name){
-                            this.getTranslate("nameAlreadyexitsTarget")
-                            .then((res:any)=>{
-                                this.showToast(res);
-                            })
-                            this.updateState();
-                            return;
-                        }
-                    }
-                }
-                
-        	    
-        	    //If element comes from and go to a card 
-        	    if(toCard && fromCard){
-        	        //if we stay in the same card
-        	        if(indexDest[0] == indexOrigin[0]){
-        	            // if indexDest bigger than indexOrigin
-        	            if(indexDest[1] > indexOrigin[1]){
-        	                //copy element
-        	                let elemToMove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
-        	                elemToMove["config"]["page"] = this.local.currentPage;
-        	                //paste element
-        	                this.formsList[indexDest[0]]["children"].splice(indexDest[1],0, elemToMove);
-        	                //delete element from its first position
-        	                this.formsList[indexOrigin[0]]["children"].splice(indexOrigin[1],1);
-        	            }
-        	            // if indexDest smaller than indexOrigin
-        	            else{
-        	              //copy element
-                          let elemToMove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
-                          elemToMove["config"]["page"] = this.local.currentPage;
-                          //delete element from its first position
-                          this.formsList[indexOrigin[0]]["children"].splice(indexOrigin[1],1);
-                          //paste element
-                          this.formsList[indexDest[0]]["children"].splice(indexDest[1],0, elemToMove);
-                            
-        	            }
-        	        }
-        	        else{
-        	          //copy element
-                        let elemToMove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
-                        elemToMove["config"]["page"] = this.local.currentPage;
-                        //paste element
-                        this.formsList[indexDest[0]]["children"].splice(indexDest[1],0, elemToMove);
-                        //delete element from its first position
-                        this.formsList[indexOrigin[0]]["children"].splice(indexOrigin[1],1);
-        	        }
-        	    }
-        	    else if(!toCard && !fromCard){
-                        // if indexDest bigger than indexOrigin
-                        if(indexDest[0] > indexOrigin[0]){
-                            //copy element
-                            let elemToMove = this.formsList[indexOrigin[0]];
-                            elemToMove["config"]["page"] = this.local.currentPage;
-                            //paste element
-                            this.formsList.splice(indexDest[0],0, elemToMove);
-                            //delete element from its first position
-                            this.formsList.splice(indexOrigin[0],1);
-                        }
-                        // if indexDest smaller than indexOrigin
-                        else{
-                          //copy element
-                          let elemToMove = this.formsList[indexOrigin[0]];
-                          elemToMove["config"]["page"] = this.local.currentPage;
-                          //delete element from its first position
-                          this.formsList.splice(indexOrigin[0],1);
-                          //paste element
-                          this.formsList.splice(indexDest[0],0, elemToMove);
-                            
-                        }
-                    
-                }
-        	    else if(fromCard && !toCard){
-        	     // if indexDest bigger than indexOrigin
-                    if(indexDest[0] > indexOrigin[0]){
-            	      //copy element
-                        let elemToMove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
-                        elemToMove["config"]["page"] = this.local.currentPage;
-                        //paste element
-                        this.formsList.splice(indexDest[0],0, elemToMove);
-                        elemToMove["config"]["page"] = this.local.currentPage;
-                        //delete element from its first position
-                        this.formsList[indexOrigin[0]]["children"].splice(indexOrigin[1],1);
-                    }
-                    else{
-                      //copy element
-                        let elemToMove = this.formsList[indexOrigin[0]]["children"][indexOrigin[1]];
-                        elemToMove["config"]["page"] = this.local.currentPage;
-                        //delete element from its first position
-                        this.formsList[indexOrigin[0]]["children"].splice(indexOrigin[1],1);
-                        //paste element
-                        this.formsList.splice(indexDest[0],0, elemToMove);
-                    }
-                }
-        	    else if (!fromCard && toCard){
-        	      //copy element
-                    let elemToMove = this.formsList[indexOrigin[0]];
-                    elemToMove["config"]["page"] = this.local.currentPage;
-                    //paste element
-                    this.formsList[indexDest[0]]["children"].splice(indexDest[1],0, elemToMove);
-                    //delete element from its first position
-                    this.formsList.splice(indexOrigin[0],1);
-                }
+        	
+        	    elemToMove["config"].page = this.local.currentPage;
+        	
+        	    // Mise à jour de l''état et de l''interface utilisateur
         	    this.updateState();
         	}
         	
@@ -997,9 +948,9 @@ scriptContent:
         	    objB.forEach((item, index)=>{
                     if(item["type"] == "ion-card"){
                         obj.push(item["name"]);
-                        item["children"].forEach((child, index2)=>{
-                            obj.push(child["name"]);
-                        });
+        //                item["children"].forEach((child, index2)=>{
+        //                    obj.push(child["name"]);
+        //                });
                         
                     }
                     else{
@@ -1058,465 +1009,20 @@ scriptContent:
                 }
                 const id = new Date().getTime();
                 let objToInsert = this.getObjToInsert(typ, id, this.local.currentPage);
-                /*switch (typ) {
-                case "description":
-                    objToInsert =
-                            {
-                                "type": "description",
-                                "config": {     
-                                        "html":"",
-                                        "personalized": true,
-                                        "page":this.local.currentPage
-                                },
-                                "id": id,
-                                "name": this.getNameDispo("description", null)
-                            };
-                    break;
-                    case "text":
-                        objToInsert = {
-                                "type": typ,
-                                "config": {
-                                    "mandatory": false,
-                                    "placeholder": this.local.placeholder_label,
-                                    "type": ''text'',
-                                    "clearInput": false,
-                                    "short": true,
-                                    "disabled":false,
-                                    "html":"<p>"+this.local.question+"</p>",
-                                    "personalized": true,
-                                    "page":this.local.currentPage
-                                
-                                },
-                                "id": id,
-                                "name": this.getNameDispo("inputText",null)
-                            };
-                        break;
-                        
-                    case "img":
-                        objToInsert = {
-                                    "type": typ,
-                                    "config": {
-                                        "src": "assets/images/category.png",
-                                        "alt": "NO IMAGE",
-                                        "width": "128",
-                                        "height": "128",
-                                        "mandatory": false,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage,
-        								max_size: 5
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("camera", null)
-                                };
-                        break;
-                        
-                    case "checkbox":
-                        objToInsert = {
-                                    "type": typ,
-                                    "children":[{"value":"Checkbox 1", "selected":true,"label_color":"#202124","position": ''unset'', "id":(Math.random() + "").substring(2)},{"value":"Checkbox 2","selected":true,"label_color":"#202124","position": ''unset'',"id":(Math.random() + "").substring(2)}],
-                                    "config": {
-                                        "mandatory": false,
-                                        "checked": false,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                        
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("checkbox", null)
-                                };
-                        break;
-                    case "checkbox_group":
-                        objToInsert =
-                                {
-                                    "type": "checkbox_group",
-                                    children:[{"value":"Option 1","selected":false,"id":(Math.random() + "").substring(2)},{"value":"Option 2","selected":false,"id":(Math.random() + "").substring(2)}],
-                                    
-                                    lines:[{"title":"Line 1","value":[],"id":(Math.random() + "").substring(2)}, {"title":"Line 2","value":[],"id":(Math.random() + "").substring(2)}, {"title":"Line 3","value":[],"id":(Math.random() + "").substring(2)}],
-                                    "id": id,
-                                    "name": this.getNameDispo("checkboxGroup", null),
-                                    config:{
-                                        "mandatory": false,
-                                        "disabled": false,
-                                        "different":false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                    }
-                                };
-                        break;
-                        
-                    case "ion-card":
-                        objToInsert =
-                                {
-                                    "type": "ion-card",
-                                    "config": {
-                                        "title":{
-                                            "html":"<p style=\"text-align: center;\">"+this.local.title+"</p>",
-                                    		"personalized": true,
-                                        },
-                                        "page":this.local.currentPage
-                                        
-                                    },
-                                    "children":[],
-                                    "id": id,
-                                    "name": this.getNameDispo("group", null)
-                                };
-                        break;
-                        case "title":
-                        objToInsert =
-                                {
-                                    "type": "ion-title",
-                                    "config": {     
-                                            "text":this.local.title,
-                                            "position":"text-center",
-                                            "label_color": "#202124",
-                                            "color":"#202124",
-                                            "size":"H3",
-                                            "html":"",
-                                            "personalized": false,
-                                            "page":this.local.currentPage
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("title", null)
-                                };
-                        break;
-                        
-                        case "label":
-                        objToInsert =
-                                {
-                                    "type": "ion-label",
-                                    "config": {     
-                                            "text":this.local.placeholder_label2,
-                                            "label_color": "#202124",
-                                            "color":"#202124",
-                                             "position": ''unset'',
-                                             "disabled":false,
-                                             "html":"",
-                                             "personalized": false,
-                                             "page":this.local.currentPage
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("label", null)
-                                };
-                        break;
-                        
-                        case "radio":
-                        objToInsert =
-                                {
-                                    "type": "radio",
-                                    children:[{"value":"Option 1", "selected":true,"label_color":"#202124","position": ''unset'',"id":(Math.random() + "").substring(2)},{"value":"Option 2","selected":false,"label_color":"#202124","position": ''unset'',"id":(Math.random() + "").substring(2)}],
-                                    "id": id,
-                                    "name": this.getNameDispo("radiolist", null),
-                                    config:{
-                                        "mandatory": false,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                    }
-                                };
-                        break;
-                        case "radio_group":
-                            objToInsert =
-                                    {
-                                        "type": "radio_group",
-                                        children:[{"value":"Option 1","id":(Math.random() + "").substring(2)},{"value":"Option 2","id":(Math.random() + "").substring(2)}],
-                                        lines:[{"title":"Line 1","value":"","id":(Math.random() + "").substring(2)}, {"title":"Line 2","value":"","id":(Math.random() + "").substring(2)}, {"title":"Line 3","value":"","id":(Math.random() + "").substring(2)}],
-                                        "id": id,
-                                        "name": this.getNameDispo("radioGroup", null),
-                                        config:{
-                                            "mandatory": false,
-                                            "disabled": false,
-                                            "different":false,
-                                            "html":"<p>"+this.local.question+"</p>",
-                                    		"personalized": true,
-                                            "page":this.local.currentPage
-                                        }
-                                    };
-                            break;
-                        
-                        case "radiobt":
-                        objToInsert =
-                                {
-                                    "type": "radiobt",
-                                    "config": {
-                                        "value":"value1",
-                                        "disabled":false,
-                                        "checked":false,
-                                        "text":"Label1",
-                                        "label_color": "#202124",
-                                        "color":"#202124",
-                                        "position": ''unset'',
-                                        "mandatory": false,
-                                        "html":"",
-                                        "personalized": false,
-                                        "page":this.local.currentPage
-        
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("radiobt", null)
-                                };
-                        break;
-                        case "datetime":
-                        objToInsert =
-                                {
-                                    "type": "datetime",
-                                    "config": {
-                                        "day_names":[''Sunday'',''Monday'', ''Tuesday'', ''Wednesday'', ''Thursday'',''Friday'',''Saturday''],
-                                        "display_format":"DD/MM/YYYY",
-                                        "max_datetime":"2050-12-31",
-                                        "min_datetime":"1930-01-01",
-                                        "month_names":[''January'', ''February'', ''March'', ''April'', ''May'', ''June'', ''July'', ''August'', ''September'', ''October'', ''November'', ''December''],
-                                        "picker_format":"DD/MM/YYYY",
-                                        "placeholder":"Datetime",
-                                        "mandatory": false,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("datetime", null)
-                                };
-                        break;
-                        case "time":
-                            objToInsert =
-                                    {
-                                        "type": "time",
-                                        "config": {
-                                            "display_format":"HH:mm",
-                                            "picker_format":"HH:mm",
-                                            "placeholder":"Time",
-                                            "mandatory": false,
-                                            "disabled": false,
-                                            "html":"<p>"+this.local.question+"</p>",
-                                    		"personalized": true,
-                                            "page":this.local.currentPage
-        
-                                        },
-                                        "id": id,
-                                        "name": this.getNameDispo("time", null)
-                                    };
-                            break;
-                        case "textarea":
-                        objToInsert =
-                                {
-                                    "type": "textarea",
-                                    "config": {
-                                        "placeholder":this.local.placeholder,
-                                        "mandatory": false,
-                                        "label": "Nom",
-                                        "label_color": "#202124",
-                                        "color":"#202124",
-                                        "position": "stacked",
-                                        "html":"",
-                                        "personalized": false,
-                                        "page":this.local.currentPage
-                                        
-        
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("textarea", null)
-                                };
-                        break;
-                        case "signature":
-                        objToInsert =
-                                {
-                                    "type": "signature",
-                                    "config": {
-                                        "mandatory": false,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("signature", null)
-                                };
-                        break;
-                        case "barcode":
-                        objToInsert =
-                                {
-                                    "type": "barcode",
-                                    "config": {
-                                        "value":"",
-                                        "placeholder":this.local.placeholder_label,
-                                        "text":"Barcode",
-                                        "mandatory": false,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("barcode", null)
-                                };
-                        break;
-                        case "slider":
-                        objToInsert =
-                                {
-                                    "type": "slider",
-                                    "config": {
-                                        "debounce":0,
-                                        "defaultvalue":0,
-                                        "max": 100,
-                                        "min":0,
-                                        "pin": false,
-                                        "snaps":false,
-                                        "step":1,
-                                        "mandatory": false,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                    },
-                                    "id": id,
-                                    "name": this.getNameDispo("slider", null)
-                                };
-                        break;
-                        case "select":
-                        objToInsert =
-                                {
-                                    "type": "select",
-                                    "config": {
-                                        "mandatory": false,
-                                        "cancelText":"Cancel",
-                                        "okText":"OK",
-                                        "type":"popover",
-                                        "placeholder":this.local.placeholder_resp,
-                                        "disabled": false,
-                                        "html":"<p>"+this.local.question+"</p>",
-                                    	"personalized": true,
-                                        "page":this.local.currentPage
-                                    },
-                                    actions: {},
-                                    children:[{"value":"Option 1", "selected":false,"id":(Math.random() + "").substring(2)},{"value":"Option 2","selected":false,"id":(Math.random() + "").substring(2)}],
-                                    "id": id,
-                                    "name": this.getNameDispo("select", null)
-                                };
-                        break;
-                        case "file":
-                            objToInsert =
-                                    {
-                                        "type": "file",
-                                        "config": {
-                                            "mandatory": false,
-                                            "multiple": false,
-                                            "placeholder": this.local.placeholderFile,
-                                            "disabled": false,
-                                            "html":"<p>"+this.local.question+"</p>",
-                                    		"personalized": true,
-                                            "page":this.local.currentPage,
-        									max_size: 5
-                                        },
-                                        "id": id,
-                                        "name": this.getNameDispo("file", null)
-                                    };
-                            break;
-                        case "submit":
-                            objToInsert =
-                                    {
-                                        "cat":"action",
-                                        "type": "submit",
-                                        "actions":{},
-                                        "config":{
-                                            "page":this.local.currentPage},
-                                        "id": id,
-                                        "name": this.getNameDispo("submit", null)
-                                    };
-                            break;
-        				case "grid":
-        					objToInsert =
-                                    {
-                                        "type": "grid",
-                                        "config": {
-                                            "mandatory": false,
-                                            "disabled": false,
-                                            "html":"<p>"+this.local.question+"</p>",
-                                    		"personalized": true,
-                                            "page":this.local.currentPage,
-                                            "returned_value": "row_selected",
-                                            "AutoSizeColumns": true
-                                        },
-                                        "id": id,
-                                        "name": this.getNameDispo("grid", null)
-                                    };
-        				break;
-        				case "location":
-        					objToInsert =
-                                    {
-                                        "type": "location",
-                                        "config": {
-                                            "mandatory": false,
-                                            "disabled": false,
-                                            "html":"<p>"+this.local.question+"</p>",
-                                    		"personalized": true,
-                                            "page":this.local.currentPage,
-        									"corresp_addr":true,
-        									"position_auto": true,
-        									"placeholder": this.local.placeholder_label,
-        									"radius": "100",
-        									"returned_value":"get_location"
-                                        },
-                                        "id": id,
-                                        "name": this.getNameDispo("location", null)
-                                    };
-        				break;
-        				case "business_logic":
-                                    objToInsert =
-                                            {
-                                                "cat":"action",
-                                                "type": "business_logic",
-                                                "sources":{	
-        											"self":{
-        												"enabled": true,
-        												"vars":{
-        													"selfVar":{
-        														str:"",
-        														type:"text"
-        													}
-        												}
-        											}
-        										},
-                                                "config":{
-                                                    "page":this.local.currentPage},
-                                                "id": id,
-                                                "name": this.getNameDispo("businessLogic", null)
-                                            };
-        				break;
-        				case "videoCall":
-        			        objToInsert =
-        			                {
-        			                    "type": "videoCall",
-        			                    "config": {     
-        			                            "html":"",
-        			                            "personalized": false,
-        										"label": this.local.question,
-        										"label_color": "#202124",
-                                            	"position": ''stacked'',
-        			                            "page":this.local.currentPage
-        			                    },
-        			                    "id": id,
-        			                    "name": this.getNameDispo("videoCall", null)
-        			                };
-        			    break;
-        				
-                        
-                    default:
-                        break;
-                }*/
                 if(!action){
                     if(index != null && objToInsert != null){
                         if(index[1] != null){
                             if(index[2]!= null){
-                                this.formsList[index[0]]["children"][index[1]]["children"].splice(index[2], 0, objToInsert);
+        						objToInsert.parentRef = this.formsList[index[0]]["id"];
+        						this.formsList[index[0]]["childrenRefs"].splice(index[2], 0, objToInsert);
+        						this.formsList.splice(index[1] + 1, 0, objToInsert);
+        //                        this.formsList[index[0]]["children"][index[1]]["children"].splice(index[2], 0, objToInsert);
                             }
                             else{
-                                this.formsList[index[0]]["children"].splice(index[1], 0, objToInsert);
+        						objToInsert.parentRef = this.formsList[index[0]]["id"];
+        						this.formsList[index[0]]["childrenRefs"].splice(index[1], 0, objToInsert.id);
+        						this.formsList.splice(index[1] + 1, 0, objToInsert);
+                                //this.formsList[index[0]]["children"].splice(index[1], 0, objToInsert);
                             }
                         }
                         else{
@@ -1681,7 +1187,7 @@ scriptContent:
                             "page": page
         
                         },
-                        "children": [],
+                        "childrenRefs": [],
                         "id": id,
                         "name": this.getNameDispo(nameDispo != null ? nameDispo : "group", null)
                     };
@@ -2990,7 +2496,7 @@ scriptContent:
                     if(form[i].id == id){
                         return form[i]
                     }
-                    else if(form[i].type == "ion-card"){
+                    else if(form[i].type == "ion-card" && form[i]["children"] != undefined){
                         let idx = this.getElementByID(id, form[i]["children"]);
                         if(idx != null){
                             return idx;
@@ -3679,75 +3185,6 @@ title: Title for editor
           ↓GridCol [ngx.components.UIDynamicElement-1649943298342]: 
             beanData: '{"ionBean":"GridCol","Size":"plain:3"}'
             tagName: ion-col
-            ↓ToolBar [ngx.components.UIDynamicElement-1649943371638]: 
-              beanData: '{"ionBean":"ToolBar"}'
-              isEnabled: false
-              tagName: ion-toolbar
-              ↓ButtonSetLeft [ngx.components.UIDynamicElement-1649943371641]: 
-                beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:start"}'
-                tagName: ion-buttons
-                ↓MenuButton [ngx.components.UIDynamicElement-1649943371644]: 
-                  beanData: '{"ionBean":"MenuButton"}'
-                  tagName: ion-menu-button
-              ↓BarTitle [ngx.components.UIDynamicElement-1649943371647]: 
-                beanData: '{"ionBean":"BarTitle"}'
-                tagName: ion-title
-                ↓Style1 [ngx.components.UIStyle-1649943371659]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          '/*margin-top:0.75rem;
-                          margin-bottom:0.8rem;*/
-                          
-                          font-size: 14px;
-                            font-weight: 600;
-                            font-style: normal;
-                            font-stretch: normal;
-                            line-height: normal;
-                            letter-spacing: normal;
-                            white-space: nowrap;
-                            overflow: hidden;
-                            text-overflow: ellipsis;
-                          	
-                          '
-                ↓ImageConvertigo2 [ngx.components.UIDynamicElement-1658938158756]: 
-                  beanData: '{"ionBean":"Image","url":"script:''assets\/images\/svg\/logo\/logo_no_code_studio.svg''"}'
-                  selfClose: true
-                  tagName: img
-                  ↓Style [ngx.components.UIStyle-1658938158759]: 
-                    styleContent: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            	/*margin-left:0.5em;
-                            	margin-right:0.5em;*/
-                            
-              ↓ButtonSetRight [ngx.components.UIDynamicElement-1649946470471]: 
-                beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:end"}'
-                tagName: ion-buttons
-                ↓Button1 [ngx.components.UIDynamicElement-1649946470474]: 
-                  beanData: '{"ionBean":"Button","IonSize":"plain:small"}'
-                  tagName: ion-button
-                  ↓Event [ngx.components.UIControlEvent-1649946470477]: 
-                    ↓RootPage [ngx.components.UIDynamicAction-1649946470480]: 
-                      beanData: |
-                        '{
-                         "ionBean": "RootPageAction",
-                         "page": "plain:C8Oforms.MobileApplication.Application.selectorPage",
-                         "data": "script:{''published'':false}"
-                        }'
-                  ↓Icon [ngx.components.UIDynamicElement-1649946470483]: 
-                    beanData: '{"ionBean":"Icon","IconName":"plain:home-outline"}'
-                    tagName: ion-icon
-                    ↓Attr [ngx.components.UIAttribute-1649946470486]: 
-                      attrName: color
-                      attrValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:convertigo
             ↓Style [ngx.components.UIStyle-1649949209823]: 
               styleContent: 
                 - xmlizable: 
@@ -8544,7 +7981,7 @@ title: Title for editor
                               directiveSource: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: script:item.config.page == this.local.currentPage
+                                  - MobileSmartSourceType: script:item.config.page == this.local.currentPage && item.parentRef == undefined
                               ↓BeforeItem [ngx.components.UIDynamicElement-1650357060272]: 
                                 beanData: '{"ionBean":"GridRow","Height":"plain:unset"}'
                                 tagName: ion-row
@@ -9965,20 +9402,7 @@ title: Title for editor
                                         varValue: 
                                           - xmlizable: 
                                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: script:item
-                                  ↓GridCol1 [ngx.components.UIDynamicElement-1650357060509]: 
-                                    beanData: '{"ionBean":"GridCol","Size":"plain:1"}'
-                                    isEnabled: false
-                                    tagName: ion-col
-                                    ↓Style [ngx.components.UIStyle-1650357060752]: 
-                                      styleContent: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                            →: |
-                                              'max-width: 50px !important;
-                                              margin-right: 10px;
-                                              '
+                                            - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357060263}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
                                   ↓Event [ngx.components.UIControlEvent-1650357060755]: 
                                     attrName: (dragend)
                                     eventName: (dragend)
@@ -9994,189 +9418,258 @@ title: Title for editor
                                   ↓GridCol [ngx.components.UIDynamicElement-1650357060767]: 
                                     beanData: '{"ionBean":"GridCol"}'
                                     tagName: ion-col
-                                    ↓DivCard [ngx.components.UIDynamicElement-1650357060770]: 
+                                    ↓DivConatinerFlex [ngx.components.UIDynamicElement-1730725997934]: 
                                       beanData: '{"ionBean":"DivTag"}'
                                       tagName: div
-                                      ↓Style [ngx.components.UIStyle-1650357060773]: 
+                                      ↓Style [ngx.components.UIStyle-1730725997937]: 
                                         styleContent: 
                                           - xmlizable: 
                                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                               →: |
-                                                'border: solid 1px #f6f6f6;
-                                                box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
-                                                padding-bottom: 10px;
+                                                'display: flex;
                                                 '
-                                      ↓Attr2 [ngx.components.UIAttribute-1650357060776]: 
-                                        attrName: '[ngClass]'
-                                        attrValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: script:['card', 'card-md']
-                                      ↓DivContentInnerHTML [ngx.components.UIDynamicElement-1650357060779]: 
+                                      ↓Div [ngx.components.UIDynamicElement-1730725998108]: 
+                                        beanData: '{"ionBean":"DivTag"}'
+                                        isEnabled: false
+                                        tagName: div
+                                        ↓Directive [ngx.components.UIControlDirective-1730726121881]: 
+                                          directiveName: If
+                                          directiveSource: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:this.local.dragging == true
+                                          ↓UseSharedComponent [ngx.components.UIUseShared-1730726032472]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
+                                            ↓id [ngx.components.UIUseVariable-1730726032475]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:'@prefixc8oafterItemlast'
+                                            ↓i [ngx.components.UIUseVariable-1730726032478]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:[i]
+                                            ↓card [ngx.components.UIUseVariable-1730726392844]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓action [ngx.components.UIUseVariable-1730726392846]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓hideText [ngx.components.UIUseVariable-1730726392848]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
+                                      ↓DivCard [ngx.components.UIDynamicElement-1650357060770]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
-                                        ↓UseSharedComponent1 [ngx.components.UIUseShared-1650357060782]: 
-                                          sharedcomponent: C8Oforms.MobileApplication.Application.SharedGrabHeader
-                                          ↓childIntoGrabHeader [ngx.components.UIUseVariable-1650357060785]: 
-                                            varValue: 
-                                              - xmlizable: 
-                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: script:item
-                                        ↓Directive [ngx.components.UIControlDirective-1650357060788]: 
-                                          directiveName: If
-                                          directiveSource: 
+                                        ↓Style [ngx.components.UIStyle-1650357060773]: 
+                                          styleContent: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                →: |
+                                                  'border: solid 1px #f6f6f6;
+                                                  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+                                                  padding-bottom: 10px;
+                                                  flex-grow: 1;
+                                                  '
+                                        ↓Attr2 [ngx.components.UIAttribute-1650357060776]: 
+                                          attrName: '[ngClass]'
+                                          attrValue: 
                                             - xmlizable: 
                                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                              - MobileSmartSourceType: script:item.cat == 'action' else ElseBlock_1588772409885
-                                          ↓Badge [ngx.components.UIDynamicElement-1650357060791]: 
-                                            beanData: '{"ionBean":"Badge","IonColor":"plain:btLight"}'
-                                            tagName: ion-badge
-                                            ↓Style [ngx.components.UIStyle-1650357060794]: 
-                                              styleContent: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                    →: |
-                                                      'position:absolute;
-                                                      top:0;
-                                                      left:0;
-                                                      border-radius: 10px;
-                                                      z-index: 10;
-                                                      '
-                                            ↓Text [ngx.components.UIText-1650357060797]: 
-                                              i18n: true
-                                              textValue: 
+                                              - MobileSmartSourceType: script:['card', 'card-md']
+                                        ↓DivContentInnerHTML [ngx.components.UIDynamicElement-1650357060779]: 
+                                          beanData: '{"ionBean":"DivTag"}'
+                                          tagName: div
+                                          ↓UseSharedComponent1 [ngx.components.UIUseShared-1650357060782]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.SharedGrabHeader
+                                            ↓childIntoGrabHeader [ngx.components.UIUseVariable-1650357060785]: 
+                                              varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:Action
-                                            ↓Attr [ngx.components.UIAttribute-1650357060800]: 
-                                              attrName: title
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:translate.instant('action_title')
-                                        ↓Tag [ngx.components.UIElement-1650357060803]: 
-                                          identifier: ElseBlock_1588772409885
-                                          tagName: ng-template
-                                          ↓Badge [ngx.components.UIDynamicElement-1650357060806]: 
-                                            beanData: '{"ionBean":"Badge","IonColor":"plain:convertigo"}'
-                                            isEnabled: false
-                                            tagName: ion-badge
-                                            ↓Style [ngx.components.UIStyle-1650357060809]: 
-                                              styleContent: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                    →: |
-                                                      'position:absolute;
-                                                      top: -10px;
-                                                      left:-10px;
-                                                      border-radius: 10px;
-                                                      cursor: help;
-                                                      color: var(--ion-color-white);
-                                                      z-index:10;
-                                                      '
-                                            ↓Text [ngx.components.UIText-1650357060812]: 
-                                              i18n: true
-                                              textValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:visual
-                                            ↓Attr [ngx.components.UIAttribute-1650357060815]: 
-                                              attrName: title
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:translate.instant('visual_title')
-                                        ↓UseSharedComponent [ngx.components.UIUseShared-1650357060818]: 
-                                          sharedcomponent: C8Oforms.MobileApplication.Application.switchItemViewer
-                                          ↓currentItem [ngx.components.UIUseVariable-1650357060821]: 
-                                            binding: twoWayBinding
-                                            varValue: 
+                                                  - MobileSmartSourceType: script:item
+                                          ↓Directive [ngx.components.UIControlDirective-1650357060788]: 
+                                            directiveName: If
+                                            directiveSource: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: script:this.formsList[i]
-                                          ↓disabled [ngx.components.UIUseVariable-1650357060830]: 
-                                            varValue: 
-                                              - xmlizable: 
-                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: script:true
-                                          ↓currentRedList [ngx.components.UIUseVariable-1650357060833]: 
-                                            varValue: 
-                                              - xmlizable: 
-                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: script:null
-                                          ↓currentModel [ngx.components.UIUseVariable-1650357060836]: 
-                                            varValue: 
-                                              - xmlizable: 
-                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: 'script:this.formsList?.[i].type == ''radio'' ?{value: this.formsList[i]?.config?.defaultValue} : {}'
-                                        ↓Directive3 [ngx.components.UIControlDirective-1650357060839]: 
-                                          directiveName: If
-                                          directiveSource: 
-                                            - xmlizable: 
-                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                              - MobileSmartSourceType: script:this.formsList[i].type == 'ion-card'
-                                          ↓UseSharedComponent1 [ngx.components.UIUseShared-1650357060842]: 
-                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemCardEditorViewer
-                                            ↓item [ngx.components.UIUseVariable-1650357060845]: 
+                                                - MobileSmartSourceType: script:item.cat == 'action' else ElseBlock_1588772409885
+                                            ↓Badge [ngx.components.UIDynamicElement-1650357060791]: 
+                                              beanData: '{"ionBean":"Badge","IonColor":"plain:btLight"}'
+                                              tagName: ion-badge
+                                              ↓Style [ngx.components.UIStyle-1650357060794]: 
+                                                styleContent: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        'position:absolute;
+                                                        top:0;
+                                                        left:0;
+                                                        border-radius: 10px;
+                                                        z-index: 10;
+                                                        '
+                                              ↓Text [ngx.components.UIText-1650357060797]: 
+                                                i18n: true
+                                                textValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:Action
+                                              ↓Attr [ngx.components.UIAttribute-1650357060800]: 
+                                                attrName: title
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:translate.instant('action_title')
+                                          ↓Tag [ngx.components.UIElement-1650357060803]: 
+                                            identifier: ElseBlock_1588772409885
+                                            tagName: ng-template
+                                            ↓Badge [ngx.components.UIDynamicElement-1650357060806]: 
+                                              beanData: '{"ionBean":"Badge","IonColor":"plain:convertigo"}'
+                                              isEnabled: false
+                                              tagName: ion-badge
+                                              ↓Style [ngx.components.UIStyle-1650357060809]: 
+                                                styleContent: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        'position:absolute;
+                                                        top: -10px;
+                                                        left:-10px;
+                                                        border-radius: 10px;
+                                                        cursor: help;
+                                                        color: var(--ion-color-white);
+                                                        z-index:10;
+                                                        '
+                                              ↓Text [ngx.components.UIText-1650357060812]: 
+                                                i18n: true
+                                                textValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:visual
+                                              ↓Attr [ngx.components.UIAttribute-1650357060815]: 
+                                                attrName: title
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:translate.instant('visual_title')
+                                          ↓UseSharedComponent [ngx.components.UIUseShared-1650357060818]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.switchItemViewer
+                                            ↓currentItem [ngx.components.UIUseVariable-1650357060821]: 
                                               binding: twoWayBinding
                                               varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:this.formsList[i]
-                                            ↓idselected [ngx.components.UIUseVariable-1650357060848]: 
+                                            ↓disabled [ngx.components.UIUseVariable-1650357060830]: 
                                               varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:this.idselected
-                                            ↓indexItem [ngx.components.UIUseVariable-1650357060851]: 
+                                                  - MobileSmartSourceType: script:true
+                                            ↓currentRedList [ngx.components.UIUseVariable-1650357060833]: 
                                               varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:i
-                                      ↓Event [ngx.components.UIControlEvent-1650357060854]: 
-                                        ↓setIndexTo0 [ngx.components.UICustomAction-1650357060857]: 
-                                          actionValue: 
-                                            - xmlizable: 
-                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                →: |
-                                                  		page.local.index = 0;
-                                                  		resolve();
-                                                  
-                                          ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1650357060869]: 
-                                            beanData: '{"ionBean":"InvokeAction"}'
-                                            stack: C8Oforms.MobileApplication.Application.sharedTapOnActionSubmit
-                                            ↓item [ngx.components.UIControlVariable-1650357060872]: 
+                                                  - MobileSmartSourceType: script:null
+                                            ↓currentModel [ngx.components.UIUseVariable-1650357060836]: 
                                               varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:stack.root.scope.item
-                                          ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1650357060875]: 
-                                            beanData: '{"ionBean":"InvokeAction"}'
-                                            stack: C8Oforms.MobileApplication.Application.detectChangesDoble
-                                            ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357060860]: 
+                                                  - MobileSmartSourceType: 'script:this.formsList?.[i].type == ''radio'' ?{value: this.formsList[i]?.config?.defaultValue} : {}'
+                                          ↓Directive3 [ngx.components.UIControlDirective-1650357060839]: 
+                                            directiveName: If
+                                            directiveSource: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: script:this.formsList[i].type == 'ion-card'
+                                            ↓UseSharedComponent1 [ngx.components.UIUseShared-1650357060842]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.itemCardEditorViewer
+                                              ↓item [ngx.components.UIUseVariable-1650357060845]: 
+                                                binding: twoWayBinding
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.formsList[i]
+                                              ↓idselected [ngx.components.UIUseVariable-1650357060848]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.idselected
+                                              ↓indexItem [ngx.components.UIUseVariable-1650357060851]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:i
+                                        ↓Event [ngx.components.UIControlEvent-1650357060854]: 
+                                          ↓setIndexTo0 [ngx.components.UICustomAction-1650357060857]: 
+                                            actionValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    		page.local.index = 0;
+                                                    		resolve();
+                                                    
+                                            ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1650357060869]: 
                                               beanData: '{"ionBean":"InvokeAction"}'
-                                              stack: C8Oforms.MobileApplication.Application.sublim
-                                              ↓item [ngx.components.UIControlVariable-1650357060863]: 
+                                              stack: C8Oforms.MobileApplication.Application.sharedTapOnActionSubmit
+                                              ↓item [ngx.components.UIControlVariable-1650357060872]: 
                                                 varValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                     - MobileSmartSourceType: script:stack.root.scope.item
-                                              ↓child [ngx.components.UIControlVariable-1650357060866]: 
-                                                varValue: 
-                                                  - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: script:false
-                                      ↓Attr [ngx.components.UIAttribute-1650357060878]: 
-                                        attrName: 
-                                        attrValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:[@inOutAnimation]
+                                            ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1650357060875]: 
+                                              beanData: '{"ionBean":"InvokeAction"}'
+                                              stack: C8Oforms.MobileApplication.Application.detectChangesDoble
+                                              ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357060860]: 
+                                                beanData: '{"ionBean":"InvokeAction"}'
+                                                stack: C8Oforms.MobileApplication.Application.sublim
+                                                ↓item [ngx.components.UIControlVariable-1650357060863]: 
+                                                  varValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: script:stack.root.scope.item
+                                                ↓child [ngx.components.UIControlVariable-1650357060866]: 
+                                                  varValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                      - MobileSmartSourceType: script:false
+                                      ↓Div1 [ngx.components.UIDynamicElement-1730726182654]: 
+                                        beanData: '{"ionBean":"DivTag"}'
                                         isEnabled: false
+                                        tagName: div
+                                        ↓Directive [ngx.components.UIControlDirective-1730726182660]: 
+                                          directiveName: If
+                                          directiveSource: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:this.local.dragging == true
+                                          ↓UseSharedComponent [ngx.components.UIUseShared-1730726182663]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
+                                            ↓id [ngx.components.UIUseVariable-1730726182666]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:'@prefixc8oafterItemlast'
+                                            ↓i [ngx.components.UIUseVariable-1730726182669]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:[i]
+                                            ↓hideText [ngx.components.UIUseVariable-1730726406081]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
                                   ↓Style [ngx.components.UIStyle-1650357060881]: 
                                     styleContent: 
                                       - xmlizable: 
