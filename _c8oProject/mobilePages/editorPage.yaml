@@ -833,20 +833,19 @@ scriptContent:
         	    let toCard = indexDest[1] != null;
         	    let fromCard = indexOrigin[1] != null;
         
-        	    // Retrieve source and destination elements in formsList
         	    const elemToMoveId = fromCard
         	        ? this.formsList[indexOrigin[0]]["childrenRefs"]?.[indexOrigin[1]]
         	        : this.formsList[indexOrigin[0]]["id"];
         	    const elemToMove = this.formsList.find(item => item["id"] === elemToMoveId);
         
         	    if (!elemToMove) {
-        	        console.error("Element to move not found.");
+        	        console.error("Élément à déplacer introuvable.");
         	        return;
         	    }
         
         	    const destinationParentId = toCard ? this.formsList[indexDest[0]]["id"] : null;
         
-        	    // Check for duplicate names
+        		
         	    const destinationList = toCard
         	        ? (this.formsList[indexDest[0]]["childrenRefs"] || []).map(refId => this.formsList.find(item => item["id"] === refId))
         	        : this.formsList;
@@ -860,72 +859,71 @@ scriptContent:
         	        return;
         	    }
         
-        	    // If moving within the same card
-        	    if (toCard && fromCard && indexDest[0] === indexOrigin[0]) {
-        	        const parent = this.formsList[indexOrigin[0]];
+        	    const childIds = elemToMove[''childrenRefs''] || [];
+        	    const elementsToMove = [elemToMove, ...this.formsList.filter(item => childIds.includes(item[''id'']))];
         
-        	        // Initialize childrenRefs if necessary
-        	        if (!Array.isArray(parent["childrenRefs"])) {
-        	            parent["childrenRefs"] = [];
+        	    elementsToMove.forEach(element => {
+        	        const index = this.formsList.findIndex(item => item[''id''] === element[''id'']);
+        	        if (index > -1) {
+        	            this.formsList.splice(index, 1);
         	        }
+        	    });
         
-        	        const oldIndex = parent["childrenRefs"].indexOf(elemToMoveId);
-        	        if (oldIndex > -1) {
-        	            parent["childrenRefs"].splice(oldIndex, 1);
-        	            if (indexDest[1] > oldIndex) {
-        	                indexDest[1]--;
+        		
+        	    if (fromCard) {
+        	        const oldParent = this.formsList.find(item => item[''id''] === elemToMove[''parentRef'']);
+        	        if (oldParent && Array.isArray(oldParent["childrenRefs"])) {
+        	            const oldIndex = oldParent["childrenRefs"].indexOf(elemToMoveId);
+        	            if (oldIndex > -1) {
+        	                oldParent["childrenRefs"].splice(oldIndex, 1);
         	            }
-        	            parent["childrenRefs"].splice(indexDest[1], 0, elemToMoveId);
-        
-        	            // Ensure the element is placed after the card in the main list
-        				this.getElementIndexById(elemToMoveId);
-        				this.formsList.splice(this.getElementIndexById(elemToMoveId), 1);					
-        	            this.formsList.splice(indexOrigin[0] + indexDest[1] + 1, 0, elemToMove);
         	        }
         	    }
-        	    // Move between different cards or out of a card
-        	    else {
-        	        // Remove from the old parent
-        	        if (fromCard) {
-        	            const oldParent = this.formsList[indexOrigin[0]];
-        	            if (Array.isArray(oldParent["childrenRefs"])) {
-        	                const oldIndex = oldParent["childrenRefs"].indexOf(elemToMoveId);
-        	                if (oldIndex > -1) {
-        	                    oldParent["childrenRefs"].splice(oldIndex, 1);
-        	                }
-        	            }
-        	        }
-        	        elemToMove["parentRef"] = destinationParentId;
         
-        	        // Add to the new parent
-        	        if (toCard) {
-        	            const newParent = this.formsList[indexDest[0]];
-        	            if (!Array.isArray(newParent["childrenRefs"])) {
-        	                newParent["childrenRefs"] = [];
-        	            }
-        	            newParent["childrenRefs"].splice(indexDest[1], 0, elemToMoveId);
-        				if(indexDest[0] + indexDest[1] >= indexOrigin[0]){
-        					indexDest[0]--;
-        				}
-        				this.formsList.splice(this.getElementIndexById(elemToMoveId), 1);
-        				
-        	            this.formsList.splice(indexDest[0] + indexDest[1] + 1, 0, elemToMove);
+        		
+        	    elementsToMove.forEach(element => {
+        	        if (element[''id''] === elemToMoveId) {
+        	            element["parentRef"] = destinationParentId;
         	        } else {
-        	            let originIndex = this.getElementIndexById(elemToMoveId);
-        	            if (indexDest[0] >= originIndex) {
-        	                indexDest[0]--;
-        	            }
-        	            this.formsList.splice(originIndex, 1);
-        	            this.formsList.splice(indexDest[0], 0, elemToMove);
-        				
+        	            element["parentRef"] = elemToMoveId;
         	        }
+        	    });
+        
+        		
+        	    if (toCard) {
+        	        const newParent = this.formsList.find(item => item[''id''] === destinationParentId);
+        	        if (!newParent) {
+        	            console.error("Nouveau parent introuvable.");
+        	            return;
+        	        }
+        	        if (!Array.isArray(newParent["childrenRefs"])) {
+        	            newParent["childrenRefs"] = [];
+        	        }
+        	        newParent["childrenRefs"].splice(indexDest[1], 0, elemToMoveId);
+        			
+        	        const parentIndex = this.formsList.findIndex(item => item[''id''] === newParent[''id'']);
+        	        if (parentIndex > -1) {
+        	            let insertIndex = parentIndex + 1;
+        	            if (indexDest[1] > 0) {
+        	                const prevChildId = newParent[''childrenRefs''][indexDest[1] - 1];
+        	                const prevChildIndex = this.formsList.findIndex(item => item[''id''] === prevChildId);
+        	                insertIndex = prevChildIndex + 1;
+        	            }
+        	            this.formsList.splice(insertIndex, 0, ...elementsToMove);
+        	        } else {
+        	            console.error("Nouveau parent introuvable dans formsList.");
+        	            return;
+        	        }
+        	    } else {
+        	        let insertIndex = indexDest[0];
+        	        this.formsList.splice(insertIndex, 0, ...elementsToMove);
         	    }
         
         	    elemToMove["config"].page = this.local.currentPage;
-        
-        	    // Update state and UI
         	    this.updateState();
         	}
+        
+        
         
         	
         	moveActionElement(indexDest, indexOrigin){
