@@ -308,45 +308,54 @@ scriptContent:
         		window["tt"] = this;
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/	
-        	public reduceImageSize(blobInfo, MAX_SIZE): Promise<any>{
-        		return new Promise((resolve)=>{
-        			MAX_SIZE = MAX_SIZE * 1024; // Convertir en octets
-        			const QUALITY = 0.7; // Qualité de l''image redimensionn
-        			const file = blobInfo.blob();
-        			const img = new Image();
-        	    	img.src = URL.createObjectURL(file);
-        	    	img.onload = function () {
-        		      const canvas = document.createElement(''canvas'');
-        		      const ctx = canvas.getContext(''2d'');
-        		
-        		      // Redimensionner l''image avec un facteur de réduction
-        		      const ratio = Math.sqrt(MAX_SIZE / file.size);
-        		      canvas.width = img.width * ratio;
-        		      canvas.height = img.height * ratio;
-        		
-        		      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        		
-        		      // Convertir l''image redimensionnée en blob
-        		      canvas.toBlob(function (blob) {
-        		        if (blob.size > MAX_SIZE) {
-        		          resolve({error: true});
-        		        } else {
-        					const reader = new FileReader();
-        					reader.readAsDataURL(blob);
-        					reader.onloadend = function () {
-        						resolve({ success: true, url: reader.result});
-        					};
-        		          // Convertir le nouveau blob en base64 et retourner l''image redimensionnée
-        		          
-        		        }
-        		      }, file.type, QUALITY); // Conserver le type MIME d''origine
-        		    };
-        		
-        		    img.onerror = function () {
-        		      resolve({error: true});
-        		    };
-        		});
-        	  }
+        	public reduceImageSize(blobInfo, MAX_SIZE, quality = 0.7, reductionFactor = 0.9): Promise<any> {
+        	    return new Promise((resolve) => {
+        	        MAX_SIZE = MAX_SIZE * 1024; // Convertir en octets
+        	        const file = blobInfo.blob();
+        	        const img = new Image();
+        	        img.src = URL.createObjectURL(file);
+        	        img.onload = () => {
+        	            const canvas = document.createElement(''canvas'');
+        	            const ctx = canvas.getContext(''2d'');
+        
+        	            // Redimensionner l''image avec un facteur de réduction
+        	            const ratio = Math.sqrt(MAX_SIZE / file.size) * reductionFactor;
+        	            canvas.width = img.width * ratio;
+        	            canvas.height = img.height * ratio;
+        
+        	            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        	            // Convertir l''image redimensionnée en blob
+        	            canvas.toBlob((blob) => {
+        	                if (blob.size > MAX_SIZE) {
+        	                    if (quality > 0.7) {
+        	                        // Réduire la qualité si la taille est toujours trop grande
+        	                        const newQuality = quality - 0.1;
+        	                        const newBlobInfo = { blob: () => blob };
+        	                        resolve(this.reduceImageSize.call(this, newBlobInfo, MAX_SIZE / 1024, newQuality, reductionFactor));
+        	                    } else if (reductionFactor > 0.5) {
+        	                        // Réduire la taille de l''image si la qualité est déjà très faible
+        	                        const newReductionFactor = reductionFactor - 0.1;
+        	                        const newBlobInfo = { blob: () => blob };
+        	                        resolve(this.reduceImageSize.call(this, newBlobInfo, MAX_SIZE / 1024, quality, newReductionFactor));
+        	                    } else {
+        	                        resolve({ error: true });
+        	                    }
+        	                } else {
+        	                    const reader = new FileReader();
+        	                    reader.readAsDataURL(blob);
+        	                    reader.onloadend = () => {
+        	                        resolve({ success: true, url: reader.result });
+        	                    };
+        	                }
+        	            }, file.type, quality); // Conserver le type MIME d''origine
+        	        };
+        
+        	        img.onerror = () => {
+        	            resolve({ error: true });
+        	        };
+        	    });
+        	}
         	
         	public async images_upload_handler(blobInfo, success, failure) {
              	console.log("blobInfo", blobInfo);
@@ -384,11 +393,6 @@ scriptContent:
         					}); 
         				})
         			}
-        			const reader = new FileReader();
-        			reader.readAsDataURL(blobInfo.base64());
-        			reader.onloadend = () => {
-        				success(reader.result);
-        			};
         	    }
             }
         	getIndexOfNormalized(item, filterActions){
