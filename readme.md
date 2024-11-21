@@ -258,6 +258,13 @@ For more technical informations : [documentation](./project.md)
         - [itemGridViewer](#itemgridviewer)
         - [itemHeaderEdit](#itemheaderedit)
         - [itemImgViewer](#itemimgviewer)
+        - [itemLayoutConfigCols](#itemlayoutconfigcols)
+        - [itemLayoutEditor](#itemlayouteditor)
+        - [itemLayoutEditor_Elem](#itemlayouteditor_elem)
+        - [itemLayoutEditor_Params](#itemlayouteditor_params)
+        - [itemLayoutEditorViewer](#itemlayouteditorviewer)
+        - [itemLayoutViewer](#itemlayoutviewer)
+        - [itemLayoutViewer_Elem](#itemlayoutviewer_elem)
         - [itemLocationEditor](#itemlocationeditor)
         - [itemLocationViewer](#itemlocationviewer)
         - [itemRadioGroupViewver](#itemradiogroupviewver)
@@ -301,6 +308,7 @@ For more technical informations : [documentation](./project.md)
         - [sharedStatsInputText](#sharedstatsinputtext)
         - [sharedStatsLocation](#sharedstatslocation)
         - [sharedStatsRadio](#sharedstatsradio)
+        - [SharedStyleMarginEditor](#sharedstylemargineditor)
         - [SharedTabs](#sharedtabs)
         - [SharedVersion](#sharedversion)
         - [switchItemEdition](#switchitemedition)
@@ -3544,6 +3552,172 @@ The Chart Widget viewer
 <td>redList</td><td></td>
 </tr>
 </table>
+#### itemLayoutConfigCols
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>cols</td><td></td>
+</tr>
+</table>
+#### itemLayoutEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td></td>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>idselectedC</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemLayoutEditor_Elem
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>idselectedC</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>item1730737782207</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
+</tr>
+<tr>
+<td>showGrab</td><td></td>
+</tr>
+</table>
+#### itemLayoutEditor_Params
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>colScheme</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>main_icn</td><td></td>
+</tr>
+<tr>
+<td>main_title</td><td></td>
+</tr>
+<tr>
+<td>target</td><td></td>
+</tr>
+<tr>
+<td>tooltip</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>colsChange</td><td></td>
+</tr>
+</table>
+#### itemLayoutEditorViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemLayoutViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
+<td>redList</td><td></td>
+</tr>
+</table>
+#### itemLayoutViewer_Elem
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>item1730739256405</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
+<td>redList</td><td></td>
+</tr>
+</table>
 #### itemLocationEditor
 
 **variables**
@@ -4189,6 +4363,9 @@ The Chart Widget viewer
 <tr>
 <td>childIntoGrabHeader</td><td></td>
 </tr>
+<tr>
+<td>fromGrp</td><td></td>
+</tr>
 </table>
 #### sharedHeaderMenu
 
@@ -4351,6 +4528,21 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>value</td><td></td>
+</tr>
+</table>
+#### SharedStyleMarginEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>config</td><td></td>
+</tr>
+<tr>
+<td>target</td><td></td>
 </tr>
 </table>
 #### SharedTabs
