@@ -36,6 +36,7 @@ scriptContent:
         }
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
+        	public fromViewer = true;
             public formsList: Array<object> = [];
             public formsSubmit = {};
         	public actions = {};
@@ -131,6 +132,7 @@ scriptContent:
             
             /*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.local.htmlValue = {};
         		this.local.strCacheComputeHtml = {};
         		this.local.techSelect = {};
         		this.local.cacheComputeHtml$ = {};
@@ -1937,13 +1939,51 @@ scriptContent:
         					this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         				
         				}
+        				if(item.config.html){
+        					await this.evalHtml(item.config.html, item.name);
+        				}
+        				if(item.config.title?.html != null){
+        					await this.evalHtml(item.config.title.html, item.name);
+        				}
         			}
+        			this.fillPages(this["local"]["pages"]);
         		}
         		catch (e) {
         			page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
         		}
         		return idsToCall;
         	}
+        	
+        	public async evalHtml(html, name){
+        		let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        		let ObjectThatHaveToCallFunc = []
+        		let str = this.stringOf$$ToCode(html, "html", ObjectThatHaveToCallFunc, regex);
+        		let sha = sha256(JSON.stringify(html));
+        		this.functionsById[sha] = async () => {
+        			try{
+        				let page = this;
+        				const asyncFunction = Object.getPrototypeOf(async () => {}).constructor(
+        				      ''page'',
+        				      `return (async () => { return ${str} })();`
+        				    );
+        				let res = await asyncFunction(page);
+        				page.local.htmlValue[name] = res != null && res != "null" && res != "undefined" ? res : "";
+        			}
+        			catch(e){
+        				this.local.htmlValue[name] =""
+        			}
+        			
+        		}
+        		await this.functionsById[sha]();
+        		this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
+        	}
+        	
+        	public async fillPages(pages){
+        		pages.forEach(async (page, index) => {
+        			await this.evalHtml(page.desc, "pagec8o"+index);
+        		})
+        	}
+        		
         
         	/**
         	 * walk a given item to find enabled sources within it 
@@ -2166,10 +2206,21 @@ scriptContent:
         			}
         			else {
         				let page = this;
-        				let e = eval(meta.c8opath);
+        				let e;
+        				let async = false;
+        				try {
+        				     e = eval(meta.c8opath);
+        			   } catch (e) {
+        			       if (e instanceof SyntaxError && e.message.includes(''await is only valid'')) {
+        						async = true;
+        			       } else {
+        			           throw e; // Renvoyer l''erreur si ce n''est pas lié à ''await''
+        			       }
+        			   }
         				//currentVal = "`+(eval("+ path +"))+`"
-        				if(e && e.then != undefined){
-        					currentVal = "`+ (await (" + meta.c8opath + "))+`";
+        				if(async || (e && e.then != undefined)){
+        					//currentVal = "`+ (((async () => {return " + meta.c8opath + "})()) | async) + `";
+        					currentVal = "`+ " + meta.c8opath + " +`";
         				}
         				else{
         					currentVal = "`+" + meta.c8opath + "+`";
@@ -2419,8 +2470,15 @@ scriptContent:
         	public computeHtml$(str) {
         		
         		if(this.local.strCacheComputeHtml[str] !== undefined){
-        			let page = this;
-        			return eval(this.local.strCacheComputeHtml[str]);
+        //			let page = this;
+        //			const asyncFunction = Object.getPrototypeOf(async () => {}).constructor(
+        //			      ''page'',
+        //			      `return (async () => { return ${this.local.strCacheComputeHtml[str]} })();`
+        //			    );
+        //				let res = await asyncFunction(page);
+        //				console.log("mon res", res);
+        //			return res;
+        			return this.local.strCacheComputeHtml[str];
         		}
         		else{
         			let oStr = "" + str;
@@ -2452,8 +2510,16 @@ scriptContent:
         			}
         			str = str.replace(/\\`/g, "`");
         			this.local.strCacheComputeHtml[oStr] = str;
-        			let page = this;
-        			return eval(this.local.strCacheComputeHtml[oStr]);
+        //			let page = this;
+        ////			const asyncFunction = Object.getPrototypeOf(async () => {}).constructor(
+        ////		      ''page'',
+        ////		      `return (async () => { return ${this.local.strCacheComputeHtml[oStr]} })();`
+        ////		    );
+        ////			let res = await asyncFunction(page);
+        //			this.local.strCacheComputeHtml[oStr] = res;
+        //			console.log("mon res", res);
+        			return this.local.strCacheComputeHtml[oStr];
+        //			return eval(this.local.strCacheComputeHtml[oStr]);
         		}
         	}
         
@@ -3161,13 +3227,11 @@ scriptContent:
         		for(let va in findVars){
         			try{
         				if(typeof findVars[va] == ''string''){
-        					/*let resol = null;
-        					let r = new Promise((resolve)=>{
-        						resol = resolve;
-        					})
-        					eval("(async ()=> { return "+findVars[va]+" })().then((r)=>{if(this.local.cacheComputeHtml$[va] != undefined){this.local.cacheComputeHtml$[va].next(r);};variables[va] = r;})");
-        					*/
-        					variables[va] = eval(findVars[va]);
+        					const asyncFunction = Object.getPrototypeOf(async () => {}).constructor(
+        					      ''page'',
+        					      `return (async () => { return ${findVars[va]} })();`
+        					    );
+        					variables[va] = await asyncFunction(page);
         					if(variables[va] == undefined || variables[va] == "undefined"){
         						delete variables[va];
         					}
@@ -3191,6 +3255,7 @@ scriptContent:
         			}
         			catch(e){
         				this.c8o.log.warn("An error occured while computing variables for "+item.name+" data sources, maybe the source has still not been created");
+        				console.error("An error occured while computing variables for "+item.name+" data sources, maybe the source has still not been created", e);
         				delete variables[va];
         			}
         		}
@@ -6426,7 +6491,7 @@ title: Visualisateur
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.computeHtml$(this.form.pages[this['local']['currentIndex']].desc))
+                    - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.local?.htmlValue?.['pagec8o'+this.local.currentIndex])
                 comment: |
                   'this.router.sanitizer.bypassSecurityTrustHtml((this.computeHtml$(this.form.pages[this[''local''][''currentIndex'']].desc)))
                   
