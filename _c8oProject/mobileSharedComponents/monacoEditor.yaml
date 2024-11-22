@@ -281,6 +281,7 @@ scriptContent:
         	}
         	
         	public inspectValue(node, arrayNodes, str = '''', memberExpressions = null, parentNode = null) {
+        	  const regex = /\./g;
         	  if (parentNode == null) {
         	  	parentNode = node;
         	  }
@@ -297,7 +298,7 @@ scriptContent:
         	      delete memberExpressions[node.property.range[0]];
         	    } else {
         	      	if (node.property.type == ''Literal'') {
-        			  str = ''.'' + node.property.value + str;
+        			  str = ''.'' + node.property.value.replace(regex, ''\\.'') + str;
         			} else {
         			  str = ''.'' + node.property.name + str;
         			}
@@ -407,11 +408,13 @@ scriptContent:
         					// in case of coming from palette or txt
         					if(meta.id == undefined && meta.pathPrefix == undefined){
         						let cat = this.pageOwner.getElementById(id).cat;
-        						if(cat == "action"){
-        							meta.pathPrefix = "actions";
-        						}
-        						else{
-        							meta.pathPrefix = "fields"
+        						//if(cat != undefined){
+        							if(cat == "action"){
+        								meta.pathPrefix = "actions";
+        							}
+        							else{
+        								meta.pathPrefix = "fields"
+        							//}
         						}
         						meta.id = id;
         					}
@@ -444,9 +447,32 @@ scriptContent:
         		}
         		splitted[0] = currentNestedName;
         		let expression = current.pathPrefix + "." + splitted.join(".");
-        		//const regex =  /\.([\p{L}\p{N}$ ]+)(?=(?:[^"]*"[^"]*")*[^"]*$)/gu;
-        		const regex = /\.([\p{L}\p{N}\p{M}\p{P}\p{S}$ ]+)(?=(?:[^"]*"[^"]*")*[^"]*$)/gu;
-        		expression = expression.replace(regex, ''["$1"]'').replace(/^(\w+)/, ''$1'');
+        		let parts = [];
+        	    let currentPart = '''';
+        	    for (let i = 0; i < expression.length; i++) {
+        	        let c = expression[i];
+        	        if (c === ''\\'' && expression[i + 1] === ''.'') {
+        	            // Point échappé, inclure le point dans la partie actuelle
+        	            currentPart += ''.'';
+        	            i++; // Sauter le point après l''antislash
+        	        } else if (c === ''.'') {
+        	            // Point non échappé, démarrer une nouvelle partie
+        	            parts.push(currentPart);
+        	            currentPart = '''';
+        	        } else {
+        	            currentPart += c;
+        	        }
+        	    }
+        	    parts.push(currentPart);
+        
+        	    // Construire le résultat final
+        	    let result = parts[0];
+        	    for (let i = 1; i < parts.length; i++) {
+        	        result += ''["'' + parts[i] + ''"]'';
+        	    }
+        		// Ajouter la notation de début avec crochets correctement pour le premier segment
+        		expression = result;
+        		
         		return expression;
         	}
         	public async parse(b) {
@@ -509,11 +535,11 @@ scriptContent:
         				
         				  for (let rand in currentMemberExpression.nestedByRandom) {
         				    let curr = currentMemberExpression.nestedByRandom[rand];
-        				    let splitted = curr.computedValue.split(''.'');
+        				    let splitted = curr.computedValue.split(/(?<!\\)\./);
         				    currentMemberExpression.nestedByRandom[rand] = await this.tsMonacoto$$(curr, splitted, false);
         				  }
         				}
-        				let splitted = currentMemberExpression.computedValue.split(''.'');
+        				let splitted = currentMemberExpression.computedValue.split(/(?<!\\)\./);
         				let firstArg = splitted[0];
         				console.log(''splitted'', splitted);
         				if (firstArg === ''fields'' || firstArg === ''actions'') {
