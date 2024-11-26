@@ -305,6 +305,7 @@ componentScriptContent:
         						this.global.app.state = 1;
         						this.c8o.log.debug(`NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
         						console.log(`NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`, event);
+        						this.ref.detectChanges();
         						_res()
         					break;
         					// A new version is detected on the server.
@@ -313,6 +314,7 @@ componentScriptContent:
         						this.global.app.state = 2;
         						this.c8o.log.debug(`VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
         						console.log(`VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`, event);
+        						this.ref.detectChanges();
         						_res()
         					break;
         					// A new version has been downloaded and is ready for activation.
@@ -339,6 +341,7 @@ componentScriptContent:
         						    _res()
         						    await toast.present();
         						}
+        						this.ref.detectChanges();
         					break;
         					// Checking for or downloading a new version fails.
         					case "VERSION_INSTALLATION_FAILED":
@@ -346,7 +349,8 @@ componentScriptContent:
         						this.global.app.state = 4;
         						this.c8o.log.debug(`VERSION_INSTALLATION_FAILED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}.\n error is: ${event.error}`);
         						console.log(`VERSION_INSTALLATION_FAILED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}.\n error is: ${event.error}`, event);
-        						_res()
+        						this.ref.detectChanges();
+        						_res();
         					break;
         				}
         			})
@@ -576,7 +580,7 @@ componentScriptContent:
         							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
         							// if PWAS is anonymous, then no login needed 
         			                if (response["anonymous"] == true) {
-        			                    let data = { u: standalonePwa, ...event.route.queryParams };
+        			                    let data = { u: response?.anonymousKey ?? standalonePwa, ...event.route.queryParams };
         			                    let pagex = "sharingPage";
         			                    setTimeout(() => {
         									data = purgeWrongKeys(data);
@@ -829,7 +833,8 @@ componentScriptContent:
         	                return true;
         	            }
         	            else{
-        					await page.c8o.promiseFinInit;
+        					let suite = async()=>{
+        						await page.c8o.promiseFinInit;
         			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
         						page.global.user = page.c8o.session.user.name;
         		            	// TO BE REPORTED
@@ -869,6 +874,42 @@ componentScriptContent:
         						}
         						
         					}
+        					}
+        					indexPWA = window.location.pathname.indexOf("pwas");
+        				    indexMobile = window.location.pathname.indexOf("mobile");
+        				     //if we started in standalone pwa mode
+        				    if (indexPWA != -1 && indexMobile == -1) {
+        				        // get url base
+        				        if(event.route.params["i"] == undefined || event.route.params["i"] == ":i"){
+        							this.global.pwa = true;
+        					        const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
+        					        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
+        		                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
+        		                  	this.global.standalonePwa = standalonePwa;
+        							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
+        							// if PWAS is anonymous, then no login needed 
+        			                if (response["anonymous"] == true && response["anonymousKey"] != undefined) {
+        			                    let data = { u: response?.anonymousKey ?? standalonePwa, ...event.route.queryParams };
+        			                    let pagex = "sharingPage";
+        			                    setTimeout(() => {
+        									data = purgeWrongKeys(data);
+        			                        page.routerProvider.setRoot(pagex, data, null);
+        			                    }, 200);
+        			                    return false;
+        			                }
+        			                else {
+        								return await suite()
+        							}
+        						}
+        						else{
+        							return true;
+        						}
+        				        
+        					}
+        					else{
+        						return await suite();
+        					}
+        					
         				}
         			case "settingsPage":
         				await page.c8o.promiseFinInit;
@@ -1006,6 +1047,101 @@ componentScriptContent:
         		}
         		resolve();
         		/*End_c8o_function:CTS1629301305546*/
+        /*Begin_c8o_function:CTS1731951742147*/
+        		try {
+        			return await page.c8o.callJsonObject("C8Oforms.getBrevoChatId", {});
+        		} catch (e) {
+        			return null;
+        		}
+        		/*End_c8o_function:CTS1731951742147*/
+        /*Begin_c8o_function:CTS1729513996258*/
+        		try {
+        			let resp: any = vars.resp;
+        			if(resp.BrevoConversationsID != null && resp.BrevoConversationsID != "" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) == false){
+        				let router = page.getInstance(Router);
+        				let conditional = ()=>{
+        					return location.pathname?.split("/")?.[5] != "pwas" && router.url.startsWith("viewer") == false;
+        				}
+        				let initBrevo = ()=>{
+        					if(!this.global.__brevonintialized){
+        						((d, w, c) => {
+        						  // Définir l''ID BrevoConversations
+        						  w["BrevoConversationsID"] = resp.BrevoConversationsID;
+        						  
+        						  // Initialiser la fonction de BrevoConversations
+        						  w[c] = w[c] || function() { 
+        						    (w[c].q = w[c].q || []).push(arguments); 
+        						  };
+        						  
+        						  // Créer le script dynamiquement
+        						  var s = d.createElement(''script'');
+        						  s.async = true;
+        						  s.src = ''https://conversations-widget.brevo.com/brevo-conversations.js'';
+        						  
+        						  // Ajouter le script au head
+        						  if (d.head) {
+        						    d.head.appendChild(s);
+        						  }
+        						})(document, window, ''BrevoConversations'');
+        						this.global.__brevonintialized = true;
+        					}
+        				}
+        				let showBrevo = ()=>{
+        					try{
+        						document.getElementById("brevo-conversations").style.display = "block";
+        					}
+        					catch (e) {
+        
+        					}
+        				}
+        				let hideBrevo = ()=>{
+        					try{
+        						document.getElementById("brevo-conversations").style.display = "none";
+        					}
+        					catch (e) {
+        						
+        					}
+        				}
+        				router.events
+        			    .pipe(filter(event => event instanceof NavigationEnd))
+        			    .subscribe((event: NavigationEnd) => {
+        					if (conditional()) {
+        						initBrevo();
+        						showBrevo();
+        					} else {
+        						hideBrevo();
+        					}
+        			    });
+        			    // init
+        				if (conditional()) {
+        					initBrevo();
+        				}
+        				
+        			}
+        				
+        		} catch (e) {
+        		
+        		}
+        		/*End_c8o_function:CTS1729513996258*/
+        /*Begin_c8o_function:CTS1731073219875*/
+        		try {
+        			let enabledProductTour = vars.resp.EnableProductTour == "true";
+        			let router = page.getInstance(Router);
+        			let pwa = location.pathname?.split("/")?.[5] == "pwas";
+        			return !pwa && enabledProductTour;
+        		} catch (e) {
+        			return false;
+        		}
+        		/*End_c8o_function:CTS1731073219875*/
+        /*Begin_c8o_function:CTS1732033135003*/
+        		try {
+        			page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+        		} catch (e) {
+        		
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1732033135003*/
         '
 isPWA: true
 tplProjectName: C8Oforms
