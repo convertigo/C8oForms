@@ -1955,29 +1955,37 @@ scriptContent:
         	}
         	
         	public async evalHtml(html, name){
-        		let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
-        		let ObjectThatHaveToCallFunc = []
-        		let str = this.stringOf$$ToCode(html, "html", ObjectThatHaveToCallFunc, regex);
-        		let sha = sha256(JSON.stringify(html));
-        		this.functionsById[sha] = async () => {
-        			try{
-        				let page = this;
-        				const asyncFunction = Object.getPrototypeOf(async () => {}).constructor(
-        				      ''page'',
-        				      `return (async () => { return ${str} })();`
-        				    );
-        				let res = await asyncFunction(page);
-        				page.local.htmlValue[name] = res != null && res != "null" && res != "undefined" ? res : "";
+        		if(html != "" && html != null){
+        			let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        			let ObjectThatHaveToCallFunc = []
+        			let str = this.stringOf$$ToCode(html, "html", ObjectThatHaveToCallFunc, regex);
+        			let sha = sha256(JSON.stringify(html));
+        			this.functionsById[sha] = async () => {
+        				try{
+        					let page = this;
+        					const asyncFunction = Object.getPrototypeOf(async () => {}).constructor(
+        					      ''page'',
+        					      `return (async () => { return ${str} })();`
+        					    );
+        					let res = await asyncFunction(page);
+        					page.local.htmlValue[name] = res != null && res != "null" && res != "undefined" ? res : "";
+        				}
+        				catch(e){
+        					this.local.htmlValue[name] =""
+        				}
+        				finally{
+        					this.ref.detectChanges();		
+        				}
         			}
-        			catch(e){
-        				this.local.htmlValue[name] =""
-        			}
-        			finally{
-        				this.ref.detectChanges();		
+        			await this.functionsById[sha]();
+        			if(sha){
+        				this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
         			}
         		}
-        		await this.functionsById[sha]();
-        		this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
+        		else{
+        			this.local.htmlValue[name] = "";
+        		}
+        		
         	}
         	
         	public async fillPages(pages){
