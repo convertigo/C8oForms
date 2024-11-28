@@ -13,7 +13,6 @@ export class LegacyUrlHandlingStrategy implements UrlHandlingStrategy {
   }
 
   extract(url: UrlTree): UrlTree {
-	console.log("extract !!!!!!!!", url);
     const urlWithHash = this.getUrlWithoutHash(url);
 
     // Nettoyer l'URL si nécessaire
@@ -28,8 +27,6 @@ export class LegacyUrlHandlingStrategy implements UrlHandlingStrategy {
   }
 
   merge(newUrlPart: UrlTree, rawUrl: UrlTree): UrlTree {
-	console.log("merge !!!!!!!!", newUrlPart);
-		console.log("merge !!!!!!!!", rawUrl);
     return newUrlPart;
   }
 
