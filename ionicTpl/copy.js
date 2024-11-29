@@ -24,14 +24,14 @@ Promise.all(promises).then(() => {
 		//		console.log('Contenu du fichier:', ngswJson);
 		ngswJson = JSON.parse(ngswJson);
 		ngswJson.assetGroups[0].urls = ngswJson.assetGroups[0].urls.map(function(url) {
-			if (url.endsWith(".js") || url.endsWith(".css")) {
+			if (url.endsWith(".js") || url.endsWith(".css") || url.endsWith(".woff2")) {
 				return url.replace("DisplayObjects/mobile/", "DisplayObjects/mobile/scripts/");
 			}
 			return url;
 		});
 		ngswJson.hashTable = Object.fromEntries(
 			Object.entries(ngswJson.hashTable).map(([key, value]) => {
-				if (!key.includes("/assets/") && !key.includes("/svg/") && !key.endsWith("/ngsw.json") && !key.endsWith("/index.html") && !key.endsWith("/manifest.webmanifest") && !key.endsWith("/ngsw-worker.js") && !key.includes("/scripts/") && (key.endsWith(".js") || key.endsWith(".css"))) {
+				if (!key.includes("/assets/") && !key.includes("/svg/") && !key.endsWith("/ngsw.json") && !key.endsWith("/index.html") && !key.endsWith("/manifest.webmanifest") && !key.endsWith("/ngsw-worker.js") && !key.includes("/scripts/") && (key.endsWith(".js") || key.endsWith(".css") || key.endsWith(".woff2"))) {
 					return [key.replace("DisplayObjects/mobile/", "DisplayObjects/mobile/scripts/"), value];
 				}
 				return [key, value]
