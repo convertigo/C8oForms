@@ -205,15 +205,19 @@ accessibility: Hidden
     		var oldCollabs = doc.collabs != undefined ? doc.collabs.slice() : [];
     		var oldCollabsResponse = doc.collabsResponse != undefined ? doc.collabsResponse.slice() : [];
     		var oldShared = doc.shared != undefined ? doc.shared.slice() : [];
-    
-    		newSharedGrp.forEach((elem) => {
+    		var indexesToRemove = [];
+    		newSharedGrp.forEach((elem, index) => {
     			if (elem.type != undefined) {
     				groupsToAdd[elem.value] = true;
     
     			}
     			else {
     				invite_new.push(elem.value);
+    				indexesToRemove.push(index);
     			}
+    		});
+    		indexesToRemove.reverse().forEach((index) => {
+    			newSharedGrp.splice(index, 1);
     		});
     
     		// define new objects collabs collabsResponse
@@ -245,12 +249,19 @@ accessibility: Hidden
     				}
     			})
     		}
-    
+    		if(doc.invited != null && meta.revoke_invit != null){
+    			meta.revoke_invit.forEach((e) => {
+    				let index = doc.invited.indexOf(e);
+    				if (index != -1) {
+    					doc.invited.splice(index, 1);
+    				}
+    			});
+    		}
     		// prepare args to post new_doc_published with adequate rights
     		let new_doc_published = {
     			"c8oGrp": groupsToAdd,
     			"shared": newShared,
-    			"invited": invite_new.concat(meta.invite_new),
+    			"invited": invite_new.concat(doc.invited != null ? doc.invited : []),
     			"_id": id
     		}
     		let mergeRules = new HashMap();
@@ -263,7 +274,7 @@ accessibility: Hidden
     		if(meta.sendNotif || meta.sendNotif == true){
     			console.log("invite_new ", meta.invite_new, logLevel);
     			//newSharedGrp
-    			let _meta = JSON.stringify({ group: newSharedGrp.map((x)=>{return x.value}), subject: meta.subject, body: meta.body, idDoc: new_doc_published._id }); 
+    			let _meta = JSON.stringify({ group: newSharedGrp.map((x)=>{return x.value}), subject: meta.subject, body: meta.body, idDoc: new_doc_published._id, invite_new: invite_new }); 
     			var emailNotifs = (callSequence("C8Oforms", "APIV2_NotifyUsersSharing", {meta: _meta}))
     			console.log("response email Notifs", emailNotifs, logLevel);
     		}

@@ -161,7 +161,7 @@
 													<td style=" padding-top: 10px; padding-left: 10px;">
 														<img
 															style="display: block; margin-left: auto; margin-right: auto;"
-															src="https://www.convertigo.com/wp-content/themes/EightDegree/images/logo_convertigo.png"
+															src="https://cdn.prod.website-files.com/62d55bc018a5be3f0b91fcf3/62d55bc018a5be089691fd24_Color%3DBlueConvertigo.png"
 															width="145" height="46" />
 													</td>
 													<td class="content-block"
