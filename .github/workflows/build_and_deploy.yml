@@ -1,99 +1,54 @@
-# This is a basic workflow to help you get started with Actions
+# Template configuration for Convertigo project CI build on GitHub Actions
+# Please consult the GitHub documentation for details about settings
+# https://docs.github.com/en/actions
+#
+# This sample assumes you have declared the following Encrypted Secrets
+# https://docs.github.com/en/actions/reference/encrypted-secrets
+#
+# C8O_SERVER: Convertigo server endpoint, where the built mobile application will connect
+#             and the backend project will be deployed, like https://<myhost>/convertigo
+# C8O_USER: Convertigo server admin or a user with role PROJECTS_CONFIG, used for the deploiment
+# C8O_PASSWORD: Convertigo server password for the C8O_USER
+#
+# C8O_SERVER_PROD: override C8O_SERVER for tags
+# C8O_USER_PROD: override C8O_USER for tags
+# C8O_PASSWORD_PROD: override C8O_PASSWORD for tags
+#
+# Discover all tasks and -Pconvertigo options in your project build.gradle file.
 
-name: Build deploy and pre-release
+name: No code studio CI
 
-# Controls when the action will run. 
-on: 
+on:
   push:
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+-beta[0-9]+'
-  # Triggers the workflow on push or pull request events but only for the develop branch
-  #push:
-   # tags:
-    #  - '**-beta**'
-    #  - '*.*.*'
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+      - '**'
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  build_and_deploy:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      # SetUp java 11
+          ssh-key: ${{ secrets.SSH_KEY }}
+
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
       - name: Cache Gradle Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
-          path: |
-             ~/.gradle/caches
-             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-caches-v1-${{ hashFiles('**/*.gradle', '**/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-caches-v1-
-      #Setup
-      - name: Setup NodeJs
-        uses: actions/setup-node@v2
-        with:
-          node-version: '16'
-      # Builds and deploy Convertigo Forms versions
-      - name: Build and deploy Convertigo Forms betas versions
-        env:
-          TESTENDPOINT: ${{secrets.testEndpoint}}
-          DEPLOYSERVER: ${{secrets.testEndpoint}}
-          TESTUSERADMIN: ${{secrets.testUserAdmin}}
-          TESTUSERPASSWORD: ${{secrets.testUserPassword}}
-        run: sh gradlew --no-daemon --stacktrace --info car deploy -Pconvertigo.load.mobileApplicationEndpoint="$TESTENDPOINT" -Pconvertigo.deploy.server="$DEPLOYSERVER" -Pconvertigo.deploy.user="$TESTUSERADMIN" -Pconvertigo.deploy.password="$TESTUSERPASSWORD"
-      # Creates "c8oforms_standalone" dockerized version
-      - name: Create "c8oforms_standalone" dockerized version
-        run: |
-          mkdir -p c8oforms_standalone/workspace/projects/
-          cp build/C8Oforms.car c8oforms_standalone/workspace/projects/C8Oforms.car
-          tar -czvf c8oforms_standalone.tar.gz c8oforms_standalone
-      # Creates a release
-      - name: Create a release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          draft: false
-          prerelease: true
-      - name: Upload asset C8oForms.car
-        id: upload-release-asset_C8oForms
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-          asset_path: build/C8Oforms.car
-          asset_name: C8Oforms.car
-          asset_content_type: application/zip
-      - name: Upload asset c8oforms_standalone.tar.gz
-        id: upload-release-asset_c8oforms_standalone
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-          asset_path: c8oforms_standalone.tar.gz
-          asset_name: c8oforms_standalone.tar.gz
-          asset_content_type: application/tar+gzip
+            path: |
+               ~/.gradle/caches
+               ~/.gradle/wrapper
+            key: ${{ runner.os }}-gradle-caches-v1-${{ hashFiles('**/*.gradle', '**/gradle/wrapper/gradle-wrapper.properties') }}
+            restore-keys: ${{ runner.os }}-gradle-caches-v1-
+
       - name: Cache Node Modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
             path: |
               ${{ github.workspace }}/_private/ionic/node_modules
@@ -101,3 +56,125 @@ jobs:
               /home/runner/convertigo/nodes
             key: ${{ runner.os }}-build-node-${{ hashFiles('**/package.json', '**/_private/ionic/version.json') }}
             restore-keys: ${{ runner.os }}-build-node-
+
+      - name: Convertigo generate application code
+        env:
+          C8O_SERVER: ${{secrets.testEndpoint}}
+        run: |
+          echo "Generate Mobile Builder App" && \
+          sh gradlew --stacktrace --info generateMobileBuilder export -x compileMobileBuilder \
+            -Pconvertigo.load.mobileApplicationEndpoint=$C8O_SERVER
+
+      - name: Build and deploy based on branch or tag
+        env:
+          C8O_SERVER: ${{secrets.testEndpoint}}
+          C8O_USER: ${{ secrets.testUserAdmin }}
+          C8O_PASSWORD: ${{ secrets.testUserPassword }}
+        run: |
+          echo "Deploying to test server $C8O_SERVER";
+          sh gradlew --stacktrace --info car deploy -x generateMobileBuilder \
+            -Pconvertigo.deploy.server=$C8O_SERVER \
+            -Pconvertigo.deploy.user=$C8O_USER \
+            -Pconvertigo.deploy.password=$C8O_PASSWORD
+
+      - name: Create "c8oforms_standalone" dockerized version
+        run: |
+          mkdir -p c8oforms_standalone/workspace/projects/
+          cp build/C8Oforms.car c8oforms_standalone/workspace/projects/C8Oforms.car
+          tar -czvf c8oforms_standalone.tar.gz c8oforms_standalone
+
+      - name: Save application project
+        uses: actions/upload-artifact@v4
+        with:
+          name: project
+          path: build/*.car
+
+      - name: Save application c8oforms_standalone
+        uses: actions/upload-artifact@v4
+        with:
+          name: c8oforms_standalone.tar.gz
+          path: c8oforms_standalone.tar.gz
+
+  release:
+    needs: build_and_deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download CAR File
+        uses: actions/download-artifact@v4
+        with:
+          name: project
+
+      - name: Download c8oforms_standalone.tar.gz File
+        uses: actions/download-artifact@v4
+        with:
+          name: c8oforms_standalone.tar.gz
+
+      - name: Deploy to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.car
+            c8oforms_standalone.tar.gz
+          tag_name: ${{ github.ref_name }}
+          draft: ${{ contains( github.ref, 'beta' ) != true }}
+          prerelease: ${{ contains( github.ref, 'beta' )}}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  close_and_set_issues_to_be_tested:
+    needs: build_and_deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-tags: true
+          ref: ${{ github.ref }}
+
+      - name: Get tag message
+        id: get_tag_message
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "Tag name: $TAG_NAME"
+          TAG_MESSAGE=$(git for-each-ref refs/tags/$TAG_NAME --format='%(contents)')
+          echo "Tag message: $TAG_MESSAGE"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "tag_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Extract issue numbers
+        id: extract_issues
+        run: |
+          TAG_MESSAGE="${{ steps.get_tag_message.outputs.tag_message }}"
+          echo "Tag message: $TAG_MESSAGE"
+          ISSUE_NUMBERS=$(echo "$TAG_MESSAGE" | grep -oE '#[0-9]+' | tr -d '#' | tr '\n' ' ')
+          echo "Found issue numbers: $ISSUE_NUMBERS"
+          echo "issue_numbers=$ISSUE_NUMBERS" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Post comment on issues
+        if: ${{ steps.extract_issues.outputs.issue_numbers != '' }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tagName = "${{ steps.get_tag_message.outputs.tag_name }}";
+            const issueNumbers = "${{ steps.extract_issues.outputs.issue_numbers }}".split(' ');
+            const repoOwner = context.repo.owner;
+            const repoName = context.repo.repo;
+            const tagUrl = `https://github.com/${repoOwner}/${repoName}/tree/refs/tags/${tagName}`;
+            const commentBody = `To be tested in [${tagName}](${tagUrl})`;
+            for (const issueNumber of issueNumbers) {
+              if (issueNumber) {
+                console.log(`Posting comment to issue #${issueNumber}`);
+                await github.rest.issues.createComment({
+                  owner: repoOwner,
+                  repo: repoName,
+                  issue_number: parseInt(issueNumber),
+                  body: commentBody
+                });
+              }
+            }
