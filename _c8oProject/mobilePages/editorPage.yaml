@@ -3222,6 +3222,134 @@ scriptContent:
         		}
         		
         	}
+        	public transform$toTsMonaco(str): string{
+        	    try{
+        			//const regex = /\$\$START(\d+)(.*?)(END\d+)\$\$/;
+        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
+        			let match;
+        			while((match = regex.exec(str)) != null) {
+        				// the whole string
+        				let elem = match[0];
+        				// start index
+        				let iStart = match.index;
+        				// end index
+        	            let iEnd = match.index + match[0].length;
+        	            
+        	            if(match[2] == undefined || match[2] == ""){
+                            let id = match[1];
+                            let val = this.getElementNameById(id);
+                            let meta: any = {};
+        					
+        					let cat = this.getElementById(id).cat;
+        					if(cat == "action"){
+        						meta.pathPrefix = "actions";
+        					}
+        					else{
+        						meta.pathPrefix = "fields"
+        					}
+        					meta.id = id;
+        					
+                            if(val != ""){
+                                str = str.substring(0, iStart) + this.evalMetaForTransform$toTsMonaco(meta); + str.substring(iEnd);
+                            }
+                            else{
+        						// if element doesn''t exists any more remove it
+        						str = str.substring(0, iStart) + "" + str.substring(iEnd);
+        					}
+        				}
+        				else{
+        					// id based on substring
+        					let id = match[1];
+        					// target name
+        					let name = this.getElementNameById(id);
+        					// metas attached to expression
+        					let meta = JSON.parse(match[2]);
+        					// compute current type
+        					let type = "";
+        					if(meta.__c8otype != undefined){
+        						type = meta.c8otype;
+        					}
+        					// if object name is not found, it''s mean that object has been deleted, use current name from meta
+        					if(name == ""){
+        						name = meta.name;
+        					}
+        					
+        					let computedMeta = {};
+        					if(meta.nested != null){
+        						for(let nestIndex in meta.nested){
+        							computedMeta[nestIndex] = this.evalMetaForTransform$toTsMonaco(meta.nested[nestIndex]);
+        						}
+        					}
+        					// in case of coming from palette or txt
+        					if(meta.id == undefined && meta.pathPrefix == undefined){
+        						let cat = this.getElementById(id).cat;
+        						//if(cat != undefined){
+        							if(cat == "action"){
+        								meta.pathPrefix = "actions";
+        							}
+        							else{
+        								meta.pathPrefix = "fields"
+        							//}
+        						}
+        						meta.id = id;
+        					}
+        					let tpmstr = this.evalMetaForTransform$toTsMonaco(meta);
+        					for(let nestIndex in computedMeta){
+        						let strToReplace = ''"$$START_SUB''+ nestIndex+ ''END_SUB$$"'';
+        						tpmstr = tpmstr.replace(strToReplace, computedMeta[nestIndex]);
+        					}
+        					str = str.substring(0, iStart) + tpmstr + str.substring(iEnd);
+        				}
+        	            
+        			} 
+        			if(str == undefined){
+                        return "";
+                    }
+                    else{
+                        return str;    
+                    }
+        	    }
+        	    catch(e){
+        	        this.c8o.log.error("An error occurend into transform$toHtml: \n see: \n "+ JSON.stringify(e));
+        	        return "";
+        	    }
+        	}
+        	public evalMetaForTransform$toTsMonaco(current): string{
+        		let currentNestedName = this.getElementNameById(current.id);
+        		let splitted = current?.c8opath?.split(".");
+        		if(splitted == undefined){
+        			splitted = [];
+        		}
+        		splitted[0] = currentNestedName;
+        		let expression = current.pathPrefix + "." + splitted.join(".");
+        		let parts = [];
+        	    let currentPart = '''';
+        	    for (let i = 0; i < expression.length; i++) {
+        	        let c = expression[i];
+        	        if (c === ''\\'' && expression[i + 1] === ''.'') {
+        	            // Point échappé, inclure le point dans la partie actuelle
+        	            currentPart += ''.'';
+        	            i++; // Sauter le point après l''antislash
+        	        } else if (c === ''.'') {
+        	            // Point non échappé, démarrer une nouvelle partie
+        	            parts.push(currentPart);
+        	            currentPart = '''';
+        	        } else {
+        	            currentPart += c;
+        	        }
+        	    }
+        	    parts.push(currentPart);
+        
+        	    // Construire le résultat final
+        	    let result = parts[0];
+        	    for (let i = 1; i < parts.length; i++) {
+        	        result += ''["'' + parts[i] + ''"]'';
+        	    }
+        		// Ajouter la notation de début avec crochets correctement pour le premier segment
+        		expression = result;
+        		
+        		return expression;
+        	}
         	/*End_c8o_PageFunction*/
         '
 segment: editor/:formId
