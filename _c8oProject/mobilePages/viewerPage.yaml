@@ -2443,8 +2443,12 @@ scriptContent:
         						}
         						// in any other case
         						else {
+        							let sliceCount = 1;
+        							if ((defElem.type == "select" && defElem.sources != undefined && Object.values(defElem.sources).find((x: any) => { return x.enabled == true }) && splitted?.[1] == "value") || (defElem.type == "radio" && defElem.sources != undefined && Object.values(defElem.sources).find((x: any) => { return x.enabled == true }) && splitted?.[1] == "value")) {
+        								sliceCount = 2;
+        							}
         							let suffix = "";
-        							for(let elem of meta.c8opath?.split(".")?.slice(1)){
+        							for(let elem of meta.c8opath?.split(".")?.slice(sliceCount)){
         								suffix += "?.[''" + elem + "'']";
         							}
         							if (ts) {
@@ -2482,6 +2486,10 @@ scriptContent:
         					}
         					break;
         				default:
+        					let splitted = meta.c8opath?.split(".")?.slice(1);
+        					for(let elem of splitted){
+        						path += "?.[''" + elem + "'']";
+        					}
         					if (ts) {
         						currentVal = path;
         					}
@@ -2654,7 +2662,8 @@ scriptContent:
         				}
         			}
         			else if (targeType == "checkbox_group") {
-        				const strToReturn = "Object.keys(" + path + ").filter(((x)=>{return Object.keys(" + path + "[x]).filter((y)=>{ return " + path + "[x][y].selected }).length > 0})).map((z)=>{ let res = " + path + "[z].filter((b)=>{return b.selected}); if(res.length > 0){return {[z]: res};} })";
+        				const strToReturn = `Object.entries(${path}).reduce((acc, [lineKey, options]) => { const selectedOptions = options.filter(option => option.selected === true);if (selectedOptions.length > 0) {acc.push({ [lineKey]: selectedOptions });}return acc;}, [])`;
+        				//const strToReturn = "Object.keys(" + path + ").filter(((x)=>{return Object.keys(" + path + "[x]).filter((y)=>{ return " + path + "[x][y].selected }).length > 0})).map((z)=>{ let res = " + path + "[z].filter((b)=>{return b.selected}); if(res.length > 0){return {[z]: res};} })";
         				if (ts) {
         					return strToReturn;
         				}
@@ -2662,7 +2671,7 @@ scriptContent:
         					return "JSON.stringify(" + strToReturn + ")";
         				}
         			}
-        			else if (targeType == "radio") {
+        			else if (targeType == "radio" || targeType == "select") {
         				return path;
         			}
         			else if (targeType == "radio_group") {
@@ -2703,7 +2712,7 @@ scriptContent:
         				}
         			}
         			else if (targeType == "checkbox_group") {
-        				const strToReturn = "Object.keys(" + path + ").filter(((x)=>{return Object.keys(" + path + "[x]).filter((y)=>{ return " + path + "[x][y].selected == false}).length > 0})).map((z)=>{ let res = " + path + "[z].filter((b)=>{return b.selected === false}); if(res.length > 0){return {[z]: res};} })";
+        				const strToReturn = `Object.entries(${path})?.reduce((acc, [lineKey, options]) => { const selectedOptions = options.filter(option => option.selected != true);if (selectedOptions.length > 0) {acc.push({ [lineKey]: selectedOptions });}return acc;}, [])`;
         				if (ts) {
         					return strToReturn;
         				}
@@ -2730,7 +2739,7 @@ scriptContent:
         	public not_selected_data_c8o_separated_by_coma(path, targeType, type, ts, displayValue = false) {
         		if (type == "TEXT_format") {
         			if (targeType == "checkbox_group") {
-        				return "Object.keys(" + path + ").filter(((x)=>{return Object.keys(" + path + "[x]).filter((y)=>{ return " + path + "[x][y].selected == false }).length > 0})).map((z)=>{ return " + path + "[z].filter((b)=>{return b.selected == false}).map((a, i)=>{var prefix = ''''; if(i == 0){prefix = z + '' :'' } return prefix + a.value}).join('', '') }).join(''; '')";
+        				return `Object.entries(${path})?.map(([lineKey, options]) => {const deselected = options.filter(option => option.selected != true);if (deselected.length === 0) {return null;}const lineString = deselected.map((option, i) => (i === 0 ? lineKey + '' : '' : '''') + option.value)?.join('', '');return lineString;})?.filter(Boolean)?.join(''; '')`;
         			}
         			else if (targeType == "checkbox") {
         				return path + `?.filter((x)=>{return !x?.selected})?.map((y)=>{return y?.${displayValue ? ''displayValue'' : ''value''}})?.join('', '')`;
@@ -2952,7 +2961,7 @@ scriptContent:
         		if (meta == null) {
         			meta = {};
         		}
-        		if (((elem != null && targetType == "html" && meta.c8otype != "path") || (meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")) && (elem.type == "radio_group" || elem.type == "checkbox_group" || elem.type == "select" || elem.type == "checkbox" || elem.type == "radio" || elem.type == "grid")) {
+        		if ((/*(elem != null && targetType == "html" && meta.c8otype != "path") || */(meta.c8obuiltin && meta.c8opath.split(".")[1] == "graphic_formatting")) && (elem.type == "radio_group" || elem.type == "checkbox_group" || elem.type == "select" || elem.type == "checkbox" || elem.type == "radio" || elem.type == "grid")) {
         			if (meta["c8ostyles"] == undefined) {
         				newBadge = true;
         			}
@@ -6573,8 +6582,9 @@ title: Visualisateur
                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
-                        	padding-bottom:13px !important;	
-                        
+                        '	padding-bottom:13px !important;	
+                        	overflow: auto;
+                        '
               ↓Attr3 [ngx.components.UIAttribute-1661951360747]: 
                 attrName: '[attr.aria-label]'
                 attrValue: 
