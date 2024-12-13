@@ -43,7 +43,7 @@ scriptContent:
         					)
         				&& this.model != undefined
         			){
-        				// if grid''s value returns row_selected
+        				// if grid''s value returns row_selected or cell_selected
         				if(item.config.returned_value === "row_selected" || item.config.returned_value === "cell_selected"){
         					let founded = false;
         					//itterate over grid to retrive selected row 
@@ -131,8 +131,25 @@ scriptContent:
         									}								
         								}
         							}
-        							//founded = true;
-        							
+        						}
+        					})
+        					if(!founded){
+        						this.outModel.value = {};
+        					}
+        				}
+        				// if grid''s value returns multiple_row_selected
+        				else if(item.config.returned_value === "multiple_row_selected"){
+        					let founded = false;
+        					//itterate over grid to retrive selected row 
+        					this.myGrid.agGrid.api.forEachNode((node, rowIndex)=>{
+        						// if based on __rowValue
+        						if(node.data != undefined && page.local.techGrid[item.name].map((x)=> JSON.stringify(x.data)).includes(JSON.stringify(node.data))){
+        							//ensure that node is visible
+        							this.myGrid.agGrid.api.ensureNodeVisible(node);
+        							//select nodes
+        							node.setSelected(true, false);
+        							// set that we founded element so we won''t remove element from responses
+        							founded = true;
         						}
         					})
         					if(!founded){
@@ -375,7 +392,7 @@ scriptContent:
         varValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:'multiple'
+            - MobileSmartSourceType: 'source:{"filter":"Shared","project":"C8Oforms","input":"","model":{"data":[{"priority":1608286885281,"regular":true}],"path":"?.item","prefix":"","suffix":"?.config?.returned_value == ''multiple_row_selected'' ? ''multiple'' : ''single''","custom":"","useCustom":false}}'
       ↓rowDeselection [ngx.components.UIUseVariable-1608287020785]: 
         comment: 'boolean: true (default) or false'
         varValue: 
@@ -558,7 +575,33 @@ scriptContent:
                   					}
                   				}
                   				page.outModel.value = data;
-                  				//eval(page.pageOwner["getPathById"](page.item.id, true) + " = data");
+                  				callSources = true;
+                  			}
+                  			else if(page.item.config.returned_value === "multiple_row_selected"){
+                  				//keep a reference on a row
+                  				if(page.pageOwner.local.techGrid == undefined){
+                  					page.pageOwner.local.techGrid = {};
+                  				}
+                  				page.pageOwner.local.techGrid[page.item.name] = page.myGrid.agGrid.api.getSelectedNodes();
+                  				let grossData = page.pageOwner.local.techGrid[page.item.name].map((x)=> x.data);
+                  				let data = [];
+                  				for(var j = 0; j < grossData.length; j++){
+                  					data[j] = {};
+                  					if(grossData[j].__rowValue != undefined){
+                  						data[j] =  grossData.__rowValue
+                  					}
+                  					else{
+                  						for(let i in grossData[j]){
+                  							if(typeof(grossData[j][i]) !== "string"){
+                  								data[j][grossData[j][i].technicalName] = grossData[j][i].value;
+                  							}
+                  							else{
+                  								data[j][i] = grossData[j][i];
+                  							}
+                  						}
+                  					}
+                  				}
+                  				page.outModel.value = data;
                   				callSources = true;
                   			}
                   		}
