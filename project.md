@@ -33,6 +33,15 @@ see [documentation](http://localhost:18080/convertigo/xsd/couchdb/CouchDb.xsd)
 see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/master#readme)
 </p></blockquote></details>
 
+<details><summary><b>lib_BaseRow</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_BaseRow
+
+
+see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
+</p></blockquote></details>
+
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
 
 
