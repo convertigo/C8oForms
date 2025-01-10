@@ -1069,1045 +1069,1059 @@ scriptContent:
         	 * @returns functions id to be called at init
         	 */
         	public async fillSources(list, redList, formSubmit): Promise<Array<string>> {
-        		let page = this;
-        		let idsToCall: Array<string> = [];
-        		try {
-        			// Iterating over each item if list
-        			for (let item of list) {
-        				// if item is a card, recursively call
-        				if (item["type"] == "ion-card" && item["children"] != undefined) {
-        					let interIDs = await this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
-        					idsToCall = idsToCall.concat(interIDs);
-        				}
-        				// only watch for enabled grid or select sources
-        				else if ((item["config"]["sourceEnabled"] && ["select", "checkbox", "radio"].includes(item["type"])) || (item.sources && ["grid", "chart", "map", "checkbox_group", "radio_group"].includes(item["type"]))) {
-        					//search source name and params
-        					let sources: any = page["searchForSources"](item, "sources", true);
-        					let findName = sources.findName;
-        					// if there is a sequence found
-        					if (findName != "") {
-        						let findVars = sources.findVars;
-        						// find objects that have to call this functions
-        						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
-        						// unique hash for this sequence with thoses parameters
-        						let sha = sources.sha;
-        						let Osha = "" + sha;
-        						sha += item.id;
-        						this.shaById[item.id] = sha;
-        						let postFunc, failFunc, prevFunc: any;
-        						if (this.functionsExecById[sha] == undefined) {
-        							this.functionsExecById[sha] = {};
-        						}
-        						// if this sequence withn thoses parameters has not been founded yet add it
-        						if (this.functionsById[sha] == undefined) {
-        							idsToCall.push(sha);
-        							this.functionsById[sha] = async () => {
-        								// cancel all others executions for the same component
-        								for (let key in this.functionsById[sha]) {
-        									this.functionsById[sha][key] = false;
-        								}
-        								// register myself as executing
-        								let idExec = new Date().getTime() + "_" + (Math.random() + "").substring(2);
-        								this.functionsExecById[sha][idExec] = true;
-        
-        								// check for cancel order
-        								if (this.functionsExecById[sha][idExec] == false) {
-        									page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
-        									return;
-        								}
-        								// call preload functions
-        								//...
-        								this.previousAndPostFunctions[sha].previous.forEach((func) => {
-        									func();
-        								})
-        								if (this.functionsExecById[sha][idExec] == false) {
-        									page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
-        									return;
-        								}
+        			let page = this;
+        			let idsToCall: Array<string> = [];
+        			try {
+        				// Iterating over each item if list
+        				for (let item of list) {
+        					// if item is a card, recursively call
+        					if (item["type"] == "ion-card" && item["children"] != undefined) {
+        						let interIDs = await this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
+        						idsToCall = idsToCall.concat(interIDs);
+        					}
+        					// only watch for enabled grid or select sources
+        					else if ((item["config"]["sourceEnabled"] && ["select", "checkbox", "radio"].includes(item["type"])) || (item.sources && ["grid", "chart", "checkbox_group", "radio_group"].includes(item["type"])) || (item["type"] == "map" ) ) {
+        						let arraySearch = [];
+        						let arrayVars = [];
+        						if(item.type == "map"){
+        							if(page.local.sourceValue[item.name] == null){
+        								page.local.sourceValue[item.name] = { markers: [], circles:[], xaxis: { categories: [] }, series: [] };
+        							}
+        							if(item["config"]["sourceMarkersEnabled"]){
+        								arraySearch.push("sourcesMarkers");
+        							}
+        							else{
+        								arrayVars.push("varsMarkers");
+        							}
+        							if(item["config"]["sourceCirclesEnabled"]){
+        								arraySearch.push("sourcesCircles");
+        							}
+        							else{
+        								arrayVars.push("varsCircles");
+        							}
+        							if(item["config"]["sourcePolygonsEnabled"]){
+        								arraySearch.push("sourcesPolygons");
+        							}
+        							else{
+        								arrayVars.push("varsPolygons");
+        							}
+        							arrayVars.push("varsCenter");
+        							for(let vars of arrayVars){
+        								// compute vars
+        								let computefield = vars.substring(4).toLowerCase();
+        								let sources: any = page["searchForSources"](item, vars, true);
+        								let findVars = sources.findVars;
+        								let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        								let sha = sources.sha;
         								let variables = {};
-        								page["computeVariable"](findVars, variables, item);
-        								/*
-        								let params = {[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.LOCAL, 3.154e+10)}
-        								page.c8o.callJsonObject(findName, {...variables, ...params})
-        								*/
-        								let hadAPrepare = false;
-        								// create empty object for params
-        								let params = {};
-        								// enable execution by default
-        								let canExec = true;
-        								// set default requestable
-        								let requestable = "" + findName;
-        								// if this is a fullsync / hybrid source
-        								if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
-        									// set default params
-        									let defaults = {};
-        									defaults["ddoc"] = sources.fullSyncArgs.ddoc;
-        									defaults["view"] = sources.fullSyncArgs.view;
-        									defaults["__live"] = sources.fullSyncArgs.__live;
-        									if (this.functionsExecById[sha][idExec] == false) {
-        										page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
-        										return;
-        									}
-        									// compute parameters for exec
-        									let computedParams = await page.getAndApplyC8oformComputeKeysFunction(sources, defaults, variables);
-        									// override defaults parameters with computed ones
-        									params = { ...defaults, ...computedParams }
-        									// if disable __live is asked
-        									if (params["__live"] == false) {
-        										delete params["__live"];
-        									}
-        									else {
-        										// push live request to an array to be able to stop them when leaving the form
-        										if (this.local.liveToCancel == null) {
-        											this.local.liveToCancel = []
-        										}
-        										this.local.liveToCancel.push(params["__live"]);
-        									}
-        									// override requestable
-        									if (params["__requestable"] != undefined && params["requestable"] != "") {
-        										requestable = "" + params["__requestable"];
-        									}
-        									// or set default value if no override where asked
-        									else {
-        										requestable = "" + findName;
-        									}
-        									// if ts an hybird request ( fs + callJSON)
-        									if (params["__prepare"] != undefined) {
-        										// if view is not indexed
-        										if (this.local.alreadyDoing == undefined) {
-        											this.local.alreadyDoing = {};
-        										}
-        										if (this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] != true && this.local.alreadyDoing[Osha] != true) {
-        											this.local.alreadyDoing[Osha] = true;
-        											var params2 = { ...defaults, ...params["__prepare"]["__params"] };
-        											// we wont launch this request as live since its only for indexing
-        											delete params2["__live"];
-        											// if requestable is set use it if not use default one
-        											let requestable2 = params["__prepare"]["__requestable"] != undefined ? params["__prepare"]["__requestable"] : ("" + findName);
-        											this.local.promisesFS[sources.fullSyncArgs.connectorName]
-        												.then((res) => {
-        													// call fs request to index
-        													page.c8o.callJsonObject(requestable2, params2)
-        														.then((res) => {
-        															// store result
-        															this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
-        															let indexed = { [Osha]: true };
-        															this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
-        																_id: "_local/c8o",
-        																"_use_policy": "merge",
-        																"indexed": indexed
-        															})
-        															return null;
-        														})
-        														.fail((err) => {
-        															console.error("an error occured", err);
-        														})
-        												})
-        										}
-        									}
-        									// check if requestable must be executed
-        									if (params["__execute"] != undefined && params["__execute"] == false) {
-        										canExec = false;
-        									}
-        									else {
-        										canExec = true;
-        									}
-        									if (params["__prepare"] != undefined) {
-        										hadAPrepare = true;
-        									}
-        									delete params["__prepare"];
-        								}
-        								// if this is a "classic" source
-        								else {
-        									params = variables;
-        								}
-        								try {
-        									let followingCode = async () => {
-        										//if fullsync
-        										if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
-        											if (this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false && requestable.indexOf("fs://") == 0 && hadAPrepare == false) {
-        												this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
-        												let indexed = { [Osha]: true };
-        												this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
-        													_id: "_local/c8o",
-        													"_use_policy": "merge",
-        													"indexed": indexed
-        												})
+        								this.functionsById[sha] = async () => {
+        									await page["computeVariable"](findVars, variables, item);
+        									// if value has changed update it and call functions
+        									if(page.local.sourceValue[item.name]?.[computefield] != variables["selfVar"] && variables["selfVar"] != undefined){
+        										page.local.sourceValue[item.name][computefield] = variables["selfVar"];
+        										try {
+        											if (page.local["processingDataS"] == undefined) {
+        												page.local["processingDataS"] = {};
         											}
-        											try {
+        											if (page.local.functionsToBeCalled[item.id] != undefined) {
+        												if (page.local["processingDataS"][item.id] != undefined) {
+        													try {
+        														clearTimeout(page.local["processingDataS"][item.id]);
+        													}
+        													catch (e) {
+        														this.c8o.log.error("[fillActions] An error occured " + JSON.stringify(e), e);
+        													}
+        												}
+        												await new Promise((resolve_set) => {
+        													page.local["processingDataS"][item.id] = setTimeout(() => {
+        														page.local.functionsToBeCalled[item.id]
+        															.forEach((id) => {
+        																page["functionsById"][id]();
+        															})
+        														resolve_set();
+        													}, 0)
+        												});
+        											}
+        											this.ref.detectChanges();
+        										}
+        										catch (e) {
+        											page.c8o.log.error("[fillActions] Error while trying to refresh a data source " + JSON.stringify(e), e);
+        										}
+        									}
+        								}
+        								await this.functionsById[sha]();
+        								this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); 
+        							}					
+        						}
+        						else{
+        							arraySearch.push("sources");
+        						}
+        						for(let search of arraySearch){
+        							//search source name and params
+        							let sources: any = page["searchForSources"](item, search, true);
+        							let findName = sources.findName;
+        							// if there is a sequence found
+        							if (findName != "") {
+        								let findVars = sources.findVars;
+        								// find objects that have to call this functions
+        								let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        								// unique hash for this sequence with thoses parameters
+        								let sha = sources.sha;
+        								let Osha = "" + sha;
+        								sha += item.id;
+        								this.shaById[item.id] = sha;
+        								let postFunc, failFunc, prevFunc: any;
+        								if (this.functionsExecById[sha] == undefined) {
+        									this.functionsExecById[sha] = {};
+        								}
+        								// if this sequence withn thoses parameters has not been founded yet add it
+        								if (this.functionsById[sha] == undefined) {
+        									idsToCall.push(sha);
+        									this.functionsById[sha] = async () => {
+        										// cancel all others executions for the same component
+        										for (let key in this.functionsById[sha]) {
+        											this.functionsById[sha][key] = false;
+        										}
+        										// register myself as executing
+        										let idExec = new Date().getTime() + "_" + (Math.random() + "").substring(2);
+        										this.functionsExecById[sha][idExec] = true;
+        
+        										// check for cancel order
+        										if (this.functionsExecById[sha][idExec] == false) {
+        											page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
+        											return;
+        										}
+        										// call preload functions
+        										//...
+        										this.previousAndPostFunctions[sha].previous.forEach((func) => {
+        											func();
+        										})
+        										if (this.functionsExecById[sha][idExec] == false) {
+        											page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
+        											return;
+        										}
+        										let variables = {};
+        										page["computeVariable"](findVars, variables, item);
+        										/*
+        										let params = {[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.LOCAL, 3.154e+10)}
+        										page.c8o.callJsonObject(findName, {...variables, ...params})
+        										*/
+        										let hadAPrepare = false;
+        										// create empty object for params
+        										let params = {};
+        										// enable execution by default
+        										let canExec = true;
+        										// set default requestable
+        										let requestable = "" + findName;
+        										// if this is a fullsync / hybrid source
+        										if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
+        											// set default params
+        											let defaults = {};
+        											defaults["ddoc"] = sources.fullSyncArgs.ddoc;
+        											defaults["view"] = sources.fullSyncArgs.view;
+        											defaults["__live"] = sources.fullSyncArgs.__live;
+        											if (this.functionsExecById[sha][idExec] == false) {
+        												page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
+        												return;
+        											}
+        											// compute parameters for exec
+        											let computedParams = await page.getAndApplyC8oformComputeKeysFunction(sources, defaults, variables);
+        											// override defaults parameters with computed ones
+        											params = { ...defaults, ...computedParams }
+        											// if disable __live is asked
+        											if (params["__live"] == false) {
+        												delete params["__live"];
+        											}
+        											else {
+        												// push live request to an array to be able to stop them when leaving the form
+        												if (this.local.liveToCancel == null) {
+        													this.local.liveToCancel = []
+        												}
+        												this.local.liveToCancel.push(params["__live"]);
+        											}
+        											// override requestable
+        											if (params["__requestable"] != undefined && params["requestable"] != "") {
+        												requestable = "" + params["__requestable"];
+        											}
+        											// or set default value if no override where asked
+        											else {
+        												requestable = "" + findName;
+        											}
+        											// if ts an hybird request ( fs + callJSON)
+        											if (params["__prepare"] != undefined) {
+        												// if view is not indexed
+        												if (this.local.alreadyDoing == undefined) {
+        													this.local.alreadyDoing = {};
+        												}
+        												if (this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] != true && this.local.alreadyDoing[Osha] != true) {
+        													this.local.alreadyDoing[Osha] = true;
+        													var params2 = { ...defaults, ...params["__prepare"]["__params"] };
+        													// we wont launch this request as live since its only for indexing
+        													delete params2["__live"];
+        													// if requestable is set use it if not use default one
+        													let requestable2 = params["__prepare"]["__requestable"] != undefined ? params["__prepare"]["__requestable"] : ("" + findName);
+        													this.local.promisesFS[sources.fullSyncArgs.connectorName]
+        														.then((res) => {
+        															// call fs request to index
+        															page.c8o.callJsonObject(requestable2, params2)
+        																.then((res) => {
+        																	// store result
+        																	this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
+        																	let indexed = { [Osha]: true };
+        																	this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
+        																		_id: "_local/c8o",
+        																		"_use_policy": "merge",
+        																		"indexed": indexed
+        																	})
+        																	return null;
+        																})
+        																.fail((err) => {
+        																	console.error("an error occured", err);
+        																})
+        														})
+        												}
+        											}
+        											// check if requestable must be executed
+        											if (params["__execute"] != undefined && params["__execute"] == false) {
+        												canExec = false;
+        											}
+        											else {
+        												canExec = true;
+        											}
+        											if (params["__prepare"] != undefined) {
+        												hadAPrepare = true;
+        											}
+        											delete params["__prepare"];
+        										}
+        										// if this is a "classic" source
+        										else {
+        											params = variables;
+        										}
+        										try {
+        											let followingCode = async () => {
+        												//if fullsync
+        												if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
+        													if (this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false && requestable.indexOf("fs://") == 0 && hadAPrepare == false) {
+        														this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
+        														let indexed = { [Osha]: true };
+        														this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
+        															_id: "_local/c8o",
+        															"_use_policy": "merge",
+        															"indexed": indexed
+        														})
+        													}
+        													try {
+        														if (this.functionsExecById[sha][idExec] == false) {
+        															page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
+        															return;
+        														}
+        														res = await page.getAndApplyC8oformPostQueryFunction(sources, params, res, item["type"], variables)
+        													}
+        													catch (e) {
+        														console.error("an error occured in getAndApplyC8oformPostQueryFunction", e);
+        													}
+        												}
         												if (this.functionsExecById[sha][idExec] == false) {
         													page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
         													return;
         												}
-        												res = await page.getAndApplyC8oformPostQueryFunction(sources, params, res, item["type"], variables)
-        											}
-        											catch (e) {
-        												console.error("an error occured in getAndApplyC8oformPostQueryFunction", e);
-        											}
-        										}
-        										if (this.functionsExecById[sha][idExec] == false) {
-        											page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
-        											return;
-        										}
-        										// call post load functions
-        										//...
-        										if (res._c8o_update != false) {
-        											this.previousAndPostFunctions[sha].post.forEach((func) => {
-        												let res2 = { ...res };
-        												func(res2);
-        											})
-        										}
-        										else {
-        										}
-        										if (res._c8o_forceLoader != undefined && res._c8o_forceLoader != false) {
-        											try {
-        												res._c8o_forceLoader = +res._c8o_forceLoader;
-        												if (res._c8o_forceLoader != "NaN") {
-        													// do
-        													switch (res._c8o_forceLoader) {
-        														case 0:
-        															page.c8o.log.debug("Forcing loader to display");
-        															if (item.type == "grid") {
-        																page.c8o.log.debug("grid loader detected, showing it");
-        																page.local.updating[item.id] = 0;
-        																setTimeout(() => {
-        																	this.showGridOverlayById(item.id);
-        																	page.ref.detectChanges();
-        																})
-        																page.ref.detectChanges();
-        															}
-        															else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
-        																page.c8o.log.debug("select loader detected, showing it");
-        																page.local.updating[item.id] = 0;
-        																page.ref.detectChanges();
-        															}
-        															break;
-        														case 1:
-        															page.c8o.log.debug("Forcing loader dismiss");
-        															if (item.type == "grid") {
-        																page.c8o.log.debug("grid loader detected, dismiss it");
-        																page.local.updating[item.id] = 1;
-        																setTimeout(() => {
-        																	this.hideGridOverlayById(item.id);
-        																	page.ref.detectChanges();
-        																})
-        																page.ref.detectChanges();
-        															}
-        															else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
-        																page.c8o.log.debug("select loader detected, dismiss it");
-        																page.local.updating[item.id] = 1;
-        																page.ref.detectChanges();
-        															}
-        															break;
-        														case 1:
-        															page.c8o.log.debug("Forcing loader dismiss due to error");
-        															if (item.type == "grid") {
-        																page.c8o.log.debug("grid loader detected, dismiss it and display error message");
-        																page.local.updating[item.id] = 2;
-        																setTimeout(() => {
-        																	this.hideGridOverlayById(item.id);
-        																	page.ref.detectChanges();
-        																})
-        																page.ref.detectChanges();
-        															}
-        															else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
-        																page.c8o.log.debug("select loader detected, dismiss it and display error message");
-        																page.local.updating[item.id] = 2;
-        																page.ref.detectChanges();
-        															}
-        															break;
-        													}
+        												// call post load functions
+        												//...
+        												if (res._c8o_update != false) {
+        													this.previousAndPostFunctions[sha].post.forEach((func) => {
+        														let res2 = { ...res };
+        														func(res2);
+        													})
         												}
         												else {
-        													page.c8o.log.debug("_c8o_forceLoader has an invalid value: " + res._c8o_forceLoader);
+        												}
+        												if (res._c8o_forceLoader != undefined && res._c8o_forceLoader != false) {
+        													try {
+        														res._c8o_forceLoader = +res._c8o_forceLoader;
+        														if (res._c8o_forceLoader != "NaN") {
+        															// do
+        															switch (res._c8o_forceLoader) {
+        																case 0:
+        																	page.c8o.log.debug("Forcing loader to display");
+        																	if (item.type == "grid") {
+        																		page.c8o.log.debug("grid loader detected, showing it");
+        																		page.local.updating[item.id] = 0;
+        																		setTimeout(() => {
+        																			this.showGridOverlayById(item.id);
+        																			page.ref.detectChanges();
+        																		})
+        																		page.ref.detectChanges();
+        																	}
+        																	else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
+        																		page.c8o.log.debug("select loader detected, showing it");
+        																		page.local.updating[item.id] = 0;
+        																		page.ref.detectChanges();
+        																	}
+        																	break;
+        																case 1:
+        																	page.c8o.log.debug("Forcing loader dismiss");
+        																	if (item.type == "grid") {
+        																		page.c8o.log.debug("grid loader detected, dismiss it");
+        																		page.local.updating[item.id] = 1;
+        																		setTimeout(() => {
+        																			this.hideGridOverlayById(item.id);
+        																			page.ref.detectChanges();
+        																		})
+        																		page.ref.detectChanges();
+        																	}
+        																	else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
+        																		page.c8o.log.debug("select loader detected, dismiss it");
+        																		page.local.updating[item.id] = 1;
+        																		page.ref.detectChanges();
+        																	}
+        																	break;
+        																case 1:
+        																	page.c8o.log.debug("Forcing loader dismiss due to error");
+        																	if (item.type == "grid") {
+        																		page.c8o.log.debug("grid loader detected, dismiss it and display error message");
+        																		page.local.updating[item.id] = 2;
+        																		setTimeout(() => {
+        																			this.hideGridOverlayById(item.id);
+        																			page.ref.detectChanges();
+        																		})
+        																		page.ref.detectChanges();
+        																	}
+        																	else if (item.type == "select" || item.type == "checkbox" || item.type == "radio") {
+        																		page.c8o.log.debug("select loader detected, dismiss it and display error message");
+        																		page.local.updating[item.id] = 2;
+        																		page.ref.detectChanges();
+        																	}
+        																	break;
+        															}
+        														}
+        														else {
+        															page.c8o.log.debug("_c8o_forceLoader has an invalid value: " + res._c8o_forceLoader);
+        														}
+        													}
+        													catch (e) {
+        														page.c8o.log.error("An error occured while running _c8o_forceLoader" + e);
+        													}
+        												}
+        												page.ref.detectChanges();
+        											}
+        											let res;
+        											if (canExec) {
+        												if (this.functionsExecById[sha][idExec] == false) {
+        													page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
+        													return;
+        												}
+        												try {
+        													res = await page.c8o.callJsonObject(requestable, params).async();
+        													await followingCode();
+        												}
+        												catch (e) {
+        													this.c8o.log.error("An error occured while running data source\n" + JSON.stringify(e));
         												}
         											}
-        											catch (e) {
-        												page.c8o.log.error("An error occured while running _c8o_forceLoader" + e);
+        											else {
+        												await followingCode();
         											}
         										}
-        										page.ref.detectChanges();
-        									}
-        									let res;
-        									if (canExec) {
-        										if (this.functionsExecById[sha][idExec] == false) {
-        											page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
-        											return;
-        										}
-        										try {
-        											res = await page.c8o.callJsonObject(requestable, params).async();
-        											await followingCode();
-        										}
-        										catch (e) {
-        											this.c8o.log.error("An error occured while running data source\n" + JSON.stringify(e));
-        										}
-        									}
-        									else {
-        										await followingCode();
-        									}
-        								}
-        								catch (err) {
-        									if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
-        										if (this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false) {
-        											this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
-        											let indexed = { [Osha]: true };
-        											this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
-        												_id: "_local/c8o",
-        												"_use_policy": "merge",
-        												"indexed": indexed
-        											})
-        										}
-        									}
-        									if (this.functionsExecById[sha][idExec] == false) {
-        										page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
-        										return;
-        									}
-        									// call fail functions
-        									//...
-        									this.previousAndPostFunctions[sha].fail.forEach((func) => {
-        										let err2 = { ...err };
-        										func(err2);
-        									})
-        								}
-        							}
-        							// has we know parameters, we not each object that have to call this sequence do it once
-        							this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
-        						}
-        
-        						if (item.type == "chart") {
-        							// preload function for chart
-        							prevFunc = () => {
-        							}
-        
-        							// postload function for chart
-        							postFunc = (res) => {
-        								let model = { labels: [], xaxis: { categories: [] }, series: [] };
-        								let series = {}
-        								let round = item.config.round != undefined ? item.config.round : 2;
-        								res.data.forEach((row) => {
-        									let i = 0;
-        									if (item.config?.firstColAsXAxis == true) {
-        										//build Xaxis and labels using the first col
-        										Object.keys(row).forEach((col) => {
-        											// check if the col is hidden if yes skip it
-        											if (row[col].hidden == true) {
+        										catch (err) {
+        											if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
+        												if (this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] == false) {
+        													this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] = true;
+        													let indexed = { [Osha]: true };
+        													this.c8o.callJsonObject("fs://" + sources.fullSyncArgs.connectorName + ".post", {
+        														_id: "_local/c8o",
+        														"_use_policy": "merge",
+        														"indexed": indexed
+        													})
+        												}
+        											}
+        											if (this.functionsExecById[sha][idExec] == false) {
+        												page.c8o.log.debug("Canceling execution of " + item.name + " source (" + idExec + ") because a newer was launched");
         												return;
         											}
-        											// only the first col is in the xaxis
-        
-        											if (i == 0) {
-        												let val
-        												if (Array.isArray(row[col].value))
-        													val = row[col].value[0].value;
-        												else
-        													val = row[col].value;
-        
-        												model.xaxis.categories.push(val)
-        												model.labels.push(val)
-        											}
-        											i++
-        										})
-        									}
-        									// now build the series using all the array
-        
-        									switch (item.config.type) {
-        										case ''bar'':
-        										case ''line'':
-        										case ''area'':
-        										case ''treemap'':
-        											i = 0;
-        											Object.keys(row).forEach((col) => {
-        												// check if the col is hidden if yes skip it
-        												if (row[col].hidden == true) {
-        													return;
-        												}
-        												// Skip the first col
-        												if (i == 0) {
-        													i++
-        													return
-        												}
-        												if (series[col] == undefined) {
-        													series[col] = { name: col, data: [] };
-        												}
-        
-        												let val
-        												if (Array.isArray(row[col].value)) {
-        													// Round the value to 2 decimal
-        													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
-        												} else {
-        													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
-        												}
-        												// test if val is a number and push it to the series only if it is
-        												if (!isNaN(val)) {
-        													series[col].data.push(val);
-        												}
-        												i++
-        												// for each key in series add the data to the series array
+        											// call fail functions
+        											//...
+        											this.previousAndPostFunctions[sha].fail.forEach((func) => {
+        												let err2 = { ...err };
+        												func(err2);
         											})
-        											break;
-        										case ''pie'':
-        										case ''donut'':
-        										case ''radar'':
-        											i = 0
-        											let colFound = false
-        											Object.keys(row).forEach((col) => {
-        												// check if the col is hidden if yes skip it
-        												if (row[col].hidden == true) {
-        													return;
-        												}
-        												if (i == 0) { // Skip first non hidden column		
+        										}
+        									}
+        									// has we know parameters, we not each object that have to call this sequence do it once
+        									this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha);
+        								}
+        
+        								if (item.type == "chart") {
+        									// preload function for chart
+        									prevFunc = () => {
+        									}
+        
+        									// postload function for chart
+        									postFunc = (res) => {
+        										let model = { labels: [], xaxis: { categories: [] }, series: [] };
+        										let series = {}
+        										let round = item.config.round != undefined ? item.config.round : 2;
+        										res.data.forEach((row) => {
+        											let i = 0;
+        											if (item.config?.firstColAsXAxis == true) {
+        												//build Xaxis and labels using the first col
+        												Object.keys(row).forEach((col) => {
+        													// check if the col is hidden if yes skip it
+        													if (row[col].hidden == true) {
+        														return;
+        													}
+        													// only the first col is in the xaxis
+        
+        													if (i == 0) {
+        														let val
+        														if (Array.isArray(row[col].value))
+        															val = row[col].value[0].value;
+        														else
+        															val = row[col].value;
+        
+        														model.xaxis.categories.push(val)
+        														model.labels.push(val)
+        													}
         													i++
-        													return
-        												}
-        
-        
-        												if (colFound)
-        													return;
-        
-        												let val
-        												if (Array.isArray(row[col].value)) {
-        													// Round the value to 2 decimal
-        													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
-        												} else {
-        													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
-        												}
-        												// test if val is a number and push it to the series only if it is
-        												if (!isNaN(val)) {
-        													model.series.push(val)
-        													colFound = true
-        												}
-        												i++
-        											})
-        											break;
-        										default:
-        											break
-        									}
-        								})
-        
-        								Object.keys(series).forEach((key) => {
-        									model.series.push(series[key]);
-        								})
-        								page.local.sourceValue[item.name] = model
-        							}
-        						}
-        						if (item.type == "map") {
-        							// preload function for chart
-        							prevFunc = () => {
-        							}
-        
-        							// postload function for chart
-        							postFunc = (res) => {
-        								console.log("res",res);
-        								let columns = JSON.parse(item.sources[Object.keys(item.sources)[0]].vars.forms_config.str).columns;
-        								let res2 = res.data.map((x)=>{return {options: {title: x[columns[0]]?.value }, tooltip: x[columns[0]]?.value, popup: x[columns[0]]?.value, lat: +x[columns[1]]?.value, lng: +x[columns[2]]?.value }; })
-        								console.log("res2",res2);
-        								debugger;
-        								let model = { markers: res2, xaxis: { categories: [] }, series: [] };
-        //								let series = {}
-        //								let round = item.config.round != undefined ? item.config.round : 2;
-        //								res.data.forEach((row) => {
-        //									let i = 0;
-        //									if (item.config?.firstColAsXAxis == true) {
-        //										//build Xaxis and labels using the first col
-        //										Object.keys(row).forEach((col) => {
-        //											// check if the col is hidden if yes skip it
-        //											if (row[col].hidden == true) {
-        //												return;
-        //											}
-        //											// only the first col is in the xaxis
-        //
-        //											if (i == 0) {
-        //												let val
-        //												if (Array.isArray(row[col].value))
-        //													val = row[col].value[0].value;
-        //												else
-        //													val = row[col].value;
-        //
-        //												model.xaxis.categories.push(val)
-        //												model.labels.push(val)
-        //											}
-        //											i++
-        //										})
-        //									}
-        //									// now build the series using all the array
-        //
-        //									switch (item.config.type) {
-        //										case ''bar'':
-        //										case ''line'':
-        //										case ''area'':
-        //										case ''treemap'':
-        //											i = 0;
-        //											Object.keys(row).forEach((col) => {
-        //												// check if the col is hidden if yes skip it
-        //												if (row[col].hidden == true) {
-        //													return;
-        //												}
-        //												// Skip the first col
-        //												if (i == 0) {
-        //													i++
-        //													return
-        //												}
-        //												if (series[col] == undefined) {
-        //													series[col] = { name: col, data: [] };
-        //												}
-        //
-        //												let val
-        //												if (Array.isArray(row[col].value)) {
-        //													// Round the value to 2 decimal
-        //													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
-        //												} else {
-        //													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
-        //												}
-        //												// test if val is a number and push it to the series only if it is
-        //												if (!isNaN(val)) {
-        //													series[col].data.push(val);
-        //												}
-        //												i++
-        //												// for each key in series add the data to the series array
-        //											})
-        //											break;
-        //										case ''pie'':
-        //										case ''donut'':
-        //										case ''radar'':
-        //											i = 0
-        //											let colFound = false
-        //											Object.keys(row).forEach((col) => {
-        //												// check if the col is hidden if yes skip it
-        //												if (row[col].hidden == true) {
-        //													return;
-        //												}
-        //												if (i == 0) { // Skip first non hidden column		
-        //													i++
-        //													return
-        //												}
-        //
-        //
-        //												if (colFound)
-        //													return;
-        //
-        //												let val
-        //												if (Array.isArray(row[col].value)) {
-        //													// Round the value to 2 decimal
-        //													val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
-        //												} else {
-        //													val = Math.round(row[col].value * 10 ** round) / 10 ** round;
-        //												}
-        //												// test if val is a number and push it to the series only if it is
-        //												if (!isNaN(val)) {
-        //													model.series.push(val)
-        //													colFound = true
-        //												}
-        //												i++
-        //											})
-        //											break;
-        //										default:
-        //											break
-        //									}
-        //								})
-        //
-        //								Object.keys(series).forEach((key) => {
-        //									model.series.push(series[key]);
-        //								})
-        								page.local.sourceValue[item.name] = model
-        							}
-        						}
-        
-        						if (item.type == "grid") {
-        							if (page.local.sourceValue[item.name] == undefined) {
-        								page.local.sourceValue[item.name] = { colDef: [], data: [] };
-        							}
-        							// preload function for grid
-        							prevFunc = () => {
-        								page.local.sourceValue[item.name]["data"] = [];
-        
-        								setTimeout(() => {
-        									this.showGridOverlayById(item.id);
-        								})
-        								page.local.updating[item.id] = 0;
-        								//page.local.sourceValue[item.name]["data"] = [];
-        							}
-        							// postload function for grid
-        							postFunc = (res) => {
-        								// find Colomn definitions
-        								let checkboxDone = item.config.returned_value != "multiple_row_selected" ? true : false;
-        								if (res.data != undefined && res.data.length > 0) {
-        									let colDef =
-        										Object.keys(res.data[0]).map((y) => {
-        											let current = res.data[0];
-        											let obj = { "editable": false };
-        											if (y != "__rowValue" && !(res.data[0][y]["hidden"] == true)) {
-        												// if cell is a simple string
-        												if(!checkboxDone && item.config.returned_value == "multiple_row_selected"){
-        													obj["checkboxSelection"] = true;
-        													checkboxDone = true;
-        												}
-        												if (typeof (res.data[0][y]) === "string") {
-        													obj["field"] = y;
-        													return obj;
-        												}
-        												// if it''s a more complex object
-        												else {
-        													// if cell has a specified name then take it
-        													if (current[y].displayName != undefined) {
-        														obj["field"] = current[y].displayName;
-        													}
-        													// else take key name
-        													else {
-        														obj["field"] = y;
-        													}
-        													// if cell has an html type 
-        													if (current[y].type == "html") {
-        														// create a cell renderer to have innerHTML
-        														let HTMLCellRenderer = function HTMLCellRenderer() { };
-        														HTMLCellRenderer.prototype.init = function(params) {
-        															try {
-        																this.eGui = document.createElement(''div'');
-        																// if displayValue field exists display it, if not display field value																		
-        																this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
-        															}
-        															catch (e) {
-        																this.eGui.innerHTML = "<p>ko<p>"
-        															}
-        														}
-        														HTMLCellRenderer.prototype.getGui = function() {
-        															return this.eGui;
-        														};
-        														HTMLCellRenderer.prototype.refresh = function(params) {
-        															this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
-        															return true;
-        														}
-        														obj["cellRenderer"] = HTMLCellRenderer;
-        													}
-        													// if cell has a text type or no type
-        													else {
-        														let TextCellRenderer = function TextCellRenderer() { };
-        														TextCellRenderer.prototype.init = function(params) {
-        															try {
-        																this.eGui = document.createElement(''div'');
-        																let p = document.createElement(''p'');
-        																p.textContent = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
-        																p.style.whiteSpace = "normal"
-        																this.eGui.appendChild(p);
-        																// if displayValue field exists display it, if not display field value																		
-        																//this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
-        															}
-        															catch (e) {
-        																this.eGui.innerHTML = "<p>ko<p>"
-        															}
-        														}
-        														TextCellRenderer.prototype.getGui = function() {
-        															return this.eGui;
-        														};
-        														TextCellRenderer.prototype.refresh = function(params) {
-        															this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
-        															return true;
-        														}
-        														obj["cellRenderer"] = TextCellRenderer;
-        													}
-        													// define default sorting field
-        													let sortingField = "displayValue";
-        													if (current[y].sortingField == "displayValue" || current[y].sortingField == "" || current[y].sortingField == undefined) {
-        														sortingField = "displayValue";
-        													}
-        													else {
-        														sortingField = current[y].sortingField;
-        													}
-        													if (current[y].sortingType == "text" || current[y].sortingType == "string" || current[y].sortingType == "default" || current[y].sortingType == "" || current[y].sortingType == undefined) {
-        														obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => ("" + (valueA[sortingField])).localeCompare("" + (valueB[sortingField]))
-        													}
-        													else if (current[y].sortingType == "number") {
-        														obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => (+valueA[sortingField]) - (+valueB[sortingField])
-        													}
-        													return obj;
-        												}
+        												})
         											}
-        											// hide __rowValue
-        											else {
-        												obj["hide"] = true;
-        												obj["field"] = y;
-        												return obj;
-        											}
-        										});
-        									// foreach row
-        									let data = res.data.map((x) => {
-        										var row = { ...x };
-        										// foreach col
-        										Object.keys(row).forEach((col) => {
-        											// if col is not a simple string
-        											if (typeof (row[col]) === "object") {
-        												// if there is a displayColName
-        												if (row[col].displayName != undefined) {
-        													// rename the col name
-        													row[row[col].displayName] = row[col];
-        													// save the technical name
-        													row[row[col].displayName].technicalName = col;
-        													// delete the usless col if name is diffrent from displayName see #625;
-        													if (col != row[col].displayName) {
-        														delete row[col];
-        													}
-        												}
-        												else {
-        													// save the technical name (same as its name)
-        													row[col].technicalName = col;
-        												}
-        											}
-        										});
-        										return row;
-        									})
-        									page.local.updating[item.id] = 1;
-        									setTimeout(() => {
-        										this.hideGridOverlayById(item.id);
-        									})
-        									page.local.sourceValue[item.name]["colDef"] = colDef;
-        									page.local.sourceValue[item.name]["data"] = data;
-        									// in case of user wants all data to be returned to response
-        									if (item.config.returned_value === "all_the_data") {
-        										formSubmit[item.name]["value"] = res.data;
-        									}
-        									page.ref.detectChanges();
-        								}
-        								else {
-        									page.local.updating[item.id] = 1;
-        									setTimeout(() => {
-        										this.hideGridOverlayById(item.id);
-        									})
-        									page.local.sourceValue[item.name]["data"] = [];
-        								}
-        							}
-        							// fail function for grid
-        							failFunc = (err) => {
-        								setTimeout(() => {
-        									this.hideGridOverlayById(item.id);
-        								})
-        								page.c8o.log.error("an error occured while trying to laod source for a grid", err);
-        								page.local.updating[item.id] = 2;
-        							}
-        						}
-        						else if (item.type == "checkbox_group" || item.type == "radio_group") {
-        							if (page.local.sourceValue[item.name] == undefined) {
-        								page.local.sourceValue[item.name] = { colDef: [], data: [] };
-        							}
-        							// preload function for grid
-        							prevFunc = () => {
-        								page.local.sourceValue[item.name] = [];
-        								page.local.updating[item.id] = 0;
-        								//page.local.sourceValue[item.name]["data"] = [];
-        							}
-        							// postload function for grid
-        							postFunc = (res) => {
-        								try {
-        									// find Colomn definitions
-        									if (res.value != undefined && res.value.length > 0) {
-        										let children = [];
-        										let lines = []
-        										res.value?.forEach((x) => {
-        											if (x?.line != null && x?.line != "") {
-        												lines.push({ "title": x?.line, "selected": false });
-        											}
-        											if (x?.column != null && x?.column != "") {
-        												children.push({ "value": x?.column, "selected": false });
+        											// now build the series using all the array
+        
+        											switch (item.config.type) {
+        												case ''bar'':
+        												case ''line'':
+        												case ''area'':
+        												case ''treemap'':
+        													i = 0;
+        													Object.keys(row).forEach((col) => {
+        														// check if the col is hidden if yes skip it
+        														if (row[col].hidden == true) {
+        															return;
+        														}
+        														// Skip the first col
+        														if (i == 0) {
+        															i++
+        															return
+        														}
+        														if (series[col] == undefined) {
+        															series[col] = { name: col, data: [] };
+        														}
+        
+        														let val
+        														if (Array.isArray(row[col].value)) {
+        															// Round the value to 2 decimal
+        															val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
+        														} else {
+        															val = Math.round(row[col].value * 10 ** round) / 10 ** round;
+        														}
+        														// test if val is a number and push it to the series only if it is
+        														if (!isNaN(val)) {
+        															series[col].data.push(val);
+        														}
+        														i++
+        														// for each key in series add the data to the series array
+        													})
+        													break;
+        												case ''pie'':
+        												case ''donut'':
+        												case ''radar'':
+        													i = 0
+        													let colFound = false
+        													Object.keys(row).forEach((col) => {
+        														// check if the col is hidden if yes skip it
+        														if (row[col].hidden == true) {
+        															return;
+        														}
+        														if (i == 0) { // Skip first non hidden column		
+        															i++
+        															return
+        														}
+        
+        
+        														if (colFound)
+        															return;
+        
+        														let val
+        														if (Array.isArray(row[col].value)) {
+        															// Round the value to 2 decimal
+        															val = Math.round(row[col].value[0].value * 10 ** round) / 10 ** round;
+        														} else {
+        															val = Math.round(row[col].value * 10 ** round) / 10 ** round;
+        														}
+        														// test if val is a number and push it to the series only if it is
+        														if (!isNaN(val)) {
+        															model.series.push(val)
+        															colFound = true
+        														}
+        														i++
+        													})
+        													break;
+        												default:
+        													break
         											}
         										})
-        										page.local.sourceValue[item.name]["children"] = children;
-        										page.local.sourceValue[item.name]["lines"] = lines;
-        										//formSubmit[item["name"]].children = {};
-        										let previousVal = JSON.parse(JSON.stringify(formSubmit[item["name"]].children));
-        										if (item.type == "checkbox_group") {
-        											for (let line of lines) {
-        												formSubmit[item["name"]].children[line.title] = [];
-        												let urlParams = page.local.urlParams.get(item["name"] + "_" + line.title);
-        												let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
-        												for (let child in children) {
-        													formSubmit[item["name"]].children[line.title].push({ "value": children[child].value, "selected": previousVal?.[line.title]?.find((x) => { return x.value == children[child].value })?.selected });
-        												}
-        											}
-        										}
-        										else {
-        											for (let line of lines) {
-        												formSubmit[item["name"]].children[line.title] = previousVal?.[line.title] != undefined ? previousVal?.[line.title] : "";
-        											}
-        										}
-        										page.local.updating[item.id] = 1;
-        										page.ref.detectChanges();
+        
+        										Object.keys(series).forEach((key) => {
+        											model.series.push(series[key]);
+        										})
+        										page.local.sourceValue[item.name] = model
         									}
-        									else {
+        								}
+        								if (item.type == "map") {
+        									// preload function for chart
+        									prevFunc = () => {
+        									}
+        
+        									// postload function for chart
+        									postFunc = (res) => {
+        										if(page.local.sourceValue[item.name] == null){
+        											page.local.sourceValue[item.name] = { markers: [], circles:[], xaxis: { categories: [] }, series: [] };
+        										}
+        										let columns = JSON.parse(item[search][Object.keys(item[search])[0]].vars.forms_config.str).columns;
+        										let computefield = search.substring(7).toLowerCase();
+        										switch(computefield){
+        											case "markers":
+        												let currentRes = res.data.map((x)=>{return {options: {title: x[columns[0]]?.value }, tooltip: x[columns[0]]?.value, popup: x[columns[0]]?.value, lat: +x[columns[1]]?.value, lng: +x[columns[2]]?.value }; });
+        												page.local.sourceValue[item.name][computefield] = currentRes;
+        											break;
+        											case "circles":
+        												let currentResp = res.data.map((x)=>{return {options: {title: x[columns[0]]?.value }, tooltip: x[columns[0]]?.value, popup: x[columns[0]]?.value, lat: +x[columns[1]]?.value, lng: +x[columns[2]]?.value, radius: +x[columns[3]]?.value }; });
+        												page.local.sourceValue[item.name][computefield] = currentResp;
+        											break;
+        											case "polygons":
+        												let currentRespo = res.data.map((x) => {
+        												    let latitudes = x[columns[1]].value.map(lat => parseFloat(lat.value));
+        												    let longitudes = x[columns[2]].value.map(lng => parseFloat(lng.value));
+        												    let coordinates = latitudes.map((lat, index) => [lat, longitudes[index]]);
+        												    const center = coordinates.reduce(
+        												        (acc, coord) => [acc[0] + coord[0], acc[1] + coord[1]],
+        												        [0, 0]
+        												    ).map(val => val / coordinates.length);
+        
+        												    coordinates.sort((a, b) => {
+        												        const angleA = Math.atan2(a[1] - center[1], a[0] - center[0]);
+        												        const angleB = Math.atan2(b[1] - center[1], b[0] - center[0]);
+        												        return angleA - angleB;
+        												    });
+        												    coordinates.push(coordinates[0]);
+        												    return {
+        												        options: { title: x[columns[0]]?.value },
+        												        tooltip: x[columns[0]]?.value,
+        												        popup: x[columns[0]]?.value,
+        												        coord: coordinates
+        												    };
+        												});
+        
+        												page.local.sourceValue[item.name][computefield] = currentRespo;
+        											break;
+        										}
+        										
+        									}
+        								}
+        
+        								if (item.type == "grid") {
+        									if (page.local.sourceValue[item.name] == undefined) {
+        										page.local.sourceValue[item.name] = { colDef: [], data: [] };
+        									}
+        									// preload function for grid
+        									prevFunc = () => {
         										page.local.sourceValue[item.name]["data"] = [];
-        										page.local.updating[item.id] = 1;
+        
+        										setTimeout(() => {
+        											this.showGridOverlayById(item.id);
+        										})
+        										page.local.updating[item.id] = 0;
+        										//page.local.sourceValue[item.name]["data"] = [];
         									}
-        									let currentSHA = page["shaById"][item.id];
-        									page.local.functionsToBeCalled[item.id]
-        									.forEach((id)=>{
-        										// if its myself, and we asked to exclude myself i will not call the source
-        										if((id == currentSHA)){
-        											// do nothing
-        										}
-        										else{
-        											// if its not myself, i will call the source
-        											page["functionsById"][id]();	
-        										}
-        									})
-        								}
-        								catch (e) {
-        									page.local.updating[item.id] = 2;
-        									page.c8o.log.error("an error occured while trying to laod source for a grid", e);
-        								}
-        							}
-        							// fail function for grid
-        							failFunc = (err) => {
-        								page.c8o.log.error("an error occured while trying to laod source for a grid", err);
-        								page.local.updating[item.id] = 2;
-        							}
-        						}
-        						else if (item["type"] == "select" || item.type == "radio") {
-        							// preload function for select
-        							prevFunc = () => {
-        								page.local.updating[item.id] = 0;
-        							}
-        							// postload function for select
-        							postFunc = (res) => {
-        								let defaultSelected = "";
-        								let defaultBinded = "";
-        								// find Colomn definitions
-        								let urlParams = page.local.urlParams.get(item["name"]);
-        								if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
-        									const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
-        									if (tmp != undefined && tmp.length > 0) {
-        										urlParams = tmp[0].value
-        									}
-        								}
-        								//formSubmit[item["name"]]["children"] = [];
-        								let array = [];
-        								if (!(res["value"] == undefined)) {
-        									if (typeof (res["value"]) == "string") {
-        										array.push(res["value"]);
-        									}
-        									else {
-        										if (res.value instanceof Array) {
-        											for (let child of res["value"]) {
-        												array.push(child);
+        									// postload function for grid
+        									postFunc = (res) => {
+        										// find Colomn definitions
+        										let checkboxDone = item.config.returned_value != "multiple_row_selected" ? true : false;
+        										if (res.data != undefined && res.data.length > 0) {
+        											let colDef =
+        												Object.keys(res.data[0]).map((y) => {
+        													let current = res.data[0];
+        													let obj = { "editable": false };
+        													if (y != "__rowValue" && !(res.data[0][y]["hidden"] == true)) {
+        														// if cell is a simple string
+        														if(!checkboxDone && item.config.returned_value == "multiple_row_selected"){
+        															obj["checkboxSelection"] = true;
+        															checkboxDone = true;
+        														}
+        														if (typeof (res.data[0][y]) === "string") {
+        															obj["field"] = y;
+        															return obj;
+        														}
+        														// if it''s a more complex object
+        														else {
+        															// if cell has a specified name then take it
+        															if (current[y].displayName != undefined) {
+        																obj["field"] = current[y].displayName;
+        															}
+        															// else take key name
+        															else {
+        																obj["field"] = y;
+        															}
+        															// if cell has an html type 
+        															if (current[y].type == "html") {
+        																// create a cell renderer to have innerHTML
+        																let HTMLCellRenderer = function HTMLCellRenderer() { };
+        																HTMLCellRenderer.prototype.init = function(params) {
+        																	try {
+        																		this.eGui = document.createElement(''div'');
+        																		// if displayValue field exists display it, if not display field value																		
+        																		this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        																	}
+        																	catch (e) {
+        																		this.eGui.innerHTML = "<p>ko<p>"
+        																	}
+        																}
+        																HTMLCellRenderer.prototype.getGui = function() {
+        																	return this.eGui;
+        																};
+        																HTMLCellRenderer.prototype.refresh = function(params) {
+        																	this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        																	return true;
+        																}
+        																obj["cellRenderer"] = HTMLCellRenderer;
+        															}
+        															// if cell has a text type or no type
+        															else {
+        																let TextCellRenderer = function TextCellRenderer() { };
+        																TextCellRenderer.prototype.init = function(params) {
+        																	try {
+        																		this.eGui = document.createElement(''div'');
+        																		let p = document.createElement(''p'');
+        																		p.textContent = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        																		p.style.whiteSpace = "normal"
+        																		this.eGui.appendChild(p);
+        																		// if displayValue field exists display it, if not display field value																		
+        																		//this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        																	}
+        																	catch (e) {
+        																		this.eGui.innerHTML = "<p>ko<p>"
+        																	}
+        																}
+        																TextCellRenderer.prototype.getGui = function() {
+        																	return this.eGui;
+        																};
+        																TextCellRenderer.prototype.refresh = function(params) {
+        																	this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        																	return true;
+        																}
+        																obj["cellRenderer"] = TextCellRenderer;
+        															}
+        															// define default sorting field
+        															let sortingField = "displayValue";
+        															if (current[y].sortingField == "displayValue" || current[y].sortingField == "" || current[y].sortingField == undefined) {
+        																sortingField = "displayValue";
+        															}
+        															else {
+        																sortingField = current[y].sortingField;
+        															}
+        															if (current[y].sortingType == "text" || current[y].sortingType == "string" || current[y].sortingType == "default" || current[y].sortingType == "" || current[y].sortingType == undefined) {
+        																obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => ("" + (valueA[sortingField])).localeCompare("" + (valueB[sortingField]))
+        															}
+        															else if (current[y].sortingType == "number") {
+        																obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => (+valueA[sortingField]) - (+valueB[sortingField])
+        															}
+        															return obj;
+        														}
+        													}
+        													// hide __rowValue
+        													else {
+        														obj["hide"] = true;
+        														obj["field"] = y;
+        														return obj;
+        													}
+        												});
+        											// foreach row
+        											let data = res.data.map((x) => {
+        												var row = { ...x };
+        												// foreach col
+        												Object.keys(row).forEach((col) => {
+        													// if col is not a simple string
+        													if (typeof (row[col]) === "object") {
+        														// if there is a displayColName
+        														if (row[col].displayName != undefined) {
+        															// rename the col name
+        															row[row[col].displayName] = row[col];
+        															// save the technical name
+        															row[row[col].displayName].technicalName = col;
+        															// delete the usless col if name is diffrent from displayName see #625;
+        															if (col != row[col].displayName) {
+        																delete row[col];
+        															}
+        														}
+        														else {
+        															// save the technical name (same as its name)
+        															row[col].technicalName = col;
+        														}
+        													}
+        												});
+        												return row;
+        											})
+        											page.local.updating[item.id] = 1;
+        											setTimeout(() => {
+        												this.hideGridOverlayById(item.id);
+        											})
+        											page.local.sourceValue[item.name]["colDef"] = colDef;
+        											page.local.sourceValue[item.name]["data"] = data;
+        											// in case of user wants all data to be returned to response
+        											if (item.config.returned_value === "all_the_data") {
+        												formSubmit[item.name]["value"] = res.data;
         											}
+        											page.ref.detectChanges();
         										}
         										else {
-        											array.push(res["value"]);
+        											page.local.updating[item.id] = 1;
+        											setTimeout(() => {
+        												this.hideGridOverlayById(item.id);
+        											})
+        											page.local.sourceValue[item.name]["data"] = [];
         										}
         									}
-        								}
-        								for (let child of array) {
-        									let selected2 = false;
-        									if (child == urlParams) {
-        										defaultSelected = child;
-        										defaultBinded = child;
-        										selected2 = true;
-        									}
-        									else if (child != undefined && urlParams != undefined && child.value != undefined && JSON.stringify(child.value) == JSON.stringify(urlParams)) {
-        										defaultSelected = child.value;
-        										defaultBinded = child;
-        										selected2 = true;
-        									}
-        									let objectToPush = { selected: selected2 };
-        									if (typeof (child) == "string") {
-        										// simple value mode
-        										objectToPush["value"] = child;
-        									}
-        									else {
-        										if (child.displayValue != undefined) {
-        											objectToPush["displayValue"] = child.displayValue;
-        										}
-        										if (child.value != undefined) {
-        											objectToPush["value"] = child.value;
-        										}
-        									}
-        									formSubmit[item["name"]]["children"].push(objectToPush);
-        								}
-        								// fill helper to get select value
-        								try {
-        									this.local.techSelect[item["name"]] = defaultBinded;
-        								}
-        								catch (e) {
-        
-        								}
-        								formSubmit[item["name"]]["value"] = defaultSelected;
-        								page.local.sourceValue[item.name] = array;
-        								page.local.updating[item.id] = 1;
-        								formSubmit[item["name"]]["value"] = defaultSelected;
-        								let currentSHA = page["shaById"][item.id];
-        								page.local.functionsToBeCalled[item.id]
-        								.forEach((id)=>{
-        									// if its myself, and we asked to exclude myself i will not call the source
-        									if((id == currentSHA)){
-        										// do nothing
-        									}
-        									else{
-        										// if its not myself, i will call the source
-        										page["functionsById"][id]();	
-        									}
-        								})
-        							}
-        							// fail function for grid
-        							failFunc = (err) => {
-        								page.c8o.log.error("an error occured while trying to laod source for a select", err);
-        								page.local.updating[item.id] = 2;
-        							}
-        						}
-        						else if (item.type == "checkbox") {
-        							// preload function for select
-        							prevFunc = () => {
-        								page.local.updating[item.id] = 0;
-        							}
-        							// postload function for select
-        							postFunc = (res) => {
-        								let defaultSelected = "";
-        								let defaultBinded = "";
-        								// find Colomn definitions
-        								let urlParams = page.local.urlParams.get(item["name"]);
-        								if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
-        									const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
-        									if (tmp != undefined && tmp.length > 0) {
-        										urlParams = tmp.map((res) => { return res.value });
+        									// fail function for grid
+        									failFunc = (err) => {
+        										setTimeout(() => {
+        											this.hideGridOverlayById(item.id);
+        										})
+        										page.c8o.log.error("an error occured while trying to laod source for a grid", err);
+        										page.local.updating[item.id] = 2;
         									}
         								}
-        								//formSubmit[item["name"]]["children"] = [];
-        								let array = [];
-        								if (!(res["value"] == undefined)) {
-        									if (typeof (res["value"]) == "string") {
-        										array.push(res["value"]);
+        								else if (item.type == "checkbox_group" || item.type == "radio_group") {
+        									if (page.local.sourceValue[item.name] == undefined) {
+        										page.local.sourceValue[item.name] = { colDef: [], data: [] };
         									}
-        									else {
-        										if (res.value instanceof Array) {
-        											for (let child of res["value"]) {
-        												array.push(child);
-        											}
-        										}
-        										else {
-        											array.push(res["value"]);
-        										}
+        									// preload function for grid
+        									prevFunc = () => {
+        										page.local.sourceValue[item.name] = [];
+        										page.local.updating[item.id] = 0;
+        										//page.local.sourceValue[item.name]["data"] = [];
         									}
-        								}
-        								for (let child of array) {
-        									let selected2 = false;
-        									if (urlParams && urlParams?.indexOf(child?.value) != -1) {
-        										//										defaultSelected = child;
-        										//										defaultBinded = child;
-        										selected2 = true;
-        									}
-        									else if (child != undefined && urlParams != undefined && child.value != undefined && JSON.stringify(child.value) == JSON.stringify(urlParams)) {
-        										//										defaultSelected = child.value;
-        										//										defaultBinded = child;
-        										selected2 = true;
-        									}
-        									let objectToPush = { selected: selected2 };
-        									if (typeof (child) == "string") {
-        										// simple value mode
-        										objectToPush["value"] = child;
-        									}
-        									else {
-        										if (child.displayValue != undefined) {
-        											objectToPush["displayValue"] = child.displayValue;
-        										}
-        										if (child.value != undefined) {
-        											objectToPush["value"] = child.value;
-        										}
-        									}
-        									formSubmit[item["name"]]["children"].push(objectToPush);
-        								}
-        								// fill helper to get select value
-        								try {
-        									//									this.local.techSelect[item["name"]] = defaultBinded;
-        								}
-        								catch (e) {
-        
-        								}
-        								formSubmit[item["name"]]["value"] = defaultSelected;
-        								page.local.sourceValue[item.name] = array;
-        								page.local.updating[item.id] = 1;
-        								formSubmit[item["name"]]["value"] = defaultSelected;
-        								let currentSHA = page["shaById"][item.id];
-        								page.local.functionsToBeCalled[item.id]
-        								.forEach((id)=>{
-        									// if its myself, and we asked to exclude myself i will not call the source
-        									if((id == currentSHA)){
-        										// do nothing
-        									}
-        									else{
-        										// if its not myself, i will call the source
-        										page["functionsById"][id]();	
-        									}
-        								})
-        							}
-        							// fail function for grid
-        							failFunc = (err) => {
-        								page.c8o.log.error("an error occured while trying to laod source for a select", err);
-        								page.local.updating[item.id] = 2;
-        							}
-        						}
-        						// register previous and post functions for this sequence
-        						if (this.previousAndPostFunctions[sha] == undefined) {
-        							this.previousAndPostFunctions[sha] = { previous: [], post: [], fail: [] }
-        						}
-        						this.previousAndPostFunctions[sha].previous.push(prevFunc);
-        						this.previousAndPostFunctions[sha].post.push(postFunc);
-        						this.previousAndPostFunctions[sha].fail.push(failFunc);
-        					}
-        				}
-        				else if (item.type == "text" || item.type == "slider" || item.type == "datetime" || item.type == "time" || item.type == "barcode") {
-        					let sources: any = page["searchForSources"](item, "sources", true);
-        					let findVars = sources.findVars;
-        					let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
-        					let sha = sources.sha;
-        					let variables = {};
-        					this.functionsById[sha] = async () => {
-        						await page["computeVariable"](findVars, variables, item);
-        						// if value has changed update it and call functions
-        						if (formSubmit[item["name"]]?.value != variables["selfVar"] && variables["selfVar"] != undefined) {
-        							formSubmit[item["name"]].value = variables["selfVar"];
-        							try {
-        								if (page.local["processingDataS"] == undefined) {
-        									page.local["processingDataS"] = {};
-        								}
-        								if (page.local.functionsToBeCalled[item.id] != undefined) {
-        									if (page.local["processingDataS"][item.id] != undefined) {
+        									// postload function for grid
+        									postFunc = (res) => {
         										try {
-        											clearTimeout(page.local["processingDataS"][item.id]);
+        											// find Colomn definitions
+        											if (res.value != undefined && res.value.length > 0) {
+        												let children = [];
+        												let lines = []
+        												res.value?.forEach((x) => {
+        													if (x?.line != null && x?.line != "") {
+        														lines.push({ "title": x?.line, "selected": false });
+        													}
+        													if (x?.column != null && x?.column != "") {
+        														children.push({ "value": x?.column, "selected": false });
+        													}
+        												})
+        												page.local.sourceValue[item.name]["children"] = children;
+        												page.local.sourceValue[item.name]["lines"] = lines;
+        												//formSubmit[item["name"]].children = {};
+        												let previousVal = JSON.parse(JSON.stringify(formSubmit[item["name"]].children));
+        												if (item.type == "checkbox_group") {
+        													for (let line of lines) {
+        														formSubmit[item["name"]].children[line.title] = [];
+        														let urlParams = page.local.urlParams.get(item["name"] + "_" + line.title);
+        														let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
+        														for (let child in children) {
+        															formSubmit[item["name"]].children[line.title].push({ "value": children[child].value, "selected": previousVal?.[line.title]?.find((x) => { return x.value == children[child].value })?.selected });
+        														}
+        													}
+        												}
+        												else {
+        													for (let line of lines) {
+        														formSubmit[item["name"]].children[line.title] = previousVal?.[line.title] != undefined ? previousVal?.[line.title] : "";
+        													}
+        												}
+        												page.local.updating[item.id] = 1;
+        												page.ref.detectChanges();
+        											}
+        											else {
+        												page.local.sourceValue[item.name]["data"] = [];
+        												page.local.updating[item.id] = 1;
+        											}
+        											let currentSHA = page["shaById"][item.id];
+        											page.local.functionsToBeCalled[item.id]
+        											.forEach((id)=>{
+        												// if its myself, and we asked to exclude myself i will not call the source
+        												if((id == currentSHA)){
+        													// do nothing
+        												}
+        												else{
+        													// if its not myself, i will call the source
+        													page["functionsById"][id]();	
+        												}
+        											})
         										}
         										catch (e) {
-        											this.c8o.log.error("[fillActions] An error occured " + JSON.stringify(e), e);
+        											page.local.updating[item.id] = 2;
+        											page.c8o.log.error("an error occured while trying to laod source for a grid", e);
         										}
         									}
-        									await new Promise((resolve_set) => {
-        										page.local["processingDataS"][item.id] = setTimeout(() => {
-        											page.local.functionsToBeCalled[item.id]
-        												.forEach((id) => {
-        													page["functionsById"][id]();
-        												})
-        											resolve_set();
-        										}, 0)
-        									});
+        									// fail function for grid
+        									failFunc = (err) => {
+        										page.c8o.log.error("an error occured while trying to laod source for a grid", err);
+        										page.local.updating[item.id] = 2;
+        									}
         								}
-        								this.ref.detectChanges();
-        							}
-        							catch (e) {
-        								page.c8o.log.error("[fillActions] Error while trying to refresh a data source " + JSON.stringify(e), e);
+        								else if (item["type"] == "select" || item.type == "radio") {
+        									// preload function for select
+        									prevFunc = () => {
+        										page.local.updating[item.id] = 0;
+        									}
+        									// postload function for select
+        									postFunc = (res) => {
+        										let defaultSelected = "";
+        										let defaultBinded = "";
+        										// find Colomn definitions
+        										let urlParams = page.local.urlParams.get(item["name"]);
+        										if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
+        											const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
+        											if (tmp != undefined && tmp.length > 0) {
+        												urlParams = tmp[0].value
+        											}
+        										}
+        										//formSubmit[item["name"]]["children"] = [];
+        										let array = [];
+        										if (!(res["value"] == undefined)) {
+        											if (typeof (res["value"]) == "string") {
+        												array.push(res["value"]);
+        											}
+        											else {
+        												if (res.value instanceof Array) {
+        													for (let child of res["value"]) {
+        														array.push(child);
+        													}
+        												}
+        												else {
+        													array.push(res["value"]);
+        												}
+        											}
+        										}
+        										for (let child of array) {
+        											let selected2 = false;
+        											if (child == urlParams) {
+        												defaultSelected = child;
+        												defaultBinded = child;
+        												selected2 = true;
+        											}
+        											else if (child != undefined && urlParams != undefined && child.value != undefined && JSON.stringify(child.value) == JSON.stringify(urlParams)) {
+        												defaultSelected = child.value;
+        												defaultBinded = child;
+        												selected2 = true;
+        											}
+        											let objectToPush = { selected: selected2 };
+        											if (typeof (child) == "string") {
+        												// simple value mode
+        												objectToPush["value"] = child;
+        											}
+        											else {
+        												if (child.displayValue != undefined) {
+        													objectToPush["displayValue"] = child.displayValue;
+        												}
+        												if (child.value != undefined) {
+        													objectToPush["value"] = child.value;
+        												}
+        											}
+        											formSubmit[item["name"]]["children"].push(objectToPush);
+        										}
+        										// fill helper to get select value
+        										try {
+        											this.local.techSelect[item["name"]] = defaultBinded;
+        										}
+        										catch (e) {
+        
+        										}
+        										formSubmit[item["name"]]["value"] = defaultSelected;
+        										page.local.sourceValue[item.name] = array;
+        										page.local.updating[item.id] = 1;
+        										formSubmit[item["name"]]["value"] = defaultSelected;
+        										let currentSHA = page["shaById"][item.id];
+        										page.local.functionsToBeCalled[item.id]
+        										.forEach((id)=>{
+        											// if its myself, and we asked to exclude myself i will not call the source
+        											if((id == currentSHA)){
+        												// do nothing
+        											}
+        											else{
+        												// if its not myself, i will call the source
+        												page["functionsById"][id]();	
+        											}
+        										})
+        									}
+        									// fail function for grid
+        									failFunc = (err) => {
+        										page.c8o.log.error("an error occured while trying to laod source for a select", err);
+        										page.local.updating[item.id] = 2;
+        									}
+        								}
+        								else if (item.type == "checkbox") {
+        									// preload function for select
+        									prevFunc = () => {
+        										page.local.updating[item.id] = 0;
+        									}
+        									// postload function for select
+        									postFunc = (res) => {
+        										let defaultSelected = "";
+        										let defaultBinded = "";
+        										// find Colomn definitions
+        										let urlParams = page.local.urlParams.get(item["name"]);
+        										if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
+        											const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
+        											if (tmp != undefined && tmp.length > 0) {
+        												urlParams = tmp.map((res) => { return res.value });
+        											}
+        										}
+        										//formSubmit[item["name"]]["children"] = [];
+        										let array = [];
+        										if (!(res["value"] == undefined)) {
+        											if (typeof (res["value"]) == "string") {
+        												array.push(res["value"]);
+        											}
+        											else {
+        												if (res.value instanceof Array) {
+        													for (let child of res["value"]) {
+        														array.push(child);
+        													}
+        												}
+        												else {
+        													array.push(res["value"]);
+        												}
+        											}
+        										}
+        										for (let child of array) {
+        											let selected2 = false;
+        											if (urlParams && urlParams?.indexOf(child?.value) != -1) {
+        												//										defaultSelected = child;
+        												//										defaultBinded = child;
+        												selected2 = true;
+        											}
+        											else if (child != undefined && urlParams != undefined && child.value != undefined && JSON.stringify(child.value) == JSON.stringify(urlParams)) {
+        												//										defaultSelected = child.value;
+        												//										defaultBinded = child;
+        												selected2 = true;
+        											}
+        											let objectToPush = { selected: selected2 };
+        											if (typeof (child) == "string") {
+        												// simple value mode
+        												objectToPush["value"] = child;
+        											}
+        											else {
+        												if (child.displayValue != undefined) {
+        													objectToPush["displayValue"] = child.displayValue;
+        												}
+        												if (child.value != undefined) {
+        													objectToPush["value"] = child.value;
+        												}
+        											}
+        											formSubmit[item["name"]]["children"].push(objectToPush);
+        										}
+        										// fill helper to get select value
+        										try {
+        											//									this.local.techSelect[item["name"]] = defaultBinded;
+        										}
+        										catch (e) {
+        
+        										}
+        										formSubmit[item["name"]]["value"] = defaultSelected;
+        										page.local.sourceValue[item.name] = array;
+        										page.local.updating[item.id] = 1;
+        										formSubmit[item["name"]]["value"] = defaultSelected;
+        										let currentSHA = page["shaById"][item.id];
+        										page.local.functionsToBeCalled[item.id]
+        										.forEach((id)=>{
+        											// if its myself, and we asked to exclude myself i will not call the source
+        											if((id == currentSHA)){
+        												// do nothing
+        											}
+        											else{
+        												// if its not myself, i will call the source
+        												page["functionsById"][id]();	
+        											}
+        										})
+        									}
+        									// fail function for grid
+        									failFunc = (err) => {
+        										page.c8o.log.error("an error occured while trying to laod source for a select", err);
+        										page.local.updating[item.id] = 2;
+        									}
+        								}
+        								// register previous and post functions for this sequence
+        								if (this.previousAndPostFunctions[sha] == undefined) {
+        									this.previousAndPostFunctions[sha] = { previous: [], post: [], fail: [] }
+        								}
+        								this.previousAndPostFunctions[sha].previous.push(prevFunc);
+        								this.previousAndPostFunctions[sha].post.push(postFunc);
+        								this.previousAndPostFunctions[sha].fail.push(failFunc);
         							}
         						}
         					}
-        					await this.functionsById[sha]();
-        					this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        					else if (item.type == "text" || item.type == "slider" || item.type == "datetime" || item.type == "time" || item.type == "barcode") {
+        						let sources: any = page["searchForSources"](item, "sources", true);
+        						let findVars = sources.findVars;
+        						let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
+        						let sha = sources.sha;
+        						let variables = {};
+        						this.functionsById[sha] = async () => {
+        							await page["computeVariable"](findVars, variables, item);
+        							// if value has changed update it and call functions
+        							if (formSubmit[item["name"]]?.value != variables["selfVar"] && variables["selfVar"] != undefined) {
+        								formSubmit[item["name"]].value = variables["selfVar"];
+        								try {
+        									if (page.local["processingDataS"] == undefined) {
+        										page.local["processingDataS"] = {};
+        									}
+        									if (page.local.functionsToBeCalled[item.id] != undefined) {
+        										if (page.local["processingDataS"][item.id] != undefined) {
+        											try {
+        												clearTimeout(page.local["processingDataS"][item.id]);
+        											}
+        											catch (e) {
+        												this.c8o.log.error("[fillActions] An error occured " + JSON.stringify(e), e);
+        											}
+        										}
+        										await new Promise((resolve_set) => {
+        											page.local["processingDataS"][item.id] = setTimeout(() => {
+        												page.local.functionsToBeCalled[item.id]
+        													.forEach((id) => {
+        														page["functionsById"][id]();
+        													})
+        												resolve_set();
+        											}, 0)
+        										});
+        									}
+        									this.ref.detectChanges();
+        								}
+        								catch (e) {
+        									page.c8o.log.error("[fillActions] Error while trying to refresh a data source " + JSON.stringify(e), e);
+        								}
+        							}
+        						}
+        						await this.functionsById[sha]();
+        						this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         
+        					}
+        					else if (item.type == "map"){
+        						if(item["config"]["sourceMarkersEnabled"]){
+        							let sources: any = page["searchForSources"](item, "sourcesMarkers", true);
+        							debugger;
+        						}
+        					}
+        					if (item.config.html != null) {
+        						await this.evalHtml(item.config.html, item.name);
+        					}
+        					if (item.config.title?.html != null) {
+        						await this.evalHtml(item.config.title.html, item.name);
+        					}
         				}
-        				if (item.config.html != null) {
-        					await this.evalHtml(item.config.html, item.name);
-        				}
-        				if (item.config.title?.html != null) {
-        					await this.evalHtml(item.config.title.html, item.name);
-        				}
+        				this.fillPages(this["local"]["pages"]);
         			}
-        			this.fillPages(this["local"]["pages"]);
+        			catch (e) {
+        				page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
+        			}
+        			return idsToCall;
         		}
-        		catch (e) {
-        			page.c8o.log.error("An error occured while executing function fillFormSubmit into vieworPage", e);
-        		}
-        		return idsToCall;
-        	}
+        		
         
         	public async evalHtml(html, name) {
         		if (html != "" && html != null) {
