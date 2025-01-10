@@ -77,6 +77,15 @@ see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/3e0e5200
 see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/390cab78135158123afee330fc48421414aa804a#readme)
 </p></blockquote></details>
 
+<details><summary><b>lib_Leaflet</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Leaflet
+
+
+see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/master#readme)
+</p></blockquote></details>
+
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
 
 
