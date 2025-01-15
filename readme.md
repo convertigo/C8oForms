@@ -126,6 +126,7 @@ For more technical informations : [documentation](./project.md)
         - [ManageAccessRights](#manageaccessrights)
         - [modalActions](#modalactions)
         - [modalConfigure](#modalconfigure)
+        - [ModalEditImage](#modaleditimage)
         - [modalVideo](#modalvideo)
         - [NetworkStatus](#networkstatus)
         - [PopOverInputs](#popoverinputs)
@@ -220,6 +221,7 @@ For more technical informations : [documentation](./project.md)
         - [conditionVisibleIfPrev](#conditionvisibleifprev)
         - [datasource](#datasource)
         - [dataSourceEditor](#datasourceeditor)
+        - [dataSourceEditor_GridRow_GridColSourcePicker_Group](#datasourceeditor_gridrow_gridcolsourcepicker_group)
         - [dataSourceEditorDescription](#datasourceeditordescription)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
         - [DraggableElementApiPalette](#draggableelementapipalette)
@@ -267,6 +269,8 @@ For more technical informations : [documentation](./project.md)
         - [itemLayoutViewer_Elem](#itemlayoutviewer_elem)
         - [itemLocationEditor](#itemlocationeditor)
         - [itemLocationViewer](#itemlocationviewer)
+        - [itemMapEditor](#itemmapeditor)
+        - [itemMapViewer](#itemmapviewer)
         - [itemRadioGroupViewver](#itemradiogroupviewver)
         - [itemRadioListEditor](#itemradiolisteditor)
         - [itemRadioListGroupEditor](#itemradiolistgroupeditor)
@@ -1668,6 +1672,8 @@ Page to share a form, or add collaborators
 
 #### modalConfigure
 
+#### ModalEditImage
+
 #### modalVideo
 
 #### NetworkStatus
@@ -2757,7 +2763,13 @@ Update the state of a field
 <td>currentObject</td><td></td>
 </tr>
 <tr>
+<td>displayName</td><td></td>
+</tr>
+<tr>
 <td>dragging</td><td></td>
+</tr>
+<tr>
+<td>height</td><td></td>
 </tr>
 <tr>
 <td>isSource</td><td></td>
@@ -2788,6 +2800,48 @@ Update the state of a field
 <td>save</td><td></td>
 </tr>
 </table>
+#### dataSourceEditor_GridRow_GridColSourcePicker_Group
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>apiApp</td><td></td>
+</tr>
+<tr>
+<td>apiC8o</td><td></td>
+</tr>
+<tr>
+<td>apiForm</td><td></td>
+</tr>
+<tr>
+<td>apiPage</td><td></td>
+</tr>
+<tr>
+<td>apiRouter</td><td></td>
+</tr>
+<tr>
+<td>apiTranslate</td><td></td>
+</tr>
+<tr>
+<td>apiUser</td><td></td>
+</tr>
+<tr>
+<td>c8oforms_monacoeditor</td><td></td>
+</tr>
+<tr>
+<td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>sources</td><td></td>
+</tr>
+<tr>
+<td>type</td><td></td>
+</tr>
+</table>
 #### dataSourceEditorDescription
 
 **variables**
@@ -2795,6 +2849,12 @@ Update the state of a field
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>additionalTextKey</td><td></td>
+</tr>
+<tr>
+<td>copyContent</td><td></td>
 </tr>
 <tr>
 <td>isText</td><td></td>
@@ -3630,6 +3690,9 @@ The Chart Widget viewer
 <td>colScheme</td><td></td>
 </tr>
 <tr>
+<td>defaultValue</td><td></td>
+</tr>
+<tr>
 <td>item</td><td></td>
 </tr>
 <tr>
@@ -3752,6 +3815,52 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>redList</td><td>this.redList[item['name']]</td>
+</tr>
+</table>
+#### itemMapEditor
+
+The Chart Widget configuration panel
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemMapViewer
+
+The Chart Widget viewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>outModel</td><td></td>
 </tr>
 <tr>
 <td>redList</td><td>this.redList[item['name']]</td>
@@ -4046,6 +4155,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>config</td><td></td>
+</tr>
+<tr>
+<td>name</td><td></td>
 </tr>
 </table>
 #### itemVideoCallEditor
