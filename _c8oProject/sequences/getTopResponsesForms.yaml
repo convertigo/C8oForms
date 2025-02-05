@@ -1,0 +1,97 @@
+accessibility: Private
+↓jElement [steps.ElementStep-1738771005099]: 
+  expression: result
+  nodeName: results
+↓Call_Transaction [steps.TransactionStep-1738771005102]: 
+  sourceTransaction: C8Oforms.c8oforms_response_fs.GetView
+  ↓_use_ddoc [variables.StepVariable-1738771005105]: 
+    description: Design document name
+    value: stats
+  ↓_use_view [variables.StepVariable-1738771005108]: 
+    description: View function name
+    value: topResponsesForm
+  ↓_use_descending [variables.StepVariable-1738771005111]: 
+    description: (boolean) – Return the documents in descending by key order. Default is false
+  ↓_use_group [variables.StepVariable-1738771005114]: 
+    description: (boolean) – Group the results using the reduce function to a group or single row. Default is false
+    value: true
+  ↓_use_group_level [variables.StepVariable-1738771005117]: 
+    description: (number) – Specify the group level to be used. Optional
+    value: 1
+  ↓_use_reduce [variables.StepVariable-1738771005120]: 
+    description: (boolean) – Use the reduction function. Default is true
+    value: true
+↓jSource [steps.SourceStep-1738771005123]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1738771005102
+        - java.lang.String: 
+          - ↑value: ./document/couchdb_output
+  variableName: Jresult
+↓Sequence_JS [steps.SimpleStep-1738771005126]: 
+  expression: |
+    'var jsonToXml = com.twinsoft.convertigo.engine.util.XMLUtils.jsonToXml;
+    var xmlUtils = use("com.twinsoft.convertigo.engine.util.XMLUtils");
+    
+    var result = JSON.parse(''''+com.twinsoft.convertigo.engine.util.XMLUtils.XmlToJson(Jresult.item(0), true, true));
+    result = result.couchdb_output.rows;
+    result = result.sort(function(a, b) {
+        return b.value - a.value;
+    });'
+↓jIterator [steps.SimpleIteratorStep-1738771005129]: 
+  expression: result
+  ↓define_doc_id [steps.SimpleStep-1738771005132]: 
+    expression: _use_docid = item.key;
+  ↓Call_Transaction [steps.TransactionStep-1738771005135]: 
+    sourceTransaction: C8oForms_stat.c8oforms_stats_fs.GetDocument
+    ↓_use_docid [variables.StepVariable-1738771005138]: 
+      description: Document ID
+  ↓jSource [steps.SourceStep-1738771005141]: 
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1738771005135
+          - java.lang.String: 
+            - ↑value: ./document/couchdb_output
+    variableName: JSubResult
+  ↓get_results [steps.SimpleStep-1738771005144]: 
+    expression: |
+      'try{
+      	var subResult = JSON.parse(''''+com.twinsoft.convertigo.engine.util.XMLUtils.XmlToJson(JSubResult.item(0), true, true));
+      	var creator = subResult.couchdb_output.creator;
+      	if(creator != undefined){
+      		result[index].key = creator;
+      	}
+      }
+      catch(e){
+      	
+      }
+      '
+↓Sequence_JS1 [steps.SimpleStep-1738771005147]: 
+  expression: |
+    'var result = result.reduce(function(accumulateur, element) {
+      if (!element.key) return accumulateur;
+      
+      var existant = accumulateur.find(function(e) { return e.key === element.key; });
+      
+      if (existant) {
+        existant.value += element.value;
+      } else {
+        accumulateur.push({
+          key: element.key,
+          value: element.value
+        });
+      }
+      
+      return accumulateur;
+    }, []);
+    
+    
+    
+    var jsonObject = new org.codehaus.jettison.json.JSONArray(JSON.stringify(result));
+    xmlUtils.jsonToXml(jsonObject, dom.getDocumentElement().item(0));'
