@@ -41,12 +41,9 @@ scriptContent:
         	 * The plot options.
         	 */
         	public plotOptions: any = {
-        	    bar: (this.type === ''bar'') ? {
-        	        horizontal: false,
-        	        colors: {
-        	            distributed: true
-        	        }
-        	    } : {}
+        	    bar: {
+        	        horizontal: true
+        	    }
         	}
         	/**
         	 * The length of the array of customers or projects.
@@ -94,6 +91,9 @@ scriptContent:
         		if (this.chartOptions?.width != undefined) {	
         			this.chartOptions.width = this.getCompWidth(window.innerWidth) - 100 + ''px'';
         		}
+        		if (this.type != ''grid'') {
+        			this.initChartSize();
+        		}
         		this.ref.detectChanges()
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
@@ -107,8 +107,10 @@ scriptContent:
         /*Begin_c8o_CompAfterContentChecked*/
         		/*End_c8o_CompAfterContentChecked*/
         /*Begin_c8o_CompAfterViewInit*/
-        		if (this.type != ''grid'') {			
+        		if (this.type != ''grid'') {
+        			console.warn(''[onAfterViewInit]'')	
         			this.initChartSize();
+        			this.ref.detectChanges();
         		}
         		/*End_c8o_CompAfterViewInit*/
         /*Begin_c8o_CompAfterViewChecked*/
@@ -148,68 +150,6 @@ scriptContent:
         		}
         //		console.log(this.responsiveColumnSize)
         	}
-        
-        	/**
-        	 * Set new date range.
-        	 * @param {any} chartContext - context of the chart.
-        	 * @param {any} xaxis - xaxis object.
-        	 */
-        	public handleZoomUsers(chartContext: any, {xaxis}: any): void {
-        			    this.zoomStarted.emit({ message: "zoom started" });
-        
-        			    if (!xaxis || typeof xaxis.min !== ''number'' || typeof xaxis.max !== ''number'') {
-        					this.zoomEnded.emit({ date: {start:'''', end: '''', reset: true}} );
-        			        return;
-        			    }
-        
-        			    try {
-        			        // Convert epoch to Date object and then to ISO string
-        			        const zoomStartingISO = new Date(xaxis.min).toISOString();
-        			        const zoomEndingISO = new Date(xaxis.max).toISOString();
-        
-        			        // Convert ISO string to "YYYY-MM-DD HH:MM:SS.SSS" format
-        			        const zoomStarting = zoomStartingISO.replace(''T'', '' '').slice(0, -1);
-        			        const zoomEnding = zoomEndingISO.replace(''T'', '' '').slice(0, -1);
-        
-        			        this.zoomStart = zoomStarting;
-        			        this.zoomEnd = zoomEnding;
-        					
-        			        this.ref.detectChanges();
-        			        this.zoomEnded.emit({ date: {start:this.zoomStart.split(" ")[0], end: this.zoomEnd.split(" ")[0], reset: false} });
-        			    } catch (error) {
-        			        console.error("Error in handleZoomUsers:", error);
-        			    }
-        
-        	}
-        	
-        	/**
-        	 * Reset the chart to its initial state.
-        	 * @param {any} chartContext - context of the chart.
-        	 * @param {any} opts - options object.
-        	 * @returns {any} initial date range in the xaxis of the chart.
-        	 */
-        	public handleResetZoom(chartContext: any, opts: any): any {
-        			this.ref.detectChanges();
-        			return {
-        	  			xaxis: {
-        	   				min: this.filterVars.filter((it) => it.type == ''dateStart'')[0].value,
-        	    			max: this.filterVars.filter((it) => it.type == ''dateEnd'')[0].value
-        	  			}
-        			}
-        	}
-        	
-        	/**
-        	 * HostListener function that listen resize event and trigger functions to resize comp.
-        	 * @param {any} event - event object.
-        	 */
-        	@HostListener(''window:resize'', [''$event''])
-          	public onResize(event: any): void {
-        		if (this.type != ''grid'') {			
-        			this.ref.detectChanges();
-        		    this.resizeChart(event.target.innerWidth);
-        			this.ref.detectChanges();
-        		}
-          	}
         	
         	/**
         	 * Init chart size.
@@ -219,12 +159,10 @@ scriptContent:
         	  setTimeout(() => {
         		if (!this.datavizCompContent || !this.datavizCompContent.nativeElement) {
         		  console.warn(''[initChartSize] datavizCompContainer is not available yet.'');
-        		  return;
         		}
         		
-        	    const containerWidth = this.datavizCompContent.nativeElement.clientWidth || this.getCompWidth(window.innerWidth) - 100;
-        	    const containerHeight = this.datavizCompContent.nativeElement.clientHeight || ((this.type != ''bar'') ? ((this.defaultHeight != undefined && this.defaultHeight > 0) ? this.defaultHeight : 300) : (this.getCompHeightOnScroll(this.custLength, 40))); // Valeur par défaut
-        		console.log(containerHeight);
+        	    const containerWidth = this.datavizCompContent.nativeElement?.clientWidth || this.getCompWidth(window.innerWidth) - 100;
+        	    const containerHeight = this.datavizCompContent.nativeElement?.clientHeight || ((this.type != ''bar'') ? ((this.defaultHeight != undefined && this.defaultHeight > 0) ? this.defaultHeight : 300) : (this.getCompHeightOnScroll(this.custLength, 40)));
         		this.chartOptions = {
         			  type: this.type,
         			  height: containerHeight + ''px'',
@@ -243,7 +181,7 @@ scriptContent:
         //			  }
         			}
         		
-        		console.warn(''datavizCompContainer is now available.'')
+        		console.warn(''[initChartSize] datavizCompContainer is now available.'')
         //		console.log(this.chartOptions)
         	  });
         	}
@@ -259,7 +197,7 @@ scriptContent:
         		if (isNaN(sizePerElement) || isNaN(numberOfElements)) {
         			return defaultTmp;
         		}
-        		console.warn(`Taille par élément : ${sizePerElement}, Nombre d''éléments : ${numberOfElements}, Taille calculée : ${sizePerElement * numberOfElements}`)
+        		console.warn(`[getCompHeightOnScroll] Taille par élément : ${sizePerElement}, Nombre d''éléments : ${numberOfElements}, Taille calculée : ${sizePerElement * numberOfElements}`)
         		return (this.maxHeightCardContent < sizePerElement * numberOfElements) ? sizePerElement * numberOfElements : ((this.isExpanded) ? this.maxHeightCardContent - 50 : defaultTmp);
         	}
         	
@@ -272,7 +210,7 @@ scriptContent:
         	public calculateWidth(colWidth: number, ratio: number): number {
         		// Vérifie si les paramètres sont valides
         		if (!colWidth || !ratio || ratio <= 0) {
-        		   console.error(''Invalid column width or ratio'');
+        		   console.error(''[calculateWidth] Invalid column width or ratio'');
         		   return 0;
         		}
         
@@ -318,21 +256,24 @@ scriptContent:
         				if (this.datavizCompHeader && this.datavizCompHeader.nativeElement) {
         					heightH = this.datavizCompHeader.nativeElement.clientHeight;
         				} else {
-        					console.warn(''Chart header is not available. Skipping soustraction.'');	
+        					console.warn(''[resizeChart] Chart header is not available. Skipping soustraction.'');	
         				}
         				width = window.innerWidth - 100;
-        				height = window.innerHeight - heightH;
+        				height = (this.type == ''bar'') ? this.getCompHeightOnScroll(this.custLength, 40) : window.innerHeight - heightH;
+        				this.maxHeightCardContent =   window.innerHeight - heightH - 50;
         			} else {
         		    	// Taille normale basée sur le conteneur
         				if (this.datavizCompContent && this.datavizCompContent.nativeElement) {
         					width = this.datavizCompContent.nativeElement.clientWidth - 100;
-        					height = this.datavizCompContent.nativeElement.clientHeight;
+        					height = (this.type == ''bar'') ? this.getCompHeightOnScroll(this.custLength, 40) : this.datavizCompContent.nativeElement.clientHeight;
         				} else {
-        					console.warn(''Chart container is not available. Skipping resize.'');	
+        					console.warn(''[resizeChart] Chart container is not available. Skipping resize.'');	
         				}
+        				this.maxHeightCardContent =  this.datavizCompContent.nativeElement.clientHeight - 50;
         			}
+        			
         	
-        	    	console.log(`New chart size: ${width}x${height}`);
+        	    	console.log(`[resizeChart] New chart size: ${width}x${height}`);
         			
         			this.chartOptions = {
         				type: this.type,
@@ -386,6 +327,68 @@ scriptContent:
         			return values;
         		}
         		return values[0];
+        	}
+        	
+        	/**
+        	 * Set new date range.
+        	 * @param {any} chartContext - context of the chart.
+        	 * @param {any} xaxis - xaxis object.
+        	 */
+        	public handleZoomUsers(chartContext: any, {xaxis}: any): void {
+        			    this.zoomStarted.emit({ message: "zoom started" });
+        
+        			    if (!xaxis || typeof xaxis.min !== ''number'' || typeof xaxis.max !== ''number'') {
+        					this.zoomEnded.emit({ date: {start:'''', end: '''', reset: true}} );
+        			        return;
+        			    }
+        
+        			    try {
+        			        // Convert epoch to Date object and then to ISO string
+        			        const zoomStartingISO = new Date(xaxis.min).toISOString();
+        			        const zoomEndingISO = new Date(xaxis.max).toISOString();
+        
+        			        // Convert ISO string to "YYYY-MM-DD HH:MM:SS.SSS" format
+        			        const zoomStarting = zoomStartingISO.replace(''T'', '' '').slice(0, -1);
+        			        const zoomEnding = zoomEndingISO.replace(''T'', '' '').slice(0, -1);
+        
+        			        this.zoomStart = zoomStarting;
+        			        this.zoomEnd = zoomEnding;
+        					
+        			        this.ref.detectChanges();
+        			        this.zoomEnded.emit({ date: {start:this.zoomStart.split(" ")[0], end: this.zoomEnd.split(" ")[0], reset: false} });
+        			    } catch (error) {
+        			        console.error("Error in handleZoomUsers:", error);
+        			    }
+        
+        	}
+        
+        	/**
+        	 * Reset the chart to its initial state.
+        	 * @param {any} chartContext - context of the chart.
+        	 * @param {any} opts - options object.
+        	 * @returns {any} initial date range in the xaxis of the chart.
+        	 */
+        	public handleResetZoom(chartContext: any, opts: any): any {
+        			this.ref.detectChanges();
+        			return {
+        	  			xaxis: {
+        	   				min: this.filterVars.filter((it) => it.type == ''dateStart'')[0].value,
+        	    			max: this.filterVars.filter((it) => it.type == ''dateEnd'')[0].value
+        	  			}
+        			}
+        	}
+        
+        	/**
+        	 * HostListener function that listen resize event and trigger functions to resize comp.
+        	 * @param {any} event - event object.
+        	 */
+        	@HostListener(''window:resize'', [''$event''])
+        	public onResize(event: any): void {
+        		if (this.type != ''grid'') {			
+        			this.ref.detectChanges();
+        		    this.resizeChart(event.target.innerWidth);
+        			this.ref.detectChanges();
+        		}
         	}
         	
         	/*End_c8o_CompFunction*/
@@ -958,7 +961,7 @@ scriptContent:
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:null
+                    - MobileSmartSourceType: script:this.dataLabels
               ↓chart [ngx.components.UIUseVariable-1738835172215]: 
                 varValue: 
                   - xmlizable: 
@@ -1027,7 +1030,7 @@ scriptContent:
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:null
+                    - MobileSmartSourceType: 'script:{enabled: false}'
               ↓plotOptions [ngx.components.UIUseVariable-1738835172251]: 
                 varValue: 
                   - xmlizable: 
@@ -1199,43 +1202,13 @@ scriptContent:
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: 'script:(this.type == ''grid'') ? ((this.fullpage) ? ''height:100%;width:100vw;'' : ''height:300px;'') : ''flex-grow:1;overflow:auto;'''
+          - MobileSmartSourceType: 'script:(this.type == ''grid'') ? ((this.fullpage) ? ''height:100%;width:100vw;'' : ''height:300px;'') : ''overflow:auto;max-height:''+((!this.fullpage) ? this.defaultHeight : this.maxHeightCardContent)+''px;'''
     ↓Attr2 [ngx.components.UIAttribute-1738841110093]: 
       attrName: '[ngStyle]'
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: 'script:(this.type == ''grid'') ? {''flex-grow'': (this.fullpage) ? ''1'' : ''²'', ''max-height'': !this.fullpage ? ''300px'': ''unset''} : {}'
-  ↓height100 [ngx.components.UIStyle-1738770007285]: 
-    styleContent: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-          →: |
-            '/**
-             * Custom properties (sometimes referred to as CSS variables or cascading variables)
-             * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-             * They are set using custom property notation, e.g.: --main-color: black;
-             * and are accessed using the var() function, e.g.: color: var(--main-color);
-             * You can find below your component''s properties you can customize within the page.
-             * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-             * For more informations see https://ionicframework.com/docs/theming.
-            **/
-            //--ion-grid-padding	//Padding for the Grid
-            //--ion-grid-padding-lg	//Padding for the Grid on lg screens
-            //--ion-grid-padding-md	//Padding for the Grid on md screens
-            //--ion-grid-padding-sm	//Padding for the Grid on sm screens
-            //--ion-grid-padding-xl	//Padding for the Grid on xl screens
-            //--ion-grid-padding-xs	//Padding for the Grid on xs screens
-            //--ion-grid-width	//Width of the fixed Grid
-            //--ion-grid-width-lg	//Width of the fixed Grid on lg screens
-            //--ion-grid-width-md	//Width of the fixed Grid on md screens
-            //--ion-grid-width-sm	//Width of the fixed Grid on sm screens
-            //--ion-grid-width-xl	//Width of the fixed Grid on xl screens
-            //--ion-grid-width-xs	//Width of the fixed Grid on xs screens
-            height: 100%;
-            
-            '
+          - MobileSmartSourceType: 'script:(this.type == ''grid'') ? {''flex-grow'': (this.fullpage) ? ''1'' : '''', ''max-height'': !this.fullpage ? ''300px'': ''unset''} : {}'
   ↓flexColumn [ngx.components.UIStyle-1738770007288]: 
     styleContent: 
       - xmlizable: 
@@ -1265,36 +1238,6 @@ scriptContent:
             //--ion-grid-width-xs	//Width of the fixed Grid on xs screens
             display: flex;
             flex-direction: column;
-            
-            '
-  ↓width100 [ngx.components.UIStyle-1738849151872]: 
-    styleContent: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-          →: |
-            '/**
-             * Custom properties (sometimes referred to as CSS variables or cascading variables)
-             * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-             * They are set using custom property notation, e.g.: --main-color: black;
-             * and are accessed using the var() function, e.g.: color: var(--main-color);
-             * You can find below your component''s properties you can customize within the page.
-             * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-             * For more informations see https://ionicframework.com/docs/theming.
-            **/
-            //--ion-grid-padding	//Padding for the Grid
-            //--ion-grid-padding-lg	//Padding for the Grid on lg screens
-            //--ion-grid-padding-md	//Padding for the Grid on md screens
-            //--ion-grid-padding-sm	//Padding for the Grid on sm screens
-            //--ion-grid-padding-xl	//Padding for the Grid on xl screens
-            //--ion-grid-padding-xs	//Padding for the Grid on xs screens
-            //--ion-grid-width	//Width of the fixed Grid
-            //--ion-grid-width-lg	//Width of the fixed Grid on lg screens
-            //--ion-grid-width-md	//Width of the fixed Grid on md screens
-            //--ion-grid-width-sm	//Width of the fixed Grid on sm screens
-            //--ion-grid-width-xl	//Width of the fixed Grid on xl screens
-            //--ion-grid-width-xs	//Width of the fixed Grid on xs screens
-            width: 100%;
             
             '
 ↓SharedComponent_Event [ngx.components.UISharedComponentEvent-1738770007291]: 
@@ -1390,6 +1333,7 @@ scriptContent:
                   				.then((response, parameters): any => {
                   							console.log(''in and data is : '', response);
                   							page.data = response;
+                  							page.custLength = page.data?.options?.series[0]?.data.length;
                   							console.log(page.data?.options)
                   							resolve(page.data?.options?.series[0]?.data.length);
                   						})
@@ -1421,7 +1365,7 @@ scriptContent:
                   →: |
                     '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                     		console.log(page.custLength);
-                    //		page.initChartSize();
+                    		page.initChartSize();
                     		console.log(page.chartOptions)
                     		resolve();
                     '
