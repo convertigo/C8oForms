@@ -3579,6 +3579,78 @@ should be a valid email
 
 </p></blockquote></details>
 
+<details><summary><b>admin_stats_getCountAnswersPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerDay
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getCountAnswersPerForm</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerForm
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getCumulatedFormsPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedFormsPerDay
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getCumulatedResponsesPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedResponsesPerDay
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getFormsCountPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getFormsCountPerDay
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getMoreThan5versionsOwners</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getMoreThan5versionsOwners
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getTopAnswersForms</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopAnswersForms
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getTopPublishedComplex</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishedComplex
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getTopPublishedOwners</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishedOwners
+
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_checkForPendingInvitationNewUsers</b></summary><blockquote><p>
 
 
@@ -5523,22 +5595,6 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>getCountAnswersPerDay</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCountAnswersPerDay
-
-
-</p></blockquote></details>
-
-<details><summary><b>getCountAnswersPerForm</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCountAnswersPerForm
-
-
-</p></blockquote></details>
-
 <details><summary><b>getCSVDefaultCharacterSet</b></summary><blockquote><p>
 
 
@@ -5547,34 +5603,10 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>getCumulatedFormsPerDay</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCumulatedFormsPerDay
-
-
-</p></blockquote></details>
-
-<details><summary><b>getCumulatedResponsesPerDay</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCumulatedResponsesPerDay
-
-
-</p></blockquote></details>
-
 <details><summary><b>getCurrentUserSettings</b></summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCurrentUserSettings
-
-
-</p></blockquote></details>
-
-<details><summary><b>getFormsCountPerDay</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getFormsCountPerDay
 
 
 </p></blockquote></details>
@@ -5677,14 +5709,6 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>getMoreThan5versionsOwners</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getMoreThan5versionsOwners
-
-
-</p></blockquote></details>
-
 <details><summary><b>GetSequences</b> : List all sequences that match a pattern</summary><blockquote><p>
 
 
@@ -5782,30 +5806,6 @@ comment
 </td>
 </tr>
 </table>
-
-</p></blockquote></details>
-
-<details><summary><b>getTopAnswersForms</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getTopAnswersForms
-
-
-</p></blockquote></details>
-
-<details><summary><b>getTopPublishedComplex</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getTopPublishedComplex
-
-
-</p></blockquote></details>
-
-<details><summary><b>getTopPublishedOwners</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getTopPublishedOwners
-
 
 </p></blockquote></details>
 
