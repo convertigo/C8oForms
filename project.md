@@ -5514,6 +5514,22 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>getCountAnswersPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCountAnswersPerDay
+
+
+</p></blockquote></details>
+
+<details><summary><b>getCountAnswersPerForm</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCountAnswersPerForm
+
+
+</p></blockquote></details>
+
 <details><summary><b>getCSVDefaultCharacterSet</b></summary><blockquote><p>
 
 
@@ -5522,10 +5538,34 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>getCumulatedFormsPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCumulatedFormsPerDay
+
+
+</p></blockquote></details>
+
+<details><summary><b>getCumulatedResponsesPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCumulatedResponsesPerDay
+
+
+</p></blockquote></details>
+
 <details><summary><b>getCurrentUserSettings</b></summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCurrentUserSettings
+
+
+</p></blockquote></details>
+
+<details><summary><b>getFormsCountPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getFormsCountPerDay
 
 
 </p></blockquote></details>
@@ -5736,6 +5776,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>getTopAnswersForms</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getTopAnswersForms
+
+
+</p></blockquote></details>
+
 <details><summary><b>getTopPublishedComplex</b></summary><blockquote><p>
 
 
@@ -5748,14 +5796,6 @@ comment
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getTopPublishedOwners
-
-
-</p></blockquote></details>
-
-<details><summary><b>getTopResponsesForms</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getTopResponsesForms
 
 
 </p></blockquote></details>
