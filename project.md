@@ -48,7 +48,6 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/47a2
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_BaseRow
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
@@ -3587,18 +3586,26 @@ should be a valid email
 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedFormsPerDay</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedAnswersPerDay</b></summary><blockquote><p>
 
 
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedFormsPerDay
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedAnswersPerDay
 
 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedResponsesPerDay</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedAnswersPerForm</b></summary><blockquote><p>
 
 
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedResponsesPerDay
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedAnswersPerForm
+
+
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_getCumulatedFormsPerDay</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedFormsPerDay
 
 
 </p></blockquote></details>
@@ -10226,14 +10233,6 @@ comment
 </tr>
 <tr>
 <td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;data
-</td>
-<td>
-(String) - A title for the component card
-</td>
-</tr>
-<tr>
-<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;datavizEvents
 </td>
 <td>
@@ -10262,14 +10261,6 @@ comment
 </td>
 <td>
 (Boolean) - The comp. is expanded (true)
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;performCallSequence
-</td>
-<td>
-(String) - A title for the component card
 </td>
 </tr>
 <tr>
