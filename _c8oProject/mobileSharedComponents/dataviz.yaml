@@ -7,11 +7,6 @@ scriptContent:
         '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
-        	
-        	/**
-        	 * The comp. is expanded (true).
-        	 */
-        	public isExpanded: boolean = false;
         	/**
         	 * The comp. is hidden (true).
         	 */
@@ -21,32 +16,9 @@ scriptContent:
         	 */
         	public chartOptions: any;
         	/**
-        	 * The plot options.
-        	 */
-        	public plotOptions: any = {
-        	    bar: {
-        	        horizontal: true
-        	    }
-        	}
-        	/**
-        	 * The length of the array of customers or projects.
-        	 */
-        	public custLength: number = 400;
-        	/**
-        	 * The max-height of the card content.
-        	 */
-        	public maxHeightCardContent: number = 400;
-        	/**
         	 * The data labels of the apex chart.
         	 */
-        	public dataLabels: any = {
-        		enabled:true,
-        		showDuplicates: false,
-        	  	show: true,
-        	    style: {
-        	      colors: [''#000''],
-        	    },
-        	}
+        	public dataLabels: any;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
@@ -66,48 +38,14 @@ scriptContent:
         		/*End_c8o_CompAfterViewInit*/
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
-        /*Begin_c8o_CompFunction*/
-        	
-        	/**
-        	 * Check responsive column size.
-        	 */
-        	
-        	/**
-        	 * Init chart size.
-        	 */
-        	
-        	/**
-        	 * Set new date range.
-        	 * @param {any} chartContext - context of the chart.
-        	 * @param {any} xaxis - xaxis object.
-        	 */
-        	public handleZoomUsers(chartContext: any, {xaxis}: any): void {
-        		this.zoomStarted.emit({ message: "zoom started" });
-        
-        		if (!xaxis || typeof xaxis.min !== ''number'' || typeof xaxis.max !== ''number'') {
-        			this.zoomEnded.emit({ date: {start:'''', end: '''', reset: true}} );
-        			return;
+        /*Begin_c8o_CompFunction*/	
+        	public redraw(){
+        		if(this.libapexcharts_apxchart){
+        			setTimeout(()=>{
+        				this.libapexcharts_apxchart.apxChart.updateOptions(this.chartOptions);
+        			});
         		}
-        
-        		try {
-        			// Convert epoch to Date object and then to ISO string
-        			const zoomStartingISO = new Date(xaxis.min).toISOString();
-        			const zoomEndingISO = new Date(xaxis.max).toISOString();
-        
-        			// Convert ISO string to "YYYY-MM-DD HH:MM:SS.SSS" format
-        			const zoomStarting = zoomStartingISO.replace(''T'', '' '').slice(0, -1);
-        			const zoomEnding = zoomEndingISO.replace(''T'', '' '').slice(0, -1);
-        
-        			this.zoomStart = zoomStarting;
-        			this.zoomEnd = zoomEnding;
-        					
-        			this.ref.detectChanges();
-        			this.zoomEnded.emit({ date: {start:this.zoomStart.split(" ")[0], end: this.zoomEnd.split(" ")[0], reset: false} });
-        		} catch (error) {
-        			console.error("Error in handleZoomUsers:", error);
-        		}
-        
-        	}	
+        	}
         	/*End_c8o_CompFunction*/
         '
 ↓SharedComponent_Event [ngx.components.UISharedComponentEvent-1739522710397]: 
@@ -119,26 +57,80 @@ scriptContent:
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             '		try {
-            			if(props.parent.scope?.changes?.type?.firstChange){
+            			if (props.parent.scope?.changes?.type?.firstChange) {
             				page.isLoading = true;
-            				if(page.type == ''bar''){
-            					page.chartOptions =
-            					{
-            						type: page.type,
-            						height: page.defaultHeight,
-            						width: ''100%'',
-            						zoom: {
-            					    	enabled: true,
-            					    	allowMouseWheelZoom: false,
-            					  	}
+            			}
+            			if (props.parent.scope?.changes?.data?.currentValue != null) {
+            				if (page.type == ''bar'') {
+            					// horizontal chart
+            					if(page.data.plotOptions?.bar?.horizontal){
+            						page.chartOptions = 
+            						{
+            							type: page.type,
+            							redrawOnParentResize: true,
+            							height: (page.defaultHeight != undefined && page.defaultHeight > 0) ? (page.defaultHeight + ''px'') : ''300px'',
+            							width: ''100%'',
+            							zoom: {
+            						    	enabled: true,
+            						    	allowMouseWheelZoom: false,
+            						  	},
+            							//events: page.datavizEvents 
+            						};
+            						page.dataLabels = 
+            						{
+            							enabled:true,
+            							showDuplicates: false,
+            						  	show: true,
+            						    style: {
+            						      colors: [''#000''],
+            						    },
+            						    formatter: function (val: number) {
+            						  		return `${Math.floor(Math.pow(10, val))}`;
+            						    },
+            						};
+            					}
+            					// vertical chart
+            					else{
+            						page.chartOptions =
+            						{
+            							type: page.type,
+            							redrawOnParentResize: true,
+            							height: page.defaultHeight,
+            							width: ''100%'',
+            							zoom: {
+            								enabled: true,
+            								allowMouseWheelZoom: false,
+            							}
+            						};
+            						page.dataLabels = {
+            							enabled: true,
+            							showDuplicates: false,
+            							show: true,
+            							style: {
+            								colors: [''#000''],
+            							}
+            						};
+            						page.local.tooltip ={
+            						    enabled: true,
+            						    // Customize the tooltip content if needed
+            							x: {
+            								formatter: function(value, { series, seriesIndex, dataPointIndex, w }) {
+            									debugger;
+            						        return page.data.options.xaxis.categories[dataPointIndex];
+            						      }
+            						    },
+            						    y: {
+            						      formatter: function(val) {
+            						        return val;
+            						      }
+            						    }
+            						  }
             					}
             				}
-            			}
-            			if(props.parent.scope?.changes?.data?.currentValue != null){
             				page.isLoading = false;
             			}
             		} catch (e) {
-            		
+            
             		}
             		return;
             '
@@ -152,12 +144,6 @@ scriptContent:
   autoEmit: true
   comment: (String) - A start date zoom in the YYYY-MM-DD format
   value: null
-↓zoomStarted [ngx.components.UICompEvent-1739522710427]: 
-  attrName: zoomStarted
-  comment: Zoom in the graph have been started
-↓zoomEnded [ngx.components.UICompEvent-1739522710430]: 
-  attrName: zoomEnded
-  comment: Zoom in the graph have been started
 ↓onChangeExpandedValue [ngx.components.UICompEvent-1739522710433]: 
   attrName: onChangeExpandedValue
   comment: When fullpage mode have been changed
@@ -289,7 +275,7 @@ scriptContent:
     attrValue: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: 'script:{''display'': this.isLoading ? ''none'' : ''''}'
+        - MobileSmartSourceType: 'script:{''display'': this.isLoading ? ''none'' : '''', ''height'': this.fullpage && this.type == ''grid'' ? ''100%'': ''''}'
   ↓Directive [ngx.components.UIControlDirective-1739523835777]: 
     directiveName: If
     directiveSource: 
@@ -408,11 +394,10 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: script:'25'
         ↓wrapperClass [ngx.components.UIUseVariable-1739523835834]: 
-          comment: Height of the row in pixels as a string
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: 'script:this.fullpage ? ''gridWrapperAutoHeight'' : '''''
+              - MobileSmartSourceType: 'script:this.fullpage ? ''gridWrapperAutoHeight2'' : '''''
         ↓rowModelType [ngx.components.UIUseVariable-1739523835837]: 
           comment: Row model type
           varValue: 
@@ -666,7 +651,7 @@ scriptContent:
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: 'script:{enabled: false}'
+              - MobileSmartSourceType: 'script:this.local.tooltip ? this.local.tooltip : {enabled: false}'
         ↓plotOptions [ngx.components.UIUseVariable-1739523835966]: 
           varValue: 
             - xmlizable: 
@@ -802,6 +787,16 @@ scriptContent:
                   	flex-direction: column;
                   	align-items: center;
                   '
+  ↓Style [ngx.components.UIStyle-1739545396974]: 
+    styleContent: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '	&--chart {
+            	            overflow: hidden;
+            	}
+            '
 ↓Directive [ngx.components.UIControlDirective-1739523836032]: 
   directiveName: If
   directiveSource: 

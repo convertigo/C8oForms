@@ -8,6 +8,9 @@ var oldMessage2 ="";
 var oldMessage3 ="";
 
 module.exports = {
+	watchOptions: {
+    ignored: ["src/env.json"]
+  	},
     parallelism: 50,
     module: {
         strictExportPresence: false,

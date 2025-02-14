@@ -56,7 +56,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/47a2
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/3baccc787893e26c44e258b413cac0b79112bbff#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.4.0.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -10193,22 +10193,6 @@ When fullpage mode have been changed
 When fullpage mode have been changed
 </td>
 </tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;zoomEnded
-</td>
-<td>
-Zoom in the graph have been started
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;zoomStarted
-</td>
-<td>
-Zoom in the graph have been started
-</td>
-</tr>
 </table>
 
 </p></blockquote></details>
@@ -10505,6 +10489,28 @@ comment
 </td>
 <td>
 (String) - A component type that could be one of the following values : "grid" | 'pie' | 'area' | 'line'
+</td>
+</tr>
+</table>
+
+
+<span style="color:DarkGoldenRod">Events</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeExpandedValue
+</td>
+<td>
+When fullpage mode have been changed
 </td>
 </tr>
 </table>
