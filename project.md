@@ -57,7 +57,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/3baccc787893e26c44e258b413cac0b79112bbff#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.4.0.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -120,7 +120,7 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/master#readm
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/b0041f620d338a497d817fc89479eee0e64ad45b#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
@@ -129,6 +129,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/b0041f62
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager_ui_ngx
 
 
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8.0.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Vonage_ui_ngx</b></summary><blockquote><p>
@@ -2681,6 +2682,14 @@ Fullsync connector that holds all responses
 <details><summary><span style="color:DarkGoldenRod"><i>Transactions</i></span></summary><blockquote><p>
 
 
+<details><summary><b>AllDocs</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/alldocs_color_16x16.png?raw=true "AllDocsTransaction") AllDocs
+
+
+</p></blockquote></details>
+
 <details><summary><b>Generic_GetView</b></summary><blockquote><p>
 
 
@@ -3571,82 +3580,90 @@ should be a valid email
 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCountAnswersPerDay</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getCountAnswersPerDay</b> : done</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerDay
 
-
+done
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCountAnswersPerForm</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getCountAnswersPerForm</b> : done</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerForm
 
-
+done
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedAnswersPerDay</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedAnswersPerDay</b> : done</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedAnswersPerDay
 
-
+done
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedAnswersPerForm</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedAnswersPerForm</b> : to be deleted</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedAnswersPerForm
 
-
+to be deleted
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedFormsPerDay</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedFormsPerDay</b> : done</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedFormsPerDay
 
-
+done
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getFormsCountPerDay</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getFormsCountPerDay</b> : done, to rename labels</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getFormsCountPerDay
 
-
+done, to rename labels
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getMoreThan5versionsOwners</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getMoreThan5versionsOwners</b> : done, to rename labels</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getMoreThan5versionsOwners
 
-
+done, to rename labels. Ceux qui ont des formulaires avec plus de 5 versions de formulaires (option) 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopAnswersForms</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getTopAnswersForms</b> : Ceux qui ont fait les formulaires qui génèrent le plus de réponse</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopAnswersForms
 
-
+Ceux qui ont fait les formulaires qui génèrent le plus de réponse
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopPublishedComplex</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getTopPublishedComplex</b> : done, to rename labels</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishedComplex
 
-
+done, to rename labels. Ceux qui ont les formulaires les plus complexe (nombre d’éléments dans le formulaire) 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopPublishedOwners</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getTopPublishers</b> : done</summary><blockquote><p>
 
 
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishedOwners
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishers
+
+done. Ceux qui ont fait le plus de formulaires publiés
+</p></blockquote></details>
+
+<details><summary><b>admin_stats_home</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_home
 
 
 </p></blockquote></details>
@@ -6866,10 +6883,18 @@ Describes the mobile application global properties 2
 <details><summary><span style="color:DarkGoldenRod"><i>Pages</i></span></summary><blockquote><p>
 
 
-<details><summary><b>adminDashboard</b> : Admin Dashboard</summary><blockquote><p>
+<details><summary><b>adminDashboardDetail</b> : Admin Dashboard</summary><blockquote><p>
 
 
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminDashboard
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminDashboardDetail
+
+Admin Dashboard
+</p></blockquote></details>
+
+<details><summary><b>adminDashboardHome</b> : Admin Dashboard</summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminDashboardHome
 
 Admin Dashboard
 </p></blockquote></details>
