@@ -239,35 +239,6 @@ componentScriptContent:
         			// silent error
         		}
         	}
-        
-        	/** monitor session changes */
-        //	public monitorSessions(){
-        //		this.c8o.subscriber_session_changed.subscribe(()=>{
-        //			if(this.global.doingLogin == true){
-        //				this.c8o.log.debug("Session authenticated user has changed (form this tab)");
-        //			}
-        //			else{
-        //				this.c8o.log.debug("Session authenticated user has changed (form another tab) we will prompt to reload the page")
-        //				const alertCtrl: AlertController = this.getInstance(AlertController);
-        //				const translate: TranslateService = this.getInstance(TranslateService);
-        //				const prompt = alertCtrl.create({
-        //					  message: this["translate"].instant("connect_another_forms"),
-        //					  cssClass: ''c8o-alert-create-form'',
-        //					  backdropDismiss: false,
-        //					  buttons: [
-        //						{
-        //						  text: this["translate"].instant("relaunch"),
-        //						  handler: (data) => {
-        //							window.location.reload();
-        //						  }
-        //						}
-        //					  ]
-        //					}).then((res)=>{
-        //						res.present();
-        //					});
-        //			}
-        //		})
-        //	}
         	
         	/** monitor dev PWA updates */
         	public async monitorDEVPwaUpdates(){
@@ -355,6 +326,102 @@ componentScriptContent:
         			_res()
         		}
         	}
+        	
+        	public purgeWrongKeys(data) {
+        		for(let key in data){
+        			if(data[key] == undefined || data[key] == ":"+key || data[key] == "" || data[key] == "undefined"){
+        				delete data[key];
+        			}
+        		}
+        		return data;
+        	}
+        	// define a function to get erors messages
+        	public async get_not_supported_translations() {
+        		let res = await this.translate.get("brower_not_supported").toPromise();
+        		// in case of translation file fails to load
+        		if(res == "brower_not_supported"){
+        			if(window.navigator.language.indexOf("fr") == 0){
+        				res = "Votre navigateur n''est pas supporté. Veuillez essayer Chrome, Firefox, Safari, ou Edge (>90)."
+        			}
+        			else if(window.navigator.language.indexOf("en") == 0){
+        				res ="Your browser is not supported. Please try Chrome, Firefox, Safari, or Edge (>90).";
+        			}
+        			else if(window.navigator.language.indexOf("es") == 0){
+        				res = "Su navegador no es compatible. Por favor, prueba con Chrome, Firefox, Safari o Edge (>90).";
+        			}
+        			else if(window.navigator.language.indexOf("it") == 0){
+        				res = "Il tuo browser non è supportato. Prova con Chrome, Firefox, Safari o Edge (>90).";
+        			}
+        		}
+        		return res;
+        	}
+        	
+        	public async checkBrowserSupport(){
+        		//define global object to pop restrictions with unsupported browsers
+        		if(this.global.__reserved_c8o_settings == undefined){
+        			this.global.__reserved_c8o_settings = {}
+        		}
+        		
+        		// START check Internet explorer support
+        		
+        		// if Internet explorer hasn''t been checked before check it
+        		if(this.global.__reserved_c8o_settings["notsupported"] == undefined){
+        			//check that browser is not Internet explorer 
+        			var ua = window.navigator.userAgent;
+        			var isIE = /MSIE|Trident/.test(ua);
+        			// if its Internet explorer show an alert with an error message 
+        			if(isIE){
+        				this.global.__reserved_c8o_settings["notsupported"] = true;
+        				this.local["notsupported"] = true;
+        				let res = await this.get_not_supported_translations();
+        				window.alert(res);
+        				return !this.global.__reserved_c8o_settings["notsupported"];
+        			}
+        			else{
+        				this.global.__reserved_c8o_settings["notsupported"] = false;
+        				
+        			}
+        		}
+        		// if we already detected Internet Explorer show an alert with an error message 
+        		else if(this.global.__reserved_c8o_settings["notsupported"] == true){
+        			this.local["notsupported"] = true;
+        			let res = await this.get_not_supported_translations();
+        			window.alert(res);
+        			return !this.global.__reserved_c8o_settings["notsupported"];
+        		}
+        		
+        		// END check Internet explorer support
+        		
+        		// START check IndexedDB support
+        		
+        		// if IndexedDB hasn''t been checked before check it
+        		if(this.global.__reserved_c8o_settings["IndexedDBnotsupported"] == undefined){
+        			let testIndexedDB = async ()=>{
+        				const request = window["indexedDB"]["open"]("MyTestDatabase", 3);
+        				request.onsuccess = ()=>{
+        					this.global.__reserved_c8o_settings["IndexedDBnotsupported"] = false;
+        					return !this.global.__reserved_c8o_settings["IndexedDBnotsupported"];
+        				};
+        			    request.onerror = async (event)=> {
+        					this.global.__reserved_c8o_settings["IndexedDBnotsupported"] = true;
+        					this.local["notsupported"] = true;
+        					let res = await this.get_not_supported_translations();
+        					window.alert(res);
+        					return !this.global.__reserved_c8o_settings["IndexedDBnotsupported"];
+        				};
+        			};
+        			let resultTestIndexedDB: any = await testIndexedDB();
+        			if(resultTestIndexedDB == false){
+        				return resultTestIndexedDB;
+        			}
+        		}
+        		else if(this.global.__reserved_c8o_settings["IndexedDBnotsupported"] == true){
+        			this.local["notsupported"] = true;
+        			let res = await this.get_not_supported_translations();
+        			window.alert(res);
+        			return !this.global.__reserved_c8o_settings["IndexedDBnotsupported"];
+        		}
+        	}
         	/*End_c8o_AppFunction*/
         /*Begin_c8o_function:CTS1663174471180*/
         		let lang;
@@ -415,7 +482,7 @@ componentScriptContent:
         			let menu = page.getInstance(MenuController);
         			menu.close()
         		} catch (e) {
-        			console.error("an error occued", e);
+        			console.error("an error ocurred", e)
         		} finally {
         			return;
         		}
@@ -446,6 +513,33 @@ componentScriptContent:
         			return;
         		}
         		/*End_c8o_function:CTS1666258685848*/
+        /*Begin_c8o_function:CTS1733931831265*/
+        		try {
+        			page.menuSelector.close();
+        		} catch (e) {
+        		
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1733931831265*/
+        /*Begin_c8o_function:CTS1733931720917*/
+        		try {
+        			page.menuSelector.close();
+        		} catch (e) {
+        		
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1733931720917*/
+        /*Begin_c8o_function:CTS1733931839991*/
+        		try {
+        			page.menuSelector.close();
+        		} catch (e) {
+        		
+        		} finally {
+        			return;
+        		}
+        		/*End_c8o_function:CTS1733931839991*/
         /*Begin_c8o_function:CTS1656494481842*/
         		this.c8o.session.user.name = "anonymous";
         		window.sessionStorage.removeItem("loggedInOffline");
@@ -553,7 +647,17 @@ componentScriptContent:
         			}
         			
         			// END check IndexedDB support
-        			
+        			// get user settings
+        			try{
+        				let userSettings: any = await page.c8o.callJsonObject("C8Oforms.getCurrentUserSettings",{[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)}).async();
+        				if(userSettings?.res?.language != null){
+        					page.global.settings = userSettings.res;
+        					window["__c8o__translate"]["use"](userSettings?.res?.language);
+        				}
+        			}
+        			catch(e){
+        				//silent
+        			}
         			switch(event.pageName){
         				case "loginPage":
         					this.global.tempFormId = null;
@@ -633,7 +737,7 @@ componentScriptContent:
         					   	page.local.d = event.route.params["d"] != undefined && event.route.params["d"] != ":d" ? event.route.params["d"] : null;
         					   	
         					    try{
-        							let res = await page.c8o.httpInterface.getUserServiceStatus()
+        							let res = await page.c8o.httpInterface.getUserServiceStatus();
         							if (res.user.length == 64 || res.user.authenticated == false) {
         					                return true;
         					        }
@@ -991,6 +1095,20 @@ componentScriptContent:
         				}
         			
         			break;
+        			case "adminDashboardHome":
+        			case "adminDashboardDetail":
+        				let res: any = await page.c8o.httpInterface.getUserServiceStatus();
+        				if(res.authenticated == true && res.user == "c8o:admin"){
+        					return true;
+        				}
+        				else{
+        					setTimeout(()=>{
+        						let data = {};
+            		            page.routerProvider.setRoot("editorPage", data, null); 
+            		        }, 100);
+        					return false;
+        				}
+        				break;
         			    
         			default:
         			
@@ -1126,13 +1244,7 @@ componentScriptContent:
         		}
         		/*End_c8o_function:CTS1731073219875*/
         /*Begin_c8o_function:CTS1732033135003*/
-        		try {
-        			page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-        		} catch (e) {
-        		
-        		} finally {
-        			return;
-        		}
+        		return;
         		/*End_c8o_function:CTS1732033135003*/
         '
 isPWA: true
@@ -2705,105 +2817,9 @@ useClickForTap: true
           →: |
             '		try {
             			document.body.classList.toggle(''dark'', false);
-            			// define some variables
             			let indexPWA;
             			let indexMobile;
-            			let purgeWrongKeys = (data)=>{
-            				for(let key in data){
-            					if(data[key] == undefined || data[key] == ":"+key || data[key] == "" || data[key] == "undefined"){
-            						delete data[key];
-            					}
-            				}
-            				return data;
-            			}
-            			// define a function to get erors messages
-            			let get_not_supported_translations = async()=>{
-            				let res = await page.translate.get("brower_not_supported").toPromise();
-            				// in case of translation file fails to load
-            				if(res == "brower_not_supported"){
-            					if(window.navigator.language.indexOf("fr") == 0){
-            						res = "Votre navigateur n''est pas supporté. Veuillez essayer Chrome, Firefox, Safari, ou Edge (>90)."
-            					}
-            					else if(window.navigator.language.indexOf("en") == 0){
-            						res ="Your browser is not supported. Please try Chrome, Firefox, Safari, or Edge (>90).";
-            					}
-            					else if(window.navigator.language.indexOf("es") == 0){
-            						res = "Su navegador no es compatible. Por favor, prueba con Chrome, Firefox, Safari o Edge (>90).";
-            					}
-            					else if(window.navigator.language.indexOf("it") == 0){
-            						res = "Il tuo browser non è supportato. Prova con Chrome, Firefox, Safari o Edge (>90).";
-            					}
-            				}
-            				return res;
-            			};
-            			//define global object to pop restrictions with unsupported browsers
-            			if(page.global.__reserved_c8o_settings == undefined){
-            				page.global.__reserved_c8o_settings = {}
-            			}
-            			
-            			// START check Internet explorer support
-            			
-            			// if Internet explorer hasn''t been checked before check it
-            			if(page.global.__reserved_c8o_settings["notsupported"] == undefined){
-            				//check that browser is not Internet explorer 
-            				var ua = window.navigator.userAgent;
-            				var isIE = /MSIE|Trident/.test(ua);
-            				// if its Internet explorer show an alert with an error message 
-            				if(isIE){
-            					page.global.__reserved_c8o_settings["notsupported"] = true;
-            					page.local["notsupported"] = true;
-            					let res = await get_not_supported_translations();
-            					window.alert(res);
-            					return !page.global.__reserved_c8o_settings["notsupported"];
-            				}
-            				else{
-            					page.global.__reserved_c8o_settings["notsupported"] = false;
-            					
-            				}
-            			}
-            			// if we already detected Internet Explorer show an alert with an error message 
-            			else if(page.global.__reserved_c8o_settings["notsupported"] == true){
-            				page.local["notsupported"] = true;
-            				let res = await get_not_supported_translations();
-            				window.alert(res);
-            				return !page.global.__reserved_c8o_settings["notsupported"];
-            			}
-            			
-            			// END check Internet explorer support
-            			
-            			// START check IndexedDB support
-            			
-            			// if IndexedDB hasn''t been checked before check it
-            			if(page.global.__reserved_c8o_settings["IndexedDBnotsupported"] == undefined){
-            				let testIndexedDB = async ()=>{
-            					const request = window["indexedDB"]["open"]("MyTestDatabase", 3);
-            					request.onsuccess = ()=>{
-            						page.global.__reserved_c8o_settings["IndexedDBnotsupported"] = false;
-            						return !page.global.__reserved_c8o_settings["IndexedDBnotsupported"];
-            					}
-            				    request.onerror = (event)=> {
-            						page.global.__reserved_c8o_settings["IndexedDBnotsupported"] = true;
-            						page.local["notsupported"] = true;
-            						let res = get_not_supported_translations()
-            						.then((res)=>{
-            							window.alert(res);
-            							return !page.global.__reserved_c8o_settings["IndexedDBnotsupported"];
-            						})
-            				    };
-            				};
-            				let resultTestIndexedDB: any = await testIndexedDB();
-            				if(resultTestIndexedDB == false){
-            					return resultTestIndexedDB;
-            				}
-            			}
-            			else if(page.global.__reserved_c8o_settings["IndexedDBnotsupported"] == true){
-            				page.local["notsupported"] = true;
-            				let res = await get_not_supported_translations();
-            				window.alert(res);
-            				return !page.global.__reserved_c8o_settings["IndexedDBnotsupported"];
-            			}
-            			
-            			// END check IndexedDB support
+            			await page.checkBrowserSupport();
             			// get user settings
             			try{
             				let userSettings: any = await page.c8o.callJsonObject("C8Oforms.getCurrentUserSettings",{[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)}).async();
@@ -2815,6 +2831,7 @@ useClickForTap: true
             			catch(e){
             				//silent
             			}
+            			
             			switch(event.pageName){
             				case "loginPage":
             					this.global.tempFormId = null;
@@ -2836,7 +2853,7 @@ useClickForTap: true
             			                    let data = { u: response?.anonymousKey ?? standalonePwa, ...event.route.queryParams };
             			                    let pagex = "sharingPage";
             			                    setTimeout(() => {
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             			                        page.routerProvider.setRoot(pagex, data, null);
             			                    }, 200);
             			                    return false;
@@ -2850,7 +2867,6 @@ useClickForTap: true
             			                    if (navigator.onLine) {
             									try{
             										let res = await page.c8o.httpInterface.getUserServiceStatus();
-            										page.global.adminUser = res.user == "c8o:admin";
             		                                if (res.user.length == 64 || res.user.authenticated == false) {
             		                                	return true;
             		                                }
@@ -2858,7 +2874,7 @@ useClickForTap: true
             		                                    let data = { "formId": page.local.formId, ...event.route.queryParams };
             		                                    let pagex = "viewerPage";
             		                                    setTimeout(() => {
-            												data = purgeWrongKeys(data);
+            												data = page.purgeWrongKeys(data);
             		                                        page.routerProvider.setRoot(pagex, data, null)
             		                                    }, 200);
             		                                    return false;
@@ -2872,7 +2888,7 @@ useClickForTap: true
             			                        let data = { "formId": page.local.formId, ...event.route.queryParams };
             			                        let pagex = "viewerPage";
             			                        setTimeout(() => {
-            										data = purgeWrongKeys(data);
+            										data = page.purgeWrongKeys(data);
             			                            page.routerProvider.setRoot(pagex, data, null)
             			                        }, 200);
             			                        return false;
@@ -2896,7 +2912,6 @@ useClickForTap: true
             					   	
             					    try{
             							let res = await page.c8o.httpInterface.getUserServiceStatus();
-            							page.global.adminUser = res.user == "c8o:admin";
             							if (res.user.length == 64 || res.user.authenticated == false) {
             					                return true;
             					        }
@@ -2925,7 +2940,7 @@ useClickForTap: true
             				                    }
             				                }
             				                setTimeout(() => {
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             				                    page.routerProvider.setRoot(pagex, data, null)
             				                }, 200);
             				                return false;
@@ -2944,7 +2959,7 @@ useClickForTap: true
             	            if(indexPWA != -1 && indexMobile == -1){
             	                setTimeout(()=>{
             						let data = {...event.route.queryParams};
-            						data = purgeWrongKeys(data);
+            						data = page.purgeWrongKeys(data);
             	                    page.routerProvider.setRoot("loginPage", data, null); 
             	                }, 200);
             	                return false;
@@ -2952,7 +2967,6 @@ useClickForTap: true
             	            else{
             	    		    await page.c8o.promiseFinInit;
             			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-            						page.global.adminUser = page.c8o.session.user.name == "c8o:admin";
             			            page.global.user = page.c8o.session.user.name;
             	                    page.local.user = page.c8o.session.user.name;
             	                    return true;
@@ -2960,11 +2974,10 @@ useClickForTap: true
             		            else{
             						try{
             							let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-            							page.global.adminUser = res.user == "c8o:admin";
             							if(res.user.length == 64 || res.user.authenticated == false){
             		    		            setTimeout(()=>{
             									let data = {published:page.local.published, page: "selectorPage", ...event.route.queryParams};
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             		                            page.routerProvider.setRoot("loginPage", data, null); 
             		                        }, 200);
             		                        return false;
@@ -2978,7 +2991,7 @@ useClickForTap: true
             							if(window.navigator.onLine == true){
             	            		        setTimeout(()=>{
             									let data = {published:page.local.published, page: "selectorPage", ...event.route.queryParams};
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             	            		            page.routerProvider.setRoot("loginPage", data, null); 
             	            		        }, 200);
             	            		        return false;
@@ -3003,7 +3016,7 @@ useClickForTap: true
             	            if(indexPWA != -1 && indexMobile == -1){
             	                setTimeout(()=>{
             						let data = {...event.route.queryParams};
-            						data = purgeWrongKeys(data);
+            						data = page.purgeWrongKeys(data);
             	                    page.routerProvider.setRoot("loginPage", data, null); 
             	                }, 200);
             	                return false;
@@ -3012,7 +3025,6 @@ useClickForTap: true
             					await page.c8o.promiseFinInit;
             			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
             						if(formId != null && formId != '':formId'' &&  formId.indexOf("published") == -1){
-            							page.global.adminUser = page.c8o.session.user.name == "c8o:admin";
             							page.global.user = page.c8o.session.user.name;
             			            	// TO BE REPORTED
             	                    	//page.local.user = page.c8o.session.user.name;
@@ -3021,7 +3033,7 @@ useClickForTap: true
             						else {
             							setTimeout(()=>{
             								let data = {...event.route.queryParams};
-            								data = purgeWrongKeys(data);
+            								data = page.purgeWrongKeys(data);
             	                            page.routerProvider.setRoot("selectorPage", data, null); 
             	                        }, 200);
             	                        return false;
@@ -3032,11 +3044,10 @@ useClickForTap: true
             		            else{
             						try{
             							let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-            							page.global.adminUser = res.user == "c8o:admin";
             							if(res.user.length == 64 || res.user.authenticated == false){
             		    		            setTimeout(()=>{
             									let data = {page:''editorPage'', formId:page.local.formId, ...event.route.queryParams};
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             		                            page.routerProvider.setRoot("loginPage", data, null); 
             		                        }, 200);
             		                        return false;
@@ -3049,7 +3060,7 @@ useClickForTap: true
             								else {
             									setTimeout(()=>{
             										let data = {...event.route.queryParams};
-            										data = purgeWrongKeys(data);
+            										data = page.purgeWrongKeys(data);
             			                            page.routerProvider.setRoot("selectorPage", data, null); 
             			                        }, 200);
             			                        return false;
@@ -3060,7 +3071,7 @@ useClickForTap: true
             							if(window.navigator.onLine == true){
             	            		        setTimeout(()=>{
             									let data = {page:''editorPage'', formId:formId, ...event.route.queryParams};
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             	            		            page.routerProvider.setRoot("loginPage", data, null); 
             	            		        }, 200);
             	            		        return false;
@@ -3095,7 +3106,6 @@ useClickForTap: true
             					let suite = async()=>{
             						await page.c8o.promiseFinInit;
             			        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-            						page.global.adminUser = page.c8o.session.user.name == "c8o:admin";
             						page.global.user = page.c8o.session.user.name;
             		            	// TO BE REPORTED
                                 	//page.local.user = page.c8o.session.user.name;
@@ -3104,11 +3114,10 @@ useClickForTap: true
             		            else{
             						try{
             							let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-            							page.global.adminUser = res.user == "c8o:admin";
             							if(res.user.length == 64 || res.user.authenticated == false){
             		    		            setTimeout(()=>{
             									let data = {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit, ...event.route.queryParams};
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             		                            page.routerProvider.setRoot("loginPage", data, null); 
             		                        }, 200);
             		                        return false;
@@ -3122,7 +3131,7 @@ useClickForTap: true
             							if(window.navigator.onLine == true){
             	            		        setTimeout(()=>{
             									let data = {page:''viewerPage'', formId:page.local.formId, edit:page.local.edit, ...event.route.queryParams};
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             	            		            page.routerProvider.setRoot("loginPage", data, null); 
             	            		        }, 200);
             	            		        return false;
@@ -3153,7 +3162,7 @@ useClickForTap: true
             			                    let data = { u: response?.anonymousKey ?? standalonePwa, ...event.route.queryParams };
             			                    let pagex = "sharingPage";
             			                    setTimeout(() => {
-            									data = purgeWrongKeys(data);
+            									data = page.purgeWrongKeys(data);
             			                        page.routerProvider.setRoot(pagex, data, null);
             			                    }, 200);
             			                    return false;
@@ -3175,7 +3184,6 @@ useClickForTap: true
             			case "settingsPage":
             				await page.c8o.promiseFinInit;
             		        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-            					page.global.adminUser = page.c8o.session.user.name == "c8o:admin";
             					page.global.user = page.c8o.session.user.name;
             	            	// TO BE REPORTED
                             	//page.local.user = page.c8o.session.user.name;
@@ -3184,11 +3192,10 @@ useClickForTap: true
             	            else{
             					try{
             						let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-            						page.global.adminUser = res.user == "c8o:admin";
             						if(res.user.length == 64 || res.user.authenticated == false){
             	    		            setTimeout(()=>{
             								let data = {page:''settingsPage'', ...event.route.queryParams};
-            								data = purgeWrongKeys(data);
+            								data = page.purgeWrongKeys(data);
             	                            page.routerProvider.setRoot("loginPage", data, null); 
             	                        }, 200);
             	                        return false;
@@ -3202,7 +3209,7 @@ useClickForTap: true
             						if(window.navigator.onLine == true){
                         		        setTimeout(()=>{
             								let data = {page:''settingsPage'',...event.route.queryParams};
-            								data = purgeWrongKeys(data);
+            								data = page.purgeWrongKeys(data);
                         		            page.routerProvider.setRoot("loginPage", data, null); 
                         		        }, 200);
                         		        return false;
@@ -3222,7 +3229,6 @@ useClickForTap: true
             		    	page.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
             				await page.c8o.promiseFinInit;
             		        if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-            					page.global.adminUser = page.c8o.session.user.name == "c8o:admin";
             					page.global.user = page.c8o.session.user.name;
             	            	// TO BE REPORTED
                             	//page.local.user = page.c8o.session.user.name;
@@ -3231,11 +3237,10 @@ useClickForTap: true
             	            else{
             					try{
             						let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-            						page.global.adminUser = res.user == "c8o:admin";
             						if(res.user.length == 64 || res.user.authenticated == false){
             	    		            setTimeout(()=>{
             								let data = {page:''editorPage'', formId:page.local.formId, ...event.route.queryParams};
-            								data = purgeWrongKeys(data);
+            								data = page.purgeWrongKeys(data);
             	                            page.routerProvider.setRoot("loginPage", data, null); 
             	                        }, 200);
             	                        return false;
@@ -3249,7 +3254,7 @@ useClickForTap: true
             						if(window.navigator.onLine == true){
                         		        setTimeout(()=>{
             								let data = {page:''editorPage'', formId:page.local.formId, ...event.route.queryParams};
-            								data = purgeWrongKeys(data);
+            								data = page.purgeWrongKeys(data);
                         		            page.routerProvider.setRoot("loginPage", data, null); 
                         		        }, 200);
                         		        return false;
@@ -3266,17 +3271,30 @@ useClickForTap: true
             			break;
             			case "adminDashboardHome":
             			case "adminDashboardDetail":
-            				let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-            				page.global.adminUser = res.user == "c8o:admin";
-            				if(res.authenticated == true && res.user == "c8o:admin"){
-            					return true;
+            				if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
+            					if(page.global.settings.admin == true){
+            						return true;
+            					}
+            					else{
+            						setTimeout(()=>{
+            							let data = {};
+            	    		            page.routerProvider.setRoot("editorPage", data, null); 
+            	    		        }, 100);
+            						return false;
+            					}
             				}
             				else{
-            					setTimeout(()=>{
-            						let data = {};
-                		            page.routerProvider.setRoot("editorPage", data, null); 
-                		        }, 100);
-            					return false;
+            					let res: any = await page.c8o.httpInterface.getUserServiceStatus();
+            					if(res.authenticated == true && res.user == "c8o:admin"){
+            						return true;
+            					}
+            					else{
+            						setTimeout(()=>{
+            							let data = {};
+            	    		            page.routerProvider.setRoot("editorPage", data, null); 
+            	    		        }, 100);
+            						return false;
+            					}
             				}
             				break;
             			    
