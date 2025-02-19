@@ -1,0 +1,882 @@
+comment: Admin Dashboard Users
+icon: grid
+scriptContent: 
+  - xmlizable: 
+    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+      →: |
+        '/*Begin_c8o_PageImport*/
+        /*End_c8o_PageImport*/
+        /*Begin_c8o_PageDeclaration*/
+        	public alertController: AlertController;
+        	public toastController: ToastController;
+        	/*End_c8o_PageDeclaration*/
+        /*Begin_c8o_PageConstructor*/
+        		this.alertController = this.getInstance(AlertController);
+        		this.toastController = this.getInstance(ToastController);
+        		this.local.overlayLoading = ''<span class="ag-overlay-loading-center">Chargement en cours...</span>'';
+        		/*End_c8o_PageConstructor*/
+        /*Begin_c8o_PageFunction*/
+        	public async loadGridData() {
+        		try {
+        			if(this.myaggrid?.agGrid?.api){
+        				this.myaggrid.agGrid.api.showLoadingOverlay();
+        			}
+        			var data = await this.c8o.callJsonObject("C8Oforms.admin_users_get", {}).async();
+        			if (data.error) {
+        				this.local.error = true;
+        			}
+        			else {
+        				if (data?.result?.labels) {
+        					var translations = this.translate.translations[this.translate.currentLang];
+        					let finKeyByValue = (value) => {
+        						for (const key in translations) {
+        							if (translations[key] === value) {
+        								return key;
+        							}
+        						}
+        					}
+        					data.result.labels = data.result.labels.map((x) => {
+        						x.headerName = this.translate.instant(x.headerName);
+        						// if it''s a checkbox then add support for non boolean checkbox
+        						if (x?.cellRenderer == "agCheckboxCellRenderer") {
+        							if (x?.c8o_type == "stringboolean") {
+        								x.valueGetter = (params) => {
+        									return !(params.data[x.field] === ''false'');
+        								},
+        									x.valueSetter = (params) => {
+        										params.data[x.field] = params.newValue ? ''true'' : ''false'';
+        										return true;
+        									}
+        							}
+        							else {
+        								x.valueGetter = (params) => {
+        									return params.data[x.field] === true;
+        								},
+        								x.valueSetter = (params) => {
+        									params.data[x.field] = params.newValue;
+        									return true;
+        								}
+        							}
+        
+        						}
+        						if (x?.valueGetter == "lang") {
+        							x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
+        								x = this.translate.instant(x);
+        								return x;
+        							})
+        							x.valueGetter = (params) => {
+        								if (params?.data?.[x.field]) {
+        									return this.translate.instant(params.data[x.field]);
+        								}
+        								else {
+        									return params?.data?.[x.field] ?? "";
+        								}
+        
+        							},
+        								x.valueSetter = (params) => {
+        									params.data[x.field] = finKeyByValue(params.newValue);
+        									return true;
+        								}
+        						}
+        						return x;
+        					})
+        				}
+        				this.local.data = data;
+        				
+        			}
+        		} catch (e) {
+        			this.local.error = true;
+        			this.c8o.log.error("An error occured : \n" + JSON.stringify(e));
+        		}
+        		finally {
+        			if(this.myaggrid?.agGrid?.api){
+        				this.myaggrid.agGrid.api.hideOverlay();
+        			}
+        			this.ref.markForCheck();
+        		}
+        	}
+        
+        	public async performBulk(bulkOperation: "delete" | "update", confirmMsg: string, successMsg: string, errorMsg: string, cancelMsgBtn: string, confirmMsgBtn, right?: string, value?: any) {
+        		try {
+        			let docs = this.lib_extendedcomponents_ui_ngx_aggrid?.agGrid?.api?.getSelectedNodes().map((node) => { return { "_id": node.data._id, "_rev": node.data._rev } });
+        			this.popoverActions.dismiss();
+        			const performOperation = await this.showConfirmationAlert(
+        				this.translate.instant("Confirmation"),
+        				this.translate.instant(confirmMsg, { countlines: docs.length }),
+        				this.translate.instant(cancelMsgBtn),
+        				this.translate.instant(confirmMsgBtn)
+        			);
+        
+        			if (performOperation) {
+        				var args: any = {docs: JSON.stringify(docs)};
+        				var sequence;
+        				if(bulkOperation == "delete"){
+        					sequence = "C8Oforms.admin_users_delete";
+        				}
+        				else{
+        					sequence = "C8Oforms.admin_users_set";
+        					args = {...args, "right": right, "value": value};
+        				}
+        				var deleted = await this.c8o.callJsonObject(sequence, args).async();
+        				this.loadGridData();
+        				if (deleted?.result?.success) {
+        					await this.presentToast(this.translate.instant(successMsg, { countlines: docs.length }), ''toastSuccess'');
+        				}
+        				else {
+        					await this.presentToast(this.translate.instant(errorMsg), ''toastError'');
+        				}
+        			}
+        
+        		} catch (e) {
+        			this.loadGridData();
+        			await this.presentToast(this.translate.instant(errorMsg), ''toastError'');
+        		}
+        	}
+        
+        	public async showConfirmationAlert(header: string, message: string, cancelLabel: string, confirmLabel: string, confirmRed: boolean = true, cancelRed: boolean = false): Promise<boolean> {
+        		const alert = await this.alertController.create({
+        			header: header,
+        			message: message,
+        			backdropDismiss: false,
+        			cssClass: ''styleAlertHeight'',
+        			buttons: [
+        				{
+        					cssClass: cancelRed ? "button-danger" : "",
+        					text: cancelLabel,
+        					role: ''cancel'',
+        					handler: () => {
+        						return false;
+        					}
+        				},
+        				{
+        					cssClass: confirmRed ? "button-danger" : "",
+        					text: confirmLabel,
+        					handler: () => {
+        						return true;
+        					}
+        				}
+        			]
+        		});
+        
+        		await alert.present();
+        		return new Promise((resolve) => {
+        			alert.onDidDismiss().then((data) => {
+        				resolve(!(data.role == ''cancel''));
+        			});
+        		});
+        	}
+        	async presentToast(message: string, cssClass: string = '''') {
+        		const toast = await this.toastController.create({
+        			message: message,
+        			duration: 3000,
+        			position: ''bottom'',
+        			cssClass: cssClass,
+        		});
+        
+        		await toast.present();
+        	}
+        	/*End_c8o_PageFunction*/
+        '
+segment: admin/dashboard-user
+title: Title for adminDashboardUsers
+↓Header [ngx.components.UIDynamicElement-1739883222198]: 
+  beanData: '{"ionBean":"Header"}'
+  tagName: ion-header
+  ↓ToolBar [ngx.components.UIDynamicElement-1739883222201]: 
+    beanData: '{"ionBean":"ToolBar"}'
+    tagName: ion-toolbar
+    ↓ButtonSetLeft [ngx.components.UIDynamicElement-1739883222204]: 
+      beanData: '{"ionBean":"ButtonSet","SetPosition":"plain:start"}'
+      tagName: ion-buttons
+      ↓MenuButton [ngx.components.UIDynamicElement-1739883222207]: 
+        beanData: '{"ionBean":"MenuButton"}'
+        tagName: ion-menu-button
+    ↓BarTitle [ngx.components.UIDynamicElement-1739883222210]: 
+      beanData: '{"ionBean":"BarTitle"}'
+      tagName: ion-title
+      ↓Style1 [ngx.components.UIStyle-1739883222213]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                '/*margin-top:0.75rem;
+                margin-bottom:0.8rem;*/
+                
+                font-size: 0.875rem;
+                  font-weight: 800;
+                  font-style: normal;
+                  font-stretch: normal;
+                  line-height: normal;
+                  letter-spacing: normal;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                	
+                '
+      ↓ImageConvertigo2 [ngx.components.UIDynamicElement-1739883222216]: 
+        beanData: '{"ionBean":"Image","url":"script:''assets\/images\/svg\/logo\/logo_no_code_studio.svg''"}'
+        selfClose: true
+        tagName: img
+        ↓Style [ngx.components.UIStyle-1739883222219]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  	margin-left:0.5em;
+                  	margin-right:0.5em;
+                  
+↓Content [ngx.components.UIDynamicElement-1739883222222]: 
+  beanData: '{"ionBean":"Content","Fullscreen":"plain:true"}'
+  comment: Page content
+  tagName: ion-content
+  ↓Attr [ngx.components.UIAttribute-1739883222225]: 
+    attrName: 
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: plain:no-bounce
+  ↓Grid [ngx.components.UIDynamicElement-1739883222228]: 
+    beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+    tagName: ion-grid
+    ↓GridRow [ngx.components.UIDynamicElement-1739883222231]: 
+      beanData: '{"ionBean":"GridRow"}'
+      tagName: ion-row
+      ↓GridCol [ngx.components.UIDynamicElement-1739883222234]: 
+        beanData: '{"ionBean":"GridCol","SizeXl":"plain:12"}'
+        tagName: ion-col
+        ↓DivFlex [ngx.components.UIDynamicElement-1739895638343]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓Style [ngx.components.UIStyle-1739895653058]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '	display: flex;
+                    	flex-direction: column;
+                    	height: 100%;
+                    '
+          ↓DivBreadCrumbs [ngx.components.UIDynamicElement-1739883323857]: 
+            beanData: '{"ionBean":"DivTag"}'
+            tagName: div
+            ↓Style [ngx.components.UIStyle-1739883323860]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '	display: flex;
+                      	align-items: center;
+                      	justify-content: center;
+                      	position: sticky;
+                          top: 0;
+                          z-index: 1000;
+                          background: white;
+                      '
+            ↓Breadcrumbs [ngx.components.UIDynamicElement-1739883323863]: 
+              beanData: '{"ionBean":"Breadcrumbs"}'
+              tagName: ion-breadcrumbs
+              ↓Breadcrumb [ngx.components.UIDynamicElement-1739883323866]: 
+                beanData: '{"ionBean":"Breadcrumb","LinkRouterDirection":"plain:forward"}'
+                tagName: ion-breadcrumb
+                ↓Text [ngx.components.UIText-1739883323869]: 
+                  i18n: true
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:menu_admin_dashboard
+                ↓Style [ngx.components.UIStyle-1739883323872]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          '/**
+                           * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                           * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                           * They are set using custom property notation, e.g.: --main-color: black;
+                           * and are accessed using the var() function, e.g.: color: var(--main-color);
+                           * You can find below your component''s properties you can customize within the page.
+                           * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                           * For more informations see https://ionicframework.com/docs/theming.
+                          **/
+                          //--background-focused	//Background color of the breadcrumb when focused
+                          //--color	//Text color of the breadcrumb
+                          //--color-active	//Text color of the active breadcrumb
+                          //--color-focused	//Text color of the breadcrumb when focused
+                          //--color-hover	//Text color of the breadcrumb on hover
+                          '
+                ↓Attr [ngx.components.UIAttribute-1739883323875]: 
+                  attrName: '[routerLink]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:['/admin/dashboard']
+                ↓href [ngx.components.UIAttribute-1739883323878]: 
+                  attrName: href
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:/admin/dashboard
+              ↓Breadcrumb1 [ngx.components.UIDynamicElement-1739883323881]: 
+                beanData: '{"ionBean":"Breadcrumb","Active":"plain:true"}'
+                tagName: ion-breadcrumb
+                ↓Text [ngx.components.UIText-1739883323884]: 
+                  i18n: true
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:user_management
+          ↓DivFlexBtns [ngx.components.UIDynamicElement-1739883222252]: 
+            beanData: '{"ionBean":"DivTag"}'
+            tagName: div
+            ↓Style [ngx.components.UIStyle-1739883222282]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '	display:flex;
+                      	flex-direction: row;
+                      	padding: 16px 0;
+                      	justify-content: space-between;
+                      	ion-button{
+                      		text-transform: unset;
+                      	}
+                      '
+            ↓ButtonMoreActions [ngx.components.UIDynamicElement-1739895296521]: 
+              beanData: '{"ionBean":"Button","Disabled":"script:!this.local.selected"}'
+              tagName: ion-button
+              ↓Label [ngx.components.UIDynamicElement-1739895296524]: 
+                beanData: '{"ionBean":"Label"}'
+                tagName: ion-label
+                ↓Text [ngx.components.UIText-1739895296527]: 
+                  i18n: true
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:action_on_selected_rows2
+              ↓Attr [ngx.components.UIAttribute-1739897741311]: 
+                attrName: id
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:click-trigger-more-actions
+            ↓ButtonAddUser [ngx.components.UIDynamicElement-1739894875468]: 
+              beanData: '{"ionBean":"Button"}'
+              tagName: ion-button
+              ↓Label [ngx.components.UIDynamicElement-1739894875463]: 
+                beanData: '{"ionBean":"Label"}'
+                tagName: ion-label
+                ↓Text [ngx.components.UIText-1739894875465]: 
+                  i18n: true
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:add_user
+              ↓Event [ngx.components.UIControlEvent-1739894875467]: 
+            ↓Popover [ngx.components.UIDynamicElement-1739897707966]: 
+              beanData: |
+                '{
+                 "ionBean": "InlinePopover",
+                 "Alignment": "plain:center",
+                 "Id": "plain:",
+                 "Reference": "plain:trigger",
+                 "Trigger": "plain:click-trigger-more-actions",
+                 "TriggerAction": "plain:click"
+                }'
+              identifier: popoverActions
+              tagName: ion-popover
+              ↓ButtonRemoveUsers [ngx.components.UIDynamicElement-1739898380398]: 
+                beanData: |
+                  '{
+                   "ionBean": "Button",
+                   "IonColor": "plain:danger",
+                   "IonFill": "plain:clear"
+                  }'
+                tagName: ion-button
+                ↓Label [ngx.components.UIDynamicElement-1739898380401]: 
+                  beanData: '{"ionBean":"Label"}'
+                  tagName: ion-label
+                  ↓Text [ngx.components.UIText-1739898380404]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:remove_selected_users
+                ↓Event [ngx.components.UIControlEvent-1739898380407]: 
+                  ↓deleteRows [ngx.components.UICustomAsyncAction-1739956391603]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		page.performBulk("delete", "sure_delete_rows","delete_row_confirm", "delete_row_error", "cancel_pwamsg", "Supprimer");
+                            
+              ↓ButtonAddEditingRights [ngx.components.UIDynamicElement-1739898009499]: 
+                beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                tagName: ion-button
+                ↓Label [ngx.components.UIDynamicElement-1739898009502]: 
+                  beanData: '{"ionBean":"Label"}'
+                  tagName: ion-label
+                  ↓Text [ngx.components.UIText-1739898009505]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:set_editing_rights
+                ↓Event [ngx.components.UIControlEvent-1739898009508]: 
+                  ↓addEditingRights [ngx.components.UICustomAsyncAction-1739962224938]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		page.performBulk("update", "sure_update_rights_edition_rows","update_rights_edition_confirm", "update_rights_rows_error", "cancel_pwamsg", "Update", "editing_rights", "true");
+                            
+              ↓ButtonRemoveEditingRights [ngx.components.UIDynamicElement-1739898009514]: 
+                beanData: |
+                  '{
+                   "ionBean": "Button",
+                   "IonColor": "plain:danger",
+                   "IonFill": "plain:clear"
+                  }'
+                tagName: ion-button
+                ↓Label [ngx.components.UIDynamicElement-1739898009517]: 
+                  beanData: '{"ionBean":"Label"}'
+                  tagName: ion-label
+                  ↓Text [ngx.components.UIText-1739898009520]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:remove_editing_rights
+                ↓Event [ngx.components.UIControlEvent-1739898009523]: 
+                  ↓revokeEditingRights [ngx.components.UICustomAsyncAction-1739963491544]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		page.performBulk("update", "sure_revoke_rights_edition_rows","revoke_rights_edition_confirm", "update_rights_rows_error", "cancel_pwamsg", "Update", "editing_rights", "false");
+                            
+              ↓ButtonAddNoCodeDbRights [ngx.components.UIDynamicElement-1739898009526]: 
+                beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                tagName: ion-button
+                ↓Label [ngx.components.UIDynamicElement-1739898009529]: 
+                  beanData: '{"ionBean":"Label"}'
+                  tagName: ion-label
+                  ↓Text [ngx.components.UIText-1739898009532]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:set_no_code_db_rights
+                ↓Event [ngx.components.UIControlEvent-1739898009538]: 
+                  ↓addNocodeRights [ngx.components.UICustomAsyncAction-1739963592632]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		page.performBulk("update", "sure_update_rights_nocode_rows","update_rights_nocode_confirm", "update_rights_rows_error", "cancel_pwamsg", "Update", "nocode_db_rights", "true");
+                            
+              ↓ButtonRemoveNoCodeDbRights [ngx.components.UIDynamicElement-1739898009542]: 
+                beanData: |
+                  '{
+                   "ionBean": "Button",
+                   "IonColor": "plain:danger",
+                   "IonFill": "plain:clear"
+                  }'
+                tagName: ion-button
+                ↓Label [ngx.components.UIDynamicElement-1739898009545]: 
+                  beanData: '{"ionBean":"Label"}'
+                  tagName: ion-label
+                  ↓Text [ngx.components.UIText-1739898009548]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:remove_no_code_db_rights
+                ↓Event [ngx.components.UIControlEvent-1739898009553]: 
+                  ↓revokeNocodeRights [ngx.components.UICustomAsyncAction-1739971729412]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		page.performBulk("update", "sure_revoke_rights_nocode_rows","revoke_rights_nocode", "update_rights_rows_error", "cancel_pwamsg", "Update", "nocode_db_rights", "false");
+                            
+              ↓ButtonAddAdminDbRights [ngx.components.UIDynamicElement-1739898009556]: 
+                beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                tagName: ion-button
+                ↓Label [ngx.components.UIDynamicElement-1739898009559]: 
+                  beanData: '{"ionBean":"Label"}'
+                  tagName: ion-label
+                  ↓Text [ngx.components.UIText-1739898009562]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:set_admin
+                ↓Event [ngx.components.UIControlEvent-1739898009565]: 
+                  ↓addAdminRights [ngx.components.UICustomAsyncAction-1739971838672]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		page.performBulk("update", "sure_update_rights_admin_rows","update_rights_admin_confirm", "update_rights_rows_error", "cancel_pwamsg", "Update", "admin", true);
+                            
+              ↓ButtonRemoveAdminDbRights [ngx.components.UIDynamicElement-1739898009568]: 
+                beanData: |
+                  '{
+                   "ionBean": "Button",
+                   "IonColor": "plain:danger",
+                   "IonFill": "plain:clear"
+                  }'
+                tagName: ion-button
+                ↓Label [ngx.components.UIDynamicElement-1739898009571]: 
+                  beanData: '{"ionBean":"Label"}'
+                  tagName: ion-label
+                  ↓Text [ngx.components.UIText-1739898009574]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:remove_admin
+                ↓Event [ngx.components.UIControlEvent-1739898009577]: 
+                  ↓revokeAdminRights [ngx.components.UICustomAsyncAction-1739971894159]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		page.performBulk("update", "sure_revoke_rights_admin_rows","revoke_rights_admin_confirm", "update_rights_rows_error", "cancel_pwamsg", "Update", "admin", false);
+                            
+              ↓Style [ngx.components.UIStyle-1739898429112]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '/**
+                         * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                         * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                         * They are set using custom property notation, e.g.: --main-color: black;
+                         * and are accessed using the var() function, e.g.: color: var(--main-color);
+                         * You can find below your component''s properties you can customize within the page.
+                         * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                         * For more informations see https://ionicframework.com/docs/theming.
+                        **/
+                        //--backdrop-opacity	//Opacity of the backdrop
+                        //--background	//Background of the popover
+                        //--box-shadow	//Box shadow of the popover
+                        //--height	//Height of the popover
+                        //--max-height	//Maximum height of the popover
+                        //--max-width	//Maximum width of the popover
+                        //--min-height	//Minimum height of the popover
+                        //--min-width	//Minimum width of the popover
+                        //--offset-x	//The amount to move the popover by on the x-axis
+                        //--offset-y	//The amount to move the popover by on the y-axis
+                        //--width	//Width of the popover
+                        ion-button{
+                        	text-transform: unset
+                        }
+                        '
+          ↓DivGrid [ngx.components.UIDynamicElement-1739891041617]: 
+            beanData: '{"ionBean":"DivTag"}'
+            tagName: div
+            ↓Style [ngx.components.UIStyle-1739891047165]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      'flex-grow: 1;
+                      '
+            ↓UseSharedComponent [ngx.components.UIUseShared-1739883943061]: 
+              identifier: myaggrid
+              sharedcomponent: lib_ExtendedComponents_ui_ngx.MobileApplication.Application.agGrid
+              ↓pagination [ngx.components.UIUseVariable-1739883964539]: 
+                comment: 'boolean: true (default) or false'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓paginationPageSize [ngx.components.UIUseVariable-1739883964541]: 
+                comment: 'integer: 10 by default'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:10
+              ↓paginationPageSizeSelector [ngx.components.UIUseVariable-1739883964543]: 
+                comment: 'array | boolean: [20,50,100] by default'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:true
+              ↓rowSelection [ngx.components.UIUseVariable-1739883964545]: 
+                comment: 'string: ''single'' (default) or ''multiple'''
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'multiple'
+              ↓rowDeselection [ngx.components.UIUseVariable-1739883964547]: 
+                comment: 'boolean: true (default) or false'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:true
+              ↓defaultColDef [ngx.components.UIUseVariable-1739883964549]: 
+                comment: 'default is {hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false}'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: 'script:{hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false}'
+              ↓columnDefs [ngx.components.UIUseVariable-1739883964551]: 
+                comment: 'Array of columnDef {headerName: ''headerName'', field: ''fieldName''} objects'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.data?.result?.labels
+              ↓rowData [ngx.components.UIUseVariable-1739883964553]: 
+                comment: 'Array of row { fieldName1: ''value1'', fieldName2: ''value2'', fieldName3: true, ...} objects'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.data?.result?.values
+              ↓width [ngx.components.UIUseVariable-1739883964555]: 
+                comment: width value in % or px
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'100%'
+              ↓height [ngx.components.UIUseVariable-1739883964557]: 
+                comment: height is 'auto' or value in % or px
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'100%'
+              ↓class [ngx.components.UIUseVariable-1739883964559]: 
+                comment: |
+                  'One of the themes provided here :
+                  
+                  https://www.ag-grid.com/javascript-grid-themes-provided/
+                  
+                  Also be shure to add the theme in the Theme object as :
+                  
+                  @import "../../node_modules/ag-grid-community/dist/styles/ag-theme-balham-dark/sass/ag-theme-balham-dark.scss";
+                  
+                  
+                  
+                  '
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'ag-theme-quartz'
+              ↓id [ngx.components.UIUseVariable-1739883964561]: 
+                comment: An Optional ID
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:''
+              ↓suppressCellSelection [ngx.components.UIUseVariable-1739883964563]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓suppressRowClickSelection [ngx.components.UIUseVariable-1739883964565]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓overlayLoadingTemplate [ngx.components.UIUseVariable-1739883964567]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.overlayLoading
+              ↓overlayNoRowsTemplate [ngx.components.UIUseVariable-1739883964569]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:''
+              ↓rowHeight [ngx.components.UIUseVariable-1739883964571]: 
+                comment: Height of the row in pixels as a string
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'25'
+              ↓wrapperClass [ngx.components.UIUseVariable-1739883964573]: 
+                comment: Height of the row in pixels as a string
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'gridWrapperAutoHeight2'
+              ↓rowModelType [ngx.components.UIUseVariable-1739883964575]: 
+                comment: Row model type
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'clientSide'
+              ↓maxBlocksInCache [ngx.components.UIUseVariable-1739883964577]: 
+                comment: How many blocks to keep in the store. Default is no limit, so every requested block is kept
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:''
+              ↓autoSizeColumns [ngx.components.UIUseVariable-1739883964579]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓accessibility [ngx.components.UIUseVariable-1739883964581]: 
+                comment: 'boolean: true (default) or false'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓ariaLabel [ngx.components.UIUseVariable-1739883964583]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:''
+              ↓showCsvDownload [ngx.components.UIUseVariable-1739883964585]: 
+                comment: |
+                  If set to true will display a side bar menu where user can click a download button to download the grid content as a CSV file.
+                  
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓localeText [ngx.components.UIUseVariable-1739883964587]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:null
+              ↓getLocaleText [ngx.components.UIUseVariable-1739883964589]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:null
+              ↓suppressFieldDotNotation [ngx.components.UIUseVariable-1739883964591]: 
+                comment: 'boolean: true (default) or false'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓domLayout [ngx.components.UIUseVariable-1739883964593]: 
+                comment: 'boolean: true (default) or false'
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:'autoHeight'
+              ↓Event [ngx.components.UIControlEvent-1739883977313]: 
+                attrName: (CellClicked)
+                comment: Fired when a cell is clicked. Data will be the agGrid event
+                eventName: CellClicked
+              ↓Event1 [ngx.components.UIControlEvent-1739883977315]: 
+                attrName: (RowClicked)
+                comment: Fired when a row is clicked. Data will be the agGrid event
+                eventName: RowClicked
+              ↓Event2 [ngx.components.UIControlEvent-1739883977317]: 
+                attrName: (RowSelected)
+                comment: Fired when a row is selected. Data will be the agGrid event
+                eventName: RowSelected
+              ↓Event3 [ngx.components.UIControlEvent-1739883977319]: 
+                attrName: (SortChanged)
+                comment: Fired when a a column is sorted. Data will be the agGrid event
+                eventName: SortChanged
+              ↓Event4 [ngx.components.UIControlEvent-1739883977321]: 
+                attrName: (RowDataChanged)
+                comment: Fired when Row data changed. Data will be the agGrid event
+                eventName: RowDataChanged
+              ↓Event5 [ngx.components.UIControlEvent-1739883977323]: 
+                attrName: (CellValueChanged)
+                comment: Fired when A Cell is edited changed. Data will be the agGrid event
+                eventName: CellValueChanged
+                ↓updateValue [ngx.components.UICustomAsyncAction-1739891289642]: 
+                  actionValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          '		try {
+                          			page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                          			console.log("cell value changed", event);
+                          			var data = event.data;
+                          			delete data[''~c8oAcl''];
+                          			var data = await page.c8o.callJsonObject("C8Oforms.admin_user_set", {meta:JSON.stringify(data)}).async();
+                          			if(data.success == true){
+                          				return {success:true, "id": data._id };
+                          			}
+                          			else{
+                          				return false;
+                          			}
+                          		} catch (e) {
+                          			console.error("err",e);
+                          			return false;
+                          		}
+                          '
+                  ↓IfElse [ngx.components.UIDynamicIf-1739892269900]: 
+                    beanData: '{"ionBean":"IfElseAction","condition":"script:parent.out.success"}'
+                    ↓Toast [ngx.components.UIDynamicAction-1739892282574]: 
+                      beanData: |
+                        '{
+                         "ionBean": "ToastAction",
+                         "message": "plain:L''utilisateur a été mis à jour avec succés",
+                         "cssClass": "plain:toastSuccess"
+                        }'
+                    ↓Else_Handler [ngx.components.UIActionElseEvent-1739892273067]: 
+                      ↓Toast [ngx.components.UIDynamicAction-1739892395180]: 
+                        beanData: |
+                          '{
+                           "ionBean": "ToastAction",
+                           "message": "plain:Une erreur s''est produite pendant la mise à jour de l''utilisateur",
+                           "cssClass": "plain:toastError"
+                          }'
+              ↓Event6 [ngx.components.UIControlEvent-1739883977325]: 
+                attrName: (RowDoubleClicked)
+                comment: Fired when A Cell is edited changed. Data will be the agGrid event
+                eventName: RowDoubleClicked
+              ↓Event7 [ngx.components.UIControlEvent-1739883977327]: 
+                attrName: (SelectionChanged)
+                comment: Fired when selectionChange. Data will be the agGrid event
+                eventName: SelectionChanged
+                ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1739899050054]: 
+                  actionValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          		try {
+                          			page.local.selected = page.lib_extendedcomponents_ui_ngx_aggrid?.agGrid?.api?.getSelectedNodes()?.length > 0;
+                          //			page.ref.detectChanges();
+                          		} catch (e) {
+                          		
+                          		} finally {
+                          			return;
+                          		}
+                          
+              ↓Event8 [ngx.components.UIControlEvent-1739883977329]: 
+                attrName: (GridReady)
+                comment: Fired when the Grid is ready. Data will be the agGrid event
+                eventName: GridReady
+              ↓Event9 [ngx.components.UIControlEvent-1739883977331]: 
+                attrName: (GetRows)
+                comment: Fire when the RowModelType is 'infinite'. Excepts fromatted data into a agGridUpdateRows action
+                eventName: GetRows
+↓PageEvent [ngx.components.UIPageEvent-1739883222513]: 
+  viewEvent: onWillLoad
+  ↓loadGridData [ngx.components.UICustomAsyncAction-1739883222516]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		page.loadGridData();
+            

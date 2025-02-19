@@ -226,6 +226,17 @@ let deleteDoc = function(id, rev, db) {
 	return doc;
 }
 
+let postBulkDocs = function(db, docs, all_or_nothing, new_edits, policy, mergeRules, useHash) {
+	let result = fsclient.postBulkDocs(db, docs, all_or_nothing, new_edits, policy, mergeRules, useHash);
+	try{
+		return JSON.parse(result);
+	}
+	catch(e){
+		return {error: true};
+	}
+	
+}
+
 // A simple console object for logging purposes with predefined format and levels.
 var console = {
 	/**

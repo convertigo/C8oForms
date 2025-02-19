@@ -3433,22 +3433,6 @@ comment
 </p></blockquote></details>
 </p></blockquote></details>
 </p></blockquote></details>
-
-<details><summary><b>void</b> : void connector, replace or don't use it</summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/connectors/images/sqlconnector_color_16x16.png?raw=true "SqlConnector") void
-
-void connector, replace or don't use it
-
-<details><summary><span style="color:DarkGoldenRod"><i>Transactions</i></span></summary><blockquote><p>
-
-
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/images/sqltransaction_color_16x16.png?raw=true "SqlTransaction") void
-
-does nothing
-</p></blockquote></details>
-</p></blockquote></details>
 </p></blockquote></details>
 
 <details><summary><span style="color:DarkGoldenRod"><i>Sequences</i></span></summary><blockquote><p>
@@ -3580,91 +3564,197 @@ should be a valid email
 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCountAnswersPerDay</b> : done</summary><blockquote><p>
+<details><summary><b>admin_stats_getCountAnswersPerDay</b> : Retrieves the count of answers per day, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerDay
 
-done
+Retrieves the count of answers per day, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCountAnswersPerForm</b> : done</summary><blockquote><p>
+<details><summary><b>admin_stats_getCountAnswersPerForm</b> : Retrieves the count of answers per form, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerForm
 
-done
+Retrieves the count of answers per form, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedAnswersPerDay</b> : done</summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedAnswersPerDay</b> : Retrieves the cumulative count of answers per day, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedAnswersPerDay
 
-done
+Retrieves the cumulative count of answers per day, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedAnswersPerForm</b> : to be deleted</summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedAnswersPerForm
-
-to be deleted
-</p></blockquote></details>
-
-<details><summary><b>admin_stats_getCumulatedFormsPerDay</b> : done</summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedFormsPerDay</b> : Retrieves the cumulative count of forms per day, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedFormsPerDay
 
-done
+Retrieves the cumulative count of forms per day, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getFormsCountPerDay</b> : done, to rename labels</summary><blockquote><p>
+<details><summary><b>admin_stats_getFormsCountPerDay</b> : Retrieves the count of forms per day, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getFormsCountPerDay
 
-done, to rename labels
+Retrieves the count of forms per day, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getMoreThan5versionsOwners</b> : done, to rename labels</summary><blockquote><p>
+<details><summary><b>admin_stats_getMoreThan5versionsOwners</b> : Retrieves owners with more than 5 versions, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getMoreThan5versionsOwners
 
-done, to rename labels. Ceux qui ont des formulaires avec plus de 5 versions de formulaires (option) 
+Retrieves owners with more than 5 versions, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopAnswersForms</b> : Ceux qui ont fait les formulaires qui génèrent le plus de réponse</summary><blockquote><p>
+<details><summary><b>admin_stats_getTopAnswersForms</b> : Retrieves forms with the highest number of answers, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopAnswersForms
 
-Ceux qui ont fait les formulaires qui génèrent le plus de réponse
+Retrieves forms with the highest number of answers, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopPublishedComplex</b> : done, to rename labels</summary><blockquote><p>
+<details><summary><b>admin_stats_getTopPublishedComplex</b> : Retrieves the top complex published items, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishedComplex
 
-done, to rename labels. Ceux qui ont les formulaires les plus complexe (nombre d’éléments dans le formulaire) 
+Retrieves the top complex published items, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopPublishers</b> : done</summary><blockquote><p>
+<details><summary><b>admin_stats_getTopPublishers</b> : Retrieves the top publishers, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishers
 
-done. Ceux qui ont fait le plus de formulaires publiés
+Retrieves the top publishers, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_home</b></summary><blockquote><p>
+<details><summary><b>admin_stats_home</b> : Displays the admin statistics home page, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_home
 
+Displays the admin statistics home page, requires admin privileges.
+</p></blockquote></details>
+
+<details><summary><b>admin_user_set</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_set
+
+Updates a user's information, requires admin privileges.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>admin_users_delete</b> : Deletes multiple users, requires admin privileges</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_delete
+
+Deletes multiple users, requires admin privileges.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;docs
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>admin_users_get</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_get
+
+Retrieves multiple user's information, requires admin privileges.
+</p></blockquote></details>
+
+<details><summary><b>admin_users_set</b> : Updates multiple users' information, requires admin privileges</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_set
+
+Updates multiple users' information, requires admin privileges.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;docs
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;right
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;value
+</td>
+<td>
+
+</td>
+</tr>
+</table>
 
 </p></blockquote></details>
 
@@ -4604,12 +4694,12 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_setUserAdmin</b></summary><blockquote><p>
+<details><summary><b>APIV2_setUserAdmin</b> : Sets a user as an admin, requires admin privileges</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_setUserAdmin
 
-
+Sets a user as an admin, requires admin privileges.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6913,20 +7003,28 @@ Describes the mobile application global properties 2
 <details><summary><span style="color:DarkGoldenRod"><i>Pages</i></span></summary><blockquote><p>
 
 
-<details><summary><b>adminDashboardDetail</b> : Admin Dashboard</summary><blockquote><p>
+<details><summary><b>adminDashboardDetail</b> : Admin Dashboard Detail stats</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminDashboardDetail
 
-Admin Dashboard
+Admin Dashboard Detail stats
 </p></blockquote></details>
 
-<details><summary><b>adminDashboardHome</b> : Admin Dashboard</summary><blockquote><p>
+<details><summary><b>adminDashboardHome</b> : Home Admin Dashboard</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminDashboardHome
 
-Admin Dashboard
+Home Admin Dashboard
+</p></blockquote></details>
+
+<details><summary><b>adminDashboardUsers</b> : Admin Dashboard Users</summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminDashboardUsers
+
+Admin Dashboard Users
 </p></blockquote></details>
 
 <details><summary><b>aiChat</b></summary><blockquote><p>
@@ -10221,208 +10319,6 @@ comment
 </tr>
 </table>
 
-
-<span style="color:DarkGoldenRod">Events</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeExpandedValue
-</td>
-<td>
-When fullpage mode have been changed
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeHiddenValue
-</td>
-<td>
-When fullpage mode have been changed
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
-<details><summary><b>datavizComp</b> : Display an apex chart comp</summary><blockquote><p>
-
-
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") datavizComp
-
-Display an apex chart comp. or an ag-grid comp.
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;datavizEvents
-</td>
-<td>
-(String) - A component type that could be one of the following values : "grid" | 'pie' | 'area' | 'line'
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;defaultHeight
-</td>
-<td>
-(Number) - A card content default height
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;filterVars
-</td>
-<td>
-(Object) - An object of configuration component
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;fullpage
-</td>
-<td>
-(Boolean) - The comp. is expanded (true)
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;responsiveColumnSize
-</td>
-<td>
-(Array) - Size on sm, md, lg, xl between 1 and 12 : {sm: 12, md: '6', lg: 7, xl: 8}
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;sequence
-</td>
-<td>
-(Object) - An object of configuration component
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;sequenceVars
-</td>
-<td>
-(Object) - An object of configuration component
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;subtitle
-</td>
-<td>
-(String) - A subtitle/description for the component card
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;subtitleIcon
-</td>
-<td>
-(String) - A subtitle icon for the component card
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;title
-</td>
-<td>
-(String) - A title for the component card
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;type
-</td>
-<td>
-(String) - A component type that could be one of the following values : "grid" | 'pie' | 'area' | 'line'
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;zoomEnd
-</td>
-<td>
-(String) An end date zoom in the YYYY-MM-DD format
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;zoomStart
-</td>
-<td>
-(String) - A start date zoom in the YYYY-MM-DD format
-</td>
-</tr>
-</table>
-
-
-<span style="color:DarkGoldenRod">Events</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeExpandedValue
-</td>
-<td>
-When fullpage mode have been changed
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeHiddenValue
-</td>
-<td>
-When fullpage mode have been changed
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;zoomEnded
-</td>
-<td>
-Zoom in the graph have been started
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;zoomStarted
-</td>
-<td>
-Zoom in the graph have been started
-</td>
-</tr>
-</table>
-
 </p></blockquote></details>
 
 <details><summary><b>datavizHolder</b></summary><blockquote><p>
@@ -10572,6 +10468,14 @@ comment
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeExpandedValue
+</td>
+<td>
+When fullpage mode have been changed
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeHiddenValue
 </td>
 <td>
 When fullpage mode have been changed
