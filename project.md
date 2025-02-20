@@ -3644,10 +3644,40 @@ Retrieves the top publishers, requires admin privileges.
 Displays the admin statistics home page, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_user_set</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_user_patch</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
 
 
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_set
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_patch
+
+Updates a user's information, requires admin privileges.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>admin_user_post</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_post
 
 Updates a user's information, requires admin privileges.
 
@@ -3712,10 +3742,10 @@ comment
 Retrieves multiple user's information, requires admin privileges.
 </p></blockquote></details>
 
-<details><summary><b>admin_users_set</b> : Updates multiple users' information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_patch</b> : Updates multiple users' information, requires admin privileges</summary><blockquote><p>
 
 
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_set
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_patch
 
 Updates multiple users' information, requires admin privileges.
 
@@ -7177,6 +7207,14 @@ Page to share a form, or add collaborators
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") NetworkStatus
+
+
+</p></blockquote></details>
+
+<details><summary><b>Page</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") Page
 
 
 </p></blockquote></details>
