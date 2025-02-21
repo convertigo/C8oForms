@@ -20,8 +20,6 @@ comment: Displays the admin statistics home page, requires admin privileges.
   ↓_use_group_level [variables.StepVariable-1739812996968]: 
     description: (number) – Specify the group level to be used. Optional
     value: 1
-↓Call_Transaction1 [steps.TransactionStep-1739814233281]: 
-  sourceTransaction: C8Oforms.c8oforms_response_fs.AllDocs
 ↓result [steps.JsonSourceStep-1739813342763]: 
   sourceDefinition: 
     - xmlizable: 
@@ -32,43 +30,168 @@ comment: Displays the admin statistics home page, requires admin privileges.
         - java.lang.String: 
           - ↑value: ./document/couchdb_output/rows
   variableName: result
+↓Call_Transaction1 [steps.TransactionStep-1740073866441]: 
+  sourceTransaction: C8Oforms.c8oforms_response_fs.GetViewNotOnMapOnly
+  ↓_use_ddoc [variables.StepVariable-1740073936705]: 
+    description: Design document name
+    value: stats
+  ↓_use_view [variables.StepVariable-1740073936708]: 
+    description: View function name
+    value: proportionTests
+  ↓_use_group [variables.StepVariable-1740073936711]: 
+    description: (boolean) – Group the results using the reduce function to a group or single row. Default is false
+    value: true
+  ↓_use_reduce [variables.StepVariable-1740073936714]: 
+    description: (boolean) – Use the reduction function. Default is true
+    value: true
+  ↓_use_group_level [variables.StepVariable-1740073936717]: 
+    description: (number) – Specify the group level to be used. Optional
+    value: 1
 ↓resultResponses [steps.JsonSourceStep-1739814262410]: 
   sourceDefinition: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
       - com.twinsoft.convertigo.beans.common.XMLVector: 
         - java.lang.String: 
-          - ↑value: 1739814233281
+          - ↑value: 1740073866441
         - java.lang.String: 
-          - ↑value: ./document/couchdb_output/total_rows/text()
+          - ↑value: ./document/couchdb_output/rows
   variableName: resultResponses
+↓Call_Transaction2 [steps.TransactionStep-1740136583245]: 
+  sourceTransaction: C8Oforms.c8oforms_fs.GetView
+  ↓_use_ddoc [variables.StepVariable-1740136583248]: 
+    description: Design document name
+    value: stats
+  ↓_use_view [variables.StepVariable-1740136583251]: 
+    description: View function name
+    value: countUsersByProvider
+  ↓_use_group [variables.StepVariable-1740136583254]: 
+    description: (boolean) – Group the results using the reduce function to a group or single row. Default is false
+    value: true
+  ↓_use_reduce [variables.StepVariable-1740136583257]: 
+    description: (boolean) – Use the reduction function. Default is true
+    value: true
+  ↓_use_group_level [variables.StepVariable-1740136583260]: 
+    description: (number) – Specify the group level to be used. Optional
+    value: 1
+↓resultResponses1 [steps.JsonSourceStep-1740136603143]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1740136583245
+        - java.lang.String: 
+          - ↑value: ./document/couchdb_output/rows
+  variableName: resultUsers
+↓Sequence_Chart [steps.SimpleStep-1740069458444]: 
+  expression: |
+    'var responses = {};
+    for(var i=0; i< result.length; i++){
+    	responses[result[i].key] = result[i].value;
+    }
+    responses["total_apps"] = responses["total_drafts_form"] + responses["total_published_form"];
+    responses.chartFormsOptions = {
+    	series: [responses["total_drafts_form"], responses["total_published_form"]],
+    	chart: {
+    		type: "donut",
+    		width: "100%",
+    		height: ''160px''
+    	},
+    	labels: ["edition_apps", "published_apps"],
+    	plotOptions: {
+    	    pie: {
+    	      startAngle: -90,
+    	      endAngle: 90,
+    	      offsetY: 10
+    	    }
+    	},
+    	grid: {
+      		padding: {
+       	 		bottom: -80
+      		}
+    	}
+    };
+    var _temp = {};
+    responses["total_responses"] = 0;
+    for(var i=0; i< resultResponses.length; i++){
+    	_temp[resultResponses[i].key] = resultResponses[i].value;
+    	responses["total_responses"] += resultResponses[i].value;
+    }
+    responses.chartResponsesOptions = {
+    	series: [_temp["test"], _temp["prod"]],
+    	chart: {
+    		type: "donut",
+    		width: "100%",
+    		height: ''160px''
+    	},
+    	labels: ["responses_test", "responses_prod"],
+    	plotOptions: {
+    	    pie: {
+    	      startAngle: -90,
+    	      endAngle: 90,
+    	      offsetY: 10
+    	    }
+    	},
+    	grid: {
+      		padding: {
+       	 		bottom: -80
+      		}
+    	}
+    };
+    
+    _temp = {};
+    for(var i=0; i< resultUsers.length; i++){
+    	_temp[resultUsers[i].key] = resultUsers[i].value;
+    }
+    responses.chartUsersOptions = {
+    	series: [_temp["ad"] ?? 0, _temp["azuread"] ?? 0, _temp["forms"] ?? 0 , _temp["google"] ?? 0, _temp["linkedin"] ?? 0],
+    	chart: {
+    		type: "donut",
+    		width: "100%",
+    		height: ''160px''
+    	},
+    	labels: ["ad", "azuread", "forms", "google", "linkedin"],
+    	plotOptions: {
+    	    pie: {
+    	      startAngle: -90,
+    	      endAngle: 90,
+    	      offsetY: 10
+    	    }
+    	},
+    	grid: {
+      		padding: {
+       	 		bottom: -80
+      		}
+    	}
+    };'
 ↓jIterator [steps.SimpleIteratorStep-1739813369420]: 
-  expression: result
+  expression: Object.keys(responses)
+  isEnabled: false
   ↓field [steps.JsonFieldStep-1739813431817]: 
     key: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
         - SmartType: 
           - ↑mode: JS
-          - →→: item.key
+          - →→: item
     type: number
     value: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
         - SmartType: 
           - ↑mode: JS
-          - →→: item.value
-↓field [steps.JsonFieldStep-1739814328419]: 
+          - →→: responses[item]
+↓object [steps.JsonToXmlStep-1740069961668]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: responses
   key: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
       - SmartType: 
         - ↑mode: PLAIN
-        - →→: total_responses
-  type: number
-  value: 
-    - xmlizable: 
-      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
-      - SmartType: 
-        - ↑mode: JS
-        - →→: resultResponses
+        - →→: responses
