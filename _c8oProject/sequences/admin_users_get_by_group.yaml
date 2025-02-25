@@ -1,20 +1,37 @@
 accessibility: Hidden
 authenticatedContextRequired: true
 comment: Retrieves multiple user's information, requires admin privileges.
-↓checkAdminRights [steps.SimpleStep-1740417148825]: 
+↓checkAdminRights [steps.SimpleStep-1740494175078]: 
   expression: include("js/isAdmin.js");
-↓Sequence_admin_users_get [steps.SimpleStep-1740417148828]: 
+↓Call_Sequence [steps.SequenceStep-1740505161935]: 
+  sourceSequence: lib_FullSyncGrp.Groups
+↓groups [steps.JsonSourceStep-1740505235301]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1740505161935
+        - java.lang.String: 
+          - ↑value: ./document/group
+  variableName: groups
+↓Sequence_admin_users_get [steps.SimpleStep-1740494175081]: 
   expression: |
     'query = new java.util.HashMap();
     query.put(''include_docs'', ''true'');
     var response = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', query));
+    query2 = new java.util.HashMap();
+    query2.put(''reduce'', ''false'');
+    query2.put(''include_docs'', ''true'');
+    var responseg = toJSON(fsclient.getView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query2));
     if(response.error){
     	
     }
     else{
     	var rows = response.rows;
     	response = {
-    		labels: [
+    		childrenLabels: 		
+    		[				
     			{
     				headerName: "id",
     				field: "_id",
@@ -96,15 +113,59 @@ comment: Retrieves multiple user's information, requires admin privileges.
     				},
     			}
     		],
+    		labels: [
+    			{
+    				headerName: "group_name",
+    				field: "group",
+    				editable: true,
+    				width: 200,
+    				checkboxSelection: true,
+    				headerCheckboxSelection: true
+    			}
+    		],
     		values: rows.map((x) => {
+    			x.doc[''group''] = responseg.rows.filter(item => item.key == x.doc[''~c8oAcl''])			
+    			.map(item => item.value)
+    			.join('', '');
+    			if (x.doc[''group''].length == 0) {
+    				x.doc[''group''] = "Aucun groupe";
+    			}
     			return x.doc;
     		})
     	};
-    }
-    
-    
-    '
-↓object [steps.JsonToXmlStep-1740417148831]: 
+    	var filtered = groups;
+    	filtered.push({group:{text:"Aucun groupe"}});
+    	var values = [];
+    	var obj = {};
+    	for (let i = 0; i < filtered.length; i++) {
+    		let item = filtered[i];
+    //		if (filtered.filter(it => it == item.group).length == 0) {
+    //			filtered.push(item.group);
+    		let children = response.values.filter(it => it.group == item["group"][''text'']);
+    		obj[''group''] = item["group"]["text"]+'' (''+((item.group?.attr?.users != undefined) ? item.group?.attr?.users : children.length)+'')'';
+    		obj[''children''] = children;
+    		values.push(obj);
+    		obj = {};
+    //		} else {
+    //			continue;
+    //		}
+    	}
+    //	for (let i = 0; i < response.values.length; i++) {
+    //		let item = response.values[i];
+    //		if (filtered.filter(it => it == item.group).length == 0) {
+    //			filtered.push(item.group);
+    //			let children = response.values.filter(it => it.group == item.group);
+    //			obj[''group''] = item.group + '' (''+children.length+'')'';
+    //			obj[''children''] = children;
+    //			values.push(obj);
+    //			obj = {};
+    //		} else {
+    //			continue;
+    //		}
+    //	}
+    	response.values = values;
+    }'
+↓object [steps.JsonToXmlStep-1740494175084]: 
   jsonObject: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
@@ -117,11 +178,3 @@ comment: Retrieves multiple user's information, requires admin privileges.
       - SmartType: 
         - ↑mode: PLAIN
         - →→: result
-↓Call_Sequence [steps.SequenceStep-1740417195696]: 
-  isEnabled: false
-  sourceSequence: C8Oforms.AddGroupsToAwnsers
-↓Call_Transaction [steps.TransactionStep-1740417270412]: 
-  output: true
-  sourceTransaction: lib_FullSyncGrp.c8ofullsyncgrp.GetUsersByGroup
-  ↓_use_key [variables.StepVariable-1740417502356]: 
-    description: (string) – Return only documents that match the specified key. Optional
