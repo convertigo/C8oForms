@@ -9719,6 +9719,14 @@ Video tag identifier to output video camera. Default: 'video'. Optional
 
 </p></blockquote></details>
 
+<details><summary><b>addUserToGroupForm</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") addUserToGroupForm
+
+
+</p></blockquote></details>
+
 <details><summary><b>cardSelector</b></summary><blockquote><p>
 
 
