@@ -189,7 +189,7 @@ scriptContent:
           textValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:add_selected_users_to_group
+              - MobileSmartSourceType: script:this.translate.instant('move_selected_users_to_group') + ' ' + this.global.groupSelected
       ↓Button [ngx.components.UIDynamicElement-1740675081945]: 
         beanData: |
           '{
@@ -637,21 +637,36 @@ scriptContent:
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
                 '		try {
-                			let resp = await page.c8o.callJsonObject("C8Oforms.admin_user_post", {meta: JSON.stringify(page.formCreateUser.form.value)}).async();
-                			if(resp.success === true){
-                				await page.presentToast(page.translate.instant("user_create_sucessfull", { userName: page.formCreateUser.form.value.mail }), ''toastSuccess'');
+                			let docs = page.myaggrid3?.agGrid?.api?.getSelectedNodes().map((node) => { return { "group": node.data.group} });
+                			let docs2 = page.global.selectedUsers.map((node) => { return {"user": node.data["~c8oAcl"]}});
+                			var deleted : any = {success: true};	
+                			var deleted2 : any = {success: true};	
+                			for(let i = 0; i < docs.length;i++) {
+                				for (let j = 0; j < docs2.length; j++) {				
+                					let args = {meta: JSON.stringify({group: docs[i].group, user: docs2[j].user})};
+                					let args2 = {meta: JSON.stringify({group: docs[i].group, user: page.global.groupSelected})};
+                					console.log(args);
+                					let sequence2 = "C8Oforms.admin_user_delete_from_group";
+                					let sequence = "C8Oforms.admin_user_add_to_group";
+                					deleted = await page.c8o.callJsonObject(sequence, args).async();
+                					deleted2 = await page.c8o.callJsonObject(sequence2, args2).async()
+                				}
+                			}
+                			
+                			if(deleted?.success || deleted.indexOf(''is added'') != -1){
+                				await page.presentToast(page.translate.instant("group_create_sucessfull", {groupName: ''''}), ''toastSuccess'');
                 				return true;
                 			}
-                			else if(resp.success == false){
-                				await page.presentToast(page.translate.instant("user_alreaydy_exists", { userName: page.formCreateUser.form.value.mail }), ''toastError'');
+                			else if(!deleted?.success){
+                				await page.presentToast(page.translate.instant("group_alreaydy_exists", { groupName: '''' }), ''toastError'');
                 				return false;
                 			}
                 			else{
-                				await page.presentToast(page.translate.instant("user_create_failed"), ''toastError'');
+                				await page.presentToast(page.translate.instant("group_create_failed"), ''toastError'');
                 				return false;
                 			}
                 		} catch (e) {
-                			await page.presentToast(page.translate.instant("user_create_failed"), ''toastError'');
+                			await page.presentToast(page.translate.instant("group_create_failed"), ''toastError'');
                 			return false;
                 		}
                 '
