@@ -24,6 +24,57 @@ scriptContent:
         		this.local.overlayLoading = ''<span class="ag-overlay-loading-center">''+this.translate.instant(''loading_data'')+''</span>'';
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	public process(labels) {
+        		var translations = this.translate.translations[this.translate.currentLang];
+        		let finKeyByValue = (value) => {
+        			for (const key in translations) {
+        				if (translations[key] === value) {
+        					return key;
+        				}
+        			}
+        		}
+        		
+        	    return labels.map((x) => {
+        	        x.headerName = this.translate.instant(x.headerName);
+        
+        	        // Gestion des checkbox
+        	        if (x?.cellRenderer === "agCheckboxCellRenderer") {
+        	            if (x?.c8o_type === "stringboolean") {
+        	                x.valueGetter = (params) => !(params.data[x.field] === ''false'');
+        	                x.valueSetter = (params) => {
+        	                    params.data[x.field] = params.newValue ? ''true'' : ''false'';
+        	                    return true;
+        	                };
+        	            } else {
+        	                x.valueGetter = (params) => params.data[x.field] === true;
+        	                x.valueSetter = (params) => {
+        	                    params.data[x.field] = params.newValue;
+        	                    return true;
+        	                };
+        	            }
+        	        }
+        
+        	        // Gestion de la localisation ("lang")
+        	        if (x?.valueGetter === "lang") {
+        	            if (x.cellEditorParams?.values) {
+        	                x.cellEditorParams.values = x.cellEditorParams.values.map((v) => this.translate.instant(v));
+        	                x.cellEditorParams.values = x.cellEditorParams.values.children?.map((v) => this.translate.instant(v)) || [];
+        	            }
+        
+        	            x.valueGetter = (params) => {
+        	                return params?.data?.[x.field] ? this.translate.instant(params.data[x.field]) : params?.data?.[x.field] ?? "";
+        	            };
+        
+        	            x.valueSetter = (params) => {
+        	                params.data[x.field] = finKeyByValue(params.newValue);
+        	                return true;
+        	            };
+        	        }
+        
+        	        return x;
+        	    });
+        	}
+        	
         	public async loadGridData(pageEvent: string = "") {
         				try {
         					this.local.loading = true;
@@ -38,109 +89,33 @@ scriptContent:
         						this.local.error = true;
         					}
         					else {
-        						if (data.result.labels && data.result.childrenLabels) {
-        							var translations = this.translate.translations[this.translate.currentLang];
-        							let finKeyByValue = (value) => {
-        								for (const key in translations) {
-        									if (translations[key] === value) {
-        										return key;
+        						if (data?.result?.labels && data?.result?.childrenLabels) {
+        							data.result.labels = this.process(data.result.labels);
+        							data.result.childrenLabels = this.process(data.result.childrenLabels);
+        						}
+        						if (data.result.values) {							
+        							data.result.values = data.result.values.map((item) => {
+        								item.group = this.translate.instant(item.group);
+        								item.children = item.children.map((itemChildren) => {
+        									if (itemChildren.group.indexOf(", ") != -1) {
+        										itemChildren.group = itemChildren.group.split(", ").map((itemChildrenGroup) => {
+        											itemChildrenGroup = this.translate.instant(itemChildrenGroup);
+        											return itemChildrenGroup;
+        										}).join(", ");
+        									} else {										
+        										itemChildren.group = this.translate.instant(itemChildren.group);
         									}
-        								}
-        							}
-        							data.result.labels = data.result.labels.map((x) => {
-        								x.headerName = this.translate.instant(x.headerName);
-        								// if it''''s a checkbox then add support for non boolean checkbox
-        								if (x?.cellRenderer == "agCheckboxCellRenderer") {
-        									if (x?.c8o_type == "stringboolean") {
-        										x.valueGetter = (params) => {
-        											return !(params.data[x.field] === ''false'');
-        										},
-        											x.valueSetter = (params) => {
-        												params.data[x.field] = params.newValue ? ''true'' : ''false'';
-        												return true;
-        											}
-        									}
-        									else {
-        										x.valueGetter = (params) => {
-        											return params.data[x.field] === true;
-        										},
-        										x.valueSetter = (params) => {
-        											params.data[x.field] = params.newValue;
-        											return true;
-        										}
-        									}
-        
-        								}
-        								if (x?.valueGetter == "lang") {
-        									x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
-        										x = this.translate.instant(x);
-        										return x;
-        									})
-        									x.valueGetter = (params) => {
-        										if (params?.data?.[x.field]) {
-        											return this.translate.instant(params.data[x.field]);
-        										}
-        										else {
-        											return params?.data?.[x.field] ?? "";
-        										}
-        
-        									},
-        										x.valueSetter = (params) => {
-        											params.data[x.field] = finKeyByValue(params.newValue);
-        											return true;
-        										}
-        								}
-        								return x;
-        							});
-        							data.result.childrenLabels = data.result.childrenLabels.map((x) => {
-        								x.headerName = this.translate.instant(x.headerName);
-        								// if it''''s a checkbox then add support for non boolean checkbox
-        								if (x?.cellRenderer == "agCheckboxCellRenderer") {
-        									if (x?.c8o_type == "stringboolean") {
-        										x.valueGetter = (params) => {
-        											return !(params.data[x.field] === ''false'');
-        										},
-        											x.valueSetter = (params) => {
-        												params.data[x.field] = params.newValue ? ''true'' : ''false'';
-        												return true;
-        											}
-        									}
-        									else {
-        										x.valueGetter = (params) => {
-        											return params.data[x.field] === true;
-        										},
-        										x.valueSetter = (params) => {
-        											params.data[x.field] = params.newValue;
-        											return true;
-        										}
-        									}
-        
-        								}
-        								if (x?.valueGetter == "lang") {
-        									x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
-        										x = this.translate.instant(x);
-        										return x;
-        									})
-        									x.valueGetter = (params) => {
-        										if (params?.data?.[x.field]) {
-        											return this.translate.instant(params.data[x.field]);
-        										}
-        										else {
-        											return params?.data?.[x.field] ?? "";
-        										}
-        
-        									},
-        										x.valueSetter = (params) => {
-        											params.data[x.field] = finKeyByValue(params.newValue);
-        											return true;
-        										}
-        								}
-        								return x;
+        									return itemChildren;
+        								});
+        								return item;
         							});
         						}
+        //						console.log(data.result.values)
+        						
         						this.local.data = data;
+        
         						this.valuesCopy = this.local.data?.result?.values;
-        //						console.log(this.local.data.result.values.filter((it) => it.group == "all_users"));
+        
         						if (pageEvent == "willLoad") {
         							setTimeout(() => {
         							  const firstRow = this.myaggrid?.agGrid?.api.getDisplayedRowAtIndex(0);
@@ -1355,16 +1330,24 @@ title: Title for adminDashboardUsersWithinGroups
                           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                             →: |
-                              		try {
+                              '		try {
                               //			console.log(event);
+                              			if (event?.data?.group.indexOf(page.translate.instant("all_users")) != -1) {
+                              				page.local.data.result.childrenLabels[2].hide = false;
+                              			} else {
+                              				page.local.data.result.childrenLabels[2].hide = true;
+                              			}
                               			page.valuesSelected = event?.data?.children;
                               			page.groupSelected = event?.data?.group;
+                              			page.local.selected2 = page.myaggrid2?.agGrid?.api?.getSelectedNodes({ startRow: 0, endRow: 1 }).length > 0;
+                              			page.global.selectedUsers = page.myaggrid2?.agGrid?.api?.getSelectedNodes();
+                              			page.ref.detectChanges();
                               		} catch (e) {
                               		
                               		} finally {
                               			return;
                               		}
-                              
+                              '
                   ↓Event2 [ngx.components.UIControlEvent-1740488756851]: 
                     attrName: (RowSelected)
                     comment: Fired when a row is selected. Data will be the agGrid event
