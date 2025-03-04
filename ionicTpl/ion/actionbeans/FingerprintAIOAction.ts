@@ -99,10 +99,10 @@
       "action_ts_imports": [
           {"from":"@ionic-native/fingerprint-aio","components":["FingerprintAIO"]}
       ],
-      "module_ts_imports": [
+      "local_module_ts_imports": [
           {"from":"@ionic-native/fingerprint-aio","components":["FingerprintAIO"]}
       ],
-      "module_ng_imports": [
+      "local_module_ng_imports": [
       ],
       "module_ng_providers": [
           "FingerprintAIO"
