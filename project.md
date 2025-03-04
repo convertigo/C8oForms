@@ -12,7 +12,6 @@ Convertigo No Code Studio
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") BaserowIntegration
 
 
-see [readme](https://github.com/convertigo/c8oprj-baserowintegration/tree/3c5479cf2c9b37d6e9108247d05d94e7ea055c19#readme)
 </p></blockquote></details>
 
 <details><summary><b>C8Oforms_PWAs</b></summary><blockquote><p>
@@ -11231,6 +11230,52 @@ this.formsSubmit[item['name']]
 </td>
 <td>
 this.redList[item['name']]
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>itemButtonEditor</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") itemButtonEditor
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;idselected
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isChild
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;item
+</td>
+<td>
+
 </td>
 </tr>
 </table>
