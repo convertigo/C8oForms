@@ -315,7 +315,12 @@ scriptContent:
         	public computeFlowsNames(){
         		this.local.flowNames = {};
         		for(let flow of this.form.flows){
-        			this.local.flowNames[flow.id] = "Flow " + this.getElementById(flow.id.substring(5)).name;
+        			if(flow.id == "formulas" || flow.id == "submit"){
+        				this.local.flowNames[flow.id] = this.translate.instant(flow.id);
+        			}
+        			else{
+        				this.local.flowNames[flow.id] = "Flow " + this.getElementById(flow.id.substring(5)).name;
+        			}
         		}
         	}
         	
@@ -980,26 +985,27 @@ scriptContent:
         	getObjfromFormList(objB = null): Array<any>{
         	    let obj = [];
         	    objB = this.formsList;
-        	    objB.forEach((item, index)=>{
+        	    objB.forEach((item)=>{
                     if(item["type"] == "ion-card"){
-                        obj.push(item["name"]);
-        //                item["children"].forEach((child, index2)=>{
-        //                    obj.push(child["name"]);
-        //                });
-                        
+                        obj.push(item["name"]);                
                     }
                     else{
                         obj.push(item["name"]);
                     }
                 });
         		if(this.form.actions != undefined){
-        			this.form.actions.forEach((item, index) => {
+        			this.form.actions.forEach((item) => {
         				 obj.push(item["name"]);
         			})
         		}
-        		
+        		if(this.form.flows != undefined){
+        			this.form.flows.forEach((flow) => {
+        				flow.elements.forEach((item)=>{
+        					obj.push(item["name"]);
+        				})
+        			})
+        		}
                 return obj;
-        
         	}
         	
         	getlocalNumbersSorted2(item, localNumbers, defaultlabel){
@@ -1082,13 +1088,13 @@ scriptContent:
         	  return cols;
         	}
         	
-        	addElement(typ, index = null, into= false, action = false){
+        	addElement(typ, index = null, into= false, action = false, flow = false){
                 if(this.formsList == undefined){
                     this.formsList = [];
                 }
                 const id = new Date().getTime();
                 let objToInsert = this.getObjToInsert(typ, id, this.local.currentPage);
-                if(!action){
+                if(!action && !flow){
                     if(index != null && objToInsert != null){
                         if(index[1] != null){
                             if(index[2]!= null){
@@ -1114,7 +1120,7 @@ scriptContent:
                         this.formsList.push(objToInsert);
                     }
                 }
-                else{
+                else if(action == true) {
                     if(this.form.actions == undefined){
                         this.form.actions = [];
                     }
@@ -1124,7 +1130,14 @@ scriptContent:
         			else{
         				this.form.actions.push(objToInsert);
         			}
-                    
+                }
+        		else if(flow == true) {
+        			if(index != null){
+        				this.form.flows[this.local.currentIndex].elements.splice(index[0], 0, objToInsert);
+        			}
+        			else{
+        				this.form.flows[this.local.currentIndex].elements.push(objToInsert);
+        			}
                 }
                
                 // After having modifying Object, update its state with fs base
@@ -6320,6 +6333,7 @@ title: Title for editor
                                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                         →: |
                                           		page.local.currentPage = props.stack.root.scope.item.id;
+                                          		page.local.currentIndex = props.stack.root.scope.i;
                                           		page.local.flow = true;
                                           		resolve();
                                           
@@ -15168,6 +15182,11 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:this.idselected
+                                            ↓action [ngx.components.UIUseVariable-1741183028680]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
                                         ↓Directive56311 [ngx.components.UIControlDirective-1650357061874]: 
                                           directiveExpression: '''business_logic'''
                                           directiveName: SwitchCase
@@ -15458,6 +15477,7 @@ title: Title for editor
                             ↓Style [ngx.components.UIStyle-1650357061997]: 
                         ↓Tag [ngx.components.UIElement-1741109843835]: 
                           identifier: ElseBlock_1741109843835
+                          tagName: ng-template
                           ↓Directive [ngx.components.UIControlDirective-1741109898583]: 
                             directiveExpression: trackBy:trackByIndex
                             directiveIndexName: t
@@ -15465,7 +15485,7 @@ title: Title for editor
                             directiveSource: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this.form.flows
+                                - MobileSmartSourceType: script:this.form.flows[this.local.currentIndex].elements
                             ↓BeforeItem [ngx.components.UIDynamicElement-1741109898586]: 
                               beanData: '{"ionBean":"GridRow","Height":"plain:unset"}'
                               tagName: ion-row
@@ -15477,7 +15497,7 @@ title: Title for editor
                                   directiveSource: 
                                     - xmlizable: 
                                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                      - MobileSmartSourceType: script:this.local.draggingActions == true else ElseBlock_1600439522169
+                                      - MobileSmartSourceType: script:this.local.draggingFlows == true else ElseBlock_1741109898610
                                   ↓UseSharedComponent [ngx.components.UIUseShared-1741109898595]: 
                                     sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
                                     ↓id [ngx.components.UIUseVariable-1741109898598]: 
@@ -15499,9 +15519,19 @@ title: Title for editor
                                       varValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:false
+                                    ↓hideText [ngx.components.UIUseVariable-1741167446839]: 
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:false
+                                    ↓flow [ngx.components.UIUseVariable-1741167446841]: 
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                           - MobileSmartSourceType: script:true
                                 ↓Tag1 [ngx.components.UIElement-1741109898610]: 
-                                  identifier: ElseBlock_1600439522169
+                                  identifier: ElseBlock_1741109898610
                                   tagName: ng-template
                                   ↓Tag [ngx.components.UIElement-1741109898613]: 
                                     selfClose: true
@@ -15521,7 +15551,7 @@ title: Title for editor
                               directiveSource: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: script:thing.id == this.idselected else ElseBlock_1599818725700
+                                  - MobileSmartSourceType: script:thing.id == this.idselected else ElseBlock_1741109898892
                               ↓Item [ngx.components.UIDynamicElement-1741109898622]: 
                                 beanData: '{"ionBean":"GridRow","Height":"plain:unset"}'
                                 tagName: ion-row
@@ -16140,7 +16170,7 @@ title: Title for editor
                                             margin-right: 10px;
                                             '
                             ↓Tag [ngx.components.UIElement-1741109898892]: 
-                              identifier: ElseBlock_1599818725700
+                              identifier: ElseBlock_1741109898892
                               tagName: ng-template
                               ↓Item [ngx.components.UIDynamicElement-1741109898895]: 
                                 beanData: '{"ionBean":"GridRow","Height":"plain:unset"}'
@@ -16280,6 +16310,11 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:this.idselected
+                                            ↓action [ngx.components.UIUseVariable-1741183052766]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
                                         ↓Directive56311 [ngx.components.UIControlDirective-1741109898973]: 
                                           directiveExpression: '''business_logic'''
                                           directiveName: SwitchCase
@@ -16441,7 +16476,7 @@ title: Title for editor
                                 directiveSource: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:this.local.draggingActions == true else ElseBlock_1656603533728
+                                    - MobileSmartSourceType: script:this.local.draggingFlows == true else ElseBlock_1741109899078
                                 ↓UseSharedComponent [ngx.components.UIUseShared-1741109899063]: 
                                   sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
                                   ↓id [ngx.components.UIUseVariable-1741109899066]: 
@@ -16453,7 +16488,7 @@ title: Title for editor
                                     varValue: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                        - MobileSmartSourceType: script:[this.form.actions.length]
+                                        - MobileSmartSourceType: script:[this.form.flows[this.local.currentIndex].length]
                                   ↓card [ngx.components.UIUseVariable-1741109899072]: 
                                     varValue: 
                                       - xmlizable: 
@@ -16463,9 +16498,19 @@ title: Title for editor
                                     varValue: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:false
+                                  ↓hideText [ngx.components.UIUseVariable-1741167453306]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:false
+                                  ↓flow [ngx.components.UIUseVariable-1741167453308]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                         - MobileSmartSourceType: script:true
                               ↓Tag [ngx.components.UIElement-1741109899078]: 
-                                identifier: ElseBlock_1656603533728
+                                identifier: ElseBlock_1741109899078
                                 tagName: ng-template
                                 ↓Tag [ngx.components.UIElement-1741109899081]: 
                                   selfClose: true
