@@ -12,6 +12,7 @@ Convertigo No Code Studio
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") BaserowIntegration
 
 
+see [readme](https://github.com/convertigo/c8oprj-baserowintegration/tree/3c5479cf2c9b37d6e9108247d05d94e7ea055c19#readme)
 </p></blockquote></details>
 
 <details><summary><b>C8Oforms_PWAs</b></summary><blockquote><p>
