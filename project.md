@@ -11131,6 +11131,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>getUserGroupsDetail</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") getUserGroupsDetail
+
+
+</p></blockquote></details>
+
 <details><summary><b>inputMultiVal</b></summary><blockquote><p>
 
 
