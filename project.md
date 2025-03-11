@@ -56,7 +56,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/47a2
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/5fb18199f6eceda25161b26a92bef3805353b000#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -10688,7 +10688,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;data
 </td>
 <td>
-(String) - A title for the component card
+(Object) - The data object for charts and grids comp
 </td>
 </tr>
 <tr>
@@ -10712,7 +10712,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isLoading
 </td>
 <td>
-(String) - A title for the component card
+(Boolean) - A boolean flag used for skeleton
 </td>
 </tr>
 <tr>
@@ -10752,7 +10752,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;zoomEnd
 </td>
 <td>
-(String) An end date zoom in the YYYY-MM-DD format
+(String) - An end date zoom in the YYYY-MM-DD format
 </td>
 </tr>
 <tr>
@@ -10790,7 +10790,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;currentBreakPoint
 </td>
 <td>
-
+(String) - The current breakpoint (sm, xs, ...)
 </td>
 </tr>
 <tr>
@@ -10798,7 +10798,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;data
 </td>
 <td>
-(String) - A title for the component card
+(Object) - Data object to display in the components
 </td>
 </tr>
 <tr>
@@ -10822,7 +10822,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isExpanded
 </td>
 <td>
-
+(Boolean) - The flag that set the card to fullpage mode
 </td>
 </tr>
 <tr>
@@ -10830,7 +10830,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isHidden
 </td>
 <td>
-(String) - A title for the component card
+(Boolean) - The flag that set to visible or not visible a card
 </td>
 </tr>
 <tr>
@@ -10838,7 +10838,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isLoading
 </td>
 <td>
-(String) - A title for the component card
+(Boolean) - The flag that set loading skeleton animation
 </td>
 </tr>
 <tr>
