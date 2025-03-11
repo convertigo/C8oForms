@@ -7417,14 +7417,6 @@ Home Admin Dashboard
 Admin Dashboard Users
 </p></blockquote></details>
 
-<details><summary><b>adminDashboardUsersListGroups</b> : Admin Dashboard Users - List groups</summary><blockquote><p>
-
-
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminDashboardUsersListGroups
-
-Admin Dashboard Users - List groups
-</p></blockquote></details>
-
 <details><summary><b>adminDashboardUsersWithinGroups</b> : Admin Dashboard Users</summary><blockquote><p>
 
 
