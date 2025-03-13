@@ -128,6 +128,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/b0041f62
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager_ui_ngx
 
 
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8.4.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Vonage_ui_ngx</b></summary><blockquote><p>
