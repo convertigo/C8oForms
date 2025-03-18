@@ -62,6 +62,7 @@ scriptContent:
         	public functionsExecById = {};
         	public shaById = {};
         	public page = this;
+        	public toastController: any;
         	breakpoints = {
         		xl: ''(min-width: 1200px)'',
         		lg: ''(min-width: 992px) and (max-width: 1199px)'',
@@ -127,9 +128,6 @@ scriptContent:
         			}
         		}
         	};
-        	//public imageCompression = require("browser-image-compression");
-        
-        
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         		this.local.htmlValue = {};
@@ -272,8 +270,193 @@ scriptContent:
         			}
         		}
         		window.addEventListener(''resize'', this.local.funcListener);
+        		this.toastController = this.getInstance(ToastController);
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	public async performSubmitAction(step, submitActions, perform){
+        		if(submitActions[step["type"]] == null){
+                    submitActions[step["type"]] = []
+                }
+        
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "actions", false);
+        		var findVars = sources.findVars;
+        		let do_not_touchVars = {};
+        		for(let i in findVars){
+        			if(findVars[i].from_attachment != undefined && findVars[i].from_attachment){
+        				do_not_touchVars[i] = findVars[i];
+        				delete findVars[i];
+        			}
+        		}
+        		await this.computeVariable(findVars, variables, step);
+        		variables = Object.assign(variables, do_not_touchVars);
+        		let currentAction = JSON.parse(JSON.stringify(step));
+                for(let action in currentAction.actions){
+                    if(action == sources.findName){
+        				 currentAction.actions[action].vars = variables;
+        			}
+        			else{
+        				delete currentAction.actions[action];
+        			}
+                }
+        		submitActions[step["type"]].push(currentAction);
+        		if(perform){
+        			let doc = {item: 
+        				{
+        					"_id": this.form._id,
+        					"_rev": new Date().getTime(),
+        					resp: this.formsSubmit,
+        					formId: this.local.formId,
+        					timestamp: new Date().getTime(),
+        					version: this.form?.version != undefined ? this.form?.version : ''test'',
+        					actions: submitActions,
+        					finished: true
+        				}
+        			};
+        			let args = {doc: [JSON.stringify(doc)]};
+        			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
+        		}
+        	}
+        	
+        	public computeClassDynamically(step){
+        		let contrastColor = this.getContrastColor(step.config.color);
+        		let className = "DynamicClassToast-" + step.id;
+        		let styles = `
+        		    text-align: center !important;
+        		    --border-radius: 5px !important;
+        		    --background: ${step.config.color};
+        		    --color: ${contrastColor};
+        		`;
+        		let buttonStyles = `
+        		    .${className}::part(button) {
+        		        color: ${contrastColor};
+        		    }
+        		`;
+        
+        		const styleSheet = document.styleSheets[0];
+        		styleSheet.insertRule(`.${className} { ${styles} }`, styleSheet.cssRules.length);
+        		styleSheet.insertRule(buttonStyles, styleSheet.cssRules.length);
+        		return className;
+        	}
+        	
+        	public async performToastAction(step){
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "sources", true);
+        		var findVars = sources.findVars;
+        		await this.computeVariable(findVars, variables, step);
+        		let className = this.computeClassDynamically(step);
+        		await this.presentToast(variables.selfVar, className, step.config.position, step.config.duration * 1000, step.config.closeBtn);
+        	}
+        	
+        	public async performPushPageAction(step){
+        		let target = step.config.targetPage;
+        		let targetIndex = null;
+        		this.form.pages.forEach((p, index)=>{
+        			if(p.pageTechName == target){
+        				targetIndex = index;
+        			}
+        		})
+        		if(targetIndex){
+        			this.local["currentIndex"] = targetIndex;
+        		    this.myContent1.scrollToTop();
+        		    let i = this.navParams.get("i") != undefined ? this.navParams.get("i") : ":i";
+        			let edit = this.navParams.get("edit") != undefined ? this.navParams.get("edit") : ":edit";
+        			let formId = this.navParams.get("formId") != undefined ? this.navParams.get("formId") : ":formId";
+        			history.pushState({page: this.local["currentIndex"], formId: formId, edit: edit, i: i}, "", window.location.pathname.substring(0,window.location.pathname.indexOf("viewer")) + "viewer/" + formId + "/" + edit + "/" + i);
+        			this.moveFocus();
+        			this.setTitleRGAA();
+        		}
+        	}
+        	
+        	public async performPushAppAction(step){
+        		let target = step.config.targetApp?._id;
+        		if(target){
+        			// pwa mode
+        			if(window.location.href.indexOf("DisplayObjects/pwas/") != -1){
+        				let pathName = window.location.pathname.split(''/'');
+        				pathName[6] = target;
+        				pathName[8] = target;
+        				window.open(window.location.origin + pathName.join("/"));
+        			}
+        			else{
+        				let pathName = window.location.pathname.split(''/'');
+        				pathName[2] = target;
+        				window.open(window.location.origin + pathName.join("/"));
+        			}
+        		}
+        	}
+        	
+        	public async executeFlow(item, executeSubmit = true){
+        		try {
+        			let flowId = item.flow;
+        			let currentFlow = this.form.flows.find(f=> f.id == flowId);
+        			currentFlow = currentFlow.elements;
+        			// first execute BL
+        			this.fillActionsVars(currentFlow);
+        			await this.fillActions(currentFlow, false);
+        			let submitActions = {};
+        			// Then execute each action in order
+        			for (let step of currentFlow){
+        				// execute current step.
+        				switch(step.type){
+        					case "submit":
+        						await this.performSubmitAction(step, submitActions, executeSubmit);						
+        					break;
+        					case "toast":
+        						await this.performToastAction(step);
+        					break;
+        					case "push_page":
+        						await this.performPushPageAction(step);
+        					break;
+        					case "push_app":
+        						await this.performPushAppAction(step);
+        					break;
+        				}
+        			}
+        			return submitActions;
+        			
+        		} catch (e) {
+        			console.error("an error occued while executing flow", e);
+        		}
+        	}
+        	
+        	async presentToast(message: string, cssClass: string = '''', position = "bottom", duration= 3000, closeBtn = false){
+        		let opts: any = {
+        			message: message,
+        			duration: duration,
+        			position: position,
+        			cssClass: cssClass
+        		}
+        		if(closeBtn){
+        			opts.buttons = [
+        				{
+        		          side: ''end'',
+        		          icon: ''close'',
+        		          text: this.translate.instant("close"),
+        		          handler: () => {
+        		            toast.dismiss();
+        		          }
+        		        }
+        			]
+        		}
+        		const toast = await this.toastController.create(opts);
+        		await toast.present();
+        	}
+        	public getContrastColor(hexColor) {
+        	    // Supprimer le ''#'' si présent
+        	    hexColor = hexColor.replace(''#'', '''');
+        
+        	    // Convertir les valeurs hex en RGB
+        	    const r = parseInt(hexColor.substring(0, 2), 16) / 255;
+        	    const g = parseInt(hexColor.substring(2, 4), 16) / 255;
+        	    const b = parseInt(hexColor.substring(4, 6), 16) / 255;
+        
+        	    // Calculer la luminance relative
+        	    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        
+        	    // Retourner blanc ou noir en fonction de la luminance
+        	    return luminance > 0.5 ? ''#000000'' : ''#FFFFFF'';
+        	}
         
         	getBreakpoint(): string {
         		if (window.matchMedia(this.breakpoints.xl).matches) return ''desktop'';
