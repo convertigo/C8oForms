@@ -36,10 +36,11 @@ scriptContent:
         }
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
+        	public alertController: AlertController;
         	public fromViewer = true;
         	public formsList: Array<object> = [];
         	public formsSubmit = {};
-        	public actions = {};
+        	public actions: any = {};
         	public link;
         	public enabled = false;
         	public results = {};
@@ -130,6 +131,7 @@ scriptContent:
         	};
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.alertController = this.getInstance(AlertController);
         		this.local.htmlValue = {};
         		this.local.strCacheComputeHtml = {};
         		this.local.techSelect = {};
@@ -273,6 +275,39 @@ scriptContent:
         		this.toastController = this.getInstance(ToastController);
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	public async showConfirmationAlert(header: string, message: string, cancelLabel: string, confirmLabel: string, cssClass: string, btClass, confirmRed: boolean = true, cancelRed: boolean = false): Promise<boolean> {
+        		const alert = await this.alertController.create({
+        			header: header,
+        			message: message,
+        			backdropDismiss: false,
+        			cssClass: cssClass,
+        			buttons: [
+        				{
+        					cssClass: cancelRed ? "button-danger" : btClass,
+        					text: cancelLabel,
+        					role: ''cancel'',
+        					handler: () => {
+        						return false;
+        					}
+        				},
+        				{
+        					cssClass: confirmRed ? "button-danger" : btClass,
+        					text: confirmLabel,
+        					handler: () => {
+        						return true;
+        					}
+        				}
+        			]
+        		});
+        
+        		await alert.present();
+        		return new Promise((resolve) => {
+        			alert.onDidDismiss().then((data) => {
+        				resolve(!(data.role == ''cancel''));
+        			});
+        		});
+        	}
+        	
         	public async performSubmitAction(step, submitActions, perform){
         		if(submitActions[step["type"]] == null){
                     submitActions[step["type"]] = []
@@ -356,7 +391,7 @@ scriptContent:
         				targetIndex = index;
         			}
         		})
-        		if(targetIndex){
+        		if(targetIndex != null){
         			this.local["currentIndex"] = targetIndex;
         		    this.myContent1.scrollToTop();
         		    let i = this.navParams.get("i") != undefined ? this.navParams.get("i") : ":i";
@@ -368,19 +403,24 @@ scriptContent:
         		}
         	}
         	
-        	public async performPushAppAction(step){
+        	public async performPushAppAction(step, executeSubmit){
         		let target = step.config.targetApp?._id;
         		if(target){
+        			if(step.config.give_resp && executeSubmit){
+        				await this.actionBeans.STS1576328658272(this, {}, {indexPage: this.local.currentIndex, pages: this.local.pages, doAll: true, performCheckMandatory: false}, event);
+        			}
         			// pwa mode
         			if(window.location.href.indexOf("DisplayObjects/pwas/") != -1){
         				let pathName = window.location.pathname.split(''/'');
         				pathName[6] = target;
         				pathName[8] = target;
+        				pathName[9] = step.config.give_resp ? this.local.myId : ":edit";
         				window.open(window.location.origin + pathName.join("/"));
         			}
         			else{
         				let pathName = window.location.pathname.split(''/'');
         				pathName[2] = target;
+        				pathName[3] = step.config.give_resp ? this.local.myId : ":edit";
         				window.open(window.location.origin + pathName.join("/"));
         			}
         		}
@@ -409,7 +449,7 @@ scriptContent:
         						await this.performPushPageAction(step);
         					break;
         					case "push_app":
-        						await this.performPushAppAction(step);
+        						await this.performPushAppAction(step, executeSubmit);
         					break;
         				}
         			}
