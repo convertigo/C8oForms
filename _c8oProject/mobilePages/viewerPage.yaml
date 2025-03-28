@@ -348,7 +348,7 @@ scriptContent:
         					finished: true
         				}
         			};
-        			let args = {doc: [JSON.stringify(doc)]};
+        			let args = {doc: [JSON.stringify(doc)], execute_Async: "false"};
         			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
         		}
         	}
@@ -426,6 +426,56 @@ scriptContent:
         		}
         	}
         	
+        	public async performAddRowToLocalGrid(step){
+        		this.showGridOverlayById(step.config.targetGrid);
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "sources", true);
+        		var findVars = sources.findVars;
+        		await this.computeVariable(findVars, variables, step);
+        		//variables.selfVar
+        		var name: any = this.getItemById(step.config.targetGrid);
+        		name = name.name;
+        		let data = {};
+        		let supportedCols = this.local.sourceValue[name].colDef.map(x => x.field);
+        		for(let key in variables.selfVar){
+        			if(!(typeof variables.selfVar[key] == "string" || typeof variables.selfVar[key] == "number") && supportedCols.includes(key)){
+        				data[key] = variables.selfVar[key].value;
+        			}
+        		}
+        		this.local.sourceValue[name].data.push(data);
+        		var gridInstance = this.getGridInstance(step.config.targetGrid);
+        		if(gridInstance){
+        			gridInstance.api.setGridOption("rowData", this.local.sourceValue[name].data);
+        		}
+        		setTimeout(()=>{
+        			this.hideGridOverlayById(step.config.targetGrid);
+        			this.ref.detectChanges();
+        		})
+        		
+        		
+        	}
+        	
+        	public async performRemoveRowFromLocalGrid(step){
+        			this.showGridOverlayById(step.config.targetGrid);
+        			var name: any = this.getItemById(step.config.targetGrid);
+        			name = name.name;
+        			
+        			//this.local.sourceValue[name].data.push(data);
+        			var gridInstance = this.getGridInstance(step.config.targetGrid);
+        			if(gridInstance){
+        				let selectedRow = gridInstance.api.getSelectedNodes();
+        				let index = gridInstance.api.getSelectedNodes()[0].rowIndex;
+        				this.local.sourceValue[name].data.splice(index, 1);
+        				gridInstance.api.setGridOption("rowData", this.local.sourceValue[name].data);
+        			}
+        			setTimeout(()=>{
+        				this.hideGridOverlayById(step.config.targetGrid);
+        				this.ref.detectChanges();
+        			})
+        			
+        			
+        		}
+        	
         	public async executeFlow(item, executeSubmit = true){
         		try {
         			let flowId = item.flow;
@@ -450,6 +500,12 @@ scriptContent:
         					break;
         					case "push_app":
         						await this.performPushAppAction(step, executeSubmit);
+        					break;
+        					case "add_row_to_local_grid":
+        						await this.performAddRowToLocalGrid(step);
+        					break;
+        					case "remove_row_from_local_grid":
+        						await this.performRemoveRowFromLocalGrid(step);
         					break;
         				}
         			}
@@ -776,6 +832,19 @@ scriptContent:
         			this.c8o.log.error("an error occured while trying to hide an overlay for grid:" + id);
         		}
         	}
+        	
+        	public getGridInstance(id) {
+        			try {
+        				for (let grid of this["all_comp1608286885281"][''_results'']) {
+        					if (grid.myGrid.agGrid._nativeElement.id == id + "") {
+        						return grid.myGrid.agGrid;
+        					}
+        				}
+        			}
+        			catch (e) {
+        				this.c8o.log.error("an error occured while trying to hide an overlay for grid:" + id);
+        			}
+        		}
         
         	/**
         	 * this function is responsible to fill the variable "formSubmit" that will hold responses with the adequate structure
@@ -1305,7 +1374,7 @@ scriptContent:
         						idsToCall = idsToCall.concat(interIDs);
         					}
         					// only watch for enabled grid or select sources
-        					else if ((item["config"]["sourceEnabled"] && ["select", "checkbox", "radio"].includes(item["type"])) || (item.sources && ["grid", "chart", "checkbox_group", "radio_group"].includes(item["type"])) || (item["type"] == "map" ) ) {
+        					else if ((item["config"]["sourceEnabled"] && ["select", "checkbox", "radio"].includes(item["type"])) || (item.sources && ["chart", "checkbox_group", "radio_group"].includes(item["type"])) || (item["type"] == "map")  || (item["type"] == "grid" && item["config"]["sourceEnabled"] == undefined || item["config"]["sourceEnabled"] === true) ) {
         						let arraySearch = [];
         						let arrayVars = [];
         						if(item.type == "map"){
@@ -2281,6 +2350,187 @@ scriptContent:
         							}
         						}
         					}
+        					else if(item.type == "grid" && item["config"]["sourceEnabled"] === false){
+        						
+        						
+        						
+        						// preload function for grid
+        						let colDef = item.config.columns.map((x)=>{
+        							return {
+        								editable: true,
+        								field : x.name
+        							}
+        						})
+        						if (page.local.sourceValue[item.name] == undefined) {
+        							page.local.sourceValue[item.name] = { colDef: colDef, data: [] };
+        						}
+        						if (item.config.returned_value === "all_the_data") {
+        							formSubmit[item.name]["value"] =[];
+        						}
+        						page.local.updating[item.id] = 1;
+        //						
+        //						
+        //						
+        //						// postload function for grid
+        //						postFunc = (res) => {
+        //							// find Colomn definitions
+        //							let checkboxDone = item.config.returned_value != "multiple_row_selected" ? true : false;
+        //							if (res.data != undefined && res.data.length > 0) {
+        //								let colDef =
+        //									Object.keys(res.data[0]).map((y) => {
+        //										let current = res.data[0];
+        //										let obj = { "editable": false };
+        //										if (y != "__rowValue" && !(res.data[0][y]["hidden"] == true)) {
+        //											// if cell is a simple string
+        //											if(!checkboxDone && item.config.returned_value == "multiple_row_selected"){
+        //												obj["checkboxSelection"] = true;
+        //												checkboxDone = true;
+        //											}
+        //											if (typeof (res.data[0][y]) === "string") {
+        //												obj["field"] = y;
+        //												return obj;
+        //											}
+        //											// if it''s a more complex object
+        //											else {
+        //												// if cell has a specified name then take it
+        //												if (current[y].displayName != undefined) {
+        //													obj["field"] = current[y].displayName;
+        //												}
+        //												// else take key name
+        //												else {
+        //													obj["field"] = y;
+        //												}
+        //												// if cell has an html type 
+        //												if (current[y].type == "html") {
+        //													// create a cell renderer to have innerHTML
+        //													let HTMLCellRenderer = function HTMLCellRenderer() { };
+        //													HTMLCellRenderer.prototype.init = function(params) {
+        //														try {
+        //															this.eGui = document.createElement(''div'');
+        //															// if displayValue field exists display it, if not display field value																		
+        //															this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        //														}
+        //														catch (e) {
+        //															this.eGui.innerHTML = "<p>ko<p>"
+        //														}
+        //													}
+        //													HTMLCellRenderer.prototype.getGui = function() {
+        //														return this.eGui;
+        //													};
+        //													HTMLCellRenderer.prototype.refresh = function(params) {
+        //														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        //														return true;
+        //													}
+        //													obj["cellRenderer"] = HTMLCellRenderer;
+        //												}
+        //												// if cell has a text type or no type
+        //												else {
+        //													let TextCellRenderer = function TextCellRenderer() { };
+        //													TextCellRenderer.prototype.init = function(params) {
+        //														try {
+        //															this.eGui = document.createElement(''div'');
+        //															let p = document.createElement(''p'');
+        //															p.textContent = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        //															p.style.whiteSpace = "normal"
+        //															this.eGui.appendChild(p);
+        //															// if displayValue field exists display it, if not display field value																		
+        //															//this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        //														}
+        //														catch (e) {
+        //															this.eGui.innerHTML = "<p>ko<p>"
+        //														}
+        //													}
+        //													TextCellRenderer.prototype.getGui = function() {
+        //														return this.eGui;
+        //													};
+        //													TextCellRenderer.prototype.refresh = function(params) {
+        //														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        //														return true;
+        //													}
+        //													obj["cellRenderer"] = TextCellRenderer;
+        //												}
+        //												// define default sorting field
+        //												let sortingField = "displayValue";
+        //												if (current[y].sortingField == "displayValue" || current[y].sortingField == "" || current[y].sortingField == undefined) {
+        //													sortingField = "displayValue";
+        //												}
+        //												else {
+        //													sortingField = current[y].sortingField;
+        //												}
+        //												if (current[y].sortingType == "text" || current[y].sortingType == "string" || current[y].sortingType == "default" || current[y].sortingType == "" || current[y].sortingType == undefined) {
+        //													obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => ("" + (valueA[sortingField])).localeCompare("" + (valueB[sortingField]))
+        //												}
+        //												else if (current[y].sortingType == "number") {
+        //													obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => (+valueA[sortingField]) - (+valueB[sortingField])
+        //												}
+        //												return obj;
+        //											}
+        //										}
+        //										// hide __rowValue
+        //										else {
+        //											obj["hide"] = true;
+        //											obj["field"] = y;
+        //											return obj;
+        //										}
+        //									});
+        //								// foreach row
+        //								let data = res.data.map((x) => {
+        //									var row = { ...x };
+        //									// foreach col
+        //									Object.keys(row).forEach((col) => {
+        //										// if col is not a simple string
+        //										if (typeof (row[col]) === "object") {
+        //											// if there is a displayColName
+        //											if (row[col].displayName != undefined) {
+        //												// rename the col name
+        //												row[row[col].displayName] = row[col];
+        //												// save the technical name
+        //												row[row[col].displayName].technicalName = col;
+        //												// delete the usless col if name is diffrent from displayName see #625;
+        //												if (col != row[col].displayName) {
+        //													delete row[col];
+        //												}
+        //											}
+        //											else {
+        //												// save the technical name (same as its name)
+        //												row[col].technicalName = col;
+        //											}
+        //										}
+        //									});
+        //									return row;
+        //								})
+        //								page.local.updating[item.id] = 1;
+        //								setTimeout(() => {
+        //									this.hideGridOverlayById(item.id);
+        //								})
+        //								page.local.sourceValue[item.name]["colDef"] = colDef;
+        //								page.local.sourceValue[item.name]["data"] = data;
+        //								// in case of user wants all data to be returned to response
+        //								if (item.config.returned_value === "all_the_data") {
+        //									formSubmit[item.name]["value"] = res.data;
+        //								}
+        //								page.ref.detectChanges();
+        //							}
+        //							else {
+        //								page.local.updating[item.id] = 1;
+        //								setTimeout(() => {
+        //									this.hideGridOverlayById(item.id);
+        //								})
+        //								page.local.sourceValue[item.name]["data"] = [];
+        //							}
+        //						}
+        //						// fail function for grid
+        //						failFunc = (err) => {
+        //							setTimeout(() => {
+        //								this.hideGridOverlayById(item.id);
+        //							})
+        //							page.c8o.log.error("an error occured while trying to laod source for a grid", err);
+        //							page.local.updating[item.id] = 2;
+        //						}
+        						
+        						
+        						
+        					}
         					else if (item.type == "text" || item.type == "slider" || item.type == "datetime" || item.type == "time" || item.type == "barcode") {
         						let sources: any = page["searchForSources"](item, "sources", true);
         						let findVars = sources.findVars;
@@ -2485,6 +2735,14 @@ scriptContent:
         							}
         							// store the result
         							vars[va] = res;
+        						}
+        						else if(Array.isArray(vars[va])){
+        							let temp = {};
+        							for(let item of vars[va]){
+        								let str = this.stringOf$$ToCode(item.str, item.type, ObjectThatHaveToCallFunc, regex);
+        								temp[item.name] = str;
+        							}
+        							vars[va] = temp;
         						}
         						else {
         							// otherwise
@@ -3667,14 +3925,39 @@ scriptContent:
         						delete variables[va];
         					}
         				}
-        				// assume its filter
+        				
         				else {
         					let res = JSON.parse(JSON.stringify(findVars[va]));
-        					res.filters = res.filters.map((x) => {
-        						x.value = eval(x.value);
-        						return x;
-        					})
-        					variables[va] = JSON.stringify(res);
+        					// assume its filter
+        					if(res.filters != null && Array.isArray(res.filters)){
+        						res.filters = res.filters.map((x) => {
+        							x.value = eval(x.value);
+        							return x;
+        						})
+        						variables[va] = JSON.stringify(res);
+        					}
+        					else{
+        						var temp = {};
+        						for(let key in findVars[va]){
+        							const asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
+        								''page'',
+        								`return (async () => { return ${findVars[va][key]} })();`
+        							);
+        							temp[key] = await asyncFunction(page);
+        							if (temp[key] == undefined || temp[key] == "undefined") {
+        								delete variables[va];
+        							}
+        							else if (temp[key].then) {
+        								temp[key] = await variables[va];
+        							}
+        							if (temp[key] == undefined || temp[key] == "undefined") {
+        								delete temp[key];
+        							}
+        						}
+        						variables[va] = JSON.stringify(temp);
+        					}
+        					
+        					
         				}
         			}
         			catch (e) {

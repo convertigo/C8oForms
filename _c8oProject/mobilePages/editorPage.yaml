@@ -312,6 +312,9 @@ scriptContent:
         		this.local.selectFilter = {};
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/	
+        	public getGrids(){
+        		return this.form.formulaire.filter((x)=>{return x.type == "grid"});
+        	}
         	public getPageNameById(pageTechName){
         		for(let elem of this.form.pages){
         			if(elem.pageTechName == pageTechName){
@@ -964,27 +967,126 @@ scriptContent:
         
         
         	
-        	moveActionElement(indexDest, indexOrigin){
-        		 // if indexDest bigger than indexOrigin
-                if(indexDest[0] > indexOrigin[0]){
-                    //copy element
-                    let elemToMove = this.form.flows[this.local.currentIndex].elements[indexOrigin[0]];
-                    //paste element
-                    this.form.flows[this.local.currentIndex].elements.splice(indexDest[0],0, elemToMove);
-                    //delete element from its first position
-                    this.form.flows[this.local.currentIndex].elements.splice(indexOrigin[0],1);
-                }
-                // if indexDest smaller than indexOrigin
-                else{
-                  //copy element
-                  let elemToMove = this.form.flows[this.local.currentIndex].elements[indexOrigin[0]];
-                  //delete element from its first position
-                  this.form.flows[this.local.currentIndex].elements.splice(indexOrigin[0],1);
-                  //paste element
-                  this.form.flows[this.local.currentIndex].elements.splice(indexDest[0],0, elemToMove);
-                    
-                }
-        		this.updateState();
+        	moveActionElement(indexDest, indexOrigin, indexFlowDest, indexFlowOrigin){
+        		
+        		let toCard = indexDest[1] != null;
+        		let fromCard = indexOrigin[1] != null;
+        		const elemToMoveId = fromCard
+        			        ? this.form.flows[indexFlowOrigin].elements[indexOrigin[0]]["childrenRefs"]?.[indexOrigin[1]]
+        			        : this.form.flows[indexFlowOrigin].elements[indexOrigin[0]]["id"];
+        		const elemToMove = this.form.flows[indexFlowOrigin].elements.find(item => item["id"] === elemToMoveId);
+        		if (!elemToMove) {
+        	        console.error("Élément à déplacer introuvable.");
+        	        return;
+        	    }
+        
+        	    const destinationParentId = toCard ? this.form.flows[indexFlowDest].elements[indexDest[0]]["id"] : null;
+        
+        		
+        	    const destinationList = toCard
+        	        ? (this.form.flows[indexFlowDest].elements[indexDest[0]]["childrenRefs"] || []).map(refId => this.form.flows[indexFlowDest].elements.find(item => item["id"] === refId))
+        	        : this.form.flows[indexFlowDest].elements;
+        
+        	    const nameExists = destinationList.some(item => item && item.name === elemToMove["name"] && item.id !== elemToMoveId);
+        	    if (nameExists) {
+        	        this.getTranslate("nameAlreadyexitsTarget").then((res: any) => {
+        	            this.showToast(res);
+        	        });
+        	        this.updateState();
+        	        return;
+        	    }
+        
+        	    const childIds = elemToMove[''childrenRefs''] || [];
+        	    const elementsToMove = [elemToMove, ...this.form.flows[indexFlowOrigin].elements.filter(item => childIds.includes(item[''id'']))];
+        
+        		let indexRemoved = null;
+        	    elementsToMove.forEach(element => {
+        	        indexRemoved = this.form.flows[indexFlowOrigin].elements.findIndex(item => item[''id''] === element[''id'']);
+        	        if (indexRemoved > -1) {
+        	            this.form.flows[indexFlowOrigin].elements.splice(indexRemoved, 1);
+        	        }
+        	    });
+        
+        		
+        	    if (fromCard) {
+        	        const oldParent = this.form.flows[indexFlowOrigin].elements.find(item => item[''id''] === elemToMove[''parentRef'']);
+        	        if (oldParent && Array.isArray(oldParent["childrenRefs"])) {
+        	            const oldIndex = oldParent["childrenRefs"].indexOf(elemToMoveId);
+        	            if (oldIndex > -1) {
+        	                oldParent["childrenRefs"].splice(oldIndex, 1);
+        	            }
+        	        }
+        	    }
+        
+        		
+        	    elementsToMove.forEach(element => {
+        	        if (element[''id''] === elemToMoveId) {
+        	            element["parentRef"] = destinationParentId;
+        	        } else {
+        	            element["parentRef"] = elemToMoveId;
+        	        }
+        	    });
+        
+        		
+        	    if (toCard) {
+        	        const newParent = this.form.flows[indexFlowDest].elements.find(item => item[''id''] === destinationParentId);
+        	        if (!newParent) {
+        	            console.error("Nouveau parent introuvable.");
+        	            return;
+        	        }
+        	        if (!Array.isArray(newParent["childrenRefs"])) {
+        	            newParent["childrenRefs"] = [];
+        	        }
+        			if(indexDest[0] == indexOrigin[0] && indexRemoved < indexDest[1]){
+        				indexDest[1] --;
+        			}
+        	        newParent["childrenRefs"].splice(indexDest[1], 0, elemToMoveId);
+        			
+        	        const parentIndex = this.form.flows[indexFlowDest].elements.findIndex(item => item[''id''] === newParent[''id'']);
+        	        if (parentIndex > -1) {
+        	            let insertIndex = parentIndex + 1;
+        	            if (indexDest[1] > 0) {
+        	                const prevChildId = newParent[''childrenRefs''][indexDest[1] - 1];
+        	                const prevChildIndex = this.form.flows[indexFlowDest].elements.findIndex(item => item[''id''] === prevChildId);
+        	                insertIndex = prevChildIndex + 1;
+        	            }
+        	            this.form.flows[indexFlowDest].elements.splice(insertIndex, 0, ...elementsToMove);
+        	        } else {
+        	            console.error("Nouveau parent introuvable dans formsList.");
+        	            return;
+        	        }
+        	    } else {
+        	        let insertIndex = indexDest[0];
+        			if(indexRemoved < indexDest[0]){
+        				insertIndex--;
+        			}
+        	        this.form.flows[indexFlowDest].elements.splice(insertIndex, 0, ...elementsToMove);
+        	    }
+        
+        	    //elemToMove["config"].page = this.local.currentPage;
+        	    this.updateState();
+        //		if(toCard == false && fromCard == false){
+        //			// if indexDest bigger than indexOrigin
+        //	       if(indexDest[0] > indexOrigin[0]){
+        //	           //copy element
+        //	           let elemToMove = this.form.flows[this.local.currentIndex].elements[indexOrigin[0]];
+        //	           //paste element
+        //	           this.form.flows[this.local.currentIndex].elements.splice(indexDest[0],0, elemToMove);
+        //	           //delete element from its first position
+        //	           this.form.flows[this.local.currentIndex].elements.splice(indexOrigin[0],1);
+        //	       }
+        //	       // if indexDest smaller than indexOrigin
+        //	       else{
+        //	         //copy element
+        //	         let elemToMove = this.form.flows[this.local.currentIndex].elements[indexOrigin[0]];
+        //	         //delete element from its first position
+        //	         this.form.flows[this.local.currentIndex].elements.splice(indexOrigin[0],1);
+        //	         //paste element
+        //	         this.form.flows[this.local.currentIndex].elements.splice(indexDest[0],0, elemToMove);
+        //	       }
+        //		}
+        //		
+        //		this.updateState();
         	}
         	getObjfromFormList(objB = null): Array<any>{
         	    let obj = [];
@@ -1137,7 +1239,20 @@ scriptContent:
                 }
         		else if(flow == true) {
         			if(index != null){
-        				this.form.flows[this.local.currentIndex].elements.splice(index[0], 0, objToInsert);
+        				if(index[1] != null){
+        					objToInsert.parentRef = this.form.flows[this.local.currentIndex].elements[index[0]]["id"];
+        					if(index[2]!= null){
+        						this.form.flows[this.local.currentIndex].elements[index[0]]["childrenRefs"].splice(index[2], 0, objToInsert);
+        						this.form.flows[this.local.currentIndex].elements.splice(index[0] + index[1] + 1, 0, objToInsert);
+                            }
+                            else{
+        						this.form.flows[this.local.currentIndex].elements[index[0]]["childrenRefs"].splice(index[1], 0, objToInsert.id);
+        						this.form.flows[this.local.currentIndex].elements.splice(index[0] + index[1] + 1, 0, objToInsert);
+                            }
+        				}
+        				else{
+        					this.form.flows[this.local.currentIndex].elements.splice(index[0], 0, objToInsert);
+        				}
         			}
         			else{
         				this.form.flows[this.local.currentIndex].elements.push(objToInsert);
@@ -1795,13 +1910,28 @@ scriptContent:
                     {
                         "type": "grid",
                         "config": {
+        					"sourceEnabled": true,
                             "mandatory": false,
                             "disabled": false,
                             "html": "<p>" + this.local.question + "</p>",
                             "personalized": true,
                             "page": page,
                             "returned_value": "row_selected",
-                            "AutoSizeColumns": true
+                            "AutoSizeColumns": true,
+        					"columns": [
+        				         {
+        				           "name": "Make",
+        				           "type": "text"
+        				         },
+        				         {
+        				           "name": "Model",
+        				           "type": "text"
+        				         },
+        				         {
+        				           "name": "Price",
+        				           "type": "number"
+        				         }
+        					 ]
                         },
                         "id": id,
                         "name": this.getNameDispo(nameDispo != null ? nameDispo : "grid", null)
@@ -1939,6 +2069,76 @@ scriptContent:
         			                },
         			                "id": id,
         			                "name": this.getNameDispo(nameDispo != null ? nameDispo : "push_app", null)
+        			            };
+        			            break;
+        					case "add_row_to_local_grid":
+        			            objToInsert =
+        			            {
+        			                "cat": "action",
+        			                "type": "add_row_to_local_grid",
+        							"sources": {
+        			                    "self": {
+        			                        "enabled": true,
+        			                        "vars": {
+        			                            "selfVar": {
+        			                                str: "",
+        			                                type: "text"
+        			                            }
+        			                        }
+        			                    }
+        			                },
+        			                "config": {
+        								"targetGrid": ""
+        			                },
+        			                "id": id,
+        			                "name": this.getNameDispo(nameDispo != null ? nameDispo : "add_row_to_local_grid", null)
+        			            };
+        			        break;
+        					case "remove_row_from_local_grid":
+        			            objToInsert =
+        			            {
+        			                "cat": "action",
+        			                "type": "remove_row_from_local_grid",
+        							"sources": {
+        			                    "self": {
+        			                        "enabled": true,
+        			                        "vars": {
+        			                            "selfVar": {
+        			                                str: "",
+        			                                type: "text"
+        			                            }
+        			                        }
+        			                    }
+        			                },
+        			                "config": {
+        								"targetGrid": ""
+        			                },
+        			                "id": id,
+        			                "name": this.getNameDispo(nameDispo != null ? nameDispo : "remove_row_from_local_grid", null)
+        			            };
+        			        break;
+        					case "for_loop":
+        			            objToInsert =
+        			            {
+        			                "type": "for_loop",
+        			                "config": {
+        			                    
+        					
+        			                },
+        							"sources": {
+        			                    "self": {
+        			                        "enabled": true,
+        			                        "vars": {
+        			                            "selfVar": {
+        			                                str: this.translate.instant("toast_example"),
+        			                                type: "text"
+        			                            }
+        			                        }
+        			                    }
+        			                },
+        			                "childrenRefs": [],
+        			                "id": id,
+        			                "name": this.getNameDispo(nameDispo != null ? nameDispo : "for_loop", null)
         			            };
         			            break;
         
@@ -16516,6 +16716,124 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:false
+                                        ↓Directive56315 [ngx.components.UIControlDirective-1743004501862]: 
+                                          directiveExpression: '''add_row_to_local_grid'''
+                                          directiveName: SwitchCase
+                                          ↓UseSharedComponent5 [ngx.components.UIUseShared-1743004501865]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemAddRowToLocalGridActionEditor
+                                            ↓item [ngx.components.UIUseVariable-1743004501868]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓idselected [ngx.components.UIUseVariable-1743004501871]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:this.idselected
+                                            ↓thingIndex [ngx.components.UIUseVariable-1743004501874]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:t
+                                            ↓isChild [ngx.components.UIUseVariable-1743004501877]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                        ↓Directive56316 [ngx.components.UIControlDirective-1743012760528]: 
+                                          directiveExpression: '''remove_row_from_local_grid'''
+                                          directiveName: SwitchCase
+                                          ↓UseSharedComponent5 [ngx.components.UIUseShared-1743012760531]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemRemoveRowFromLocalGridActionEditor
+                                            ↓item [ngx.components.UIUseVariable-1743012760534]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓idselected [ngx.components.UIUseVariable-1743012760537]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:this.idselected
+                                            ↓thingIndex [ngx.components.UIUseVariable-1743012760540]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:t
+                                            ↓isChild [ngx.components.UIUseVariable-1743012760543]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                        ↓Directive5637 [ngx.components.UIControlDirective-1743151745605]: 
+                                          directiveExpression: '''for_loop'''
+                                          directiveName: SwitchCase
+                                          ↓UseSharedComponent5 [ngx.components.UIUseShared-1743151745608]: 
+                                            isEnabled: false
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemForLoopEditor
+                                            ↓item [ngx.components.UIUseVariable-1743151766527]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓idselected [ngx.components.UIUseVariable-1743151766530]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:this.idselected
+                                            ↓thingIndex [ngx.components.UIUseVariable-1743151766533]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:t
+                                            ↓isChild [ngx.components.UIUseVariable-1743151766536]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓indexItem [ngx.components.UIUseVariable-1743158810679]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:t
+                                            ↓disabled [ngx.components.UIUseVariable-1743158810681]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                          ↓UseSharedComponent6 [ngx.components.UIUseShared-1743173714288]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemForLoopEditor1
+                                            ↓item [ngx.components.UIUseVariable-1743173714291]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓idselected [ngx.components.UIUseVariable-1743173714294]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:this.idselected
+                                            ↓thingIndex [ngx.components.UIUseVariable-1743173714297]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:t
+                                            ↓isChild [ngx.components.UIUseVariable-1743173714300]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓indexItem [ngx.components.UIUseVariable-1743173714303]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:t
+                                            ↓disabled [ngx.components.UIUseVariable-1743173714306]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
                                       ↓GenericItem [ngx.components.UIDynamicElement-1741109898709]: 
                                         beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
                                         tagName: ion-item
@@ -17145,6 +17463,64 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:false
+                                        ↓Directive5635 [ngx.components.UIControlDirective-1743004473970]: 
+                                          directiveExpression: '''add_row_to_local_grid'''
+                                          directiveName: SwitchCase
+                                          ↓UseSharedComponent5 [ngx.components.UIUseShared-1743004473973]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemAddRowToLocalGridActionViewer
+                                            ↓item [ngx.components.UIUseVariable-1743004473976]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓action [ngx.components.UIUseVariable-1743004473979]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                        ↓Directive5636 [ngx.components.UIControlDirective-1743012890616]: 
+                                          directiveExpression: '''remove_row_from_local_grid'''
+                                          directiveName: SwitchCase
+                                          ↓UseSharedComponent5 [ngx.components.UIUseShared-1743012890619]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemRemoveRowFromLocalGridActionViewer
+                                            ↓item [ngx.components.UIUseVariable-1743012890622]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓action [ngx.components.UIUseVariable-1743012890625]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                        ↓Directive5637 [ngx.components.UIControlDirective-1743150479792]: 
+                                          directiveExpression: '''for_loop'''
+                                          directiveName: SwitchCase
+                                          ↓UseSharedComponent5 [ngx.components.UIUseShared-1743150479795]: 
+                                            isEnabled: false
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemForLoopViewer
+                                            ↓item [ngx.components.UIUseVariable-1743150479798]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓action [ngx.components.UIUseVariable-1743150479801]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                          ↓UseSharedComponent6 [ngx.components.UIUseShared-1743173053587]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.itemForLoopEditorViewer1
+                                            ↓item [ngx.components.UIUseVariable-1743173053590]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:thing
+                                            ↓action [ngx.components.UIUseVariable-1743173053593]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
                                     ↓Event [ngx.components.UIControlEvent-1741109898982]: 
                                       ↓setIndexTo0 [ngx.components.UICustomAction-1741109898985]: 
                                         actionValue: 
@@ -17213,6 +17589,7 @@ title: Title for editor
                                                     event.dataTransfer.setData("origin", "moved");
                                                     event.dataTransfer.setData("index", vars.index);
                                                     event.dataTransfer.setData("dropEffect", "copy");
+                                            		event.dataTransfer.setData("indexOriginFlow", page.local.currentIndex);
                                                     resolve();
                                             		
                                             		
