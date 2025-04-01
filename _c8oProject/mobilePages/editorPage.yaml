@@ -968,13 +968,13 @@ scriptContent:
         
         
         	
-        	moveActionElement(indexDest, indexOrigin, indexFlowDest, indexFlowOrigin){
+        	moveActionElement(indexDest, indexOrigin, indexFlowDest, indexFlowOrigin, targetCardChild = ''childrenRefs''){
         		
         		let toCard = indexDest[1] != null;
         		let fromCard = indexOrigin[1] != null;
         		
         		const elemToMoveId = fromCard
-        			        ? this.form.flows[indexFlowOrigin].elements[indexOrigin[0]]["childrenRefs"]?.[indexOrigin[1]]
+        			        ? this.form.flows[indexFlowOrigin].elements[indexOrigin[0]][targetCardChild]?.[indexOrigin[1]]
         			        : this.form.flows[indexFlowOrigin].elements[indexOrigin[0]]["id"];
         		const elemToMove = this.form.flows[indexFlowOrigin].elements.find(item => item["id"] === elemToMoveId);
         		if (!elemToMove) {
@@ -986,7 +986,7 @@ scriptContent:
         
         		
         	    const destinationList = toCard
-        	        ? (this.form.flows[indexFlowDest].elements[indexDest[0]]["childrenRefs"] || []).map(refId => this.form.flows[indexFlowDest].elements.find(item => item["id"] === refId))
+        	        ? (this.form.flows[indexFlowDest].elements[indexDest[0]][targetCardChild] || []).map(refId => this.form.flows[indexFlowDest].elements.find(item => item["id"] === refId))
         	        : this.form.flows[indexFlowDest].elements;
         
         	    const nameExists = destinationList.some(item => item && item.name === elemToMove["name"] && item.id !== elemToMoveId);
@@ -998,7 +998,7 @@ scriptContent:
         	        return;
         	    }
         
-        	    const childIds = elemToMove[''childrenRefs''] || [];
+        	    const childIds = elemToMove[targetCardChild] || [];
         	    const elementsToMove = [elemToMove, ...this.form.flows[indexFlowOrigin].elements.filter(item => childIds.includes(item[''id'']))];
         
         		let indexRemoved = null;
@@ -1012,10 +1012,10 @@ scriptContent:
         		
         	    if (fromCard) {
         	        const oldParent = this.form.flows[indexFlowOrigin].elements.find(item => item[''id''] === elemToMove[''parentRef'']);
-        	        if (oldParent && Array.isArray(oldParent["childrenRefs"])) {
-        	            const oldIndex = oldParent["childrenRefs"].indexOf(elemToMoveId);
+        	        if (oldParent && Array.isArray(oldParent[targetCardChild])) {
+        	            const oldIndex = oldParent[targetCardChild].indexOf(elemToMoveId);
         	            if (oldIndex > -1) {
-        	                oldParent["childrenRefs"].splice(oldIndex, 1);
+        	                oldParent[targetCardChild].splice(oldIndex, 1);
         	            }
         	        }
         	    }
@@ -1039,19 +1039,19 @@ scriptContent:
         	            console.error("Nouveau parent introuvable.");
         	            return;
         	        }
-        	        if (!Array.isArray(newParent["childrenRefs"])) {
-        	            newParent["childrenRefs"] = [];
+        	        if (!Array.isArray(newParent[targetCardChild])) {
+        	            newParent[targetCardChild] = [];
         	        }
         			if(indexDest[0] == indexOrigin[0] && indexRemoved < indexDest[1]){
         				indexDest[1] --;
         			}
-        	        newParent["childrenRefs"].splice(indexDest[1], 0, elemToMoveId);
+        	        newParent[targetCardChild].splice(indexDest[1], 0, elemToMoveId);
         			
         	        const parentIndex = this.form.flows[indexFlowDest].elements.findIndex(item => item[''id''] === newParent[''id'']);
         	        if (parentIndex > -1) {
         	            let insertIndex = parentIndex + 1;
         	            if (indexDest[1] > 0) {
-        	                const prevChildId = newParent[''childrenRefs''][indexDest[1] - 1];
+        	                const prevChildId = newParent[targetCardChild][indexDest[1] - 1];
         	                const prevChildIndex = this.form.flows[indexFlowDest].elements.findIndex(item => item[''id''] === prevChildId);
         	                insertIndex = prevChildIndex + 1;
         	            }
@@ -1199,7 +1199,7 @@ scriptContent:
         	  return cols;
         	}
         	
-        	addElement(typ, index = null, into= false, action = false, flow = false){
+        	addElement(typ, index = null, into= false, action = false, flow = false, targetCardChild = ''childrenRefs''){
                 if(this.formsList == undefined){
                     this.formsList = [];
                 }
@@ -1247,11 +1247,11 @@ scriptContent:
         				if(index[1] != null){
         					objToInsert.parentRef = this.form.flows[this.local.currentIndex].elements[index[0]]["id"];
         					if(index[2]!= null){
-        						this.form.flows[this.local.currentIndex].elements[index[0]]["childrenRefs"].splice(index[2], 0, objToInsert);
+        						this.form.flows[this.local.currentIndex].elements[index[0]][targetCardChild].splice(index[2], 0, objToInsert);
         						this.form.flows[this.local.currentIndex].elements.splice(index[0] + index[1] + 1, 0, objToInsert);
                             }
                             else{
-        						this.form.flows[this.local.currentIndex].elements[index[0]]["childrenRefs"].splice(index[1], 0, objToInsert.id);
+        						this.form.flows[this.local.currentIndex].elements[index[0]][targetCardChild].splice(index[1], 0, objToInsert.id);
         						this.form.flows[this.local.currentIndex].elements.splice(index[0] + index[1] + 1, 0, objToInsert);
                             }
         				}
@@ -2144,6 +2144,31 @@ scriptContent:
         			                "childrenRefs": [],
         			                "id": id,
         			                "name": this.getNameDispo(nameDispo != null ? nameDispo : "for_loop", null)
+        			            };
+        		            break;
+        					case "if_else":
+        			            objToInsert =
+        			            {
+        			                "type": "if_else",
+        			                "config": {
+        			                    
+        					
+        			                },
+        							"sources": {
+        			                    "self": {
+        			                        "enabled": true,
+        			                        "vars": {
+        			                            "selfVar": {
+        			                                str: "",
+        			                                type: "text"
+        			                            }
+        			                        }
+        			                    }
+        			                },
+        			                "childrenRefs": [],
+        							"childrenRefsElse": [],
+        			                "id": id,
+        			                "name": this.getNameDispo(nameDispo != null ? nameDispo : "if_else", null)
         			            };
         			            break;
         
@@ -17507,19 +17532,6 @@ title: Title for editor
                                           ↓Directive5637 [ngx.components.UIControlDirective-1743150479792]: 
                                             directiveExpression: '''for_loop'''
                                             directiveName: SwitchCase
-                                            ↓UseSharedComponent5 [ngx.components.UIUseShared-1743150479795]: 
-                                              isEnabled: false
-                                              sharedcomponent: C8Oforms.MobileApplication.Application.itemForLoopViewer
-                                              ↓item [ngx.components.UIUseVariable-1743150479798]: 
-                                                varValue: 
-                                                  - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: script:thing
-                                              ↓action [ngx.components.UIUseVariable-1743150479801]: 
-                                                varValue: 
-                                                  - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: script:false
                                             ↓UseSharedComponent6 [ngx.components.UIUseShared-1743173053587]: 
                                               sharedcomponent: C8Oforms.MobileApplication.Application.itemForLoopEditorViewer1
                                               ↓item [ngx.components.UIUseVariable-1743173053590]: 
@@ -17538,6 +17550,31 @@ title: Title for editor
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                     - MobileSmartSourceType: script:
                                               ↓indexItem [ngx.components.UIUseVariable-1743265702130]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:t
+                                          ↓Directive5638 [ngx.components.UIControlDirective-1743529338664]: 
+                                            directiveExpression: '''if_else'''
+                                            directiveName: SwitchCase
+                                            ↓UseSharedComponent6 [ngx.components.UIUseShared-1743529338676]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.itemConditionEditorViewer
+                                              ↓item [ngx.components.UIUseVariable-1743529338679]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:thing
+                                              ↓action [ngx.components.UIUseVariable-1743529338682]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓idselected [ngx.components.UIUseVariable-1743529338685]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:
+                                              ↓indexItem [ngx.components.UIUseVariable-1743529338688]: 
                                                 varValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
