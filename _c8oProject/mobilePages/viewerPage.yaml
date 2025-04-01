@@ -309,7 +309,7 @@ scriptContent:
         	}
         	
         	public async performSubmitAction(step, submitActions, perform){
-        		if(submitActions[step["type"]] == null){
+        		if(perform || submitActions[step["type"]] == null){
                     submitActions[step["type"]] = []
                 }
         
@@ -350,6 +350,7 @@ scriptContent:
         			};
         			let args = {doc: [JSON.stringify(doc)], execute_Async: "false"};
         			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
+        			this.actions[step.name]["value"] = resp?.response;
         		}
         	}
         	
@@ -438,9 +439,10 @@ scriptContent:
         		let data = {};
         		let supportedCols = this.local.sourceValue[name].colDef.map(x => x.field);
         		for(let key in variables.selfVar){
-        			if(!(typeof variables.selfVar[key] == "string" || typeof variables.selfVar[key] == "number") && supportedCols.includes(key)){
-        				data[key] = variables.selfVar[key].value;
-        			}
+        			data[key] = variables.selfVar[key];
+        //			if(!(typeof variables.selfVar[key] == "string" || typeof variables.selfVar[key] == "number") && supportedCols.includes(key)){
+        //				data[key] = variables.selfVar[key];//.value;
+        //			}
         		}
         		this.local.sourceValue[name].data.push(data);
         		var gridInstance = this.getGridInstance(step.config.targetGrid);
@@ -2394,10 +2396,97 @@ scriptContent:
         						
         						
         						// preload function for grid
+        						let TextCellRenderer = function TextCellRenderer() { };
+        						TextCellRenderer.prototype.init = function(params) {
+        							try {
+        								debugger;
+        								this.eGui = document.createElement(''div'');
+        								let p = document.createElement(''p'');
+        								p.textContent = params?.value?.value ?? params.value;
+        								p.style.whiteSpace = "normal"
+        								this.eGui.appendChild(p);
+        							}
+        							catch (e) {
+        								this.eGui.innerHTML = "<p>ko<p>"
+        							}
+        						}
+        						TextCellRenderer.prototype.getGui = function() {
+        							return this.eGui;
+        						};
+        						TextCellRenderer.prototype.refresh = function(params) {
+        							debugger;
+        							this.eGui.innerHTML =  params?.value?.value ?? params.value ?? params;
+        							return true;
+        						}
+        						function TextCellEditor() {}
+        
+        						TextCellEditor.prototype.init = function(params) {
+        						    // Créer le conteneur et l''input
+        						    this.container = document.createElement(''div'');
+        						    this.input = document.createElement(''input'');
+        
+        						    // Vérifier que les éléments sont créés correctement
+        						    if (!this.container || !this.input) {
+        						        console.error("Erreur lors de la création des éléments de l''éditeur.");
+        						        return;
+        						    }
+        
+        						    // Définir la valeur de l''input
+        						    this.input.value = params.value?.value ?? params.value;
+        
+        						    // Ajouter l''input au conteneur
+        						    this.container.appendChild(this.input);
+        
+        						    // Focus sur l''input pour une meilleure expérience utilisateur
+        						    this.input.focus();
+        						    this.input.select();
+        							// Stocker l''objet original pour le mettre à jour plus tard
+        							this.originalObject = params.value;
+        						};
+        
+        						TextCellEditor.prototype.getGui = function() {
+        						    // Vérifier que le conteneur est défini
+        						    if (!this.container) {
+        						        console.error("Le conteneur de l''éditeur n''est pas défini.");
+        						    }
+        						    return this.container;
+        						};
+        
+        						TextCellEditor.prototype.afterGuiAttached = function() {
+        						    // Vérifier que l''input est défini avant de mettre le focus
+        						    if (this.input) {
+        						        this.input.focus();
+        						    } else {
+        						        console.error("L''input de l''éditeur n''est pas défini.");
+        						    }
+        						};
+        
+        						TextCellEditor.prototype.getValue = function() {
+        							// Mettre à jour uniquement la propriété ''value'' de l''objet original
+        						    if (this.originalObject && typeof this.originalObject === ''object'') {
+        						        return { ...this.originalObject, value: this.input.value };
+        						    }
+        						    return this.input.value;
+        						};
+        
+        						TextCellEditor.prototype.destroy = function() {
+        						    // Nettoyer les éléments créés
+        						    if (this.input) {
+        						        this.input.remove();
+        						    }
+        						    if (this.container) {
+        						        this.container.remove();
+        						    }
+        						};
+        						
         						let colDef = item.config.columns.map((x)=>{
         							return {
         								editable: true,
-        								field : x.name
+        								field : x.name,
+        								cellRenderer: TextCellRenderer,
+        								cellEditor: TextCellEditor
+        //								cellEditor: ''agTextCellEditor'',
+        //								valueFormatter: p => p?.value?.value ?? p.value ?? p
         							}
         						})
         						if (page.local.sourceValue[item.name] == undefined) {
@@ -3928,10 +4017,10 @@ scriptContent:
         	public fillActionsVars(list): void {
         		let page = this;
         		for (let elem of list) {
-        			if (elem["type"] == "business_logic") {
+        //			if (elem["type"] == "business_logic") {
         				page["actions"][elem["name"]] = { "name": elem["name"], "type": elem["type"], "value": "" };
         
-        			}
+        //			}
         		}
         	}
         
@@ -3948,10 +4037,24 @@ scriptContent:
         		for (let va in findVars) {
         			try {
         				if (typeof findVars[va] == ''string'') {
-        					const asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
-        						''page'',
-        						`return (async () => { return ${findVars[va]} })();`
-        					);
+        					let asyncFunction;
+        					try{
+        						asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
+        							''page'',
+        							`return (async () => { return ${findVars[va]} })();`
+        						);
+        					}
+        					catch(e){
+        						if(e.message == "Invalid left-hand side in assignment"){
+        							asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
+        								''page'',
+        								`return (async () => { return ${findVars[va].replace(/\?\./g, '''')} })();`
+        							);
+        						}
+        						else{
+        							throw e;
+        						}
+        					}
         					variables[va] = await asyncFunction(page);
         					if (variables[va] == undefined || variables[va] == "undefined") {
         						delete variables[va];
@@ -5100,6 +5203,17 @@ scriptContent:
         				return prefixPage + "actions[\"" + name + "\"]?.[\"" + this.getKeyByType(this.actions[key].type) + "\"]";;
         			}
         		}
+        		// iterrate over each key of flows object to find target comparing by key
+        		for(let flow of this.form.flows){
+        			for (let key of Object.keys(flow.elements)) {
+        				// if key equals name
+        				if (key == name) {
+        					// return path
+        					return prefixPage + "actions[\"" + name + "\"]?.[\"" + this.getKeyByType(this.actions[key].type) + "\"]";;
+        				}
+        			}
+        		}
+        		
         		// if we di not found object in formsubmit or acctions, it may be a description
         		for (var index = 0; index < this.form.formulaire.length; index++) {
         			if (this.form.formulaire[index].id === +id) {
