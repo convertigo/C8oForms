@@ -75,7 +75,7 @@
             
             let actionSheetController = page.getInstance(ActionSheetController)
             const actionSheet = await actionSheetController.create({
-                mode              : props.mode ? props.mode : undefined,
+                mode              : props.IonMode ? props.IonMode : undefined,
                 header            : props.header,
                 subHeader         : props.subHeader,
                 keyboardClose     : props.keyboardClose,

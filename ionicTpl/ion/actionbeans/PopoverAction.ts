@@ -28,7 +28,7 @@
         const openPopover = async (resolve) => {
             let popoverCtrl = page.getInstance(PopoverController)
             let pop = await popoverCtrl.create({
-                mode              : props.mode ? props.mode : undefined,
+                mode              : props.IonMode ? props.IonMode : undefined,
                 component         : props.component,
                 componentProps    : props.data,
                 keyboardClose     : props.keyboardClose,
