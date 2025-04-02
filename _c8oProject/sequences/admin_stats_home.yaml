@@ -3,6 +3,32 @@ authenticatedContextRequired: true
 comment: Displays the admin statistics home page, requires admin privileges.
 ↓checkAdminRights [steps.SimpleStep-1739869686375]: 
   expression: include("js/isAdmin.js");
+↓Call_Transaction3 [steps.TransactionStep-1743589215972]: 
+  sourceTransaction: C8Oforms.c8oforms_fs.GetView
+  ↓_use_ddoc [variables.StepVariable-1743589215975]: 
+    description: Design document name
+    value: stats
+  ↓_use_view [variables.StepVariable-1743589215978]: 
+    description: View function name
+    value: countGroupsByAccess
+  ↓_use_group [variables.StepVariable-1743589215981]: 
+    description: (boolean) – Group the results using the reduce function to a group or single row. Default is false
+    value: false
+  ↓_use_reduce [variables.StepVariable-1743589215984]: 
+    description: (boolean) – Use the reduction function. Default is true
+    value: false
+  ↓_use_group_level [variables.StepVariable-1743589215987]: 
+    description: (number) – Specify the group level to be used. Optional
+↓resultGroups [steps.JsonSourceStep-1743591449826]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1743589215972
+        - java.lang.String: 
+          - ↑value: ./document/couchdb_output
+  variableName: resultGroups
 ↓Call_Transaction [steps.TransactionStep-1739812981367]: 
   sourceTransaction: C8Oforms.c8oforms_fs.GetView
   ↓_use_ddoc [variables.StepVariable-1739812996960]: 
@@ -164,6 +190,60 @@ comment: Displays the admin statistics home page, requires admin privileges.
        	 		bottom: -80
       		}
     	}
+    };
+    
+    _temp = {};
+    responses["total_groups"] = resultGroups.total_rows;
+    // Transformer les clés `[editing_rights, admin, nocode_db_rights]` en string lisible
+    for (let i = 0; i < resultGroups.rows.length; i++) {
+        let keyString = resultGroups.rows[i].key.join("-"); // Ex: "true-false-true"
+        _temp[keyString] = resultGroups.rows[i].value;
+    }
+    
+    // Définition des labels (exemple, adapte selon tes besoins) / editing-admin-nocode
+    let labels = [
+        "true-false-true",
+    	"true-false-false",
+        "false-true-false",
+        "true-true-false",
+        "false-false-true",
+        "true-true-true",
+    	"false-true-true"
+    ];
+    
+    // Génération des séries avec fallback à 0 si la clé n''existe pas
+    const series = labels.map(label => _temp[label] ?? 0);
+    
+    labels = [
+        "editing_and_nocode_access",
+    	"only_editing_access",
+        "only_administrator",
+        "administrator_and_editing_access",
+        "only_nocode_access",
+        "administrator_and_editing_and_nocode_access",
+    	"administrator_and_nocode_access"
+    ];
+    
+    responses.chartGroupsOptions = {
+        series: series,
+        chart: {
+            type: "donut",
+            width: "100%",
+            height: "160px"
+        },
+        labels: labels,
+        plotOptions: {
+            pie: {
+                startAngle: -90,
+                endAngle: 90,
+                offsetY: 10
+            }
+        },
+        grid: {
+            padding: {
+                bottom: -80
+            }
+        }
     };'
 ↓jIterator [steps.SimpleIteratorStep-1739813369420]: 
   expression: Object.keys(responses)
@@ -195,3 +275,4 @@ comment: Displays the admin statistics home page, requires admin privileges.
       - SmartType: 
         - ↑mode: PLAIN
         - →→: responses
+↓testGroupsView [core.TestCase]: 
