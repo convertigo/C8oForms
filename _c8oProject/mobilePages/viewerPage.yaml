@@ -277,25 +277,44 @@ scriptContent:
         /*Begin_c8o_PageFunction*/
         	public findSameSourceInBaserow(step){
         		// find target table
-        		let currentTableId = null;
+        		let currentTableIds = [];
         		for(let key_source in step.actions){
         			if(step.actions?.[key_source]?.vars?.forms_config?.str){
         				var actionConfig = JSON.parse(step.actions?.[key_source]?.vars?.forms_config?.str);
-        				currentTableId = actionConfig?.table_id_int ?? null;
+        				//currentTableId = actionConfig?.table_id_int ?? null;
+        				if(actionConfig?.table_id_int != null && !currentTableIds.includes(actionConfig?.table_id_int)){
+        					currentTableIds.push(actionConfig?.table_id_int);
+        				}
+        				if(actionConfig?.link_row_table_id != null && actionConfig?.link_row_table_id?.length > 0){
+        					for(let link of actionConfig?.link_row_table_id){
+        						if(!currentTableIds.includes(link)){
+        							currentTableIds.push(actionConfig?.table_id_int);
+        						}
+        					}
+        				}
         			}
         		}
         		// find source tables 
-        		if(currentTableId){
+        		if(currentTableIds?.length > 0){
         			for(var key_form in this.form["formulaire"]){
         				var elem =  this.form["formulaire"][key_form];
         				if(elem.sources){
         					for(let key_source in elem.sources){
         						if(elem?.sources?.[key_source]?.vars?.forms_config?.str){
         							var sourceConfig = JSON.parse(elem?.sources?.[key_source]?.vars?.forms_config?.str);
-        							if(sourceConfig?.table_id_int == currentTableId){
+        							if(currentTableIds.includes(sourceConfig?.table_id_int)){
         								//Refresh table
-        							    let sources: any = this.searchForSources(elem, "sources", true);
-        							    this.functionsById[sources.sha+elem.id ]();
+        								let sources: any = this.searchForSources(elem, "sources", true);
+        								this.functionsById[sources.sha+elem.id ]();
+        							}
+        							else if(sourceConfig?.link_row_table_id != null && sourceConfig?.link_row_table_id?.length > 0){
+        								for(let link of sourceConfig?.link_row_table_id){
+        									if(currentTableIds.includes(link)){
+        										//Refresh table
+        										let sources: any = this.searchForSources(elem, "sources", true);
+        										this.functionsById[sources.sha+elem.id ]();
+        									}
+        								}
         							}
         						}
         					}
