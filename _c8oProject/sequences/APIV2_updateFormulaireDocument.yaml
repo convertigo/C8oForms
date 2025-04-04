@@ -40,6 +40,9 @@ accessibility: Hidden
     		if (meta.actions == undefined) {
     			meta.actions = [];
     		}
+    		if (meta.flows == undefined) {
+    			meta.flows = [];
+    		}
     	}
     	else {
     		doc = { error: "unauthorized" };
@@ -52,6 +55,51 @@ accessibility: Hidden
     		new_doc = true;
     		let random = "assets/images/svg/imgplaceholder/placeholder" + (Math.floor(Math.random() * Math.floor(3))) + ".svg";
     		meta["_id"] = "" + new Date().getTime();
+    		//migrate source form id if from import
+    		try{
+    			if(meta["fromImport"] == true){
+    				for(var key_form in meta["formulaire"]){
+    					var elem =  meta["formulaire"][key_form];
+    					if(elem.sources){
+    						for(let key_source in elem.sources){
+    							if(elem.sources[key_source].vars && elem.sources[key_source].vars.forms_config && elem.sources[key_source].vars.forms_config.str){
+    								var sourceConfig = JSON.parse(elem.sources[key_source].vars.forms_config.str);
+    								sourceConfig.form_id = meta["_id"];
+    								meta["formulaire"][key_form].sources[key_source].vars.forms_config.str = JSON.stringify(sourceConfig);
+    							}
+    						}
+    					}
+    				}
+    				if(meta["flows"]){
+    					for(var key_flow in meta["flows"]){
+    						for(var key_flow_elem in meta["flows"][key_flow].elements){
+    							var elem =  meta["flows"][key_flow].elements[key_flow_elem];
+    							if(elem.sources){
+    								for(let key_source in elem.sources){
+    									if(elem.sources[key_source].vars && elem.sources[key_source].vars.forms_config && elem.sources[key_source].vars.forms_config.str){
+    										var sourceConfig = JSON.parse(elem.sources[key_source].vars.forms_config.str);
+    										sourceConfig.form_id = meta["_id"];
+    										meta["flows"][key_flow].elements[key_flow_elem].sources[key_source].vars.forms_config.str = JSON.stringify(sourceConfig);
+    									}
+    								}
+    							}
+    							if(elem.actions){
+    								for(let key_action in elem.actions){
+    									if(elem.actions[key_action].vars && elem.actions[key_action].vars.forms_config && elem.actions[key_action].vars.forms_config.str){
+    										var sourceConfig = JSON.parse(elem.actions[key_action].vars.forms_config.str);
+    										sourceConfig.form_id = meta["_id"];
+    										meta["flows"][key_flow].elements[key_flow_elem].actions[key_action].vars.forms_config.str = JSON.stringify(sourceConfig);
+    									}
+    								}
+    							}
+    						}
+    					}
+    				}
+    			}
+    		}
+    		catch(e){
+    			
+    		}
     		meta["loopToForm"] = meta["loopToForm"] != null ? meta["loopToForm"] : true;
     		meta["progressIndicator"] = meta["progressIndicator"] != null ? meta["progressIndicator"] : false;
     		meta["formulaire"] = meta["formulaire"] != null ? meta["formulaire"] : [];
@@ -61,11 +109,11 @@ accessibility: Hidden
     		meta["namePosition"] = meta["namePosition"] != null ? meta["namePosition"] : "text-center";
     		meta["descformPosition"] = meta["descformPosition"] != null ? meta["descformPosition"] : "text-left";
     		meta["pages"] = meta["pages"] != null ? meta["pages"] : [{ name: "Page 1", pageTechName: "Page" + new Date().getTime(), positionTab: "bottom", enabledTab: false, included: true, enabledButtons: true, positionButtons: "tab", iconName: "book-outline" }];
-    		meta["actions"] = meta["actions"] != null ? meta["actions"] : [];
     		meta["creationDate"] = "" + new Date().getTime();
     		meta["creator"] = authenticatedUserID;
     		meta["~c8oAcl"] = authenticatedUserID;
-    		meta["technicalVersion"] = meta["fromImport"] == true ? meta["technicalVersion"] : "1.0.10";
+    		meta["flows"] = meta["flows"] != null ?  meta["flows"] : [{"id": "formulas", "elements": []}, {"id": "submit", elements: []}];
+    		meta["technicalVersion"] = meta["fromImport"] == true ? meta["technicalVersion"] : "1.0.11";
     		meta["c8o_view_type_drafts_form"] = true;
     		meta["config"] = meta["config"] != null ? meta["config"] : {
     			desktop: {
@@ -152,7 +200,7 @@ accessibility: Hidden
     	if (meta["pages"]) {
     		mergeRules.put(java.util.Arrays.asList(new java.lang.String("pages")), new java.lang.String("override"));
     	}
-    	if (meta["actions"]) {
+    	if (meta["actions"] || meta["actions"] === null) {
     		mergeRules.put(java.util.Arrays.asList(new java.lang.String("actions")), new java.lang.String("override"));
     	}
     	if (meta["tag"]) {
@@ -162,8 +210,11 @@ accessibility: Hidden
     		mergeRules.put(java.util.Arrays.asList(new java.lang.String("subTag")), new java.lang.String("override"));
     	}
     	if (meta["config"]) {
-    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("config")), new java.lang.String("override"));
-    		}
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("config")), new java.lang.String("override"));
+    	}
+    	if (meta["flows"]) {
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("flows")), new java.lang.String("override"));
+    	}
     	// post doc 
     	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(meta), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
     

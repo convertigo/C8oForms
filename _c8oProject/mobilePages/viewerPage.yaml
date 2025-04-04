@@ -36,10 +36,11 @@ scriptContent:
         }
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
+        	public alertController: AlertController;
         	public fromViewer = true;
         	public formsList: Array<object> = [];
         	public formsSubmit = {};
-        	public actions = {};
+        	public actions: any = {};
         	public link;
         	public enabled = false;
         	public results = {};
@@ -62,6 +63,7 @@ scriptContent:
         	public functionsExecById = {};
         	public shaById = {};
         	public page = this;
+        	public toastController: any;
         	breakpoints = {
         		xl: ''(min-width: 1200px)'',
         		lg: ''(min-width: 992px) and (max-width: 1199px)'',
@@ -127,11 +129,9 @@ scriptContent:
         			}
         		}
         	};
-        	//public imageCompression = require("browser-image-compression");
-        
-        
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.alertController = this.getInstance(AlertController);
         		this.local.htmlValue = {};
         		this.local.strCacheComputeHtml = {};
         		this.local.techSelect = {};
@@ -272,8 +272,434 @@ scriptContent:
         			}
         		}
         		window.addEventListener(''resize'', this.local.funcListener);
+        		this.toastController = this.getInstance(ToastController);
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	public findSameSourceInBaserow(step){
+        		// find target table
+        		let currentTableIds = [];
+        		for(let key_source in step.actions){
+        			if(step.actions?.[key_source]?.vars?.forms_config?.str){
+        				var actionConfig = JSON.parse(step.actions?.[key_source]?.vars?.forms_config?.str);
+        				//currentTableId = actionConfig?.table_id_int ?? null;
+        				if(actionConfig?.table_id_int != null && !currentTableIds.includes(actionConfig?.table_id_int)){
+        					currentTableIds.push(actionConfig?.table_id_int);
+        				}
+        				if(actionConfig?.link_row_table_id != null && actionConfig?.link_row_table_id?.length > 0){
+        					for(let link of actionConfig?.link_row_table_id){
+        						if(!currentTableIds.includes(link)){
+        							currentTableIds.push(actionConfig?.table_id_int);
+        						}
+        					}
+        				}
+        			}
+        		}
+        		// find source tables 
+        		if(currentTableIds?.length > 0){
+        			for(var key_form in this.form["formulaire"]){
+        				var elem =  this.form["formulaire"][key_form];
+        				if(elem.sources){
+        					for(let key_source in elem.sources){
+        						if(elem?.sources?.[key_source]?.vars?.forms_config?.str){
+        							var sourceConfig = JSON.parse(elem?.sources?.[key_source]?.vars?.forms_config?.str);
+        							if(currentTableIds.includes(sourceConfig?.table_id_int)){
+        								//Refresh table
+        								let sources: any = this.searchForSources(elem, "sources", true);
+        								this.functionsById[sources.sha+elem.id ]();
+        							}
+        							else if(sourceConfig?.link_row_table_id != null && sourceConfig?.link_row_table_id?.length > 0){
+        								for(let link of sourceConfig?.link_row_table_id){
+        									if(currentTableIds.includes(link)){
+        										//Refresh table
+        										let sources: any = this.searchForSources(elem, "sources", true);
+        										this.functionsById[sources.sha+elem.id ]();
+        									}
+        								}
+        							}
+        						}
+        					}
+        				}
+        			}
+        		}
+        	}
+        	public async showConfirmationAlert(header: string, message: string, cancelLabel: string, confirmLabel: string, cssClass: string, btClass, confirmRed: boolean = true, cancelRed: boolean = false): Promise<boolean> {
+        		const alert = await this.alertController.create({
+        			header: header,
+        			message: message,
+        			backdropDismiss: false,
+        			cssClass: cssClass,
+        			buttons: [
+        				{
+        					cssClass: cancelRed ? "button-danger" : btClass,
+        					text: cancelLabel,
+        					role: ''cancel'',
+        					handler: () => {
+        						return false;
+        					}
+        				},
+        				{
+        					cssClass: confirmRed ? "button-danger" : btClass,
+        					text: confirmLabel,
+        					handler: () => {
+        						return true;
+        					}
+        				}
+        			]
+        		});
+        
+        		await alert.present();
+        		return new Promise((resolve) => {
+        			alert.onDidDismiss().then((data) => {
+        				resolve(!(data.role == ''cancel''));
+        			});
+        		});
+        	}
+        	
+        	public async performSubmitAction(step, submitActions, perform){
+        		if(perform || submitActions[step["type"]] == null){
+                    submitActions[step["type"]] = []
+                }
+        
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "actions", false);
+        		var findVars = sources.findVars;
+        		let do_not_touchVars = {};
+        		for(let i in findVars){
+        			if(findVars[i].from_attachment != undefined && findVars[i].from_attachment){
+        				do_not_touchVars[i] = findVars[i];
+        				delete findVars[i];
+        			}
+        		}
+        		await this.computeVariable(findVars, variables, step);
+        		variables = Object.assign(variables, do_not_touchVars);
+        		let currentAction = JSON.parse(JSON.stringify(step));
+                for(let action in currentAction.actions){
+                    if(action == sources.findName){
+        				 currentAction.actions[action].vars = variables;
+        			}
+        			else{
+        				delete currentAction.actions[action];
+        			}
+                }
+        		submitActions[step["type"]].push(currentAction);
+        		if(perform){
+        			let doc = {item: 
+        				{
+        					"_id": this.form._id,
+        					"_rev": new Date().getTime(),
+        					resp: this.formsSubmit,
+        					formId: this.local.formId,
+        					timestamp: new Date().getTime(),
+        					version: this.form?.version != undefined ? this.form?.version : ''test'',
+        					actions: submitActions,
+        					finished: true
+        				}
+        			};
+        			let args = {doc: [JSON.stringify(doc)], execute_Async: "false"};
+        			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
+        			this.actions[step.name]["value"] = resp?.response;
+        			try{
+        				this.findSameSourceInBaserow(step);
+        			}
+        			catch(e){
+        				console.error("eee", e);
+        			}
+        		}
+        	}
+        	
+        	public computeClassDynamically(step){
+        		let contrastColor = this.getContrastColor(step.config.color);
+        		let className = "DynamicClassToast-" + step.id;
+        		let styles = `
+        		    text-align: center !important;
+        		    --border-radius: 5px !important;
+        		    --background: ${step.config.color};
+        		    --color: ${contrastColor};
+        		`;
+        		let buttonStyles = `
+        		    .${className}::part(button) {
+        		        color: ${contrastColor};
+        		    }
+        		`;
+        
+        		const styleSheet = document.styleSheets[0];
+        		styleSheet.insertRule(`.${className} { ${styles} }`, styleSheet.cssRules.length);
+        		styleSheet.insertRule(buttonStyles, styleSheet.cssRules.length);
+        		return className;
+        	}
+        	
+        	public async performToastAction(step){
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "sources", true);
+        		var findVars = sources.findVars;
+        		await this.computeVariable(findVars, variables, step);
+        		let className = this.computeClassDynamically(step);
+        		await this.presentToast(variables.selfVar, className, step.config.position, step.config.duration * 1000, step.config.closeBtn);
+        	}
+        	
+        	public async performPushPageAction(step){
+        		let target = step.config.targetPage;
+        		let targetIndex = null;
+        		this.form.pages.forEach((p, index)=>{
+        			if(p.pageTechName == target){
+        				targetIndex = index;
+        			}
+        		})
+        		if(targetIndex != null){
+        			this.local["currentIndex"] = targetIndex;
+        		    this.myContent1.scrollToTop();
+        		    let i = this.navParams.get("i") != undefined ? this.navParams.get("i") : ":i";
+        			let edit = this.navParams.get("edit") != undefined ? this.navParams.get("edit") : ":edit";
+        			let formId = this.navParams.get("formId") != undefined ? this.navParams.get("formId") : ":formId";
+        			history.pushState({page: this.local["currentIndex"], formId: formId, edit: edit, i: i}, "", window.location.pathname.substring(0,window.location.pathname.indexOf("viewer")) + "viewer/" + formId + "/" + edit + "/" + i);
+        			this.moveFocus();
+        			this.setTitleRGAA();
+        		}
+        	}
+        	
+        	public async performPushAppAction(step, executeSubmit){
+        		let target = step.config.targetApp?._id;
+        		if(target){
+        			if(step.config.give_resp && executeSubmit){
+        				await this.actionBeans.STS1576328658272(this, {}, {indexPage: this.local.currentIndex, pages: this.local.pages, doAll: true, performCheckMandatory: false}, event);
+        			}
+        			// pwa mode
+        			if(window.location.href.indexOf("DisplayObjects/pwas/") != -1){
+        				let pathName = window.location.pathname.split(''/'');
+        				pathName[6] = target;
+        				pathName[8] = target;
+        				pathName[9] = step.config.give_resp ? this.local.myId : ":edit";
+        				window.open(window.location.origin + pathName.join("/"));
+        			}
+        			else{
+        				let pathName = window.location.pathname.split(''/'');
+        				pathName[2] = target;
+        				pathName[3] = step.config.give_resp ? this.local.myId : ":edit";
+        				window.open(window.location.origin + pathName.join("/"));
+        			}
+        		}
+        	}
+        	
+        	public async performAddRowToLocalGrid(step){
+        		this.showGridOverlayById(step.config.targetGrid);
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "sources", true, false, true);
+        		var findVars = sources.findVars;
+        		await this.computeVariable(findVars, variables, step);
+        		//variables.selfVar
+        		var name: any = this.getItemById(step.config.targetGrid);
+        		name = name.name;
+        		let data = {};
+        		let supportedCols = this.local.sourceValue[name].colDef.map(x => x.field);
+        		for(let key in variables.selfVar){
+        			data[key] = variables.selfVar[key];
+        		}
+        		this.local.sourceValue[name].data.push(data);
+        		var gridInstance = this.getGridInstance(step.config.targetGrid);
+        		if(gridInstance){
+        			gridInstance.api.setGridOption("rowData", this.local.sourceValue[name].data);
+        		}
+        		setTimeout(()=>{
+        			this.hideGridOverlayById(step.config.targetGrid);
+        			this.ref.detectChanges();
+        		})
+        		
+        		
+        	}
+        	
+        	public async performRemoveRowFromLocalGrid(step){
+        		this.showGridOverlayById(step.config.targetGrid);
+        		var name: any = this.getItemById(step.config.targetGrid);
+        		name = name.name;
+        		
+        		//this.local.sourceValue[name].data.push(data);
+        		var gridInstance = this.getGridInstance(step.config.targetGrid);
+        		if(gridInstance){
+        			if(step.config.action == "all_the_data"){
+        				this.local.sourceValue[name].data = [];
+        				gridInstance.api.setGridOption("rowData", this.local.sourceValue[name].data);
+        			}
+        			else{
+        				let selectedRow = gridInstance.api.getSelectedNodes();
+        				let index = gridInstance.api.getSelectedNodes()[0].rowIndex;
+        				this.local.sourceValue[name].data.splice(index, 1);
+        				gridInstance.api.setGridOption("rowData", this.local.sourceValue[name].data);
+        			}
+        			
+        		}
+        		setTimeout(()=>{
+        			this.hideGridOverlayById(step.config.targetGrid);
+        			this.ref.detectChanges();
+        		});
+        	}
+        	
+        	public async performBusinessLogic(step){
+        		this.fillActionsVars([step]);
+        		await this.fillActions([step], false);
+        	}
+        	
+        	public async performForLoop(step, submitActions, executeSubmit){
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "sources", true, false, true);
+        		var findVars = sources.findVars;
+        		await this.computeVariable(findVars, variables, step);
+        		if(variables.selfVar != undefined && Array.isArray(variables.selfVar)){
+        			let cpt = 0;
+        			for(let elem of variables.selfVar){
+        				window["api"].currentFor.index = cpt;
+        				window["api"].currentFor.element = elem;
+        				for(let ref of step.childrenRefs){
+        					let child = this.getItemById(ref);
+        					await this.executeStep(child, submitActions, executeSubmit);
+        				}
+        				cpt++;
+        			}
+        			window["api"].currentFor.index = null;
+        			window["api"].currentFor.element = null;
+        		}
+        	}
+        	
+        	public async performForIfElse(step, submitActions, executeSubmit){
+        		var variables: any = {};
+        		if(step.sources.self.vars.selfVar.type == "condition"){
+        			let jsString: string = "";
+        			jsString = this.detectSubjectAndComplete(step.sources.self.vars.selfVar.cond, step.sources.self.vars.selfVar.condVisible);
+        			try{
+        				variables.selfVar = eval(jsString);
+        			}
+        			catch(e){
+        				variables.selfVar = false;
+        			}
+        		}
+        		else{
+        			var variables: any = {};
+        			var sources: any = this.searchForSources(step, "sources", true, false, true);
+        			var findVars = sources.findVars;
+        			await this.computeVariable(findVars, variables, step);
+        		}
+        		if(variables.selfVar == true){
+        			for(let ref of step.childrenRefs){
+        				let child = this.getItemById(ref);
+        				await this.executeStep(child, submitActions, executeSubmit);
+        			}
+        		}
+        		else{
+        			for(let ref of step.childrenRefsElse){
+        				let child = this.getItemById(ref);
+        				await this.executeStep(child, submitActions, executeSubmit);
+        			}
+        		}
+        	}
+        	
+        	public async performRefreshGrid(step){
+        		this.showGridOverlayById(step.config.targetGrid);
+        		let target = this.form.formulaire.find(e=> +e.id == +step.config.targetGrid);
+        		if(target.config.sourceEnabled == true || target.config.sourceEnabled == undefined){
+        			let sources: any = this.searchForSources(target, "sources", true);
+        			this.functionsById[sources.sha+target.id ]();
+        		}
+        		setTimeout(()=>{
+        			this.hideGridOverlayById(step.config.targetGrid);
+        			this.ref.detectChanges();
+        		});
+        	}
+        	
+        	public async executeStep(step, submitActions, executeSubmit){
+        		switch(step.type){
+        			case "business_logic": 
+        				await await this.performBusinessLogic(step);						
+        			break;
+        			case "submit":
+        				await this.performSubmitAction(step, submitActions, executeSubmit);						
+        			break;
+        			case "toast":
+        				await this.performToastAction(step);
+        			break;
+        			case "push_page":
+        				await this.performPushPageAction(step);
+        			break;
+        			case "push_app":
+        				await this.performPushAppAction(step, executeSubmit);
+        			break;
+        			case "add_row_to_local_grid":
+        				await this.performAddRowToLocalGrid(step);
+        			break;
+        			case "remove_row_from_local_grid":
+        				await this.performRemoveRowFromLocalGrid(step);
+        			break;
+        			case "for_loop":
+        				await this.performForLoop(step, submitActions, executeSubmit);
+        			break;
+        			case "if_else":
+        				await this.performForIfElse(step, submitActions, executeSubmit);
+        			break;
+        			case "refresh_grid":
+        				await this.performRefreshGrid(step);
+        			break;
+        		}
+        	}
+        	
+        	public async executeFlow(item, executeSubmit = true){
+        		try {
+        			let flowId = item.flow;
+        			let currentFlow = this.form.flows.find(f=> f.id == flowId);
+        			currentFlow = currentFlow.elements;
+        			// first execute BL
+        			this.fillActionsVars(currentFlow);
+        			//await this.fillActions(currentFlow, false);
+        			let submitActions = {};
+        			// Then execute each action in order
+        			for (let step of currentFlow){
+        				// execute current step.
+        				if(step.parentRef == undefined){
+        					await this.executeStep(step, submitActions, executeSubmit);
+        				}
+        				
+        			}
+        			return submitActions;
+        			
+        		} catch (e) {
+        			console.error("an error occued while executing flow", e);
+        		}
+        	}
+        	
+        	async presentToast(message: string, cssClass: string = '''', position = "bottom", duration= 3000, closeBtn = false){
+        		let opts: any = {
+        			message: message,
+        			duration: duration,
+        			position: position,
+        			cssClass: cssClass
+        		}
+        		if(closeBtn){
+        			opts.buttons = [
+        				{
+        		          side: ''end'',
+        		          icon: ''close'',
+        		          text: this.translate.instant("close"),
+        		          handler: () => {
+        		            toast.dismiss();
+        		          }
+        		        }
+        			]
+        		}
+        		const toast = await this.toastController.create(opts);
+        		await toast.present();
+        	}
+        	public getContrastColor(hexColor) {
+        	    // Supprimer le ''#'' si présent
+        	    hexColor = hexColor.replace(''#'', '''');
+        
+        	    // Convertir les valeurs hex en RGB
+        	    const r = parseInt(hexColor.substring(0, 2), 16) / 255;
+        	    const g = parseInt(hexColor.substring(2, 4), 16) / 255;
+        	    const b = parseInt(hexColor.substring(4, 6), 16) / 255;
+        
+        	    // Calculer la luminance relative
+        	    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        
+        	    // Retourner blanc ou noir en fonction de la luminance
+        	    return luminance > 0.5 ? ''#000000'' : ''#FFFFFF'';
+        	}
         
         	getBreakpoint(): string {
         		if (window.matchMedia(this.breakpoints.xl).matches) return ''desktop'';
@@ -553,6 +979,19 @@ scriptContent:
         			this.c8o.log.error("an error occured while trying to hide an overlay for grid:" + id);
         		}
         	}
+        	
+        	public getGridInstance(id) {
+        			try {
+        				for (let grid of this["all_comp1608286885281"][''_results'']) {
+        					if (grid.myGrid.agGrid._nativeElement.id == id + "") {
+        						return grid.myGrid.agGrid;
+        					}
+        				}
+        			}
+        			catch (e) {
+        				this.c8o.log.error("an error occured while trying to hide an overlay for grid:" + id);
+        			}
+        		}
         
         	/**
         	 * this function is responsible to fill the variable "formSubmit" that will hold responses with the adequate structure
@@ -726,7 +1165,7 @@ scriptContent:
         	 * this function is responsible to handle actions from the form. It will compute them
         	 * @param list An array containing all elements that defines the actions usally comming from form.actions
         	 */
-        	public async fillActions(list): Promise<any> {
+        	public async fillActions(list, fillFunctionId = true): Promise<any> {
         		let page = this;
         		try {
         			for (let item of list) {
@@ -771,7 +1210,9 @@ scriptContent:
         						}
         					}
         					await this.functionsById[sha]();
-        					this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        					if(fillFunctionId){
+        						this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
+        					}
         				}
         			}
         		}
@@ -1080,7 +1521,7 @@ scriptContent:
         						idsToCall = idsToCall.concat(interIDs);
         					}
         					// only watch for enabled grid or select sources
-        					else if ((item["config"]["sourceEnabled"] && ["select", "checkbox", "radio"].includes(item["type"])) || (item.sources && ["grid", "chart", "checkbox_group", "radio_group"].includes(item["type"])) || (item["type"] == "map" ) ) {
+        					else if ((item["config"]["sourceEnabled"] && ["select", "checkbox", "radio"].includes(item["type"])) || (item.sources && ["chart", "checkbox_group", "radio_group"].includes(item["type"])) || (item["type"] == "map")  || (item["type"] == "grid" && item["config"]["sourceEnabled"] == undefined || item["config"]["sourceEnabled"] === true) ) {
         						let arraySearch = [];
         						let arrayVars = [];
         						if(item.type == "map"){
@@ -2056,6 +2497,274 @@ scriptContent:
         							}
         						}
         					}
+        					else if(item.type == "grid" && item["config"]["sourceEnabled"] === false){
+        						
+        						
+        						
+        						// preload function for grid
+        						let TextCellRenderer = function TextCellRenderer() { };
+        						TextCellRenderer.prototype.init = function(params) {
+        							try {
+        								debugger;
+        								this.eGui = document.createElement(''div'');
+        								let p = document.createElement(''p'');
+        								p.textContent = params?.value?.value ?? params.value;
+        								p.style.whiteSpace = "normal"
+        								this.eGui.appendChild(p);
+        							}
+        							catch (e) {
+        								this.eGui.innerHTML = "<p>ko<p>"
+        							}
+        						}
+        						TextCellRenderer.prototype.getGui = function() {
+        							return this.eGui;
+        						};
+        						TextCellRenderer.prototype.refresh = function(params) {
+        							debugger;
+        							this.eGui.innerHTML =  params?.value?.value ?? params.value ?? params;
+        							return true;
+        						}
+        						function TextCellEditor() {}
+        
+        						TextCellEditor.prototype.init = function(params) {
+        						    // Créer le conteneur et l''input
+        						    this.container = document.createElement(''div'');
+        						    this.input = document.createElement(''input'');
+        
+        						    // Vérifier que les éléments sont créés correctement
+        						    if (!this.container || !this.input) {
+        						        console.error("Erreur lors de la création des éléments de l''éditeur.");
+        						        return;
+        						    }
+        
+        						    // Définir la valeur de l''input
+        						    this.input.value = params.value?.value ?? params.value ?? "";
+        
+        						    // Ajouter l''input au conteneur
+        						    this.container.appendChild(this.input);
+        
+        						    // Focus sur l''input pour une meilleure expérience utilisateur
+        						    this.input.focus();
+        						    this.input.select();
+        							// Stocker l''objet original pour le mettre à jour plus tard
+        							this.originalObject = params.value;
+        						};
+        
+        						TextCellEditor.prototype.getGui = function() {
+        						    // Vérifier que le conteneur est défini
+        						    if (!this.container) {
+        						        console.error("Le conteneur de l''éditeur n''est pas défini.");
+        						    }
+        						    return this.container;
+        						};
+        
+        						TextCellEditor.prototype.afterGuiAttached = function() {
+        						    // Vérifier que l''input est défini avant de mettre le focus
+        						    if (this.input) {
+        						        this.input.focus();
+        						    } else {
+        						        console.error("L''input de l''éditeur n''est pas défini.");
+        						    }
+        						};
+        
+        						TextCellEditor.prototype.getValue = function() {
+        							// Mettre à jour uniquement la propriété ''value'' de l''objet original
+        						    if (this.originalObject && typeof this.originalObject === ''object'') {
+        						        return { ...this.originalObject, value: this.input.value };
+        						    }
+        						    return this.input.value;
+        						};
+        
+        						TextCellEditor.prototype.destroy = function() {
+        						    // Nettoyer les éléments créés
+        						    if (this.input) {
+        						        this.input.remove();
+        						    }
+        						    if (this.container) {
+        						        this.container.remove();
+        						    }
+        						};
+        						
+        						let colDef = item.config.columns.map((x)=>{
+        							return {
+        								editable: true,
+        								field : x.name,
+        								cellRenderer: TextCellRenderer,
+        								cellEditor: TextCellEditor
+        //								cellEditor: ''agTextCellEditor'',
+        //								valueFormatter: p => p?.value?.value ?? p.value ?? p
+        							}
+        						})
+        						if (page.local.sourceValue[item.name] == undefined) {
+        							page.local.sourceValue[item.name] = { colDef: colDef, data: [] };
+        						}
+        						if (item.config.returned_value === "all_the_data") {
+        							formSubmit[item.name]["value"] =[];
+        						}
+        						page.local.updating[item.id] = 1;
+        //						
+        //						
+        //						
+        //						// postload function for grid
+        //						postFunc = (res) => {
+        //							// find Colomn definitions
+        //							let checkboxDone = item.config.returned_value != "multiple_row_selected" ? true : false;
+        //							if (res.data != undefined && res.data.length > 0) {
+        //								let colDef =
+        //									Object.keys(res.data[0]).map((y) => {
+        //										let current = res.data[0];
+        //										let obj = { "editable": false };
+        //										if (y != "__rowValue" && !(res.data[0][y]["hidden"] == true)) {
+        //											// if cell is a simple string
+        //											if(!checkboxDone && item.config.returned_value == "multiple_row_selected"){
+        //												obj["checkboxSelection"] = true;
+        //												checkboxDone = true;
+        //											}
+        //											if (typeof (res.data[0][y]) === "string") {
+        //												obj["field"] = y;
+        //												return obj;
+        //											}
+        //											// if it''s a more complex object
+        //											else {
+        //												// if cell has a specified name then take it
+        //												if (current[y].displayName != undefined) {
+        //													obj["field"] = current[y].displayName;
+        //												}
+        //												// else take key name
+        //												else {
+        //													obj["field"] = y;
+        //												}
+        //												// if cell has an html type 
+        //												if (current[y].type == "html") {
+        //													// create a cell renderer to have innerHTML
+        //													let HTMLCellRenderer = function HTMLCellRenderer() { };
+        //													HTMLCellRenderer.prototype.init = function(params) {
+        //														try {
+        //															this.eGui = document.createElement(''div'');
+        //															// if displayValue field exists display it, if not display field value																		
+        //															this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        //														}
+        //														catch (e) {
+        //															this.eGui.innerHTML = "<p>ko<p>"
+        //														}
+        //													}
+        //													HTMLCellRenderer.prototype.getGui = function() {
+        //														return this.eGui;
+        //													};
+        //													HTMLCellRenderer.prototype.refresh = function(params) {
+        //														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        //														return true;
+        //													}
+        //													obj["cellRenderer"] = HTMLCellRenderer;
+        //												}
+        //												// if cell has a text type or no type
+        //												else {
+        //													let TextCellRenderer = function TextCellRenderer() { };
+        //													TextCellRenderer.prototype.init = function(params) {
+        //														try {
+        //															this.eGui = document.createElement(''div'');
+        //															let p = document.createElement(''p'');
+        //															p.textContent = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        //															p.style.whiteSpace = "normal"
+        //															this.eGui.appendChild(p);
+        //															// if displayValue field exists display it, if not display field value																		
+        //															//this.eGui.innerHTML = params.value.displayValue != undefined ? params.value.displayValue : params.value.value;
+        //														}
+        //														catch (e) {
+        //															this.eGui.innerHTML = "<p>ko<p>"
+        //														}
+        //													}
+        //													TextCellRenderer.prototype.getGui = function() {
+        //														return this.eGui;
+        //													};
+        //													TextCellRenderer.prototype.refresh = function(params) {
+        //														this.eGui.innerHTML = params.valueFormatted ? params.valueFormatted : params.value;
+        //														return true;
+        //													}
+        //													obj["cellRenderer"] = TextCellRenderer;
+        //												}
+        //												// define default sorting field
+        //												let sortingField = "displayValue";
+        //												if (current[y].sortingField == "displayValue" || current[y].sortingField == "" || current[y].sortingField == undefined) {
+        //													sortingField = "displayValue";
+        //												}
+        //												else {
+        //													sortingField = current[y].sortingField;
+        //												}
+        //												if (current[y].sortingType == "text" || current[y].sortingType == "string" || current[y].sortingType == "default" || current[y].sortingType == "" || current[y].sortingType == undefined) {
+        //													obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => ("" + (valueA[sortingField])).localeCompare("" + (valueB[sortingField]))
+        //												}
+        //												else if (current[y].sortingType == "number") {
+        //													obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => (+valueA[sortingField]) - (+valueB[sortingField])
+        //												}
+        //												return obj;
+        //											}
+        //										}
+        //										// hide __rowValue
+        //										else {
+        //											obj["hide"] = true;
+        //											obj["field"] = y;
+        //											return obj;
+        //										}
+        //									});
+        //								// foreach row
+        //								let data = res.data.map((x) => {
+        //									var row = { ...x };
+        //									// foreach col
+        //									Object.keys(row).forEach((col) => {
+        //										// if col is not a simple string
+        //										if (typeof (row[col]) === "object") {
+        //											// if there is a displayColName
+        //											if (row[col].displayName != undefined) {
+        //												// rename the col name
+        //												row[row[col].displayName] = row[col];
+        //												// save the technical name
+        //												row[row[col].displayName].technicalName = col;
+        //												// delete the usless col if name is diffrent from displayName see #625;
+        //												if (col != row[col].displayName) {
+        //													delete row[col];
+        //												}
+        //											}
+        //											else {
+        //												// save the technical name (same as its name)
+        //												row[col].technicalName = col;
+        //											}
+        //										}
+        //									});
+        //									return row;
+        //								})
+        //								page.local.updating[item.id] = 1;
+        //								setTimeout(() => {
+        //									this.hideGridOverlayById(item.id);
+        //								})
+        //								page.local.sourceValue[item.name]["colDef"] = colDef;
+        //								page.local.sourceValue[item.name]["data"] = data;
+        //								// in case of user wants all data to be returned to response
+        //								if (item.config.returned_value === "all_the_data") {
+        //									formSubmit[item.name]["value"] = res.data;
+        //								}
+        //								page.ref.detectChanges();
+        //							}
+        //							else {
+        //								page.local.updating[item.id] = 1;
+        //								setTimeout(() => {
+        //									this.hideGridOverlayById(item.id);
+        //								})
+        //								page.local.sourceValue[item.name]["data"] = [];
+        //							}
+        //						}
+        //						// fail function for grid
+        //						failFunc = (err) => {
+        //							setTimeout(() => {
+        //								this.hideGridOverlayById(item.id);
+        //							})
+        //							page.c8o.log.error("an error occured while trying to laod source for a grid", err);
+        //							page.local.updating[item.id] = 2;
+        //						}
+        						
+        						
+        						
+        					}
         					else if (item.type == "text" || item.type == "slider" || item.type == "datetime" || item.type == "time" || item.type == "barcode") {
         						let sources: any = page["searchForSources"](item, "sources", true);
         						let findVars = sources.findVars;
@@ -2173,7 +2882,7 @@ scriptContent:
         	 * @param noEval define weither this source should be evaluated at the end
         	 * @returns {findVars: Object, findName: string, ObjectThatHaveToCallFunc: Array, sha: string, fullSyncArgs: Object } findVars are the computed variables found, findName is the source name, ObjectThatHaveToCallFunc holds objects id that will update value of current source, sha make a unique reference for this source : a sha of its name and arguments, fullSyncArgs if it''s a fullsync source, then holds fullsync arguments
         	 */
-        	public searchForSources(item: any, path: string, isSource: boolean = true, noEval: boolean = false): Object {
+        	public searchForSources(item: any, path: string, isSource: boolean = true, noEval: boolean = false, overrideToTS = false): Object {
         		// name of the source to be find
         		let sourceName = "";
         		// vars of the source to be find
@@ -2254,16 +2963,24 @@ scriptContent:
         									res.filters.push({
         										"field": cond.val1.name,
         										"op": cond.operator,
-        										"value": this.stringOf$$ToCode(cond.val2.str, cond.val2.type, ObjectThatHaveToCallFunc, regex)
+        										"value": this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts": cond.val2.type, ObjectThatHaveToCallFunc, regex)
         									})
         								}
         							}
         							// store the result
         							vars[va] = res;
         						}
+        						else if(Array.isArray(vars[va])){
+        							let temp = {};
+        							for(let item of vars[va]){
+        								let str = this.stringOf$$ToCode(item.str, overrideToTS ? "ts" : item.type, ObjectThatHaveToCallFunc, regex);
+        								temp[item.name] = str;
+        							}
+        							vars[va] = temp;
+        						}
         						else {
         							// otherwise
-        							let str = this.stringOf$$ToCode(vars[va].str, vars[va].type, ObjectThatHaveToCallFunc, regex);
+        							let str = this.stringOf$$ToCode(vars[va].str, overrideToTS ? "ts": vars[va].type, ObjectThatHaveToCallFunc, regex);
         							vars[va] = str;
         						}
         					}
@@ -3406,10 +4123,10 @@ scriptContent:
         	public fillActionsVars(list): void {
         		let page = this;
         		for (let elem of list) {
-        			if (elem["type"] == "business_logic") {
+        //			if (elem["type"] == "business_logic") {
         				page["actions"][elem["name"]] = { "name": elem["name"], "type": elem["type"], "value": "" };
         
-        			}
+        //			}
         		}
         	}
         
@@ -3426,10 +4143,24 @@ scriptContent:
         		for (let va in findVars) {
         			try {
         				if (typeof findVars[va] == ''string'') {
-        					const asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
-        						''page'',
-        						`return (async () => { return ${findVars[va]} })();`
-        					);
+        					let asyncFunction;
+        					try{
+        						asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
+        							''page'',
+        							`return (async () => { return ${findVars[va]} })();`
+        						);
+        					}
+        					catch(e){
+        						if(e.message == "Invalid left-hand side in assignment"){
+        							asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
+        								''page'',
+        								`return (async () => { return ${findVars[va].replace(/\?\./g, '''')} })();`
+        							);
+        						}
+        						else{
+        							throw e;
+        						}
+        					}
         					variables[va] = await asyncFunction(page);
         					if (variables[va] == undefined || variables[va] == "undefined") {
         						delete variables[va];
@@ -3442,14 +4173,39 @@ scriptContent:
         						delete variables[va];
         					}
         				}
-        				// assume its filter
+        				
         				else {
         					let res = JSON.parse(JSON.stringify(findVars[va]));
-        					res.filters = res.filters.map((x) => {
-        						x.value = eval(x.value);
-        						return x;
-        					})
-        					variables[va] = JSON.stringify(res);
+        					// assume its filter
+        					if(res.filters != null && Array.isArray(res.filters)){
+        						res.filters = res.filters.map((x) => {
+        							x.value = eval(x.value);
+        							return x;
+        						})
+        						variables[va] = JSON.stringify(res);
+        					}
+        					else{
+        						var temp = {};
+        						for(let key in findVars[va]){
+        							const asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
+        								''page'',
+        								`return (async () => { return ${findVars[va][key]} })();`
+        							);
+        							temp[key] = await asyncFunction(page);
+        							if (temp[key] == undefined || temp[key] == "undefined") {
+        								delete variables[va];
+        							}
+        							else if (temp[key].then) {
+        								temp[key] = await variables[va];
+        							}
+        							if (temp[key] == undefined || temp[key] == "undefined") {
+        								delete temp[key];
+        							}
+        						}
+        						variables[va] = JSON.stringify(temp);
+        					}
+        					
+        					
         				}
         			}
         			catch (e) {
@@ -4485,6 +5241,11 @@ scriptContent:
         	public getFormElementValueByName(name: string): string {
         		// Combine formsSubmit and actions objects into a single search array
         		var searchArray = { ...this.formsSubmit, ...this.actions };
+        		if(this.form.flows){
+        			for(let flow of this.form.flows){
+        				searchArray = { ...searchArray, ...flow.elements };
+        			}
+        		}
         
         		// Iterate through the search array
         		for (let key of Object.keys(searchArray)) {
@@ -4553,6 +5314,17 @@ scriptContent:
         				return prefixPage + "actions[\"" + name + "\"]?.[\"" + this.getKeyByType(this.actions[key].type) + "\"]";;
         			}
         		}
+        		// iterrate over each key of flows object to find target comparing by key
+        		for(let flow of this.form.flows){
+        			for (let key of Object.keys(flow.elements)) {
+        				// if key equals name
+        				if (key == name) {
+        					// return path
+        					return prefixPage + "actions[\"" + name + "\"]?.[\"" + this.getKeyByType(this.actions[key].type) + "\"]";;
+        				}
+        			}
+        		}
+        		
         		// if we di not found object in formsubmit or acctions, it may be a description
         		for (var index = 0; index < this.form.formulaire.length; index++) {
         			if (this.form.formulaire[index].id === +id) {
@@ -4624,7 +5396,11 @@ scriptContent:
         		id = +id;
         
         		// Concatenate the search object and form actions to browse through it
-        		const searchArray = search.concat(this.form.actions);
+        		//const searchArray = search.concat(this.form.actions);
+        		let searchArray = search;
+        		for(let item of this.form.flows){
+        			searchArray = searchArray.concat(item.elements);
+        		}
         
         		// Iterate over each object in the searchArray to find the target by comparing IDs
         		for (let obj of searchArray) {
@@ -4761,7 +5537,10 @@ scriptContent:
         	 * @returns The name corresponding to the ID, or an empty string if not found.
         	 */
         	private getNameById(val: ValFieldObject | number): string {
-        		const searchArray = this.form.formulaire.concat(this.form.actions);
+        		let searchArray = this.form.formulaire.concat([]);
+        		for(let item of this.form.flows){
+        			searchArray = searchArray.concat(item.elements);
+        		}
         
         		if (typeof val === ''number'') {
         			for (let elem of searchArray) {
@@ -5225,6 +6004,10 @@ scriptContent:
         
         	private instanciateApi() {
         		window["api"] = {
+        			currentFor: {
+        				index: null,
+        				element: null
+        			},
         			router: {
         				// more definitions below in Object.defineProperty section
         				/**
@@ -5568,21 +6351,21 @@ title: Visualisateur
             - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
             - com.twinsoft.convertigo.beans.common.XMLVector: 
               - java.lang.String: 
-                - ↑value: readability
+                - ↑value: '{ readability }'
               - java.lang.String: 
                 - ↑value: '@ctrl/tinycolor'
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
             - com.twinsoft.convertigo.beans.common.XMLVector: 
               - java.lang.String: 
-                - ↑value: mostReadable
+                - ↑value: '{ mostReadable }'
               - java.lang.String: 
                 - ↑value: '@ctrl/tinycolor'
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
             - com.twinsoft.convertigo.beans.common.XMLVector: 
               - java.lang.String: 
-                - ↑value: TinyColor
+                - ↑value: '{ TinyColor }'
               - java.lang.String: 
                 - ↑value: '@ctrl/tinycolor'
     ↓If [ngx.components.UIDynamicAction-1628003483159]: 
@@ -5635,21 +6418,21 @@ title: Visualisateur
                 - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
                 - com.twinsoft.convertigo.beans.common.XMLVector: 
                   - java.lang.String: 
-                    - ↑value: Priority
+                    - ↑value: '{ Priority }'
                   - java.lang.String: 
                     - ↑value: c8osdkangular
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
                 - com.twinsoft.convertigo.beans.common.XMLVector: 
                   - java.lang.String: 
-                    - ↑value: C8oLocalCache
+                    - ↑value: '{ C8oLocalCache }'
                   - java.lang.String: 
                     - ↑value: c8osdkangular
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
                 - com.twinsoft.convertigo.beans.common.XMLVector: 
                   - java.lang.String: 
-                    - ↑value: sha256
+                    - ↑value: '{ sha256 }'
                   - java.lang.String: 
                     - ↑value: js-sha256
         ↓ifFormIdIsDefined [ngx.components.UIDynamicIf-1570701884872]: 
@@ -7394,6 +8177,35 @@ title: Visualisateur
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:this.redList
+                        ↓Directive2 [ngx.components.UIControlDirective-1741872385451]: 
+                          directiveExpression: '''button'''
+                          directiveName: SwitchCase
+                          ↓UseSharedComponent [ngx.components.UIUseShared-1741872385454]: 
+                            sharedcomponent: C8Oforms.MobileApplication.Application.itemButtonViewer
+                            ↓item [ngx.components.UIUseVariable-1741872385457]: 
+                              binding: twoWayBinding
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.formsList[index]
+                            ↓model [ngx.components.UIUseVariable-1741872385460]: 
+                              binding: twoWayBinding
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.formsSubmit[item['name']]
+                            ↓redList [ngx.components.UIUseVariable-1741872385463]: 
+                              binding: twoWayBinding
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.redList
+                            ↓disabled [ngx.components.UIUseVariable-1741872385466]: 
+                              comment: this.formsSubmit[item['name']]
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:false
                       ↓Attr1 [ngx.components.UIAttribute-1670941207193]: 
                         attrName: '[ngStyle]'
                         attrValue: 

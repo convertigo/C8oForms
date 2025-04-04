@@ -27,7 +27,7 @@
         const openModal = async (resolve) => {
             let modalController = page.getInstance(ModalController);
             let modal = await modalController.create({
-              mode              : props.mode ? props.mode : undefined,
+              mode              : props.IonMode ? props.IonMode : undefined,
               component         : props.component,
               componentProps    : props.data,
               keyboardClose     : props.keyboardClose,

@@ -54,10 +54,10 @@
       "action_ts_imports": [
           {"from":"@ionic-native/file-encryption","components":["FileEncryption"]}
       ],
-      "local_module_ts_imports": [
+      "module_ts_imports": [
           {"from":"@ionic-native/file-encryption","components":["FileEncryption"]}
       ],
-      "local_module_ng_imports": [
+      "module_ng_imports": [
       ],
       "module_ng_providers": [
           "FileEncryption"

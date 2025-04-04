@@ -41,7 +41,7 @@ function PerformAnalysis() {
   let jsFunction = extractFunction(yamlFilePath, 'getObjToInsert');
   if (jsFunction != null) {
     let funcParsed = jsFunction
-      .replace("public getObjToInsert(typ, id, page = this.local.currentPage, nameDispo = null){", "obj.getObjToInsert = function(typ, id, page = this.local.currentPage, nameDispo = null) {")
+      .replace("public getObjToInsert(typ, id, page = this.local.currentPage, nameDispo = null) {", "obj.getObjToInsert = function(typ, id, page = this.local.currentPage, nameDispo = null) {")
       .replace(/(\r\n|\n|\r)/gm, "")
       .replace(/''/g, "'");
 

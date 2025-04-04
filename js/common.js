@@ -132,6 +132,7 @@ var callSequenceInDuplicateSession = function (project, sequence, parametersJS, 
 		org.apache.log4j.MDC.put("ContextualParameters", context.logParameters);
 		var ctx2 = requester.getContext();
 		theApp.contextManager.remove(ctx2);
+		return response;
 	}
 	catch(e){
 		console.log("An error occured while running callSequenceInDuplicateSession", e, "warn");
