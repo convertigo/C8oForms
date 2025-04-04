@@ -8,6 +8,26 @@ if(!isAdmin){
 	if(currentUserDoc.admin == true){
 		isAdmin = true;
 	}
+	var __groups = callSequence("lib_FullSyncGrp", "GroupsOf", { user: authenticatedUserID }).document.group;
+	if(__groups != undefined){
+		if(!Array.isArray(__groups)){
+			__groups = [__groups];
+		}
+		query = new HashMap();
+		query.put('reduce', 'false');
+		query.put('include_docs', 'true');
+		keys = toJettison(__groups);
+		__groups = toJSON(fsclient.postView("c8oforms_fs", 'groups', 'rightsByUser', query, keys)).rows;
+		console.log("my groups :", __groups, "warn");
+		if(__groups != undefined){
+			for(var __group of __groups){
+				if(__group.doc.admin){
+					isAdmin = true;
+					break;
+				}
+			}
+		}
+	}
 }
 if(!isAdmin){
 	throw new java.lang.Exception("You are not a server admin");
