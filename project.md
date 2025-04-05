@@ -64,7 +64,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_FullSyncGrp
 
 Reference to fs group
-see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/3e0e5200b206704ff65b5ea0af859a5f9c6626ae#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/1363f51659be30b7a5d4a028c26ef7bcc4977430#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_GeneratePWAAssets</b></summary><blockquote><p>

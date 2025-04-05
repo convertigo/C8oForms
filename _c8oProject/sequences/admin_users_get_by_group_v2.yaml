@@ -6,6 +6,7 @@ comment: Retrieves multiple user's information, requires admin privileges.
 ↓Call_Sequence [steps.SequenceStep-1740999362965]: 
   sourceSequence: lib_FullSyncGrp.Groups
 ↓groups [steps.JsonSourceStep-1740999362968]: 
+  isEnabled: false
   sourceDefinition: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -17,12 +18,101 @@ comment: Retrieves multiple user's information, requires admin privileges.
   variableName: groups
 ↓formatGroups [steps.SimpleStep-1741086855375]: 
   expression: groups = groups.filter((group) => group.group.text.indexOf('C8O') == -1);
+  isEnabled: false
+↓jIterator [steps.SimpleIteratorStep-1743785068062]: 
+  expression: groups
+  isEnabled: false
+  ↓Call_Sequence [steps.SequenceStep-1743785200729]: 
+    sourceSequence: C8Oforms.admin_group_get
+    ↓_use_doc_id [variables.StepVariable-1743785237784]: 
+  ↓myVariable [steps.JsonSourceStep-1743785190307]: 
+  ↓buildGroupObj [steps.SimpleStep-1743785090128]: 
+↓initGroups [steps.SimpleStep-1743785492018]: 
+  expression: |
+    let groups = [];
+    let temp = null;
+↓Iterator [steps.IteratorStep-1743785419829]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1740999362965
+        - java.lang.String: 
+          - ↑value: ./document/group
+  ↓Call_Sequence [steps.SequenceStep-1743785444066]: 
+    sourceSequence: C8Oforms.admin_group_get
+    ↓_use_doc_id [variables.StepVariable-1743785444069]: 
+      sourceDefinition: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+          - com.twinsoft.convertigo.beans.common.XMLVector: 
+            - java.lang.String: 
+              - ↑value: 1743785419829
+            - java.lang.String: 
+              - ↑value: ./text()
+  ↓temp [steps.JsonSourceStep-1743785444072]: 
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1743785444066
+          - java.lang.String: 
+            - ↑value: ./document/couchdb_output
+    variableName: temp
+  ↓group [steps.JsonSourceStep-1743785757735]: 
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1743785419829
+          - java.lang.String: 
+            - ↑value: .
+    variableName: group
+  ↓IfExistThenElse [steps.IfExistThenElseStep-1743785554687]: 
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1743785444066
+          - java.lang.String: 
+            - ↑value: ./document/couchdb_output/error
+    ↓jThen [steps.ThenStep-1743785556316]: 
+      ↓buildGroupObj [steps.SimpleStep-1743785444075]: 
+        expression: |
+          //todo
+          groups.push(group);
+    ↓jElse [steps.ElseStep-1743785556318]: 
+      ↓buildGroupObj [steps.SimpleStep-1743785670022]: 
+        expression: |
+          'let concat = '''';
+          
+          if (temp != null && temp?.editing_rights == true) {
+          	concat += ''editing_rights'';
+          }
+          
+          if (temp != null && temp?.nocode_db_rights == true) {
+          	concat += ((concat.length > 0) ? ''[$c8oGroup$]'': '''')+''nocode_db_rights'';
+          }
+          
+          if (temp != null && temp?.admin == true) {
+          	concat += ((concat.length > 0) ? ''[$c8oGroup$]'': '''')+''admin'';
+          }
+          
+          if (concat.length > 0) {
+          	group.access = concat;
+          }
+          
+          groups.push(group);'
 ↓Sequence_admin_users_get [steps.SimpleStep-1740999362971]: 
   expression: |
     'query = new java.util.HashMap();
     query.put(''include_docs'', ''true'');
     var response = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', query));
-    
+    groups = groups.filter((group) => group.group.text.indexOf(''C8O'') == -1);
     if(response.error){
     	
     }
@@ -100,9 +190,15 @@ comment: Retrieves multiple user's information, requires admin privileges.
     				headerName: "group_name",
     				field: "group",
     				editable: false,
-    				width: 300,
     				checkboxSelection: true,
     				headerCheckboxSelection: true
+    			},
+    			{
+    				headerName: '''',
+    				field: ''access'',
+    				autoHeight: true,
+    				sortable: false,
+    				filter: false,
     			}
     		],
     		values: valuesRows
@@ -121,6 +217,10 @@ comment: Retrieves multiple user's information, requires admin privileges.
     		} else {
     			obj[''children''] = [];
     		}
+    		if (item[''access'']) {
+    			obj[''access''] = item[''access''];
+    		}
+    		
     		obj[''group''] = item["group"]["text"];
     		values.push(obj);
     		obj = {};
