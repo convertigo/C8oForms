@@ -46,7 +46,7 @@ scriptContent:
         		}
         
         		return labels.map((x) => {
-        			if (x.headerName) {				
+        			if (x.headerName && x.headerName.length > 0) {				
         				x.headerName = this.translate.instant(x.headerName);
         			}
         
@@ -103,12 +103,16 @@ scriptContent:
         			}
         			else {
         				if (data?.result?.labels && data?.result?.childrenLabels) {
-        					data.result.labels[1].cellRenderer = (params) => {
-        					  const group = params.value;
-        
+        					data.result.labels[0].cellRenderer = (params) => {
+        					  const group = params.data.group;
         					  if (!group) return '''';
         
-        					  const tags = group.split(''[$c8oGroup$]'');
+        					  if (typeof group == ''string'') {
+        						return group;
+        					  }
+        					  
+        
+        					  const tags = group.displayValue.split(''[$c8oGroup$]'');
         
         					  const icons: Record<string, string> = {
         					    editing_rights: ''✏️'', // ou <i class="lucide lucide-edit-3"></i>
@@ -136,8 +140,103 @@ scriptContent:
         					    ">${icon} ${this.translate.instant(translations[tag])}</span>`;
         					  }).join('''');
         
-        					  return `<span>${tagsHtml}</span>`;
+        					  return `<span>${group.value} ${tagsHtml}</span>`;
         					};
+        					
+        					data.result.labels[0].valueGetter = (params) => params.data.group?.value || params.data.group;
+        					data.result.childrenLabels[5].cellRenderer = (params) => {
+        					  const admin = params.value;
+        					  
+        					  if (!admin) {
+        						return '''';
+        					  }
+        
+        					  const icons: Record<string, string> = {
+        					    editing_rights: ''✏️'', // ou <i class="lucide lucide-edit-3"></i>
+        					    nocode_db_rights: ''🧩'',
+        					    admin: ''🛡️'',
+        					  };
+        					  
+        					  const translations: Record<string, string> = {
+        						editing_rights: ''editing_rights_label'',
+        						nocode_db_rights: ''nocode_db_rights_label'',
+        						admin: ''admin_label''
+        					  }
+        
+        					  return `<span style="
+        					    padding: 2px 8px;
+        					    margin-left: 6px;
+        					    border-radius: 12px;
+        					    background-color: #eef2f7;
+        					    color: #1f2937;
+        					    font-weight: 600;
+        					    font-size: 14px;
+        					    height: 2rem;
+        					  ">${icons[''admin'']} ${this.translate.instant(translations[''admin''])}</span>`;;
+        					};
+        					
+        					data.result.childrenLabels[3].cellRenderer = (params) => {
+        					  const editing_rights = params.value;
+        					  
+        					  if (!editing_rights) {
+        						return '''';
+        					  }
+        
+        					  const icons: Record<string, string> = {
+        					    editing_rights: ''✏️'', // ou <i class="lucide lucide-edit-3"></i>
+        					    nocode_db_rights: ''🧩'',
+        					    admin: ''🛡️'',
+        					  };
+        					  
+        					  const translations: Record<string, string> = {
+        						editing_rights: ''editing_rights_label'',
+        						nocode_db_rights: ''nocode_db_rights_label'',
+        						admin: ''admin_label''
+        					  }
+        
+        					  return `<span style="
+        					    padding: 2px 8px;
+        					    margin-left: 6px;
+        					    border-radius: 12px;
+        					    background-color: #eef2f7;
+        					    color: #1f2937;
+        					    font-weight: 600;
+        					    font-size: 14px;
+        					    height: 2rem;
+        					  ">${icons[''editing_rights'']} ${this.translate.instant(translations[''editing_rights''])}</span>`;;
+        					};
+        					
+        					data.result.childrenLabels[4].cellRenderer = (params) => {
+        					  const nocode_db_rights = params.value;
+        					  
+        					  if (!nocode_db_rights) {
+        						return '''';
+        					  }
+        
+        					  const icons: Record<string, string> = {
+        					    editing_rights: ''✏️'', // ou <i class="lucide lucide-edit-3"></i>
+        					    nocode_db_rights: ''🧩'',
+        					    admin: ''🛡️'',
+        					  };
+        					  
+        					  const translations: Record<string, string> = {
+        						editing_rights: ''editing_rights_label'',
+        						nocode_db_rights: ''nocode_db_rights_label'',
+        						admin: ''admin_label''
+        					  }
+        
+        					  return `<span style="
+        					    padding: 2px 8px;
+        					    margin-left: 6px;
+        					    border-radius: 12px;
+        					    background-color: #eef2f7;
+        					    color: #1f2937;
+        					    font-weight: 600;
+        					    font-size: 14px;
+        					    height: 2rem;
+        					  ">${icons[''nocode_db_rights'']} ${this.translate.instant(translations[''nocode_db_rights''])}</span>`;;
+        					};
+        					
         					data.result.labels = this.process(data.result.labels);
         					data.result.childrenLabels = this.process(data.result.childrenLabels);
         				}
@@ -201,8 +300,23 @@ scriptContent:
         				var args: any = (bulkOperation != "updateUsersGroup" && bulkOperation != "deleteUsersGroup") ? { docs: JSON.stringify(docs) } : { meta: "" };
         				var sequence;
         				if (bulkOperation == "deleteGroup") {
+        					docs.map((it) => {
+        						if (it.group?.value != undefined) {
+        							it.group = it.group.value;
+        						}
+        						
+        						return it;
+        					});
+        					docs2.map((it) => {
+        						if (it.group?.value != undefined) {
+        							it.group = it.group.value;
+        						}
+        						
+        						return it;
+        					});
         					var args: any = { docs: JSON.stringify(docs) };
-        					var args2: any = { docs: JSON.stringify(docs2) };
+        					var args2: any = { docs: JSON.stringify(docs2) };		
+        										
         					var sequence;
         					sequence = "C8Oforms.admin_group_delete_bulk";
         					let deleted = await this.c8o.callJsonObject(sequence, args2).async();
@@ -308,7 +422,8 @@ scriptContent:
         		await toast.present();
         	}
         	async showModal(grid = "userToGroup") {
-        		let docs = this.myaggrid?.agGrid?.api?.getSelectedNodes().filter((node) => node.data.group != this.translate.instant(''all_users''));
+        		let docs = this.myaggrid?.agGrid?.api?.getSelectedNodes().filter((node) => node.data.group?.value != undefined);
+        //		console.log(docs);
         		const modal = await this.modalController.create({
         			component: (grid == "userToGroup") ? C8Oforms_AddUserToGroupForm : ((grid == ''moveUserToGroup'') ?
         				C8Oforms_MoveUserToGroupForm : ((grid == "userGroupsDetail") ? C8Oforms_GetUserGroupsDetail : ((grid == "updateGroup") ? C8Oforms_UpdateGroupAccessRights : C8Oforms_AddGroupForm))),
@@ -601,7 +716,7 @@ title: Title for adminDashboardUsersWithinGroups
                     directiveSource: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.groupSelected.indexOf(this.translate.instant('all_users')) == -1 || (this.myaggrid.agGrid?.api?.getSelectedNodes().length > 1 && this.myaggrid.agGrid?.api?.getSelectedNodes()[0].data.group != this.translate.instant('all_users'))
+                        - MobileSmartSourceType: script:this.groupSelected.indexOf(this.translate.instant('all_users')) == -1 || (this.myaggrid.agGrid?.api?.getSelectedNodes().length > 1 && this.myaggrid.agGrid?.api?.getSelectedNodes()[0].data.group?.value != undefined)
                     ↓ButtonRemoveGroup [ngx.components.UIDynamicElement-1740652003649]: 
                       beanData: |
                         '{
@@ -619,49 +734,8 @@ title: Title for adminDashboardUsersWithinGroups
                            "IconSlot": "plain:start"
                           }'
                         tagName: ion-icon
-                        ↓marginLeft [ngx.components.UIStyle-1743874842118]: 
-                          styleContent: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  '/**
-                                   * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                   * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                   * They are set using custom property notation, e.g.: --main-color: black;
-                                   * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                   * You can find below your component''s properties you can customize within the page.
-                                   * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                   * For more informations see https://ionicframework.com/docs/theming.
-                                  **/
-                                  //--background	//Background of the button
-                                  //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                                  //--background-activated-opacity	//Opacity of the button when pressed
-                                  //--background-focused	//Background of the button when focused with the tab key
-                                  //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                                  //--background-hover	//Background of the button on hover
-                                  //--background-hover-opacity	//Opacity of the background on hover
-                                  //--border-color	//Border color of the button
-                                  //--border-radius	//Border radius of the button
-                                  //--border-style	//Border style of the button
-                                  //--border-width	//Border width of the button
-                                  //--box-shadow	//Box shadow of the button
-                                  //--color	//Text color of the button
-                                  //--color-activated	//Text color of the button when pressed
-                                  //--color-focused	//Text color of the button when focused with the tab key
-                                  //--color-hover	//Text color of the button when hover
-                                  //--opacity	//Opacity of the button
-                                  //--padding-bottom	//Bottom padding of the button
-                                  //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                                  //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                                  //--padding-top	//Top padding of the button
-                                  //--ripple-color	//Color of the button ripple effect
-                                  //--transition	//Transition of the button
-                                  margin-left: 0.35rem;
-                                  '
                       ↓Label [ngx.components.UIDynamicElement-1740652003652]: 
                         beanData: '{"ionBean":"Label"}'
-                        isEnabled: false
                         tagName: ion-label
                         ↓Text [ngx.components.UIText-1740652003655]: 
                           i18n: true
@@ -678,46 +752,6 @@ title: Title for adminDashboardUsersWithinGroups
                                 →: |
                                   		page.performBulk("deleteGroup", "group_sure_delete_rows","group_delete_row_confirm", "group_delete_row_error", "cancel_pwamsg", "Supprimer");
                                   
-                      ↓width [ngx.components.UIStyle-1743874815604]: 
-                        styleContent: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '/**
-                                 * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                 * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                 * They are set using custom property notation, e.g.: --main-color: black;
-                                 * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                 * You can find below your component''s properties you can customize within the page.
-                                 * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                 * For more informations see https://ionicframework.com/docs/theming.
-                                **/
-                                //--background	//Background of the button
-                                //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                                //--background-activated-opacity	//Opacity of the button when pressed
-                                //--background-focused	//Background of the button when focused with the tab key
-                                //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                                //--background-hover	//Background of the button on hover
-                                //--background-hover-opacity	//Opacity of the background on hover
-                                //--border-color	//Border color of the button
-                                //--border-radius	//Border radius of the button
-                                //--border-style	//Border style of the button
-                                //--border-width	//Border width of the button
-                                //--box-shadow	//Box shadow of the button
-                                //--color	//Text color of the button
-                                //--color-activated	//Text color of the button when pressed
-                                //--color-focused	//Text color of the button when focused with the tab key
-                                //--color-hover	//Text color of the button when hover
-                                //--opacity	//Opacity of the button
-                                //--padding-bottom	//Bottom padding of the button
-                                //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                                //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                                //--padding-top	//Top padding of the button
-                                //--ripple-color	//Color of the button ripple effect
-                                //--transition	//Transition of the button
-                                width: 2.5rem;
-                                '
                     ↓ButtonEditGroup [ngx.components.UIDynamicElement-1743504485109]: 
                       beanData: |
                         '{
@@ -735,49 +769,8 @@ title: Title for adminDashboardUsersWithinGroups
                            "IconSlot": "plain:start"
                           }'
                         tagName: ion-icon
-                        ↓marginLeft [ngx.components.UIStyle-1743874868892]: 
-                          styleContent: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  '/**
-                                   * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                   * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                   * They are set using custom property notation, e.g.: --main-color: black;
-                                   * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                   * You can find below your component''s properties you can customize within the page.
-                                   * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                   * For more informations see https://ionicframework.com/docs/theming.
-                                  **/
-                                  //--background	//Background of the button
-                                  //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                                  //--background-activated-opacity	//Opacity of the button when pressed
-                                  //--background-focused	//Background of the button when focused with the tab key
-                                  //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                                  //--background-hover	//Background of the button on hover
-                                  //--background-hover-opacity	//Opacity of the background on hover
-                                  //--border-color	//Border color of the button
-                                  //--border-radius	//Border radius of the button
-                                  //--border-style	//Border style of the button
-                                  //--border-width	//Border width of the button
-                                  //--box-shadow	//Box shadow of the button
-                                  //--color	//Text color of the button
-                                  //--color-activated	//Text color of the button when pressed
-                                  //--color-focused	//Text color of the button when focused with the tab key
-                                  //--color-hover	//Text color of the button when hover
-                                  //--opacity	//Opacity of the button
-                                  //--padding-bottom	//Bottom padding of the button
-                                  //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                                  //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                                  //--padding-top	//Top padding of the button
-                                  //--ripple-color	//Color of the button ripple effect
-                                  //--transition	//Transition of the button
-                                  margin-left: 0.35rem;
-                                  '
                       ↓Label [ngx.components.UIDynamicElement-1743504485115]: 
                         beanData: '{"ionBean":"Label"}'
-                        isEnabled: false
                         tagName: ion-label
                         ↓Text [ngx.components.UIText-1743504485118]: 
                           i18n: true
@@ -797,7 +790,7 @@ title: Title for adminDashboardUsersWithinGroups
                                   			(
                                   			page.myaggrid?.agGrid?.api?.getSelectedNodes().length == 1 
                                   			&&
-                                  			page.myaggrid?.agGrid?.api?.getSelectedNodes()[0].data.group.indexOf(page.translate.instant('all_users')) != -1 )
+                                  			page.myaggrid?.agGrid?.api?.getSelectedNodes()[0].data.group?.value == undefined )
                                   				||
                                   				page.myaggrid?.agGrid?.api?.getSelectedNodes().length == 0
                                   			) {
@@ -807,51 +800,11 @@ title: Title for adminDashboardUsersWithinGroups
                                   			page.showModal("updateGroup");
                                   			page.loadGridData();
                                   		} catch (e) {
-                                  		
+                                  			console.error(e);
                                   		} finally {
                                   			return;
                                   		}
                                   
-                      ↓width [ngx.components.UIStyle-1743874874559]: 
-                        styleContent: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '/**
-                                 * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                 * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                 * They are set using custom property notation, e.g.: --main-color: black;
-                                 * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                 * You can find below your component''s properties you can customize within the page.
-                                 * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                 * For more informations see https://ionicframework.com/docs/theming.
-                                **/
-                                //--background	//Background of the button
-                                //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                                //--background-activated-opacity	//Opacity of the button when pressed
-                                //--background-focused	//Background of the button when focused with the tab key
-                                //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                                //--background-hover	//Background of the button on hover
-                                //--background-hover-opacity	//Opacity of the background on hover
-                                //--border-color	//Border color of the button
-                                //--border-radius	//Border radius of the button
-                                //--border-style	//Border style of the button
-                                //--border-width	//Border width of the button
-                                //--box-shadow	//Box shadow of the button
-                                //--color	//Text color of the button
-                                //--color-activated	//Text color of the button when pressed
-                                //--color-focused	//Text color of the button when focused with the tab key
-                                //--color-hover	//Text color of the button when hover
-                                //--opacity	//Opacity of the button
-                                //--padding-bottom	//Bottom padding of the button
-                                //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                                //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                                //--padding-top	//Top padding of the button
-                                //--ripple-color	//Color of the button ripple effect
-                                //--transition	//Transition of the button
-                                width: 2.5rem;
-                                '
                 ↓ButtonAddGroup [ngx.components.UIDynamicElement-1740652781569]: 
                   beanData: '{"ionBean":"Button","IonFill":"plain:solid"}'
                   tagName: ion-button
@@ -864,49 +817,8 @@ title: Title for adminDashboardUsersWithinGroups
                        "IconSlot": "plain:start"
                       }'
                     tagName: ion-icon
-                    ↓marginLeft [ngx.components.UIStyle-1743874887445]: 
-                      styleContent: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                            →: |
-                              '/**
-                               * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                               * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                               * They are set using custom property notation, e.g.: --main-color: black;
-                               * and are accessed using the var() function, e.g.: color: var(--main-color);
-                               * You can find below your component''s properties you can customize within the page.
-                               * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                               * For more informations see https://ionicframework.com/docs/theming.
-                              **/
-                              //--background	//Background of the button
-                              //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                              //--background-activated-opacity	//Opacity of the button when pressed
-                              //--background-focused	//Background of the button when focused with the tab key
-                              //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                              //--background-hover	//Background of the button on hover
-                              //--background-hover-opacity	//Opacity of the background on hover
-                              //--border-color	//Border color of the button
-                              //--border-radius	//Border radius of the button
-                              //--border-style	//Border style of the button
-                              //--border-width	//Border width of the button
-                              //--box-shadow	//Box shadow of the button
-                              //--color	//Text color of the button
-                              //--color-activated	//Text color of the button when pressed
-                              //--color-focused	//Text color of the button when focused with the tab key
-                              //--color-hover	//Text color of the button when hover
-                              //--opacity	//Opacity of the button
-                              //--padding-bottom	//Bottom padding of the button
-                              //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                              //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                              //--padding-top	//Top padding of the button
-                              //--ripple-color	//Color of the button ripple effect
-                              //--transition	//Transition of the button
-                              margin-left: 0.35rem;
-                              '
                   ↓Label [ngx.components.UIDynamicElement-1740652781572]: 
                     beanData: '{"ionBean":"Label"}'
-                    isEnabled: false
                     tagName: ion-label
                     ↓Text [ngx.components.UIText-1740652781575]: 
                       i18n: true
@@ -929,46 +841,6 @@ title: Title for adminDashboardUsersWithinGroups
                               			return;
                               		}
                               
-                  ↓width [ngx.components.UIStyle-1743874878140]: 
-                    styleContent: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            '/**
-                             * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                             * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                             * They are set using custom property notation, e.g.: --main-color: black;
-                             * and are accessed using the var() function, e.g.: color: var(--main-color);
-                             * You can find below your component''s properties you can customize within the page.
-                             * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                             * For more informations see https://ionicframework.com/docs/theming.
-                            **/
-                            //--background	//Background of the button
-                            //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                            //--background-activated-opacity	//Opacity of the button when pressed
-                            //--background-focused	//Background of the button when focused with the tab key
-                            //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                            //--background-hover	//Background of the button on hover
-                            //--background-hover-opacity	//Opacity of the background on hover
-                            //--border-color	//Border color of the button
-                            //--border-radius	//Border radius of the button
-                            //--border-style	//Border style of the button
-                            //--border-width	//Border width of the button
-                            //--box-shadow	//Box shadow of the button
-                            //--color	//Text color of the button
-                            //--color-activated	//Text color of the button when pressed
-                            //--color-focused	//Text color of the button when focused with the tab key
-                            //--color-hover	//Text color of the button when hover
-                            //--opacity	//Opacity of the button
-                            //--padding-bottom	//Bottom padding of the button
-                            //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                            //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                            //--padding-top	//Top padding of the button
-                            //--ripple-color	//Color of the button ripple effect
-                            //--transition	//Transition of the button
-                            width: 2.5rem;
-                            '
               ↓DivGrid [ngx.components.UIDynamicElement-1740488756752]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -1168,7 +1040,7 @@ title: Title for adminDashboardUsersWithinGroups
                           varValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1740488756848,"rootEvent":true,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"?.data?.group","custom":"","useCustom":false}}
+                              - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1740488756848,"rootEvent":true,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"?.data?.group?.value","custom":"","useCustom":false}}
                         ↓_use_key [ngx.components.UIControlVariable-1741007450883]: 
                           varValue: 
                             - xmlizable: 
@@ -1190,15 +1062,33 @@ title: Title for adminDashboardUsersWithinGroups
                                   				if (page.local?.data?.result?.values[0]?.children != undefined && page.local?.data?.result?.values[0]?.children.length > 0) {
                                   					let filtered = page.local?.data?.result?.values[0]?.children.filter((fil) => fil.mail == user.mail);
                                   					if (filtered.length > 0) {
-                                  						user[''nocode_db_rights''] = filtered[0]?.nocode_db_rights != undefined ? filtered[0]?.nocode_db_rights : true;
-                                  						user[''admin''] = filtered[0]?.admin != undefined ? filtered[0]?.admin : false;
-                                  						user[''editing_rights''] = filtered[0]?.editing_rights != undefined ? filtered[0]?.editing_rights : true;
+                                  						let it = filtered[0];
+                                  //						user[''nocode_db_rights''] = filtered[0]?.nocode_db_rights != undefined ? filtered[0]?.nocode_db_rights : true;
+                                  //						user[''admin''] = filtered[0]?.admin != undefined ? filtered[0]?.admin : false;
+                                  //						user[''editing_rights''] = filtered[0]?.editing_rights != undefined ? filtered[0]?.editing_rights : true;
+                                  						let concat = '''';
+                                  
+                                  						if (it?.editing_rights == true) {
+                                  							concat += ''editing_rights'';
+                                  						}
+                                  
+                                  						if (it?.nocode_db_rights == true) {
+                                  							concat += ((concat.length > 0) ? ''[$c8oGroup$]'': '''')+''nocode_db_rights'';
+                                  						}
+                                  
+                                  						if (it?.admin == true) {
+                                  							concat += ((concat.length > 0) ? ''[$c8oGroup$]'': '''')+''admin'';
+                                  						}
+                                  
+                                  						if (concat.length > 0) {
+                                  							user.access = concat;
+                                  						}
                                   					}
                                   				}
                                   				return user;
                                   			});
                                   //			console.log(page.valuesSelected);
-                                  			page.groupSelected = event?.data?.group;
+                                  			page.groupSelected = event?.data?.group?.value || event?.data?.group;
                                   			page.local.selected2 = page.myaggrid2?.agGrid?.api?.getSelectedNodes({ startRow: 0, endRow: 1 }).length > 0;
                                   			page.local.selectedUsers = page.myaggrid2?.agGrid?.api?.getSelectedNodes();
                                   			page.ref.detectChanges();
@@ -1223,7 +1113,7 @@ title: Title for adminDashboardUsersWithinGroups
                                   '		
                                   		try {
                                   			page.valuesSelected = event?.data?.children;
-                                  			page.groupSelected = event?.data?.group;
+                                  			page.groupSelected = event?.data?.group?.value || event?.data?.group;
                                   			page.local.selected2 = page.myaggrid2?.agGrid?.api?.getSelectedNodes({ startRow: 0, endRow: 1 }).length > 0;
                                   			page.local.selectedUsers = page.myaggrid2?.agGrid?.api?.getSelectedNodes();
                                   			page.ref.detectChanges();
