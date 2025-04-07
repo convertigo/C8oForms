@@ -31,7 +31,19 @@ comment: Retrieves multiple user's information, requires admin privileges.
   expression: |
     let groups = [];
     let temp = null;
+  isEnabled: false
+↓groups1 [steps.JsonSourceStep-1744043670365]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1740999362965
+        - java.lang.String: 
+          - ↑value: ./document/group
+  variableName: groups
 ↓Iterator [steps.IteratorStep-1743785419829]: 
+  isEnabled: false
   sourceDefinition: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -112,6 +124,34 @@ comment: Retrieves multiple user's information, requires admin privileges.
           
           
           groups.push(group);'
+↓Sequence_JS_groups [steps.SimpleStep-1744043492877]: 
+  expression: |
+    '// remove _C8O groups
+    groups = groups.filter((group) => group.group.text.indexOf(''C8O'') == -1)
+    _keys = groups.map((x)=>{return x.group.text})
+    // get forms groups rights holders
+    query = new HashMap();
+    query.put(''reduce'', ''false'');
+    query.put(''include_docs'', ''true'');
+    keys = toJettison(_keys);
+    _groups = toJSON(fsclient.postView("c8oforms_fs", ''groups'', ''rightsByUser'', query, keys)).rows;
+    
+    groups = groups.map((x)=>{
+    	var rights = _groups.find((_x)=>{
+    		return _x.id == x.group.text
+    	});
+    	return {
+    		value: x.group.text,
+    		count: x.group.attr.users,
+    		rights: rights == null ? {} : {
+    			editing_rights : rights.doc.editing_rights,
+    			nocode_db_rights : rights.doc.nocode_db_rights,
+    			admin : rights.doc.nocode_db_rights
+    		}
+    	}
+    })
+    console.log("my groups :", groups, "warn");
+    '
 ↓Sequence_admin_users_get [steps.SimpleStep-1740999362971]: 
   expression: |
     'query = new java.util.HashMap();
@@ -190,13 +230,6 @@ comment: Retrieves multiple user's information, requires admin privileges.
     				},
     				editable: false
     			}
-    //			{
-    //				headerName: '''',
-    //				field: ''access'',
-    //				autoHeight: true,
-    //				sortable: true,
-    //				filter: true,
-    //			}
     		],
     		labels: [
     			{
@@ -206,19 +239,10 @@ comment: Retrieves multiple user's information, requires admin privileges.
     				checkboxSelection: true,
     				headerCheckboxSelection: true
     			}
-    //			{
-    //				headerName: '''',
-    //				field: ''access'',
-    //				autoHeight: true,
-    //				sortable: false,
-    //				editable: false,
-    //				filter: false,
-    //			}
     		],
     		values: valuesRows
     	};
     	var filtered = groups;
-    //	filtered.push({group:{text:"any_group"}});
     	filtered.unshift({group:{text:"all_users", attr: {users: String(rows.length)}}});
     	var values = [];
     	var obj = {};
