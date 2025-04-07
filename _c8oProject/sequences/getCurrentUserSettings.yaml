@@ -12,16 +12,52 @@ accessibility: Hidden
   variableName: authenticatedUserID
 ↓getCurrentUserSettings [steps.SimpleStep-1694423739719]: 
   expression: |
-    'var fsclient = com.twinsoft.convertigo.engine.Engine.theApp.couchDbManager.getFullSyncClient();
-    var toJSON = function (json) {
-       return JSON.parse(json.toString());
-    }
-    var toJettison = function (json) {
-       var txt = (typeof json == "string") ? json : JSON.stringify(json);
-       return txt.startsWith("{") ? new org.codehaus.jettison.json.JSONObject(txt) : new org.codehaus.jettison.json.JSONArray(txt);
-    }
+    '// Imports and helpers functions
+    include("js/common.js");
     let res = toJSON(fsclient.getDocument("c8oforms_fs", ''C8Oreserved_''+authenticatedUserID));
-    '
+    
+    // get current user rights
+    let editing_rights = res.editing_rights != undefined && (res.editing_rights === true || res.editing_rights == "true");
+    let nocode_db_rights = res.nocode_db_rights != undefined && (res.nocode_db_rights === true || res.nocode_db_rights == "true");
+    let admin = res.admin != undefined && (res.admin === true || res.admin == "true");
+    // if user has all rights no need to search forward in groups to find other rights
+    if(editing_rights && nocode_db_rights && admin){
+    	
+    }
+    else{
+    	//search in groups rights
+    	var groups = callSequence("lib_FullSyncGrp", "GroupsOf", { user: authenticatedUserID }).document.group;
+    	if(groups != undefined){
+    		if(!Array.isArray(groups)){
+    			groups = [groups];
+    		}
+    		query = new HashMap();
+    		query.put(''reduce'', ''false'');
+    		query.put(''include_docs'', ''true'');
+    		keys = toJettison(groups);
+    		groups = toJSON(fsclient.postView("c8oforms_fs", ''groups'', ''rightsByUser'', query, keys)).rows;
+    		console.log("my groups :", groups, "warn");
+    		if(groups != undefined){
+    			for(var group of groups){
+    				if(!editing_rights){
+    					editing_rights = group.doc.editing_rights;
+    				}
+    				if(!nocode_db_rights){
+    					nocode_db_rights = group.doc.nocode_db_rights;
+    				}
+    				if(!admin){
+    					admin = group.doc.admin;
+    				}
+    				if(editing_rights && nocode_db_rights && admin){
+    					break;
+    				}
+    			}
+    		}
+    		res.editing_rights = editing_rights;
+    		res.nocode_db_rights = nocode_db_rights;
+    		res.admin = nocode_db_rights;
+    	}
+    }'
 ↓object2 [steps.JsonToXmlStep-1694423843221]: 
   jsonObject: 
     - xmlizable: 
