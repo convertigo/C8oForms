@@ -386,14 +386,18 @@ let getFormattedDate = function(date){
 		var formatedSecond = (second.length === 1) ? ("0" + second) : second;
         return formatedDay + "-" + formatedMonth + "-" + year + " " + formatedHour + ':' + formatedMinute + ':' + formatedSecond;
 }
-
-Object.defineProperty(Array.prototype, 'flatMap', {
-	enumerable: false,
-	value: function (f, ctx) {
-		return this.reduce
-			((r, x, i, a) =>
-				r.concat(f.call(ctx, x, i, a))
-				, []
-			)
-	}
-});
+try{
+	Object.defineProperty(Array.prototype, 'flatMap', {
+		enumerable: false,
+		value: function (f, ctx) {
+			return this.reduce
+				((r, x, i, a) =>
+					r.concat(f.call(ctx, x, i, a))
+					, []
+				)
+		}
+	});
+}
+catch(e){
+	
+}
