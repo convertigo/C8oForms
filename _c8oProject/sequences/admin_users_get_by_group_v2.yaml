@@ -66,50 +66,67 @@ comment: Retrieves multiple user's information, requires admin privileges.
     		rights: rights == null ? {} : {
     			editing_rights : rights.doc.editing_rights,
     			nocode_db_rights : rights.doc.nocode_db_rights,
-    			admin : rights.doc.nocode_db_rights
+    			admin : rights.doc.admin
     		}
     	}
     })
-    console.log("my groups :", groups, "warn");
+    
+    if(targetGroup){
+    	query = new java.util.HashMap();
+    	query.put(''reduce'', ''false'');
+    	keys = toJettison([targetGroup]);
+    	_keys = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_users_by_group'', query, keys));
+    	_keys = _keys.rows.map((x)=>{return "C8Oreserved_"+x.value});
+    	query = new java.util.HashMap();
+    	query.put(''include_docs'', ''true'');
+    	keys = toJettison(_keys);
+    	response = toJSON(fsclient.postView("c8oforms_fs", ''usersV2'', ''all2'', query, keys));
+    }
+    else{
+    	query = new java.util.HashMap();
+    	query.put(''include_docs'', ''true'');
+    	response = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', query));
+    }
     
     
-    
-    
-    query = new java.util.HashMap();
-    query.put(''include_docs'', ''true'');
-    var response = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', query));
     if(response.error){
     	
     }
     else{
-    	for(var row of response.rows){
-    		var editing_rights = row.editing_rights != undefined && (row.editing_rights === true || row.editing_rights == "true");
-    		var nocode_db_rights = row.nocode_db_rights != undefined && (row.nocode_db_rights === true || row.nocode_db_rights == "true");
-    		var admin = row.admin != undefined && (row.admin === true || row.admin == "true");
-    		if(editing_rights && nocode_db_rights && admin){
-    			
-    		}
-    		else{
-    			for(var group of _groups){
-    				if(!editing_rights){
-    					editing_rights = group.doc.editing_rights;
-    				}
-    				if(!nocode_db_rights){
-    					nocode_db_rights = group.doc.nocode_db_rights;
-    				}
-    				if(!admin){
-    					admin = group.doc.admin;
-    				}
-    				if(editing_rights && nocode_db_rights && admin){
-    					break;
+    	response.rows = response.rows.map((row)=>{
+    		var editing_rights = row.doc.editing_rights != undefined && (row.doc.editing_rights === true || row.doc.editing_rights == "true");
+    		var nocode_db_rights = row.doc.nocode_db_rights != undefined && (row.doc.nocode_db_rights === true || row.doc.nocode_db_rights == "true");
+    		var admin = row.doc.admin != undefined && (row.doc.admin === true || row.doc.admin == "true");
+    		if(!editing_rights || !nocode_db_rights || !admin){
+    			query = new java.util.HashMap();
+    			query.put(''reduce'', ''false'');
+    			keys = toJettison([row.doc["~c8oAcl"]]);
+    			var groupsOf = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys));
+    			if(groupsOf.rows.length > 0){
+    				groupsOf = groupsOf.rows.map((x)=>{return x.value});
+    				for(var group of _groups){
+    					if(groupsOf.indexOf(group.id) != -1){
+    						if(!editing_rights){
+    							editing_rights = group.doc.editing_rights;
+    						}
+    						if(!nocode_db_rights){
+    							nocode_db_rights = group.doc.nocode_db_rights;
+    						}
+    						if(!admin){
+    							admin = group.doc.admin;
+    						}
+    						if(editing_rights && nocode_db_rights && admin){
+    							break;
+    						}
+    					}
     				}
     			}
-    			row.editing_rights = editing_rights;
-    			row.nocode_db_rights = editing_rights;
-    			row.admin = editing_rights;
-    			
     		}
-    	}
+    		row.doc.editing_rights = editing_rights;
+    		row.doc.nocode_db_rights = nocode_db_rights;
+    		row.doc.admin = admin;
+    		return row;
+    	});
     	response = {
     		childrenLabels:	
     		[				
@@ -192,8 +209,16 @@ comment: Retrieves multiple user's information, requires admin privileges.
     		value: "all_users",
     		count: response.values.length,
     		rights: null,
-    		children: response.values.map(x=>x.doc)
+    		children: targetGroup != null ? null : response.values.map((x)=>{return x.doc})
     	})
+    	if(targetGroup != null){
+    		response.values = groups.map((x)=>{
+    			if(x.value == targetGroup){
+    				x.children = response.values.map((x)=>{return x.doc})
+    			}
+    			return x;
+    		})
+    	}
     	response.values = groups;
     }'
 ↓object [steps.JsonToXmlStep-1740999362974]: 
@@ -209,4 +234,4 @@ comment: Retrieves multiple user's information, requires admin privileges.
       - SmartType: 
         - ↑mode: PLAIN
         - →→: result
-↓group [variables.RequestableVariable-1740999085697]: 
+↓targetGroup [variables.RequestableVariable-1740999085697]: 
