@@ -5,34 +5,7 @@ comment: Retrieves multiple user's information, requires admin privileges.
   expression: include("js/isAdmin.js");
 ↓Call_Sequence [steps.SequenceStep-1740999362965]: 
   sourceSequence: lib_FullSyncGrp.Groups
-↓groups [steps.JsonSourceStep-1740999362968]: 
-  isEnabled: false
-  sourceDefinition: 
-    - xmlizable: 
-      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-      - com.twinsoft.convertigo.beans.common.XMLVector: 
-        - java.lang.String: 
-          - ↑value: 1740999362965
-        - java.lang.String: 
-          - ↑value: ./document/group
-  variableName: groups
-↓formatGroups [steps.SimpleStep-1741086855375]: 
-  expression: groups = groups.filter((group) => group.group.text.indexOf('C8O') == -1);
-  isEnabled: false
-↓jIterator [steps.SimpleIteratorStep-1743785068062]: 
-  expression: groups
-  isEnabled: false
-  ↓Call_Sequence [steps.SequenceStep-1743785200729]: 
-    sourceSequence: C8Oforms.admin_group_get
-    ↓_use_doc_id [variables.StepVariable-1743785237784]: 
-  ↓myVariable [steps.JsonSourceStep-1743785190307]: 
-  ↓buildGroupObj [steps.SimpleStep-1743785090128]: 
-↓initGroups [steps.SimpleStep-1743785492018]: 
-  expression: |
-    let groups = [];
-    let temp = null;
 ↓groups1 [steps.JsonSourceStep-1744043670365]: 
-  isEnabled: false
   sourceDefinition: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -42,87 +15,6 @@ comment: Retrieves multiple user's information, requires admin privileges.
         - java.lang.String: 
           - ↑value: ./document/group
   variableName: groups
-↓Iterator [steps.IteratorStep-1743785419829]: 
-  sourceDefinition: 
-    - xmlizable: 
-      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-      - com.twinsoft.convertigo.beans.common.XMLVector: 
-        - java.lang.String: 
-          - ↑value: 1740999362965
-        - java.lang.String: 
-          - ↑value: ./document/group
-  ↓Call_Sequence [steps.SequenceStep-1743785444066]: 
-    sourceSequence: C8Oforms.admin_group_get
-    ↓_use_doc_id [variables.StepVariable-1743785444069]: 
-      sourceDefinition: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-          - com.twinsoft.convertigo.beans.common.XMLVector: 
-            - java.lang.String: 
-              - ↑value: 1743785419829
-            - java.lang.String: 
-              - ↑value: ./text()
-  ↓temp [steps.JsonSourceStep-1743785444072]: 
-    sourceDefinition: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-        - com.twinsoft.convertigo.beans.common.XMLVector: 
-          - java.lang.String: 
-            - ↑value: 1743785444066
-          - java.lang.String: 
-            - ↑value: ./document/couchdb_output
-    variableName: temp
-  ↓group [steps.JsonSourceStep-1743785757735]: 
-    sourceDefinition: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-        - com.twinsoft.convertigo.beans.common.XMLVector: 
-          - java.lang.String: 
-            - ↑value: 1743785419829
-          - java.lang.String: 
-            - ↑value: .
-    variableName: group
-  ↓IfExistThenElse [steps.IfExistThenElseStep-1743785554687]: 
-    sourceDefinition: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-        - com.twinsoft.convertigo.beans.common.XMLVector: 
-          - java.lang.String: 
-            - ↑value: 1743785444066
-          - java.lang.String: 
-            - ↑value: ./document/couchdb_output/error
-    ↓jThen [steps.ThenStep-1743785556316]: 
-      ↓buildGroupObj [steps.SimpleStep-1743785444075]: 
-        expression: |
-          //todo
-          groups.push(group);
-    ↓jElse [steps.ElseStep-1743785556318]: 
-      ↓buildGroupObj [steps.SimpleStep-1743785670022]: 
-        expression: |
-          'let concat = '''';
-          
-          if (temp != null && temp.editing_rights == true) {
-          	concat += ''editing_rights'';
-          }
-          
-          if (temp != null && temp.nocode_db_rights == true) {
-          	concat += ((concat.length > 0) ? ''[$c8oGroup$]'': '''')+''nocode_db_rights'';
-          }
-          
-          if (temp != null && temp.admin == true) {
-          	concat += ((concat.length > 0) ? ''[$c8oGroup$]'': '''')+''admin'';
-          }
-          
-          if (concat.length > 0) {
-          	group.access = concat;
-          	group.group.data = {
-          		value: group.group.text,
-          		displayValue: concat
-          	};
-          }
-          
-          
-          groups.push(group);'
 ↓Sequence_JS_groups [steps.SimpleStep-1744043492877]: 
   expression: |
     '// remove _C8O groups
@@ -154,16 +46,70 @@ comment: Retrieves multiple user's information, requires admin privileges.
   isEnabled: false
 ↓Sequence_admin_users_get [steps.SimpleStep-1740999362971]: 
   expression: |
-    'query = new java.util.HashMap();
+    '// remove _C8O groups
+    groups = groups.filter((group) => group.group.text.indexOf(''C8O'') == -1)
+    _keys = groups.map((x)=>{return x.group.text})
+    // get forms groups rights holders
+    query = new HashMap();
+    query.put(''reduce'', ''false'');
+    query.put(''include_docs'', ''true'');
+    keys = toJettison(_keys);
+    _groups = toJSON(fsclient.postView("c8oforms_fs", ''groups'', ''rightsByUser'', query, keys)).rows;
+    
+    groups = groups.map((x)=>{
+    	var rights = _groups.find((_x)=>{
+    		return _x.id == x.group.text
+    	});
+    	return {
+    		value: x.group.text,
+    		count: x.group.attr.users,
+    		rights: rights == null ? {} : {
+    			editing_rights : rights.doc.editing_rights,
+    			nocode_db_rights : rights.doc.nocode_db_rights,
+    			admin : rights.doc.nocode_db_rights
+    		}
+    	}
+    })
+    console.log("my groups :", groups, "warn");
+    
+    
+    
+    
+    query = new java.util.HashMap();
     query.put(''include_docs'', ''true'');
     var response = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', query));
-    groups = groups.filter((group) => group.group.text.indexOf(''C8O'') == -1);
     if(response.error){
     	
     }
     else{
-    	var rows = response.rows;
-    	var valuesRows = rows;
+    	for(var row of response.rows){
+    		var editing_rights = row.editing_rights != undefined && (row.editing_rights === true || row.editing_rights == "true");
+    		var nocode_db_rights = row.nocode_db_rights != undefined && (row.nocode_db_rights === true || row.nocode_db_rights == "true");
+    		var admin = row.admin != undefined && (row.admin === true || row.admin == "true");
+    		if(editing_rights && nocode_db_rights && admin){
+    			
+    		}
+    		else{
+    			for(var group of _groups){
+    				if(!editing_rights){
+    					editing_rights = group.doc.editing_rights;
+    				}
+    				if(!nocode_db_rights){
+    					nocode_db_rights = group.doc.nocode_db_rights;
+    				}
+    				if(!admin){
+    					admin = group.doc.admin;
+    				}
+    				if(editing_rights && nocode_db_rights && admin){
+    					break;
+    				}
+    			}
+    			row.editing_rights = editing_rights;
+    			row.nocode_db_rights = editing_rights;
+    			row.admin = editing_rights;
+    			
+    		}
+    	}
     	response = {
     		childrenLabels:	
     		[				
@@ -240,27 +186,15 @@ comment: Retrieves multiple user's information, requires admin privileges.
     				headerCheckboxSelection: true
     			}
     		],
-    		values: valuesRows
+    		values: response.rows
     	};
-    	var filtered = groups;
-    	filtered.unshift({group:{text:"all_users", attr: {users: String(rows.length)}}});
-    	var values = [];
-    	var obj = {};
-    	for (let i = 0; i < filtered.length; i++) {
-    		let item = filtered[i];
-    		let children = [];
-    		if (item["group"]["text"] == "all_users") {
-    			children = valuesRows.map((it) => {return it.doc;});
-    			obj[''children''] = children;
-    			obj[''group''] = item["group"]["text"];
-    		} else {
-    			obj[''children''] = [];
-    			obj[''group''] = item["group"]["data"];
-    		}
-    		values.push(obj);
-    		obj = {};
-    	}
-    	response.values = values;
+    	groups.unshift({
+    		value: "all_users",
+    		count: response.values.length,
+    		rights: null,
+    		children: response.values.map(x=>x.doc)
+    	})
+    	response.values = groups;
     }'
 ↓object [steps.JsonToXmlStep-1740999362974]: 
   jsonObject: 
