@@ -331,61 +331,69 @@ accessibility: Hidden
     
     	var sortedsIds = [];
     	var lenActions = 0;
+    	if(responses.length > 0){
+    		// if we are in forms 2.0 responses, sortedsIds are stored in response itself
+    		if (responses[0] && responses[0].doc && responses[0].doc.sortedsIds) {
+    			sortedsIds = responses[0].doc.sortedsIds;
+    			lenActions = responses[0].doc.lenActions;
+    			res.response.sort = true;
+    		}
+    		// if form was created before forms 2.0 release, responses doean''t contains sortedsIds. => we can compute it from actual publidhed form
+    		else if (+published_form.version == +currentVersion) {
+    			published_form.pages.forEach((page, index) => {
+    				var _tempArr = published_form.formulaire.filter((x) => {
+    					return x.config.page == page.pageTechName;
+    				}).flatMap((x) => {
+    					if (x.type === "ion-card" && x.children != undefined) {
+    						var prefix = x.name;
+    						const _temp_subArray = x.children.map((y) => {
+    							return { path: prefix + ".children." + y.name, type: y.type };
+    						});
+    						return _temp_subArray;
+    					}
+    					else {
+    						return { path: x.name, type: x.type };
     
-    	// if we are in forms 2.0 responses, sortedsIds are stored in response itself
-    	if (responses[0] && responses[0].doc && responses[0].doc.sortedsIds) {
-    		sortedsIds = responses[0].doc.sortedsIds;
-    		lenActions = responses[0].doc.lenActions;
-    		res.response.sort = true;
-    	}
-    	// if form was created before forms 2.0 release, responses doean''t contains sortedsIds. => we can compute it from actual publidhed form
-    	else if (+published_form.version == +currentVersion) {
-    		published_form.pages.forEach((page, index) => {
-    			var _tempArr = published_form.formulaire.filter((x) => {
-    				return x.config.page == page.pageTechName;
-    			}).flatMap((x) => {
+    					}
+    				});
+    				sortedsIds = sortedsIds.concat(_tempArr);
+    			});
+    			if(published_form.actions){
+    				lenActions = published_form.actions.filter((x) => { return x.type === "submit" }).length;
+    			}
+    			else{
+    				lenActions = published_form.flows[1].elements.filter((x) => { return x.type === "submit" }).length;
+    			}
+    			
+    			res.response.sort = true;
+    		}
+    		// if none of both previous conditions are met, we can''t sort responses.
+    		else {
+    			// not sorted responses for old versions
+    			var _tempArr = [];
+    			for (var e in responses[0].doc.resp) {
+    				x = responses[0].doc.resp[e];
     				if (x.type === "ion-card" && x.children != undefined) {
     					var prefix = x.name;
-    					const _temp_subArray = x.children.map((y) => {
-    						return { path: prefix + ".children." + y.name, type: y.type };
-    					});
-    					return _temp_subArray;
+    					for (var f in x.children) {
+    						y = x.children[f];
+    						_tempArr.push({ path: prefix + ".children." + y.name, type: y.type });
+    					}
     				}
     				else {
-    					return { path: x.name, type: x.type };
+    					_tempArr.push({ path: x.name, type: x.type });
     
     				}
-    			});
+    			}
     			sortedsIds = sortedsIds.concat(_tempArr);
-    		});
-    		lenActions = published_form.actions.filter((x) => { return x.type === "submit" }).length;
-    		res.response.sort = true;
-    	}
-    	// if none of both previous conditions are met, we can''t sort responses.
-    	else {
-    		// not sorted responses for old versions
-    		var _tempArr = [];
-    		for (var e in responses[0].doc.resp) {
-    			x = responses[0].doc.resp[e];
-    			if (x.type === "ion-card" && x.children != undefined) {
-    				var prefix = x.name;
-    				for (var f in x.children) {
-    					y = x.children[f];
-    					_tempArr.push({ path: prefix + ".children." + y.name, type: y.type });
-    				}
-    			}
-    			else {
-    				_tempArr.push({ path: x.name, type: x.type });
-    
+    			console.log("sortedIds", sortedsIds, logLevel);
+    			res.response.sort = false;
+    			if (responses[0].doc.actionsValue) {
+    				lenActions = Object.keys(responses[0].doc.actionsValue).length;
     			}
     		}
-    		sortedsIds = sortedsIds.concat(_tempArr);
-    		console.log("sortedIds", sortedsIds, logLevel);
-    		res.response.sort = false;
-    		if (responses[0].doc.actionsValue) {
-    			lenActions = Object.keys(responses[0].doc.actionsValue).length;
-    		}
     	}
+    	
     	if(csv){
     		let arrayCsv = [{path: ''/.doc.timestamp'', type:"timestamp", meta: {}}];
     		if(meta){
@@ -433,14 +441,15 @@ accessibility: Hidden
     			}
     			var elem;
     			try{
-     				for (var part of s) {
-     					response = response[part];
-     					elem = part;
-     				}
-     			}
-     			catch(e){
-     				
-     			}
+    				for (var part of s) {
+    					response = response[part];
+    					elem = part;
+    				}
+    			}
+    			catch(e){
+    				
+    			}
+    			
     			if (response) {
     				if (j == 0) {
     					// prefix for csv as timestamp or author
