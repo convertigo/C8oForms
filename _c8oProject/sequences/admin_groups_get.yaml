@@ -5,36 +5,13 @@ comment: Retrieves multiple user's information, requires admin privileges.
   expression: include("js/isAdmin.js");
 ↓Call_Sequence [steps.SequenceStep-1740393160659]: 
   sourceSequence: lib_FullSyncGrp.Groups
-↓object [steps.JsonToXmlStep-1740392965324]: 
-  isEnabled: false
-  jsonObject: 
-    - xmlizable: 
-      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
-      - SmartType: 
-        - ↑mode: JS
-        - →→: response
-  key: 
-    - xmlizable: 
-      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
-      - SmartType: 
-        - ↑mode: PLAIN
-        - →→: result
-↓groups [steps.JsonSourceStep-1740393580962]: 
-  isEnabled: false
-  sourceDefinition: 
-    - xmlizable: 
-      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-      - com.twinsoft.convertigo.beans.common.XMLVector: 
-        - java.lang.String: 
-          - ↑value: 1740393160659
-        - java.lang.String: 
-          - ↑value: ./document/group
-  variableName: groups
 ↓initGroups [steps.SimpleStep-1743872622649]: 
   expression: |
     let groups = [];
     let temp = null;
+  isEnabled: false
 ↓Iterator [steps.IteratorStep-1743872622653]: 
+  isEnabled: false
   sourceDefinition: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -112,8 +89,10 @@ comment: Retrieves multiple user's information, requires admin privileges.
           groups.push(group);'
 ↓formatGroups [steps.SimpleStep-1740392965321]: 
   expression: groups = groups.filter((group) => group.group.text.indexOf('C8O') == -1);
+  isEnabled: false
 ↓object1 [steps.JsonObjectStep-1740393670934]: 
   comment: grid
+  isEnabled: false
   key: 
     - xmlizable: 
       - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
@@ -360,3 +339,70 @@ comment: Retrieves multiple user's information, requires admin privileges.
               - SmartType: 
                 - ↑mode: JS
                 - →→: item.group.attr.users
+↓groups1 [steps.JsonSourceStep-1744216468954]: 
+  sourceDefinition: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+      - com.twinsoft.convertigo.beans.common.XMLVector: 
+        - java.lang.String: 
+          - ↑value: 1740393160659
+        - java.lang.String: 
+          - ↑value: ./document/group
+  variableName: groups
+↓Sequence_admin_users_get [steps.SimpleStep-1744216468957]: 
+  expression: |
+    '// remove _C8O groups
+    groups = groups.filter((group) => group.group.text.indexOf(''C8O'') == -1)
+    _keys = groups.map((x) => { return x.group.text })
+    // get forms groups rights holders
+    query = new HashMap();
+    query.put(''reduce'', ''false'');
+    query.put(''include_docs'', ''true'');
+    keys = toJettison(_keys);
+    _groups = toJSON(fsclient.postView("c8oforms_fs", ''groups'', ''rightsByUser'', query, keys)).rows;
+    
+    groups = groups.map((x) => {
+    	var rights = _groups.find((_x) => {
+    		return _x.id == x.group.text
+    	});
+    	return {
+    		group: x.group.text,
+    		user: x.group.attr.users,
+    		access: rights == null ? {} : {
+    			editing_rights: rights.doc.editing_rights,
+    			nocode_db_rights: rights.doc.nocode_db_rights,
+    			admin: rights.doc.admin
+    		}
+    	}
+    });
+    
+    var data = {
+    	"labels": [
+    		{
+    			"headerName": "admin_dashboard_users_list_groups_group_name",
+    			"field": "group",
+    			"editable": false,
+    			"checkboxSelection": true,
+    			"headerCheckboxSelection": true
+    		},
+    		{
+    			"headerName": "admin_dashboard_users_list_groups_user_count",
+    			"field": "user",
+    			"editable": false
+    		}
+    	],
+    	"values": groups
+    }'
+↓object [steps.JsonToXmlStep-1744216727394]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: data
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: data
