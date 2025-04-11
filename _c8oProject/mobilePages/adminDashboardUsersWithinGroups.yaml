@@ -238,8 +238,19 @@ scriptContent:
         			let docs2;
         			if (bulkOperation == "updateGroup" || bulkOperation == "deleteGroup") {
         				// todo : format data structure here (args)
-        				docs = this.myaggrid?.agGrid.api?.getSelectedNodes().map((node) => { return (bulkOperation == "deleteGroup") ? { "group": node.data.group } : { "oldGroup": node.data.group, newGroup: value.newGroup } });
+        				docs = this.myaggrid?.agGrid.api?.getSelectedNodes().map((node) => { return (bulkOperation == "deleteGroup") ? { "group": node.data.value } : { "oldGroup": node.data.value, newGroup: value.newGroup } });
         				docs2 = this.lib_extendedcomponents_ui_ngx_aggrid?.agGrid?.api?.getSelectedNodes().map((node) => { return { "_id": node.data._id, "_rev": node.data._rev } });
+        				if (bulkOperation == ''deleteGroup'') {
+        					docs2 = this.lib_extendedcomponents_ui_ngx_aggrid?.agGrid?.api?.getSelectedNodes().map((node) => { 
+        						return { 
+        							"_id": node.data.value,
+        							"editing_rights": node.data?.editing_rights || false,
+        							"admin": node.data?.admin || false,
+        							"nocode_db_rights": node.data?.nocode_db_rights || false,
+        							"_rev": node.data?.rev
+        						} 
+        					});
+        				}
         			} else {
         				docs = this.myaggrid2?.agGrid?.api?.getSelectedNodes().map((node) => { return node.data["~c8oAcl"] });
         			}
@@ -269,16 +280,28 @@ scriptContent:
         						
         						return it;
         					});
-        					var args: any = { docs: JSON.stringify(docs) };
-        					var args2: any = { docs: JSON.stringify(docs2) };		
-        										
+        					
+        
+        					var args: any;
+        					docs2 = docs2.map((x)=>{
+        						x._deleted = true;
+        						return x;
+        					});
+        					
+        					console.log(docs2);
+        					args = {docs: JSON.stringify(docs2)};
+        					args = {...args, "right": "editing_rights", "value": false};
+        					console.log(args);
+        					let data2 = await this.c8o.callJsonObject("C8Oforms.admin_group_upsert_bulk", args).async();
+        					console.log(data2)
+        //					args = { docs: JSON.stringify(docs) };		
+        					console.log(docs);		
         					var sequence;
-        					sequence = "C8Oforms.admin_group_delete_bulk";
-        					let deleted = await this.c8o.callJsonObject(sequence, args2).async();
         					for (let i = 0; i < docs.length; i++) {
         						args = { meta: JSON.stringify(docs[i]) };
         						sequence = "C8Oforms.admin_groups_delete";
         						deleted = await this.c8o.callJsonObject(sequence, args).async();
+        						console.log(deleted);
         						this.loadGridData();
         						if (deleted?.success || deleted?.success == ''true'') {
         							await this.presentToast(this.translate.instant(successMsg, { countlines: docs.length }), ''toastSuccess'');
