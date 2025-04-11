@@ -13,7 +13,7 @@ accessibility: Hidden
     
     console.log("id", id, loglevel);
     var doc = getDoc(id, null, db);
-    if (doc._deleted == null && ((doc["~c8oAcl"] == null && doc.c8oGrp == null) || doc["~c8oAcl"] == authenticatedUserID)) {
+    if (doc._deleted == null && ((doc["~c8oAcl"] == null && doc.c8oGrp == null) || doc["~c8oAcl"] == authenticatedUserID || doc.creator == authenticatedUserID )) {
        authGranted = true;
     }
     // if acl is not enough to grant access, check with used groups and doc.grp is not null
@@ -34,11 +34,10 @@ accessibility: Hidden
        keys = toJettison(_use_keys);
        usedGroups = toJSON(fsclient.postView(db, ''authentication'', ''distinctGroups'', query, keys));
        usedGroups = usedGroups.rows.map((x) => { return x.key });
-       if (usedGroups.length > 0 && ((grpIsArray && doc.c8oGrp.some(function (value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function (group) { return (doc.c8oGrp[group] == true || doc.c8oGrp[group] == "true") })))) {
-          if(doc.creator == authenticatedUserID || (doc.collabsResponse != null && doc.collabsResponse.indexOf(authenticatedUserID) != -1)){
+       if(usedGroups.find((value) => { return doc.collabsResponse.includes(value)}) != null){
+    		
     	 	 authGranted = true;
     	  }
-       }
     }
     if (authGranted) {
     	query = new java.util.HashMap();
@@ -51,6 +50,21 @@ accessibility: Hidden
     	for(var resp of responses){
     		published_form = (callSequence("C8Oforms", "APIV2_deleteDocument", { id: resp.id, fromResponse: true }));
     	}
+    	// for annonymous now
+    	query = new java.util.HashMap();
+    	query.put(''reduce'', ''false'');
+    	query.put(''startkey'', JSON.stringify([id+ "_anonymous", "" + version]));
+    	query.put(''endkey'', JSON.stringify([id+"_anonymous", "" + version]));
+    	query.put("include_docs", "false");
+    	var responses;
+    	responses = toJSON(fsclient.getView(dbResponse, ''read_responses'', ''getResponsesByVersion'', query)).rows;
+    	for(var resp of responses){
+    		published_form = (callSequence("C8Oforms", "APIV2_deleteDocument", { id: resp.id, fromResponse: true }));
+    	}
+    	
+    }
+    else{
+    	res.error = "You are not authorized to delete theses responses";
     }
     
     
