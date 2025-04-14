@@ -3682,46 +3682,6 @@ comment
 <details><summary><span style="color:DarkGoldenRod"><i>Sequences</i></span></summary><blockquote><p>
 
 
-<details><summary><b>AddGroupsToAwnsers</b> : For a given form, this adds a group to every answers</summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") AddGroupsToAwnsers
-
-For a given form, this adds a group to every answers
---- 
-used to collaborative response share
----
-Called by a Listener
----
-Listener: FullSync_Update_Listener_ViewAddGroupsToResponses
----
-targetView:
-C8Oforms.c8oforms_fs.control_documents.control_documents_add_groups_to_responses
-
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/multivaluedvariable_color_16x16.png?raw=true "  alt="RequestableMultiValuedVariable" >&nbsp;doc
-</td>
-<td>
-
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
 <details><summary><b>AddUser</b> : Add a new user </summary><blockquote><p>
 
 
@@ -6050,38 +6010,6 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>ClearFullSync_Update_Listener_ViewAddGroupsToResponses</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") ClearFullSync_Update_Listener_ViewAddGroupsToResponses
-
-
-</p></blockquote></details>
-
-<details><summary><b>ClearOnPostControlDocumentCreateUser</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") ClearOnPostControlDocumentCreateUser
-
-
-</p></blockquote></details>
-
-<details><summary><b>ClearOnPostControlDocumentPublishedDoc</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") ClearOnPostControlDocumentPublishedDoc
-
-
-</p></blockquote></details>
-
-<details><summary><b>ClearOnPostControlDocumentPwaPublishAndCreateRights</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") ClearOnPostControlDocumentPwaPublishAndCreateRights
-
-
-</p></blockquote></details>
-
 <details><summary><b>CreatePublicUserAddGroupe</b> : Create a new user that will allow to share an anonymous link</summary><blockquote><p>
 
 
@@ -7498,110 +7426,12 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>OrderToCheckForDeletion</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") OrderToCheckForDeletion
-
-
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/multivaluedvariable_color_16x16.png?raw=true "  alt="RequestableMultiValuedVariable" >&nbsp;doc
-</td>
-<td>
-
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
 <details><summary><b>Ping</b> : Simple ping sequence</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") Ping
 
 Simple ping sequence
-</p></blockquote></details>
-
-<details><summary><b>PublishForm</b> : Allow to publish a form</summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") PublishForm
-
-Allow to publish a form
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;deleteControlDoc
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/multivaluedvariable_color_16x16.png?raw=true "  alt="RequestableMultiValuedVariable" >&nbsp;doc
-</td>
-<td>
-
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
-<details><summary><b>PublishFormCreateAnnonymousAndPWA</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") PublishFormCreateAnnonymousAndPWA
-
-
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/multivaluedvariable_color_16x16.png?raw=true "  alt="RequestableMultiValuedVariable" >&nbsp;doc
-</td>
-<td>
-
-</td>
-</tr>
-</table>
-
 </p></blockquote></details>
 
 <details><summary><b>RemoveNewUserSharing</b></summary><blockquote><p>
@@ -7625,36 +7455,6 @@ comment
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
-</td>
-<td>
-
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
-<details><summary><b>RemovePublicUserRemoveGroupe</b> : Delete user for a given anonymous link</summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") RemovePublicUserRemoveGroupe
-
-Delete user for a given anonymous link
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/multivaluedvariable_color_16x16.png?raw=true "  alt="RequestableMultiValuedVariable" >&nbsp;doc
 </td>
 <td>
 
