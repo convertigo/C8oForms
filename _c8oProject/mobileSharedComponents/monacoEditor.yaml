@@ -5,10 +5,14 @@ scriptContent:
       →: |
         '/*Begin_c8o_CompImport*/
         import { C8o } from "c8osdkangular";
+        import * as acorn from "acorn";
+        import * as walk from "acorn-walk";
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
+        	public toastController: ToastController;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
+        		this.toastController = this.getInstance(ToastController);
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
         		/*End_c8o_CompInitialization*/
@@ -27,26 +31,44 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
-        	
-        	// 
-        	
+        
+        	async presentToast(message: string, cssClass: string = '''') {
+        		const toast = await this.toastController.create({
+        			message: message,
+        			position: ''bottom'',
+        			cssClass: cssClass,
+        			buttons: [
+                    {
+                        side: ''end'',
+                        icon: ''close'',
+                        role: ''cancel'',
+                        handler: () => {
+                            console.log(''Toast closed'');
+                        }
+                    }
+                ]
+        		});
+        
+        		await toast.present();
+        	}
+        
         	/**
         	 * used to find tree leafs, not going more than 10 deep
         	 */
-        	public recursiveGetChilds(elem, compl = false, max = 1000, count = 0){
+        	public recursiveGetChilds(elem, compl = false, max = 1000, count = 0) {
         		let str = "";
-        		for(let key in elem){
-        			if(typeof(elem[key]) == "string"){
-        				str+= `"${key}": ${compl ? "any" : elem[key]},
+        		for (let key in elem) {
+        			if (typeof (elem[key]) == "string") {
+        				str += `"${key}": ${compl ? "any" : elem[key]},
         				`
         			}
-        			else{
-        				if(count < max){
+        			else {
+        				if (count < max) {
         					count++;
         					str += `"${key}":{
         							`;
         					str += this.recursiveGetChilds(elem[key], compl, max, count);
-        					str +=`		
+        					str += `		
         					},
         					`;
         				}
@@ -54,7 +76,7 @@ scriptContent:
         		}
         		return str;
         	}
-        	public async computeCurrentElem(elem){
+        	public async computeCurrentElem(elem) {
         		let fields = "";
         		let defs = "";
         		// call api width model true to try to get source structure
@@ -63,58 +85,58 @@ scriptContent:
         		let InterFaceName = elem.name.charAt(0).toUpperCase() + elem.name.slice(1);
         		// store it to fields interface
         		fields += `${elem.name} : ${InterFaceName}, `;
-        		
-        		defs+= `
+        
+        		defs += `
         			interface ${InterFaceName} {
         				`;
-        		if(Object.keys(struct.builtin).length > 0){
+        		if (Object.keys(struct.builtin).length > 0) {
         			defs += this.recursiveGetChilds(struct.builtin, false);
         		}
-        		if(Object.keys(struct.compl).length > 0){
+        		if (Object.keys(struct.compl).length > 0) {
         			defs += this.recursiveGetChilds(struct.compl, true);
         		}
-        		defs +=`
+        		defs += `
         			}
         		`;
-        		return {defs: defs, fields: fields}
+        		return { defs: defs, fields: fields }
         	}
-        	public async computeDefs(): Promise<string>{
+        	public async computeDefs(): Promise<string> {
         		// defs will contains the all structure for completion, starting by each form component, then Fields interface
         		let defs = "";
         		// declare fields interFace that will hold the whole fields
         		let fields = "interface Fields {";
         		// walk the whole form
-        		for(let elem of this.pageOwner.form.formulaire){
-        			if(elem.type == "ion-card" && elem.children != undefined){
-        				for(let subElem of elem.children){
+        		for (let elem of this.pageOwner.form.formulaire) {
+        			if (elem.type == "ion-card" && elem.children != undefined) {
+        				for (let subElem of elem.children) {
         					let resp = await this.computeCurrentElem(subElem);
         					fields += resp.fields;
         					defs += resp.defs;
         				}
         			}
-        			else{
+        			else {
         				let resp = await this.computeCurrentElem(elem);
         				fields += resp.fields;
         				defs += resp.defs;
         			}
         		}
         		fields += "}";
-        		
+        
         		// declare fields interFace that will hold the whole fields
         		let actions = "interface Actions {";
         		// walk the whole form
-        		if(this.pageOwner.form?.actions){
-        			for(let elem of this.pageOwner.form?.actions){
-        				if(elem.type == "business_logic"){
+        		if (this.pageOwner.form?.actions) {
+        			for (let elem of this.pageOwner.form?.actions) {
+        				if (elem.type == "business_logic") {
         					actions += `${elem.name} : any,`;
         				}
         			}
-        			
+        
         		}
-        		if(this.pageOwner.form.flows){
-        			for(let flow of this.pageOwner.form?.flows){
-        				for(let elem of flow.elements){
-        					if(elem.type == "business_logic"){
+        		if (this.pageOwner.form.flows) {
+        			for (let flow of this.pageOwner.form?.flows) {
+        				for (let elem of flow.elements) {
+        					if (elem.type == "business_logic") {
         						actions += `${elem.name} : any,`;
         					}
         				}
@@ -180,7 +202,7 @@ scriptContent:
         			 */
         			reload(): void;
         		}
-        				${ this.getSdkCompletion() }
+        				${this.getSdkCompletion()}
         		
         		/**
         		 * Holds translate service
@@ -292,203 +314,207 @@ scriptContent:
         			form: Form,
         			user:User,
         			page: Page,
-        			${this.loop ? "currentFor: CurrentFor":""}
+        			${this.loop ? "currentFor: CurrentFor" : ""}
         		}
         		declare const api: Api;
         		declare const page: Page
         		}
         		`
         		return defs;
-        		
+        
         	}
-        	
+        
         	public inspectValue(node, arrayNodes, str = '''', memberExpressions = null, parentNode = null) {
-        	  const regex = /\./g;
-        	  if (parentNode == null) {
-        	  	parentNode = node;
-        	  }
-        	  if (node.property != undefined) {
-        	    // if this memberExpression has already been computed and is within another
-        	    if (memberExpressions[node.property.range[0]] != undefined) {
-        	      let randomSave = new Date().getTime() + ''_'' + ('''' + Math.random()).substring(2);
-        	      str = '''' + `.$$START_SUB${randomSave}END_SUB$$` + str;
-        	      parentNode.nested = true;
-        	      if (parentNode.nestedByRandom == undefined) {
-        	        parentNode.nestedByRandom = {};
-        	      }
-        	      parentNode.nestedByRandom[randomSave] = memberExpressions[node.property.range[0]];
-        	      delete memberExpressions[node.property.range[0]];
-        	    } else {
-        	      	if (node.property.type == ''Literal'') {
-        				try{
-        					str = ''.'' + node.property.value.replace(regex, ''\\.'') + str;
+        		const regex = /\./g;
+        		if (parentNode == null) {
+        			parentNode = node;
+        		}
+        		if (node.property != undefined) {
+        			// if this memberExpression has already been computed and is within another
+        			if (memberExpressions[node.property.range[0]] != undefined) {
+        				let randomSave = new Date().getTime() + ''_'' + ('''' + Math.random()).substring(2);
+        				str = '''' + `.$$START_SUB${randomSave}END_SUB$$` + str;
+        				parentNode.nested = true;
+        				if (parentNode.nestedByRandom == undefined) {
+        					parentNode.nestedByRandom = {};
         				}
-        				catch(e){
-        					str = ''.'' + node.property.value + str;
-        				}
-        			  
+        				parentNode.nestedByRandom[randomSave] = memberExpressions[node.property.range[0]];
+        				delete memberExpressions[node.property.range[0]];
         			} else {
-        			  str = ''.'' + node.property.name + str;
+        				if (node.property.type == ''Literal'') {
+        					try {
+        						str = ''.'' + node.property.value.replace(regex, ''\\.'') + str;
+        					}
+        					catch (e) {
+        						str = ''.'' + node.property.value + str;
+        					}
+        
+        				} else {
+        					str = ''.'' + node.property.name + str;
+        				}
         			}
-        	    }
-        	    return this.inspectValue(
-        	      node.object,
-        	      arrayNodes,
-        	      str,
-        	      memberExpressions,
-        	      parentNode
-        	    );
-        	  }
-        	  else {
-        	    parentNode.computedValue = node.name + str;
-        	    return parentNode;
-        	  }
+        			return this.inspectValue(
+        				node.object,
+        				arrayNodes,
+        				str,
+        				memberExpressions,
+        				parentNode
+        			);
+        		}
+        		else {
+        			parentNode.computedValue = node.name + str;
+        			return parentNode;
+        		}
         	}
         	public async tsMonacoto$$(memberExpressions, splitted, prefixAndSuffix = true) {
         		let c8obuiltin = false;
-        	    let id = this.pageOwner.getElementIdByName(splitted[1]);
-        	    let pathPrefix = splitted[0];
-        	    let splittedSliced = splitted.slice(1);
-        	    let elem = this.pageOwner.getElementById(id);
-        	    let struct = await this.pageOwner.searchCompletionWithElem(elem, false, false);
-        	    // evaluate if its a builtin 
-        	    if(struct.builtin != undefined && splittedSliced[1] != undefined && Object.keys(struct.builtin).indexOf(splittedSliced[1]) != -1){
+        		let id = this.pageOwner.getElementIdByName(splitted[1]);
+        		let pathPrefix = splitted[0];
+        		let splittedSliced = splitted.slice(1);
+        		let elem = this.pageOwner.getElementById(id);
+        		let struct = await this.pageOwner.searchCompletionWithElem(elem, false, false);
+        		// evaluate if its a builtin 
+        		if (struct.builtin != undefined && splittedSliced[1] != undefined && Object.keys(struct.builtin).indexOf(splittedSliced[1]) != -1) {
         			c8obuiltin = true;
         		}
-        	    let path = splittedSliced.length > 1 ? splittedSliced.join(''.'') : '''';
-        	    let prefix = `$$START${id}`;
-        	    let suffix = `END${id}$$`;
-        	    let obj : any = 
-        	    {"c8otype": "path", "c8opath": path, "c8oPrettyPath":null, "c8obuiltin": (""+c8obuiltin), "id": id, "pathPrefix": pathPrefix,
-        	     "nested": memberExpressions.nested ? memberExpressions.nestedByRandom : null, "name": splitted[1] };
-        		if(prefixAndSuffix){
-        			return prefix+JSON.stringify(obj)+suffix;
+        		let path = splittedSliced.length > 1 ? splittedSliced.join(''.'') : '''';
+        		let prefix = `$$START${id}`;
+        		let suffix = `END${id}$$`;
+        		let obj: any =
+        		{
+        			"c8otype": "path", "c8opath": path, "c8oPrettyPath": null, "c8obuiltin": ("" + c8obuiltin), "id": id, "pathPrefix": pathPrefix,
+        			"nested": memberExpressions.nested ? memberExpressions.nestedByRandom : null, "name": splitted[1]
+        		};
+        		if (prefixAndSuffix) {
+        			return prefix + JSON.stringify(obj) + suffix;
         		}
-        		else{
+        		else {
         			return obj;
         		}
         	}
-        	public transform$toTsMonaco(str): string{
-        	    return this.pageOwner.transform$toTsMonaco(str);
+        	public transform$toTsMonaco(str): string {
+        		return this.pageOwner.transform$toTsMonaco(str);
         	}
-        	
         	public async parse(b) {
-        	    let arrayNodes = [];
-        	    let memberExpressions = {};
-        	    // call esprima to get member expressions
-        	    //let res = parseScript(b);
-        	    esprima.parseModule(b, { range: true, tolerant: true }, (node, meta) => {
-        	      if (node.type == ''MemberExpression''){/* || node.type =="CallExpression") {*/
-        	        // its a start member
-        	        if (node?.object?.name === ''fields'' || node?.object?.name === ''actions'') {
-        	          memberExpressions[node.range[0]] = node;
-        	        } else if (memberExpressions[node.range[0]] != undefined) {
-        	          memberExpressions[node.range[0]] = node;
-        	        }
-        	      }
-        	    })
-        	    // call each memberExpressions by reverse order and extract ours
-        	    Object.keys(memberExpressions)
-        	      .sort((a, b) => {
-        	        return +b - +a;
-        	      })
-        	      .forEach((key, i) => {
-        	        let currentMemberExpression = memberExpressions[key];
-        	        let range = currentMemberExpression.range;
-        	        let res = '''';
-        	        res = this.inspectValue(
-        	          currentMemberExpression,
-        	          arrayNodes,
-        	          '''',
-        	          memberExpressions
-        	        );
-        	        memberExpressions[range[0]] = res;
-        	        arrayNodes.push({
-        	          node: currentMemberExpression,
-        	          range: range,
-        	          childs: [],
-        	          value: res,
-        	        });
-        	      });
-        	    window[''arrayNodes''] = arrayNodes;
-        	    window[''memberExpressions''] = memberExpressions;
-        	    let workingB = '''' + b;
-        	    let func1 = async()=>{
-        			 // call each our memberExpressions by reverse order and extract ours. It will also allow to find nested expressions
-        		    let sortedA: any = Object.keys(memberExpressions)
-        		      .sort((a, b) => {
-        		        return +b - +a;
-        		      });
-        		      for(let [i, key] of sortedA.entries()) {
-        				//$$START1681726766941{\"c8otype\":\"path\",\"c8opath\":\"grid1.0.Title.displayValue\",\"c8oPrettyPath\":\"\",\"c8obuiltin\":\"false\"}END1681726766941$$
-        				//"$$START1681735957413{\"c8otype\":\"path\",\"c8opath\":\"checkboxGroup1.TEXT_format.selected_data_c8o_separated_by_coma\",\"c8oPrettyPath\":\"\",\"c8obuiltin\":\"true\"}END1681735957413$$"
-        				let currentMemberExpression = memberExpressions[key];
-        				let range = currentMemberExpression.range;
-        				if (currentMemberExpression.nested) {
-        				  // do stuff for nested
-        				
-        				  for (let rand in currentMemberExpression.nestedByRandom) {
-        				    let curr = currentMemberExpression.nestedByRandom[rand];
-        				    let splitted = curr.computedValue.split(/(?<!\\)\./);
-        				    currentMemberExpression.nestedByRandom[rand] = await this.tsMonacoto$$(curr, splitted, false);
-        				  }
+        		try {
+        			const arrayNodes = [];
+        			const memberExpressions = {};
+        
+        			const ast = acorn.parse(b, {
+        				ecmaVersion: "latest",
+        				sourceType: "module",
+        				locations: true,
+        				ranges: true
+        			});
+        
+        			walk.simple(ast, {
+        				MemberExpression(node: any) {
+        					const start = node.start;
+        					if (
+        						node.object.type === "Identifier" &&
+        						(node.object.name === "fields" || node.object.name === "actions")
+        					) {
+        						memberExpressions[start] = node;
+        					} else if (memberExpressions[start] !== undefined) {
+        						memberExpressions[start] = node;
+        					}
+        				},
+        			});
+        			
+        			Object.keys(memberExpressions)
+        				.sort((a, b) => +b - +a)
+        				.forEach((key) => {
+        					const currentMemberExpression = memberExpressions[key];
+        					const range = [currentMemberExpression.start, currentMemberExpression.end];
+        					const res = this.inspectValue(
+        						currentMemberExpression,
+        						arrayNodes,
+        						"",
+        						memberExpressions
+        					);
+        					memberExpressions[range[0]] = res;
+        					arrayNodes.push({
+        						node: currentMemberExpression,
+        						range,
+        						childs: [],
+        						value: res,
+        					});
+        				});
+        
+        			// stock temporaire
+        			window["arrayNodes"] = arrayNodes;
+        			window["memberExpressions"] = memberExpressions;
+        
+        			let workingB = "" + b;
+        
+        			// suite logique : modifie le code selon les résultats de parsing
+        			const sortedKeys = Object.keys(memberExpressions).sort((a, b) => +b - +a);
+        			for (const key of sortedKeys) {
+        				let current = memberExpressions[key];
+        				let range = [current.start, current.end];
+        				if (current.nested) {
+        					for (const rand in current.nestedByRandom) {
+        						const curr = current.nestedByRandom[rand];
+        						const splitted = curr.computedValue.split(/(?<!\\)\./);
+        						current.nestedByRandom[rand] = await this.tsMonacoto$$(curr, splitted, false);
+        					}
         				}
-        				let splitted = currentMemberExpression.computedValue.split(/(?<!\\)\./);
-        				let firstArg = splitted[0];
-        				if (firstArg === ''fields'' || firstArg === ''actions'') {
-        				}
-        				let st = await this.tsMonacoto$$(currentMemberExpression, splitted);
+        				const splitted = current.computedValue.split(/(?<!\\)\./);
+        				const st = await this.tsMonacoto$$(current, splitted);
         				workingB = workingB.substring(0, range[0]) + st + workingB.substring(range[1]);
-        			  }
-        		     
+        			}
+        
+        			const ts = this.transform$toTsMonaco(workingB);
+        			return workingB;
         		}
-        	   	await func1();
-        	    let ts = this.transform$toTsMonaco(workingB);
-        	    return workingB;
+        		catch (e) {
+        			console.error("an error occured while pasing", e);
+        			await this.presentToast(this.translate.instant("error_computing", {err : e.name + " : " + e.message}), ''toastError'');
+        			throw e;
+        		}
+        
         	}
-        	
-        	public async onMonacoInit(editor){
-        		editor.onDidBlurEditorText(async ()=>{
+        
+        	public async onMonacoInit(editor) {
+        		editor.onDidBlurEditorText(async () => {
         			let val = editor.getValue();
         			this.code = await this.parse(val);
-        			let evt = C8oCafUtils.merge({"object": this, "target": this["elRef"].nativeElement}, {code: this.code})
-                	this.onBlur.emit(evt);
+        			let evt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
+        			this.onBlur.emit(evt);
         		})
-        		editor.onDropIntoEditor((event)=>{ setTimeout(()=>{editor.trigger('''', ''editor.action.triggerSuggest'');})});
-        		
+        		editor.onDropIntoEditor((event) => { setTimeout(() => { editor.trigger('''', ''editor.action.triggerSuggest''); }) });
+        
         		setTimeout(() => {
-                    window.dispatchEvent(new Event(''resize''));
-                }, 0);
+        			window.dispatchEvent(new Event(''resize''));
+        		}, 0);
         		let defs = await this.computeDefs();
-        		window["esprima"] = esprima;
-        		//window["jscodeshift"] = jscodeshift;
         		window["monaco"].languages.typescript.javascriptDefaults.addExtraLib(defs);
         		window["monaco"].editor.createModel(defs, ''typescript'');
         	}
-        	
-        	public OldinspectValue(node, arrayNodes, str = ""){
-        		if(node.property != undefined && node.object != undefined){
+        
+        	public OldinspectValue(node, arrayNodes, str = "") {
+        		if (node.property != undefined && node.object != undefined) {
         			// if this memberExpression has already been computed and is within another
-        			if(arrayNodes[node.property.range[0]] != undefined && arrayNodes[node.property.range[0]].node.range[1] == node.range[1]){
+        			if (arrayNodes[node.property.range[0]] != undefined && arrayNodes[node.property.range[0]].node.range[1] == node.range[1]) {
         				str = "" + `[${arrayNodes[node.property.range[0]].value}]`;
         			}
-        			else{
-        				if(node.object.property){
+        			else {
+        				if (node.object.property) {
         					str = node.object.property.name + str;
         				}
-        				else{
+        				else {
         					str = node.object.name + str;
         				}
-        				
+        
         			}
         			str = this.inspectValue(node.object, arrayNodes, str) + "." + str;
         		}
-        		else{
+        		else {
         			return str;
         		}
         	}
-        	
-        	private getSdkCompletion(){
+        
+        	private getSdkCompletion() {
         		return `declare class C8o extends C8oCore {
         		    constructor(http: any);
         		    http: any;
@@ -2281,48 +2307,16 @@ scriptContent:
             - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
             - com.twinsoft.convertigo.beans.common.XMLVector: 
               - java.lang.String: 
-                - ↑value: esprima
+                - ↑value: acorn
               - java.lang.String: 
-                - ↑value: 4.0.1
+                - ↑value: 8.14.1
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
             - com.twinsoft.convertigo.beans.common.XMLVector: 
               - java.lang.String: 
-                - ↑value: jscodeshift
+                - ↑value: acorn-walk
               - java.lang.String: 
-                - ↑value: 0.14.0
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: meriyah
-              - java.lang.String: 
-                - ↑value: 4.3.7
-    page_ts_imports: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-        - com.twinsoft.convertigo.beans.common.XMLVector: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: '* as esprima'
-              - java.lang.String: 
-                - ↑value: esprima
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: '* as jscodeshift'
-              - java.lang.String: 
-                - ↑value: jscodeshift
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
-            - com.twinsoft.convertigo.beans.common.XMLVector: 
-              - java.lang.String: 
-                - ↑value: '{ parseScript }'
-              - java.lang.String: 
-                - ↑value: meriyah
+                - ↑value: 8.3.4
 ↓ngx_monaco_editor [ngx.components.UIElement-1681292694675]: 
   identifier: monacoEditor
   tagName: ngx-monaco-editor
