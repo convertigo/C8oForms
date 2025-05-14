@@ -296,6 +296,10 @@ scriptContent:
         				.pipe(retry(3))
         				.subscribe(
         					(data: any) => {
+        						if(this.local.tree){
+        							let result = this.computeAdditionalPaletteElements(this.local.tree, data);
+        							data[result.index].objects = data[result.index].objects.concat(result.val);
+        						}
         						this.local.Palette = data;
         						this.c8o.log.debug("Palette loaded");
         						this.ref.detectChanges();
@@ -314,6 +318,114 @@ scriptContent:
         		this.local.selectFilter = {};
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	public computeAdditionalPaletteElements(tree, data: any){
+        		debugger;
+        		let val = [];
+        		let index = null;
+        		data.forEach((el, i)=>{
+        			if(el.name == "background_process"){
+        				index = i;
+        			}
+        		});
+        		var tempHTML = document.createElement("p")
+        		for(let project of tree){
+        			let canBeVisible = true;
+        			try{
+        				let meta = JSON.parse(project.comment);
+        				if(meta.hideFromPalette === "true" || meta.hideFromPalette === true){
+        					canBeVisible = false;
+        				}
+        			}
+        			catch(e){
+        				
+        			}
+        			if(project.name == ''lib_BaseRow''){
+        				if(!(this.global?.settings?.nocode_db_rights == "true" || this.global?.settings?.nocode_db_rights == true)){
+        					canBeVisible = false;
+        				}
+        			}
+        			if(canBeVisible){
+        				for(let sequence of project.sequences){
+        					let _data = sequence.comment;
+        					try{
+        						_data = JSON.parse(_data);
+        						let sequenceCanBeVisible = true;
+        						if(_data.hideFromPalette === "true" || _data.hideFromPalette === true){
+        							sequenceCanBeVisible = false;
+        						}
+        						if(sequenceCanBeVisible){
+        							let displayName;
+        							let comment;
+        							try{
+        								tempHTML.innerHTML = _data[this.translate.currentLang].displayName;
+        								displayName = tempHTML.textContent;
+        							}
+        							catch(e){
+        								displayName = _data[this.translate.currentLang].displayName
+        							}
+        							tempHTML.innerHTML = "";
+        							try{
+        								tempHTML.innerHTML = _data[this.translate.currentLang].comment;
+        								comment = tempHTML.textContent;
+        							}
+        							catch(e){
+        								comment = _data[this.translate.currentLang].comment
+        							}
+        							// compute default vars
+        							let elems = {};
+        							try {
+        								const projectName = project.name;
+        					   		    let elemChoosen = sequence;
+        		
+        								let va = {};
+        								if(typeof(elemChoosen.variables.name) == "string"){
+        									va[elemChoosen.variables.name] = {};
+        								}
+        								else if(typeof(elemChoosen.variables.name) == "undefined"){
+        								}
+        								else{
+        									for(let el of elemChoosen.variables.name){
+        					                   	va[el] = {};
+        					               	}
+        								}
+        								const sequenceName = elemChoosen.name;
+        								
+        								// if its a Fullsync connector
+        								if(elemChoosen.connector != undefined){
+        									elems = {"fullsync":true, name:projectName+"."+sequenceName,projectName: projectName, connectorName: elemChoosen.connector, "enabled": true, vars:va, viewName: elemChoosen.name};
+        								}
+        								// if its a sequence
+        					               else{
+        					                elems = {"fullsync":false, name:projectName+"."+sequenceName, "enabled":true, vars:va};
+        								}
+        						    }
+        						    catch(e){
+        						        console.error("an error occured", e);
+        						    }
+        							// push obj
+        							let obj = {
+        								"type":"submit",
+        				                "cat":"action",
+        				                "url":this.c8o.endpointConvertigo + ''/projects/'' + project.name + ''/logos/'' +  sequence.name + ''.svg'',
+        				                "name": displayName,
+        				                "description": comment,
+        								_techName: sequence.name,
+        								custom: true,
+        								elems : elems
+        							};
+        							val.push(obj);
+        						}
+        					}
+        					catch(e){
+        						console.error(e);
+        					}
+        					
+        				}
+        			}
+        		}
+        		console.log("val", val);
+        		return {val:val, index: index};
+        	}
         	public getGrids() {
         		return this.form.formulaire.filter((x) => { return x.type == "grid" });
         	}
@@ -1206,12 +1318,12 @@ scriptContent:
         		return cols;
         	}
         
-        	addElement(typ, index = null, into = false, action = false, flow = false, targetCardChild = ''childrenRefs'') {
+        	addElement(typ, index = null, into = false, action = false, flow = false, targetCardChild = ''childrenRefs'', customMeta = null) {
         		if (this.formsList == undefined) {
         			this.formsList = [];
         		}
         		const id = new Date().getTime();
-        		let objToInsert = this.getObjToInsert(typ, id, this.local.currentPage);
+        		let objToInsert = this.getObjToInsert(typ, id, this.local.currentPage, null, customMeta);
         		if (!action && !flow) {
         			if (index != null && objToInsert != null) {
         				if (index[1] != null) {
@@ -1276,7 +1388,7 @@ scriptContent:
         
         	}
         
-        	public getObjToInsert(typ, id, page = this.local.currentPage, nameDispo = null) {
+        	public getObjToInsert(typ, id, page = this.local.currentPage, nameDispo = null, customMeta= null) {
         		let objToInsert;
         
         		switch (typ) {
@@ -1905,11 +2017,19 @@ scriptContent:
         				};
         				break;
         			case "submit":
+        				let actions = {};
+        				if(customMeta){
+        					let name = ""+customMeta.name;
+        					delete customMeta.name;
+        					actions = {
+        						[name]:customMeta
+        					};
+        				}
         				objToInsert =
         				{
         					"cat": "action",
         					"type": "submit",
-        					"actions": {},
+        					"actions": actions,
         					"config": {
         						"page": page
         					},
@@ -4225,6 +4345,12 @@ title: Title for editor
                                               margin-right: auto;
                                               max-height:24px;
                                             '
+                                  ↓Attr [ngx.components.UIAttribute-1747228854498]: 
+                                    attrName: onerror
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: plain:this.onerror=null; this.src='assets/images/svg/component/icn_submit.svg'
                               ↓GridRow1 [ngx.components.UIDynamicElement-1650357035589]: 
                                 beanData: '{"ionBean":"GridRow"}'
                                 tagName: ion-row
@@ -4270,7 +4396,7 @@ title: Title for editor
                                 attrValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:getMetaFromPalette(myObjectForEach.type).description | translate
+                                    - MobileSmartSourceType: 'script:myObjectForEach?.custom ? myObjectForEach.description : getMetaFromPalette(myObjectForEach.type).description | translate'
                               ↓Attr1 [ngx.components.UIAttribute-1650357035607]: 
                                 attrName: 
                                 attrValue: 
@@ -4320,6 +4446,16 @@ title: Title for editor
                                     - xmlizable: 
                                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                       - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357035571},{"priority":1650357035526}],"path":"","prefix":"","suffix":".cat","custom":"","useCustom":false}}
+                                ↓custom [ngx.components.UIControlVariable-1747229822513]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357035571},{"priority":1650357035526}],"path":"","prefix":"","suffix":"?.custom","custom":"","useCustom":false}}
+                                ↓elems [ngx.components.UIControlVariable-1747229822515]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: 'source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357035571},{"priority":1650357035526}],"path":"","prefix":"","suffix":"?.elems ? item1650357035571.elems : {}","custom":"","useCustom":false}}'
                             ↓Event [ngx.components.UIControlEvent-1650357035631]: 
                               attrName: (dragend)
                               eventName: (dragend)
@@ -4352,6 +4488,16 @@ title: Title for editor
                                     - xmlizable: 
                                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                       - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357035571},{"priority":1650357035526}],"path":"","prefix":"","suffix":".cat","custom":"","useCustom":false}}
+                                ↓custom [ngx.components.UIControlVariable-1747231296216]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357035571},{"priority":1650357035526}],"path":"","prefix":"","suffix":"?.custom","custom":"","useCustom":false}}
+                                ↓elems [ngx.components.UIControlVariable-1747231296218]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: 'source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357035571},{"priority":1650357035526}],"path":"","prefix":"","suffix":"?.elems ? item1650357035571?.elems : {}","custom":"","useCustom":false}}'
                         ↓Style1 [ngx.components.UIStyle-1650357035655]: 
                       ↓Attr [ngx.components.UIAttribute-1650357035658]: 
                         attrName: '*ngIf'
@@ -18847,6 +18993,31 @@ title: Title for editor
                 - ↑value: ngx-virtual-scroller
               - java.lang.String: 
                 - ↑value: 3.0.0
+  ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1747224150913]: 
+    beanData: '{"ionBean":"InvokeAction"}'
+    stack: C8Oforms.MobileApplication.Application.sharedTapOnActionSubmit
+    ↓item [ngx.components.UIControlVariable-1747224150916]: 
+      varValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:{type:'submit'}
+    ↓setDataIntoPalette [ngx.components.UICustomAsyncAction-1747224369058]: 
+      actionValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              		try {
+              			if(this.local.Palette){
+              				let result = page.computeAdditionalPaletteElements(page.local.tree, this.local.Palette);
+              				this.local.Palette[result.index].objects = this.local.Palette[result.index].objects.concat(result.val);
+              			}
+              		} catch (e) {
+              		
+              		} finally {
+              			return;
+              		}
+              
 ↓Subscribe_Handler11 [ngx.components.UIEventSubscriber-1610986550931]: 
   topic: tinyMceBlur
   ↓controllerTiny1 [ngx.components.UICustomAction-1610986550937]: 
