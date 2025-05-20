@@ -11334,6 +11334,28 @@ comment
 </tr>
 </table>
 
+
+<span style="color:DarkGoldenRod">Events</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onClickOnDataGridRow
+</td>
+<td>
+When fullpage mode have been changed
+</td>
+</tr>
+</table>
+
 </p></blockquote></details>
 
 <details><summary><b>datavizHolder</b></summary><blockquote><p>
@@ -11491,6 +11513,14 @@ When fullpage mode have been changed
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeHiddenValue
+</td>
+<td>
+When fullpage mode have been changed
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onClickOnDataGridRow
 </td>
 <td>
 When fullpage mode have been changed
