@@ -4063,6 +4063,36 @@ Retrieves the cumulative count of answers per day, requires admin privileges.
 Retrieves the cumulative count of forms per day, requires admin privileges.
 </p></blockquote></details>
 
+<details><summary><b>admin_stats_getDocumentById</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getDocumentById
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>admin_stats_getFormsCountPerDay</b> : Retrieves the count of forms per day, requires admin privileges</summary><blockquote><p>
 
 
@@ -6538,6 +6568,14 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>getConvertigoUrl</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getConvertigoUrl
+
 
 </p></blockquote></details>
 
@@ -11350,6 +11388,28 @@ comment
 </tr>
 </table>
 
+
+<span style="color:DarkGoldenRod">Events</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onClickOnDataGridRow
+</td>
+<td>
+When fullpage mode have been changed
+</td>
+</tr>
+</table>
+
 </p></blockquote></details>
 
 <details><summary><b>datavizHolder</b></summary><blockquote><p>
@@ -11507,6 +11567,14 @@ When fullpage mode have been changed
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onChangeHiddenValue
+</td>
+<td>
+When fullpage mode have been changed
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onClickOnDataGridRow
 </td>
 <td>
 When fullpage mode have been changed
@@ -11705,6 +11773,14 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>getApplicationDetail</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") getApplicationDetail
+
 
 </p></blockquote></details>
 
