@@ -2,12 +2,16 @@
 include("js/common.js");
 
 var isAdmin = com.twinsoft.convertigo.engine.Engine.authenticatedSessionManager.hasRole(context.httpServletRequest.getSession(), com.twinsoft.convertigo.engine.AuthenticatedSessionManager.Role.TEST_PLATFORM_PRIVATE);
+var isAdminRead = false;
 if(!isAdmin){
 	var authenticatedUserID = context.getAuthenticatedUser();
 	var currentUserDoc = (callSequence("C8Oforms", "APIV2_getDocument", { id: "C8Oreserved_" + authenticatedUserID})).document.res;
 	if(currentUserDoc.admin == true){
 		isAdmin = true;
 	}
+	if(currentUserDoc.admin_readonly == true){
+		isAdminRead = true
+	}	
 	var __groups = callSequence("lib_FullSyncGrp", "GroupsOf", { user: authenticatedUserID }).document.group;
 	if(__groups != undefined){
 		if(!Array.isArray(__groups)){
@@ -25,10 +29,16 @@ if(!isAdmin){
 					isAdmin = true;
 					break;
 				}
+				if(__group.doc.admin_readonly){
+					isAdminRead = true
+				}
 			}
 		}
 	}
 }
-if(!isAdmin){
+if(!isAdmin && __accept_admin_readonly !== true){
+	throw new java.lang.Exception("You are not a server admin");
+}
+if(__accept_admin_readonly === true && !isAdmin && !isAdminRead){
 	throw new java.lang.Exception("You are not a server admin");
 }
