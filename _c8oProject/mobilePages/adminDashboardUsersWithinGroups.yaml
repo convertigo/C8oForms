@@ -30,13 +30,15 @@ scriptContent:
         	    editing_rights: ''✏️'',
         	    nocode_db_rights: ''🧩'',
         	    admin: ''🛡️'',
-        		formulas: ''ƒ''
+        		formulas: ''ƒ'',
+        		admin_readonly: ''🛡''
         	  };
         	  public translations: Record<string, string> = {
         		editing_rights: ''editing_rights_label'',
         		nocode_db_rights: ''nocode_db_rights_label'',
         		formulas: ''formulas_rights'',
-        		admin: ''admin_label''
+        		admin: ''admin_label'',
+        		admin_readonly: ''Admin_read_only''
         	  }
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
@@ -109,7 +111,10 @@ scriptContent:
         			if (this.myaggrid2?.agGrid?.api) {
         				this.myaggrid2.agGrid.api.showLoadingOverlay();
         			}
-        			var data = await this.c8o.callJsonObject("C8Oforms.admin_users_get_by_group_v2", {}).async();
+        			let admin_write = ( (!this.global?.settings?.admin) ? true : false);
+        			let admin_readonly = ( (this.global?.settings?.admin_readonly == undefined || !this.global?.settings?.admin_readonly) ? false : admin_write );
+        //			console.log(admin_readonly);
+        			var data = await this.c8o.callJsonObject("C8Oforms.admin_users_get_by_group_v2", {admin_readonly: admin_readonly}).async();
         			if (data.error) {
         				this.local.error = true;
         			}
@@ -139,7 +144,7 @@ scriptContent:
         						return params.data.value;
         					};
         					
-        					data.result.childrenLabels[6].cellRenderer = (params) => {
+        					data.result.childrenLabels[7].cellRenderer = (params) => {
         					  const admin = params.value;
         					  if (admin === true || admin == "true") {
         						return `<span style="
@@ -152,6 +157,25 @@ scriptContent:
         						    font-size: 14px;
         						    height: 2rem;
         						  ">${this.icons[''admin'']} ${this.translate.instant(this.translations[''admin''])}</span>`;
+        					  }
+        					  else{
+        						return '''';
+        					  }
+        					};
+        					
+        					data.result.childrenLabels[6].cellRenderer = (params) => {
+        					  const admin_readonly = params.value;
+        					  if (admin_readonly === true || admin_readonly == "true") {
+        						return `<span style="
+        						    padding: 2px 8px;
+        						    margin-left: 6px;
+        						    border-radius: 12px;
+        						    background-color: #eef2f7;
+        						    color: #1f2937;
+        						    font-weight: 600;
+        						    font-size: 14px;
+        						    height: 2rem;
+        						  ">${this.icons[''admin_readonly'']} ${this.translate.instant(this.translations[''admin_readonly''])}</span>`;
         					  }
         					  else{
         						return '''';
@@ -277,7 +301,7 @@ scriptContent:
         			} else {
         				docs = this.myaggrid2?.agGrid?.api?.getSelectedNodes().map((node) => { return node.data["~c8oAcl"] });
         			}
-        			var type = this.translate.instant("groups");
+        			let type = this.translate.instant("groups");
         			const performOperation = await this.showConfirmationAlert(
         				this.translate.instant("Confirmation"),
         				this.translate.instant(confirmMsg, { countlines: docs.length, resType: type }),
@@ -286,8 +310,8 @@ scriptContent:
         			);
         
         			if (performOperation) {
-        				var args: any = (bulkOperation != "updateUsersGroup" && bulkOperation != "deleteUsersGroup") ? { docs: JSON.stringify(docs) } : { meta: "" };
-        				var sequence;
+        				let args: any = (bulkOperation != "updateUsersGroup" && bulkOperation != "deleteUsersGroup") ? { docs: JSON.stringify(docs) } : { meta: "" };
+        				let sequence;
         				if (bulkOperation == "deleteGroup") {
         					docs.map((it) => {
         						if (it.group?.value != undefined) {
@@ -305,7 +329,7 @@ scriptContent:
         					});
         					
         
-        					var args: any;
+        //					let args: any;
         					docs2 = docs2.map((x)=>{
         						x._deleted = true;
         						return x;
@@ -319,11 +343,11 @@ scriptContent:
         //					console.log(data2)
         //					args = { docs: JSON.stringify(docs) };		
         //					console.log(docs);		
-        					var sequence;
+        //					let sequence;
         					for (let i = 0; i < docs.length; i++) {
         						args = { meta: JSON.stringify(docs[i]) };
         						sequence = "C8Oforms.admin_groups_delete";
-        						deleted = await this.c8o.callJsonObject(sequence, args).async();
+        						let deleted = await this.c8o.callJsonObject(sequence, args).async();
         //						console.log(deleted);
         						this.loadGridData();
         						if (deleted?.success || deleted?.success == ''true'') {
@@ -340,7 +364,7 @@ scriptContent:
         				}
         				else if (bulkOperation == "deleteUsersGroup") {
         					let gridCount = this.myaggrid2?.agGrid?.api?.getDisplayedRowCount();
-        					var deleted: any = { success: true };
+        					let deleted: any = { success: true };
         					let meta = { groups: JSON.stringify([this.groupSelected]), users: JSON.stringify(docs) };
         					let sequence = "C8Oforms.admin_users_remove_from_groups";
         					deleted = await this.c8o.callJsonObject(sequence, meta).async();
@@ -348,7 +372,7 @@ scriptContent:
         						await this.presentToast(this.translate.instant(successMsg, { countlines: docs.length }), ''toastSuccess'');
         						
         						
-        						var data = await this.c8o.callJsonObject("C8Oforms.admin_users_get_by_group_v2", {targetGroup: this.groupSelected}).async();
+        						let data = await this.c8o.callJsonObject("C8Oforms.admin_users_get_by_group_v2", {targetGroup: this.groupSelected}).async();
         						
         						this.valuesSelected = data.result.values.find(x=>x.children != null).children;
         						this.myaggrid2.agGrid.api.setGridOption(''rowData'', this.valuesSelected);
@@ -369,8 +393,8 @@ scriptContent:
         					sequence = "C8Oforms.admin_users_move_in_group";
         					args = { ...args, "right": right, "value": value };
         				}
-        				var deleted = await this.c8o.callJsonObject(sequence, args).async();
-        				this.loadGridData();
+        				let deleted = await this.c8o.callJsonObject(sequence, args).async();
+        				await this.loadGridData();
         				if (deleted?.result?.success) {
         					await this.presentToast(this.translate.instant(successMsg, { countlines: docs.length }), ''toastSuccess'');
         				}
@@ -450,7 +474,9 @@ scriptContent:
         						this.ref.detectChanges();
         					}
         				}
-        				this.loadGridData();
+        				await this.loadGridData().then(async (value) => {
+        					console.log("loaded");
+        				});
         			}
         		})
         		return await modal.present();
@@ -694,160 +720,166 @@ title: Title for adminDashboardUsersWithinGroups
             ↓DivGridContainer [ngx.components.UIDynamicElement-1740562136588]: 
               beanData: '{"ionBean":"DivTag"}'
               tagName: div
-              ↓DivFlexBtns [ngx.components.UIDynamicElement-1740563102336]: 
-                beanData: '{"ionBean":"DivTag"}'
-                tagName: div
-                ↓Style [ngx.components.UIStyle-1740563102339]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          '	display:flex;
-                          	flex-direction: row;
-                          	padding: 16px 0;
-                          	justify-content: flex-end;
-                          	flex-wrap: wrap;
-                          	ion-button{
-                          		text-transform: unset;
-                          	}
-                          '
-                ↓Directive [ngx.components.UIControlDirective-1740652690835]: 
-                  directiveName: If
-                  directiveSource: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.myaggrid?.agGrid?.api?.getSelectedNodes().length > 0
-                  ↓Directive [ngx.components.UIControlDirective-1743520686296]: 
+              ↓Directive [ngx.components.UIControlDirective-1747753512424]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.global?.settings?.admin_readonly && this.global?.settings?.admin
+                ↓DivFlexBtns [ngx.components.UIDynamicElement-1740563102336]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1740563102339]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	display:flex;
+                            	flex-direction: row;
+                            	padding: 16px 0;
+                            	justify-content: flex-end;
+                            	flex-wrap: wrap;
+                            	ion-button{
+                            		text-transform: unset;
+                            	}
+                            '
+                  ↓Directive [ngx.components.UIControlDirective-1740652690835]: 
                     directiveName: If
                     directiveSource: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.groupSelected?.indexOf('all_users') == -1 || (this.myaggrid.agGrid?.api?.getSelectedNodes().length > 1 && this.myaggrid.agGrid?.api?.getSelectedNodes()[0].data.group?.value != undefined)
-                    ↓ButtonRemoveGroup [ngx.components.UIDynamicElement-1740652003649]: 
-                      beanData: |
-                        '{
-                         "ionBean": "Button",
-                         "IonColor": "plain:danger",
-                         "IonFill": "plain:solid"
-                        }'
-                      tagName: ion-button
-                      ↓Icon [ngx.components.UIDynamicElement-1740667212932]: 
-                        beanData: |
-                          '{
-                           "ionBean": "Icon",
-                           "IonColor": "plain:light",
-                           "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''trash''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
-                           "IconSlot": "plain:start"
-                          }'
-                        tagName: ion-icon
-                      ↓Label [ngx.components.UIDynamicElement-1740652003652]: 
-                        beanData: '{"ionBean":"Label"}'
-                        tagName: ion-label
-                        ↓Text [ngx.components.UIText-1740652003655]: 
-                          i18n: true
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:remove_group
-                      ↓Event [ngx.components.UIControlEvent-1740652003658]: 
-                        ↓deleteRows [ngx.components.UICustomAsyncAction-1740652003661]: 
-                          actionValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  		page.performBulk("deleteGroup", "group_sure_delete_rows","group_delete_row_confirm", "group_delete_row_error", "cancel_pwamsg", "Supprimer");
-                                  
-                    ↓ButtonEditGroup [ngx.components.UIDynamicElement-1743504485109]: 
-                      beanData: |
-                        '{
-                         "ionBean": "Button",
-                         "IonColor": "plain:secondary",
-                         "IonFill": "plain:solid"
-                        }'
-                      tagName: ion-button
-                      ↓Icon [ngx.components.UIDynamicElement-1743504485112]: 
-                        beanData: |
-                          '{
-                           "ionBean": "Icon",
-                           "IonColor": "plain:light",
-                           "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''pencil-sharp''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
-                           "IconSlot": "plain:start"
-                          }'
-                        tagName: ion-icon
-                      ↓Label [ngx.components.UIDynamicElement-1743504485115]: 
-                        beanData: '{"ionBean":"Label"}'
-                        tagName: ion-label
-                        ↓Text [ngx.components.UIText-1743504485118]: 
-                          i18n: true
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:edit_group
-                      ↓Event [ngx.components.UIControlEvent-1743504485121]: 
-                        ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1743504533325]: 
-                          actionValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  		try {
-                                  			if (
-                                  			(
-                                  			page.myaggrid?.agGrid?.api?.getSelectedNodes().length == 1 
-                                  			&&
-                                  			page.myaggrid?.agGrid?.api?.getSelectedNodes()[0].data?.value == undefined )
-                                  				||
-                                  				page.myaggrid?.agGrid?.api?.getSelectedNodes().length == 0
-                                  			) {
-                                  				return;
-                                  			}
-                                  			
-                                  			page.showModal("updateGroup");
-                                  			page.loadGridData();
-                                  		} catch (e) {
-                                  			console.error(e);
-                                  		} finally {
-                                  			return;
-                                  		}
-                                  
-                ↓ButtonAddGroup [ngx.components.UIDynamicElement-1740652781569]: 
-                  beanData: '{"ionBean":"Button","IonFill":"plain:solid"}'
-                  tagName: ion-button
-                  ↓Icon [ngx.components.UIDynamicElement-1740667509631]: 
-                    beanData: |
-                      '{
-                       "ionBean": "Icon",
-                       "IonColor": "plain:light",
-                       "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''add''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
-                       "IconSlot": "plain:start"
-                      }'
-                    tagName: ion-icon
-                  ↓Label [ngx.components.UIDynamicElement-1740652781572]: 
-                    beanData: '{"ionBean":"Label"}'
-                    tagName: ion-label
-                    ↓Text [ngx.components.UIText-1740652781575]: 
-                      i18n: true
-                      textValue: 
+                        - MobileSmartSourceType: script:this.myaggrid?.agGrid?.api?.getSelectedNodes().length > 0
+                    ↓Directive [ngx.components.UIControlDirective-1743520686296]: 
+                      directiveName: If
+                      directiveSource: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:add_group
-                  ↓Event [ngx.components.UIControlEvent-1740652781578]: 
-                    ↓showModalGroup [ngx.components.UICustomAsyncAction-1740652781581]: 
-                      actionValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                            →: |
-                              		try {
-                              			page.showModal("group");
-                              		} catch (e) {
-                              			console.error("error showing addUser", e);
-                              		} finally {
-                              			return;
-                              		}
-                              
+                          - MobileSmartSourceType: script:this.groupSelected?.indexOf('all_users') == -1 || (this.myaggrid.agGrid?.api?.getSelectedNodes().length > 1 && this.myaggrid.agGrid?.api?.getSelectedNodes()[0].data.group?.value != undefined)
+                      ↓ButtonRemoveGroup [ngx.components.UIDynamicElement-1740652003649]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Button",
+                           "IonColor": "plain:danger",
+                           "IonFill": "plain:solid"
+                          }'
+                        tagName: ion-button
+                        ↓Icon [ngx.components.UIDynamicElement-1740667212932]: 
+                          beanData: |
+                            '{
+                             "ionBean": "Icon",
+                             "IonColor": "plain:light",
+                             "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''trash''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                             "IconSlot": "plain:start"
+                            }'
+                          tagName: ion-icon
+                        ↓Label [ngx.components.UIDynamicElement-1740652003652]: 
+                          beanData: '{"ionBean":"Label"}'
+                          tagName: ion-label
+                          ↓Text [ngx.components.UIText-1740652003655]: 
+                            i18n: true
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:remove_group
+                        ↓Event [ngx.components.UIControlEvent-1740652003658]: 
+                          ↓deleteRows [ngx.components.UICustomAsyncAction-1740652003661]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    		page.performBulk("deleteGroup", "group_sure_delete_rows","group_delete_row_confirm", "group_delete_row_error", "cancel_pwamsg", "Supprimer");
+                                    
+                      ↓ButtonEditGroup [ngx.components.UIDynamicElement-1743504485109]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Button",
+                           "IonColor": "plain:secondary",
+                           "IonFill": "plain:solid"
+                          }'
+                        tagName: ion-button
+                        ↓Icon [ngx.components.UIDynamicElement-1743504485112]: 
+                          beanData: |
+                            '{
+                             "ionBean": "Icon",
+                             "IonColor": "plain:light",
+                             "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''pencil-sharp''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                             "IconSlot": "plain:start"
+                            }'
+                          tagName: ion-icon
+                        ↓Label [ngx.components.UIDynamicElement-1743504485115]: 
+                          beanData: '{"ionBean":"Label"}'
+                          tagName: ion-label
+                          ↓Text [ngx.components.UIText-1743504485118]: 
+                            i18n: true
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:edit_group
+                        ↓Event [ngx.components.UIControlEvent-1743504485121]: 
+                          ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1743504533325]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    		try {
+                                    			if (
+                                    			(
+                                    			page.myaggrid?.agGrid?.api?.getSelectedNodes().length == 1 
+                                    			&&
+                                    			page.myaggrid?.agGrid?.api?.getSelectedNodes()[0].data?.value == undefined )
+                                    				||
+                                    				page.myaggrid?.agGrid?.api?.getSelectedNodes().length == 0
+                                    			) {
+                                    				return;
+                                    			}
+                                    			
+                                    			page.showModal("updateGroup");
+                                    			page.loadGridData();
+                                    		} catch (e) {
+                                    			console.error(e);
+                                    		} finally {
+                                    			return;
+                                    		}
+                                    
+                  ↓ButtonAddGroup [ngx.components.UIDynamicElement-1740652781569]: 
+                    beanData: '{"ionBean":"Button","IonFill":"plain:solid"}'
+                    tagName: ion-button
+                    ↓Icon [ngx.components.UIDynamicElement-1740667509631]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IonColor": "plain:light",
+                         "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''add''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                         "IconSlot": "plain:start"
+                        }'
+                      tagName: ion-icon
+                    ↓Label [ngx.components.UIDynamicElement-1740652781572]: 
+                      beanData: '{"ionBean":"Label"}'
+                      tagName: ion-label
+                      ↓Text [ngx.components.UIText-1740652781575]: 
+                        i18n: true
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:add_group
+                    ↓Event [ngx.components.UIControlEvent-1740652781578]: 
+                      ↓showModalGroup [ngx.components.UICustomAsyncAction-1740652781581]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		try {
+                                			page.showModal("group");
+                                		} catch (e) {
+                                			console.error("error showing addUser", e);
+                                		} finally {
+                                			return;
+                                		}
+                                
               ↓DivGrid [ngx.components.UIDynamicElement-1740488756752]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -1268,168 +1300,174 @@ title: Title for adminDashboardUsersWithinGroups
             ↓DivGridContainer1 [ngx.components.UIDynamicElement-1740562162600]: 
               beanData: '{"ionBean":"DivTag"}'
               tagName: div
-              ↓DivFlexBtns [ngx.components.UIDynamicElement-1740562952330]: 
-                beanData: '{"ionBean":"DivTag"}'
-                tagName: div
-                ↓Style [ngx.components.UIStyle-1740562952333]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          '	display:flex;
-                          	flex-direction: row;
-                          	padding: 16px 0;
-                          	flex-wrap: wrap;
-                          	justify-content: flex-end;
-                          	ion-button{
-                          		text-transform: unset;
-                          	}
-                          '
-                ↓Directive [ngx.components.UIControlDirective-1740592291272]: 
-                  directiveName: If
-                  directiveSource: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:(this.groupSelected != undefined && this.groupSelected.indexOf('any_group') == -1)
-                  ↓Directive [ngx.components.UIControlDirective-1740668669991]: 
+              ↓Directive [ngx.components.UIControlDirective-1747753533704]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.global?.settings?.admin_readonly && this.global?.settings?.admin
+                ↓DivFlexBtns [ngx.components.UIDynamicElement-1740562952330]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1740562952333]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	display:flex;
+                            	flex-direction: row;
+                            	padding: 16px 0;
+                            	flex-wrap: wrap;
+                            	justify-content: flex-end;
+                            	ion-button{
+                            		text-transform: unset;
+                            	}
+                            '
+                  ↓Directive [ngx.components.UIControlDirective-1740592291272]: 
                     directiveName: If
                     directiveSource: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.groupSelected.indexOf(this.translate.instant('all_users')) == -1
-                    ↓ButtonRemoveUsersFromGroup [ngx.components.UIDynamicElement-1740592291275]: 
-                      beanData: |
-                        '{
-                         "ionBean": "Button",
-                         "Disabled": "script:!this.local.selected",
-                         "IonColor": "plain:danger",
-                         "IonFill": "plain:solid"
-                        }'
-                      tagName: ion-button
-                      ↓Icon [ngx.components.UIDynamicElement-1740667594100]: 
-                        beanData: |
-                          '{
-                           "ionBean": "Icon",
-                           "IonColor": "plain:light",
-                           "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''trash''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
-                           "IconSlot": "plain:start"
-                          }'
-                        tagName: ion-icon
-                      ↓Label [ngx.components.UIDynamicElement-1740592291278]: 
-                        beanData: '{"ionBean":"Label"}'
-                        tagName: ion-label
-                        ↓Text [ngx.components.UIText-1740592291281]: 
-                          i18n: true
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:remove_selected_users_from_group
-                      ↓Event [ngx.components.UIControlEvent-1740592291284]: 
-                        ↓deleteRows [ngx.components.UICustomAsyncAction-1740592291287]: 
-                          actionValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  '		try {
-                                  			if (page.myaggrid2?.agGrid?.api?.getDisplayedRowCount() == page.local.selectedUsers.length) {
-                                  				page.performBulk("deleteUsersGroup", "group_sure_delete_rows_all_users","group_delete_row_confirm", "group_delete_row_error", "cancel_pwamsg", "Supprimer");
-                                  				let data = await page.c8o.callJsonObject("C8Oforms.admin_group_delete", {_use_doc_id: page.groupSelected}).async();
-                                  			} else {				
-                                  				page.performBulk("deleteUsersGroup", "group_sure_delete_rows","group_delete_row_confirm", "group_delete_row_error", "cancel_pwamsg", "Supprimer");
-                                  			}
-                                  		} catch(e) {
-                                  			return false;
-                                  		} finally {			
-                                  			return true;
-                                  		}
-                                  '
-                    ↓ButtonMoveUsersGroup [ngx.components.UIDynamicElement-1740592291290]: 
-                      beanData: |
-                        '{
-                         "ionBean": "Button",
-                         "Disabled": "script:!this.local.selected",
-                         "IonColor": "plain:secondary",
-                         "IonFill": "plain:solid"
-                        }'
-                      tagName: ion-button
-                      ↓Icon [ngx.components.UIDynamicElement-1740667607119]: 
-                        beanData: |
-                          '{
-                           "ionBean": "Icon",
-                           "IonColor": "plain:light",
-                           "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''arrow-back''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
-                           "IconSlot": "plain:start"
-                          }'
-                        tagName: ion-icon
-                      ↓Label [ngx.components.UIDynamicElement-1740592291293]: 
-                        beanData: '{"ionBean":"Label"}'
-                        tagName: ion-label
-                        ↓Text [ngx.components.UIText-1740592291296]: 
-                          i18n: true
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:move_selected_users_to_group
-                      ↓Event [ngx.components.UIControlEvent-1740592291299]: 
-                        ↓showModalMoveUserToGroup [ngx.components.UICustomAsyncAction-1741024254719]: 
-                          actionValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  		try {
-                                  			page.local.countUsersGroupSelected = page.myaggrid2?.agGrid?.api?.getDisplayedRowCount();
-                                  			page.showModal("moveUserToGroup");
-                                  		} catch (e) {
-                                  			console.error("error showing addUser", e);
-                                  		} finally {
-                                  			return;
-                                  		}
-                                  
-                ↓ButtonAddUsersToGroup [ngx.components.UIDynamicElement-1740592291305]: 
-                  beanData: |
-                    '{
-                     "ionBean": "Button",
-                     "Disabled": "script:!this.local.selected",
-                     "IonColor": "plain:primary",
-                     "IonFill": "plain:solid"
-                    }'
-                  tagName: ion-button
-                  ↓Icon [ngx.components.UIDynamicElement-1740667653907]: 
-                    beanData: |
-                      '{
-                       "ionBean": "Icon",
-                       "IonColor": "plain:light",
-                       "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''add''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
-                       "IconSlot": "plain:start"
-                      }'
-                    tagName: ion-icon
-                  ↓Label [ngx.components.UIDynamicElement-1740592291308]: 
-                    beanData: '{"ionBean":"Label"}'
-                    tagName: ion-label
-                    ↓Text [ngx.components.UIText-1740592291311]: 
-                      i18n: true
-                      textValue: 
+                        - MobileSmartSourceType: script:(this.groupSelected != undefined && this.groupSelected.indexOf('any_group') == -1)
+                    ↓Directive [ngx.components.UIControlDirective-1740668669991]: 
+                      directiveName: If
+                      directiveSource: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:add_selected_users_to_group
-                  ↓Event [ngx.components.UIControlEvent-1740592291314]: 
-                    ↓showModalAddUsersToGroup [ngx.components.UICustomAsyncAction-1740592291320]: 
-                      actionValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                            →: |
-                              		try {
-                              			page.showModal();
-                              		} catch (e) {
-                              			console.error("error showing addUser", e);
-                              		} finally {
-                              			return;
-                              		}
-                              
+                          - MobileSmartSourceType: script:this.groupSelected.indexOf(this.translate.instant('all_users')) == -1
+                      ↓ButtonRemoveUsersFromGroup [ngx.components.UIDynamicElement-1740592291275]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Button",
+                           "Disabled": "script:!this.local.selected",
+                           "IonColor": "plain:danger",
+                           "IonFill": "plain:solid"
+                          }'
+                        tagName: ion-button
+                        ↓Icon [ngx.components.UIDynamicElement-1740667594100]: 
+                          beanData: |
+                            '{
+                             "ionBean": "Icon",
+                             "IonColor": "plain:light",
+                             "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''trash''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                             "IconSlot": "plain:start"
+                            }'
+                          tagName: ion-icon
+                        ↓Label [ngx.components.UIDynamicElement-1740592291278]: 
+                          beanData: '{"ionBean":"Label"}'
+                          tagName: ion-label
+                          ↓Text [ngx.components.UIText-1740592291281]: 
+                            i18n: true
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:remove_selected_users_from_group
+                        ↓Event [ngx.components.UIControlEvent-1740592291284]: 
+                          ↓deleteRows [ngx.components.UICustomAsyncAction-1740592291287]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    '		try {
+                                    			if (page.myaggrid2?.agGrid?.api?.getDisplayedRowCount() == page.local.selectedUsers.length) {
+                                    				page.performBulk("deleteUsersGroup", "group_sure_delete_rows_all_users","group_delete_row_confirm", "group_delete_row_error", "cancel_pwamsg", "Supprimer");
+                                    				let data = await page.c8o.callJsonObject("C8Oforms.admin_group_delete", {_use_doc_id: page.groupSelected}).async();
+                                    			} else {				
+                                    				page.performBulk("deleteUsersGroup", "group_sure_delete_rows","group_delete_row_confirm", "group_delete_row_error", "cancel_pwamsg", "Supprimer");
+                                    			}
+                                    		} catch(e) {
+                                    			return false;
+                                    		} finally {			
+                                    			return true;
+                                    		}
+                                    '
+                      ↓ButtonMoveUsersGroup [ngx.components.UIDynamicElement-1740592291290]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Button",
+                           "Disabled": "script:!this.local.selected",
+                           "IonColor": "plain:secondary",
+                           "IonFill": "plain:solid"
+                          }'
+                        tagName: ion-button
+                        ↓Icon [ngx.components.UIDynamicElement-1740667607119]: 
+                          beanData: |
+                            '{
+                             "ionBean": "Icon",
+                             "IonColor": "plain:light",
+                             "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''arrow-back''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                             "IconSlot": "plain:start"
+                            }'
+                          tagName: ion-icon
+                        ↓Label [ngx.components.UIDynamicElement-1740592291293]: 
+                          beanData: '{"ionBean":"Label"}'
+                          tagName: ion-label
+                          ↓Text [ngx.components.UIText-1740592291296]: 
+                            i18n: true
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:move_selected_users_to_group
+                        ↓Event [ngx.components.UIControlEvent-1740592291299]: 
+                          ↓showModalMoveUserToGroup [ngx.components.UICustomAsyncAction-1741024254719]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    		try {
+                                    			page.local.countUsersGroupSelected = page.myaggrid2?.agGrid?.api?.getDisplayedRowCount();
+                                    			page.showModal("moveUserToGroup");
+                                    		} catch (e) {
+                                    			console.error("error showing addUser", e);
+                                    		} finally {
+                                    			return;
+                                    		}
+                                    
+                  ↓ButtonAddUsersToGroup [ngx.components.UIDynamicElement-1740592291305]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Button",
+                       "Disabled": "script:!this.local.selected",
+                       "IonColor": "plain:primary",
+                       "IonFill": "plain:solid"
+                      }'
+                    tagName: ion-button
+                    ↓Icon [ngx.components.UIDynamicElement-1740667653907]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IonColor": "plain:light",
+                         "IconName": "source:{\"filter\":\"Icon\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''add''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                         "IconSlot": "plain:start"
+                        }'
+                      tagName: ion-icon
+                    ↓Label [ngx.components.UIDynamicElement-1740592291308]: 
+                      beanData: '{"ionBean":"Label"}'
+                      tagName: ion-label
+                      ↓Text [ngx.components.UIText-1740592291311]: 
+                        i18n: true
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:add_selected_users_to_group
+                    ↓Event [ngx.components.UIControlEvent-1740592291314]: 
+                      ↓showModalAddUsersToGroup [ngx.components.UICustomAsyncAction-1740592291320]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		try {
+                                			page.showModal();
+                                		} catch (e) {
+                                			console.error("error showing addUser", e);
+                                		} finally {
+                                			return;
+                                		}
+                                
               ↓DivGrid1 [ngx.components.UIDynamicElement-1740561910167]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -2400,6 +2438,10 @@ title: Title for adminDashboardUsersWithinGroups
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
+            		// for test admin read only
+            //		console.log(page.global)
+            //		page.global.settings.admin_readonly = true;		
+            		// end for test
             		page.local.selectedGroups = [];
             		page.local.selectedUsers = [];
             		page.local.selectedGroup = '';		
