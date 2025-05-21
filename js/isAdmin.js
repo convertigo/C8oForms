@@ -1,6 +1,8 @@
 // Imports and helpers functions
 include("js/common.js");
-
+if(!("__accept_admin_readonly" in this)){
+	__accept_admin_readonly = false;
+}
 var isAdmin = com.twinsoft.convertigo.engine.Engine.authenticatedSessionManager.hasRole(context.httpServletRequest.getSession(), com.twinsoft.convertigo.engine.AuthenticatedSessionManager.Role.TEST_PLATFORM_PRIVATE);
 var isAdminRead = false;
 if(!isAdmin){
