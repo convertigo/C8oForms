@@ -182,11 +182,26 @@ componentScriptContent:
         			}
         		   this.global["__secretL"] = localLang;                    
         		}
-        		// fix chrome''s translate issue
-        		window.document.getElementsByTagName("html")[0].setAttribute("lang", localLang);
-        		   this.translate.onLangChange.subscribe((e) => {
-        			   window.document.getElementsByTagName("html")[0].setAttribute("lang",e.lang);
-        		   });
+        	   // Fix Chrome''s translate issue and add meta tags
+        	   window.document.getElementsByTagName("html")[0].setAttribute("lang", localLang);
+        
+        	   // Add meta tags for language and charset
+        	   let metaLanguage = document.createElement(''meta'');
+        	   metaLanguage.setAttribute(''http-equiv'', ''Content-Language'');
+        	   metaLanguage.setAttribute(''content'', localLang);
+        	   document.getElementsByTagName(''head'')[0].appendChild(metaLanguage);
+        
+        	   let metaCharset = document.createElement(''meta'');
+        	   metaCharset.setAttribute(''charset'', ''UTF-8'');
+        	   document.getElementsByTagName(''head'')[0].appendChild(metaCharset);
+        	   
+        	   this.translate.onLangChange.subscribe((e) => {
+        	       window.document.getElementsByTagName("html")[0].setAttribute("lang", e.lang);
+        
+        	       // Update meta language tag when language changes
+        	       metaLanguage.setAttribute(''content'', e.lang);
+        	   });
+        
         		if(Object.keys(this.global.settings).length <= 1){
         			this.global.settings["language"] = localLang;
         		}
@@ -566,6 +581,7 @@ componentScriptContent:
         			try{
         				let userSettings: any = await page.c8o.callJsonObject("C8Oforms.getCurrentUserSettings",{[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)}).async();
         				page.global.settings = userSettings.res;
+        //				console.log(page.global.settings);
         				if(userSettings?.res?.language != null){
         					window["__c8o__translate"]["use"](userSettings?.res?.language);
         				}
@@ -1006,9 +1022,10 @@ componentScriptContent:
         			case "adminDashboardHome":
         			case "adminDashboardDetail":
         			case "adminDashboardUsers":
-        			case"adminDashboardUsersWithinGroups":
+        			case "adminDashboardUsersWithinGroups":
         				if(page.c8o.session.status == C8oSessionStatus.Connected || page.c8o.session.status == C8oSessionStatus.HasBeenConnected){
-        					if(page.global.settings.admin == true){
+        //					console.log(page.global.settings);
+        					if(page.global.settings.admin_readonly == true || page.global.settings.admin == true){
         						return true;
         					}
         					else{
@@ -1021,7 +1038,7 @@ componentScriptContent:
         				}
         				else{
         					let res: any = await page.c8o.httpInterface.getUserServiceStatus();
-        					if(res.authenticated == true && res.user == "c8o:admin"){
+        					if(res.authenticated == true && (page.global.settings.admin_readonly == true || page.global.settings.admin == true)){
         						return true;
         					}
         					else{
@@ -1036,6 +1053,7 @@ componentScriptContent:
         			    
         			default:
         			
+        //			console.log(page.global.settings);
         			/*
         				// in PWA mode refuse any page except loginPage, and viewer page
         				indexPWA = window.location.pathname.indexOf("pwas");
