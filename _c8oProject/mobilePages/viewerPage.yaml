@@ -4224,6 +4224,20 @@ scriptContent:
         			//			}
         		}
         	}
+        	
+        	/**
+        	 * Supprime les ?. de la LHS des affectations.
+        	 * @param {string} src - code JS d’origine
+        	 * @returns {string}  - code transformé
+        	 */
+        	removeSafeOperatorsInLHS(code) {
+        	  return code.replace(/(?:const|let|var)?\s*([^=]+?)=(?!=)/g, (match, lhs) => {
+        	    const cleanedLHS = lhs
+        	      .replace(/\?\.\s*\[/g, ''['')          // ?.["x"] or ?.[index] → ["x"]
+        	      .replace(/\?\.(\w+)/g, ''.$1'');       // ?.prop → .prop
+        	    return match.replace(lhs, cleanedLHS);
+        	  });
+        	}
         
         	/**
         	 * computes variables ...
@@ -4249,7 +4263,7 @@ scriptContent:
         						if (e.message == "Invalid left-hand side in assignment" || e.message == "invalid assignment left-hand side") {
         							asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
         								''page'',
-        								`return (async () => { return ${findVars[va].replace(/\?\./g, '''')} })();`
+        								`return (async () => { return ${this.removeSafeOperatorsInLHS(findVars[va])} })();`
         							);
         						}
         						else {
@@ -5409,13 +5423,15 @@ scriptContent:
         				return prefixPage + "actions[\"" + name + "\"]?.[\"" + this.getKeyByType(this.actions[key].type) + "\"]";;
         			}
         		}
-        		// iterrate over each key of flows object to find target comparing by key
-        		for (let flow of this.form.flows) {
-        			for (let key of Object.keys(flow.elements)) {
-        				// if key equals name
-        				if (key == name) {
-        					// return path
-        					return prefixPage + "actions[\"" + name + "\"]?.[\"" + this.getKeyByType(this.actions[key].type) + "\"]";;
+        		if (this.form.flows) {
+        			// iterrate over each key of flows object to find target comparing by key
+        			for (let flow of this.form.flows) {
+        				for (let key of Object.keys(flow.elements)) {
+        					// if key equals name
+        					if (key == name) {
+        						// return path
+        						return prefixPage + "actions[\"" + name + "\"]?.[\"" + this.getKeyByType(this.actions[key].type) + "\"]";;
+        					}
         				}
         			}
         		}
@@ -5493,10 +5509,14 @@ scriptContent:
         		// Concatenate the search object and form actions to browse through it
         		//const searchArray = search.concat(this.form.actions);
         		let searchArray = search;
-        		for (let item of this.form.flows) {
-        			searchArray = searchArray.concat(item.elements);
+        		if(this.form.flows == null){
+        			let searchArray = search.concat(this.form.actions);;
         		}
-        
+        		else{
+        			for (let item of this.form.flows) {
+        				searchArray = searchArray.concat(item.elements);
+        			}
+        		}
         		// Iterate over each object in the searchArray to find the target by comparing IDs
         		for (let obj of searchArray) {
         			// If the IDs are equal
@@ -5632,9 +5652,15 @@ scriptContent:
         	 * @returns The name corresponding to the ID, or an empty string if not found.
         	 */
         	private getNameById(val: ValFieldObject | number): string {
-        		let searchArray = this.form.formulaire.concat([]);
-        		for (let item of this.form.flows) {
-        			searchArray = searchArray.concat(item.elements);
+        		let searchArray = null;
+        		if(this.form.flows == null){
+        			searchArray = this.form.formulaire.concat(this.form.actions);
+        		}
+        		else{
+        			searchArray = this.form.formulaire.concat([]);
+        			for (let item of this.form.flows) {
+        				searchArray = searchArray.concat(item.elements);
+        			}
         		}
         
         		if (typeof val === ''number'') {
