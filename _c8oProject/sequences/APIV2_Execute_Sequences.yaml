@@ -161,74 +161,111 @@ accessibility: Hidden
         	}
         	docs = [docs];
         }
+        
         for (var _doc of docs) {
-        	console.log("there", _doc, logLevel);
-        	var currentResponse = _doc.doc.item;
-        	// ensure doc is properly subimtted and execute sequence is not already running for this
-        	var cancel = checkNotAlreadyRunning(currentResponse._id, currentResponse._rev);
-        
-        	if (!cancel && (currentResponse.finished == true || currentResponse.finished == "true")) {
-        		// we can now walk actions.
-        		for (var h = 0; h < currentResponse.actions.submit.length; h++) {
-        			var action = currentResponse.actions.submit[h];
-        			if (action.type == "submit") {
-        				var keys = Object.keys(action.actions);
-        				for (var i = 0; i < keys.length; i++) {
-        					var definedAction = action.actions[keys[i]];
-        					if (definedAction.enabled) {
-        						var params = {};
-        						var filesToBeDeleted = [];
-        						// we can now perform this action
-        						// get last version of published_doc associeted to this response
-        						var originalDoc = getDoc(currentResponse.formId, currentResponse.formRev, "c8oforms_fs");
-        						if (originalDoc.error) {
-        							// if we can''t found version of published_doc associeted try without rev
-        							originalDoc = getDoc(currentResponse.formId, null, "c8oforms_fs");
-        						}
-        						params.originalDoc = JsonToDomElement(originalDoc);
-        						// get last version of currentResponse (in caseof another previous action having modified it)
-        						var lastResponseVersion = getDoc(currentResponse._id, null, "c8oforms_response_fs");
-        						if (lastResponseVersion.error) {
-        							// if we can''t found last version of currentResponse give it current (should never happen)
-        							lastResponseVersion = currentResponse
-        						}
-        						params.doc = JsonToDomElement(lastResponseVersion);
-        						params.currentAction = JSON.stringify(action);
-        						// now compute parameters
-        						var _keys = Object.keys(definedAction.vars);
-        						for (var j = 0; j < _keys.length; j++) {
-        							var variable = definedAction.vars[_keys[j]];
-        							if (variable != undefined && variable != "") {
-        								if (variable.from_attachment != undefined && variable.from_attachment == true) {
-        									var attname = variable.attchament_name;
-        									var attpath = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName("C8Oforms").getDirPath() + separator + "csv" + separator + (new Date().getTime() + "_" + attname);
-        									attfile = new java.io.File(attpath);
-        									// query attachment
-        									fsclient.getDocumentAttachment("c8oforms_fs", currentResponse.formId, attname, new HashMap(), attfile);
-        									params[_keys[j]] = attpath;
-        									filesToBeDeleted.push(attfile);
-        								}
-        								else {
-        									params[_keys[j]] = variable;
-        								}
+        	var idExec;
+        	try{
+        		var currentResponse = _doc.doc.item;
+        		// ensure doc is properly subimtted and execute sequence is not already running for this
+        		var cancel = checkNotAlreadyRunning(currentResponse._id, currentResponse._rev);
+        		idExec = currentResponse._id + "_temp" + new Date().getTime();
+        		
+        		if (!cancel && (currentResponse.finished == true || currentResponse.finished == "true")) {
+        			try{
+        				if(attachments != null && attachments_meta != null){
+        					attachments_meta = JSON.parse(attachments_meta);
+        					var mergeRules = new HashMap();
+        					var response_post = toJSON(fsclient.postDocument(java.lang.String("c8oforms_response_fs"), toJettison({temp: true, _id: idExec}), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+        					for(var i=0; i < attachments.length; i++){
+        						var attach = attachments[i];
+        						var attachMeta = attachments_meta[i];
+        						var response_put_doc = toJSON(fsclient.putDocumentAttachment(java.lang.String("c8oforms_response_fs"), response_post.id, attachMeta.name, new HashMap(),new java.io.File(attach), attachMeta.contentType));
+        					}
+        					
+        				}
+        			}
+        			catch(e){
+        				log.warn(e);
+        				console.log("!!!!!!! attachments error", e, logLevel);
+        			}
+        			// we can now walk actions.
+        			for (var h = 0; h < currentResponse.actions.submit.length; h++) {
+        				var action = currentResponse.actions.submit[h];
+        				if (action.type == "submit") {
+        					var keys = Object.keys(action.actions);
+        					for (var i = 0; i < keys.length; i++) {
+        						var definedAction = action.actions[keys[i]];
+        						if (definedAction.enabled) {
+        							var params = {};
+        							var filesToBeDeleted = [];
+        							// we can now perform this action
+        							// get last version of published_doc associeted to this response
+        							var originalDoc = getDoc(currentResponse.formId, currentResponse.formRev, "c8oforms_fs");
+        							if (originalDoc.error) {
+        								// if we can''t found version of published_doc associeted try without rev
+        								originalDoc = getDoc(currentResponse.formId, null, "c8oforms_fs");
         							}
+        							params.originalDoc = JsonToDomElement(originalDoc);
+        							// get last version of currentResponse (in caseof another previous action having modified it)
+        							var lastResponseVersion = getDoc(currentResponse._id, null, "c8oforms_response_fs");
+        							if (lastResponseVersion.error) {
+        								// if we can''t found last version of currentResponse give it current (should never happen)
+        								lastResponseVersion = currentResponse
+        							}
+        							if(attachments != null && attachments_meta != null){
+        								var _temp_last = JSON.parse(JSON.stringify(lastResponseVersion));
+        								_temp_last._id = idExec;
+        								params.doc = JsonToDomElement(_temp_last);
+        							}
+        							else{
+        								params.doc = JsonToDomElement(lastResponseVersion);
+        							}
+        							params.currentAction = JSON.stringify(action);
+        							// now compute parameters
+        							var _keys = Object.keys(definedAction.vars);
+        							for (var j = 0; j < _keys.length; j++) {
+        								var variable = definedAction.vars[_keys[j]];
+        								if (variable != undefined && variable != "") {
+        									if (variable.from_attachment != undefined && variable.from_attachment == true) {
+        										var attname = variable.attchament_name;
+        										var attpath = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName("C8Oforms").getDirPath() + separator + "csv" + separator + (new Date().getTime() + "_" + attname);
+        										attfile = new java.io.File(attpath);
+        										// query attachment
+        										fsclient.getDocumentAttachment("c8oforms_fs", currentResponse.formId, attname, new HashMap(), attfile);
+        										params[_keys[j]] = attpath;
+        										filesToBeDeleted.push(attfile);
+        									}
+        									else {
+        										params[_keys[j]] = variable;
+        									}
+        								}
         
-        						}
-        						// call sequence
-        						var splitted = keys[i].split(".");
-        						var targetProjectName = splitted[0];
-        						var targetSequenceName = splitted[1];
-        						response = callSequenceInDuplicateSession(targetProjectName, targetSequenceName, params, httpSessionAttributes);
-        						if(response && response.document && response.document.sequence && response.document.sequence.document){
-        							response = response.document.sequence.document;
-        						}
-        						for (var file of filesToBeDeleted) {
-        							file.delete();
+        							}
+        							// call sequence
+        							var splitted = keys[i].split(".");
+        							var targetProjectName = splitted[0];
+        							var targetSequenceName = splitted[1];
+        							response = callSequenceInDuplicateSession(targetProjectName, targetSequenceName, params, httpSessionAttributes);
+        							if(response && response.document && response.document.sequence && response.document.sequence.document){
+        								response = response.document.sequence.document;
+        							}
+        							for (var file of filesToBeDeleted) {
+        								file.delete();
+        							}
         						}
         					}
         				}
         			}
         		}
+        	}
+        	catch(e){
+        		log.error(e);
+        	}
+        	try{
+        		deleteDoc(idExec, null, "c8oforms_response_fs")
+        	}
+        	catch(e){
+        		
         	}
         }'
     ↓object [steps.JsonToXmlStep-1743100103010]: 
@@ -247,3 +284,6 @@ accessibility: Hidden
 ↓doc [variables.RequestableMultiValuedVariable-1706263370158]: 
 ↓execute_Async [variables.RequestableVariable-1743099861313]: 
   value: true
+↓attachments [variables.RequestableMultiValuedVariable-1748361852028]: 
+  isFileUpload: true
+↓attachments_meta [variables.RequestableVariable-1748425843157]: 

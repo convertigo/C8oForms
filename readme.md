@@ -46,6 +46,7 @@ For more technical informations : [documentation](./project.md)
             - [HeadDocument](#headdocument)
             - [PostBulkDocuments_1](#postbulkdocuments_1)
             - [PostDocument](#postdocument)
+            - [PostDocument1](#postdocument1)
             - [PostDocument_PWA](#postdocument_pwa)
             - [PostDocument_restore_deleted](#postdocument_restore_deleted)
             - [PostDocumentAddArgc8o_view_type_pwa_document](#postdocumentaddargc8o_view_type_pwa_document)
@@ -78,6 +79,7 @@ For more technical informations : [documentation](./project.md)
             - [SetLanguage](#setlanguage)
     - [c8oforms_response_fs](#c8oforms_response_fs)
         - [Transactions](#transactions-1)
+            - [AllDocs](#alldocs)
             - [Generic_GetView](#generic_getview)
             - [GetDocument](#getdocument-1)
             - [GetDocumentAttachment](#getdocumentattachment-1)
@@ -88,6 +90,7 @@ For more technical informations : [documentation](./project.md)
             - [GetView1](#getview1)
             - [GetView1_multiple](#getview1_multiple)
             - [GetView1Pretty](#getview1pretty)
+            - [GetViewNotOnMapOnly](#getviewnotonmaponly)
             - [PostBulkDocumentsMergeOverrideGrp](#postbulkdocumentsmergeoverridegrp)
             - [PostDocument](#postdocument-1)
             - [PostDocumentAttachmentB64IntoField](#postdocumentattachmentb64intofield)
@@ -96,13 +99,6 @@ For more technical informations : [documentation](./project.md)
             - [PurgeDatabase](#purgedatabase-1)
             - [PutDocumentAttachment](#putdocumentattachment-1)
             - [PutDocumentAttachmentFromFile](#putdocumentattachmentfromfile-1)
-    - [HTTP_connector](#http_connector)
-        - [Transactions](#transactions-2)
-            - [Default_transaction](#default_transaction)
-            - [HTTP_transaction](#http_transaction)
-    - [void](#void)
-        - [Transactions](#transactions-3)
-            - [void](#void-1)
 - [Rest Web Service](#rest-web-service)
     - [Mappings](#mappings)
         - [/forms/export/{id}](#formsexport{id})
@@ -110,6 +106,10 @@ For more technical informations : [documentation](./project.md)
                 - [GetOperation](#getoperation)
 - [Convertigo Forms Builder](#convertigo-forms-builder)
     - [Pages](#pages)
+        - [adminDashboardDetail](#admindashboarddetail)
+        - [adminDashboardHome](#admindashboardhome)
+        - [adminDashboardUsers](#admindashboardusers)
+        - [adminDashboardUsersWithinGroups](#admindashboarduserswithingroups)
         - [aiChat](#aichat)
         - [aiDialog](#aidialog)
         - [colorPage](#colorpage)
@@ -129,6 +129,7 @@ For more technical informations : [documentation](./project.md)
         - [ModalEditImage](#modaleditimage)
         - [modalVideo](#modalvideo)
         - [NetworkStatus](#networkstatus)
+        - [Page](#page)
         - [PopOverInputs](#popoverinputs)
         - [popOverPageSelector](#popoverpageselector)
         - [PreviewMultiple](#previewmultiple)
@@ -212,6 +213,9 @@ For more technical informations : [documentation](./project.md)
         - [updateState](#updatestate)
         - [ZXing_sa_forms](#zxing_sa_forms)
     - [Shared Components](#shared-components)
+        - [addGroupForm](#addgroupform)
+        - [addUserForm](#adduserform)
+        - [addUserToGroupForm](#addusertogroupform)
         - [cardSelector](#cardselector)
         - [chooseIcon](#chooseicon)
         - [colorPicker](#colorpicker)
@@ -223,9 +227,14 @@ For more technical informations : [documentation](./project.md)
         - [dataSourceEditor](#datasourceeditor)
         - [dataSourceEditor_GridRow_GridColSourcePicker_Group](#datasourceeditor_gridrow_gridcolsourcepicker_group)
         - [dataSourceEditorDescription](#datasourceeditordescription)
+        - [dataviz](#dataviz)
+        - [datavizHolder](#datavizholder)
+        - [documentationPanel](#documentationpanel)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
         - [DraggableElementApiPalette](#draggableelementapipalette)
         - [editorToolbarButton](#editortoolbarbutton)
+        - [getApplicationDetail](#getapplicationdetail)
+        - [getUserGroupsDetail](#getusergroupsdetail)
         - [inputMultiVal](#inputmultival)
         - [inputTextAndField](#inputtextandfield)
         - [itemActionBusinessLogicEditor](#itemactionbusinesslogiceditor)
@@ -233,8 +242,12 @@ For more technical informations : [documentation](./project.md)
         - [itemActionSubmitEditor](#itemactionsubmiteditor)
         - [itemActionSubmitViewer](#itemactionsubmitviewer)
         - [itemAddCheckBoxOrRadio](#itemaddcheckboxorradio)
+        - [itemAddRowToLocalGridActionEditor](#itemaddrowtolocalgridactioneditor)
+        - [itemAddRowToLocalGridActionViewer](#itemaddrowtolocalgridactionviewer)
         - [itemBarcodeSelector](#itembarcodeselector)
         - [itemBarcodeViewver](#itembarcodeviewver)
+        - [itemButtonEditor](#itembuttoneditor)
+        - [itemButtonViewer](#itembuttonviewer)
         - [itemCameraSelector](#itemcameraselector)
         - [itemCardEditor](#itemcardeditor)
         - [itemCardEditor_Elem](#itemcardeditor_elem)
@@ -250,12 +263,20 @@ For more technical informations : [documentation](./project.md)
         - [itemCheckboxGroupViewerConditions](#itemcheckboxgroupviewerconditions)
         - [itemCheckboxViewer](#itemcheckboxviewer)
         - [itemCheckboxViewerConditions](#itemcheckboxviewerconditions)
+        - [itemConditionEditor](#itemconditioneditor)
+        - [itemConditionEditor_Elem](#itemconditioneditor_elem)
+        - [itemConditionEditorViewer](#itemconditioneditorviewer)
+        - [itemConditionViewer_Elem](#itemconditionviewer_elem)
         - [itemDateSelector](#itemdateselector)
         - [itemDateTimeViewver](#itemdatetimeviewver)
         - [itemDescriptionEditor](#itemdescriptioneditor)
         - [itemDescriptionViewer](#itemdescriptionviewer)
         - [itemFileSelector](#itemfileselector)
         - [itemFileViewver](#itemfileviewver)
+        - [itemForLoopEditor1](#itemforloopeditor1)
+        - [itemForLoopEditor_Elem1](#itemforloopeditor_elem1)
+        - [itemForLoopEditorViewer1](#itemforloopeditorviewer1)
+        - [itemForLoopEditorViewer_Elem1](#itemforloopeditorviewer_elem1)
         - [itemGridEditor](#itemgrideditor)
         - [itemGridViewer](#itemgridviewer)
         - [itemHeaderEdit](#itemheaderedit)
@@ -271,10 +292,18 @@ For more technical informations : [documentation](./project.md)
         - [itemLocationViewer](#itemlocationviewer)
         - [itemMapEditor](#itemmapeditor)
         - [itemMapViewer](#itemmapviewer)
+        - [itemNavigateAppActionEditor](#itemnavigateappactioneditor)
+        - [itemNavigateAppActionViewer](#itemnavigateappactionviewer)
+        - [itemNavigatePageActionEditor](#itemnavigatepageactioneditor)
+        - [itemNavigatePageActionViewer](#itemnavigatepageactionviewer)
         - [itemRadioGroupViewver](#itemradiogroupviewver)
         - [itemRadioListEditor](#itemradiolisteditor)
         - [itemRadioListGroupEditor](#itemradiolistgroupeditor)
         - [itemRadioViewver](#itemradioviewver)
+        - [itemRefreshGridActionEditor](#itemrefreshgridactioneditor)
+        - [itemRefreshGridActionViewer](#itemrefreshgridactionviewer)
+        - [itemRemoveRowFromLocalGridActionEditor](#itemremoverowfromlocalgridactioneditor)
+        - [itemRemoveRowFromLocalGridActionViewer](#itemremoverowfromlocalgridactionviewer)
         - [itemSelectEditor](#itemselecteditor)
         - [itemSelectViewver](#itemselectviewver)
         - [itemSignatureSelector](#itemsignatureselector)
@@ -286,6 +315,8 @@ For more technical informations : [documentation](./project.md)
         - [itemTimeSelector](#itemtimeselector)
         - [itemTimeViewver](#itemtimeviewver)
         - [ItemTitleSub](#itemtitlesub)
+        - [itemToastActionEditor](#itemtoastactioneditor)
+        - [itemToastActionViewer](#itemtoastactionviewer)
         - [itemVideoCallEditor](#itemvideocalleditor)
         - [itemVideoCallViewer](#itemvideocallviewer)
         - [itemVideoCallViewerInEditionPage](#itemvideocallviewerineditionpage)
@@ -294,6 +325,7 @@ For more technical informations : [documentation](./project.md)
         - [mdReader](#mdreader)
         - [menuVersion](#menuversion)
         - [monacoEditor](#monacoeditor)
+        - [moveUserToGroupForm](#moveusertogroupform)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
         - [PopOverSourceCompletion](#popoversourcecompletion)
         - [searchableSelect](#searchableselect)
@@ -319,6 +351,7 @@ For more technical informations : [documentation](./project.md)
         - [switchItemViewer](#switchitemviewer)
         - [treeview](#treeview)
         - [treeviewContent](#treeviewcontent)
+        - [updateGroupAccessRights](#updategroupaccessrights)
 
 
 ## Installation
@@ -481,6 +514,9 @@ Fullsync connector that holds all forms and user settings
 <td>_use_ddoc</td><td></td>
 </tr>
 <tr>
+<td>_use_descending</td><td></td>
+</tr>
+<tr>
 <td>_use_group</td><td></td>
 </tr>
 <tr>
@@ -593,6 +629,99 @@ Fullsync connector that holds all forms and user settings
 </tr>
 </table>
 ##### PostDocument
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td></td>
+</tr>
+<tr>
+<td>_id</td><td></td>
+</tr>
+<tr>
+<td>_use_merge</td><td></td>
+</tr>
+<tr>
+<td>actions</td><td></td>
+</tr>
+<tr>
+<td>c8o_view_type_published_form</td><td></td>
+</tr>
+<tr>
+<td>c8oGrp</td><td></td>
+</tr>
+<tr>
+<td>collabs</td><td></td>
+</tr>
+<tr>
+<td>collabsResponse</td><td></td>
+</tr>
+<tr>
+<td>creationDate</td><td></td>
+</tr>
+<tr>
+<td>creator</td><td></td>
+</tr>
+<tr>
+<td>descform</td><td></td>
+</tr>
+<tr>
+<td>descformPosition</td><td></td>
+</tr>
+<tr>
+<td>formulaire</td><td></td>
+</tr>
+<tr>
+<td>lastMofification</td><td></td>
+</tr>
+<tr>
+<td>name</td><td></td>
+</tr>
+<tr>
+<td>namePosition</td><td></td>
+</tr>
+<tr>
+<td>pages</td><td></td>
+</tr>
+<tr>
+<td>parentId</td><td></td>
+</tr>
+<tr>
+<td>parentRev</td><td></td>
+</tr>
+<tr>
+<td>pwa_enabled</td><td></td>
+</tr>
+<tr>
+<td>pwa_subPath</td><td></td>
+</tr>
+<tr>
+<td>respNameRequired</td><td></td>
+</tr>
+<tr>
+<td>sharedAnonymous</td><td></td>
+</tr>
+<tr>
+<td>subTag</td><td></td>
+</tr>
+<tr>
+<td>tag</td><td></td>
+</tr>
+<tr>
+<td>thumbnail</td><td></td>
+</tr>
+<tr>
+<td>version</td><td></td>
+</tr>
+<tr>
+<td>wallpaper</td><td></td>
+</tr>
+</table>
+##### PostDocument1
 
 **variables**
 
@@ -1322,6 +1451,8 @@ Fullsync connector that holds all responses
 
 #### Transactions
 
+##### AllDocs
+
 ##### Generic_GetView
 
 **variables**
@@ -1445,6 +1576,33 @@ Fullsync connector that holds all responses
 </tr>
 <tr>
 <td>_use_key</td><td></td>
+</tr>
+</table>
+##### GetViewNotOnMapOnly
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_ddoc</td><td></td>
+</tr>
+<tr>
+<td>_use_descending</td><td></td>
+</tr>
+<tr>
+<td>_use_group</td><td></td>
+</tr>
+<tr>
+<td>_use_group_level</td><td></td>
+</tr>
+<tr>
+<td>_use_reduce</td><td></td>
+</tr>
+<tr>
+<td>_use_view</td><td></td>
 </tr>
 </table>
 ##### PostBulkDocumentsMergeOverrideGrp
@@ -1584,24 +1742,6 @@ Fullsync connector that holds all responses
 <td>_use_docid</td><td></td>
 </tr>
 </table>
-### HTTP_connector
-
-#### Transactions
-
-##### Default_transaction
-
-##### HTTP_transaction
-
-### void
-
-void connector, replace or don't use it
-
-#### Transactions
-
-##### void
-
-does nothing
-
 ## Rest Web Service
 
 ### Mappings
@@ -1631,6 +1771,22 @@ Export a forms with a given id
 Describes the mobile application global properties 2
 
 ### Pages
+
+#### adminDashboardDetail
+
+Admin Dashboard Detail stats
+
+#### adminDashboardHome
+
+Home Admin Dashboard
+
+#### adminDashboardUsers
+
+Admin Dashboard Users
+
+#### adminDashboardUsersWithinGroups
+
+Admin Dashboard Users
 
 #### aiChat
 
@@ -1677,6 +1833,8 @@ Page to share a form, or add collaborators
 #### modalVideo
 
 #### NetworkStatus
+
+#### Page
 
 #### PopOverInputs
 
@@ -1738,6 +1896,12 @@ Form Visualisator
 </tr>
 <tr>
 <td>cat</td><td></td>
+</tr>
+<tr>
+<td>custom</td><td></td>
+</tr>
+<tr>
+<td>elems</td><td></td>
 </tr>
 <tr>
 <td>message</td><td></td>
@@ -1948,6 +2112,12 @@ This functions is used to close an element selected on editor page
 </tr>
 <tr>
 <td>cat</td><td></td>
+</tr>
+<tr>
+<td>custom</td><td></td>
+</tr>
+<tr>
+<td>elems</td><td></td>
 </tr>
 <tr>
 <td>type</td><td></td>
@@ -2362,6 +2532,9 @@ Get i118n translations
 <tr>
 <td>pages</td><td></td>
 </tr>
+<tr>
+<td>performCheckMandatory</td><td></td>
+</tr>
 </table>
 #### ProcessSubmitFormViewerPageFINISH
 
@@ -2402,6 +2575,16 @@ Get i118n translations
 </table>
 #### searchForm
 
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>call</td><td></td>
+</tr>
+</table>
 #### setLocal
 
 **variables**
@@ -2599,6 +2782,12 @@ Update the state of a field
 </table>
 ### Shared Components
 
+#### addGroupForm
+
+#### addUserForm
+
+#### addUserToGroupForm
+
 #### cardSelector
 
 **variables**
@@ -2685,7 +2874,26 @@ Update the state of a field
 <td>current</td><td></td>
 </tr>
 <tr>
+<td>form</td><td></td>
+</tr>
+<tr>
 <td>i</td><td></td>
+</tr>
+<tr>
+<td>typeVisible</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>delete</td><td></td>
+</tr>
+<tr>
+<td>save</td><td></td>
 </tr>
 </table>
 #### conditionVisibleIfPrev
@@ -2700,10 +2908,16 @@ Update the state of a field
 <td>always</td><td></td>
 </tr>
 <tr>
+<td>condVisible</td><td></td>
+</tr>
+<tr>
 <td>current</td><td></td>
 </tr>
 <tr>
 <td>i</td><td></td>
+</tr>
+<tr>
+<td>visible</td><td></td>
 </tr>
 </table>
 #### datasource
@@ -2715,10 +2929,16 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>explicitTarget</td><td></td>
+</tr>
+<tr>
 <td>isSource</td><td></td>
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>loop</td><td></td>
 </tr>
 <tr>
 <td>path</td><td></td>
@@ -2769,6 +2989,9 @@ Update the state of a field
 <td>dragging</td><td></td>
 </tr>
 <tr>
+<td>explicitTarget</td><td></td>
+</tr>
+<tr>
 <td>height</td><td></td>
 </tr>
 <tr>
@@ -2778,10 +3001,16 @@ Update the state of a field
 <td>item</td><td></td>
 </tr>
 <tr>
+<td>loop</td><td></td>
+</tr>
+<tr>
 <td>path</td><td></td>
 </tr>
 <tr>
 <td>sources</td><td></td>
+</tr>
+<tr>
+<td>subIndex</td><td></td>
 </tr>
 <tr>
 <td>thingIndex</td><td></td>
@@ -2815,6 +3044,9 @@ Update the state of a field
 <td>apiC8o</td><td></td>
 </tr>
 <tr>
+<td>apiCurrentFor</td><td></td>
+</tr>
+<tr>
 <td>apiForm</td><td></td>
 </tr>
 <tr>
@@ -2834,6 +3066,9 @@ Update the state of a field
 </tr>
 <tr>
 <td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>loop</td><td></td>
 </tr>
 <tr>
 <td>sources</td><td></td>
@@ -2858,6 +3093,136 @@ Update the state of a field
 </tr>
 <tr>
 <td>isText</td><td></td>
+</tr>
+</table>
+#### dataviz
+
+Display an apex chart comp. or an ag-grid comp.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>data</td><td>(Object) - The data object for charts and grids comp</td>
+</tr>
+<tr>
+<td>defaultHeight</td><td>(Number) - A card content default height</td>
+</tr>
+<tr>
+<td>fullpage</td><td>(Boolean) - The comp. is expanded (true)</td>
+</tr>
+<tr>
+<td>isLoading</td><td>(Boolean) - A boolean flag used for skeleton</td>
+</tr>
+<tr>
+<td>subtitle</td><td>(String) - A subtitle/description for the component card</td>
+</tr>
+<tr>
+<td>subtitleIcon</td><td>(String) - A subtitle icon for the component card</td>
+</tr>
+<tr>
+<td>title</td><td>(String) - A title for the component card</td>
+</tr>
+<tr>
+<td>type</td><td>(String) - A component type that could be one of the following values : "grid" | 'pie' | 'area' | 'line'</td>
+</tr>
+<tr>
+<td>zoomEnd</td><td>(String) - An end date zoom in the YYYY-MM-DD format</td>
+</tr>
+<tr>
+<td>zoomStart</td><td>(String) - A start date zoom in the YYYY-MM-DD format</td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onClickOnDataGridRow</td><td>When fullpage mode have been changed</td>
+</tr>
+</table>
+#### datavizHolder
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>currentBreakPoint</td><td>(String) - The current breakpoint (sm, xs, ...)</td>
+</tr>
+<tr>
+<td>data</td><td>(Object) - Data object to display in the components</td>
+</tr>
+<tr>
+<td>defaultHeight</td><td>(Number) - A card content default height</td>
+</tr>
+<tr>
+<td>fullpage</td><td>(Boolean) - The comp. is expanded (true)</td>
+</tr>
+<tr>
+<td>isExpanded</td><td>(Boolean) - The flag that set the card to fullpage mode</td>
+</tr>
+<tr>
+<td>isHidden</td><td>(Boolean) - The flag that set to visible or not visible a card</td>
+</tr>
+<tr>
+<td>isLoading</td><td>(Boolean) - The flag that set loading skeleton animation</td>
+</tr>
+<tr>
+<td>responsiveChildColumnSize</td><td>(Array) - Size on sm, md, lg, xl between 1 and 12 : {sm: 12, md: '6', lg: 7, xl: 8}</td>
+</tr>
+<tr>
+<td>sequence</td><td>(Object) - An object of configuration component</td>
+</tr>
+<tr>
+<td>sequenceVars</td><td>(Object) - An object of configuration component</td>
+</tr>
+<tr>
+<td>subtitle</td><td>(String) - A subtitle icon for the component card</td>
+</tr>
+<tr>
+<td>subtitleIcon</td><td>(String) - A subtitle icon for the component card</td>
+</tr>
+<tr>
+<td>title</td><td>(String) - A title for the component card</td>
+</tr>
+<tr>
+<td>types</td><td>(String) - A component type that could be one of the following values : "grid" | 'pie' | 'area' | 'line'</td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onChangeExpandedValue</td><td>When fullpage mode have been changed</td>
+</tr>
+<tr>
+<td>onChangeHiddenValue</td><td>When fullpage mode have been changed</td>
+</tr>
+<tr>
+<td>onClickOnDataGridRow</td><td>When fullpage mode have been changed</td>
+</tr>
+</table>
+#### documentationPanel
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>mdContent</td><td></td>
 </tr>
 </table>
 #### DraggableElementActionPalette
@@ -2936,6 +3301,10 @@ Update the state of a field
 <td>clicked</td><td></td>
 </tr>
 </table>
+#### getApplicationDetail
+
+#### getUserGroupsDetail
+
 #### inputMultiVal
 
 **variables**
@@ -2969,6 +3338,9 @@ Update the state of a field
 <td>current</td><td></td>
 </tr>
 <tr>
+<td>form</td><td></td>
+</tr>
+<tr>
 <td>i</td><td></td>
 </tr>
 <tr>
@@ -2979,6 +3351,16 @@ Update the state of a field
 </tr>
 <tr>
 <td>type</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>save</td><td></td>
 </tr>
 </table>
 #### itemActionBusinessLogicEditor
@@ -3026,6 +3408,9 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>action</td><td></td>
+</tr>
+<tr>
 <td>idselected</td><td></td>
 </tr>
 <tr>
@@ -3047,6 +3432,9 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>action</td><td></td>
+</tr>
+<tr>
 <td>item</td><td></td>
 </tr>
 </table>
@@ -3063,6 +3451,42 @@ Update the state of a field
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+</table>
+#### itemAddRowToLocalGridActionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>thingIndex</td><td></td>
+</tr>
+</table>
+#### itemAddRowToLocalGridActionViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
 </tr>
 </table>
 #### itemBarcodeSelector
@@ -3084,6 +3508,45 @@ Update the state of a field
 </tr>
 </table>
 #### itemBarcodeViewver
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>redList</td><td>this.redList[item['name']]</td>
+</tr>
+</table>
+#### itemButtonEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemButtonViewer
 
 **variables**
 
@@ -3420,6 +3883,115 @@ The Chart Widget viewer
 <td>redList</td><td></td>
 </tr>
 </table>
+#### itemConditionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td></td>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>idselectedC</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemConditionEditor_Elem
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>idselectedC</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>item1730737782207</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
+</tr>
+<tr>
+<td>targetCardChild</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>focused</td><td></td>
+</tr>
+<tr>
+<td>unfocused</td><td></td>
+</tr>
+</table>
+#### itemConditionEditorViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemConditionViewer_Elem
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item1730734017789</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
+</tr>
+<tr>
+<td>targetCardChild</td><td></td>
+</tr>
+</table>
 #### itemDateSelector
 
 **variables**
@@ -3532,6 +4104,93 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>redList</td><td>this.redList[item['name']]</td>
+</tr>
+</table>
+#### itemForLoopEditor1
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td></td>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemForLoopEditor_Elem1
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>idselectedC</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>item1730737782207</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
+</tr>
+</table>
+#### itemForLoopEditorViewer1
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### itemForLoopEditorViewer_Elem1
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>indexItem</td><td></td>
+</tr>
+<tr>
+<td>item1730734017789</td><td></td>
+</tr>
+<tr>
+<td>j</td><td></td>
 </tr>
 </table>
 #### itemGridEditor
@@ -3866,6 +4525,78 @@ The Chart Widget viewer
 <td>redList</td><td>this.redList[item['name']]</td>
 </tr>
 </table>
+#### itemNavigateAppActionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>thingIndex</td><td></td>
+</tr>
+</table>
+#### itemNavigateAppActionViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+</table>
+#### itemNavigatePageActionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>thingIndex</td><td></td>
+</tr>
+</table>
+#### itemNavigatePageActionViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+</table>
 #### itemRadioGroupViewver
 
 **variables**
@@ -3942,6 +4673,78 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>redList</td><td></td>
+</tr>
+</table>
+#### itemRefreshGridActionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>thingIndex</td><td></td>
+</tr>
+</table>
+#### itemRefreshGridActionViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+</table>
+#### itemRemoveRowFromLocalGridActionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>thingIndex</td><td></td>
+</tr>
+</table>
+#### itemRemoveRowFromLocalGridActionViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
 </tr>
 </table>
 #### itemSelectEditor
@@ -4160,6 +4963,42 @@ The Chart Widget viewer
 <td>name</td><td></td>
 </tr>
 </table>
+#### itemToastActionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>thingIndex</td><td></td>
+</tr>
+</table>
+#### itemToastActionViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+</table>
 #### itemVideoCallEditor
 
 **variables**
@@ -4284,6 +5123,9 @@ The Chart Widget viewer
 <tr>
 <td>code</td><td></td>
 </tr>
+<tr>
+<td>loop</td><td></td>
+</tr>
 </table>
 **events**
 
@@ -4295,6 +5137,8 @@ The Chart Widget viewer
 <td>onBlur</td><td></td>
 </tr>
 </table>
+#### moveUserToGroupForm
+
 #### ngxTagInputCustomC8oForms
 
 **variables**
@@ -4443,6 +5287,15 @@ The Chart Widget viewer
 <td>card</td><td></td>
 </tr>
 <tr>
+<td>flow</td><td></td>
+</tr>
+<tr>
+<td>for_loop</td><td></td>
+</tr>
+<tr>
+<td>formulas</td><td></td>
+</tr>
+<tr>
 <td>hideText</td><td></td>
 </tr>
 <tr>
@@ -4450,6 +5303,12 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>id</td><td></td>
+</tr>
+<tr>
+<td>if_else</td><td></td>
+</tr>
+<tr>
+<td>targetCardChild</td><td></td>
 </tr>
 </table>
 #### sharedDropIndicatorSelector
@@ -4768,5 +5627,7 @@ if this compenent is renamed it must be also renamed in editorPage (edit page cl
 <td>treebuiltin</td><td></td>
 </tr>
 </table>
+#### updateGroupAccessRights
+
 
 
