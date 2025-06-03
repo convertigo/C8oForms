@@ -132,6 +132,7 @@ scriptContent:
         	public willDestroyEvent: any = new Subject();
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
+        		this.local.keepBlobs = [];
         		this.alertController = this.getInstance(AlertController);
         		this.local.htmlValue = {};
         		this.local.strCacheComputeHtml = {};
@@ -362,7 +363,7 @@ scriptContent:
         		}
         
         		var variables: any = {};
-        		var sources: any = this.searchForSources(step, "actions", false);
+        		var sources: any = this.searchForSources(step, "actions", false, false, false, true);
         		var findVars = sources.findVars;
         		let do_not_touchVars = {};
         		for (let i in findVars) {
@@ -3076,7 +3077,7 @@ scriptContent:
         	 * @param noEval define weither this source should be evaluated at the end
         	 * @returns {findVars: Object, findName: string, ObjectThatHaveToCallFunc: Array, sha: string, fullSyncArgs: Object } findVars are the computed variables found, findName is the source name, ObjectThatHaveToCallFunc holds objects id that will update value of current source, sha make a unique reference for this source : a sha of its name and arguments, fullSyncArgs if it''s a fullsync source, then holds fullsync arguments
         	 */
-        	public searchForSources(item: any, path: string, isSource: boolean = true, noEval: boolean = false, overrideToTS = false): Object {
+        	public searchForSources(item: any, path: string, isSource: boolean = true, noEval: boolean = false, overrideToTS = false, backend= false): Object {
         		// name of the source to be find
         		let sourceName = "";
         		// vars of the source to be find
@@ -3157,7 +3158,7 @@ scriptContent:
         									res.filters.push({
         										"field": cond.val1.name,
         										"op": cond.operator,
-        										"value": this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex)
+        										"value": this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
         									})
         								}
         							}
@@ -3167,14 +3168,14 @@ scriptContent:
         						else if (Array.isArray(vars[va])) {
         							let temp = {};
         							for (let item of vars[va]) {
-        								let str = this.stringOf$$ToCode(item.str, overrideToTS ? "ts" : item.type, ObjectThatHaveToCallFunc, regex);
+        								let str = this.stringOf$$ToCode(item.str, overrideToTS ? "ts" : item.type, ObjectThatHaveToCallFunc, regex, false, backend);
         								temp[item.name] = str;
         							}
         							vars[va] = temp;
         						}
         						else {
         							// otherwise
-        							let str = this.stringOf$$ToCode(vars[va].str, overrideToTS ? "ts" : vars[va].type, ObjectThatHaveToCallFunc, regex);
+        							let str = this.stringOf$$ToCode(vars[va].str, overrideToTS ? "ts" : vars[va].type, ObjectThatHaveToCallFunc, regex, false, backend);
         							vars[va] = str;
         						}
         					}
@@ -3183,6 +3184,12 @@ scriptContent:
         		}
         		return { findVars: vars, findName: sourceName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha, fullSyncArgs: fullSyncArgs }
         	}
+        	
+        	public createAndStoreBlobUrl(blob, id) {
+        	    const url = URL.createObjectURL(blob);
+        	    this.local.keepBlobs[id] = { blob, url }; // Conserver la référence
+        	    return url;
+        	};
         
         	/**
          * transforms a string of $$ to a c8oforms code compatible expression
@@ -3193,7 +3200,7 @@ scriptContent:
          * @param regex regex to find $$ expressions:  support both $$standalone and $$start$$end expressions
          * @returns string
          */
-        	public stringOf$$ToCode(stringOf$$: string, type: string, ObjectThatHaveToCallFunc: Array<any>, regex, html = false) {
+        	public stringOf$$ToCode(stringOf$$: string, type: string, ObjectThatHaveToCallFunc: Array<any>, regex, html = false, backend=false) {
         		// if stringOf$$ is null undefined or an empty string there is nothing to transform
         		if (stringOf$$ == undefined || stringOf$$ == "") {
         			return "";
@@ -3237,7 +3244,7 @@ scriptContent:
         				// indicate that parent item has to be update when its value change
         				ObjectThatHaveToCallFunc.push(id);
         				// get the definition of this element (base structure)
-        				let defElem = this.getItemById(id);
+        				let defElem: any = this.getItemById(id);
         				// get the runtime value of this element (value)
         				let valElem = this.getPathById(+id);
         				// get metadata 
@@ -3252,9 +3259,48 @@ scriptContent:
         
         
         				let tmpStr = "";
+        				let concat = true;
+        				// consider its a backend file path
+        				if(backend == true && (defElem.type == "img" || defElem.type == "signature" || defElem.type == "file") && meta.nested == undefined && meta.c8opath == "" && (meta.path == "" || meta.path == undefined)){
+        					tmpStr = `page.formsSubmit[${defElem.name}]`;
+        					concat = false;
+        				}
         				// if it''s a "ts" expression
-        				if (type != undefined && type == "ts") {
+        				else if (type != undefined && type == "ts") {
         					tmpStr = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false)
+        				}
+        				else if(type == "html" && (defElem.type == "img" || defElem.type == "signature" || defElem.type == "file")){
+        					let valFile = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false);
+        					switch(defElem.type){
+        						case "img" :
+        							tmpStr = `\`+(()=>{let url = null;try{url = URL.createObjectURL(${valFile});}catch(e){} if(url != null){return "<img src="+url+">"}else{return ""}})()+\``;
+        						break;
+        						case "signature" :
+        							tmpStr = `\`+(()=>{if(${valFile} != null){return "<img src="+${valFile}+">"}else{return ""}})()+\``;
+        						break;
+        						case "file" :
+        							tmpStr = `\`+(()=>{let str = "";if(${valFile}?.length > 0){for(let file of ${valFile}){let url = URL.createObjectURL(file); if(file.type.startsWith("image/")){str += "<img src="+url+">"}else{str+="<a href="+url+" target="_blank">"+file.name+"</a>"};}}return str;})()+\``;
+        						break;
+        					}
+        					//t = `let str = "";ìf(${valFile}?.length > 0){for(let file of ${valFile}){if(file.type.startsWith(''image/'')){let url = URL.createObjectURL(file);str += "<img src="+url+">"}else{};}}return str;`
+        					/*
+        					t = `let str = "";
+        										ìf(${valFile}?.length > 0){
+        											for(let file of ${valFile}){
+        												if(file.type.startsWith(''image/'')){
+        													let url = URL.createObjectURL(file);
+        													str += "<img src="+url+">"
+        												}
+        												else{
+        													
+        												};
+        											}
+        										}
+        										return str;
+        										`
+        										*/
+        					
+        
         				}
         				// if it''s an "Aa" expression
         				else {
@@ -3297,7 +3343,13 @@ scriptContent:
         					}
         				}
         
-        				stringOf$$ = stringOf$$.substring(0, iStart) + tmpStr + stringOf$$.substring(iEnd);
+        				if(concat){
+        					stringOf$$ = stringOf$$.substring(0, iStart) + tmpStr + stringOf$$.substring(iEnd);
+        				}
+        				else{
+        					stringOf$$= tmpStr;
+        				}
+        				
         			}
         		}
         		return stringOf$$;
