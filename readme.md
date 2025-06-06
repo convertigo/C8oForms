@@ -5352,6 +5352,15 @@ The Chart Widget viewer
 <td>element</td><td></td>
 </tr>
 <tr>
+<td>fileLabel</td><td></td>
+</tr>
+<tr>
+<td>image</td><td></td>
+</tr>
+<tr>
+<td>isFile</td><td></td>
+</tr>
+<tr>
 <td>show</td><td></td>
 </tr>
 <tr>

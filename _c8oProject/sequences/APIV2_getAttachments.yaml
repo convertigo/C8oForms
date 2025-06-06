@@ -1,0 +1,203 @@
+accessibility: Hidden
+↓computeResponses [steps.SimpleStep-1749141355403]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    include("js/defineExtensions.js");
+    var File = java.io.File;
+    
+    Otherkey = "Other";
+    const logLevel = "warn";
+    var res = {};
+    
+    // generic functions
+    function makeid(length) {
+        var result           = '''';
+        var characters       = ''ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'';
+        var charactersLength = characters.length;
+        for ( var i = 0; i < length; i++ ) {
+          result += characters.charAt(Math.floor(Math.random() * charactersLength));
+       }
+       return result;
+    }
+    
+    function mkdir(parentDir, directoryName){
+    	var directory = new File(parentDir, directoryName);
+    	directory.mkdir()
+    }
+    
+    // Fonction pour compresser un dossier en fichier ZIP
+    function zipFolder(sourceFolderPath, zipFilePath) {
+        var fos = new java.io.FileOutputStream(zipFilePath);
+        var zos = new java.util.zip.ZipOutputStream(fos);
+        var fileToZip = new java.io.File(sourceFolderPath);
+    
+        zipFile(fileToZip, fileToZip.getName(), zos);
+    
+        zos.close();
+        fos.close();
+        log.warn("Dossier compressé avec succès.");
+    }
+    
+    function zipFile(fileToZip, fileName, zos) {
+        if (fileToZip.isHidden()) {
+            return;
+        }
+        if (fileToZip.isDirectory()) {
+            if (!fileName.endsWith("/")) {
+                fileName += "/";
+            }
+            zos.putNextEntry(new java.util.zip.ZipEntry(fileName));
+            zos.closeEntry();
+            var children = fileToZip.listFiles();
+            for (var i = 0; i < children.length; i++) {
+                zipFile(children[i], fileName + children[i].getName(), zos);
+            }
+            return;
+        }
+        var fis = new java.io.FileInputStream(fileToZip);
+        zos.putNextEntry(new java.util.zip.ZipEntry(fileName));
+        var bytes = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, 1024);
+        var length;
+        while ((length = fis.read(bytes)) >= 0) {
+            zos.write(bytes, 0, length);
+        }
+        fis.close();
+    }
+    
+    function rmdir(directoryPath) {
+        var file = new File(directoryPath);
+        if (!file.exists()) {
+            log.warn("Le répertoire n''existe pas.");
+            return;
+        }
+    
+        deleteFile(file);
+        log.warn("Répertoire supprimé avec succès.");
+    }
+    
+    function deleteFile(file) {
+        if (file.isDirectory()) {
+            var files = file.listFiles();
+            if (files) {
+                for (var i = 0; i < files.length; i++) {
+                    deleteFile(files[i]);
+                }
+            }
+        }
+    
+        file.delete();
+    }
+    
+    var dirName = new Date().getTime() + "_" + makeid(20);
+    var dir = context.getProjectDirectory()+"/csv/";
+    mkdir(dir, dirName);
+    var attDir = dir + dirName;// + "/";
+    
+    
+    
+    
+    
+    //start code
+    var published_form;
+    try {
+    	published_form = (callSequence("C8Oforms", "APIV2_getDocument", { id: formId })).document.res;
+    }
+    catch (e) {
+    	var to = e;
+    }
+    // if authorized and exists doc
+    if (published_form) {
+    	//res["raw_published_form"] = published_form;
+    	res["published_form"] = { name: published_form.name };
+    	var currentVersion;
+    	// define all existing version for this form
+    	res["versions"] = createArray(published_form.version);
+    	if (version && version != "") {
+    		currentVersion = +version;
+    	}
+    	else {
+    		currentVersion = +published_form.version;
+    	}
+    	res["currentVersion"] = currentVersion;
+    	query = new java.util.HashMap();
+    	query.put(''reduce'', ''false'');
+    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId+"_anonymous", "" + currentVersion]]));
+    	query.put("include_docs", "true");
+    	var responses;
+    	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
+    	res.response = { length: responses.length };
+    	
+    	var byName = false;
+    	if("element" in this && element != null){
+    		byName = true;
+    	}
+    	for(var response of responses){
+    		var resp = response.doc.resp;
+    		for(var key in resp){
+    			if(!byName || key == element){
+    				//getAttach
+    				switch(resp[key].type){
+    					case "signature":
+    					case "img":
+    						let fp = attDir+"/"+response.id+"_"+resp[key].name;
+    						var file = new File(fp);
+    						var result = fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, resp[key].name, new java.util.HashMap(), file);
+    						var contentType = JSON.parse(result)._c8oMeta.headers["Content-Type"];
+    						var extension = contentType.split("/")[1];
+    						if(extensionsDB[contentType] != undefined && extensionsDB[contentType]["extensions"] != undefined && extensionsDB[contentType]["extensions"][0] != undefined){
+    							extension = extensionsDB[contentType]["extensions"][0];
+    						}
+    						let fpWithExtension = new File(fp + "." + extension);
+    						file.renameTo(fpWithExtension);
+    					break;
+    					case "file":
+    						if (resp[key].value instanceof Array) {
+    							var j = 0;
+    							for (var entryFile of resp[key].value) {
+    								if (typeof (entryFile) === "string") {
+    									fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, entryFile, new java.util.HashMap(), new File(attDir+"/"+response.id+"_"+ j + "_" + entryFile.split("_C80C80_")[1]));
+    									j ++;
+    								}
+    							}
+    						}
+    					break;
+    				}
+    			}
+    		}
+    	}
+    	zipFolder(attDir, attDir+".zip");
+    	rmdir(attDir);
+    	context.addFileToDeleteAtEndOfSession(new File(attDir+".zip"));
+    }'
+↓object2 [steps.JsonToXmlStep-1749141355406]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓Element [steps.XMLElementStep-1749200524040]: 
+  nodeName: attachment
+  ↓jAttribute [steps.AttributeStep-1749200524043]: 
+    nodeName: content-type
+    nodeText: application/zip
+  ↓jAttribute1 [steps.AttributeStep-1749200524046]: 
+    expression: attDir+".zip"
+    nodeName: local-url
+  ↓jAttribute2 [steps.AttributeStep-1749200524049]: 
+    expression: formId + "_V" +currentVersion+".zip"
+    nodeName: name
+  ↓jAttribute3 [steps.AttributeStep-1749200524052]: 
+    nodeName: type
+    nodeText: attachment
+↓formId [variables.RequestableVariable-1749141355409]: 
+  value: published_1697531850821
+↓version [variables.RequestableVariable-1749141355412]: 
+↓element [variables.RequestableVariable-1749141355427]: 
