@@ -3212,7 +3212,9 @@ scriptContent:
         		}
         
         		let match;
+        		let cpt = 0;
         		while ((match = regex.exec(stringOf$$)) != null) {
+        			cpt++;
         			// start index of current match - we have to save it to be able to replace actual $$ expression by it''s computed value at the end
         			let iStart = match.index;
         			// end index of current match - we have to save it to be able to replace actual $$ expression by it''s computed value at the end
@@ -3268,7 +3270,27 @@ scriptContent:
         				}
         				// if it''s a "ts" expression
         				else if (type != undefined && type == "ts") {
-        					tmpStr = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false)
+        					if(defElem.type == "signature"){
+        						tmpStr = `
+        						(() => {
+        						  let base64Data = ${this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false)};
+        						  const parts = base64Data.split('';base64,'');
+        						  const contentType = parts[0].split('':'')[1];
+        						  const raw = window.atob(parts[1]);
+        						  const rawLength = raw.length;
+        						  const uInt8Array = new Uint8Array(rawLength);
+        
+        						  for (let i = 0; i < rawLength; ++i) {
+        						    uInt8Array[i] = raw.charCodeAt(i);
+        						  }
+        
+        						  return new Blob([uInt8Array], { type: contentType });
+        						})()
+        						`
+        					}
+        					else{
+        						tmpStr = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false);
+        					}
         				}
         				else if(type == "html" && (defElem.type == "img" || defElem.type == "signature" || defElem.type == "file")){
         					let valFile = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false);
@@ -3280,32 +3302,36 @@ scriptContent:
         							tmpStr = `\`+(()=>{if(${valFile} != null){return "<img src="+${valFile}+">"}else{return ""}})()+\``;
         						break;
         						case "file" :
-        							tmpStr = `\`+(()=>{let str = "";if(${valFile}?.length > 0){for(let file of ${valFile}){let url = URL.createObjectURL(file); if(file.type.startsWith("image/")){str += "<img src="+url+">"}else{str+="<a href="+url+" target="_blank">"+file.name+"</a>"};}}return str;})()+\``;
+        							tmpStr = `\`+(()=>{let str = "";if(${valFile}?.length > 0){for(let file of ${valFile}){let url = URL.createObjectURL(file); if(file.type.startsWith("image/")){str += "<img src="+url+">"}else{str+=''<a href="''+url+''" target="_blank">''+file.name+''</a>&nbsp;''};}}return str;})()+\``;
         						break;
         					}
-        					//t = `let str = "";ìf(${valFile}?.length > 0){for(let file of ${valFile}){if(file.type.startsWith(''image/'')){let url = URL.createObjectURL(file);str += "<img src="+url+">"}else{};}}return str;`
-        					/*
-        					t = `let str = "";
-        										ìf(${valFile}?.length > 0){
-        											for(let file of ${valFile}){
-        												if(file.type.startsWith(''image/'')){
-        													let url = URL.createObjectURL(file);
-        													str += "<img src="+url+">"
-        												}
-        												else{
-        													
-        												};
-        											}
-        										}
-        										return str;
-        										`
-        										*/
-        					
-        
         				}
         				// if it''s an "Aa" expression
         				else {
-        					tmpStr = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, false, false)
+        					if(defElem.type == "signature"){
+        						tmpStr = ''`+'';
+        						tmpStr += `
+        						(() => {
+        						  let base64Data = ${this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, true, false)};
+        						  const parts = base64Data.split('';base64,'');
+        						  const contentType = parts[0].split('':'')[1];
+        						  const raw = window.atob(parts[1]);
+        						  const rawLength = raw.length;
+        						  const uInt8Array = new Uint8Array(rawLength);
+        
+        						  for (let i = 0; i < rawLength; ++i) {
+        						    uInt8Array[i] = raw.charCodeAt(i);
+        						  }
+        
+        						  return new Blob([uInt8Array], { type: contentType });
+        						})()
+        						`
+        						tmpStr += ''+`'';
+        					}
+        					else{
+        						tmpStr = tmpStr = this.$$toVal(defElem, meta, stringOf$$, iStart, valElem, iEnd, id, false, false);
+        					}
+        					
         				}
         				for (let nestIndex in computedMeta) {
         					let strToReplace = ".$$START_SUB" + nestIndex + "END_SUB$$";
@@ -3353,7 +3379,13 @@ scriptContent:
         				
         			}
         		}
+        		if(cpt <= 1 && type != "ts" && type != "html"){
+        			stringOf$$ = stringOf$$.substring(3);
+        			stringOf$$ = stringOf$$.substring(0, stringOf$$.length - 3);
+        		}
         		return stringOf$$;
+        		
+        		
         	}
         
         	/**
@@ -4408,14 +4440,14 @@ scriptContent:
         					try {
         						asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
         							''page'',
-        							`return (async () => { return ${findVars[va]} })();`
+        							`return (async () => { var _ex = ${findVars[va]}; return _ex; })();`
         						);
         					}
         					catch (e) {
         						if (e.message == "Invalid left-hand side in assignment" || e.message == "invalid assignment left-hand side") {
         							asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
         								''page'',
-        								`return (async () => { return ${this.removeSafeOperatorsInLHS(findVars[va])} })();`
+        								`return (async () => {  var _ex = ${this.removeSafeOperatorsInLHS(findVars[va])}; return _ex; })();`
         							);
         						}
         						else {
