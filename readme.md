@@ -5361,6 +5361,9 @@ The Chart Widget viewer
 <td>isFile</td><td></td>
 </tr>
 <tr>
+<td>label</td><td></td>
+</tr>
+<tr>
 <td>show</td><td></td>
 </tr>
 <tr>
@@ -5469,6 +5472,9 @@ The Chart Widget viewer
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>doTranslate</td><td></td>
 </tr>
 <tr>
 <td>element</td><td></td>
