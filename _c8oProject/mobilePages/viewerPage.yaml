@@ -363,30 +363,10 @@ scriptContent:
         			submitActions[step["type"]] = []
         		}
         
-        		var variables: any = {};
-        		var sources: any = this.searchForSources(step, "actions", false, false, false, true);
-        		var findVars = sources.findVars;
-        		let do_not_touchVars = {"_c8o_timezone_offset": (new Date().getTimezoneOffset() * 60000 * -1)};
-        		for (let i in findVars) {
-        			if (findVars[i].from_attachment != undefined && findVars[i].from_attachment) {
-        				do_not_touchVars[i] = findVars[i];
-        				delete findVars[i];
-        			}
-        		}
-        		await this.computeVariable(findVars, variables, step);
-        		variables = Object.assign(variables, do_not_touchVars);
-        		let currentAction = JSON.parse(JSON.stringify(step));
-        		for (let action in currentAction.actions) {
-        			if (action == sources.findName) {
-        				currentAction.actions[action].vars = variables;
-        			}
-        			else {
-        				delete currentAction.actions[action];
-        			}
-        		}
-        		submitActions[step["type"]].push(currentAction);
+        		
+        		var doc: any;
         		if (perform) {
-        			let doc: any = {
+        			doc  = {
         				item:
         				{
         					"_id": this.form._id,
@@ -419,6 +399,20 @@ scriptContent:
         				attachments.push(file);
         				attachments_meta.push({name:name, contentType:type});
         			}
+        			if(this.local.objAtt != undefined){
+        		        for(let item in this.local.objAtt){					
+        					const name = this.local.objAtt[item]["name"];
+        					let index = this["getElementByNameIntoFormSubmit"](item);
+        					if(index.length == 1){
+        						doc.item.resp[index[0]]["value"] = name;
+        						doc.item.resp[index[0]]["att_type"] = true;
+        					}
+        					else{
+        						doc.item.resp[index[0]]["children"][index[1]]["value"] = name;
+        						doc.item.resp[index[0]]["children"][index[1]]["att_type"] = true;
+        					}
+        	            }
+        		    }
         			
         			for (let item in this.formsSubmit) {
         				if (this.formsSubmit[item]["type"] == "signature" || this.formsSubmit[item]["type"] == "img") {
@@ -461,6 +455,31 @@ scriptContent:
         
         				}
         			}
+        		}
+        		
+        		var variables: any = {};
+        		var sources: any = this.searchForSources(step, "actions", false, false, false, true);
+        		var findVars = sources.findVars;
+        		let do_not_touchVars = {"_c8o_timezone_offset": (new Date().getTimezoneOffset() * 60000 * -1)};
+        		for (let i in findVars) {
+        			if (findVars[i].from_attachment != undefined && findVars[i].from_attachment) {
+        				do_not_touchVars[i] = findVars[i];
+        				delete findVars[i];
+        			}
+        		}
+        		await this.computeVariable(findVars, variables, step);
+        		variables = Object.assign(variables, do_not_touchVars);
+        		let currentAction = JSON.parse(JSON.stringify(step));
+        		for (let action in currentAction.actions) {
+        			if (action == sources.findName) {
+        				currentAction.actions[action].vars = variables;
+        			}
+        			else {
+        				delete currentAction.actions[action];
+        			}
+        		}
+        		submitActions[step["type"]].push(currentAction);
+        		if (perform) {
         			doc.item.resp = JSON.parse(JSON.stringify(doc.item.resp));
         			for(var i of attachments_meta){
         				i = i.name;
@@ -495,6 +514,18 @@ scriptContent:
         						}                            
         		            }
         				}
+        			}
+        			try{
+        				let parsed = JSON.parse(variables["forms_freeVars"]);
+        				for(let item in parsed){
+        					if (parsed[item]["type"] == "signature" || parsed[item]["type"] == "img" || parsed[item]["type"] == "file") {
+        						parsed[item] = doc.item.resp[item];
+        					}
+        				}
+        				variables["forms_freeVars"] = JSON.stringify(parsed);
+        			}
+        			catch(e){
+        				console.error("error parsing parsed", e);
         			}
         			
         			// end handle attachments
@@ -3213,6 +3244,7 @@ scriptContent:
         
         		let match;
         		let cpt = 0;
+        		var lastType = null; 
         		while ((match = regex.exec(stringOf$$)) != null) {
         			cpt++;
         			// start index of current match - we have to save it to be able to replace actual $$ expression by it''s computed value at the end
@@ -3263,9 +3295,10 @@ scriptContent:
         
         				let tmpStr = "";
         				let concat = true;
+        				lastType = defElem.type;
         				// consider its a backend file path
         				if(backend == true && (defElem.type == "img" || defElem.type == "signature" || defElem.type == "file") && meta.nested == undefined && meta.c8opath == "" && (meta.path == "" || meta.path == undefined)){
-        					tmpStr = `page.formsSubmit[${defElem.name}]`;
+        					tmpStr = `page.formsSubmit["${defElem.name}"]`;
         					concat = false;
         				}
         				// if it''s a "ts" expression
@@ -3379,7 +3412,7 @@ scriptContent:
         				
         			}
         		}
-        		if(cpt <= 1 && type != "ts" && type != "html"){
+        		if(cpt <= 1 && type != "ts" && type != "html" && (lastType == "file" || lastType == "img" || lastType == "signature") && !backend){
         			stringOf$$ = stringOf$$.substring(3);
         			stringOf$$ = stringOf$$.substring(0, stringOf$$.length - 3);
         		}
@@ -4440,7 +4473,7 @@ scriptContent:
         					try {
         						asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
         							''page'',
-        							`return (async () => { var _ex = ${findVars[va]}; return _ex; })();`
+        							`return (async () => { var _ex = ${findVars[va]["replaceAll"](" ", "") == "" ? ''""'' :  findVars[va]}; return _ex; })();`
         						);
         					}
         					catch (e) {
