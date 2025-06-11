@@ -153,6 +153,7 @@ For more technical informations : [documentation](./project.md)
         - [cancelLive](#cancellive)
         - [changeBackgroundImage](#changebackgroundimage)
         - [changeTabIntoSelectorPage](#changetabintoselectorpage)
+        - [checkAndRegister](#checkandregister)
         - [checkForDuplicate](#checkforduplicate)
         - [checkUserStatus](#checkuserstatus)
         - [closeOptions](#closeoptions)
@@ -2023,6 +2024,18 @@ Process a tick (Refresh define in caf)
 </tr>
 <tr>
 <td>changeToPublished</td><td></td>
+</tr>
+</table>
+#### checkAndRegister
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### checkForDuplicate
