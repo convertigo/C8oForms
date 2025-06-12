@@ -1712,6 +1712,255 @@ scriptContent:
         			this.c8o.log.error("[getFullsyncSources] an error occured " + JSON.stringify(e));
         		}
         	}
+        	
+        	/**
+        	 * Valide un tableau de marqueurs
+        	 * @param markers Tableau d''objets marqueurs
+        	 * @returns Objet avec une propriété valid et une clé i18n pour le message d''erreur
+        	 */
+        	public validateMarkers(markers: any): { valid: boolean, i18nKey?: string, i18nParams?: any } {
+        	  // 1. Vérifier que c''est un tableau
+        	  if (!Array.isArray(markers)) {
+        	    return { valid: false, i18nKey: ''markers.notArray'' };
+        	  }
+        
+        	  // 2. Vérifier chaque élément du tableau
+        	  for (let i = 0; i < markers.length; i++) {
+        	    const marker = markers[i];
+        
+        	    // 2.1 Vérifier que c''est un objet
+        	    if (typeof marker !== ''object'' || marker === null) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''markers.notObject'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    // 2.2 Vérifier la présence de lat et lng
+        	    if (typeof marker.lat !== ''number'' || typeof marker.lng !== ''number'') {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''markers.missingCoords'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    // 2.3 Vérifier les plages pour lat et lng
+        	    if (marker.lat < -90 || marker.lat > 90) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''markers.invalidLat'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        	    if (marker.lng < -180 || marker.lng > 180) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''markers.invalidLng'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        	  }
+        
+        	  return { valid: true };
+        	}
+        
+        	/**
+        	 * Valide un tableau de polygones
+        	 * @param polygons Tableau d''objets polygones
+        	 * @returns Objet avec une propriété valid et une clé i18n pour le message d''erreur
+        	 */
+        	public validatePolygons(polygons: any): { valid: boolean, i18nKey?: string, i18nParams?: any } {
+        	  // 1. Vérifier que c''est un tableau
+        	  if (!Array.isArray(polygons)) {
+        	    return { valid: false, i18nKey: ''polygons.notArray'' };
+        	  }
+        
+        	  // 2. Vérifier chaque élément du tableau
+        	  for (let i = 0; i < polygons.length; i++) {
+        	    const polygon = polygons[i];
+        
+        	    // 2.1 Vérifier que c''est un objet
+        	    if (typeof polygon !== ''object'' || polygon === null) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''polygons.notObject'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    // 2.2 Vérifier la présence de la propriété coords
+        	    if (!polygon.hasOwnProperty(''coords'')) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''polygons.missingCoords'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    // 2.3 Vérifier que coords est un tableau de tableaux de coordonnées
+        	    if (!Array.isArray(polygon.coords)) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''polygons.coordsNotArray'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    // 2.4 Vérifier chaque point dans coords
+        	    for (let j = 0; j < polygon.coords.length; j++) {
+        	      const point = polygon.coords[j];
+        
+        	      // Vérifier que c''est un tableau de deux éléments
+        	      if (!Array.isArray(point) || point.length !== 2) {
+        	        return {
+        	          valid: false,
+        	          i18nKey: ''polygons.invalidPointFormat'',
+        	          i18nParams: { polygonIndex: i, pointIndex: j }
+        	        };
+        	      }
+        
+        	      // Vérifier que les éléments sont des nombres
+        	      if (typeof point[0] !== ''number'' || typeof point[1] !== ''number'') {
+        	        return {
+        	          valid: false,
+        	          i18nKey: ''polygons.pointNotNumbers'',
+        	          i18nParams: { polygonIndex: i, pointIndex: j }
+        	        };
+        	      }
+        
+        	      // Vérifier les plages pour lat et lng
+        	      if (point[0] < -90 || point[0] > 90) {
+        	        return {
+        	          valid: false,
+        	          i18nKey: ''polygons.invalidLat'',
+        	          i18nParams: { polygonIndex: i, pointIndex: j }
+        	        };
+        	      }
+        	      if (point[1] < -180 || point[1] > 180) {
+        	        return {
+        	          valid: false,
+        	          i18nKey: ''polygons.invalidLng'',
+        	          i18nParams: { polygonIndex: i, pointIndex: j }
+        	        };
+        	      }
+        	    }
+        
+        	    // 2.5 Vérifier qu''il y a au moins 3 points pour former un polygone
+        	    if (polygon.coords.length < 3) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''polygons.notEnoughPoints'',
+        	        i18nParams: { index: i, minPoints: 3 }
+        	      };
+        	    }
+        
+        	    // 2.6 Vérifier que le premier et le dernier point sont identiques (polygone fermé)
+        	    const firstPoint = polygon.coords[0];
+        	    const lastPoint = polygon.coords[polygon.coords.length - 1];
+        	    if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''polygons.notClosed'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        	  }
+        
+        	  return { valid: true };
+        	}
+        
+        	/**
+        	 * Valide un tableau de cercles
+        	 * @param circles Tableau d''objets cercles
+        	 * @returns Objet avec une propriété valid et une clé i18n pour le message d''erreur
+        	 */
+        	public validateCircles(circles: any): { valid: boolean, i18nKey?: string, i18nParams?: any } {
+        	  // 1. Vérifier que c''est un tableau
+        	  if (!Array.isArray(circles)) {
+        	    return { valid: false, i18nKey: ''circles.notArray'' };
+        	  }
+        
+        	  // 2. Vérifier chaque élément du tableau
+        	  for (let i = 0; i < circles.length; i++) {
+        	    const circle = circles[i];
+        
+        	    // 2.1 Vérifier que c''est un objet
+        	    if (typeof circle !== ''object'' || circle === null) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''circles.notObject'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    // 2.2 Vérifier la présence de lat, lng et radius
+        	    if (typeof circle.lat !== ''number'' || typeof circle.lng !== ''number'') {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''circles.missingCoords'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    if (typeof circle.radius !== ''number'' || circle.radius <= 0) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''circles.invalidRadius'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        
+        	    // 2.3 Vérifier les plages pour lat et lng
+        	    if (circle.lat < -90 || circle.lat > 90) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''circles.invalidLat'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        	    if (circle.lng < -180 || circle.lng > 180) {
+        	      return {
+        	        valid: false,
+        	        i18nKey: ''circles.invalidLng'',
+        	        i18nParams: { index: i }
+        	      };
+        	    }
+        	  }
+        
+        	  return { valid: true };
+        	}
+        	
+        	/**
+        	 * Valide une propriété center (doit être un objet avec lat et lng)
+        	 * @param center L''objet center à valider
+        	 * @returns Objet avec une propriété valid et une clé i18n pour le message d''erreur
+        	 */
+        	public validateCenter(center: any): { valid: boolean, i18nKey?: string, i18nParams?: any } {
+        	  // 1. Vérifier que c''est un objet
+        	  if (typeof center !== ''object'' || center === null) {
+        	    return { valid: false, i18nKey: ''center.notObject'' };
+        	  }
+        
+        	  // 2. Vérifier la présence de lat et lng
+        	  if (typeof center.lat !== ''number'' || typeof center.lng !== ''number'') {
+        	    return { valid: false, i18nKey: ''center.missingCoords'' };
+        	  }
+        
+        	  // 3. Vérifier les plages pour lat et lng
+        	  if (center.lat < -90 || center.lat > 90) {
+        	    return { valid: false, i18nKey: ''center.invalidLat'' };
+        	  }
+        	  if (center.lng < -180 || center.lng > 180) {
+        	    return { valid: false, i18nKey: ''center.invalidLng'' };
+        	  }
+        
+        	  return { valid: true };
+        	}
+        
+        
+        
         
         	/**
         	 * this function is responsible to handle any source of the form and compute and execute it
@@ -1770,34 +2019,122 @@ scriptContent:
         								await page["computeVariable"](findVars, variables, item);
         								// if value has changed update it and call functions
         								if (page.local.sourceValue[item.name]?.[computefield] != variables["selfVar"] && variables["selfVar"] !== undefined && variables["selfVar"] !== null) {
-        									page.local.sourceValue[item.name][computefield] = variables["selfVar"];
-        									try {
-        										if (page.local["processingDataS"] == undefined) {
-        											page.local["processingDataS"] = {};
-        										}
-        										if (page.local.functionsToBeCalled[item.id] != undefined) {
-        											if (page.local["processingDataS"][item.id] != undefined) {
-        												try {
-        													clearTimeout(page.local["processingDataS"][item.id]);
+        									try{
+        										if(typeof(variables["selfVar"]) == "string"){
+        											try{
+        												variables["selfVar"] = JSON.parse(variables["selfVar"]);
+        												
+        											}
+        											catch(e){
+        												try{
+        													variables["selfVar"] = variables["selfVar"].replace(/(\w+):/g, ''"$1":'');
+        													variables["selfVar"] = JSON.parse(variables["selfVar"]);
         												}
-        												catch (e) {
-        													this.c8o.log.error("[fillActions] An error occured " + JSON.stringify(e), e);
+        												catch(e){
+        													
         												}
         											}
-        											await new Promise((resolve_set) => {
-        												page.local["processingDataS"][item.id] = setTimeout(() => {
-        													page.local.functionsToBeCalled[item.id]
-        														.forEach((id) => {
-        															page["functionsById"][id]();
-        														})
-        													resolve_set();
-        												}, 0)
+        											
+        										}
+        										if(!Array.isArray(variables["selfVar"]) && (computefield == "polygons" || computefield == "markers" || computefield == "circles")){
+        											variables["selfVar"] = [variables["selfVar"]];
+        										}
+        										if(computefield == "polygons" || computefield == "markers" || computefield == "circles"){
+        											variables["selfVar"] = variables["selfVar"].map((x)=>{
+        												if(x.lat === undefined && x.latitude !== undefined){
+        													x.lat = x.latitude;
+        												}
+        												if(x.lng === undefined && x.longitude !== undefined){
+        													x.lng = x.longitude;
+        												}
+        												return x;
         											});
         										}
-        										this.ref.detectChanges();
+        										else if(computefield == "center"){
+        											if(variables["selfVar"]?.lat === undefined && variables["selfVar"]?.latitude !== undefined){
+        												variables["selfVar"].lat = variables["selfVar"].latitude;
+        											}
+        											if(variables["selfVar"]?.lng === undefined && variables["selfVar"]?.longitude !== undefined){
+        												variables["selfVar"].lng = variables["selfVar"].longitude;
+        											}
+        										}
+        										
         									}
-        									catch (e) {
-        										page.c8o.log.error("[fillActions] Error while trying to refresh a data source " + JSON.stringify(e), e);
+        									catch(e){
+        										
+        									}
+        									var res;
+        									switch (computefield) {
+        									    case ''polygons'':
+        									      res  = this.validatePolygons(variables["selfVar"]);
+        										  break;
+        									    case ''markers'':
+        											res = this.validateMarkers(variables["selfVar"]);
+        											break;
+        									    case ''circles'':
+        											res = this.validateCircles(variables["selfVar"]);
+        											break;
+        										case "center":
+        											res = this.validateCenter(variables["selfVar"]);
+        									  }
+        									this.ref.detectChanges();
+        									if(res?.valid !== false){
+        										page.local.sourceValue[item.name][computefield] = variables["selfVar"];
+        										try {
+        											if (page.local["processingDataS"] == undefined) {
+        												page.local["processingDataS"] = {};
+        											}
+        											if (page.local.functionsToBeCalled[item.id] != undefined) {
+        												if (page.local["processingDataS"][item.id] != undefined) {
+        													try {
+        														clearTimeout(page.local["processingDataS"][item.id]);
+        													}
+        													catch (e) {
+        														this.c8o.log.error("[fillActions] An error occured " + JSON.stringify(e), e);
+        													}
+        												}
+        												await new Promise((resolve_set) => {
+        													page.local["processingDataS"][item.id] = setTimeout(() => {
+        														page.local.functionsToBeCalled[item.id]
+        															.forEach((id) => {
+        																page["functionsById"][id]();
+        															})
+        														resolve_set();
+        													}, 0)
+        												});
+        											}
+        											this.ref.detectChanges();
+        										}
+        										catch (e) {
+        											page.c8o.log.error("[fillActions] Error while trying to refresh a data source " + JSON.stringify(e), e);
+        										}
+        									}
+        									else{
+        										if(findVars.selfVar != ""){
+        											console.error("[fillActions] "+ this.translate.instant("error_while_computing_item", {item: item.name}) + " "+ this.translate.instant(res.i18nKey, res.i18nParams) );
+        //											if (this.local.toastErr == undefined) {
+        //												this.local.toastErr = [];
+        //											}
+        //											if (!this.local.published) {
+        //												let toastController = this.getInstance(ToastController);
+        //												let toast = await toastController.create({
+        //													header: this.translate.instant("error_while_computing_item", {item: item.name}),
+        //													message: ,
+        //													position: "top",
+        //													cssClass: "toastError",
+        //													buttons: [
+        //														{
+        //															icon: ''close'',
+        //															htmlAttributes: {
+        //																''aria-label'': ''close'',
+        //															},
+        //														},
+        //													]
+        //												});
+        //												toast.present();
+        //												this.local.toastErr.push(toast);
+        //											}
+        										}
         									}
         								}
         							}
@@ -3996,16 +4333,16 @@ scriptContent:
         					break;
         			}
         			if (obj != "null") {
-        				return "(" + path + "." + obj + " != undefined && " + path + "." + obj + "." + type + " != undefined ? " + path + "." + obj + "." + type + " : '''')";
+        				return (ts ? "" : "JSON.stringify(") + "(" + path + "." + obj + " != undefined && " + path + "." + obj + "." + type + " != undefined ? " + path + "." + obj + "." + type + " : '''')" + (ts ? "" : ")");
         			}
         			else {
         				if (type == "gps") {
-        					return path + "?.gps";
+        					return (ts ? "" : "JSON.stringify(") + path + "?.gps"+ (ts ? "" : ")");
         				}
         				else if (type == "addr") {
-        					return path + "?.addr";
+        					return (ts ? "" : "JSON.stringify(") + path + "?.addr"+ (ts ? "" : ")");
         				}
-        				return "(" + path + ".addr != undefined && " + path + ".addr.FormattedAddress != undefined ? " + path + ".addr.FormattedAddress : '''')";
+        				return (ts ? "" : "JSON.stringify(") +"(" + path + ".addr != undefined && " + path + ".addr.FormattedAddress != undefined ? " + path + ".addr.FormattedAddress : '''')"+ (ts ? "" : ")");
         			}
         		}
         		return path;
@@ -4543,7 +4880,7 @@ scriptContent:
         				if (!this.local.published) {
         					let toastController = this.getInstance(ToastController);
         					let toast = await toastController.create({
-        						header: "Error wile computing " + item.name,
+        						header: this.translate.instant("error_while_computing_item", {item :item.name}),
         						message: e.message,
         						position: "top",
         						cssClass: "toastError",
