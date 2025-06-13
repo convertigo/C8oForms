@@ -5,6 +5,7 @@ import { TreeComponent, TreeNode, TreeModel, TREE_ACTIONS, KEYS, IActionMapping,
 
 @Component({
     selector: 'c8o-treeview',
+		standalone: false,
     styles: [
     `   
 .tree-children.tree-children-no-padding { padding-left: 0 }

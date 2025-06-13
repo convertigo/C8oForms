@@ -26,7 +26,7 @@ import { Events } 																	from '../../services/events.service';
 
 /*=c8o_CompInterfaces*/
 
-@Component({selector: /*=c8o_CompSelector*/, templateUrl: /*=c8o_CompTplUrl*/, styleUrls: [/*=c8o_CompStyleUrls*/], changeDetection: /*=c8o_CompChangeDetection*/})
+@Component({selector: /*=c8o_CompSelector*/, templateUrl: /*=c8o_CompTplUrl*/, styleUrls: [/*=c8o_CompStyleUrls*/], changeDetection: /*=c8o_CompChangeDetection*/,standalone: false})
 export class /*=c8o_CompName*/ extends C8oPageBase implements OnInit, OnDestroy, OnChanges {
 	@Input() owner : C8oPageBase = undefined;
 	/*=c8o_CompDeclarations*/

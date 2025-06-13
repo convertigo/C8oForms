@@ -9,7 +9,8 @@ register();
 @Component({
   selector: 'c8o-slides',
   templateUrl: './SlidesComponent.html',
-  styleUrls: ['./SlidesComponent.scss']
+  styleUrls: ['./SlidesComponent.scss'],
+  standalone: false
 })
 export class SlidesComponent implements OnInit, AfterViewInit {
 	@Input() public options: Object = {};

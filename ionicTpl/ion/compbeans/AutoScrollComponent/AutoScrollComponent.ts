@@ -4,7 +4,8 @@ import { C8oPageBase } from 'c8ocaf';
 
 @Component({
     selector: 'c8o-scroll-infinite',
-    templateUrl: 'AutoScrollComponent.html'
+    templateUrl: 'AutoScrollComponent.html',
+	standalone: false
   })
 export class AutoScrollComponent implements OnInit, OnDestroy, OnChanges {
     @Input() public c8oPage: C8oPageBase = null;
