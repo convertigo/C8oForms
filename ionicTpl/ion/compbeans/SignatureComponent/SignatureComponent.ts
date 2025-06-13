@@ -12,7 +12,8 @@ import SignaturePad from 'signature_pad';
         useExisting: forwardRef(() => SignatureComponent),
         multi: true,
      }
-    ]
+    ],
+	standalone: false
 })
 export class SignatureComponent implements ControlValueAccessor, OnInit, AfterViewInit {
   @Input() public options: Object = {};
