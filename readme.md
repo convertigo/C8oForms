@@ -328,6 +328,7 @@ For more technical informations : [documentation](./project.md)
         - [monacoEditor](#monacoeditor)
         - [moveUserToGroupForm](#moveusertogroupform)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
+        - [PopoverListPagesAndFlows](#popoverlistpagesandflows)
         - [PopOverSourceCompletion](#popoversourcecompletion)
         - [searchableSelect](#searchableselect)
         - [sharedDropIndicator](#shareddropindicator)
@@ -364,13 +365,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/scrollTabs
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/scrollTabs.zip
      ```
      </td></tr>
     </table>
@@ -5244,6 +5245,24 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>ngxTagInputValidationError</td><td></td>
+</tr>
+</table>
+#### PopoverListPagesAndFlows
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>flows</td><td></td>
+</tr>
+<tr>
+<td>idSelected</td><td></td>
+</tr>
+<tr>
+<td>pages</td><td></td>
 </tr>
 </table>
 #### PopOverSourceCompletion
