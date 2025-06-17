@@ -358,7 +358,7 @@ scriptContent:
         		});
         	}
         
-        	public async performSubmitAction(step, submitActions, perform) {
+        	public async performSubmitAction(step, submitActions, perform, __id = null) {
         		if (perform || submitActions[step["type"]] == null) {
         			submitActions[step["type"]] = []
         		}
@@ -369,14 +369,15 @@ scriptContent:
         			doc  = {
         				item:
         				{
-        					"_id": this.form._id,
+        					"_id": __id,
         					"_rev": new Date().getTime(),
         					resp: this.formsSubmit,
         					formId: this.local.formId,
         					timestamp: new Date().getTime(),
         					version: this.form?.version != undefined ? this.form?.version : ''test'',
         					actions: submitActions,
-        					finished: true
+        					finished: true,
+        					flow:true
         				}
         			};
         			
@@ -481,6 +482,7 @@ scriptContent:
         		submitActions[step["type"]].push(currentAction);
         		if (perform) {
         			doc.item.resp = JSON.parse(JSON.stringify(doc.item.resp));
+        			doc.item.timestamp = new Date().getTime();
         			for(var i of attachments_meta){
         				i = i.name;
         			    if(i.indexOf("_C80C80_") != -1){
@@ -814,13 +816,15 @@ scriptContent:
         //		});
         	}
         
-        	public async executeStep(step, submitActions, executeSubmit) {
+        	public async executeStep(step, submitActions, executeSubmit, __id = null) {
+        		let submit = false;
         		switch (step.type) {
         			case "business_logic":
         				await await this.performBusinessLogic(step);
         				break;
         			case "submit":
-        				await this.performSubmitAction(step, submitActions, executeSubmit);
+        				await this.performSubmitAction(step, submitActions, executeSubmit, __id);
+        				submit = true;
         				break;
         			case "toast":
         				await this.performToastAction(step);
@@ -847,9 +851,12 @@ scriptContent:
         				await this.performRefreshGrid(step);
         				break;
         		}
+        		return submit;
         	}
         
         	public async executeFlow(item, executeSubmit = true) {
+        		let submit = false;
+        		let __id = this.local.user+''_''+this.local.formId+''_''+new Date().getTime();
         		try {
         			let flowId = item.flow;
         			let currentFlow = this.form.flows.find(f => f.id == flowId);
@@ -862,7 +869,10 @@ scriptContent:
         			for (let step of currentFlow) {
         				// execute current step.
         				if (step.parentRef == undefined) {
-        					await this.executeStep(step, submitActions, executeSubmit);
+        					let _submit = await this.executeStep(step, submitActions, executeSubmit, __id);
+        					if(_submit){
+        						submit = true;
+        					}
         				}
         
         			}
@@ -870,6 +880,12 @@ scriptContent:
         
         		} catch (e) {
         			console.error("an error occued while executing flow", e);
+        		}
+        		finally{
+        			if(submit && executeSubmit){
+        				this.c8o.callJsonObject("C8Oforms.APIV2_deleteDocument", {id:__id, fromResponse: true});
+        				// perform deletion of temp docs
+        			}
         		}
         	}
         
