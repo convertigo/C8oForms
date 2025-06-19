@@ -16,7 +16,7 @@ scriptContent:
         		this.local.validators = [];
         		this.local.errorMessages = {
             	};
-        		this.local.transfer = true;this.navParams.data["transfer"] == true;
+        		this.local.transfer = this.navParams.data["transfer"] == true;
         		this.local.usersChoosen = [];
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
@@ -104,6 +104,29 @@ scriptContent:
         				resolve(!(data.role == ''cancel''));
         			});
         		});
+        	}
+        	async presentToast(message: string, cssClass: string = '''', position = "bottom", duration = 3000, closeBtn = false) {
+        		let opts: any = {
+        			message: message,
+        			duration: duration,
+        			position: position,
+        			cssClass: cssClass
+        		}
+        		if (closeBtn) {
+        			opts.buttons = [
+        				{
+        					side: ''end'',
+        					icon: ''close'',
+        					text: this.translate.instant("close"),
+        					handler: () => {
+        						toast.dismiss();
+        					}
+        				}
+        			]
+        		}
+        		let toastController = this.getInstance(ToastController);
+        		const toast = await toastController.create(opts);
+        		await toast.present();
         	}
         	/*End_c8o_PageFunction*/
         '
@@ -3256,7 +3279,7 @@ title: Title for ManageAccessRights
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
+                    - MobileSmartSourceType: script:translate.instant('select_user_placeholder')
               ↓secondaryPlaceholder [ngx.components.UIUseVariable-1750255652413]: 
                 varValue: 
                   - xmlizable: 
@@ -3434,7 +3457,7 @@ title: Title for ManageAccessRights
               attrValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('explain_transfer_ownership', this.getName())
+                  - MobileSmartSourceType: script:this.translate.instant('warn_change', this.getName())
             ↓class [ngx.components.UIAttribute-1750259248051]: 
               attrName: class
               attrValue: 
@@ -3449,22 +3472,6 @@ title: Title for ManageAccessRights
                     →: |
                       '	margin-top: 16px;
                       '
-        ↓DivWarn [ngx.components.UIDynamicElement-1750259293504]: 
-          beanData: '{"ionBean":"DivTag"}'
-          isEnabled: false
-          tagName: div
-          ↓Attr [ngx.components.UIAttribute-1750259293507]: 
-            attrName: '[innerHTML]'
-            attrValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.translate.instant('explain_transfer_ownership', this.getName())
-          ↓class [ngx.components.UIAttribute-1750259293510]: 
-            attrName: class
-            attrValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:warning
 ↓PageEvent [ngx.components.UIPageEvent-1591801288472]: 
   viewEvent: onWillLoad
   ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1591962058419]: 
@@ -3598,17 +3605,22 @@ title: Title for ManageAccessRights
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
                       '		var close = true;
+                      		var error = false;
                       		try {
-                      			
                       			if(this.local.usersChoosen?.[0]?.value != undefined){
-                      				console.log("this.local.usersChoosen", page.local.usersChoosen);
-                      				let continue_transfer = await page["showConfirmationAlert"](page.translate.instant(''transfer_ownership_form_appName2'', {appName: page.local.name, name: this.local.usersChoosen?.[0]?.display}),page.translate.instant(''warn_change_2''), page.translate.instant(''non''), page.translate.instant(''oui''), "alertCustom c8o-alert-create-form","yesnobt", true, false)
+                      				let continue_transfer = await page["showConfirmationAlert"](page.translate.instant(''transfer_ownership_form_appName2'', {appName: page.local.name, name: this.local.usersChoosen?.[0]?.display}),page.translate.instant(''warn_change_2''), page.translate.instant(''non''), page.translate.instant(''oui''), "alertCustom c8o-alert-create-form","", true, false)
                       				if(continue_transfer){
                       					let resp = await page.c8o.callJsonObject("C8Oforms.APIV2_setOwnerShip", {
                       						id: page.navParams.data.existingGrps._id,
                       						owner : this.local.usersChoosen?.[0]?.value
                       									
                       					}).async();
+                      					if(resp?.res?.done === true){
+                      						page.presentToast(page.translate.instant("success_transfer", {user: (this.local.usersChoosen?.[0]?.display ?? "")}), "toastSuccess", "bottom", 3000, true);
+                      					}
+                      					else{
+                      						error = true;
+                      					}
                       				}
                       				else{
                       					close = false;
@@ -3617,12 +3629,17 @@ title: Title for ManageAccessRights
                       			}
                       			else{
                       				close = false;
-                      				//toast
+                      				page.presentToast(page.translate.instant("select_user_toast"), "toastWarn", "bottom", 3000, true);
                       			}
                       //			
                       		} catch (e) {
-                      		
+                      			error = true;
+                      			console.log("an error occured while calling APIV2_setOwnerShip", e);
                       		} finally {
+                      			if(error === true){
+                      				//toastError
+                      				page.presentToast(page.translate.instant("error_transfer", {user: (this.local.usersChoosen?.[0]?.display ?? "")}), "toastError", "bottom", 5000, true);
+                      			}
                       			return close;
                       		}
                       '

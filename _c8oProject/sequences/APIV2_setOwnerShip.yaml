@@ -7,6 +7,57 @@ accessibility: Hidden
     var res = { docs: {} };
     var authenticatedUserID = context.getAuthenticatedUser();
     
+    var setNewOwner = (doc, all)=>{
+    	let mergeRules = new HashMap();
+    	if(all){
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("creator")), new java.lang.String("override"));
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("c8oGrp")), new java.lang.String("override"));
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabs")), new java.lang.String("override"));
+    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("collabsResponse")), new java.lang.String("override"));
+    	}
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String("~c8oAcl")), new java.lang.String("override"));
+    	//mergeRules.put(java.util.Arrays.asList(new java.lang.String("_c8oAcl")), new java.lang.String("override"));
+    	any_creator = "C8Oreserved_" + doc.creator;
+    	let meta = {"_id": doc._id, /*"_c8oAcl": owner.substring(12),*/ "~c8oAcl": owner.substring(12)};
+    	if(all){
+    		meta["creator"] = owner.substring(12);
+    		// affect both new owner and old owner to c8oGrp
+    		let base_c8oGrp = {};
+    		if(doc["c8oGrp"] != undefined){
+    			base_c8oGrp = doc["c8oGrp"];
+    		}
+    		base_c8oGrp[any_creator] = true;
+    		base_c8oGrp[owner] = true;
+    		// affect both new owner and old owner to collabs
+    		let base_collabs = [];
+    		if(doc["collabs"] != undefined){
+    			base_collabs = doc["collabs"];
+    		}
+    		if(base_collabs.indexOf(any_creator) == -1){
+    			base_collabs.push(any_creator);
+    		}
+    		if(base_collabs.indexOf(owner) == -1){
+    			base_collabs.push(owner);
+    		}
+    		// affect both new owner and old owner to collabs
+    		let base_collabsResponse = [];
+    		if(doc["collabsResponse"] != undefined){
+    			base_collabsResponse = doc["collabsResponse"];
+    		}
+    		if(base_collabsResponse.indexOf(any_creator) == -1){
+    			base_collabsResponse.push(any_creator);
+    		}
+    		if(base_collabsResponse.indexOf(owner) == -1){
+    			base_collabsResponse.push(owner);
+    		}
+    		meta["c8oGrp"] = base_c8oGrp;
+    		meta["collabs"] = base_collabs;
+    		meta["collabsResponse"] = base_collabsResponse;
+    	}
+    	// post doc 
+    	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(meta), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    }
+    
     // define ids
     var id_edit = "";
     var id_published = "";
@@ -26,66 +77,27 @@ accessibility: Hidden
     //get docs
     var doc_edit = callSequence("C8Oforms", "APIV2_getDocument", { id: id_edit }).document.res;
     var doc_published = callSequence("C8Oforms", "APIV2_getDocument", { id: id_published }).document.res;
-    var doc_published_ano = callSequence("C8Oforms", "APIV2_getDocument", { id: id_published_ano }).document.res;
+    var doc_published_ano = callSequence("C8Oforms", "APIV2_getDocument", { id: id_published_ano });
+    doc_published_ano = doc_published_ano.document.res;
     var doc_pwa = callSequence("C8Oforms", "APIV2_getDocument", { id: id_pwa }).document.res;
     var any_creator = "";
     var any_name = "";
     //check rights on at least on of these documents
-    if (doc_edit || doc_published || doc_pwa || doc_published_ano) {
+    if (doc_edit || doc_published || doc_published_ano) {
     	// keep only properties that we need
     	if (doc_edit != null) {
-    		any_creator = doc_edit.creator;
-    		// APIV2_updateFormulaireDocument
-    		let mergeRules = new HashMap();
-    		mergeRules.put(java.util.Arrays.asList(new java.lang.String("creator")), new java.lang.String("override"));
-    		let meta = {"_id": id_edit, "creator": owner};
-    		// post doc 
-    		doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(meta), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    		setNewOwner(doc_edit, true);
     	}
     	if (doc_published != null) {
-    		any_creator = doc_published.creator;
-    		any_name = doc_published.name;
-    		res.docs.doc_published = { exists: doc_published._id != null, id: doc_published._id };
+    		setNewOwner(doc_published, true);
     	}
-    	if (doc_pwa != null) {
-    		any_creator = doc_edit.creator;
-    		res.docs.doc_pwa = { exists: doc_pwa._id != null, name: doc_pwa.name };
+    	if (doc_published_ano != null) {
+    		setNewOwner(doc_published_ano, true);
     	}
-    	
-    	users = callSequence("C8Oforms", "getKnownUsers", {})["document"]["transaction"]["document"]["couchdb_output"]["rows"];
-    	//prevent from bug when there are only 1 response
-    	if (!isArray(users)) {
-    		users = [users];
+    	if(doc_pwa != null){
+    		setNewOwner(doc_pwa, false);
     	}
-    	users = users.map((x) => {
-    		return {
-    			"value": x.id,
-    			"displayName": x.value.displayName != undefined ? x.value.displayName : "",
-    			"displayMail": x.value.mail != undefined ? x.value.mail : "",
-    			"display": x.value.displayName + (x.value.displayName != undefined && x.value.mail != undefined ? " " : "") + x.value.mail,
-    			"picture": x.value.picture,
-    			"type": "user"
-    		}
-    	});
-    	res.users = users;
-    	
-    
-    
-    	// filter unwanted users to appear like self for example
-    	res.users = res.users.filter((val) => {
-    		if (val.value == "C8Oreserved_" + any_creator) {
-    			res.creator = val;
-    			return false;
-    		}
-    		// don''t include bug that includes annonymous users (to be investigated)
-    		else if (val.value.length == 76 && val.value.indexOf("@") == -1) {
-    			return false;
-    		}
-    		else {
-    			return true;
-    		}
-    	});
-    	res.name = any_name;
+    	res.done = true;
     }
     else {
     	res.unauthorized = true;
