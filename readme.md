@@ -192,6 +192,7 @@ For more technical informations : [documentation](./project.md)
         - [popOverPublishDoc](#popoverpublishdoc)
         - [popOverShareForm](#popovershareform)
         - [popOverThumnail](#popoverthumnail)
+        - [popOverTransferOwnerShip](#popovertransferownership)
         - [popOverVisualizeView](#popovervisualizeview)
         - [popOverVizualiseResponses](#popovervizualiseresponses)
         - [ProcessSubmitFormViewerPage](#processsubmitformviewerpage)
@@ -2485,6 +2486,18 @@ Get i118n translations
 </tr>
 </table>
 #### popOverThumnail
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>selectedForm</td><td></td>
+</tr>
+</table>
+#### popOverTransferOwnerShip
 
 **variables**
 
