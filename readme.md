@@ -302,6 +302,7 @@ For more technical informations : [documentation](./project.md)
         - [itemRadioListEditor](#itemradiolisteditor)
         - [itemRadioListGroupEditor](#itemradiolistgroupeditor)
         - [itemRadioViewver](#itemradioviewver)
+        - [itemRadioViewver_Tag_Div_RadioList_Directive2_Directive2](#itemradioviewver_tag_div_radiolist_directive2_directive2)
         - [itemRefreshGridActionEditor](#itemrefreshgridactioneditor)
         - [itemRefreshGridActionViewer](#itemrefreshgridactionviewer)
         - [itemRemoveRowFromLocalGridActionEditor](#itemremoverowfromlocalgridactioneditor)
@@ -4700,6 +4701,21 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>redList</td><td></td>
+</tr>
+</table>
+#### itemRadioViewver_Tag_Div_RadioList_Directive2_Directive2
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### itemRefreshGridActionEditor
