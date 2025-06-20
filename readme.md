@@ -367,13 +367,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/transfer
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/transfer.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
      ```
      </td></tr>
     </table>
