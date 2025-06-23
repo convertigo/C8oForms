@@ -766,24 +766,55 @@ title: Title for dropFilePage
                       							delete form.wallpaper?.b64;
                       							arrayAttachments.push({key: "thumbnail", value:"" + (form.thumbnail?.b64 ?? "")});
                       							delete form.thumbnail?.b64;
+                      							let __importAttachments = form.__importAttachments;
+                      							delete form.__importAttachments;
                       							let params: any = { meta: JSON.stringify(form) };
                       							let res = (await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async()).res;
                       							for(let elem of arrayAttachments){
-                      								let key = elem.key;
-                      								let b64 = elem.value;
-                      								// b64 to blob
-                      								let byteString = atob(b64.split('','')[1]);
-                      								let mimeString = b64.split('','')[0].split('':'')[1].split('';'')[0];
-                      								let ab = new ArrayBuffer(byteString.length);
-                      								let ia = new Uint8Array(ab);
-                      								for (let i = 0; i < byteString.length; i++) {
-                      									ia[i] = byteString.charCodeAt(i);
+                      								try{
+                      									let key = elem.key;
+                      									let b64 = elem.value;
+                      									// b64 to blob
+                      									let byteString = atob(b64.split('','')[1]);
+                      									let mimeString = b64.split('','')[0].split('':'')[1].split('';'')[0];
+                      									let ab = new ArrayBuffer(byteString.length);
+                      									let ia = new Uint8Array(ab);
+                      									for (let i = 0; i < byteString.length; i++) {
+                      										ia[i] = byteString.charCodeAt(i);
+                      									}
+                      									let blob = new Blob([ab], { type: mimeString });
+                      									// submit attachment
+                      									let params = {file: blob, meta: JSON.stringify({"_id": "" + res.id, _up_content_type: mimeString, ["_up_"+key]: true})};
+                      									await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async();
                       								}
-                      								let blob = new Blob([ab], { type: mimeString });
-                      								// submit attachment
-                      								let params = {file: blob, meta: JSON.stringify({"_id": "" + res.id, _up_content_type: mimeString, ["_up_"+key]: true})};
-                      								await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async();
+                      								catch(e){
+                      									console.error("An error occured while trying to import attachement", e);
+                      								}
                       							}
+                      							if(__importAttachments != undefined){
+                      								for(let attach in __importAttachments){
+                      									try{
+                      										let key = attach;
+                      										let b64 = __importAttachments[key];
+                      										// b64 to blob
+                      										let byteString = atob(b64.split('','')[1]);
+                      										let mimeString = b64.split('','')[0].split('':'')[1].split('';'')[0];
+                      										let ab = new ArrayBuffer(byteString.length);
+                      										let ia = new Uint8Array(ab);
+                      										for (let i = 0; i < byteString.length; i++) {
+                      											ia[i] = byteString.charCodeAt(i);
+                      										}
+                      										let blob = new Blob([ab], { type: mimeString });
+                      										// submit attachment
+                      										let params = {file: blob, meta: JSON.stringify({"_id": "" + res.id, _up_content_type: mimeString, _up_any_file: true, _up_name: key})};
+                      										await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async();
+                      									}
+                      									catch(e){
+                      										console.error("An error occured while trying to import attachement", e);
+                      									}
+                      								}
+                      							}
+                      							
                       						})
                       						reader.readAsText(elem);
                       					}
