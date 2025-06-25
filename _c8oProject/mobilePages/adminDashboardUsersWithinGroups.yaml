@@ -30,6 +30,7 @@ scriptContent:
         	    editing_rights: ''✏️'',
         	    nocode_db_rights: ''🧩'',
         	    admin: ''🛡️'',
+        		publication: ''📤'',
         		formulas: ''ƒ'',
         		admin_readonly: ''🛡''
         	  };
@@ -37,6 +38,7 @@ scriptContent:
         		editing_rights: ''editing_rights_label'',
         		nocode_db_rights: ''nocode_db_rights_label'',
         		formulas: ''formulas_rights'',
+        		publication: ''Publication'',
         		admin: ''admin_label'',
         		admin_readonly: ''Admin_read_only''
         	  }
@@ -47,6 +49,8 @@ scriptContent:
         
         - **{{mdreader_description_edit}}**  
           {{mdreader_description_edit_desc}}
+        - **{{mdreader_description_publish}}**  
+          {{mdreader_description_publish_desc}}
         - **{{mdreader_description_formulas}}**  
           {{mdreader_description_formulas_desc}}
         - **{{mdreader_description_nocode}}**  
@@ -78,7 +82,8 @@ scriptContent:
         {{mdreader_determination_default_desc_prefix}} <a href="https://doc.convertigo.com/documentation/latest/operating-guide/using-convertigo-administration-console/#global-symbols" target="_blank" rel="noopener noreferrer">{{mdreader_determination_default_link_label}}</a> {{mdreader_determination_default_desc_suffix}} :
         - \`C8Oforms.editing_rights_default_enabled\` (**true** / **false**) : {{mdreader_determination_default_item_1}}  
         - \`C8Oforms.no_code_db_rights_default_enabled\` (**true** / **false**) : {{mdreader_determination_default_item_2}}  
-        - \`C8Oforms.formulas_default_enabled\` (**true** / **false**) : {{mdreader_determination_default_item_3}}
+        - \`C8Oforms.formulas_default_enabled\` (**true** / **false**) : {{mdreader_determination_default_item_3}}  
+        - \`C8Oforms.publication_rights_default_enabled\` (**true** / **false**) : {{mdreader_determination_default_item_4}}  
         
         {{mdreader_default_params_reminder_note}}
         
@@ -101,7 +106,7 @@ scriptContent:
         		this.local.overlayNoRows = ''<span class="ag-overlay-no-rows-center">No Data Available</span>'';
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
-        	public process(labels) {
+        	public process(labels, editing_apps_default_rights, no_code_db_default_rights, formulas_default_rights, publication_default_rights) {
         		var translations = this.translate.translations[this.translate.currentLang];
         		let finKeyByValue = (value) => {
         			for (const key in translations) {
@@ -119,7 +124,24 @@ scriptContent:
         			// Gestion des checkbox
         			if (x?.cellRenderer === "agCheckboxCellRenderer") {
         				if (x?.c8o_type === "stringboolean") {
-        					x.valueGetter = (params) => !(params.data[x.field] === ''false'');
+        					x.valueGetter = (params) => {
+        						if(params.colDef.field == "editing_rights"){
+        							return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : editing_apps_default_rights;
+        						}
+        						else if(params.colDef.field == "nocode_db_rights"){
+        							return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : no_code_db_default_rights;
+        						}
+        						else if(params.colDef.field == "formulas"){
+        							return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : formulas_default_rights;
+        						}
+        						else if(params.colDef.field == "publication"){
+        							return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : publication_default_rights;
+        						}
+        						else{
+        							return params.data[x.field] === ''true'' || params.data[x.field] === true;
+        						}
+        						
+        					}
         					x.valueSetter = (params) => {
         						params.data[x.field] = params.newValue ? ''true'' : ''false'';
         						return true;
@@ -166,7 +188,12 @@ scriptContent:
         			let admin_write = ( (!this.global?.settings?.admin) ? true : false);
         			let admin_readonly = ( (this.global?.settings?.admin_readonly == undefined || !this.global?.settings?.admin_readonly) ? false : admin_write );
         //			console.log(admin_readonly);
+        
         			var data = await this.c8o.callJsonObject("C8Oforms.admin_users_get_by_group_v2", {admin_readonly: admin_readonly}).async();
+        			let no_code_db_default_rights = data.result?.default_rights.no_code_db_default_rights == true;
+        			let editing_apps_default_rights = data.result?.default_rights.editing_apps_default_rights == true;
+        			let formulas_default_rights = data.result?.default_rights?.formulas_default_rights == true;
+        			let publication_default_rights = data.result?.default_rights?.publication == true;
         			if (data.error) {
         				this.local.error = true;
         			}
@@ -177,6 +204,7 @@ scriptContent:
         						for(let key in params.data.rights){
         							if(params.data.rights[key] === true || params.data.rights[key] === "true"){
         //								console.log(key);
+        
         								tags += `<span style="
         									    padding: 2px 8px;
         									    margin-left: 6px;
@@ -195,8 +223,8 @@ scriptContent:
         					data.result.labels[0].valueGetter = function(params) { 
         						return params.data.value;
         					};
-        					
-        					data.result.childrenLabels[7].cellRenderer = (params) => {
+        
+        					data.result.childrenLabels[8].cellRenderer = (params) => {
         					  const admin = params.value;
         					  if (admin === true || admin == "true") {
         						return `<span style="
@@ -215,7 +243,7 @@ scriptContent:
         					  }
         					};
         					
-        					data.result.childrenLabels[6].cellRenderer = (params) => {
+        					data.result.childrenLabels[7].cellRenderer = (params) => {
         					  const admin_readonly = params.value;
         					  if (admin_readonly === true || admin_readonly == "true") {
         						return `<span style="
@@ -234,9 +262,39 @@ scriptContent:
         					  }
         					};
         					
+        					data.result.childrenLabels[6].cellRenderer = (params) => {
+        					  const publication = params.value;
+        //					  console.log(publication, publication_default_rights)
+        //					  if (!publication_default_rights) {
+        //						return ''''
+        //					  }
+        					  
+        					  if (( publication === true || publication == "true" ) ) {
+        						return `<span style="
+        						    padding: 2px 8px;
+        						    margin-left: 6px;
+        						    border-radius: 12px;
+        						    background-color: #eef2f7;
+        						    color: #1f2937;
+        						    font-weight: 600;
+        						    font-size: 14px;
+        						    height: 2rem;
+        						  ">${this.icons[''publication'']} ${this.translate.instant(this.translations[''publication''])}</span>`;
+        					  }
+        					  else{
+        						return '''';
+        					  }
+        					};
+        					
         					data.result.childrenLabels[3].cellRenderer = (params) => {
         					  const editing_rights = params.value;
-        					  if (editing_rights === true || editing_rights == "true"){
+        					  
+        					  
+        //					  if (!editing_apps_default_rights) {
+        //						return ''''
+        //					  }
+        					  
+        					  if ((editing_rights === true || editing_rights == "true") ) {
         						return `<span style="
         						    padding: 2px 8px;
         						    margin-left: 6px;
@@ -254,8 +312,13 @@ scriptContent:
         					};
         					
         					data.result.childrenLabels[4].cellRenderer = (params) => {
-        						  const editing_rights = params.value;
-        						  if (editing_rights === true || editing_rights == "true"){
+        						  const formulas = params.value;
+        						  
+        //						  if (!formulas_default_rights) {
+        //							return ''''
+        //						  }
+        						  
+        						  if ((formulas === true || formulas == "true") ){
         							return `<span style="
         							    padding: 2px 8px;
         							    margin-left: 6px;
@@ -274,7 +337,12 @@ scriptContent:
         					
         					data.result.childrenLabels[5].cellRenderer = (params) => {
         					  const nocode_db_rights = params.value;
-        					  if (nocode_db_rights === true || nocode_db_rights == "true") {
+        					  
+        //					  if (!no_code_db_default_rights) {
+        //						return ''''
+        //					  }
+        					  
+        					  if ((nocode_db_rights === true || nocode_db_rights == "true") ) {
         						return `<span style="
         						    padding: 2px 8px;
         						    margin-left: 6px;
@@ -291,8 +359,8 @@ scriptContent:
         					  }
         					};
         					
-        					data.result.labels = this.process(data.result.labels);
-        					data.result.childrenLabels = this.process(data.result.childrenLabels);
+        					data.result.labels = this.process(data.result.labels, editing_apps_default_rights, no_code_db_default_rights, formulas_default_rights, publication_default_rights);
+        					data.result.childrenLabels = this.process(data.result.childrenLabels, editing_apps_default_rights, no_code_db_default_rights, formulas_default_rights, publication_default_rights);
         				}
         				if (data.result.values?.[0]?.group) {
         					data.result.values[0].group = this.translate.instant(data.result.values?.[0]?.group);
@@ -781,7 +849,7 @@ title: Title for adminDashboardUsersWithinGroups
                 directiveSource: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.global?.settings?.admin_readonly && this.global?.settings?.admin
+                    - MobileSmartSourceType: script:this.global?.settings?.admin
                 ↓DivFlexBtns [ngx.components.UIDynamicElement-1740563102336]: 
                   beanData: '{"ionBean":"DivTag"}'
                   tagName: div
@@ -1361,7 +1429,7 @@ title: Title for adminDashboardUsersWithinGroups
                 directiveSource: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.global?.settings?.admin_readonly && this.global?.settings?.admin
+                    - MobileSmartSourceType: script:this.global?.settings?.admin
                 ↓DivFlexBtns [ngx.components.UIDynamicElement-1740562952330]: 
                   beanData: '{"ionBean":"DivTag"}'
                   tagName: div
