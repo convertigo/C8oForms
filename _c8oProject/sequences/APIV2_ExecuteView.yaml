@@ -11,13 +11,48 @@ accessibility: Hidden
     	if (dynamicParams != null) {
     		params = JSON.parse(dynamicParams);
     	}
-    	if(params.shared === undefined){
-    		params.shared = true;
+    //	if(params.shared === undefined){
+    //		params.shared = true;
+    //	}
+    	//{"hide_apps_i_created":false,"hide_folders":false,"show_all_apps":false}
+    	if(params.filters == undefined){
+    		params.filters = {
+    			"hide_apps_i_created": false,
+    			"hide_folders":false,
+    			"show_all_apps":false
+    		}
+    	}
+    	else{
+    		if(params.filters.hide_apps_i_created == undefined){
+    			params.filters.hide_apps_i_created = false;
+    		}
+    		if(params.filters.hide_folders == undefined){
+    			params.filters.hide_folders = false;
+    		}
+    		if(params.filters.show_all_apps == undefined){
+    			params.filters.show_all_apps = false;
+    		}
     	}
     }
     catch (e) {
-    	params = {};
+    	params = {filters:{}};
     	log.warn("parse failed" + JSON.stringify(e));
+    }
+    if(params.filters.show_all_apps === true){
+    	try{
+    		include("js/isAdmin.js");
+    	}
+    	catch(e){
+    		params.filters.show_all_apps = false;
+    	}
+    }
+    
+    var filters = {};
+    try{
+    	filters = JSON.parse(filters);
+    }
+    catch(e){
+    	
     }
     let targetDB = "c8oforms_fs";
     if (fromResponses == "true") {
@@ -257,7 +292,7 @@ accessibility: Hidden
     };
     
     // get admin attr
-    let admin = authenticatedUserID == "c8o:admin";
+    var admin = params.filters.show_all_apps == true;
     
     var withACL = true;
     try{
@@ -266,6 +301,12 @@ accessibility: Hidden
     catch(e){
     	
     }
+    
+    if(admin === true && params.user != null){
+    	admin = false;
+    	authenticatedUserID = params.user.substring(12);
+    }
+    
     // request is acl or group based create filter
     if (!admin && withACL) {
     	// call c8ofullsyncgrp =>  design/get_groups_by_user
@@ -279,7 +320,7 @@ accessibility: Hidden
     	query.put(''group'', ''true'');
     	_use_keys = rows.map((x) => { return x.value });
     	keys = toJettison(_use_keys);
-    	if(params.shared === true){
+    	if(params.filters.hide_apps_i_created === false){
     		usedGroups = toJSON(fsclient.postView(targetDB, ''authentication'', ''distinctGroups'', query, keys));
     		usedGroups = usedGroups.rows.map((x) => { return x.key/*.replace(/\./g, ''\\.'') */ });
     	}
@@ -287,6 +328,10 @@ accessibility: Hidden
     		usedGroups = ["C8Oreserved_"+authenticatedUserID];
     	}
     }
+    else{
+    	usedGroups = [];
+    }
+    debugger;
     if (target != "formsV2/search" && target != "published_formsV2/search") {
     	var _requests = [];
     	for (var selector of requests[target]) {
@@ -307,7 +352,7 @@ accessibility: Hidden
     			query.limit = 10000;
     			query.execution_stats = true;
     			var _res = toJSON(fsclient.postFind(targetDB, toJettison(query)));
-    			if(params.shared !== true){
+    			if(params.filters.hide_apps_i_created !== false){
     				_res.docs = _res.docs.filter((x)=>{
     					return x.creator == authenticatedUserID;
     				})
@@ -334,7 +379,7 @@ accessibility: Hidden
     			}
     
     			var _resV = toJSON(fsclient.postView(targetDB, query.design, query.view, _query, keys)).rows;
-    			if(params.shared !== true){
+    			if(params.filters.hide_apps_i_created !== false){
     				_resV = _resV.filter((x)=>{
     					return x.value.creator == authenticatedUserID;
     				})
@@ -393,37 +438,53 @@ accessibility: Hidden
     				transformed.push(item);
     			}
     		}
-    
-    		res.docs = transformedFold.concat(transformed);
+    		if(params.filters.hide_folders === true){
+    			res.docs = transformed;
+    		}
+    		else{
+    			res.docs = transformedFold.concat(transformed);
+    		}
     	}
     }
     else {
     	usedGroups = usedGroups.map((x) => { return x.replace(/\./g, ''\\.'') });
     	// build mangofilter
-    	mangoquery.selector["$and"] = [
-    		{
-    			"_deleted": {
-    				"$exists": false
-    			}
-    		},
-    		{
-    			"$or": [
+    	if(admin){
+    		mangoquery.selector["$and"] = [
     				{
-    					"~c8oAcl": {
+    					"_deleted": {
     						"$exists": false
-    					},
-    					"c8oGrp": {
+    					}
+    				}
+    			];
+    	}
+    	else{
+    		mangoquery.selector["$and"] = [
+    				{
+    					"_deleted": {
     						"$exists": false
     					}
     				},
     				{
-    					"~c8oAcl": {
-    						"$eq": authenticatedUserID
-    					}
+    					"$or": [
+    						{
+    							"~c8oAcl": {
+    								"$exists": false
+    							},
+    							"c8oGrp": {
+    								"$exists": false
+    							}
+    						},
+    						{
+    							"~c8oAcl": {
+    								"$eq": authenticatedUserID
+    							}
+    						}
+    					]
     				}
-    			]
-    		}
-    	];
+    			];
+    	}
+    	
     
     	for (let elem of usedGroups) {
     		let obj =
@@ -499,12 +560,11 @@ accessibility: Hidden
     	mangoquery.use_index = requests[target].use_index;
         
         res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
-    	if(params.shared !== true){
+    	if(params.filters.hide_apps_i_created !== false){
     		res.docs = res.docs.filter((x)=>{
     			return x.creator == authenticatedUserID;
     		})
     	}
-    	var toto = "tata";
     }
     '
 ↓object [steps.JsonToXmlStep-1694169429816]: 

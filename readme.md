@@ -330,7 +330,9 @@ For more technical informations : [documentation](./project.md)
         - [monacoEditor](#monacoeditor)
         - [moveUserToGroupForm](#moveusertogroupform)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
+        - [PopoverFilters](#popoverfilters)
         - [PopoverListPagesAndFlows](#popoverlistpagesandflows)
+        - [PopoverSort](#popoversort)
         - [PopOverSourceCompletion](#popoversourcecompletion)
         - [searchableSelect](#searchableselect)
         - [sharedDropIndicator](#shareddropindicator)
@@ -5276,6 +5278,18 @@ The Chart Widget viewer
 <td>ngxTagInputValidationError</td><td></td>
 </tr>
 </table>
+#### PopoverFilters
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>settings</td><td></td>
+</tr>
+</table>
 #### PopoverListPagesAndFlows
 
 **variables**
@@ -5292,6 +5306,18 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>pages</td><td></td>
+</tr>
+</table>
+#### PopoverSort
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>settings</td><td></td>
 </tr>
 </table>
 #### PopOverSourceCompletion

@@ -7,7 +7,9 @@ var isAdmin = com.twinsoft.convertigo.engine.Engine.authenticatedSessionManager.
 var isAdminRead = false;
 if(!isAdmin){
 	var authenticatedUserID = context.getAuthenticatedUser();
-	var currentUserDoc = (callSequence("C8Oforms", "APIV2_getDocument", { id: "C8Oreserved_" + authenticatedUserID})).document.res;
+	var currentUserDoc = getDoc("C8Oreserved_" + authenticatedUserID, null, "c8oforms_fs");
+	// now check if doc is authorized for currentUser
+	//var currentUserDoc = (callSequence("C8Oforms", "APIV2_getDocument1", { id: "C8Oreserved_" + authenticatedUserID})).document.res;
 	if(currentUserDoc.admin == true){
 		isAdmin = true;
 	}
