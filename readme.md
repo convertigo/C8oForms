@@ -3315,6 +3315,9 @@ Display an apex chart comp. or an ag-grid comp.
 <td>icon</td><td></td>
 </tr>
 <tr>
+<td>isDisabled</td><td></td>
+</tr>
+<tr>
 <td>text</td><td></td>
 </tr>
 <tr>
