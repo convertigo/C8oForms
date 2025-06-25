@@ -430,7 +430,7 @@
                     '		if(page["pageOwner"] != undefined){
                     			page = page["pageOwner"];
                     		}
-                    		page.local.submitActions2 = JSON.stringify(page.local["submitActions"]);
+                    		
                     		page.local.grp2 = JSON.stringify(page.local.grp);
                     		page.local.filesToSeq = [];
                     		page.local.filesInfoToSeq = [];
@@ -574,8 +574,33 @@
                              postRecursive(page.global["__viewerarr"], 0, page.global["__viewerTotal"], page.local.myId)
                              .then((res)=>{
                                  processSingature();
-                                 page.local.formsSubmit2 = JSON.stringify(page["formsSubmit"]);
-                                 page.local.filesInfoToSeq = JSON.stringify(page.local.filesInfoToSeq);
+                                 
+                    			 
+                    			 try{
+                    				page.local["submitActions"]?.submit?.forEach((item)=>{
+                    				    if(item.type == "submit"){
+                    				        Object.keys(item.actions).forEach((key_action)=>{
+                    				            if(item.actions[key_action].enabled && item.actions[key_action].vars?.forms_freeVars){
+                    				                let parsed = JSON.parse(item.actions[key_action].vars["forms_freeVars"]);
+                    				                for(let item in parsed){
+                    				                    if (parsed[item]["type"] == "signature" || parsed[item]["type"] == "img" || parsed[item]["type"] == "file") {
+                    				                        parsed[item] = page["formsSubmit"][parsed[item].name];
+                    				                    }
+                    				                }
+                    				                item.actions[key_action].vars["forms_freeVars"] = JSON.stringify(parsed);
+                    				            }
+                    				        })
+                    				    }
+                    				})
+                    			}
+                    			catch(e){
+                    				
+                    			}
+                    			page.local.formsSubmit2 = JSON.stringify(page["formsSubmit"]);
+                    			page.local.filesInfoToSeq = JSON.stringify(page.local.filesInfoToSeq);
+                    			page.local.submitActions2 = JSON.stringify(page.local["submitActions"]);
+                    			 
+                    			 
                                  resolve();
                              })
                     		
@@ -796,7 +821,7 @@
                             			asyncHandler()
                             			.then(()=>{
                             				page.c8o.callJsonObject("fs://c8oforms_response_fs.get", {"docid":page.local.myId, "_attachments":true})
-                            	                .then((res)=>{
+                            	                .then((res: any)=>{
                                                     for(let i in res["_attachments"]){
                                                         if(i.indexOf("_C80C80_") != -1){
                                                             let id = i.substring(0, i.indexOf("_"));
@@ -829,8 +854,27 @@
                             		                        }
                                                         }
                                                     }
-                                                    
-                                                    page.c8o.callJson("fs://c8oforms_response_fs.post", "_id",page.local.myId,"_use_policy","merge", "resp", page["formsSubmit"], "finished", true)
+                            						try{
+                            							res.actions?.submit?.forEach((item)=>{
+                            							    if(item.type == "submit"){
+                            							        Object.keys(item.actions).forEach((key_action)=>{
+                            							            if(item.actions[key_action].enabled && item.actions[key_action].vars?.forms_freeVars){
+                            							                let parsed = JSON.parse(item.actions[key_action].vars["forms_freeVars"]);
+                            							                for(let item in parsed){
+                            							                    if (parsed[item]["type"] == "signature" || parsed[item]["type"] == "img" || parsed[item]["type"] == "file") {
+                            							                        parsed[item] = page["formsSubmit"][parsed[item].name];
+                            							                    }
+                            							                }
+                            							                item.actions[key_action].vars["forms_freeVars"] = JSON.stringify(parsed);
+                            							            }
+                            							        })
+                            							    }
+                            							})
+                            						}
+                            						catch(e){
+                            							
+                            						}
+                                                    page.c8o.callJson("fs://c8oforms_response_fs.post", "_id",page.local.myId,"_use_policy","merge", "resp", page["formsSubmit"], "actions", res.actions,  "finished", true)
                                                     .then((res)=>{
                             							page.c8o.log.debug("post to "+ page.local.myId + " to validate files upload");
                                                         return null;
