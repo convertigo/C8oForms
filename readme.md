@@ -5501,6 +5501,9 @@ The Chart Widget viewer
 <td>element</td><td></td>
 </tr>
 <tr>
+<td>other</td><td></td>
+</tr>
+<tr>
 <td>total</td><td></td>
 </tr>
 <tr>
@@ -5598,6 +5601,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>element</td><td></td>
+</tr>
+<tr>
+<td>other</td><td></td>
 </tr>
 <tr>
 <td>total</td><td></td>
