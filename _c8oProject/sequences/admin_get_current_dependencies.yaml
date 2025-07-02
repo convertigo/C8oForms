@@ -1,0 +1,265 @@
+accessibility: Hidden
+↓getAllprojectsAndNames [steps.SimpleStep-1751386423102]: 
+  expression: |
+    'var projects = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getAllProjectNamesList();
+    var isWindows = org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
+    var separator = isWindows ? "\\" :"/";
+    var projectsVersions = {};
+    for(var projectName of projects){
+    	var dir = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager.getOriginalProjectByName(projectName).getDirPath();
+    	var yaml_file_path = dir + separator + "c8oProject.yaml";
+    	
+    	try {
+            var File = java.io.File;
+            var BufferedReader = java.io.BufferedReader;
+            var FileReader = java.io.FileReader;
+    
+            var file = new File(yaml_file_path);
+            if (!file.exists()) {
+                log.warn("File not found: " + yaml_file_path);
+                continue;
+            }
+    
+            var reader = new BufferedReader(new FileReader(file));
+            var line;
+            var content = "";
+            while ((line = reader.readLine()) != null) {
+                content += line + "\n";
+            }
+            reader.close();
+    
+            // Expression régulière pour trouver la version
+            var versionPattern = /version:\s*([0-9.]+\S*)/;
+            var match = content.match(versionPattern);
+            if (match) {
+                var version = match[1];
+    			projectsVersions[projectName] = version;
+                log.warn("Project: " + projectName + ", Version: " + version);
+            } else {
+                log.warn("Version not found in: " + yaml_file_path);
+            }
+        } catch (e) {
+            log.error("Error processing file " + yaml_file_path + ": " + e);
+        }
+    }'
+↓object [steps.JsonToXmlStep-1751387479677]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: projectsVersions
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: projectsVersions
+↓FindRequiredVersions [steps.SimpleStep-1751387571802]: 
+  expression: |
+    'var isWindows = org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
+    var separator = isWindows ? "\\" : "/";
+    var visited = {}; // pour éviter les boucles infinies
+    
+    // Extraction version depuis une string de projectName
+    function extractNameAndVersion(projectStr) {
+        var name = projectStr.split("=")[0];
+        var version = "unknown";
+    
+        var branchMatch = projectStr.match(/branch=([^:]+)/);
+        var vTagMatch = projectStr.match(/\/v([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\//);
+        var downloadMatch = projectStr.match(/\/download\/([0-9]+\.[0-9]+\.[0-9]+)/);
+        var fallbackMatch = projectStr.match(/\/releases\/download\/([0-9]+\.[0-9]+\.[0-9]+)/);
+    
+        if (branchMatch) {
+            version = branchMatch[1];
+        } else if (vTagMatch) {
+            version = "v" + vTagMatch[1];
+        } else if (downloadMatch) {
+            version = downloadMatch[1];
+        } else if (fallbackMatch) {
+            version = fallbackMatch[1];
+        }
+    
+        return {
+            name: name,
+            version: version
+        };
+    }
+    
+    // Fonction principale pour un projet
+    function processProjectTree(projectName) {
+        if (visited[projectName]) {
+            return null; // boucle
+        }
+        visited[projectName] = true;
+    
+        var dependencies = {};
+        var version = "unknown";
+    
+        try {
+            var project = com.twinsoft.convertigo.engine.Engine.theApp.databaseObjectsManager
+                .getOriginalProjectByName(projectName);
+            if (project == null) {
+                log.warn("Projet introuvable : " + projectName);
+                return null;
+            }
+    
+            var dir = project.getDirPath();
+            var yaml_file_path = dir + separator + "c8oProject.yaml";
+            var file = new java.io.File(yaml_file_path);
+    
+            if (!file.exists()) {
+                log.warn("Fichier introuvable : " + yaml_file_path);
+                return null;
+            }
+    
+            var content = new java.lang.String(java.nio.file.Files.readAllBytes(file.toPath()), "UTF-8");
+            var Yaml = new org.yaml.snakeyaml.Yaml();
+            var input = new java.io.StringReader(content);
+            var parsedYaml = Yaml.load(input);
+    
+            // Chercher version du projet racine dans le fichier
+            version = extractRootProjectVersion(parsedYaml);
+    
+            collectDependencies(parsedYaml, dependencies);
+    
+        } catch (e) {
+            log.warn("Erreur lors du traitement de " + projectName + " : " + e.message);
+        }
+    
+        return {
+            version: version,
+            dependencies: dependencies
+        };
+    }
+    
+    // Cherche la version du projet racine (clé genre ↓C8Oforms [core.Project])
+    function extractRootProjectVersion(parsedYaml) {
+        if (parsedYaml instanceof java.util.Map) {
+            var keys = parsedYaml.keySet().toArray();
+            for (var i = 0; i < keys.length; i++) {
+                var key = keys[i];
+                if (key.toString().includes("[core.Project]")) {
+                    var projectBlock = parsedYaml.get(key);
+                    if (projectBlock != null && projectBlock.get("version") != null) {
+                        return projectBlock.get("version").toString();
+                    }
+                }
+            }
+        }
+        return "unknown";
+    }
+    
+    // Extraction récursive des dépendances
+    function collectDependencies(obj, output) {
+        if (obj instanceof java.util.Map) {
+            var keys = obj.keySet().toArray();
+            for (var i = 0; i < keys.length; i++) {
+                var key = keys[i];
+                var value = obj.get(key);
+    
+                if (key.toString().includes("[references.ProjectSchemaReference]")) {
+                    var projectData = value.get("projectName");
+                    if (projectData != null) {
+                        var parsed = extractNameAndVersion(projectData.toString());
+                        var depName = parsed.name;
+                        var depVersion = parsed.version;
+    
+                        var depTree = processProjectTree(depName);
+                        if (depTree == null) {
+                            // Dépendance non existante ou déjà parcourue
+                            output[depName] = {
+                                version: depVersion,
+                                dependencies: {}
+                            };
+                        } else {
+                            // Fusionner la version détectée et les sous-dépendances
+                            output[depName] = {
+                                version: depVersion,
+                                dependencies: depTree.dependencies
+                            };
+                        }
+                    }
+                }
+    
+                collectDependencies(value, output);
+            }
+        } else if (obj instanceof java.util.List) {
+            for (var i = 0; i < obj.size(); i++) {
+                collectDependencies(obj.get(i), output);
+            }
+        }
+    }
+    
+    // Point de départ
+    var tree = {};
+    tree["C8Oforms"] = processProjectTree("C8Oforms");
+    
+    // Affichage JSON
+    log.info(JSON.stringify(tree, null, 2));
+    
+    
+    // Validation récursive
+    function validateVersions(treeNode, results) {
+        for (var proj in treeNode) {
+            var expected = treeNode[proj].version;
+            var deployed = projectsVersions[proj] || null;
+    
+            var normExpected = expected.replace(/^v/, ""); // retirer "v" si présent
+            var normDeployed = deployed ? deployed.replace(/^v/, "") : null;
+    
+            var status;
+            if (!deployed) {
+                status = "not_deployed";
+            } else if (normExpected === normDeployed) {
+                status = "ok";
+            } else {
+                status = "version_mismatch";
+            }
+    
+            results[proj] = {
+                expected: expected,
+                deployed: deployed,
+                status: status
+            };
+    
+            // récursif
+            validateVersions(treeNode[proj].dependencies, results);
+        }
+    }
+    
+    // Lancer l’analyse
+    var validationResults = {};
+    validateVersions(tree["C8Oforms"].dependencies, validationResults);
+    
+    // Affichage
+    log.info("=== Comparaison des versions ===");
+    log.info(JSON.stringify(validationResults, null, 2));
+    '
+↓object1 [steps.JsonToXmlStep-1751388748642]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: tree
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: tree
+↓object2 [steps.JsonToXmlStep-1751388943874]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: validationResults
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: validationResults
