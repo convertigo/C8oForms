@@ -21,11 +21,11 @@ if(!isAdmin){
 		if(!Array.isArray(__groups)){
 			__groups = [__groups];
 		}
-		query = new HashMap();
-		query.put('reduce', 'false');
-		query.put('include_docs', 'true');
-		keys = toJettison(__groups);
-		__groups = toJSON(fsclient.postView("c8oforms_fs", 'groups', 'rightsByUser', query, keys)).rows;
+		__my_query = new HashMap();
+		__my_query.put('reduce', 'false');
+		__my_query.put('include_docs', 'true');
+		__my_keys = toJettison(__groups);
+		__groups = toJSON(fsclient.postView("c8oforms_fs", 'groups', 'rightsByUser', __my_query, __my_keys)).rows;
 		console.log("my groups :", __groups, "warn");
 		if(__groups != undefined){
 			for(var __group of __groups){
