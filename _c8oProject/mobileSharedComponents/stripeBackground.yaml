@@ -1,0 +1,274 @@
+scriptContent: 
+  - xmlizable: 
+    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+      →: |
+        '/*Begin_c8o_CompImport*/
+        import { AfterViewInit, HostListener } from ''@angular/core'';
+        /*End_c8o_CompImport*/
+        /*Begin_c8o_CompDeclaration*/
+        	public gl!: WebGLRenderingContext;
+        	public program!: WebGLProgram;
+        	public uTime!: WebGLUniformLocation | null;
+        	public uRes!: WebGLUniformLocation | null;
+        	public rafId = 0;
+        	public start = performance.now();
+        	/*End_c8o_CompDeclaration*/
+        /*Begin_c8o_CompConstructor*/
+        		/*End_c8o_CompConstructor*/
+        /*Begin_c8o_CompInitialization*/
+        		/*End_c8o_CompInitialization*/
+        /*Begin_c8o_CompFinalization*/
+        		cancelAnimationFrame(this.rafId);
+        		/*End_c8o_CompFinalization*/
+        /*Begin_c8o_CompChanges*/
+        		/*End_c8o_CompChanges*/
+        /*Begin_c8o_CompDoCheck*/
+        		/*End_c8o_CompDoCheck*/
+        /*Begin_c8o_CompAfterContentInit*/
+        		/*End_c8o_CompAfterContentInit*/
+        /*Begin_c8o_CompAfterContentChecked*/
+        		/*End_c8o_CompAfterContentChecked*/
+        /*Begin_c8o_CompAfterViewInit*/
+        		/*End_c8o_CompAfterViewInit*/
+        /*Begin_c8o_CompAfterViewChecked*/
+        		/*End_c8o_CompAfterViewChecked*/
+        /*Begin_c8o_CompFunction*/
+        	public init(){
+        		const canvas = this.canvasRef.nativeElement;
+        		// WebGL1 pour garder gl_FragColor/attribute
+        		const gl = canvas.getContext(''webgl'', { antialias: true, alpha: false, depth: false });
+        		if (!gl) throw new Error(''WebGL not supported'');
+        		this.gl = gl;
+        
+        		// --- Shaders (mêmes paramètres que ton code Next/React)
+        		const vsSrc = `
+        		      attribute vec4 a_position;
+        		      varying vec2 v_uv;
+        		      void main() {
+        		        v_uv = a_position.xy;
+        		        gl_Position = a_position;
+        		      }
+        		    `;
+        		const fsSrc = `
+        		      #ifdef GL_ES
+        		      precision mediump float;
+        		      #endif
+        
+        		      uniform vec2 u_resolution;
+        		      uniform float u_time;
+        
+        		      varying vec2 v_uv;
+        
+        		      // Simplex 2D noise (Patricio Gonzalez Vivo)
+        		      vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+        		      float snoise(vec2 v){
+        		        const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+        		                -0.577350269189626, 0.024390243902439);
+        		        vec2 i  = floor(v + dot(v, C.yy) );
+        		        vec2 x0 = v -   i + dot(i, C.xx);
+        		        vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+        		        vec4 x12 = x0.xyxy + C.xxzz;
+        		        x12.xy -= i1;
+        		        i = mod(i, 289.0);
+        		        vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+        		                + i.x + vec3(0.0, i1.x, 1.0 ));
+        		        vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
+        		                dot(x12.zw,x12.zw)), 0.0);
+        		        m = m*m; m = m*m;
+        		        vec3 x = 2.0 * fract(p * C.www) - 1.0;
+        		        vec3 h = abs(x) - 0.5;
+        		        vec3 ox = floor(x + 0.5);
+        		        vec3 a0 = x - ox;
+        		        m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+        		        vec3 g;
+        		        g.x  = a0.x  * x0.x  + h.x  * x0.y;
+        		        g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+        		        return 130.0 * dot(m, g);
+        		      }
+        
+        		      const vec4 COLOUR_PURPLE = vec4(169.0, 96.0, 238.0, 1.0) / 255.0;
+        		      const vec4 COLOUR_PEACH  = vec4(255.0, 51.0,  61.0,  1.0) / 255.0;
+        		      const vec4 COLOUR_BLUE   = vec4(144.0, 224.0, 255.0, 1.0) / 255.0;
+        		      const vec4 COLOUR_YELLOW = vec4(255.0, 203.0, 87.0,  1.0) / 255.0;
+        
+        		      void main() {
+        		        float timeA = u_time * 0.1;
+        		        float timeB = u_time * 0.2;
+        		        float timeC = u_time * 0.3;
+        
+        		        // v_uv hérite directement de a_position.xy (clip-space ~ [-1..1])
+        		        // c''est ce que fait glsl-canvas-js aussi, donc on garde tel quel
+        		        float noiseA = snoise(v_uv + timeA) * 0.5 + 0.5;
+        		        float noiseB = snoise(v_uv * 0.2 - timeB) * 0.5 + 0.5;
+        		        float noiseC = snoise(v_uv * 0.5 + timeC) * 0.5 + 0.5;
+        
+        		        vec4 colourA = mix(mix(COLOUR_YELLOW, COLOUR_PURPLE, noiseA), COLOUR_BLUE,  noiseC);
+        		        vec4 colourB = mix(mix(COLOUR_PEACH,  COLOUR_YELLOW, noiseC), COLOUR_BLUE,  noiseB);
+        
+        		        float mixWave = sin((v_uv.x * 4.0) + u_time * 0.25) + (v_uv.y + noiseB * 0.5 + 1.0);
+        		        float maxStep = clamp(noiseA - 0.15 * 1.1, 0.0, 1.0);
+        		        mixWave = smoothstep(0.0, maxStep, mixWave - noiseB * 0.2);
+        
+        		        vec4 finalColor = mix(colourA, colourB, mixWave);
+        		        gl_FragColor = finalColor;
+        		      }
+        		    `;
+        
+        		const vs = this.createShader(gl.VERTEX_SHADER, vsSrc);
+        		const fs = this.createShader(gl.FRAGMENT_SHADER, fsSrc);
+        
+        		const program = gl.createProgram()!;
+        		gl.attachShader(program, vs);
+        		gl.attachShader(program, fs);
+        		gl.linkProgram(program);
+        		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        			console.error(''Program link error:'', gl.getProgramInfoLog(program));
+        			return;
+        		}
+        		this.program = program;
+        		gl.useProgram(program);
+        
+        		// plein écran via "fullscreen triangle"
+        		const buf = gl.createBuffer();
+        		gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        		gl.bufferData(
+        			gl.ARRAY_BUFFER,
+        			new Float32Array([
+        				-1, -1, 0, 1,
+        				3, -1, 0, 1,
+        				-1, 3, 0, 1,
+        			]),
+        			gl.STATIC_DRAW
+        		);
+        
+        		const posLoc = gl.getAttribLocation(program, ''a_position'');
+        		gl.enableVertexAttribArray(posLoc);
+        		gl.vertexAttribPointer(posLoc, 4, gl.FLOAT, false, 0, 0);
+        
+        		this.uTime = gl.getUniformLocation(program, ''u_time'');
+        		this.uRes = gl.getUniformLocation(program, ''u_resolution'');
+        
+        		this.resize(); // init viewport + u_resolution
+        		this.loop();
+        	}
+        	public createShader(type: number, src: string): WebGLShader {
+        		const s = this.gl.createShader(type)!;
+        		this.gl.shaderSource(s, src);
+        		this.gl.compileShader(s);
+        		if (!this.gl.getShaderParameter(s, this.gl.COMPILE_STATUS)) {
+        			console.error(''Shader compile error:'', this.gl.getShaderInfoLog(s), ''\n'', src);
+        		}
+        		return s;
+        	}
+        
+        	public loop = () => {
+        		const t = (performance.now() - this.start) / 1000;
+        		this.gl.uniform1f(this.uTime, t);
+        		this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
+        		this.rafId = requestAnimationFrame(this.loop);
+        	};
+        
+        	@HostListener(''window:resize'')
+        	resize() {
+        		if(this.local.initDone){
+        			const canvas = this.canvasRef.nativeElement;
+        			const cssW = document.body.clientWidth
+        			const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        
+        			const w = Math.max(1, Math.floor(cssW * dpr));
+        			const h = window.innerHeight * 0.65;
+        
+        			if (canvas.width !== w || canvas.height !== h) {
+        				canvas.width = w;
+        				canvas.height = h;
+        				canvas.style.width = `${cssW}px`;
+        				canvas.style.height = `${h}px`;
+        				this.gl.viewport(0, 0, w, h);
+        				this.gl.uniform2f(this.uRes, w, h);
+        			}	
+        		}
+        	}
+        	/*End_c8o_CompFunction*/
+        '
+↓Tag [ngx.components.UIElement-1758025493355]: 
+  identifier: canvasRef
+  tagName: canvas
+  ↓Attr [ngx.components.UIAttribute-1758025493358]: 
+    attrName: class
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: plain:stripe-canvas
+↓Style [ngx.components.UIStyle-1758025493361]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          ':host {
+          	position: absolute;
+          	top: 0;
+          	left:0;
+          	display: block;
+          	width: 100%;
+          	height: 65vh;
+          	overflow: hidden;
+          	z-index: -1;
+          	clip-path: polygon(0 0, 100% 0, 100% 30%, 0 100%);
+          	-webkit-clip-path: polygon(0 0, 100% 0, 100% 30%, 0 100%);
+          }
+          
+          .stripe-canvas {
+          	width: 100%;
+          	height: 100%;
+          }'
+↓SharedComponent_Event1 [ngx.components.UISharedComponentEvent-1758025493364]: 
+  componentEvent: onDestroy
+  ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1758025493367]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		try {
+            			cancelAnimationFrame(page.rafId);
+            			clearInterval(page.local.intervalId);
+            		} catch (e) {
+            		
+            		} finally {
+            			return;
+            		}
+            
+↓SharedComponent_Event [ngx.components.UISharedComponentEvent-1758025493370]: 
+  componentEvent: onInit
+  ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1758025493373]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		try {
+            			if (page.local.initDone != true) {
+            				if (page.canvasRef != null) {
+            					page.local.initDone = true;
+            					page.init();
+            				}
+            				else {
+            					page.local.intervalId = setInterval(() => {
+            						if (page.canvasRef != null) {
+            							clearInterval(page.local.intervalId);
+            							page.local.initDone = true;
+            							page.init();
+            						} else {
+            						}
+            					}, 100);
+            				}
+            			}
+            
+            		} catch (e) {
+            			console.error("An error occured in compAfterviewInit of background component", e);
+            		} finally {
+            			return;
+            		}
+            

@@ -325,7 +325,9 @@ For more technical informations : [documentation](./project.md)
         - [itemVideoCallViewerInEditionPage](#itemvideocallviewerineditionpage)
         - [labelFieldMustBeFilled](#labelfieldmustbefilled)
         - [listSelector](#listselector)
+        - [LoginComponent](#logincomponent)
         - [mdReader](#mdreader)
+        - [MenuComponentUi](#menucomponentui)
         - [menuVersion](#menuversion)
         - [monacoEditor](#monacoeditor)
         - [moveUserToGroupForm](#moveusertogroupform)
@@ -334,6 +336,7 @@ For more technical informations : [documentation](./project.md)
         - [PopoverListPagesAndFlows](#popoverlistpagesandflows)
         - [PopoverSort](#popoversort)
         - [PopOverSourceCompletion](#popoversourcecompletion)
+        - [ResetPasswordModalComponent](#resetpasswordmodalcomponent)
         - [searchableSelect](#searchableselect)
         - [sharedDropIndicator](#shareddropindicator)
         - [sharedDropIndicatorSelector](#shareddropindicatorselector)
@@ -353,8 +356,10 @@ For more technical informations : [documentation](./project.md)
         - [SharedStyleMarginEditor](#sharedstylemargineditor)
         - [SharedTabs](#sharedtabs)
         - [SharedVersion](#sharedversion)
+        - [stripeBackground](#stripebackground)
         - [switchItemEdition](#switchitemedition)
         - [switchItemViewer](#switchitemviewer)
+        - [ToolbarComponentUi](#toolbarcomponentui)
         - [treeview](#treeview)
         - [treeviewContent](#treeviewcontent)
         - [updateGroupAccessRights](#updategroupaccessrights)
@@ -369,13 +374,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1073
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1073.zip
      ```
      </td></tr>
     </table>
@@ -5146,6 +5151,70 @@ The Chart Widget viewer
 <td>offsetObject</td><td></td>
 </tr>
 </table>
+#### LoginComponent
+
+LoginComponent is a reusable login form component with inputs for username/email and password. It provides buttons for login and social login options (Google, Microsoft, LinkedIn). Use the input properties to customize labels and placeholders. Bind to the username and password inputs using ngModel. The component emits events on login button click and social login button clicks.
+-- AI generated: thread_ztpgUeEKSFdFoWaz2NCcpJ5E
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>forgotPasswordText</td><td>Text for the forgot password link</td>
+</tr>
+<tr>
+<td>localParent</td><td>Text for the sign up link</td>
+</tr>
+<tr>
+<td>loginButtonText</td><td>Text displayed on the login button</td>
+</tr>
+<tr>
+<td>loginDescription</td><td>Description text under the login title</td>
+</tr>
+<tr>
+<td>loginTitle</td><td>Title text for the login form</td>
+</tr>
+<tr>
+<td>passwordPlaceholder</td><td>Placeholder text for the password input</td>
+</tr>
+<tr>
+<td>signUpText</td><td>Text for the sign up link</td>
+</tr>
+<tr>
+<td>subtitleText</td><td>Subtitle text displayed under the main title</td>
+</tr>
+<tr>
+<td>usernamePlaceholder</td><td>Placeholder text for the username input</td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>forgotPassword</td><td></td>
+</tr>
+<tr>
+<td>login</td><td></td>
+</tr>
+<tr>
+<td>onChangePassword</td><td></td>
+</tr>
+<tr>
+<td>onChangeUsername</td><td></td>
+</tr>
+<tr>
+<td>signUp</td><td></td>
+</tr>
+<tr>
+<td>socialLogin</td><td></td>
+</tr>
+</table>
 #### mdReader
 
 **variables**
@@ -5156,6 +5225,55 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>data</td><td></td>
+</tr>
+</table>
+#### MenuComponentUi
+
+This component displays a user menu with user info, categorized navigation items, and actions such as logout and close. Use Input properties to provide user details, menu sections, and version info.
+-- AI generated: thread_HoLt3BXkFpqp7kiubzlvHh5b
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>closeLabel</td><td>Label text for the close menu button.</td>
+</tr>
+<tr>
+<td>logoutLabel</td><td>Label text for the logout action.</td>
+</tr>
+<tr>
+<td>menuSections</td><td>Array of menu sections each containing a title and an array of menu items.</td>
+</tr>
+<tr>
+<td>userEmail</td><td>The email address of the user displayed below the user name.</td>
+</tr>
+<tr>
+<td>userName</td><td>The full name of the user displayed in the menu header.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string displayed at the bottom of the menu.</td>
+</tr>
+<tr>
+<td>versionStatus</td><td>Status text displayed below the version string.</td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onCloseClickEvent</td><td></td>
+</tr>
+<tr>
+<td>onLogoutClickEvent</td><td></td>
+</tr>
+<tr>
+<td>onMenuItemClickEvent</td><td></td>
 </tr>
 </table>
 #### menuVersion
@@ -5336,6 +5454,37 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>keyName</td><td></td>
+</tr>
+</table>
+#### ResetPasswordModalComponent
+
+This component is a modal dialog for resetting the password. It accepts an input property 'modalTitle' to display the modal header title and 'logoSrc' for the logo image source. The user can input their email address to receive a password reset link. The component emits 'cancel' and 'sendResetLink' events when the respective buttons are clicked.
+-- AI generated: thread_lXRMrH3tlJ0W71mTQZrOkCML
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>descriptionText</td><td>Description text explaining the password reset process</td>
+</tr>
+<tr>
+<td>modalTitle</td><td>Title text displayed in the modal header</td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>cancel</td><td></td>
+</tr>
+<tr>
+<td>sendResetLink</td><td></td>
 </tr>
 </table>
 #### searchableSelect
@@ -5631,6 +5780,8 @@ The Chart Widget viewer
 
 #### SharedVersion
 
+#### stripeBackground
+
 #### switchItemEdition
 
 **variables**
@@ -5668,6 +5819,64 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>disabled</td><td></td>
+</tr>
+</table>
+#### ToolbarComponentUi
+
+This component represents a toolbar UI similar to the provided image. It includes a logo with text, a search input with placeholder, and a set of icon buttons for menu, help, notifications, settings, and a user avatar with initials. All text and input values are bound to input properties for flexibility.
+-- AI generated: thread_gv5odX8xEJSuNiW8Usbk01ux
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>logoAlt</td><td>Alternative text for the logo image</td>
+</tr>
+<tr>
+<td>logoSrc</td><td>URL of the logo image displayed on the left side</td>
+</tr>
+<tr>
+<td>logoText</td><td>Main text displayed next to the logo</td>
+</tr>
+<tr>
+<td>searchPlaceholder</td><td>Placeholder text for the search input</td>
+</tr>
+<tr>
+<td>searchQuery</td><td>Current value of the search input</td>
+</tr>
+<tr>
+<td>subText</td><td>Subtext displayed next to the main logo text</td>
+</tr>
+<tr>
+<td>userInitials</td><td>Initials displayed inside the user avatar circle</td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>avatarClick</td><td></td>
+</tr>
+<tr>
+<td>helpClick</td><td></td>
+</tr>
+<tr>
+<td>menuClick</td><td></td>
+</tr>
+<tr>
+<td>notificationsClick</td><td></td>
+</tr>
+<tr>
+<td>onSearchValue</td><td></td>
+</tr>
+<tr>
+<td>settingsClick</td><td></td>
 </tr>
 </table>
 #### treeview
