@@ -101,9 +101,302 @@ jobs:
         with:
           name: c8oforms_standalone.tar.gz
           path: c8oforms_standalone.tar.gz
+  deps_report:
+      runs-on: ubuntu-latest
+      needs: build_and_deploy
+      steps:
+        - name: Checkout (full history with tags)
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+            fetch-tags: true
+            ref: ${{ github.ref }}
 
+        - name: Locate c8oproject file at current tag (non-fatal)
+          id: locate_current_file
+          shell: bash
+          run: |
+            set -e
+            CURRENT_TAG="${GITHUB_REF#refs/tags/}"
+            echo "current_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
+            FILE_PATH=$(git ls-tree -r --name-only "$CURRENT_TAG" | grep -i -E '(^|/)(c8oproject\.yaml|c8oProject\.yaml)$' | head -n1 || true)
+            echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
+
+        - name: Find previous tag (semantic)
+          id: prev_tag
+          shell: bash
+          env:
+            CURRENT_TAG: ${{ steps.locate_current_file.outputs.current_tag }}
+          run: |
+            set -euo pipefail
+            echo "CURRENT_TAG=${CURRENT_TAG}"
+
+            python3 - <<'PY'
+            import os, re, subprocess, sys
+
+            def parse_tag(t):
+                # Ex: 2.1.3 , 2.1.3-beta2 , 2.1.3-rc1 , 2.1.3-alpha3
+                m = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:-([A-Za-z]+)(\d+))?', t)
+                if not m: 
+                    return None
+                major, minor, patch = map(int, m.group(1,2,3))
+                pre_name = (m.group(4) or "").lower()
+                pre_num  = int(m.group(5)) if m.group(5) else 0
+                order = {"alpha": 0, "beta": 1, "rc": 2, "": 3}  # alpha < beta < rc < final
+                return (major, minor, patch, order.get(pre_name, -1), pre_num)
+
+            def get_current_tag():
+                cur = os.environ.get("CURRENT_TAG", "")
+                if cur:
+                    return cur
+                # Fallback: on essaie de déduire depuis git
+                try:
+                    cur = subprocess.check_output(["git", "describe", "--tags", "--exact-match"], text=True).strip()
+                    return cur
+                except Exception:
+                    return ""
+
+            current = get_current_tag()
+            if not current:
+                # Rien à faire, on renvoie un vide (et on n'échoue pas le job)
+                with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                    f.write("previous_tag=\n")
+                sys.exit(0)
+
+            tags = subprocess.check_output(["git", "tag", "--list"], text=True).splitlines()
+            parsed = []
+            for t in tags:
+                p = parse_tag(t)
+                if p is not None:
+                    parsed.append((t, p))
+
+            # Trie croissant sémantique
+            parsed.sort(key=lambda x: x[1])
+
+            # Trouve l’index du tag courant et prend l’immédiat précédent
+            idx = next((i for i,(t,p) in enumerate(parsed) if t == current), None)
+            prev_tag = parsed[idx-1][0] if idx is not None and idx > 0 else ""
+
+            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                f.write(f"previous_tag={prev_tag}\n")
+            PY
+
+
+        - name: Generate dependency report (Markdown + JSON) — never fail
+          shell: bash
+          continue-on-error: true
+          env:
+            CURRENT_TAG: ${{ steps.locate_current_file.outputs.current_tag }}
+            PREV_TAG:    ${{ steps.prev_tag.outputs.previous_tag }}
+            FILE_PATH:   ${{ steps.locate_current_file.outputs.file_path }}
+          run: |
+            set -euo pipefail
+            mkdir -p dist .github/scripts
+            cat > .github/scripts/gen_deps_report.py << 'PY'
+            import os, re, json, subprocess
+            from collections import OrderedDict
+
+            CUR = os.environ.get("CURRENT_TAG","").strip()
+            PRE = os.environ.get("PREV_TAG","").strip()
+            HINT = os.environ.get("FILE_PATH","").strip()
+
+            def git_ls_yaml_at(ref):
+                try:
+                    out = subprocess.check_output(["git","ls-tree","-r","--name-only",ref], text=True)
+                    return [l for l in out.splitlines() if l.lower().endswith((".yaml",".yml"))]
+                except Exception:
+                    return []
+
+            def git_show(ref, path):
+                if not ref or not path:
+                    return ""
+                try:
+                    return subprocess.check_output(["git","show",f"{ref}:{path}"], text=True)
+                except Exception:
+                    return ""
+
+            def find_c8o_path_at(ref, hint):
+                if ref and hint:
+                    txt = git_show(ref, hint)
+                    if txt:
+                        return hint, txt
+                for p in git_ls_yaml_at(ref):
+                    low = p.lower()
+                    if "c8oproject" in low:
+                        txt = git_show(ref, p)
+                        if txt:
+                            return p, txt
+                return "", ""
+
+            def parse_core(y):
+                m = re.search(r'^[^\S\r\n]*[↑]*convertigo:\s*([^\s]+)', y, re.MULTILINE)
+                return m.group(1).strip() if m else None
+
+            def parse_refs(y):
+                """Scan line-by-line to capture every references.ProjectSchemaReference block,
+                then read the first `projectName:` line inside."""
+                deps = OrderedDict()
+                if not y: return deps
+                lines = y.splitlines()
+                in_block = False
+                captured = False
+                for line in lines:
+                    head = line.lstrip()
+                    # Start of a new object header
+                    if head.startswith("↓") and "[" in head:
+                        in_block = ("references.ProjectSchemaReference" in head)
+                        captured = False
+                        continue
+                    # Safety: header without the arrow (rare)
+                    if "references.ProjectSchemaReference" in head and "[" in head and not head.startswith("↓"):
+                        in_block = True
+                        captured = False
+                        continue
+                    if in_block and not captured and "projectName:" in line:
+                        m = re.search(r'projectName:\s*([^\s=:#]+)\s*=\s*([^\s]+)', line.strip())
+                        if m:
+                            name = m.group(1).strip()
+                            rhs  = m.group(2).strip()
+                            # version detection
+                            ver = "unknown"
+                            m_rel = re.search(r'/releases/download/([^/]+)/', rhs)
+                            if m_rel:
+                                ver = m_rel.group(1)
+                            else:
+                                m_br = re.search(r':branch=([^:]+)', rhs)
+                                if m_br:
+                                    ver = m_br.group(1)
+                                elif rhs.endswith('.git') or '.git:' in rhs:
+                                    ver = "main"
+                            deps[name] = {"version": ver, "source": rhs}
+                            captured = True
+                return deps
+
+            # Load current and previous YAML (path may differ between tags)
+            cur_path, cur_yaml = find_c8o_path_at(CUR, HINT)
+            prev_path, prev_yaml = ("","")
+            if PRE:
+                prev_path, prev_yaml = find_c8o_path_at(PRE, cur_path or HINT)
+
+            cur_core = parse_core(cur_yaml)
+            prev_core = parse_core(prev_yaml) if prev_yaml else None
+            cur_deps  = parse_refs(cur_yaml)
+            prev_deps = parse_refs(prev_yaml)
+
+            def diff(cur, prev):
+                added, removed, changed, same = [], [], [], []
+                ck, pk = set(cur), set(prev)
+                for k in sorted(ck - pk): added.append(k)
+                for k in sorted(pk - ck): removed.append(k)
+                for k in sorted(ck & pk):
+                    if cur[k]["version"] != prev[k]["version"]:
+                        changed.append(k)
+                    else:
+                        same.append(k)
+                return added, removed, changed, same
+
+            added, removed, changed, same = diff(cur_deps, prev_deps)
+
+            # ---------- Grouping ----------
+            def is_build_dep(meta):
+                # Build-only if URL contains "-ui-ngx" (case-insensitive)
+                return "-ui-ngx" in meta["source"].lower()
+
+            server_names = sorted([n for n,m in cur_deps.items() if not is_build_dep(m)], key=str.lower)
+            build_names  = sorted([n for n,m in cur_deps.items() if is_build_dep(m)], key=str.lower)
+
+            # ---------- Markdown ----------
+            lines = []
+            lines.append("# Dependencies report\n")
+            lines.append(f"- **Current tag:** `{CUR or 'unknown'}`")
+            if PRE: lines.append(f"- **Previous tag:** `{PRE}`")
+            if cur_core:
+                ln = f"- **Convertigo core:** `{cur_core}`"
+                if prev_core and prev_core != cur_core:
+                    ln += f" → **changed** (was `{prev_core}`)"
+                lines.append(ln)
+
+            lines.append("\n## Summary of changes")
+            if not cur_deps:
+                lines.append("- ⚠️ No `c8oproject.yaml` found at current tag or empty file.")
+            else:
+                if changed: lines.append(f"- 🔄 **Updated** ({len(changed)}): " + ", ".join(f"`{k}`" for k in changed))
+                if added:   lines.append(f"- ➕ **Added** ({len(added)}): " + ", ".join(f"`{k}`" for k in added))
+                if removed: lines.append(f"- ➖ **Removed** ({len(removed)}): " + ", ".join(f"`{k}`" for k in removed))
+                if not (changed or added or removed):
+                    lines.append("- No changes vs previous tag.")
+
+            def render_table(title, names):
+                if not names:
+                    return [f"\n## {title}\n\n_No dependencies detected._\n"]
+                out = [f"\n## {title}\n"]
+                out.append("")
+                out.append("| Library | Version | Source | Diff vs previous |")
+                out.append("|---|---:|---|---|")
+                for name in names:
+                    meta = cur_deps[name]
+                    ver, raw = meta["version"], meta["source"]
+                    if name in added: diffv = "➕ Added"
+                    elif name in changed:
+                        pv = prev_deps.get(name, {}).get("version", "n/a")
+                        diffv = f"🔄 {pv} → **{ver}**"
+                    else:
+                        diffv = "—"
+                    out.append(f"| `{name}` | `{ver}` | `{raw}` | {diffv} |")
+                return out
+
+            # Server dependencies first, then build-time
+            lines += render_table("Server dependencies (required at runtime)", server_names)
+            lines += render_table("Build-time dependencies (required to compile the project)", build_names)
+
+            # ---------- Outputs ----------
+            os.makedirs("dist", exist_ok=True)
+            with open("dist/dependencies_report.md","w") as f:
+                f.write("\n".join(lines))
+
+            # Keep simple “recommended versions” list (all deps), still useful for quick copy/paste
+            with open("dist/dependencies_versions.md","w") as f:
+                f.write("# Recommended versions\n\n" + "\n".join(
+                    f"- `{n}` = `{m['version']}`" for n,m in cur_deps.items()
+                ))
+
+            with open("dist/dependencies_report.json","w") as f:
+                json.dump({
+                    "current_tag": CUR,
+                    "previous_tag": PRE or None,
+                    "convertigo_core": {"current": cur_core, "previous": prev_core},
+                    "groups": {
+                        "server": server_names,
+                        "build": build_names
+                    },
+                    "dependencies": cur_deps,
+                    "diff": {"added": added, "removed": removed, "changed": changed, "same": same}
+                }, f, indent=2)
+            PY
+            python3 .github/scripts/gen_deps_report.py || true
+
+            # Guarantee artifacts exist even if parsing fails
+            [[ -f dist/dependencies_report.md ]] || echo -e "# Dependencies report\n\n(Empty fallback)\n" > dist/dependencies_report.md
+            [[ -f dist/dependencies_versions.md ]] || echo -e "# Recommended versions\n\n(Empty fallback)\n" > dist/dependencies_versions.md
+            [[ -f dist/dependencies_report.json ]] || echo '{}' > dist/dependencies_report.json
+
+        - name: Upload dependency report artifacts
+          uses: actions/upload-artifact@v4
+          with:
+            name: dependencies_report
+            path: |
+              dist/dependencies_report.md
+              dist/dependencies_versions.md
+              dist/dependencies_report.json
+
+        - name: Append report to Job Summary
+          if: ${{ hashFiles('dist/dependencies_report.md') != '' }}
+          run: |
+            echo "## Dependencies report" >> "$GITHUB_STEP_SUMMARY"
+            cat dist/dependencies_report.md >> "$GITHUB_STEP_SUMMARY"
+            
   release:
-    needs: build_and_deploy
+    needs: [build_and_deploy, deps_report]
     runs-on: ubuntu-latest
     steps:
       - name: Download CAR File
@@ -116,7 +409,13 @@ jobs:
         with:
           name: c8oforms_standalone.tar.gz
 
-      - name: Deploy to GitHub Release
+      - name: Download dependency report
+        uses: actions/download-artifact@v4
+        with:
+          name: dependencies_report
+          path: dist
+
+      - name: Deploy to GitHub Release (with dependencies report)
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -126,9 +425,10 @@ jobs:
           draft: ${{ contains( github.ref, 'beta' ) != true }}
           prerelease: ${{ contains( github.ref, 'beta' )}}
           generate_release_notes: true
+          body_path: dist/dependencies_report.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+
   close_and_set_issues_to_be_tested:
     needs: build_and_deploy
     runs-on: ubuntu-latest

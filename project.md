@@ -119,7 +119,7 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/8.4.0#readme
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/4165b67b6746dac890221fcc54c362fbcbb375d9#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
