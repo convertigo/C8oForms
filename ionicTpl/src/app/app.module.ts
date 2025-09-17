@@ -51,7 +51,7 @@ export function createTranslateLoader(http: HttpClient) {
       enabled: /*=c8o_ServiceWorkerEnabled*/,
       // Register the ServiceWorker as soon as the app is stable
       // or after 30 seconds (whichever comes first).
-      registrationStrategy: 'registerWhenStable:30000'
+      registrationStrategy: 'registerImmediately'
     }),
 	IonicModule.forRoot(), 
 	AppRoutingModule,
