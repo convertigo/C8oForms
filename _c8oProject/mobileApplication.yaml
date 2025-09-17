@@ -8,9 +8,14 @@ componentScriptContent:
         import { APP_BASE_HREF } from ''@angular/common'';
         import { VersionEvent } from ''@angular/service-worker'';
         import { environment } from ''src/environments/environment'';
+        import { ApplicationRef } from ''@angular/core'';
+        import { interval, fromEvent } from ''rxjs'';
+        import { first } from ''rxjs/operators'';
         /*End_c8o_AppImport*/
         /*Begin_c8o_AppDeclaration*/
-            
+        	// --- helpers persistance du flag "pending update" ---
+        	public PENDING_KEY = ''pwa.pendingUpdateVersion'';
+        	public PENDING_AT  = ''pwa.pendingAt'';
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
                 // get preference log level from local storage
@@ -266,82 +271,212 @@ componentScriptContent:
         			this.global.app = {state: 1, currentVersion: v, latestVersion: null};
         		}
         	}
-        	/** monitor PWA updates */
-        	public async monitorPwaUpdates(){
-        		let updates: SwUpdate = this.getInstance(SwUpdate);
-        		this.global.app = {state : 0, currentVersion:null, latestVersion: null};
-        		let _res;
-        		let _appPromise = new Promise((res)=>{
-        			_res = res;
-        		})
-        		this.global._appPromise = ()=>{
-        			return _appPromise;
-        		}
-        		// if running in production
-        		if(updates.isEnabled){
-        			// regsister to updates
-        			updates.versionUpdates.subscribe(async (event: VersionEvent)=>{
-        				switch(event.type){
-        					// Has checked the version of the app on the server and did not find a new version.
-        					case "NO_NEW_VERSION_DETECTED":
-        						this.global.app.currentVersion = event.version.appData["version"];
-        						this.global.app.state = 1;
-        						this.c8o.log.debug(`NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
-        						this.ref.detectChanges();
-        						_res()
-        					break;
-        					// A new version is detected on the server.
-        					case "VERSION_DETECTED":
-        						this.global.app.currentVersion = event.version.appData["version"];
-        						this.global.app.state = 2;
-        						this.c8o.log.debug(`VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
-        						this.ref.detectChanges();
-        						_res()
-        					break;
-        					// A new version has been downloaded and is ready for activation.
-        					case "VERSION_READY":
-        						this.global.app.currentVersion = event.currentVersion.appData["version"];
-        						this.global.app.latestVersion = event.latestVersion.appData["version"];
-        						this.global.app.state = 3;
-        						this.c8o.log.debug(`VERSION_READY for PWA: ${event.currentVersion.appData["name"]}. current version is: ${event.currentVersion.appData["version"]}.\n new version is: ${event.latestVersion.appData["version"]}.`);
-        						if(event.currentVersion.appData["version"] == event.latestVersion.appData["version"]){
-        							this.c8o.log.debug(`VERSION_READY since app versions are the same, we wont toast the update, update will be done at next reload`);
-        							_res()
-        						}
-        						else{
-        							this.c8o.log.debug(`VERSION_READY since app versions differs from each other, we will toast the update, user will be promt to reload to install new update`);
-        							let toastCtrl = this.getInstance(ToastController);
-        							const toast = await toastCtrl.create({
-        						      message: this.translate.instant("toastUpdateReady", {version: event.latestVersion.appData["version"] + ""}),
-        							  duration: 300000,
-        						      icon: ''refresh-outline'',
-        						      buttons:[{text: this.translate.instant("restart_app_update"), role: ''update'', side: ''end'', handler: () => { document.location.reload(); }}],
-        						      cssClass:"toastWarn",
-        						    });
-        						    _res()
-        						    await toast.present();
-        						}
-        						this.ref.detectChanges();
-        					break;
-        					// Checking for or downloading a new version fails.
-        					case "VERSION_INSTALLATION_FAILED":
-        						this.global.app.currentVersion = event.version.appData["version"];
-        						this.global.app.state = 4;
-        						this.c8o.log.debug(`VERSION_INSTALLATION_FAILED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}.\n error is: ${event.error}`);
-        						this.ref.detectChanges();
-        						_res();
-        					break;
-        				}
-        			})
-        			
-        		}
-        		else{
-        			// dev mode
-        			let v = await this.translate.get(''version_c8o'').toPromise();
-        			this.global.app = {state: 1, currentVersion: v, latestVersion: null};
-        			_res()
-        		}
+        	// imports à ajouter en haut de ton app.component.ts :
+        	/*
+        	import { ApplicationRef } from ''@angular/core'';
+        	import { SwUpdate, VersionEvent } from ''@angular/service-worker'';
+        	import { interval, fromEvent } from ''rxjs'';
+        	import { first } from ''rxjs/operators'';
+        	*/
+        
+        	
+        
+        	public setPending(v: string | null) {
+        	  if (v) {
+        	    localStorage.setItem(this.PENDING_KEY, v);
+        	    localStorage.setItem(this.PENDING_AT, String(Date.now()));
+        	  } else {
+        	    localStorage.removeItem(this.PENDING_KEY);
+        	    localStorage.removeItem(this.PENDING_AT);
+        	  }
         	}
+        	public getPending(): { v: string | null; at: number | null } {
+        	  return {
+        	    v: localStorage.getItem(this.PENDING_KEY),
+        	    at: Number(localStorage.getItem(this.PENDING_AT) || '''') || null
+        	  };
+        	}
+        
+        	public async monitorPwaUpdates() {
+        	  const updates: SwUpdate = this.getInstance(SwUpdate);
+        	  const appRef: ApplicationRef = this.getInstance(ApplicationRef);
+        	  const toastCtrl: ToastController = this.getInstance(ToastController);
+        
+        	  this.global.app = { state: 0, currentVersion: null, latestVersion: null };
+        
+        	  let _res!: () => void;
+        	  const _appPromise = new Promise<void>((res) => (_res = res));
+        	  this.global._appPromise = () => _appPromise;
+        
+        	  // flag runtime + persistant
+        	  let pendingUpdateVersion: string | null = this.getPending().v;
+        
+        	  // petite utilité: vérifier proprement les updates
+        	  const checkNow = () => updates.checkForUpdate().catch(() => {});
+        
+        	  if (updates.isEnabled) {
+        	    // --- FAST-PATH démarrage : cas "rechargement forcé" + SW en attente ---
+        	    try {
+        	      const nav = (performance.getEntriesByType?.(''navigation'')?.[0] as PerformanceNavigationTiming | undefined);
+        	      const isReload = nav?.type === ''reload''; // inclut Ctrl+Maj+R/F5 fort
+        	      const reg = await navigator.serviceWorker?.getRegistration?.();
+        
+        	      if (reg?.waiting) {
+        	        // Si reload forcé, on active et on recharge automatiquement pour éviter l''impression de "pas à jour"
+        	        if (isReload) {
+        	          this.c8o.log.debug(''Startup: hard reload & waiting SW → activateUpdate() + reload'');
+        	          try { await updates.activateUpdate(); } catch {}
+        	          pendingUpdateVersion = null; this.setPending(null);
+        	          location.reload();
+        	          return; // la page va se recharger
+        	        } else {
+        	          // Sinon, on restaure l''état READY (3) et on repropose le toast
+        	          this.global.app.state = 3;
+        	          this.global.app.latestVersion = pendingUpdateVersion;
+        	          this.c8o.log.debug(`Resume: found waiting ServiceWorker, pending=${pendingUpdateVersion || ''unknown''}`);
+        	          this.ref.detectChanges();
+        
+        	          const toast = await toastCtrl.create({
+        	            message: this.translate.instant(''toastUpdateReady'', { version: String(pendingUpdateVersion ?? '''') }),
+        	            duration: 300000,
+        	            icon: ''refresh-outline'',
+        	            buttons: [{
+        	              text: this.translate.instant(''restart_app_update''),
+        	              role: ''update'',
+        	              side: ''end'',
+        	              handler: async () => {
+        	                try { await updates.activateUpdate(); } catch {}
+        	                pendingUpdateVersion = null; this.setPending(null);
+        	                document.location.reload();
+        	              }
+        	            }],
+        	            cssClass: ''toastWarn'',
+        	          });
+        	          await toast.present();
+        	        }
+        	      } else if (pendingUpdateVersion) {
+        	        // pas de waiting mais flag stocké → probablement déjà à jour
+        	        this.c8o.log.debug(`Resume: no waiting SW but pending=${pendingUpdateVersion} → clearing pending`);
+        	        pendingUpdateVersion = null; this.setPending(null);
+        	      }
+        	    } catch {}
+        
+        	    // --- Vérifs aux bons moments ---
+        	    appRef.isStable.pipe(first(Boolean)).subscribe(() => {
+        	      checkNow();                                // au démarrage (après stabilité app)
+        	      interval(15 * 60_000).subscribe(checkNow); // toutes les 15 min
+        	    });
+        	    fromEvent(document, ''visibilitychange'').subscribe(() => {
+        	      if (document.visibilityState === ''visible'') checkNow();
+        	    });
+        	    fromEvent(window, ''online'').subscribe(checkNow);
+        
+        	    // --- Abonnement aux évènements SW (on garde ton state + logs) ---
+        	    updates.versionUpdates.subscribe(async (event: VersionEvent) => {
+        	      switch (event.type) {
+        	        case ''NO_NEW_VERSION_DETECTED'':
+        	          // ne pas écraser READY si une update est en attente
+        	          if (pendingUpdateVersion) {
+        	            this.c8o.log.debug(`IGNORE NO_NEW_VERSION_DETECTED (pending=${pendingUpdateVersion})`);
+        	            return;
+        	          }
+        	          this.global.app.currentVersion = event.version.appData[''version''];
+        	          this.global.app.state = 1;
+        	          this.c8o.log.debug(
+        	            `NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData[''name'']}. current=${event.version.appData[''version'']}`
+        	          );
+        	          this.ref.detectChanges();
+        	          _res();
+        	          break;
+        
+        	        case ''VERSION_DETECTED'':
+        	          this.global.app.currentVersion = event.version.appData[''version''];
+        	          this.global.app.state = 2;
+        	          this.c8o.log.debug(
+        	            `VERSION_DETECTED for PWA: ${event.version.appData[''name'']}. current=${event.version.appData[''version'']}`
+        	          );
+        	          this.ref.detectChanges();
+        	          _res();
+        	          break;
+        
+        	        case ''VERSION_READY'': {
+        	          const currentV = (event as any).currentVersion?.appData?.[''version''];
+        	          const latestV  = (event as any).latestVersion?.appData?.[''version''];
+        	          this.global.app.currentVersion = currentV;
+        	          this.global.app.latestVersion  = latestV;
+        	          this.global.app.state = 3;
+        
+        	          pendingUpdateVersion = latestV ?? ''unknown'';
+        	          this.setPending(pendingUpdateVersion);
+        
+        	          this.c8o.log.debug(
+        	            `VERSION_READY for ${(event as any).currentVersion?.appData?.[''name'']} current=${currentV} new=${latestV}`
+        	          );
+        
+        	          if (currentV === latestV) {
+        	            this.c8o.log.debug(''VERSION_READY but same version → will update at next reload'');
+        	            _res();
+        	          } else {
+        	            const toast = await toastCtrl.create({
+        	              message: this.translate.instant(''toastUpdateReady'', { version: String(latestV ?? '''') }),
+        	              duration: 300000,
+        	              icon: ''refresh-outline'',
+        	              buttons: [{
+        	                text: this.translate.instant(''restart_app_update''),
+        	                role: ''update'',
+        	                side: ''end'',
+        	                handler: async () => {
+        	                  try { await updates.activateUpdate(); } catch {}
+        	                  pendingUpdateVersion = null; this.setPending(null);
+        	                  document.location.reload();
+        	                }
+        	              }],
+        	              cssClass: ''toastWarn'',
+        	            });
+        	            _res();
+        	            await toast.present();
+        	          }
+        	          this.ref.detectChanges();
+        	          break;
+        	        }
+        
+        	        case ''VERSION_INSTALLATION_FAILED'':
+        	          this.global.app.currentVersion = event.version.appData[''version''];
+        	          this.global.app.state = 4;
+        	          pendingUpdateVersion = null; this.setPending(null);
+        	          this.c8o.log.debug(
+        	            `VERSION_INSTALLATION_FAILED for ${event.version.appData[''name'']} current=${event.version.appData[''version'']} error=${(event as any).error}`
+        	          );
+        	          this.ref.detectChanges();
+        	          _res();
+        	          break;
+        	      }
+        	    });
+        
+        	    // --- Cas irrécouvrable → reload propre ---
+        	    updates.unrecoverable.subscribe((e) => {
+        	      this.c8o.log.debug(`SW unrecoverable: ${e.reason || ''''}`);
+        	      document.location.reload();
+        	    });
+        
+        	    // --- Si un nouveau contrôleur SW prend la main, on nettoie (et on peut recharger) ---
+        	    if (navigator?.serviceWorker) {
+        	      navigator.serviceWorker.addEventListener(''controllerchange'', () => {
+        	        this.c8o.log.debug(''controllerchange → new SW active'');
+        	        pendingUpdateVersion = null; this.setPending(null);
+        	        // Recharge immédiat pour basculer sur la nouvelle version (dé-commente si tu veux auto)
+        	        // document.location.reload();
+        	      });
+        	    }
+        	  } else {
+        	    // dev mode
+        	    const v = await this.translate.get(''version_c8o'').toPromise();
+        	    this.global.app = { state: 1, currentVersion: v, latestVersion: null };
+        	    _res();
+        	  }
+        	}
+        
+        
         	
         	public purgeWrongKeys(data) {
         		for(let key in data){
@@ -581,6 +716,24 @@ componentScriptContent:
         			try{
         				let userSettings: any = await page.c8o.callJsonObject("C8Oforms.getCurrentUserSettings",{[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)}).async();
         				page.global.settings = userSettings.res;
+        				if(page.global.settings?.admin !== true){
+        					//check that a flag with filter admin is not still there
+        					let data;
+        					let local_str_data = window.localStorage.getItem("c8oforms_edition_filters");
+        					try {
+        						data = JSON.parse(local_str_data);
+        					}
+        					catch (e) {
+        
+        					}
+        					if (data == null) {
+        						data = {};
+        					}
+        					if(data.show_all_apps === true){
+        						data.show_all_apps = false;
+        						window.localStorage.setItem("c8oforms_edition_filters", JSON.stringify(data));
+        					}
+        				}
         //				console.log(page.global.settings);
         				if(userSettings?.res?.language != null){
         					window["__c8o__translate"]["use"](userSettings?.res?.language);
@@ -2568,6 +2721,10 @@ useClickForTap: true
           	font-size: 0.75rem !important;
           	--max-width: 80px !important;
           	
+          }
+          
+          .ng-dropdown-panel .ng-dropdown-panel-items {
+          	min-height: 240px !important;
           }
           '
 ↓AppEvent [ngx.components.UIAppEvent-1587480742427]: 
