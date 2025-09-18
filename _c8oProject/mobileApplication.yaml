@@ -8,9 +8,14 @@ componentScriptContent:
         import { APP_BASE_HREF } from ''@angular/common'';
         import { VersionEvent } from ''@angular/service-worker'';
         import { environment } from ''src/environments/environment'';
+        import { ApplicationRef } from ''@angular/core'';
+        import { interval, fromEvent } from ''rxjs'';
+        import { first } from ''rxjs/operators'';
         /*End_c8o_AppImport*/
         /*Begin_c8o_AppDeclaration*/
-            
+        	// --- helpers persistance du flag "pending update" ---
+        	public PENDING_KEY = ''pwa.pendingUpdateVersion'';
+        	public PENDING_AT  = ''pwa.pendingAt'';
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
                 // get preference log level from local storage
@@ -266,82 +271,212 @@ componentScriptContent:
         			this.global.app = {state: 1, currentVersion: v, latestVersion: null};
         		}
         	}
-        	/** monitor PWA updates */
-        	public async monitorPwaUpdates(){
-        		let updates: SwUpdate = this.getInstance(SwUpdate);
-        		this.global.app = {state : 0, currentVersion:null, latestVersion: null};
-        		let _res;
-        		let _appPromise = new Promise((res)=>{
-        			_res = res;
-        		})
-        		this.global._appPromise = ()=>{
-        			return _appPromise;
-        		}
-        		// if running in production
-        		if(updates.isEnabled){
-        			// regsister to updates
-        			updates.versionUpdates.subscribe(async (event: VersionEvent)=>{
-        				switch(event.type){
-        					// Has checked the version of the app on the server and did not find a new version.
-        					case "NO_NEW_VERSION_DETECTED":
-        						this.global.app.currentVersion = event.version.appData["version"];
-        						this.global.app.state = 1;
-        						this.c8o.log.debug(`NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
-        						this.ref.detectChanges();
-        						_res()
-        					break;
-        					// A new version is detected on the server.
-        					case "VERSION_DETECTED":
-        						this.global.app.currentVersion = event.version.appData["version"];
-        						this.global.app.state = 2;
-        						this.c8o.log.debug(`VERSION_DETECTED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}`);
-        						this.ref.detectChanges();
-        						_res()
-        					break;
-        					// A new version has been downloaded and is ready for activation.
-        					case "VERSION_READY":
-        						this.global.app.currentVersion = event.currentVersion.appData["version"];
-        						this.global.app.latestVersion = event.latestVersion.appData["version"];
-        						this.global.app.state = 3;
-        						this.c8o.log.debug(`VERSION_READY for PWA: ${event.currentVersion.appData["name"]}. current version is: ${event.currentVersion.appData["version"]}.\n new version is: ${event.latestVersion.appData["version"]}.`);
-        						if(event.currentVersion.appData["version"] == event.latestVersion.appData["version"]){
-        							this.c8o.log.debug(`VERSION_READY since app versions are the same, we wont toast the update, update will be done at next reload`);
-        							_res()
-        						}
-        						else{
-        							this.c8o.log.debug(`VERSION_READY since app versions differs from each other, we will toast the update, user will be promt to reload to install new update`);
-        							let toastCtrl = this.getInstance(ToastController);
-        							const toast = await toastCtrl.create({
-        						      message: this.translate.instant("toastUpdateReady", {version: event.latestVersion.appData["version"] + ""}),
-        							  duration: 300000,
-        						      icon: ''refresh-outline'',
-        						      buttons:[{text: this.translate.instant("restart_app_update"), role: ''update'', side: ''end'', handler: () => { document.location.reload(); }}],
-        						      cssClass:"toastWarn",
-        						    });
-        						    _res()
-        						    await toast.present();
-        						}
-        						this.ref.detectChanges();
-        					break;
-        					// Checking for or downloading a new version fails.
-        					case "VERSION_INSTALLATION_FAILED":
-        						this.global.app.currentVersion = event.version.appData["version"];
-        						this.global.app.state = 4;
-        						this.c8o.log.debug(`VERSION_INSTALLATION_FAILED for PWA: ${event.version.appData["name"]}. current version is: ${event.version.appData["version"]}.\n error is: ${event.error}`);
-        						this.ref.detectChanges();
-        						_res();
-        					break;
-        				}
-        			})
-        			
-        		}
-        		else{
-        			// dev mode
-        			let v = await this.translate.get(''version_c8o'').toPromise();
-        			this.global.app = {state: 1, currentVersion: v, latestVersion: null};
-        			_res()
-        		}
+        	// imports à ajouter en haut de ton app.component.ts :
+        	/*
+        	import { ApplicationRef } from ''@angular/core'';
+        	import { SwUpdate, VersionEvent } from ''@angular/service-worker'';
+        	import { interval, fromEvent } from ''rxjs'';
+        	import { first } from ''rxjs/operators'';
+        	*/
+        
+        	
+        
+        	public setPending(v: string | null) {
+        	  if (v) {
+        	    localStorage.setItem(this.PENDING_KEY, v);
+        	    localStorage.setItem(this.PENDING_AT, String(Date.now()));
+        	  } else {
+        	    localStorage.removeItem(this.PENDING_KEY);
+        	    localStorage.removeItem(this.PENDING_AT);
+        	  }
         	}
+        	public getPending(): { v: string | null; at: number | null } {
+        	  return {
+        	    v: localStorage.getItem(this.PENDING_KEY),
+        	    at: Number(localStorage.getItem(this.PENDING_AT) || '''') || null
+        	  };
+        	}
+        
+        	public async monitorPwaUpdates() {
+        	  const updates: SwUpdate = this.getInstance(SwUpdate);
+        	  const appRef: ApplicationRef = this.getInstance(ApplicationRef);
+        	  const toastCtrl: ToastController = this.getInstance(ToastController);
+        
+        	  this.global.app = { state: 0, currentVersion: null, latestVersion: null };
+        
+        	  let _res!: () => void;
+        	  const _appPromise = new Promise<void>((res) => (_res = res));
+        	  this.global._appPromise = () => _appPromise;
+        
+        	  // flag runtime + persistant
+        	  let pendingUpdateVersion: string | null = this.getPending().v;
+        
+        	  // petite utilité: vérifier proprement les updates
+        	  const checkNow = () => updates.checkForUpdate().catch(() => {});
+        
+        	  if (updates.isEnabled) {
+        	    // --- FAST-PATH démarrage : cas "rechargement forcé" + SW en attente ---
+        	    try {
+        	      const nav = (performance.getEntriesByType?.(''navigation'')?.[0] as PerformanceNavigationTiming | undefined);
+        	      const isReload = nav?.type === ''reload''; // inclut Ctrl+Maj+R/F5 fort
+        	      const reg = await navigator.serviceWorker?.getRegistration?.();
+        
+        	      if (reg?.waiting) {
+        	        // Si reload forcé, on active et on recharge automatiquement pour éviter l''impression de "pas à jour"
+        	        if (isReload) {
+        	          this.c8o.log.debug(''Startup: hard reload & waiting SW → activateUpdate() + reload'');
+        	          try { await updates.activateUpdate(); } catch {}
+        	          pendingUpdateVersion = null; this.setPending(null);
+        	          location.reload();
+        	          return; // la page va se recharger
+        	        } else {
+        	          // Sinon, on restaure l''état READY (3) et on repropose le toast
+        	          this.global.app.state = 3;
+        	          this.global.app.latestVersion = pendingUpdateVersion;
+        	          this.c8o.log.debug(`Resume: found waiting ServiceWorker, pending=${pendingUpdateVersion || ''unknown''}`);
+        	          this.ref.detectChanges();
+        
+        	          const toast = await toastCtrl.create({
+        	            message: this.translate.instant(''toastUpdateReady'', { version: String(pendingUpdateVersion ?? '''') }),
+        	            duration: 300000,
+        	            icon: ''refresh-outline'',
+        	            buttons: [{
+        	              text: this.translate.instant(''restart_app_update''),
+        	              role: ''update'',
+        	              side: ''end'',
+        	              handler: async () => {
+        	                try { await updates.activateUpdate(); } catch {}
+        	                pendingUpdateVersion = null; this.setPending(null);
+        	                document.location.reload();
+        	              }
+        	            }],
+        	            cssClass: ''toastWarn'',
+        	          });
+        	          await toast.present();
+        	        }
+        	      } else if (pendingUpdateVersion) {
+        	        // pas de waiting mais flag stocké → probablement déjà à jour
+        	        this.c8o.log.debug(`Resume: no waiting SW but pending=${pendingUpdateVersion} → clearing pending`);
+        	        pendingUpdateVersion = null; this.setPending(null);
+        	      }
+        	    } catch {}
+        
+        	    // --- Vérifs aux bons moments ---
+        	    appRef.isStable.pipe(first(Boolean)).subscribe(() => {
+        	      checkNow();                                // au démarrage (après stabilité app)
+        	      interval(15 * 60_000).subscribe(checkNow); // toutes les 15 min
+        	    });
+        	    fromEvent(document, ''visibilitychange'').subscribe(() => {
+        	      if (document.visibilityState === ''visible'') checkNow();
+        	    });
+        	    fromEvent(window, ''online'').subscribe(checkNow);
+        
+        	    // --- Abonnement aux évènements SW (on garde ton state + logs) ---
+        	    updates.versionUpdates.subscribe(async (event: VersionEvent) => {
+        	      switch (event.type) {
+        	        case ''NO_NEW_VERSION_DETECTED'':
+        	          // ne pas écraser READY si une update est en attente
+        	          if (pendingUpdateVersion) {
+        	            this.c8o.log.debug(`IGNORE NO_NEW_VERSION_DETECTED (pending=${pendingUpdateVersion})`);
+        	            return;
+        	          }
+        	          this.global.app.currentVersion = event.version.appData[''version''];
+        	          this.global.app.state = 1;
+        	          this.c8o.log.debug(
+        	            `NO_NEW_VERSION_DETECTED for PWA: ${event.version.appData[''name'']}. current=${event.version.appData[''version'']}`
+        	          );
+        	          this.ref.detectChanges();
+        	          _res();
+        	          break;
+        
+        	        case ''VERSION_DETECTED'':
+        	          this.global.app.currentVersion = event.version.appData[''version''];
+        	          this.global.app.state = 2;
+        	          this.c8o.log.debug(
+        	            `VERSION_DETECTED for PWA: ${event.version.appData[''name'']}. current=${event.version.appData[''version'']}`
+        	          );
+        	          this.ref.detectChanges();
+        	          _res();
+        	          break;
+        
+        	        case ''VERSION_READY'': {
+        	          const currentV = (event as any).currentVersion?.appData?.[''version''];
+        	          const latestV  = (event as any).latestVersion?.appData?.[''version''];
+        	          this.global.app.currentVersion = currentV;
+        	          this.global.app.latestVersion  = latestV;
+        	          this.global.app.state = 3;
+        
+        	          pendingUpdateVersion = latestV ?? ''unknown'';
+        	          this.setPending(pendingUpdateVersion);
+        
+        	          this.c8o.log.debug(
+        	            `VERSION_READY for ${(event as any).currentVersion?.appData?.[''name'']} current=${currentV} new=${latestV}`
+        	          );
+        
+        	          if (currentV === latestV) {
+        	            this.c8o.log.debug(''VERSION_READY but same version → will update at next reload'');
+        	            _res();
+        	          } else {
+        	            const toast = await toastCtrl.create({
+        	              message: this.translate.instant(''toastUpdateReady'', { version: String(latestV ?? '''') }),
+        	              duration: 300000,
+        	              icon: ''refresh-outline'',
+        	              buttons: [{
+        	                text: this.translate.instant(''restart_app_update''),
+        	                role: ''update'',
+        	                side: ''end'',
+        	                handler: async () => {
+        	                  try { await updates.activateUpdate(); } catch {}
+        	                  pendingUpdateVersion = null; this.setPending(null);
+        	                  document.location.reload();
+        	                }
+        	              }],
+        	              cssClass: ''toastWarn'',
+        	            });
+        	            _res();
+        	            await toast.present();
+        	          }
+        	          this.ref.detectChanges();
+        	          break;
+        	        }
+        
+        	        case ''VERSION_INSTALLATION_FAILED'':
+        	          this.global.app.currentVersion = event.version.appData[''version''];
+        	          this.global.app.state = 4;
+        	          pendingUpdateVersion = null; this.setPending(null);
+        	          this.c8o.log.debug(
+        	            `VERSION_INSTALLATION_FAILED for ${event.version.appData[''name'']} current=${event.version.appData[''version'']} error=${(event as any).error}`
+        	          );
+        	          this.ref.detectChanges();
+        	          _res();
+        	          break;
+        	      }
+        	    });
+        
+        	    // --- Cas irrécouvrable → reload propre ---
+        	    updates.unrecoverable.subscribe((e) => {
+        	      this.c8o.log.debug(`SW unrecoverable: ${e.reason || ''''}`);
+        	      document.location.reload();
+        	    });
+        
+        	    // --- Si un nouveau contrôleur SW prend la main, on nettoie (et on peut recharger) ---
+        	    if (navigator?.serviceWorker) {
+        	      navigator.serviceWorker.addEventListener(''controllerchange'', () => {
+        	        this.c8o.log.debug(''controllerchange → new SW active'');
+        	        pendingUpdateVersion = null; this.setPending(null);
+        	        // Recharge immédiat pour basculer sur la nouvelle version (dé-commente si tu veux auto)
+        	        // document.location.reload();
+        	      });
+        	    }
+        	  } else {
+        	    // dev mode
+        	    const v = await this.translate.get(''version_c8o'').toPromise();
+        	    this.global.app = { state: 1, currentVersion: v, latestVersion: null };
+        	    _res();
+        	  }
+        	}
+        
+        
         	
         	public purgeWrongKeys(data) {
         		for(let key in data){
@@ -581,6 +716,24 @@ componentScriptContent:
         			try{
         				let userSettings: any = await page.c8o.callJsonObject("C8Oforms.getCurrentUserSettings",{[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.SERVER, 3.154e+10)}).async();
         				page.global.settings = userSettings.res;
+        				if(page.global.settings?.admin !== true){
+        					//check that a flag with filter admin is not still there
+        					let data;
+        					let local_str_data = window.localStorage.getItem("c8oforms_edition_filters");
+        					try {
+        						data = JSON.parse(local_str_data);
+        					}
+        					catch (e) {
+        
+        					}
+        					if (data == null) {
+        						data = {};
+        					}
+        					if(data.show_all_apps === true){
+        						data.show_all_apps = false;
+        						window.localStorage.setItem("c8oforms_edition_filters", JSON.stringify(data));
+        					}
+        				}
         //				console.log(page.global.settings);
         				if(userSettings?.res?.language != null){
         					window["__c8o__translate"]["use"](userSettings?.res?.language);
@@ -1416,6 +1569,11 @@ useClickForTap: true
 ↓itemRadioViewver_Tag_Div_RadioList_Directive2_Directive2 [ngx.components.UISharedRegularComponent-1750334806326]: 🗏 mobileSharedComponents/itemRadioViewver_Tag_Div_RadioList_Directive2_Directive2.yaml
 ↓PopoverFilters [ngx.components.UISharedRegularComponent-1750690255544]: 🗏 mobileSharedComponents/PopoverFilters.yaml
 ↓PopoverSort [ngx.components.UISharedRegularComponent-1750753080175]: 🗏 mobileSharedComponents/PopoverSort.yaml
+↓LoginComponent [ngx.components.UISharedRegularComponent-1757346418643]: 🗏 mobileSharedComponents/LoginComponent.yaml
+↓ResetPasswordModalComponent [ngx.components.UISharedRegularComponent-1757346419042]: 🗏 mobileSharedComponents/ResetPasswordModalComponent.yaml
+↓ToolbarComponentUi [ngx.components.UISharedRegularComponent-1757346419201]: 🗏 mobileSharedComponents/ToolbarComponentUi.yaml
+↓MenuComponentUi [ngx.components.UISharedRegularComponent-1757346419426]: 🗏 mobileSharedComponents/MenuComponentUi.yaml
+↓stripeBackground [ngx.components.UISharedRegularComponent-1758025493352]: 🗏 mobileSharedComponents/stripeBackground.yaml
 ↓editorPage [ngx.components.PageComponent-1531323370377]: 🗏 mobilePages/editorPage.yaml
 ↓loginPage [ngx.components.PageComponent-1645091279476]: 🗏 mobilePages/loginPage.yaml
 ↓viewerPage [ngx.components.PageComponent-1537364775769]: 🗏 mobilePages/viewerPage.yaml
@@ -1459,185 +1617,352 @@ useClickForTap: true
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '// Ionic Variables and Theming. For more info, please see:
-          // http://ionicframework.com/docs/theming/
-          /** Ionic CSS Variables **/
+          '/* =========================================
+           * Global Theme (Ionic + Design Tokens)
+           * ========================================= */
+          
+          /* Fonts */
           @import "~@fontsource/open-sans/index.css";
           @import "~@fontsource/roboto/index.css";
+          
+          /* -------------------------
+           * SCSS variables (internes)
+           * ------------------------- */
+           $font-family-base: var(
+             "Inter", "Open Sans", "Roboto",
+             ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif,
+             "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"
+           );
+          
+          $widthRadioGroup: 185px;
+          $widthRadioGroupLine: 189px;
+          
+          /* -----------------------------------------
+           * Exposition des variables CSS (public)
+           * ----------------------------------------- */
           :root {
-          	/** Forms customs variables **/
-          	$widthRadioGroup: 185px;
-          	$widthRadioGroupLine: 189px;
-          	$font-family-base: "Inter";
-          	
-          	// define vars for displays
-          	--widthRadioGroup: $widthRadioGroup;
-          	--widthRadioGroupLine: $widthRadioGroupLine;
-          	
-          	--base-font-size-viewer: 16px;
-          	--config-max-width-viewer: 1200px;
-          	--config-margin-viewer: 0 auto;
-          	--policy-color: black;
-          	
-          	/** define global font family*/
-              --ion-font-family: $font-family-base;
-          	
-          	/** Custom Convertigo Forms color: primary (root declaration) **/
-             	--ion-color-primary: #326DF7;
-          	--ion-color-primary-rgb: 50,109,247;
-          	--ion-color-primary-contrast: #ffffff;
-          	--ion-color-primary-contrast-rgb: 255,255,255;
-          	--ion-color-primary-shade: #2c60d9;
-          	--ion-color-primary-tint: #477cf8;
-          	/** Custom Convertigo Forms color: primaryB (root declaration) **/
-          	--ion-color-primaryB: #488aff;
-          	--ion-color-primaryB-rgb: 72,138,255;
-          	--ion-color-primaryB-contrast: #000000;
-          	--ion-color-primaryB-contrast-rgb: 0,0,0;
-          	--ion-color-primaryB-shade: #3f79e0;
-          	--ion-color-primaryB-tint: #5a96ff;
-          	/** Custom Convertigo Forms color: secondary (root declaration) **/
-          	--ion-color-secondary: #32db64;
-          	--ion-color-secondary-rgb: 50,219,100;
-          	--ion-color-secondary-contrast: #000000;
-          	--ion-color-secondary-contrast-rgb: 0,0,0;
-          	--ion-color-secondary-shade: #2cc158;
-          	--ion-color-secondary-tint: #47df74;
-          	/** Custom Convertigo Forms color: danger (root declaration) **/
-          	--ion-color-danger: #f53d3d;
-          	--ion-color-danger-rgb: 245,61,61;
-          	--ion-color-danger-contrast: #ffffff;
-          	--ion-color-danger-contrast-rgb: 255,255,255;
-          	--ion-color-danger-shade: #d83636;
-          	--ion-color-danger-tint: #f65050;
-          	/** Custom Convertigo Forms color: otherDanger (root declaration) **/
-          	--ion-color-otherDanger: #950000;
-          	--ion-color-otherDanger-rgb: 149,0,0;
-          	--ion-color-otherDanger-contrast: #ffffff;
-          	--ion-color-otherDanger-contrast-rgb: 255,255,255;
-          	--ion-color-otherDanger-shade: #830000;
-          	--ion-color-otherDanger-tint: #a01a1a;
-          	/** Custom Convertigo Forms color: light (root declaration) **/
-          	--ion-color-light: #f4f4f4;
-          	--ion-color-light-rgb: 244,244,244;
-          	--ion-color-light-contrast: #000000;
-          	--ion-color-light-contrast-rgb: 0,0,0;
-          	--ion-color-light-shade: #d7d7d7;
-          	--ion-color-light-tint: #f5f5f5;
-          	/** Custom Convertigo Forms color: dark (root declaration) **/
-          	--ion-color-dark: #222;
-          	--ion-color-dark-rgb: 34,34,34;
-          	--ion-color-dark-contrast: #ffffff;
-          	--ion-color-dark-contrast-rgb: 255,255,255;
-          	--ion-color-dark-shade: #1e1e1e;
-          	--ion-color-dark-tint: #383838;
-          	/** Custom Convertigo Forms color: dark (root declaration) **/
-          	--ion-color-white: #ffffff;
-          	--ion-color-white-rgb: 255,255,255;
-          	--ion-color-white-contrast: #000000;
-          	--ion-color-white-contrast-rgb: 0,0,0;
-          	--ion-color-white-shade: #e0e0e0;
-          	--ion-color-white-tint: #ffffff;
-          	/** Custom Convertigo Forms color: convertigo (root declaration) **/
-          	--ion-color-convertigo: #3880ff;
-          	--ion-color-convertigo-rgb: 56,128,255;
-          	--ion-color-convertigo-contrast: #fff;
+            /* ===== Tes variables “Forms customs” ===== */
+            --widthRadioGroup: #{$widthRadioGroup};
+            --widthRadioGroupLine: #{$widthRadioGroupLine};
+          
+            --base-font-size-viewer: 16px;
+            --config-max-width-viewer: 1200px;
+            --config-margin-viewer: 0 auto;
+            --policy-color: black;
+          
+            /** define global font family*/
+            --ion-font-family: #{$font-family-base};
+          
+            /* ===== Design tokens additionnels (compat Angular/Ionic) ===== */
+            --font-size: 14px;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+          
+            /* Palette “UI” neutre (peut cohabiter avec ta palette Convertigo) */
+            --background: #ffffff;
+            --foreground: oklch(0.145 0 0);
+            --card: #ffffff;
+            --card-foreground: oklch(0.145 0 0);
+            --popover: oklch(1 0 0);
+            --popover-foreground: oklch(0.145 0 0);
+            --primary: #030213;
+            --primary-foreground: oklch(1 0 0);
+            --secondary: oklch(0.95 0.0058 264.53);
+            --secondary-foreground: #030213;
+            --muted: #ececf0;
+            --muted-foreground: #717182;
+            --accent: #e9ebef;
+            --accent-foreground: #030213;
+            --destructive: #d4183d;
+            --destructive-foreground: #ffffff;
+            --border: rgba(0, 0, 0, 0.1);
+            --input: transparent;
+            --input-background: #f3f3f5;
+            --switch-background: #cbced4;
+            --font-weight-medium: 500;
+            --font-weight-normal: 400;
+            --ring: oklch(0.708 0 0);
+            --chart-1: oklch(0.646 0.222 41.116);
+            --chart-2: oklch(0.6 0.118 184.704);
+            --chart-3: oklch(0.398 0.07 227.392);
+            --chart-4: oklch(0.828 0.189 84.429);
+            --chart-5: oklch(0.769 0.188 70.08);
+            --radius: 0.75rem;
+            --sidebar: oklch(0.985 0 0);
+            --sidebar-foreground: oklch(0.145 0 0);
+            --sidebar-primary: #030213;
+            --sidebar-primary-foreground: oklch(0.985 0 0);
+            --sidebar-accent: oklch(0.97 0 0);
+            --sidebar-accent-foreground: oklch(0.205 0 0);
+            --sidebar-border: oklch(0.922 0 0);
+            --sidebar-ring: oklch(0.708 0 0);
+          
+            /* Dérivées “color-*” (remplacent l’ancien @theme inline) */
+            --color-background: var(--background);
+            --color-foreground: var(--foreground);
+            --color-card: var(--card);
+            --color-card-foreground: var(--card-foreground);
+            --color-popover: var(--popover);
+            --color-popover-foreground: var(--popover-foreground);
+            --color-primary: var(--primary);
+            --color-primary-foreground: var(--primary-foreground);
+            --color-secondary: var(--secondary);
+            --color-secondary-foreground: var(--secondary-foreground);
+            --color-muted: var(--muted);
+            --color-muted-foreground: var(--muted-foreground);
+            --color-accent: var(--accent);
+            --color-accent-foreground: var(--accent-foreground);
+            --color-destructive: var(--destructive);
+            --color-destructive-foreground: var(--destructive-foreground);
+            --color-border: var(--border);
+            --color-input: var(--input);
+            --color-input-background: var(--input-background);
+            --color-switch-background: var(--switch-background);
+            --color-ring: var(--ring);
+            --color-chart-1: var(--chart-1);
+            --color-chart-2: var(--chart-2);
+            --color-chart-3: var(--chart-3);
+            --color-chart-4: var(--chart-4);
+            --color-chart-5: var(--chart-5);
+            --radius-sm: calc(var(--radius) - 4px);
+            --radius-md: calc(var(--radius) - 2px);
+            --radius-lg: var(--radius);
+            --radius-xl: calc(var(--radius) + 4px);
+            --color-sidebar: var(--sidebar);
+            --color-sidebar-foreground: var(--sidebar-foreground);
+            --color-sidebar-primary: var(--sidebar-primary);
+            --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+            --color-sidebar-accent: var(--sidebar-accent);
+            --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+            --color-sidebar-border: var(--sidebar-border);
+            --color-sidebar-ring: var(--sidebar-ring);
+          
+            /* ===== Mapping Ionic global ===== */
+            --ion-background-color: var(--color-background);
+            --ion-text-color: var(--color-foreground);
+            --ion-border-color: var(--color-border);
+            /* (on conserve ta palette Convertigo ci-dessous) */
+          
+            /** Custom Convertigo Forms color: primary (root declaration) **/
+            --ion-color-primary: #326DF7;
+            --ion-color-primary-rgb: 50,109,247;
+            --ion-color-primary-contrast: #ffffff;
+            --ion-color-primary-contrast-rgb: 255,255,255;
+            --ion-color-primary-shade: #2c60d9;
+            --ion-color-primary-tint: #477cf8;
+          
+            /** Custom Convertigo Forms color: primaryB (root declaration) **/
+            --ion-color-primaryB: #488aff;
+            --ion-color-primaryB-rgb: 72,138,255;
+            --ion-color-primaryB-contrast: #000000;
+            --ion-color-primaryB-contrast-rgb: 0,0,0;
+            --ion-color-primaryB-shade: #3f79e0;
+            --ion-color-primaryB-tint: #5a96ff;
+          
+            /** Custom Convertigo Forms color: secondary (root declaration) **/
+            --ion-color-secondary: #32db64;
+            --ion-color-secondary-rgb: 50,219,100;
+            --ion-color-secondary-contrast: #000000;
+            --ion-color-secondary-contrast-rgb: 0,0,0;
+            --ion-color-secondary-shade: #2cc158;
+            --ion-color-secondary-tint: #47df74;
+          
+            /** Custom Convertigo Forms color: danger (root declaration) **/
+            --ion-color-danger: #f53d3d;
+            --ion-color-danger-rgb: 245,61,61;
+            --ion-color-danger-contrast: #ffffff;
+            --ion-color-danger-contrast-rgb: 255,255,255;
+            --ion-color-danger-shade: #d83636;
+            --ion-color-danger-tint: #f65050;
+          
+            /** Custom Convertigo Forms color: otherDanger (root declaration) **/
+            --ion-color-otherDanger: #950000;
+            --ion-color-otherDanger-rgb: 149,0,0;
+            --ion-color-otherDanger-contrast: #ffffff;
+            --ion-color-otherDanger-contrast-rgb: 255,255,255;
+            --ion-color-otherDanger-shade: #830000;
+            --ion-color-otherDanger-tint: #a01a1a;
+          
+            /** Custom Convertigo Forms color: light (root declaration) **/
+            --ion-color-light: #f4f4f4;
+            --ion-color-light-rgb: 244,244,244;
+            --ion-color-light-contrast: #000000;
+            --ion-color-light-contrast-rgb: 0,0,0;
+            --ion-color-light-shade: #d7d7d7;
+            --ion-color-light-tint: #f5f5f5;
+          
+            /** Custom Convertigo Forms color: dark (root declaration) **/
+            --ion-color-dark: #222;
+            --ion-color-dark-rgb: 34,34,34;
+            --ion-color-dark-contrast: #ffffff;
+            --ion-color-dark-contrast-rgb: 255,255,255;
+            --ion-color-dark-shade: #1e1e1e;
+            --ion-color-dark-tint: #383838;
+          
+            /** Custom Convertigo Forms color: white (root declaration) **/
+            --ion-color-white: #ffffff;
+            --ion-color-white-rgb: 255,255,255;
+            --ion-color-white-contrast: #000000;
+            --ion-color-white-contrast-rgb: 0,0,0;
+            --ion-color-white-shade: #e0e0e0;
+            --ion-color-white-tint: #ffffff;
+          
+            /** Custom Convertigo Forms color: convertigo (root declaration) **/
+          	--ion-color-convertigo: #22aadf;
+          	--ion-color-convertigo-rgb: 34,170,223;
+          	--ion-color-convertigo-contrast: #ffffff;
           	--ion-color-convertigo-contrast-rgb: 255,255,255;
-          	--ion-color-convertigo-shade: #3171e0;
-          	--ion-color-convertigo-tint: #4c8dff;
-          	/** Custom Convertigo Forms color: greenSelector (root declaration) **/
-          	--ion-color-success: #258752;
-          	--ion-color-success-rgb: 37,135,82;
-          	--ion-color-success-contrast: #ffffff;
-          	--ion-color-success-contrast-rgb: 255,255,255;
-          	--ion-color-success-shade: #217748;
-          	--ion-color-success-tint: #3b9363;
-          	/** Custom Convertigo Forms color: greyFab (root declaration) **/
-          	--ion-color-greyFab: #333333;
-          	--ion-color-greyFab-rgb: 51,51,51;
-          	--ion-color-greyFab-contrast: #ffffff;
-          	--ion-color-greyFab-contrast-rgb: 255,255,255;
-          	--ion-color-greyFab-shade: #2d2d2d;
-          	--ion-color-greyFab-tint: #474747;
-          	/** Custom Convertigo Forms color: greyButton (root declaration) **/
-          	--ion-color-greyButton: #797676;
-          	--ion-color-greyButton-rgb: 121,118,118;
-          	--ion-color-greyButton-contrast: #ffffff;
-          	--ion-color-greyButton-contrast-rgb: 255,255,255;
-          	--ion-color-greyButton-shade: #6a6868;
-          	--ion-color-greyButton-tint: #868484;
-          	/** Custom Convertigo Forms color: btLight (root declaration) **/
-          	--ion-color-btLight: #ff8206;
-          	--ion-color-btLight-rgb: 255,130,6;
-          	--ion-color-btLight-contrast: #000000;
-          	--ion-color-btLight-contrast-rgb: 0,0,0;
-          	--ion-color-btLight-shade: #e07205;
-          	--ion-color-btLight-tint: #ff8f1f;
-          	/** Custom Convertigo Forms color: otherBtLight (root declaration) **/
-          	--ion-color-otherBtLight: #ffc906;
-          	--ion-color-otherBtLight-rgb: 255,201,6;
-          	--ion-color-otherBtLight-contrast: #000000;
-          	--ion-color-otherBtLight-contrast-rgb: 0,0,0;
-          	--ion-color-otherBtLight-shade: #e0b105;
-          	--ion-color-otherBtLight-tint: #ffce1f;
-          	/** Custom Convertigo Forms color: greenCsv (root declaration) **/
-          	--ion-color-greenCsv: #1D6F42;
-          	--ion-color-greenCsv-rgb: 29,111,66;
-          	--ion-color-greenCsv-contrast: #ffffff;
-          	--ion-color-greenCsv-contrast-rgb: 255,255,255;
-          	--ion-color-greenCsv-shade: #1a623a;
-          	--ion-color-greenCsv-tint: #347d55;
-          	/** Custom Convertigo Forms color: black (root declaration) **/
-          	--ion-color-black: #000000;
-          	--ion-color-black-rgb: 0,0,0;
-          	--ion-color-black-contrast: #ffffff;
-          	--ion-color-black-contrast-rgb: 255,255,255;
-          	--ion-color-black-shade: #000000;
-          	--ion-color-black-tint: #1a1a1a;
-          	/** Custom Convertigo Forms color: yellowEditor (root declaration) **/
-          	--ion-color-yelloweditor: #FFF3CD;
-          	--ion-color-yelloweditor-rgb: 255,243,205;
-          	--ion-color-yelloweditor-contrast: #000000;
-          	--ion-color-yelloweditor-contrast-rgb: 0,0,0;
-          	--ion-color-yelloweditor-shade: #e0d6b4;
-          	--ion-color-yelloweditor-tint: #fff4d2;
-          	/** Custom Convertigo Forms color: yellowEditorButton (root declaration) **/
-          	--ion-color-yelloweditorbutton: #ffd75b;
-          	--ion-color-yelloweditorbutton-rgb: 255,215,91;
-          	--ion-color-yelloweditorbutton-contrast: #000000;
-          	--ion-color-yelloweditorbutton-contrast-rgb: 0,0,0;
-          	--ion-color-yelloweditorbutton-shade: #e0bd50;
-          	--ion-color-yelloweditorbutton-tint: #ffdb6b;
-          	/** Custom Convertigo Forms color: BlueEditor (root declaration) **/
-          	--ion-color-blueeditor: #88bdff;
-          	--ion-color-blueeditor-rgb: 136,189,255;
-          	--ion-color-blueeditor-contrast: #000000;
-          	--ion-color-blueeditor-contrast-rgb: 0,0,0;
-          	--ion-color-blueeditor-shade: #78a6e0;
-          	--ion-color-blueeditor-tint: #94c4ff;	
-          	/** Custom Convertigo Forms color: BlueEditorButton (root declaration) **/
-          	--ion-color-blueeditorbutton: #4f9eff;
-          	--ion-color-blueeditorbutton-rgb: 79,158,255;
-          	--ion-color-blueeditorbutton-contrast: #000000;
-          	--ion-color-blueeditorbutton-contrast-rgb: 0,0,0;
-          	--ion-color-blueeditorbutton-shade: #468be0;
-          	--ion-color-blueeditorbutton-tint: #61a8ff;
-          	/** Custom Convertigo Forms color: invalidRed (root declaration) **/
-          	--ion-color-invalid-red: #EC130E;
-          	--ion-color-invalid-red-rgb: 236,19,14;
-          	--ion-color-invalid-red-contrast: #ffffff;
-          	--ion-color-invalid-red-contrast-rgb: 255,255,255;
-          	--ion-color-invalid-red-shade: #d0110c;
-          	--ion-color-invalid-red-tint: #ee2b26;
-          	
+          	--ion-color-convertigo-shade: #1c95c5; /* version plus sombre */
+          	--ion-color-convertigo-tint: #3ab8e4;  /* version plus claire */
+          
+          
+            /** Custom Convertigo Forms color: greenSelector (root declaration) **/
+            --ion-color-success: #258752;
+            --ion-color-success-rgb: 37,135,82;
+            --ion-color-success-contrast: #ffffff;
+            --ion-color-success-contrast-rgb: 255,255,255;
+            --ion-color-success-shade: #217748;
+            --ion-color-success-tint: #3b9363;
+          
+            /** Custom Convertigo Forms color: greyFab (root declaration) **/
+            --ion-color-greyFab: #333333;
+            --ion-color-greyFab-rgb: 51,51,51;
+            --ion-color-greyFab-contrast: #ffffff;
+            --ion-color-greyFab-contrast-rgb: 255,255,255;
+            --ion-color-greyFab-shade: #2d2d2d;
+            --ion-color-greyFab-tint: #474747;
+          
+            /** Custom Convertigo Forms color: greyButton (root declaration) **/
+            --ion-color-greyButton: #797676;
+            --ion-color-greyButton-rgb: 121,118,118;
+            --ion-color-greyButton-contrast: #ffffff;
+            --ion-color-greyButton-contrast-rgb: 255,255,255;
+            --ion-color-greyButton-shade: #6a6868;
+            --ion-color-greyButton-tint: #868484;
+          
+            /** Custom Convertigo Forms color: btLight (root declaration) **/
+            --ion-color-btLight: #ff8206;
+            --ion-color-btLight-rgb: 255,130,6;
+            --ion-color-btLight-contrast: #000000;
+            --ion-color-btLight-contrast-rgb: 0,0,0;
+            --ion-color-btLight-shade: #e07205;
+            --ion-color-btLight-tint: #ff8f1f;
+          
+            /** Custom Convertigo Forms color: otherBtLight (root declaration) **/
+            --ion-color-otherBtLight: #ffc906;
+            --ion-color-otherBtLight-rgb: 255,201,6;
+            --ion-color-otherBtLight-contrast: #000000;
+            --ion-color-otherBtLight-contrast-rgb: 0,0,0;
+            --ion-color-otherBtLight-shade: #e0b105;
+            --ion-color-otherBtLight-tint: #ffce1f;
+          
+            /** Custom Convertigo Forms color: greenCsv (root declaration) **/
+            --ion-color-greenCsv: #1D6F42;
+            --ion-color-greenCsv-rgb: 29,111,66;
+            --ion-color-greenCsv-contrast: #ffffff;
+            --ion-color-greenCsv-contrast-rgb: 255,255,255;
+            --ion-color-greenCsv-shade: #1a623a;
+            --ion-color-greenCsv-tint: #347d55;
+          
+            /** Custom Convertigo Forms color: black (root declaration) **/
+            --ion-color-black: #000000;
+            --ion-color-black-rgb: 0,0,0;
+            --ion-color-black-contrast: #ffffff;
+            --ion-color-black-contrast-rgb: 255,255,255;
+            --ion-color-black-shade: #000000;
+            --ion-color-black-tint: #1a1a1a;
+          
+            /** Custom Convertigo Forms color: yellowEditor (root declaration) **/
+            --ion-color-yelloweditor: #FFF3CD;
+            --ion-color-yelloweditor-rgb: 255,243,205;
+            --ion-color-yelloweditor-contrast: #000000;
+            --ion-color-yelloweditor-contrast-rgb: 0,0,0;
+            --ion-color-yelloweditor-shade: #e0d6b4;
+            --ion-color-yelloweditor-tint: #fff4d2;
+          
+            /** Custom Convertigo Forms color: yellowEditorButton (root declaration) **/
+            --ion-color-yelloweditorbutton: #ffd75b;
+            --ion-color-yelloweditorbutton-rgb: 255,215,91;
+            --ion-color-yelloweditorbutton-contrast: #000000;
+            --ion-color-yelloweditorbutton-contrast-rgb: 0,0,0;
+            --ion-color-yelloweditorbutton-shade: #e0bd50;
+            --ion-color-yelloweditorbutton-tint: #ffdb6b;
+          
+            /** Custom Convertigo Forms color: BlueEditor (root declaration) **/
+            --ion-color-blueeditor: #88bdff;
+            --ion-color-blueeditor-rgb: 136,189,255;
+            --ion-color-blueeditor-contrast: #000000;
+            --ion-color-blueeditor-contrast-rgb: 0,0,0;
+            --ion-color-blueeditor-shade: #78a6e0;
+            --ion-color-blueeditor-tint: #94c4ff;
+          
+            /** Custom Convertigo Forms color: BlueEditorButton (root declaration) **/
+            --ion-color-blueeditorbutton: #4f9eff;
+            --ion-color-blueeditorbutton-rgb: 79,158,255;
+            --ion-color-blueeditorbutton-contrast: #000000;
+            --ion-color-blueeditorbutton-contrast-rgb: 0,0,0;
+            --ion-color-blueeditorbutton-shade: #468be0;
+            --ion-color-blueeditorbutton-tint: #61a8ff;
+          
+            /** Custom Convertigo Forms color: invalidRed (root declaration) **/
+            --ion-color-invalid-red: #EC130E;
+            --ion-color-invalid-red-rgb: 236,19,14;
+            --ion-color-invalid-red-contrast: #ffffff;
+            --ion-color-invalid-red-contrast-rgb: 255,255,255;
+            --ion-color-invalid-red-shade: #d0110c;
+            --ion-color-invalid-red-tint: #ee2b26;
+            
+          
+          
+            /* Gradient tokens (utilisent tes couleurs Ionic) */
+            --ion-gradient-start: var(--ion-color-primary, var(--ion-color-convertigo));
+            --ion-gradient-end:   var(--ion-color-secondary, var(--ion-color-convertigo-contrast));
+          
+            /* (optionnel) angle du dégradé */
+            --ion-gradient-angle: 135deg;
           }
           
+          /* ----------------------------
+           * Mode sombre “design tokens”
+           * (tu peux simplement ajouter body.dark)
+           * ---------------------------- */
+          body.dark {
+            --background: oklch(0.145 0 0);
+            --foreground: oklch(0.985 0 0);
+            --card: oklch(0.145 0 0);
+            --card-foreground: oklch(0.985 0 0);
+            --popover: oklch(0.145 0 0);
+            --popover-foreground: oklch(0.985 0 0);
+            --primary: oklch(0.985 0 0);
+            --primary-foreground: oklch(0.205 0 0);
+            --secondary: oklch(0.269 0 0);
+            --secondary-foreground: oklch(0.985 0 0);
+            --muted: oklch(0.269 0 0);
+            --muted-foreground: oklch(0.708 0 0);
+            --accent: oklch(0.269 0 0);
+            --accent-foreground: oklch(0.985 0 0);
+            --destructive: oklch(0.396 0.141 25.723);
+            --destructive-foreground: oklch(0.637 0.237 25.331);
+            --border: oklch(0.269 0 0);
+            --input: oklch(0.269 0 0);
+            --ring: oklch(0.439 0 0);
+          
+            /* mapping Ionic pour le fond/texte en dark */
+            --ion-background-color: var(--background);
+            --ion-text-color: var(--foreground);
+            --ion-border-color: var(--border);
+          }
+          
+          /* =========================================
+           * Ton thème dark existant (préservé)
+           * ========================================= */
           @media (prefers-color-scheme: dark) {
             /*
              * Dark Colors
              * -------------------------------------------
              */
-          
             body.dark {
               --ion-color-primary: #428cff;
               --ion-color-primary-rgb: 66,140,255;
@@ -1701,31 +2026,28 @@ useClickForTap: true
               --ion-color-light-contrast-rgb: 255,255,255;
               --ion-color-light-shade: #1e2023;
               --ion-color-light-tint: #383a3e;
-              /** Custom Convertigo Forms color: convertigo (root declaration) **/
-          	--ion-color-convertigo: #00cfff;
-          	--ion-color-convertigo-rgb: 0,207,255;
-          	--ion-color-convertigo-contrast: #000000;
-          	--ion-color-convertigo-contrast-rgb: 0,0,0;
-          	--ion-color-convertigo-shade: #00b6e0;
-          	--ion-color-convertigo-tint: #1ad4ff;
-          	/** Custom Convertigo Forms color: btlight (root declaration) **/
-          	--ion-color-btlight: #ffc45e;
-          	--ion-color-btlight-rgb: 255,196,94;
-          	--ion-color-btlight-contrast: #000000;
-          	--ion-color-btlight-contrast-rgb: 0,0,0;
-          	--ion-color-btlight-shade: #e0ac53;
-          	--ion-color-btlight-tint: #ffca6e;
+          
+              /** Custom Convertigo Forms color: convertigo **/
+              --ion-color-convertigo: #00cfff;
+              --ion-color-convertigo-rgb: 0,207,255;
+              --ion-color-convertigo-contrast: #000000;
+              --ion-color-convertigo-contrast-rgb: 0,0,0;
+              --ion-color-convertigo-shade: #00b6e0;
+              --ion-color-convertigo-tint: #1ad4ff;
+          
+              /** Custom Convertigo Forms color: btlight **/
+              --ion-color-btlight: #ffc45e;
+              --ion-color-btlight-rgb: 255,196,94;
+              --ion-color-btlight-contrast: #000000;
+              --ion-color-btlight-contrast-rgb: 0,0,0;
+              --ion-color-btlight-shade: #e0ac53;
+              --ion-color-btlight-tint: #ffca6e;
             }
           
-            /*
-             * iOS Dark Theme
-             * -------------------------------------------
-             */
-          
+            /* iOS Dark */
             .ios body.dark {
               --ion-background-color: #000000;
               --ion-background-color-rgb: 0,0,0;
-          
               --ion-text-color: #ffffff;
               --ion-text-color-rgb: 255,255,255;
           
@@ -1750,16 +2072,10 @@ useClickForTap: true
               --ion-color-step-950: #f2f2f2;
           
               --ion-toolbar-background: #0d0d0d;
-          
               --ion-item-background: #000000;
             }
           
-          
-            /*
-             * Material Design Dark Theme
-             * -------------------------------------------
-             */
-          
+            /* Material Dark */
             .md body.dark {
               --ion-background-color: #121212;
               --ion-background-color-rgb: 18,18,18;
@@ -1790,214 +2106,49 @@ useClickForTap: true
               --ion-color-step-950: #f3f3f3;
           
               --ion-item-background: #1e1e1e;
-          
               --ion-toolbar-background: #1f1f1f;
-          
               --ion-tab-bar-background: #1f1f1f;
             }
           
-            ion-title.title-large {
-              --color: white;
+            ion-title.title-large { --color: white; }
+          }
+          
+          /* =========================================
+           * Déclarations .ion-color-* (inchangées)
+           * ========================================= */
+          .ion-color-primary        { --ion-color-base: var(--ion-color-primary);        --ion-color-base-rgb: var(--ion-color-primary-rgb);        --ion-color-contrast: var(--ion-color-primary-contrast);        --ion-color-contrast-rgb: var(--ion-color-primary-contrast-rgb);        --ion-color-shade: var(--ion-color-primary-shade);        --ion-color-tint: var(--ion-color-primary-tint); }
+          .ion-color-primaryB       { --ion-color-base: var(--ion-color-primaryB);       --ion-color-base-rgb: var(--ion-color-primaryB-rgb);       --ion-color-contrast: var(--ion-color-primaryB-contrast);       --ion-color-contrast-rgb: var(--ion-color-primaryB-contrast-rgb);       --ion-color-shade: var(--ion-color-primaryB-shade);       --ion-color-tint: var(--ion-color-primaryB-tint); }
+          .ion-color-secondary      { --ion-color-base: var(--ion-color-secondary);      --ion-color-base-rgb: var(--ion-color-secondary-rgb);      --ion-color-contrast: var(--ion-color-secondary-contrast);      --ion-color-contrast-rgb: var(--ion-color-secondary-contrast-rgb);      --ion-color-shade: var(--ion-color-secondary-shade);      --ion-color-tint: var(--ion-color-secondary-tint); }
+          .ion-color-danger         { --ion-color-base: var(--ion-color-danger);         --ion-color-base-rgb: var(--ion-color-danger-rgb);         --ion-color-contrast: var(--ion-color-danger-contrast);         --ion-color-contrast-rgb: var(--ion-color-danger-contrast-rgb);         --ion-color-shade: var(--ion-color-danger-shade);         --ion-color-tint: var(--ion-color-danger-tint); }
+          .ion-color-otherDanger    { --ion-color-base: var(--ion-color-otherDanger);    --ion-color-base-rgb: var(--ion-color-otherDanger-rgb);    --ion-color-contrast: var(--ion-color-otherDanger-contrast);    --ion-color-contrast-rgb: var(--ion-color-otherDanger-contrast-rgb);    --ion-color-shade: var(--ion-color-otherDanger-shade);    --ion-color-tint: var(--ion-color-otherDanger-tint); }
+          .ion-color-light          { --ion-color-base: var(--ion-color-light);          --ion-color-base-rgb: var(--ion-color-light-rgb);          --ion-color-contrast: var(--ion-color-light-contrast);          --ion-color-contrast-rgb: var(--ion-color-light-contrast-rgb);          --ion-color-shade: var(--ion-color-light-shade);          --ion-color-tint: var(--ion-color-light-tint); }
+          .ion-color-dark           { --ion-color-base: var(--ion-color-dark);           --ion-color-base-rgb: var(--ion-color-dark-rgb);           --ion-color-contrast: var(--ion-color-dark-contrast);           --ion-color-contrast-rgb: var(--ion-color-dark-contrast-rgb);           --ion-color-shade: var(--ion-color-dark-shade);           --ion-color-tint: var(--ion-color-dark-tint); }
+          .ion-color-white          { --ion-color-base: var(--ion-color-white);          --ion-color-base-rgb: var(--ion-color-white-rgb);          --ion-color-contrast: var(--ion-color-white-contrast);          --ion-color-contrast-rgb: var(--ion-color-white-contrast-rgb);          --ion-color-shade: var(--ion-color-white-shade);          --ion-color-tint: var(--ion-color-white-tint); }
+          .ion-color-convertigo     { --ion-color-base: var(--ion-color-convertigo);     --ion-color-base-rgb: var(--ion-color-convertigo-rgb);     --ion-color-contrast: var(--ion-color-convertigo-contrast);     --ion-color-contrast-rgb: var(--ion-color-convertigo-contrast-rgb);     --ion-color-shade: var(--ion-color-convertigo-shade);     --ion-color-tint: var(--ion-color-convertigo-tint); }
+          .ion-color-greenSelector  { --ion-color-base: var(--ion-color-greenSelector);  --ion-color-base-rgb: var(--ion-color-greenSelector-rgb);  --ion-color-contrast: var(--ion-color-greenSelector-contrast);  --ion-color-contrast-rgb: var(--ion-color-greenSelector-contrast-rgb);  --ion-color-shade: var(--ion-color-greenSelector-shade);  --ion-color-tint: var(--ion-color-greenSelector-tint); }
+          .ion-color-greyFab        { --ion-color-base: var(--ion-color-greyFab);        --ion-color-base-rgb: var(--ion-color-greyFab-rgb);        --ion-color-contrast: var(--ion-color-greyFab-contrast);        --ion-color-contrast-rgb: var(--ion-color-greyFab-contrast-rgb);        --ion-color-shade: var(--ion-color-greyFab-shade);        --ion-color-tint: var(--ion-color-greyFab-tint); }
+          .ion-color-greyButton     { --ion-color-base: var(--ion-color-greyButton);     --ion-color-base-rgb: var(--ion-color-greyButton-rgb);     --ion-color-contrast: var(--ion-color-greyButton-contrast);     --ion-color-contrast-rgb: var(--ion-color-greyButton-contrast-rgb);     --ion-color-shade: var(--ion-color-greyButton-shade);     --ion-color-tint: var(--ion-color-greyButton-tint); }
+          .ion-color-btLight        { --ion-color-base: var(--ion-color-btLight);        --ion-color-base-rgb: var(--ion-color-btLight-rgb);        --ion-color-contrast: var(--ion-color-btLight-contrast);        --ion-color-contrast-rgb: var(--ion-color-btLight-contrast-rgb);        --ion-color-shade: var(--ion-color-btLight-shade);        --ion-color-tint: var(--ion-color-btLight-tint); }
+          .ion-color-otherBtLight   { --ion-color-base: var(--ion-color-otherBtLight);   --ion-color-base-rgb: var(--ion-color-otherBtLight-rgb);   --ion-color-contrast: var(--ion-color-otherBtLight-contrast);   --ion-color-contrast-rgb: var(--ion-color-otherBtLight-contrast-rgb);   --ion-color-shade: var(--ion-color-otherBtLight-shade);   --ion-color-tint: var(--ion-color-otherBtLight-tint); }
+          .ion-color-greenCsv       { --ion-color-base: var(--ion-color-greenCsv);       --ion-color-base-rgb: var(--ion-color-greenCsv-rgb);       --ion-color-contrast: var(--ion-color-greenCsv-contrast);       --ion-color-contrast-rgb: var(--ion-color-greenCsv-contrast-rgb);       --ion-color-shade: var(--ion-color-greenCsv-shade);       --ion-color-tint: var(--ion-color-greenCsv-tint); }
+          .ion-color-black          { --ion-color-base: var(--ion-color-black);          --ion-color-base-rgb: var(--ion-color-black-rgb);          --ion-color-contrast: var(--ion-color-black-contrast);          --ion-color-contrast-rgb: var(--ion-color-black-contrast-rgb);          --ion-color-shade: var(--ion-color-black-shade);          --ion-color-tint: var(--ion-color-black-tint); }
+          .ion-color-yelloweditor   { --ion-color-base: var(--ion-color-yelloweditor);   --ion-color-base-rgb: var(--ion-color-yelloweditor-rgb);   --ion-color-contrast: var(--ion-color-yelloweditor-contrast);   --ion-color-contrast-rgb: var(--ion-color-yelloweditor-contrast-rgb);   --ion-color-shade: var(--ion-color-yelloweditor-shade);   --ion-color-tint: var(--ion-color-yelloweditor-tint); }
+          .ion-color-yelloweditorbutton { --ion-color-base: var(--ion-color-yelloweditorbutton); --ion-color-base-rgb: var(--ion-color-yelloweditorbutton-rgb); --ion-color-contrast: var(--ion-color-yelloweditorbutton-contrast); --ion-color-contrast-rgb: var(--ion-color-yelloweditorbutton-contrast-rgb); --ion-color-shade: var(--ion-color-yelloweditorbutton-shade); --ion-color-tint: var(--ion-color-yelloweditorbutton-tint); }
+          .ion-color-blueeditor     { --ion-color-base: var(--ion-color-blueeditor);     --ion-color-base-rgb: var(--ion-color-blueeditor-rgb);     --ion-color-contrast: var(--ion-color-blueeditor-contrast);     --ion-color-contrast-rgb: var(--ion-color-blueeditor-contrast-rgb);     --ion-color-shade: var(--ion-color-blueeditor-shade);     --ion-color-tint: var(--ion-color-blueeditor-tint); }
+          .ion-color-blueeditorbutton { --ion-color-base: var(--ion-color-blueeditorbutton); --ion-color-base-rgb: var(--ion-color-blueeditorbutton-rgb); --ion-color-contrast: var(--ion-color-blueeditorbutton-contrast); --ion-color-contrast-rgb: var(--ion-color-blueeditorbutton-contrast-rgb); --ion-color-shade: var(--ion-color-blueeditorbutton-shade); --ion-color-tint: var(--ion-color-blueeditorbutton-tint); }
+          .ion-color-invalid-red    { --ion-color-base: var(--ion-color-invalid-red);    --ion-color-base-rgb: var(--ion-color-invalid-red-rgb);    --ion-color-contrast: var(--ion-color-invalid-red-contrast);    --ion-color-contrast-rgb: var(--ion-color-invalid-red-contrast-rgb);    --ion-color-shade: var(--ion-color-invalid-red-shade);    --ion-color-tint: var(--ion-color-invalid-red-tint); }
+          
+          /* =========================================
+           * Portée composant (existant)
+           * ========================================= */
+          :host {
+            ion-item {
+              //--border-color: white; // default underline color
+              --highlight-color-invalid: var(--ion-color-danger);   // invalid underline color
+              --highlight-color-valid: var(--ion-color-secondary);  // valid underline color
             }
           }
-          
-          /** Custom Convertigo Forms color: primary (css declaration) **/
-          .ion-color-primary {
-          	--ion-color-base: var(--ion-color-primary);
-          	--ion-color-base-rgb: var(--ion-color-primary-rgb);
-          	--ion-color-contrast: var(--ion-color-primary-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-primary-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-primary-shade);
-          	--ion-color-tint: var(--ion-color-primary-tint);
-          }
-          /** Custom Convertigo Forms color: primaryB (css declaration) **/
-          .ion-color-primaryB {
-          	--ion-color-base: var(--ion-color-primaryB);
-          	--ion-color-base-rgb: var(--ion-color-primaryB-rgb);
-          	--ion-color-contrast: var(--ion-color-primaryB-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-primaryB-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-primaryB-shade);
-          	--ion-color-tint: var(--ion-color-primaryB-tint);
-          }
-          /** Custom Convertigo Forms color: secondary (css declaration) **/
-          .ion-color-secondary {
-          	--ion-color-base: var(--ion-color-secondary);
-          	--ion-color-base-rgb: var(--ion-color-secondary-rgb);
-          	--ion-color-contrast: var(--ion-color-secondary-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-secondary-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-secondary-shade);
-          	--ion-color-tint: var(--ion-color-secondary-tint);
-          }
-          /** Custom Convertigo Forms color: danger (css declaration) **/
-          .ion-color-danger {
-          	--ion-color-base: var(--ion-color-danger);
-          	--ion-color-base-rgb: var(--ion-color-danger-rgb);
-          	--ion-color-contrast: var(--ion-color-danger-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-danger-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-danger-shade);
-          	--ion-color-tint: var(--ion-color-danger-tint);
-          }
-          /** Custom Convertigo Forms color: otherDanger (css declaration) **/
-          .ion-color-otherDanger {
-          	--ion-color-base: var(--ion-color-otherDanger);
-          	--ion-color-base-rgb: var(--ion-color-otherDanger-rgb);
-          	--ion-color-contrast: var(--ion-color-otherDanger-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-otherDanger-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-otherDanger-shade);
-          	--ion-color-tint: var(--ion-color-otherDanger-tint);
-          }
-          /** Custom Convertigo Forms color: light (css declaration) **/
-          .ion-color-light {
-          	--ion-color-base: var(--ion-color-light);
-          	--ion-color-base-rgb: var(--ion-color-light-rgb);
-          	--ion-color-contrast: var(--ion-color-light-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-light-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-light-shade);
-          	--ion-color-tint: var(--ion-color-light-tint);
-          }
-          /** Custom Convertigo Forms color: dark (css declaration) **/
-          .ion-color-dark {
-          	--ion-color-base: var(--ion-color-dark);
-          	--ion-color-base-rgb: var(--ion-color-dark-rgb);
-          	--ion-color-contrast: var(--ion-color-dark-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-dark-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-dark-shade);
-          	--ion-color-tint: var(--ion-color-dark-tint);
-          }
-          /** Custom Convertigo Forms color: white (css declaration) **/
-          .ion-color-white {
-          	--ion-color-base: var(--ion-color-white);
-          	--ion-color-base-rgb: var(--ion-color-white-rgb);
-          	--ion-color-contrast: var(--ion-color-white-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-white-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-white-shade);
-          	--ion-color-tint: var(--ion-color-white-tint);
-          }
-          /** Custom Convertigo Forms color: convertigo (css declaration) **/
-          .ion-color-convertigo {
-          	--ion-color-base: var(--ion-color-convertigo);
-          	--ion-color-base-rgb: var(--ion-color-convertigo-rgb);
-          	--ion-color-contrast: var(--ion-color-convertigo-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-convertigo-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-convertigo-shade);
-          	--ion-color-tint: var(--ion-color-convertigo-tint);
-          }
-          /** Custom Convertigo Forms color: greenSelector (css declaration) **/
-          .ion-color-greenSelector {
-          	--ion-color-base: var(--ion-color-greenSelector);
-          	--ion-color-base-rgb: var(--ion-color-greenSelector-rgb);
-          	--ion-color-contrast: var(--ion-color-greenSelector-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-greenSelector-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-greenSelector-shade);
-          	--ion-color-tint: var(--ion-color-greenSelector-tint);
-          }
-          /** Custom Convertigo Forms color: greyFab (css declaration) **/
-          .ion-color-greyFab {
-          	--ion-color-base: var(--ion-color-greyFab);
-          	--ion-color-base-rgb: var(--ion-color-greyFab-rgb);
-          	--ion-color-contrast: var(--ion-color-greyFab-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-greyFab-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-greyFab-shade);
-          	--ion-color-tint: var(--ion-color-greyFab-tint);
-          }
-          /** Custom Convertigo Forms color: greyButton (css declaration) **/
-          .ion-color-greyButton {
-          	--ion-color-base: var(--ion-color-greyButton);
-          	--ion-color-base-rgb: var(--ion-color-greyButton-rgb);
-          	--ion-color-contrast: var(--ion-color-greyButton-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-greyButton-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-greyButton-shade);
-          	--ion-color-tint: var(--ion-color-greyButton-tint);
-          }
-          /** Custom Convertigo Forms color: btLight (css declaration) **/
-          .ion-color-btLight {
-          	--ion-color-base: var(--ion-color-btLight);
-          	--ion-color-base-rgb: var(--ion-color-btLight-rgb);
-          	--ion-color-contrast: var(--ion-color-btLight-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-btLight-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-btLight-shade);
-          	--ion-color-tint: var(--ion-color-btLight-tint);
-          }
-          /** Custom Convertigo Forms color: otherBtLight (css declaration) **/
-          .ion-color-otherBtLight {
-          	--ion-color-base: var(--ion-color-otherBtLight);
-          	--ion-color-base-rgb: var(--ion-color-otherBtLight-rgb);
-          	--ion-color-contrast: var(--ion-color-otherBtLight-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-otherBtLight-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-otherBtLight-shade);
-          	--ion-color-tint: var(--ion-color-otherBtLight-tint);
-          }
-          /** Custom Convertigo Forms color: greenCsv (css declaration) **/
-          .ion-color-greenCsv {
-          	--ion-color-base: var(--ion-color-greenCsv);
-          	--ion-color-base-rgb: var(--ion-color-greenCsv-rgb);
-          	--ion-color-contrast: var(--ion-color-greenCsv-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-greenCsv-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-greenCsv-shade);
-          	--ion-color-tint: var(--ion-color-greenCsv-tint);
-          }
-          /** Custom Convertigo Forms color: black (css declaration) **/
-          .ion-color-black {
-          	--ion-color-base: var(--ion-color-black);
-          	--ion-color-base-rgb: var(--ion-color-black-rgb);
-          	--ion-color-contrast: var(--ion-color-black-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-black-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-black-shade);
-          	--ion-color-tint: var(--ion-color-black-tint);
-          }
-          /** Custom Convertigo Forms color: yellowEditor editor texte (root declaration) **/
-          .ion-color-yelloweditor {
-          	--ion-color-base: var(--ion-color-yelloweditor);
-          	--ion-color-base-rgb: var(--ion-color-yelloweditor-rgb);
-          	--ion-color-contrast: var(--ion-color-yelloweditor-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-yelloweditor-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-yelloweditor-shade);
-          	--ion-color-tint: var(--ion-color-yelloweditor-tint);
-          }
-          /** Custom Convertigo Forms color: yellowEditorButton (root declaration) **/
-          .ion-color-yelloweditorbutton {
-          	--ion-color-base: var(--ion-color-yelloweditorbutton);
-          	--ion-color-base-rgb: var(--ion-color-yelloweditorbutton-rgb);
-          	--ion-color-contrast: var(--ion-color-yelloweditorbutton-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-yelloweditorbutton-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-yelloweditorbutton-shade);
-          	--ion-color-tint: var(--ion-color-yelloweditorbutton-tint);
-          }
-          /** Custom Convertigo Forms color: BlueEditor (root declaration) **/
-          .ion-color-blueeditor {
-          	--ion-color-base: var(--ion-color-blueeditor);
-          	--ion-color-base-rgb: var(--ion-color-blueeditor-rgb);
-          	--ion-color-contrast: var(--ion-color-blueeditor-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-blueeditor-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-blueeditor-shade);
-          	--ion-color-tint: var(--ion-color-blueeditor-tint);
-          }
-          /** Custom Convertigo Forms color: BlueEditorButton (root declaration) **/
-          .ion-color-blueeditorbutton {
-          	--ion-color-base: var(--ion-color-blueeditorbutton);
-          	--ion-color-base-rgb: var(--ion-color-blueeditorbutton-rgb);
-          	--ion-color-contrast: var(--ion-color-blueeditorbutton-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-blueeditorbutton-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-blueeditorbutton-shade);
-          	--ion-color-tint: var(--ion-color-blueeditorbutton-tint);
-          }
-          /** Custom Convertigo Forms color: invalidRed (root declaration) **/
-          .ion-color-invalid-red {
-          	--ion-color-base: var(--ion-color-invalid-red);
-          	--ion-color-base-rgb: var(--ion-color-invalid-red-rgb);
-          	--ion-color-contrast: var(--ion-color-invalid-red-contrast);
-          	--ion-color-contrast-rgb: var(--ion-color-invalid-red-contrast-rgb);
-          	--ion-color-shade: var(--ion-color-invalid-red-shade);
-          	--ion-color-tint: var(--ion-color-invalid-red-tint);
-          }
-          
-          :host {
-              ion-item {
-                  //--border-color: white; // default underline color
-                  --highlight-color-invalid: var(--ion-color-danger); // invalid underline color
-                  --highlight-color-valid: var(--ion-color-secondary); // valid underline color
-              }
-          }'
+          '
 ↓Style [ngx.components.UIStyle-1491635462437]: 
   comment: You can add some global application styles here
   styleContent: 
@@ -2005,7 +2156,11 @@ useClickForTap: true
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '$font-family-base: "Inter";
+          '$font-family-base: var(
+            "Inter", "Open Sans", "Roboto",
+            ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif,
+            "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"
+          );
           $widthRadioGroup: 185px;
           $widthRadioGroupLine: 189px;
           html{
@@ -2565,6 +2720,10 @@ useClickForTap: true
           	font-size: 0.75rem !important;
           	--max-width: 80px !important;
           	
+          }
+          
+          .ng-dropdown-panel .ng-dropdown-panel-items {
+          	min-height: 240px !important;
           }
           '
 ↓AppEvent [ngx.components.UIAppEvent-1587480742427]: 
@@ -3442,6 +3601,23 @@ useClickForTap: true
           	--height:608px;
           	--border-radius: 16px;
           }
+          
+          /* Par défaut (mobile) → fullscreen */
+          .modal-change-pass {
+            --width: 95% !important;
+            --height: 397.5px !important;
+            --border-radius: 12px !important;
+          }
+          
+          /* Au-dessus de 768px (tablette / desktop) → dimensions fixes */
+          @media (min-width: 768px) {
+            .modal-change-pass {
+              --width: 468px !important;
+              --height: 397.5px !important;
+              --border-radius: 12px !important;
+            }
+          }
+          
           .modalCSV{
           	/* if width is less than 1200px */
           	@media (max-width: 1200px) {
@@ -4024,4 +4200,198 @@ useClickForTap: true
           'ion-action-sheet .action-sheet-disabled .button-inner {
             position: relative;
             cursor: not-allowed;
+          }'
+↓_NewStyleButtons_ [ngx.components.UIStyle-1758017105476]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.btn--linear-gradient {
+            --background: linear-gradient(90deg, #635bff 0%, #00c6ff 100%) !important;
+          //  background: linear-gradient(90deg, #635bff 0%, #00c6ff 100%);
+            color: #fff !important;
+            font-weight: 600 !important;
+            height: 44px !important;
+            font-size: 14px !important;
+          }
+          
+          .btn, btn::part(native) {	
+          	min-height: unset;
+          	--padding-bottom:0.35rem;
+          	--padding-top:0.35rem;
+          	--border-radius: var(--radius);
+          	border-radius: var(--radius);
+          	width: 100%;
+          	height: 31.5px;
+          	text-transform: none;
+          	--box-shadow:none;
+          	font-size: 12px;
+          	--background: transparent;
+          	--background-hover: transparent;           /* on gère le hover nous-mêmes */
+          	--background-activated: transparent;       /* évite de masquer le wipe */
+          	--background-focused: transparent;
+          	--ripple-color: rgba(0,0,0,.08);
+          }
+          
+          .btn--animation-scale:hover {
+          	--ripple-color: transparent !important;
+          	&::part(native) {		
+          		box-shadow:
+          		0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          		0 8px 10px -6px rgba(0, 0, 0, 0.1);
+          		transition-property: all;
+          		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+          		transition-duration: 150ms;
+          		transition-duration: .3s;
+          		transform: scale(1.01);
+          	}
+          }
+          
+          /* Wrapper pour l''effet de micro-scale (équiv. whileHover/whileTap) */
+          .btn-wrapper:hover .btn--animation-background::part(native) {
+            transform: scale(1.01);
+          }
+          .btn-wrapper:active .btn--animation-background::part(native) {
+            transform: scale(0.99);
+          }
+          
+          /* Bouton (host) */
+          .btn--justify-align-center {
+          //	--ripple-color: transparent !important;
+          	display: flex;
+          	justify-content: center;
+          	align-items: center;
+            /* rien ici: on cible le native pour l’apparence */
+          }
+          
+          .custom-social {
+          	margin-bottom: 1rem;
+          	margin-top: 0.5rem;
+          }
+          
+          /* Style du bouton natif dans le Shadow DOM */
+          .btn--animation-background::part(native) {
+            /* Layout + look (équivalents Tailwind: w-full, h-12, border-gray-200, rounded-lg) */
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: .75rem;                     /* gap-3 */
+            min-height: 3rem;                /* h-12 */
+            font-size: 1rem;  
+                           /* text-base */
+          
+            /* Bordures / rayons */
+            --border-width: 1px;
+            --border-style: solid;
+            --border-color: #e5e7eb;         /* gray-200 */
+            --border-radius: 0.5rem;
+            border-radius: 0.5rem;
+          
+            /* Fond & animation */
+            position: relative;
+            overflow: hidden;
+            background-color: transparent;
+            /* Dégradé discret "from-blue-50 to-red-50" animé par background-size */
+            background-image: linear-gradient(to right, #eff6ff, #fef2f2);
+            background-repeat: no-repeat;
+            background-position: 0 0;
+            background-size: 0% 100%;        /* caché par défaut (équiv. scale-x-0) */
+          
+            /* Transitions (équiv. transition-all duration-300) */
+            transition:
+              background-size .30s ease,
+              box-shadow .30s ease,
+              transform .20s ease;
+            cursor: pointer;
+          
+            /* Couleurs texte par défaut */
+            --color: var(--ion-color-dark);
+          }
+          
+          /* Hover: déploie le wipe + léger shadow (équiv. hover:bg-gray-50 + overlay) */
+          .btn--animation-background:hover::part(native) {
+          color: var(--ion-color-convertigo);  
+          background-size: 100% 100%;      /* équiv. scale-x-100 */
+            box-shadow:
+              0 20px 25px -5px rgba(0,0,0,.10),
+              0  8px 10px -6px rgba(0,0,0,.10);
+          }
+          
+          /* Focus clavier: accessibilité */
+          .btn--animation-background:focus-within::part(native) {
+            outline: none;
+            box-shadow:
+              0 0 0 2px rgba(59,130,246,.35), /* anneau bleu doux */
+              0 8px 10px -6px rgba(0,0,0,.10);
+          }
+          
+          /* Contenu interne (icône + texte) : occupe toute la largeur et reste au-dessus du gradient */
+          .btn--animation-background .btn_icon-wrapper,
+          .btn-wrapper .btn--animation-background span {
+            position: relative;
+            z-index: 1;
+          }
+          
+          .btn-wrapper {
+          	width: 100%;
+          }
+          
+          .btn_wrapper {
+          	width: 100%;
+          	display: flex;
+          	align-items: center;
+          	justify-content: center;
+          }
+          
+          /* Alignement du texte à gauche sans casser le centrage global (optionnel) */
+          .btn-wrapper ion-button.btn--animation-background span {
+            text-align: left;
+            width: 100%;
+          }
+          
+          /* Icône (ta classe social-login-icon existe déjà dans ton XML) */
+          .btn_icon-wrapper {
+            margin: 0 0.35rem;
+            width: 1.25rem;
+            height: 1.25rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 16px;
+            color: #fff;
+            /* si tu gardes un SVG Google, pas besoin de fond; sinon pour l’effet dégradé: */
+            /* background: linear-gradient(to bottom right, #3b82f6, #ef4444); */
+          }
+          
+          /* Respecte l’accessibilité : réduit l’animation si demandé par l’utilisateur */
+          @media (prefers-reduced-motion: reduce) {
+            .btn-wrapper:hover .btn--animation-background::part(native),
+            .btn-wrapper:active .btn--animation-background::part(native),
+            .btn-wrapper .btn--animation-background::part(native),
+            .btn-wrapper .btn--animation-background:hover::part(native) {
+              transition: none;
+            }
+            .btn-wrapper .btn.btn--animation-background::part(native) {
+              background-size: 100% 100%; /* pas d’animation, fond directement visible */
+            }
+          }
+          
+          .custom-google-bg {
+            background-color: #4285F4;
+          }
+          
+          .custom-microsoft-bg {
+            background-color: #0078D4;
+          }
+          
+          .custom-linkedin-bg {
+            background-color: #0077B5;
+          }
+          
+          .custom-openid-bg {
+          	background-color: var(--ion-color-dark);
           }'
