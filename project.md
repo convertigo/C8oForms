@@ -8248,6 +8248,14 @@ Page to share a form, or add collaborators
 
 </p></blockquote></details>
 
+<details><summary><b>popoverToolbar</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") popoverToolbar
+
+
+</p></blockquote></details>
+
 <details><summary><b>PreviewMultiple</b></summary><blockquote><p>
 
 
