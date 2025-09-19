@@ -5518,6 +5518,12 @@ This component displays a user menu with user info, categorized navigation items
 <td>currentItem</td><td></td>
 </tr>
 <tr>
+<td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>disableAlreadySelected</td><td></td>
+</tr>
+<tr>
 <td>keyName</td><td></td>
 </tr>
 </table>
