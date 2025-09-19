@@ -377,13 +377,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1082
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1082.zip
      ```
      </td></tr>
     </table>
@@ -5870,6 +5870,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>l</td><td></td>
+</tr>
+<tr>
+<td>typeByName</td><td></td>
 </tr>
 </table>
 **events**
