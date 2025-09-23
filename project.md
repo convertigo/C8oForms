@@ -17462,6 +17462,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>PopoverUserActions</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PopoverUserActions
+
+
+</p></blockquote></details>
+
 <details><summary><b>ResetPasswordModalComponent</b> : This component is a modal dialog for resetting the password</summary><blockquote><p>
 
 
