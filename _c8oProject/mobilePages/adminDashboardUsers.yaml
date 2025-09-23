@@ -12,6 +12,7 @@ scriptContent:
         	public alertController: AlertController;
         	public toastController: ToastController;
         	public modalController: ModalController;
+        	public popoverController: PopoverController;
         	public searchValue: string = '''';
         	public searchPlaceholder: string = ''Rechercher un utilisateur...'';
         public documentationTemplate: string = `
@@ -96,6 +97,7 @@ scriptContent:
         		this.alertController = this.getInstance(AlertController);
         		this.toastController = this.getInstance(ToastController);
         		this.modalController = this.getInstance(ModalController);
+        		this.popoverController = this.getInstance(PopoverController);
         		this.local.overlayLoading = ''<span class="ag-overlay-loading-center">''+this.translate.instant(''loading_data'')+''</span>'';
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
@@ -147,66 +149,116 @@ scriptContent:
         //						    
         //						}
         						data.result.labels = data.result.labels.map((x) => {
-        							x.headerName = this.translate.instant(x.headerName);
-        							// if it''''s a checkbox then add support for non boolean checkbox
-        							if (x?.cellRenderer == "agCheckboxCellRenderer") {
-        								if (x?.c8o_type == "stringboolean") {
+        							if (x.headerName && x.headerName.length > 0) {
+        								x.headerName = this.translate.instant(x.headerName);
+        								// if it''''s a checkbox then add support for non boolean checkbox
+        								if (x?.cellRenderer == "agCheckboxCellRenderer") {
+        									if (x?.c8o_type == "stringboolean") {
+        										x.valueGetter = (params) => {
+        											if(params.colDef.field == "editing_rights"){
+        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : editing_apps_default_rights;
+        											}
+        											else if(params.colDef.field == "nocode_db_rights"){
+        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : no_code_db_default_rights;
+        											}
+        											else if(params.colDef.field == "formulas"){
+        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : formulas_default_rights;
+        											}
+        											else if(params.colDef.field == "publication"){
+        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : publication;
+        											}
+        											else{
+        												return params.data[x.field] === ''true'' || params.data[x.field] === true;
+        											}
+        											
+        										},
+        											x.valueSetter = (params) => {
+        												params.data[x.field] = params.newValue ? ''true'' : ''false'';
+        												return true;
+        											}
+        									}
+        									else {
+        										x.valueGetter = (params) => {
+        											return params.data[x.field] === true;
+        										},
+        										x.valueSetter = (params) => {
+        											params.data[x.field] = params.newValue;
+        											return true;
+        										}
+        									}
+        	
+        								}
+        								if (x?.valueGetter == "lang") {
+        									x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
+        										x = this.translate.instant(x);
+        										return x;
+        									})
         									x.valueGetter = (params) => {
-        										if(params.colDef.field == "editing_rights"){
-        											return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : editing_apps_default_rights;
+        										if (params?.data?.[x.field]) {
+        											return this.translate.instant(params.data[x.field]);
         										}
-        										else if(params.colDef.field == "nocode_db_rights"){
-        											return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : no_code_db_default_rights;
+        										else {
+        											return params?.data?.[x.field] ?? "";
         										}
-        										else if(params.colDef.field == "formulas"){
-        											return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : formulas_default_rights;
-        										}
-        										else if(params.colDef.field == "publication"){
-        											return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : publication;
-        										}
-        										else{
-        											return params.data[x.field] === ''true'' || params.data[x.field] === true;
-        										}
-        										
+        	
         									},
         										x.valueSetter = (params) => {
-        											params.data[x.field] = params.newValue ? ''true'' : ''false'';
+        											params.data[x.field] = finKeyByValue(params.newValue);
         											return true;
         										}
         								}
-        								else {
-        									x.valueGetter = (params) => {
-        										return params.data[x.field] === true;
-        									},
-        									x.valueSetter = (params) => {
-        										params.data[x.field] = params.newValue;
-        										return true;
-        									}
-        								}
-        
-        							}
-        							if (x?.valueGetter == "lang") {
-        								x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
-        									x = this.translate.instant(x);
-        									return x;
-        								})
-        								x.valueGetter = (params) => {
-        									if (params?.data?.[x.field]) {
-        										return this.translate.instant(params.data[x.field]);
-        									}
-        									else {
-        										return params?.data?.[x.field] ?? "";
-        									}
-        
-        								},
-        									x.valueSetter = (params) => {
-        										params.data[x.field] = finKeyByValue(params.newValue);
-        										return true;
-        									}
         							}
         							return x;
         						})
         					}
+        //					console.log(data.result.labels[1])
+        					data.result.labels[1].cellRenderer = (params) => {
+        						return this.UserCellRenderer(params);
+        					};
+        					data.result.labels[1].valueGetter = params =>
+        					  `${params.data.displayName} ${params.data.name} ${params.data.surname}`
+        					
+        					data.result.labels[2].cellRenderer = (params) => {
+        						return this.ContactCellRenderer(params);
+        					};
+        					data.result.labels[2].valueGetter = params =>
+        					  `${params.data.mail} ${params.data.language} ${params.data.provider}`
+        					
+        					data.result.labels[3].cellRenderer = (params) => {
+        						return this.PermissionsCellRenderer(params);
+        					};
+        					data.result.labels[3].valueGetter = params => {
+        					  const d = params.data;
+        					  const roles: string[] = [];
+        					  const isTrue = (v: any) => v === true || v === "true";
+        
+        					  if (d.admin === true || d.admin === "true") {
+        					    roles.push("Admin");
+        					  }
+        					  if (d.nocode_db_rights === true || d.nocode_db_rights === "true") {
+        					    roles.push("No Code Editor");
+        					  }
+        					  if (d.admin_readonly === true || d.admin_readonly === "true") {
+        					    roles.push("Admin Read Only");
+        					  }
+        					  if (d.publication === true || d.publication === "true") {
+        					    roles.push("Publisher");
+        					  }
+        					  if (d.editing_rights === true || d.editing_rights === "true") {
+        					    roles.push("Editor");
+        					  }
+        					  if (d.formulas === true || d.formulas === "true") {
+        					    roles.push("Formulas Editor");
+        					  }
+        
+        					  return roles.join(" "); // ex: "Admin · Publisher · Editor"
+        					};
+        					
+        					data.result.labels[4].cellRenderer = (params) => {
+        						return this.ActionsCellRenderer(params);
+        					};
+        
+        					
         					this.local.data = data;
         				}
         			} catch (e) {
@@ -330,6 +382,146 @@ scriptContent:
         		public onQuickFilterChanged(value: string) {
         		  this.myaggrid?.agGrid?.api!.setQuickFilter(value);
         		}
+        		
+        		public UserCellRenderer(params: any) {
+        //		  console.log(params.data)
+        		  const { displayName, name } = params.data;
+        		  const initials = (displayName) ? displayName?.slice(0, 2).toUpperCase() : '''';
+        
+        		  return `
+        		    <div style="display:flex; align-items:center; gap:12px;">
+        		      <div style="
+        		        width:32px; height:32px; border-radius:50%;
+        		        background:#E2E8F0; color:#334155;
+        		        display:flex; align-items:center; justify-content:center;
+        		        font-weight:600; font-size:14px;
+        		      ">
+        		        ${((initials !== undefined && initials.length > 0) ? initials : 
+        						`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-icon lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+        					
+        				)}
+        		      </div>
+        		      <div style="display:flex; flex-direction:column; line-height:1.2;">
+        		        <span style="font-weight:600;">${displayName || "Utilisateur inconnu"}</span>
+        		        <span style="font-size:13px; color:#64748b;">${name || "–"}</span>
+        		      </div>
+        		    </div>
+        		  `;
+        		}
+        		
+        		public ContactCellRenderer(params: any) {
+        		  const { mail, language, provider } = params.data;
+        		  console.log(mail, language, provider)
+        		  return `
+        		    <div style="height:56px;position:absolute;top:-11.5px">
+        				<div>				
+        			      <p style="font-size:14px;height:23px;margin:0; color:#111827;width:100%;">${mail}</p>
+        			      <span style="font-size:12px; color:#64748b;">
+        			        ${language} <span style="
+        			          background:#F1F5F9; color:#111827;
+        			          border-radius:8px; padding:2px 6px; font-size:11px;
+        			        ">${provider}</span>
+        			      </span>
+        				</div>
+        		    </div>
+        		  `;
+        		}
+        
+        		public PermissionsCellRenderer(params: any) {
+        //			console.log(params.data)
+        			const { publication, admin, admin_readonly, nocode_db_rights, editing_rights, formulas } = params.data;	
+        			let permissions = [];
+        			let permissionsLength = 0;
+        			const isTrue = (v: any) => v === true || v === "true";
+        
+        			
+        			for (let i = 0; i < 6; i++) {				
+        				if (isTrue(publication) && permissions.indexOf("publication") === -1) {
+        				  permissions.push("publication");
+        				  permissionsLength++;
+        				}
+        
+        				if (isTrue(admin) && permissions.indexOf("admin") === -1) {
+        				  permissions.push("admin");
+        				  permissionsLength++;
+        				}
+        
+        				if (isTrue(admin_readonly) && permissions.indexOf("admin_readonly") === -1) {
+        				  permissions.push("admin_readonly");
+        				  permissionsLength++;
+        				}
+        
+        				if (isTrue(nocode_db_rights) && permissions.indexOf("nocode_db_rights") === -1) {
+        				  permissions.push("nocode_db_rights");
+        				  permissionsLength++;
+        				}
+        
+        				if (isTrue(editing_rights) && permissions.indexOf("editing_rights") === -1) {
+        				  permissions.push("editing_rights");
+        				  permissionsLength++;
+        				}
+        
+        				if (isTrue(formulas) && permissions.indexOf("formulas") === -1) {
+        				  permissions.push("formulas");
+        				  permissionsLength++;
+        				}
+        
+        
+        			}
+        			
+        //			console.log(permissions);
+        
+        		  if (permissionsLength === 0) {
+        		    return `<span style="color:#9ca3af;height:100%; font-size:12px;">-</span>`;
+        		  }
+        
+        		  // mapping permission → couleur
+        		  const colors: Record<string, string> = {
+        		    publication: "#3b82f6",       // bleu
+        		    admin: "#ef4444",      // rouge
+        		    nocode_db_rights: "#f59e0b",       // orange
+        		    editing_rights: "#10b981",    // vert
+        		    admin_readonly: "#8b5cf6",       // violet
+        			formulas: "#8b5cf6"       // violet
+        		  };
+        		  
+        		  const styleClasses: Record<string, string> = {
+        		    publication: "metric-icon-badge--info",       // bleu
+        		    admin: "metric-icon-badge--danger",      // rouge
+        		    nocode_db_rights: "metric-icon-badge--warning",       // orange
+        		    editing_rights: "metric-icon-badge--success",    // vert
+        		    admin_readonly: "metric-icon-badge--tertiary",       // violet
+        		  formulas: "metric-icon-badge--success"       // violet
+        		  };
+        
+        		  const dots = permissions.map(p => {
+        //		    const color = colors[p] || "#9ca3af";
+        			const styleClass = styleClasses[p] || "";
+        		    return `<span class="${styleClass}" style="width:8px; height:8px; border-radius:50%; display:inline-block;"></span>`;
+        		  }).join(" ");
+        
+        		  return `<div style="display:flex; height: 100%;gap:6px; align-items:center;">${dots}</div>`;
+        		}
+        		
+        		public ActionsCellRenderer(params) {
+        	      const wrapper = document.createElement(''div'');
+        	
+        	      wrapper.innerHTML = `
+        	        <ion-button size="small" class="btn text-generic color--convertigo">
+        	          
+        	        </ion-button>
+        	      `;
+        	
+        	      const ionButton = wrapper.querySelector(''ion-button'');
+        	
+        		
+        	      ionButton?.addEventListener(''click'', (e) => {
+        			
+        	      });
+        	
+        	      return wrapper;
+        		}
+        
         	/*End_c8o_PageFunction*/
         '
 segment: admin/dashboard-user
@@ -2796,7 +2988,7 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: 'script:{hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false}'
+                    - MobileSmartSourceType: 'script:{hide: false, editable: true, sortable: true, resizable: false, filter: true, checkboxSelection: false, singleClickEdit: false}'
               ↓columnDefs [ngx.components.UIUseVariable-1739883964551]: 
                 comment: 'Array of columnDef {headerName: ''headerName'', field: ''fieldName''} objects'
                 varValue: 
@@ -2892,7 +3084,7 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:true
+                    - MobileSmartSourceType: script:false
               ↓accessibility [ngx.components.UIUseVariable-1739883964581]: 
                 comment: 'boolean: true (default) or false'
                 varValue: 
@@ -3051,8 +3243,9 @@ title: Title for adminDashboardUsers
                           				if(page.myaggrid?.agGrid?.api){
                           					page.myaggrid.agGrid.api.showLoadingOverlay();
                           				}
+                          			} else {				
+                          				page.myaggrid.agGrid.api.sizeColumnsToFit()	
                           			}
-                          			page.myaggrid.agGrid.api.sizeColumnsToFit()	
                           		} catch (e) {
                           		
                           		} finally {
