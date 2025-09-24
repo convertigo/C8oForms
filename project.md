@@ -12068,6 +12068,22 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>editPermsModal</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") editPermsModal
+
+
+</p></blockquote></details>
+
+<details><summary><b>editUserModal</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") editUserModal
+
+
+</p></blockquote></details>
+
 <details><summary><b>getApplicationDetail</b></summary><blockquote><p>
 
 
@@ -17598,6 +17614,14 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>seeProfilModal</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") seeProfilModal
+
 
 </p></blockquote></details>
 
