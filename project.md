@@ -17410,6 +17410,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>PopoverPermissions</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PopoverPermissions
+
+
+</p></blockquote></details>
+
 <details><summary><b>PopoverSort</b></summary><blockquote><p>
 
 
