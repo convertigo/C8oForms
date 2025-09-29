@@ -17334,6 +17334,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>PermissionsHeaderComponent</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PermissionsHeaderComponent
+
+
+</p></blockquote></details>
+
 <details><summary><b>PopoverFilters</b></summary><blockquote><p>
 
 
