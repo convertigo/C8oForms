@@ -90,6 +90,47 @@ jobs:
           curl -sL https://github.com/convertigo/c8oprj-baserowintegration/archive/refs/tags/c8oforms-2.1.0.tar.gz | tar xvz --strip-components=1 -C c8oforms_standalone/data/workspace/projects/BaserowIntegration
           tar -czvf c8oforms_standalone.tar.gz c8oforms_standalone
 
+      - name: Create "no_code_studio_and_dependencies" bundle (.car per project)
+        run: |
+          set -euo pipefail
+          ROOT="c8oforms_standalone/data/workspace/projects"
+
+          if [ ! -d "$ROOT" ]; then
+            echo "Directory not found: $ROOT"
+            exit 1
+          fi
+
+          cd "$ROOT"
+
+          # Zip chaque répertoire projet (présence d'un c8oProject.yaml) puis renomme .zip -> .car
+          shopt -s nullglob
+          made_any=0
+          for p in */ ; do
+            if [ -f "${p}/c8oProject.yaml" ] || [ -f "${p}/c8oproject.yaml" ]; then
+              name="${p%/}"
+              echo "Zipping ${name} -> ${name}.zip (will become .car)"
+              (cd "$name" && zip -qr "../${name}.zip" .)
+              mv -f "${name}.zip" "${name}.car"
+              made_any=1
+            fi
+          done
+
+          # Regroupe tous les .car produits dans un tar.gz à la racine du repo
+          dest="$GITHUB_WORKSPACE/no_code_studio_and_dependencies.tar.gz"
+          if ls *.car >/dev/null 2>&1; then
+            tar -czvf "$dest" *.car
+          else
+            echo "No .car produced, creating empty tarball to keep pipeline consistent."
+            tar -czf "$dest" --files-from /dev/null
+          fi
+
+      - name: Save no_code_studio_and_dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: no_code_studio_and_dependencies.tar.gz
+          path: no_code_studio_and_dependencies.tar.gz
+
+
       - name: Save application project
         uses: actions/upload-artifact@v4
         with:
@@ -101,6 +142,12 @@ jobs:
         with:
           name: c8oforms_standalone.tar.gz
           path: c8oforms_standalone.tar.gz
+
+      - name: Download no_code_studio_and_dependencies.tar.gz File
+        uses: actions/download-artifact@v4
+        with:
+          name: no_code_studio_and_dependencies.tar.gz
+
   deps_report:
       runs-on: ubuntu-latest
       needs: build_and_deploy
@@ -421,6 +468,7 @@ jobs:
           files: |
             *.car
             c8oforms_standalone.tar.gz
+            no_code_studio_and_dependencies.tar.gz
           tag_name: ${{ github.ref_name }}
           draft: ${{ contains( github.ref, 'beta' ) != true }}
           prerelease: ${{ contains( github.ref, 'beta' )}}

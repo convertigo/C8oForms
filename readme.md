@@ -369,13 +369,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=hotfix/2.1.3-release
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=hotfix/2.1.4
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/hotfix/2.1.3-release.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/hotfix/2.1.4.zip
      ```
      </td></tr>
     </table>
