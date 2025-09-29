@@ -11,48 +11,48 @@ accessibility: Hidden
     	if (dynamicParams != null) {
     		params = JSON.parse(dynamicParams);
     	}
-    //	if(params.shared === undefined){
-    //		params.shared = true;
-    //	}
+    	//	if(params.shared === undefined){
+    	//		params.shared = true;
+    	//	}
     	//{"hide_apps_i_created":false,"hide_folders":false,"show_all_apps":false}
-    	if(params.filters == undefined){
+    	if (params.filters == undefined) {
     		params.filters = {
     			"hide_apps_i_created": false,
-    			"hide_folders":false,
-    			"show_all_apps":false
+    			"hide_folders": false,
+    			"show_all_apps": false
     		}
     	}
-    	else{
-    		if(params.filters.hide_apps_i_created == undefined){
+    	else {
+    		if (params.filters.hide_apps_i_created == undefined) {
     			params.filters.hide_apps_i_created = false;
     		}
-    		if(params.filters.hide_folders == undefined){
+    		if (params.filters.hide_folders == undefined) {
     			params.filters.hide_folders = false;
     		}
-    		if(params.filters.show_all_apps == undefined){
+    		if (params.filters.show_all_apps == undefined) {
     			params.filters.show_all_apps = false;
     		}
     	}
     }
     catch (e) {
-    	params = {filters:{}};
+    	params = { filters: {} };
     	log.warn("parse failed" + JSON.stringify(e));
     }
-    if(params.filters.show_all_apps === true){
-    	try{
+    if (params.filters.show_all_apps === true) {
+    	try {
     		include("js/isAdmin.js");
     	}
-    	catch(e){
+    	catch (e) {
     		params.filters.show_all_apps = false;
     	}
     }
     
     var filters = {};
-    try{
+    try {
     	filters = JSON.parse(filters);
     }
-    catch(e){
-    	
+    catch (e) {
+    
     }
     let targetDB = "c8oforms_fs";
     if (fromResponses == "true") {
@@ -295,14 +295,14 @@ accessibility: Hidden
     var admin = params.filters.show_all_apps == true;
     
     var withACL = true;
-    try{
+    try {
     	withACL = requests[target].find((x) => { return x.acl != false }) != null;
     }
-    catch(e){
-    	
+    catch (e) {
+    
     }
     
-    if(admin === true && params.user != null){
+    if (admin === true && params.user != null) {
     	admin = false;
     	authenticatedUserID = params.user.substring(12);
     }
@@ -320,15 +320,15 @@ accessibility: Hidden
     	query.put(''group'', ''true'');
     	_use_keys = rows.map((x) => { return x.value });
     	keys = toJettison(_use_keys);
-    	if(params.filters.hide_apps_i_created === false){
+    	if (params.filters.hide_apps_i_created === false) {
     		usedGroups = toJSON(fsclient.postView(targetDB, ''authentication'', ''distinctGroups'', query, keys));
     		usedGroups = usedGroups.rows.map((x) => { return x.key/*.replace(/\./g, ''\\.'') */ });
     	}
-    	else{
-    		usedGroups = ["C8Oreserved_"+authenticatedUserID];
+    	else {
+    		usedGroups = ["C8Oreserved_" + authenticatedUserID];
     	}
     }
-    else{
+    else {
     	usedGroups = [];
     }
     debugger;
@@ -341,26 +341,33 @@ accessibility: Hidden
     				"~c8oAcl": authenticatedUserID
     			});
     		}
+    		else if (_sel.type != "view" && _sel.use_index != null && admin) {
+    			if (_sel.use_index.length == 2) {
+    				_sel.use_index[1] = _sel.use_index[1].substring(0, _sel.use_index[1].length - 7);
+    			}
+    		}
     		delete _sel.acl;
     		_requests.push(_sel);
     
     	}
-    	var res = { docs: []/*, execution_stats: [], warning: [], querys: [] */};
+    	var res = { docs: []/*, execution_stats: [], warning: [], querys: [] */ };
     	var _res = null;
     	for (var query of _requests) {
     		if (query.type != "view") {
     			query.limit = 10000;
     			query.execution_stats = true;
+    			log.warn(JSON.stringify(query));
     			var _res = toJSON(fsclient.postFind(targetDB, toJettison(query)));
-    			if(params.filters.hide_apps_i_created !== false){
-    				_res.docs = _res.docs.filter((x)=>{
+    			log.warn(JSON.stringify(_res));
+    			if (params.filters.hide_apps_i_created !== false) {
+    				_res.docs = _res.docs.filter((x) => {
     					return x.creator == authenticatedUserID;
     				})
     			}
     			res.docs = res.docs.concat(_res.docs);
-    //			res.execution_stats.push(_res.execution_stats);
-    //			res.warning.push(_res.warning);
-    //			res.querys.push(query);
+    			//			res.execution_stats.push(_res.execution_stats);
+    			//			res.warning.push(_res.warning);
+    			//			res.querys.push(query);
     			__res = null;
     		}
     		else {
@@ -378,9 +385,10 @@ accessibility: Hidden
     				keys = null;
     			}
     
-    			var _resV = toJSON(fsclient.postView(targetDB, query.design, query.view, _query, keys)).rows;
-    			if(params.filters.hide_apps_i_created !== false){
-    				_resV = _resV.filter((x)=>{
+    			var _resV = toJSON(fsclient.postView(targetDB, query.design, query.view, _query, keys));
+    			_resV = _resV.rows;
+    			if (params.filters.hide_apps_i_created !== false) {
+    				_resV = _resV.filter((x) => {
     					return x.value.creator == authenticatedUserID;
     				})
     			}
@@ -392,7 +400,7 @@ accessibility: Hidden
     		}
     
     	}
-    //	let timeBefore = new Date().getTime();
+    	//	let timeBefore = new Date().getTime();
     	if (target.indexOf("published") != -1) {
     		res.docs = res.docs.sort((a, b) => {
     			try {
@@ -410,11 +418,16 @@ accessibility: Hidden
     		})
     	}
     	//delete duplicates
-    	res.docs = res.docs.filter((item, index, self) =>{
-    	  return index === self.findIndex((t) => t._id === item._id)
+    	res.docs = res.docs.filter((item, index, self) => {
+    		return index === self.findIndex((t) => {
+    			if (t == null || item == null) {
+    				return false;
+    			}
+    			return t._id === item._id
+    		})
     	});
     
-    //	res.time = timeBefore - new Date().getTime();
+    	//	res.time = timeBefore - new Date().getTime();
     
     	if ((target == "formsV2/out_folder" || target == "published_formsV2/out_folder") && res.docs) {
     		var tagsUsed = {};
@@ -438,10 +451,10 @@ accessibility: Hidden
     				transformed.push(item);
     			}
     		}
-    		if(params.filters.hide_folders === true){
+    		if (params.filters.hide_folders === true) {
     			res.docs = transformed;
     		}
-    		else{
+    		else {
     			res.docs = transformedFold.concat(transformed);
     		}
     	}
@@ -449,42 +462,42 @@ accessibility: Hidden
     else {
     	usedGroups = usedGroups.map((x) => { return x.replace(/\./g, ''\\.'') });
     	// build mangofilter
-    	if(admin){
+    	if (admin) {
     		mangoquery.selector["$and"] = [
-    				{
-    					"_deleted": {
-    						"$exists": false
-    					}
+    			{
+    				"_deleted": {
+    					"$exists": false
     				}
-    			];
+    			}
+    		];
     	}
-    	else{
+    	else {
     		mangoquery.selector["$and"] = [
-    				{
-    					"_deleted": {
-    						"$exists": false
-    					}
-    				},
-    				{
-    					"$or": [
-    						{
-    							"~c8oAcl": {
-    								"$exists": false
-    							},
-    							"c8oGrp": {
-    								"$exists": false
-    							}
+    			{
+    				"_deleted": {
+    					"$exists": false
+    				}
+    			},
+    			{
+    				"$or": [
+    					{
+    						"~c8oAcl": {
+    							"$exists": false
     						},
-    						{
-    							"~c8oAcl": {
-    								"$eq": authenticatedUserID
-    							}
+    						"c8oGrp": {
+    							"$exists": false
     						}
-    					]
-    				}
-    			];
+    					},
+    					{
+    						"~c8oAcl": {
+    							"$eq": authenticatedUserID
+    						}
+    					}
+    				]
+    			}
+    		];
     	}
-    	
+    
     
     	for (let elem of usedGroups) {
     		let obj =
@@ -554,19 +567,18 @@ accessibility: Hidden
     		mangoquery.selector["$and"].push(res);
     	}
     	mangoquery.fields = requests[target].fields;
-        mangoquery.sort = requests[target].sort;
-        mangoquery.limit = 10000;
-        mangoquery.execution_stats = true;
+    	mangoquery.sort = requests[target].sort;
+    	mangoquery.limit = 10000;
+    	mangoquery.execution_stats = true;
     	mangoquery.use_index = requests[target].use_index;
-        
-        res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
-    	if(params.filters.hide_apps_i_created !== false){
-    		res.docs = res.docs.filter((x)=>{
+    
+    	res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
+    	if (params.filters.hide_apps_i_created !== false) {
+    		res.docs = res.docs.filter((x) => {
     			return x.creator == authenticatedUserID;
     		})
     	}
-    }
-    '
+    }'
 ↓object [steps.JsonToXmlStep-1694169429816]: 
   isEnabled: false
   jsonObject: 
