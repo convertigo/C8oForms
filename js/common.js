@@ -401,3 +401,14 @@ try{
 catch(e){
 	
 }
+function sha256Base64(str) {
+  var MessageDigest = java.security.MessageDigest;
+  var StandardCharsets = java.nio.charset.StandardCharsets;
+  var Base64 = java.util.Base64;
+
+  var md = MessageDigest.getInstance("SHA-256");
+  var bytes = new java.lang.String(str).getBytes(StandardCharsets.UTF_8);
+  var digest = md.digest(bytes);
+
+  return Base64.getEncoder().encodeToString(digest);
+}
