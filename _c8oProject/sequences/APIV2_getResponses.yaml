@@ -12,16 +12,32 @@ responseTimeout: 600
     csv = csv == "true";
     let meta;
     let max_len = 120;
-    try{
+    try {
     	meta = JSON.parse(meta);
     }
-    catch(e){
-    	
+    catch (e) {
+    
+    }
+    var metaSkip = 0;
+    var metaLimit = null;
+    if (meta != null) {
+    	try {
+    		if (meta.skip != undefined && meta.skip !== "") {
+    			metaSkip = Math.max(0, +meta.skip);
+    		}
+    	}
+    	catch (e) { }
+    	try {
+    		if (meta.limit != undefined && meta.limit !== "") {
+    			metaLimit = Math.max(0, +meta.limit);
+    		}
+    	}
+    	catch (e) { }
     }
     // start functions
-    var getI18nForCsv = (key, lang) =>{
-    	if(key == "timestamp"){
-    		switch(""+lang){
+    var getI18nForCsv = (key, lang) => {
+    	if (key == "timestamp") {
+    		switch ("" + lang) {
     			case "en":
     			case "fr":
     				return "Date";
@@ -33,8 +49,8 @@ responseTimeout: 600
     				return "Date";
     		}
     	}
-    	else if(key == "author"){
-    		switch(""+lang){
+    	else if (key == "author") {
+    		switch ("" + lang) {
     			case "en":
     				return "Author";
     			case "fr":
@@ -47,8 +63,8 @@ responseTimeout: 600
     				return "Author";
     		}
     	}
-    	else if(key == "anonymous"){
-    		switch(""+lang){
+    	else if (key == "anonymous") {
+    		switch ("" + lang) {
     			case "en":
     				return "Anonymous user";
     			case "fr":
@@ -61,8 +77,8 @@ responseTimeout: 600
     				return "Anonymous user";
     		}
     	}
-    	else if(key == "Other"){
-    		switch(""+lang){
+    	else if (key == "Other") {
+    		switch ("" + lang) {
     			case "en":
     				return "Other responses";
     			case "fr":
@@ -76,7 +92,7 @@ responseTimeout: 600
     		}
     	}
     	return key;
-    	
+    
     }
     // used to format responses, will be used recursively
     var extractResponse = (response, _i, type, _id, responseArray, structure, csv, opts) => {
@@ -93,14 +109,14 @@ responseTimeout: 600
     		case "img":
     			if (response.value != "") {
     				//if (j == 0) {
-    					try { structure[_i].att_type = response.att_type == true; } catch (e) { }
+    				try { structure[_i].att_type = response.att_type == true; } catch (e) { }
     				//}
     				if (structure[_i].att_type) {
     					var _val;
-    					if(csv){
+    					if (csv) {
     						_val = context.getConvertigoUrl() + "projects/C8Oforms/.bin?__sequence=downloadFile&filename=" + encodeURIComponent(response.name) + "&documentName=" + encodeURIComponent(_id);
     					}
-    					else{
+    					else {
     						_val = context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.name);
     					}
     					responseArray[_i].value.push(_val);
@@ -116,11 +132,11 @@ responseTimeout: 600
     					response.value = JSON.stringify(response["value"]["bounding_box"]);
     				}
     				else if (response["value"]["addr"] != undefined && response["value"]["addr"]["FormattedAddress"] != undefined && response["value"]["addr"]["FormattedAddress"] != "") {
-    					if(csv){
+    					if (csv) {
     						response.value = response["value"]["addr"]["FormattedAddress"];
     					}
-    					else{
-    						response.value = {text : response["value"]["addr"]["FormattedAddress"], gps: response["value"]["gps"]};
+    					else {
+    						response.value = { text: response["value"]["addr"]["FormattedAddress"], gps: response["value"]["gps"] };
     					}
     				}
     				else {
@@ -147,15 +163,15 @@ responseTimeout: 600
     				var values = [];
     				if (response.value instanceof Array) {
     					for (var entryFile of response.value) {
-    						if (typeof (entryFile) === "string") {							
+    						if (typeof (entryFile) === "string") {
     							values.push({ "name": entryFile.split("_C80C80_")[1], "url": context.getConvertigoUrl() + "projects/C8Oforms/.bin?__sequence=downloadFile&filename=" + encodeURIComponent(entryFile) + "&documentName=" + encodeURIComponent(_id) });
     						}
     					}
     				}
     				responseArray[_i].value = responseArray[_i].value.concat(values);
     				// if for csv just give file url
-    				if(csv){
-    					responseArray[_i].value = responseArray[_i].value.map((x)=>{
+    				if (csv) {
+    					responseArray[_i].value = responseArray[_i].value.map((x) => {
     						return x.url;
     					})
     				}
@@ -166,8 +182,8 @@ responseTimeout: 600
     		case "select":
     			// Solution finale
     			response["children"].sort((a, b) => {
-    			  // Place les objets avec "other: true" après les autres
-    			  return (a.other === true ? 1 : 0) - (b.other === true ? 1 : 0);
+    				// Place les objets avec "other: true" après les autres
+    				return (a.other === true ? 1 : 0) - (b.other === true ? 1 : 0);
     			});
     			for (var k in response["children"]) {
     				if (responseArray[_i].value[k] == undefined) {
@@ -175,14 +191,14 @@ responseTimeout: 600
     				}
     				if (csv || summary != "true" || (structure[_i].categories[k] == null || structure[_i].categories[k] == "")) {
     					if (response["children"][k].other == true) {
-    						if(csv){
+    						if (csv) {
     							structure[_i].categories[k] = response["children"][k]["value"] != null ? (response["children"][k]["value"].length > max_len ? response["children"][k]["value"].substring(0, max_len) + "..." : response["children"][k]["value"]) : "";
     						}
-    						else{
+    						else {
     							structure[_i].categories[k] = getI18nForCsv(Otherkey, (meta && meta.lang) ? meta.lang : "en");
     							responseArray[_i].other = response["children"][k]["selected"] == true && response["children"][k]["value"] != null && response["children"][k]["value"] != "" ? response["children"][k]["value"] : structure[_i].categories[k];
     						}
-    							
+    
     					}
     					else {
     						structure[_i].categories[k] = response["children"][k]["value"].length > max_len ? response["children"][k]["value"].substring(0, max_len) + "..." : response["children"][k]["value"];
@@ -193,12 +209,12 @@ responseTimeout: 600
     				}
     			}
     			// if for csv replace number of occurence by structure value
-    			if(csv){
+    			if (csv) {
     				var val = responseArray[_i].value;
     				var cat = structure[_i].categories;
     				var _temp = [];
-    				for(var l = 0; l < val.length; l++){
-    					if(val[l] == 1){
+    				for (var l = 0; l < val.length; l++) {
+    					if (val[l] == 1) {
     						_temp.push(cat[l]);
     					}
     				}
@@ -230,7 +246,7 @@ responseTimeout: 600
     				m++;
     			}
     			// if for csv add type to allow more complexe computations in APIV2_CSV sequence
-    			if(csv){
+    			if (csv) {
     				responseArray[_i].type = type;
     			}
     			break;
@@ -258,45 +274,45 @@ responseTimeout: 600
     				m++;
     			}
     			// if for csv add type to allow more complexe computations in APIV2_CSV sequence
-    			if(csv){
+    			if (csv) {
     				responseArray[_i].type = type;
     			}
     			break;
-    			case "slider":
-    			    if (response["value"] !== "") {
-    			        if (csv) {
-    			            responseArray[_i].value.push(response["value"]);
-    			            break;         
-    			        }
-    			        if (structure[_i]["categories"].length === 0) {
-    			            structure[_i]["categories"].push("");
-    			        }
-    			        if (table == undefined) {
-    			            table = [];
-    			        }
-    			        if (table[_i] == undefined) {
-    			            table[_i] = {};
-    			        }
-    			        if (table[_i][response["value"]] == undefined) {
-    			            table[_i][response["value"]] =
-    			                responseArray[_i]["value"].push({ data: [1], name: response["value"] }) - 1;
-    			        } else {
-    			            const index = table[_i][response["value"]];
-    			            if (responseArray[_i]["value"][index] != null) {
-    			                const count = responseArray[_i]["value"][index]["data"][0];
-    			                responseArray[_i]["value"][index]["data"] = [count + 1];
-    			            }
-    			        }
-    			    }
-    			    break;
+    		case "slider":
+    			if (response["value"] !== "") {
+    				if (csv) {
+    					responseArray[_i].value.push(response["value"]);
+    					break;
+    				}
+    				if (structure[_i]["categories"].length === 0) {
+    					structure[_i]["categories"].push("");
+    				}
+    				if (table == undefined) {
+    					table = [];
+    				}
+    				if (table[_i] == undefined) {
+    					table[_i] = {};
+    				}
+    				if (table[_i][response["value"]] == undefined) {
+    					table[_i][response["value"]] =
+    						responseArray[_i]["value"].push({ data: [1], name: response["value"] }) - 1;
+    				} else {
+    					const index = table[_i][response["value"]];
+    					if (responseArray[_i]["value"][index] != null) {
+    						const count = responseArray[_i]["value"][index]["data"][0];
+    						responseArray[_i]["value"][index]["data"] = [count + 1];
+    					}
+    				}
+    			}
+    			break;
     		case "actionValue":
     			if (response["valueType"] == "attachment") {
     				//if (i == 0) {
-    					structure[_i].att_type = true;
+    				structure[_i].att_type = true;
     				//}
     				responseArray[_i].value.push({ "name": responseArray[_i].name, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
-    				if(csv){
-    					responseArray[_i].value = responseArray[_i].value.map((x)=>{
+    				if (csv) {
+    					responseArray[_i].value = responseArray[_i].value.map((x) => {
     						return x.url;
     					})
     				}
@@ -307,30 +323,30 @@ responseTimeout: 600
     			break;
     		case "timestamp":
     			var offsetDiff = (opts != null && opts.offsetDiff != null) ? opts.offsetDiff : 0;
-    			responseArray[_i].value.push(getFormattedDate(new Date(+response +offsetDiff)));
+    			responseArray[_i].value.push(getFormattedDate(new Date(+response + offsetDiff)));
     			break;
     		case "author":
-    			if(opts && opts.transform){
+    			if (opts && opts.transform) {
     				try {
-    					let resp = getDoc("C8Oreserved_"+response,null, "c8oforms_fs");
-    					if(!resp.error){
-    						if(resp.displayName){
+    					let resp = getDoc("C8Oreserved_" + response, null, "c8oforms_fs");
+    					if (!resp.error) {
+    						if (resp.displayName) {
     							response = resp.displayName;
     						}
-    						else if(resp.mail){
+    						else if (resp.mail) {
     							response = resp.mail;
     						}
     					}
-    				}	
-    				catch(e){}
+    				}
+    				catch (e) { }
     			}
-    			if(_id.indexOf("anonymous") == 0){
+    			if (_id.indexOf("anonymous") == 0) {
     				responseArray[_i].value.push(getI18nForCsv("anonymous", (meta && meta.lang) ? meta.lang : "en"))
     			}
-    			else{
+    			else {
     				responseArray[_i].value.push(response);
     			}
-    			
+    
     			break;
     	}
     }
@@ -358,8 +374,14 @@ responseTimeout: 600
     	res["currentVersion"] = currentVersion;
     	query = new java.util.HashMap();
     	query.put(''reduce'', ''false'');
-    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId+"_anonymous", "" + currentVersion]]));
+    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]));
     	query.put("include_docs", "true");
+    	if (metaSkip > 0) {
+    		query.put(''skip'', "" + metaSkip);
+    	}
+    	if (metaLimit != null && metaLimit > 0) {
+    		query.put(''limit'', "" + metaLimit);
+    	}
     	var responses;
     	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
     	res.response = { length: responses.length };
@@ -367,7 +389,7 @@ responseTimeout: 600
     
     	var sortedsIds = [];
     	var lenActions = 0;
-    	if(responses.length > 0){
+    	if (responses.length > 0) {
     		// if we are in forms 2.0 responses, sortedsIds are stored in response itself
     		if (responses[0] && responses[0].doc && responses[0].doc.sortedsIds) {
     			sortedsIds = responses[0].doc.sortedsIds;
@@ -394,13 +416,13 @@ responseTimeout: 600
     				});
     				sortedsIds = sortedsIds.concat(_tempArr);
     			});
-    			if(published_form.actions){
+    			if (published_form.actions) {
     				lenActions = published_form.actions.filter((x) => { return x.type === "submit" }).length;
     			}
-    			else if(published_form.flows){
+    			else if (published_form.flows) {
     				lenActions = published_form.flows[1].elements.filter((x) => { return x.type === "submit" }).length;
     			}
-    			
+    
     			res.response.sort = true;
     		}
     		// if none of both previous conditions are met, we can''t sort responses.
@@ -429,31 +451,31 @@ responseTimeout: 600
     			}
     		}
     	}
-    	if(csv){
-    		var arrayCsv = [{path: ''/.doc.timestamp'', type:"timestamp", meta: {}}];
-    		if(meta){
-    			if(meta.offset){
+    	if (csv) {
+    		var arrayCsv = [{ path: ''/.doc.timestamp'', type: "timestamp", meta: {} }];
+    		if (meta) {
+    			if (meta.offset) {
     				var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
     				offset = +meta.offset;
     				arrayCsv[0].meta.offsetDiff = offset - offSetServer;
     			}
-    			if(meta.authorId){
-    				arrayCsv.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: false}});
+    			if (meta.authorId) {
+    				arrayCsv.push({ path: ''/.doc.~c8oAcl'', type: "author", meta: { transform: false } });
     			}
-    			else if(meta.authorName){
-    				arrayCsv.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: true}});
+    			else if (meta.authorName) {
+    				arrayCsv.push({ path: ''/.doc.~c8oAcl'', type: "author", meta: { transform: true } });
     			}
     		}
     		sortedsIds = arrayCsv.concat(sortedsIds);
     	}
-    	else{
-    		var arraySummary = [{path: ''/.doc.timestamp'', type:"timestamp", meta: {}}];
-    		if(meta && meta.offset){
+    	else {
+    		var arraySummary = [{ path: ''/.doc.timestamp'', type: "timestamp", meta: {} }];
+    		if (meta && meta.offset) {
     			var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
     			offset = +meta.offset;
     			arraySummary[0].meta.offsetDiff = offset - offSetServer;
     		}
-    		arraySummary.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: true}});
+    		arraySummary.push({ path: ''/.doc.~c8oAcl'', type: "author", meta: { transform: true } });
     		sortedsIds = arraySummary.concat(sortedsIds);
     	}
     
@@ -467,7 +489,7 @@ responseTimeout: 600
     		nestedResponses = [];
     	}
     	var flatResponses = [];
-    	responses.sort((a, b)=>{
+    	responses.sort((a, b) => {
     		return +a.doc.timestamp - +b.doc.timestamp
     	})
     	// go over each fields of the form
@@ -478,53 +500,53 @@ responseTimeout: 600
     			var prefix = false;
     			var s = sortedsIds[i].path.split(".");
     			var response;
-    			if(s[0] != "/"){
+    			if (s[0] != "/") {
     				response = responses[j].doc.resp;
     			}
-    			else{
+    			else {
     				response = responses[j];
     				prefix = true;
     				s.shift();
     			}
     			var elem;
-    			try{
+    			try {
     				for (var part of s) {
     					response = response[part];
     					elem = part;
     				}
     			}
-    			catch(e){
-    				
+    			catch (e) {
+    
     			}
-    			
+    
     			if (response) {
     				if (j == 0) {
     					// prefix for csv as timestamp or author
-    					if(prefix){
+    					if (prefix) {
     						var i18nKey = getI18nForCsv(sortedsIds[i].type, (meta && meta.lang) ? meta.lang : "en");
     						flatResponses[i] = { "id": i18nKey, att_type: false, "label": i18nKey, "labelHtml": i18nKey, "type": sortedsIds[i].type, "name": i18nKey };
     					}
-    					else{
+    					else {
     						flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, categories: [], "name": response.name };
     					}
-    					if(nestedResponses == undefined){
+    					if (nestedResponses == undefined) {
     						flatResponses[i]["value"] = [];
     					}
     				}
-    				if(nestedResponses != undefined){
+    				if (nestedResponses != undefined) {
     					if (nestedResponses[j] == undefined) {
     						nestedResponses[j] = [];
     					}
-    					if(nestedResponses[j][i] == undefined){
-    						nestedResponses[j][i] = { value: []};
+    					if (nestedResponses[j][i] == undefined) {
+    						nestedResponses[j][i] = { value: [] };
     					}
     					extractResponse(response, i, sortedsIds[i].type, responses[j].id, nestedResponses[j], flatResponses, csv, sortedsIds[i].meta);
-    					
+    
     				}
-    				else{
+    				else {
     					extractResponse(response, i, sortedsIds[i].type, responses[j].id, flatResponses, flatResponses, csv, sortedsIds[i].meta);
     				}
-    				
+    
     			}
     		}
     	}
@@ -542,20 +564,20 @@ responseTimeout: 600
     					response.type = "actionValue";
     					if (j == 0) {
     						flatResponses[k + i] = { "id": indexName, att_type: false, "label": indexName, "labelHtml": indexName, "type": "actionValue", "name": indexName };
-    						if(nestedResponses == undefined){
+    						if (nestedResponses == undefined) {
     							flatResponses[k + i]["value"] = [];
     						}
     					}
-    					if(nestedResponses != undefined){
+    					if (nestedResponses != undefined) {
     						if (nestedResponses[j] == undefined) {
     							nestedResponses[j] = [];
     						}
-    						if(nestedResponses[j][k + i] == undefined){
-    							nestedResponses[j][k + i] = { value: []};
+    						if (nestedResponses[j][k + i] == undefined) {
+    							nestedResponses[j][k + i] = { value: [] };
     						}
     						extractResponse(response, k + i, response.type, responses[j].id, nestedResponses[j], flatResponses, csv, null);
     					}
-    					else{
+    					else {
     						extractResponse(response, k + i, response.type, responses[j].id, flatResponses, flatResponses, csv, null);
     					}
     				}
@@ -565,11 +587,11 @@ responseTimeout: 600
     
     	}
     	res.response.value = flatResponses;
-    	if(nestedResponses){
+    	if (nestedResponses) {
     		res.response.nestedResponses = nestedResponses;
     		res.response.summerized = false;
     	}
-    	else{
+    	else {
     		res.response.summerized = true;
     	}
     }'

@@ -7,17 +7,110 @@ responseTimeout: 600
     var Jsoup = use("org.jsoup.Jsoup");
     Otherkey = "Other";
     const logLevel = "warn";
-    let res = {};
-    // start functions
-    //start code
-    let flatResponses;
-    let csvArray = [];
+    const DEFAULT_BATCH_SIZE = 1000;
     
+    var writeCsvRow = function(writer, row, options) {
+    	var stringDelimiter = options.stringDelimiter || ''"'';
+    	var fieldSeparator = options.fieldSeparator || '','';
+    	var lineSeparator = "\r\n";
+    	var csvLine = row.map(function(field) {
+    		if (field === null || field === undefined) {
+    			field = "";
+    		}
+    		if (Array.isArray(field)) {
+    			field = field.join(",");
+    		}
+    		if (typeof field !== "string") {
+    			field = "" + field;
+    		}
+    		field = field.replace(new RegExp(stringDelimiter, "g"), stringDelimiter + stringDelimiter);
+    		return stringDelimiter + field + stringDelimiter;
+    	}).join(fieldSeparator) + lineSeparator;
+    	writer.write(csvLine);
+    };
+    
+    var buildHeaderRow = function(headers, key) {
+    	var headerRow = [];
+    	for (var idx = 0; idx < headers.length; idx++) {
+    		var header = headers[idx];
+    		if (header != null) {
+    			var labelValue = header[key];
+    			if (labelValue == null) {
+    				labelValue = "";
+    			}
+    			if (key === "labelHtml") {
+    				try {
+    					var doc = Jsoup.parse(labelValue);
+    					labelValue = "" + doc.body().text();
+    				}
+    				catch (e) { }
+    			}
+    			if (header["type"] === "checkbox_group" || header["type"] === "radio_group") {
+    				var categories = header["categories"] || [];
+    				for (var c = 0; c < categories.length; c++) {
+    					headerRow.push(labelValue + "_" + categories[c]);
+    				}
+    			}
+    			else {
+    				headerRow.push(labelValue);
+    			}
+    		}
+    	}
+    	return headerRow;
+    };
+    
+    var buildDataRow = function(nestedResponse, reverse_separator) {
+    	var currentLineResponse = [];
+    	var i = 0;
+    	for (var colIndex = 0; colIndex < nestedResponse.length; colIndex++) {
+    		var col = nestedResponse[colIndex];
+    		if (col != null) {
+    			switch (col.type) {
+    				case "radio_group":
+    				case "checkbox_group":
+    					for (var subIndex = 0; subIndex < col.value.length; subIndex++) {
+    						var subcol = col.value[subIndex];
+    						for (var j = 0; j < subcol.data.length; j++) {
+    							if (currentLineResponse[i + j] == null) {
+    								currentLineResponse[i + j] = "";
+    							}
+    							if (subcol.data[j] == 1) {
+    								currentLineResponse[i + j] += (currentLineResponse[i + j].length > 0 ? reverse_separator : "") + subcol.name;
+    							}
+    						}
+    					}
+    					i = i + (col.value.length > 0 ? col.value[0].data.length : 0);
+    					break;
+    				default:
+    					var value = col.value;
+    					if (Array.isArray(value)) {
+    						currentLineResponse.push(value.join(","));
+    					}
+    					else {
+    						currentLineResponse.push(value != null ? "" + value : "");
+    					}
+    					i++;
+    					break;
+    			}
+    		}
+    		else {
+    			i++;
+    		}
+    	}
+    	for (var cleanIndex = 0; cleanIndex < currentLineResponse.length; cleanIndex++) {
+    		if (currentLineResponse[cleanIndex] == null) {
+    			currentLineResponse[cleanIndex] = "";
+    		}
+    	}
+    	return currentLineResponse;
+    };
+    
+    let res = {};
     // map params
     var formId = decodeURIComponent(f);
     var name = decodeURIComponent(n);
     var offset = decodeURIComponent(o);
-    var separator = (decodeURIComponent(s) == ";" || decodeURIComponent(s) == ",") ? decodeURIComponent(s) : ";"
+    var separator = (decodeURIComponent(s) == ";" || decodeURIComponent(s) == ",") ? decodeURIComponent(s) : ";";
     var encoding = (decodeURIComponent(e) != null && decodeURIComponent(e) != "") ? e : "UTF-8";
     var string_separator = (decodeURIComponent(se) == "''" || decodeURIComponent(se) == ''"'') ? decodeURIComponent(se) : ''"'';
     var column_name = decodeURIComponent(c);
@@ -25,101 +118,130 @@ responseTimeout: 600
     var lang = decodeURIComponent(l);
     var privacy = decodeURIComponent(p);
     var reverse_separator = (separator == ";" ? "," : ";");
+    var skipParam = decodeURIComponent(sk);
+    var limitParam = decodeURIComponent(li);
+    var skip = 0;
+    var limit = null;
+    try {
+    	if (skipParam != null && skipParam !== "") {
+    		skip = Math.max(0, parseInt(skipParam, 10));
+    	}
+    }
+    catch (e) { }
+    try {
+    	if (limitParam != null && limitParam !== "") {
+    		var parsedLimit = parseInt(limitParam, 10);
+    		if (!isNaN(parsedLimit) && parsedLimit > 0) {
+    			limit = parsedLimit;
+    		}
+    	}
+    }
+    catch (e) { }
     
-    /** 
-    	rename name of attachment to prevent from ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_DISPOSITION
-    	it seems that filename must not conatins any unicode char
-    	using doble quotes around name prevent us from this error
-    */ 
-    //var nameWithoutUnicode = (''"''+name+''"'') + ".csv";
     var nameWithoutUnicode = (name.replace(/[^\x00-\x7F]/g, "")) + ".csv";
+    var headerKey = column_name != "id" ? "labelHtml" : "id";
     
+    var batchSize = DEFAULT_BATCH_SIZE;
+    if (limit != null && limit < batchSize) {
+    	batchSize = limit;
+    }
+    
+    var csvDir = new java.io.File(context.getProjectDirectory() + "/csv");
+    if (!csvDir.exists()) {
+    	csvDir.mkdirs();
+    }
+    var fp = context.getProjectDirectory() + "/csv/" + formId + ".csv";
+    var options = {
+    	fieldSeparator: separator,
+    	stringDelimiter: string_separator
+    };
+    var writer = null;
+    var rowsWritten = 0;
+    var headerWritten = false;
     
     try {
-    	flatResponses = (callSequence("C8Oforms", "APIV2_getResponses", {  k: k, formId: formId, version: version, summary: false, csv: true, meta: JSON.stringify({offset, lang, authorId: privacy == "id", authorName: privacy == "name" },) })).document.res;
-    	res["flatResponses"] = flatResponses;
-        if(flatResponses && flatResponses.response && flatResponses.response.value){
-    		if(name == null || name =="" && flatResponses.published_form && flatResponses.published_form.name){
-    			name = flatResponses.published_form.name;
-    		}
-            var key = ''id'';
-            if(column_name != ''id''){
-                key = "labelHtml";
-            }
-            // build first line of the csv with headers
-            let lineHeader = [];
-            for(var header of flatResponses.response.value){
-    			if(header != null){
-    				if(key == "labelHtml"){
-    					try{
-    						var doc = Jsoup.parse(header[key]);
-    						header[key] = ""+ doc.body().text();
-    					}
-    					catch(e){}
-    				}
-    				if(header["type"] == "checkbox_group" || header["type"] == "radio_group"){
-    					for(var cat of header["categories"]){
-    						lineHeader.push(header[key] + "_" + cat);
-    					}
-    				}
-    				else{
-    					lineHeader.push(header[key]);
-    				}
-    	            
-    			}
-            }
-            csvArray.push(lineHeader);
-            // build each response line of the csv
-            for(var nestedResponse of flatResponses.response.nestedResponses){
-    			var currentLineResponse = [];
-    			var i = 0;
-    			for(var col of nestedResponse){
-    				if(col != null){
-    					switch(col.type){
-    						case "radio_group" :
-    						case "checkbox_group" :
-    								for(var subcol of col.value){
-    									for(var j = 0; j < subcol.data.length; j++){
-    										if(currentLineResponse[i+j] == null){
-    											currentLineResponse[i+j] = "";
-    										}
-    										if(subcol.data[j] == 1){
-    											currentLineResponse[i+j] += (currentLineResponse[i+j].length > 0 ? reverse_separator : "") + subcol.name;
-    										}
-    									}
-    								}
-    								i = i + col.value[0].data.length;
-    							break;
-    						default:
-    							currentLineResponse.push(col.value.join(","));
-    							i++;
-    							break;
-    					}
-    					
-    				}
-    				else{
-    					i++;
-    				}
-    				
-    			}
-    			csvArray.push(currentLineResponse);
-    		}
-        }
-        res["csvArray"] = csvArray;
-        
-    	var options = {
-    	    fieldSeparator: separator,
-    	    stringDelimiter: string_separator,
-    	    encoding: encoding,
-    	};
-    	let fp = context.getProjectDirectory() + "/csv/" + formId + ".csv";
-        res["csvStr"] = writeArrayToCsvFile(csvArray, options, fp);
-    	context.addFileToDeleteAtEndOfSession(new File(fp));
+    	writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(fp, false), encoding));
+    	var currentSkip = skip;            // <- AU LIEU de currentOffset
+    	var remaining  = limit;
+    	var more = true;
+    
+    	while (more) {
+    	  var currentLimit = batchSize;
+    	  if (remaining != null) {
+    	    currentLimit = Math.min(currentLimit, remaining);
+    	    if (currentLimit <= 0) break;
+    	  }
+    
+    	  // 🔧 IMPORTANT: l’API attend skip/limit (PAS offset)
+    	  var metaPayload = { 
+    	    skip: currentSkip,            // <- remplace offset: currentOffset
+    	    limit: currentLimit,
+    	    lang: lang
+    	  };
+    	  if (privacy === "id")   metaPayload.authorId   = true;
+    	  if (privacy === "name") metaPayload.authorName = true;
+    
+    	  var call = callSequence("C8Oforms", "APIV2_getResponses", {
+    	    k: k, formId: formId, version: version, summary: false, csv: true,
+    	    meta: JSON.stringify(metaPayload)
+    	  });
+    
+    	  var payload = (call && call.document) ? call.document.res : null;
+    	  if (!payload || !payload.response) break;
+    
+    	  // entêtes 1x
+    	  var headers = payload.response.value || [];
+    	  if (!headerWritten) {
+    	    var headerRow = buildHeaderRow(headers, headerKey);
+    	    writeCsvRow(writer, headerRow, options);
+    	    headerWritten = true;
+    	  }
+    
+    	  // données
+    	  var rows = payload.response.nestedResponses || [];
+    	  if (rows.length === 0) break;
+    
+    	  for (var r = 0; r < rows.length; r++) {
+    	    var row = buildDataRow(rows[r], reverse_separator);
+    	    writeCsvRow(writer, row, options);
+    	    rowsWritten++;
+    	  }
+    
+    	  // ➕ avance le curseur avec la vraie quantité retournée
+    	  currentSkip += rows.length;
+    
+    	  // limite globale éventuelle
+    	  if (remaining != null) {
+    	    remaining -= rows.length;
+    	    if (remaining <= 0) break;
+    	  }
+    
+    	  // sortie sûre si moins que demandé
+    	  if (rows.length < currentLimit) more = false;
+    
+    	  // aide GC
+    	  rows = null; headers = null; payload = null; call = null;
+    	}
+    	
     }
     catch (e) {
-        console.log("error", e, logLevel);
-        res["error"] = e; 
-    }'
+    	console.log("error", e, logLevel);
+    	res["error"] = e;
+    }
+    finally {
+    	if (writer != null) {
+    		try {
+    			writer.flush();
+    			writer.close();
+    		}
+    		catch (e) { }
+    	}
+    }
+    
+    context.addFileToDeleteAtEndOfSession(new File(fp));
+    res["rowsWritten"] = rowsWritten;
+    res["filePath"] = fp;
+    res["format"] = { separator: separator, stringDelimiter: string_separator, encoding: encoding };'
 ↓object2 [steps.JsonToXmlStep-1699365547409]: 
   jsonObject: 
     - xmlizable: 
@@ -176,4 +298,9 @@ responseTimeout: 600
   comment: privacy
   value: ${C8Oforms.default_csv_privacy =name}
 ↓k [variables.RequestableVariable-1759313696879]: 
+  comment: formId
+↓sk [variables.RequestableVariable-1759419415185]: 
+  comment: formId
+  value: 0
+↓li [variables.RequestableVariable-1759419415852]: 
   comment: formId
