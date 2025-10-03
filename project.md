@@ -17372,6 +17372,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>PopoverGroupActions</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PopoverGroupActions
+
+
+</p></blockquote></details>
+
 <details><summary><b>PopoverListPagesAndFlows</b></summary><blockquote><p>
 
 
