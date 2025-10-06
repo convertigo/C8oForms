@@ -642,6 +642,7 @@ scriptContent:
         	
         	async showModal(name: string = ''add'', grid = ''addGroupForm''){
         		let modalObj = null;
+        
         		switch(name) {
         			case ''add'':
         				modalObj = 	{
@@ -653,7 +654,7 @@ scriptContent:
         			case ''edit_group'':
         				modalObj = 	{
         				  component: C8Oforms_UpdateGroupAccessRights,
-        				  componentProps: ((this.myaggrid?.agGrid?.api?.getSelectedNodes().length == 1) ? { groupSelected: this.groupSelected, bulk: false, page: this } : { groupSelected: this.groupSelected, page: this, bulk: true, docs: this.myaggrid?.agGrid?.api?.getSelectedNodes() }),
+        				  componentProps: ((this.myaggrid?.agGrid?.api?.getSelectedNodes().length == 1) ? { groupSelected: this.groupSelected, bulk: false, page: this } : { groupSelected: this.groupSelected, page: this, bulk: true, docs: this.myaggrid?.agGrid?.api.getSelectedNodes() }),
         				  cssClass: "modal-custom",
         				  showBackdrop: false
         				}
@@ -1074,6 +1075,8 @@ scriptContent:
         	  if (btn) {
         	    btn.addEventListener("click", (event) => {
         	      event.stopPropagation(); // évite que le clic sélectionne la ligne
+        		  params.api.deselectAll();
+        		  params.node.setSelected(true);
         	      this.presentPopover(event, "group",params);
         	    });
         	  }
@@ -1208,6 +1211,8 @@ scriptContent:
         
         	  btn.addEventListener(''click'', (event) => {
         	    event.stopPropagation();
+        		params.api.deselectAll();
+        		params.node.setSelected(true);
         	    this.presentPopover(event, "users", params);
         	  });
         
@@ -1475,21 +1480,34 @@ scriptContent:
         			}
         			
         			async presentPopover(e: Event, type="group", params={}) {
-        //				console.log("hello world")
-        			  console.log(e, params)
+        				const anchor = document.createElement(''div'');
+        				anchor.style.position = ''fixed'';
+        				anchor.style.top = `${(e as MouseEvent).clientY}px`;
+        				anchor.style.left = `${(e as MouseEvent).clientX}px`;
+        				anchor.style.width = ''1px'';
+        				anchor.style.height = ''1px'';
+        				document.body.appendChild(anchor);
+        				
+        				const fakeEvent = new CustomEvent(''click'', { bubbles: true, cancelable: true });
+        				Object.defineProperty(fakeEvent, ''target'', { value: anchor, writable: false });
+        				Object.defineProperty(fakeEvent, ''currentTarget'', { value: anchor, writable: false });
+        			  let selectedNodes;
+        				selectedNodes = (type == "group") ? this.myaggrid?.agGrid?.api.getSelectedNodes():this.myaggrid2?.agGrid?.api.getSelectedNodes() ;
         			  const popover = await this.popoverController.create({
         			    component: type == "group" ? C8Oforms_PopoverGroupActions : C8Oforms_PopoverGroupUserActions,
-        			    componentProps: ((type == "group") ? {selectedNodes:this.myaggrid?.agGrid?.api?.getSelectedNodes()} : {selectedNodes:this.myaggrid2?.agGrid?.api?.getSelectedNodes(), all:(!this.groupSelected || this.groupSelected == undefined)}),
-        				event: e,                   // positionne le popover à l’endroit du clic
+        			    componentProps: ((type == "group") ? {selectedNodes:selectedNodes} : {selectedNodes:selectedNodes, all:(!this.groupSelected || this.groupSelected == undefined)}),
+        				event: fakeEvent,                   // positionne le popover à l’endroit du clic
         			    translucent: true,
         			    showBackdrop: false,
         			    backdropDismiss: true,
-        			    cssClass: ''popover''
+        			    cssClass: ''popover'',
+        				id: ''popover''+type+params[''rowIndex'']
         			  });
         
         			  await popover.present();
         
         			  const { data, role } = await popover.onDidDismiss();
+        			  document.body.removeChild(anchor);
         //			  console.log(`Popover dismissed with role: ${role}; and data: ${data}`);
         			  if ((role == ''delete'' || role == "delete_from_group") && data === null) {
         				if (role === ''delete'') {
