@@ -3898,104 +3898,193 @@ scriptContent:
         		}
         
         	}
+        	private _consumeFollowingCall(str: string, from: number): number {
+        		let i = from;
+        		while (i < str.length && /\s/.test(str[i])) i++;
+        
+        		// optional chaining "?."
+        		if (str[i] === ''?'' && str[i + 1] === ''.'') {
+        			i += 2;
+        			while (i < str.length && /\s/.test(str[i])) i++;
+        		}
+        
+        		if (str[i] !== ''('') return from;
+        
+        		let depth = 0, j = i;
+        		let quote: string | null = null;
+        		let esc = false;
+        		for (; j < str.length; j++) {
+        			const c = str[j];
+        			if (quote) {
+        				if (esc) { esc = false; continue; }
+        				if (c === ''\\'') { esc = true; continue; }
+        				if (c === quote) quote = null;
+        				continue;
+        			}
+        			if (c === ''"'' || c === "''" || c === ''`'') { quote = c; continue; }
+        			if (c === ''('') { depth++; continue; }
+        			if (c === '')'') { depth--; if (depth === 0) { j++; break; } }
+        		}
+        		return depth === 0 ? j : from;
+        	}
+        
+        	private _findSimpleAssignmentBefore(str: string, pos: number): number | null {
+        		// remonte jusqu''au début de l’instruction courante
+        		let i = pos - 1;
+        		let quote: string | null = null;
+        		let esc = false;
+        		let paren = 0, brace = 0, bracket = 0;
+        
+        		for (; i >= 0; i--) {
+        			const c = str[i];
+        			// gestion quotes
+        			if (quote) {
+        				if (esc) { esc = false; continue; }
+        				if (c === ''\\'') { esc = true; continue; }
+        				if ((c === quote)) { quote = null; }
+        				continue;
+        			}
+        			if (c === ''"'' || c === "''" || c === ''`'') { quote = c; continue; }
+        
+        			// stop si on tombe sur un séparateur d’instruction
+        			if ((c === '';'' || c === ''\n'') && paren === 0 && brace === 0 && bracket === 0) break;
+        
+        			// équilibreurs
+        			if (c === '')'') paren++;
+        			else if (c === ''('') paren--;
+        			else if (c === ''}'') brace++;
+        			else if (c === ''{'') brace--;
+        			else if (c === '']'') bracket++;
+        			else if (c === ''['') bracket--;
+        		}
+        
+        		// on repart en avant depuis i+1 pour chercher un "=" simple
+        		let start = i + 1;
+        		let j = start;
+        		while (j < pos) {
+        			// sauter espaces et commentaires simples
+        			if (str[j] === ''/'' && str[j + 1] === ''/'') {
+        				// jusqu’à fin de ligne
+        				while (j < pos && str[j] !== ''\n'') j++;
+        				continue;
+        			}
+        			if (str[j] === ''/'' && str[j + 1] === ''*'') {
+        				// commentaire bloc
+        				j += 2;
+        				while (j + 1 < pos && !(str[j] === ''*'' && str[j + 1] === ''/'')) j++;
+        				j += 2;
+        				continue;
+        			}
+        			if (/\s/.test(str[j])) { j++; continue; }
+        
+        			if (str[j] === ''='') {
+        				// exclure "==", "===", "=>", ">=", "<=", "!="
+        				const prev = str[j - 1] || '''';
+        				const next = str[j + 1] || '''';
+        				if (prev !== ''='' && prev !== ''!'' && prev !== ''>'' && prev !== ''<'' && next !== ''='' && next !== ''>'') {
+        					return j; // c’est un "=" d’assignation simple
+        				}
+        			}
+        			j++;
+        		}
+        		return null;
+        	}
+        
         	public transform$toTsMonaco(str): string {
         		try {
-        			//const regex = /\$\$START(\d+)(.*?)(END\d+)\$\$/;
-        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
+        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
         			let match;
         			while ((match = regex.exec(str)) != null) {
-        				// the whole string
-        				let elem = match[0];
-        				// start index
-        				let iStart = match.index;
-        				// end index
-        				let iEnd = match.index + match[0].length;
+        				const iStart = match.index;
+        				const iEnd = match.index + match[0].length;
         
-        				if (match[2] == undefined || match[2] == "") {
-        					let id = match[1];
-        					let val = this.getElementNameById(id);
-        					let meta: any = {};
+        				const replaceWithCommentOrNull = (comment: string) => {
+        					// Y avait-il une assignation simple juste avant ?
+        					const eqIndex = this._findSimpleAssignmentBefore(str, iStart);
+        					const endAfterCall = this._consumeFollowingCall(str, iEnd);
         
-        					let cat = this.getElementById(id).cat;
-        					if (cat == "action") {
-        						meta.pathPrefix = "actions";
+        					if (eqIndex != null) {
+        						// Remplacer le token (+ appel) par "null /* ... */"
+        						const repl = `null /* ${comment} */`;
+        						str = str.substring(0, iStart) + repl + str.substring(endAfterCall);
+        					} else {
+        						// Pas en RHS d’une assignation simple → juste un commentaire
+        						const repl = `/* ${comment} */`;
+        						str = str.substring(0, iStart) + repl + str.substring(endAfterCall);
         					}
-        					else {
-        						meta.pathPrefix = "fields"
-        					}
-        					meta.id = id;
+        				};
         
-        					if (val != "") {
+        				// --- Cas 1 : pas de JSON dans le token ---
+        				if (match[2] == null || match[2] === "") {
+        					const id = match[1];
+        					const name = this.getElementNameById(id);
+        					const cat = this.getElementById(id)?.cat;
+        					const meta: any = { id, pathPrefix: cat === "action" ? "actions" : "fields" };
+        
+        					if (name !== "") {
         						str = str.substring(0, iStart) + this.evalMetaForTransform$toTsMonaco(meta) + str.substring(iEnd);
-        					}
-        					else {
-        						// if element doesn''t exists any more remove it
-        						str = str.substring(0, iStart) + "" + str.substring(iEnd);
+        					} else {
+        						replaceWithCommentOrNull(`${this.translate.instant("deleted_element")} (id=${id})`);
         					}
         				}
+        				// --- Cas 2 : JSON présent ---
         				else {
-        					// id based on substring
-        					let id = match[1];
-        					// target name
-        					let name = this.getElementNameById(id);
-        					// metas attached to expression
-        					let meta = JSON.parse(match[2]);
-        					// compute current type
-        					let type = "";
-        					if (meta.__c8otype != undefined) {
-        						type = meta.c8otype;
-        					}
-        					// if object name is not found, it''s mean that object has been deleted, use current name from meta
-        					if (name == "") {
-        						name = meta.name;
+        					const id = match[1];
+        					const meta = JSON.parse(match[2]);
+        					const elm = this.getElementById(id);
+        					const nameFromStore = this.getElementNameById(id);
+        
+        					if (!elm && !nameFromStore) {
+        						const parts: string[] = [`${this.translate.instant("deleted_element")} (id=${id}`];
+        						if (meta?.name) parts.push(`name="${meta.name}"`);
+        						if (meta?.pathPrefix) parts.push(`pathPrefix="${meta.pathPrefix}"`);
+        						if (meta?.c8opath) parts.push(`c8opath="${meta.c8opath}"`);
+        						if (meta?.c8oPrettyPath) parts.push(`pretty="${meta.c8oPrettyPath}"`);
+        						const comment = parts.join('', '') + '')'';
+        						replaceWithCommentOrNull(comment);
+        						continue;
         					}
         
-        					let computedMeta = {};
+        					// logique normale
+        					let name = nameFromStore || meta.name || "";
+        					let type = "";
+        					if (meta.__c8otype != undefined) type = meta.c8otype;
+        
+        					const computedMeta: any = {};
         					if (meta.nested != null) {
-        						for (let nestIndex in meta.nested) {
+        						for (const nestIndex in meta.nested) {
         							computedMeta[nestIndex] = this.evalMetaForTransform$toTsMonaco(meta.nested[nestIndex]);
         						}
         					}
+        
         					let tpmstr = "";
-        					if(id == "1"){
+        					if (id == "1") {
         						tpmstr = meta.c8opath;
-        					}
-        					// in case of coming from palette or txt
-        					else {
+        					} else {
         						if (meta.id == undefined && meta.pathPrefix == undefined) {
-        							let cat = this.getElementById(id).cat;
-        							//if(cat != undefined){
-        							if (cat == "action") {
-        								meta.pathPrefix = "actions";
-        							}
-        							else {
-        								meta.pathPrefix = "fields"
-        								//}
-        							}
+        							const cat = elm?.cat;
+        							meta.pathPrefix = (cat === "action") ? "actions" : "fields";
         							meta.id = id;
         						}
         						tpmstr = this.evalMetaForTransform$toTsMonaco(meta);
-        						for (let nestIndex in computedMeta) {
-        							let strToReplace = ''"$$START_SUB'' + nestIndex + ''END_SUB$$"'';
+        						for (const nestIndex in computedMeta) {
+        							const strToReplace = ''"$$START_SUB'' + nestIndex + ''END_SUB$$"'';
         							tpmstr = tpmstr.replace(strToReplace, computedMeta[nestIndex]);
         						}
         					}
         					str = str.substring(0, iStart) + tpmstr + str.substring(iEnd);
         				}
-        
         			}
-        			if (str == undefined) {
-        				return "";
-        			}
-        			else {
-        				return str;
-        			}
-        		}
-        		catch (e) {
-        			this.c8o.log.error("An error occurend into transform$toHtml: \n see: \n " + JSON.stringify(e));
+        			return str ?? "";
+        		} catch (e) {
+        			this.c8o.log.error("An error occurred in transform$toTsMonaco:\n" + JSON.stringify(e));
         			return "";
         		}
         	}
+        
+        
+        
+        
         	public evalMetaForTransform$toTsMonaco(current): string {
         		let currentNestedName = this.getElementNameById(current.id);
         		let splitted = current?.c8opath?.split(".");
