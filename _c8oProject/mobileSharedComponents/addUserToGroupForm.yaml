@@ -4,28 +4,81 @@ scriptContent:
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
         '/*Begin_c8o_CompImport*/
-        
+        type Permissions = {
+          publication: boolean;
+          admin: boolean;
+          admin_readonly: boolean;
+          formulas: boolean;
+          editing_rights: boolean;
+          nocode_db_rights: boolean;
+        };
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
+        	public alertController: AlertController;
         	public toastController: ToastController;
-        	public selectedGroups: Array<any>;
-        	public icons: Record<string, string> = {
-        	    editing_rights: ''✏️'',
-        	    nocode_db_rights: ''🧩'',
-        	    admin: ''🛡️'',
-        		formulas: ''ƒ'',
-        		admin_readonly: ''🛡'',
-        		publication: ''📤'',
-        	  };
+        	public modalController: ModalController;
+        	public popoverController: PopoverController;
+        	public searchValue: string = '''';
+        	selectedLanguages: string[] = [];
+        	selectedProviders: string[] = [];
+        	selectedPermissions: string[] = [];
+        	countUsersInGroupSelected: number = 0;
+        	public userSelected: string = '''';
+        	public searchPlaceholder: string;
+        	public allUsersSelected: boolean = true;
+        	public filters: any = {
+        		language: {
+        			all: {checked: true},
+        			fr: {checked: false},
+        			en: {checked: false},
+        			it: {checked: false},
+        			es: {checked: false},
+        		}, 
+        		provider: {
+        			all: {checked: true},
+        			azuread: {checked: false},
+        			google: {checked: false},
+        			linkedin: {checked: false},
+        			convertigo: {checked: false},
+        			openid: {checked: false},
+        		},
+        		permissions : {
+        			all: {checked: true},
+        			"Admin": {checked: false},
+        			"Admin Read Only": {checked: false},
+        			"No Code Editor": {checked: false},
+        			"Editor": {checked: false},
+        			"Formulas Editor": {checked: false},
+        			"Publisher": {checked: false}
+        		}
+        	};
         
-        	  public translations: Record<string, string> = {
-        		editing_rights: ''editing_rights_label'',
-        		nocode_db_rights: ''nocode_db_rights_label'',
-        		formulas: ''formulas_rights'',
-        		admin: ''admin_label'',
-        		publication: ''Publication'',
-        		admin_readonly: ''Admin_read_only''
-        	  }
+        	public colors: Record<string, string> = {
+        	  "Admin": "#ef4444",      // rouge
+        	  "No Code Editor": "#f59e0b",       // orange
+        	"Formulas Editor": "#10b981",       // violet
+        	  "Publisher": "#3b82f6",       // bleu
+        	  "Editor": "#10b981",    // vert
+        	  "Admin Read Only": "#8b5cf6",       // violet
+        	};
+        
+        	public styleClasses: Record<string, string> = {
+        	  "Admin": "metric-icon-badge--danger",      // rouge
+        	  "No Code Editor": "metric-icon-badge--warning",       // orange
+        	"Formulas Editor": "metric-icon-badge--success",       // violet
+        	  "Publisher": "metric-icon-badge--info",       // bleu
+        	  "Editor": "metric-icon-badge--success",    // vert
+        	  "Admin Read Only": "metric-icon-badge--tertiary",       // violet
+        	};
+        
+        	public permsNames: Record<string, string> = {};
+        	public valuesCopy: Array<any>;
+        	public valuesSelected: Array<any>;
+        	public groupSelected: string;
+        	public userDetailsSelected: string;
+        	 public all_users: any = {};
+        	 public selectedGroups = [];
+        
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.toastController = this.getInstance(ToastController);
@@ -60,112 +113,781 @@ scriptContent:
         		await toast.present();
         	}
         	
-        	public async loadGridData(pageEvent: string = "") {
-        		try {
-        			this.local.loading = true;
-        			if(this.myaggrid3?.agGrid?.api){
-        				this.myaggrid3.agGrid.api.showLoadingOverlay();
-        			}
-        			var data = await this.c8o.callJsonObject("C8Oforms.admin_groups_get", {}).async();
-        			if (data.error) {
-        				this.local.error = true;
-        			} else {
-        				if (data.data.labels) {
-        					var translations = this.translate.translations[this.translate.currentLang];
-        					let finKeyByValue = (value) => {
-        					for (const key in translations) {
-        						if (translations[key] === value) {
-        							return key;
-        						}
+        		public process(labels, editing_apps_default_rights, no_code_db_default_rights, formulas_default_rights, publication_default_rights) {
+        			var translations = this.translate.translations[this.translate.currentLang];
+        			let finKeyByValue = (value) => {
+        				for (const key in translations) {
+        					if (translations[key] === value) {
+        						return key;
         					}
         				}
-        				data.data.labels = data.data.labels.map((x) => {
-        					if (x.headerName) {						
-        						x.headerName = this.translate.instant(x.headerName);
-        					}
-        					// if it''''s a checkbox then add support for non boolean checkbox
-        					if (x?.cellRenderer == "agCheckboxCellRenderer") {
-        						if (x?.c8o_type == "stringboolean") {
-        							x.valueGetter = (params) => {
-        								return !(params.data[x.field] === ''false'');
-        							},
-        							x.valueSetter = (params) => {
-        								params.data[x.field] = params.newValue ? ''true'' : ''false'';
-        								return true;
-        							}
-        							} else {
-        								x.valueGetter = (params) => {
-        								return params.data[x.field] === true;
-        							},
-        							x.valueSetter = (params) => {
-        								params.data[x.field] = params.newValue;
-        								return true;
-        							}
-        						}
+        			}
         
+        			return labels.map((x) => {
+        				if (x.headerName && x.headerName.length > 0) {				
+        					x.headerName = this.translate.instant(x.headerName);
+        				}
+        
+        				// Gestion des checkbox
+        				if (x?.cellRenderer === "agCheckboxCellRenderer") {
+        					if (x?.c8o_type === "stringboolean") {
+        						x.valueGetter = (params) => {
+        							if(params.colDef.field == "editing_rights"){
+        								return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : editing_apps_default_rights;
+        							}
+        							else if(params.colDef.field == "nocode_db_rights"){
+        								return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : no_code_db_default_rights;
+        							}
+        							else if(params.colDef.field == "formulas"){
+        								return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : formulas_default_rights;
+        							}
+        							else if(params.colDef.field == "publication"){
+        								return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : publication_default_rights;
+        							}
+        							else{
+        								return params.data[x.field] === ''true'' || params.data[x.field] === true;
+        							}
+        							
+        						}
+        						x.valueSetter = (params) => {
+        							params.data[x.field] = params.newValue ? ''true'' : ''false'';
+        							return true;
+        						};
+        					} else {
+        						x.valueGetter = (params) => params.data[x.field] === true;
+        						x.valueSetter = (params) => {
+        							params.data[x.field] = params.newValue;
+        							return true;
+        						};
         					}
-        					if (x?.valueGetter == "lang") {
-        						x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
-        						x = this.translate.instant(x);
-        						return x;
-        					})
+        				}
+        
+        				// Gestion de la localisation ("lang")
+        				if (x?.valueGetter === "lang") {
+        					if (x.cellEditorParams?.values) {
+        						x.cellEditorParams.values = x.cellEditorParams.values.map((v) => this.translate.instant(v));
+        						x.cellEditorParams.values = x.cellEditorParams.values.children?.map((v) => this.translate.instant(v)) || [];
+        					}
+        
         					x.valueGetter = (params) => {
-        						if (params?.data?.[x.field]) {
-        							return this.translate.instant(params.data[x.field]);
-        						} else {
-        							return params?.data?.[x.field] ?? "";
-        						}
+        						return params?.data?.[x.field] ? this.translate.instant(params.data[x.field]) : params?.data?.[x.field] ?? "";
+        					};
         
-        					},
         					x.valueSetter = (params) => {
         						params.data[x.field] = finKeyByValue(params.newValue);
         						return true;
-        					}
+        					};
         				}
+        
         				return x;
-        				});
-        				}
-        				data.data.labels[0].cellRenderer = (params) => {
-        					let tags = "";
-        					for(let key in params.data.access){
-        						if(params.data.access[key] === true || params.data.access[key] === "true"){
-        							tags += `<span style="
-        								    padding: 2px 8px;
-        								    margin-left: 6px;
-        								    border-radius: 12px;
-        								    background-color: #eef2f7;
-        								    color: #1f2937;
-        								    font-weight: 600;
-        								    font-size: 14px;
-        								    height: 2rem;
-        								  ">${this.icons[key]} ${this.translate.instant(this.translations[key])}</span>`;
-        						}
-        					}
-        				  return `<span>${params.data.group} ${tags}</span>`;
-        				};
-        				this.local.data = data;
-        				this.local.data.data.labels[0].editable = false;
-        //				this.local.data.data.labels = [this.local.data.data.labels[0]];
-        //				console.log(this.local.data);
-        			}
-        		} catch (e) {
-        			this.local.error = true;
-        //			console.log(this.local);
-        			console.error(e);
-        			this.c8o.log.error("An error occured : \n" + JSON.stringify(e));
-        		} finally {
-        			this.local.loading = false;
-        			if(this.myaggrid3?.agGrid?.api){
-        				this.myaggrid3.agGrid.api.hideOverlay();
-        			}
-        			this.ref.markForCheck();
+        			});
         		}
-        	}
+        		
+        		public async loadGridData(pageEvent: string = "") {
+        			try {
+        				this.local.loading = true;
+        				if (this.myaggrid?.agGrid?.api) {
+        					this.myaggrid.agGrid.api.showLoadingOverlay();
+        				}
+        				if (this.myaggrid2?.agGrid?.api) {
+        					this.myaggrid2.agGrid.api.showLoadingOverlay();
+        				}
+        				let admin_write = ( (!this.global?.settings?.admin) ? true : false);
+        				let admin_readonly = ( (this.global?.settings?.admin_readonly == undefined || !this.global?.settings?.admin_readonly) ? false : admin_write );
+        	//			console.log(admin_readonly);
+        
+        				var data = await this.c8o.callJsonObject("C8Oforms.admin_users_get_by_group_v2", {admin_readonly: admin_readonly}).async();
+        				let no_code_db_default_rights = data.result?.default_rights.no_code_db_default_rights == true;
+        				let editing_apps_default_rights = data.result?.default_rights.editing_apps_default_rights == true;
+        				let formulas_default_rights = data.result?.default_rights?.formulas_default_rights == true;
+        				let publication_default_rights = data.result?.default_rights?.publication == true;
+        				if (data.error) {
+        					this.local.error = true;
+        				}
+        				else {
+        					if (data?.result?.labels && data?.result?.childrenLabels) {
+        
+        						data.result.labels[0].cellRenderer = (params) => {
+        							return this.GroupCellRenderer(params);
+        						};
+        	//					data.result.labels[0].cellRendererParams.suppressRefreshRenderer = false;
+        						data.result.labels[0].valueGetter = params =>
+        						  `${params.data.value} ${params.data.count}`
+        						
+        						data.result.childrenLabels[0].cellRenderer = (params) => {
+        	//						console.log(params)
+        							return this.UsersCellRenderer(params);
+        						};
+        	//					data.result.childrenLabels[0].cellClass= ''hover-card-grid'';
+        	//					data.result.childrenLabels[0].cellClassRules= {
+        	//					  ''hover-card-grid--selected'': (params) => params.node.selected,
+        	//					  ''hover-card-grid--group-clicked'': (params) =>
+        	//					    this.groupSelected === params.data.value,
+        	//					};
+        	//					data.result.childrenLabels[0].cellRendererParams.suppressRefreshRenderer = false
+        						data.result.childrenLabels[0].valueGetter = params =>
+        						  `${params.data.mail} ${params.data.language} ${params.data.provider} ${params.data.displayName} ${params.data.name} ${params.data.surname} ${this.getPermissionsValuesGetter(params)}`
+        						
+        						data.result.labels = this.process(data.result.labels, editing_apps_default_rights, no_code_db_default_rights, formulas_default_rights, publication_default_rights);
+        						data.result.childrenLabels = this.process(data.result.childrenLabels, editing_apps_default_rights, no_code_db_default_rights, formulas_default_rights, publication_default_rights);
+        					}
+        					if (data.result.values?.[0]?.group) {
+        						data.result.values[0].group = this.translate.instant(data.result.values?.[0]?.group);
+        					}
+        
+        					this.local.data = data;
+        
+        					this.valuesCopy = this.local.data?.result?.values;
+        
+        					this.all_users = this.local.data?.result?.values[0];
+        					this.local.data.result.values = this.local.data.result.values.slice(1);
+        					if (pageEvent == "willLoad") {
+        	//					setTimeout(() => {
+        	//						const firstRow = this.myaggrid?.agGrid?.api.getDisplayedRowAtIndex(0);
+        	//						if (firstRow) {
+        	//							firstRow.setSelected(true);
+        	//						}
+        	//					}, 0);
+        						this.valuesSelected = this.all_users.children;
+        						this.groupSelected = this.all_users.group;
+        					}
+        				}
+        			} 
+        			catch (e) {
+        				this.local.error = true;
+        				console.error(e);
+        				this.c8o.log.error("An error occured : \n" + JSON.stringify(e));
+        			}
+        			finally {
+        				this.local.loading = false;
+        				if (this.myaggrid?.agGrid?.api) {
+        					this.myaggrid.agGrid.api.hideOverlay();
+        				}
+        				if (this.myaggrid2?.agGrid?.api) {
+        					this.myaggrid2.agGrid.api.hideOverlay();
+        				}
+        				this.ref.markForCheck();
+        			}
+        		}
+        		
+        			public GroupCellRenderer(params: any) {
+        			  const wrapper = document.createElement("div");
+        				
+        			  const updateCardStyle = () => {
+        			    const card = wrapper.querySelector("div.hover-card-grid, div.hover-card-grid--selected, div.hover-card-grid--group-clicked");
+        			    if (card) {
+        			      card.className = this.getCardClass(params);
+        			    }
+        			  };
+        		//	  ${this.getCardClass(params)}
+        			  wrapper.innerHTML = `
+        			    <div style="padding-bottom: 0.25rem;">
+        			      <div class="hover-card-grid"
+        			           style="
+        			             cursor:pointer;
+        			             display: flex;
+        			             width: 100%;
+        			             height: calc(98.5px - 0.25rem);
+        			             padding: 15px 15px 1px 15px;
+        			             flex-direction: row;
+        			             align-items: flex-start;
+        			             flex: 3 1;
+        			             flex-shrink: 0;
+        			             border-radius: 10.5px;
+        			             border: 1px solid #E2E8F0;
+        			             background: #FFF;
+        			           ">
+        			           
+        			        <div style="width:90%;">
+        			          <p style="
+        			            margin:0;
+        			            color: #0F172A;
+        			            /*font-family: Inter;*/
+        			            font-size: 14px;
+        			            font-style: normal;
+        			            font-weight: 500;
+        			            line-height: 21px; /* 150% */
+        			            letter-spacing: -0.15px;
+        			          ">
+        			            ${params.data.value}
+        			            ${
+        			              (typeof this.getCurrentActiveGroup(params?.data?.rights) === ''number'' &&
+        			               this.getCurrentActiveGroup(params?.data?.rights) === 1)
+        			                ? `
+        			                  <span style="
+        			                    margin-left:0.43rem;
+        			                    color: #06D6A0;
+        			                    font-family: Inter;
+        			                    font-size: 10.5px;
+        			                    font-style: normal;
+        			                    font-weight: 500;
+        			                    line-height: 14px; /* 133.333% */
+        			                    letter-spacing: 0.092px;">
+        			                    <span style="
+        			                      display:inline-flex;
+        			                      margin-right:0.33rem;
+        			                      border-radius: 1048575rem;
+        			                      background: #06D6A0;
+        			                      width: 0.4375rem;
+        			                      height: 0.4375rem;">
+        			                    </span>
+        			                    Actif
+        			                  </span>
+        			                `
+        			                : ''''
+        			            }
+        			          </p>
+        
+        			          <p style="
+        			            margin:0;
+        			            margin-top:0.25rem;
+        			            color: #475569;
+        			            font-family: Inter;
+        			            font-size: 12.25px;
+        			            font-style: normal;
+        			            font-weight: 400;
+        			            line-height: 17.5px; /* 142.857% */
+        			            letter-spacing: -0.018px;
+        			          ">
+        			            ${this.translate.instant(this.getGroupDescriptionKey(params.data.rights))}
+        			          </p>
+        
+        			          <div style="
+        			            display: flex;
+        			            justify-content: space-between;
+        			            align-items:center;
+        			            height:0.875rem;
+        			          ">
+        			            <p style="
+        			              margin:0;
+        			              margin-top:0.33rem;
+        			              color: #64748B;
+        			              font-family: Inter;
+        			              font-size: 10.5px;
+        			              font-style: normal;
+        			              font-weight: 400;
+        			              line-height: 14px; /* 133.333% */
+        			              letter-spacing: 0.092px;
+        			            ">
+        			              <svg xmlns="http://www.w3.org/2000/svg"
+        			                   width="11" height="11" viewBox="0 0 11 11" fill="none">
+        			                <g clip-path="url(#clip0_6_6701)">
+        			                  <path d="M8.375 9.4375C8.375 8.50924 8.00625 7.619 7.34987 6.96263C6.6935 6.30625 5.80326 5.9375 4.875 5.9375C3.94674 5.9375 3.0565 6.30625 2.40013 6.96263C1.74375 7.619 1.375 8.50924 1.375 9.4375"
+        			                        stroke="#64748B" stroke-width="0.875"
+        			                        stroke-linecap="round" stroke-linejoin="round"/>
+        			                  <path d="M4.875 5.9375C6.08312 5.9375 7.0625 4.95812 7.0625 3.75C7.0625 2.54188 6.08312 1.5625 4.875 1.5625C3.66688 1.5625 2.6875 2.54188 2.6875 3.75C2.6875 4.95812 3.66688 5.9375 4.875 5.9375Z"
+        			                        stroke="#64748B" stroke-width="0.875"
+        			                        stroke-linecap="round" stroke-linejoin="round"/>
+        			                  <path d="M10.125 9.00002C10.125 7.52565 9.24998 6.15627 8.37498 5.50002C8.6626 5.28424 8.89259 5.00087 9.0446 4.67502C9.19661 4.34916 9.26595 3.99085 9.24648 3.63181C9.22702 3.27277 9.11935 2.92406 8.933 2.61655C8.74665 2.30904 8.48737 2.0522 8.1781 1.86877"
+        			                        stroke="#64748B" stroke-width="0.875"
+        			                        stroke-linecap="round" stroke-linejoin="round"/>
+        			                </g>
+        			                <defs>
+        			                  <clipPath id="clip0_6_6701">
+        			                    <rect width="10.5" height="10.5" fill="white"
+        			                          transform="translate(0.5 0.25)"/>
+        			                  </clipPath>
+        			                </defs>
+        			              </svg>
+        			              <span>${params.data.count} membres</span>
+        			            </p>
+        
+        			            ${this.PermissionsCellRenderer(params?.data?.rights)}
+        			          </div>
+        			        </div>
+        
+        			        <div style="display:flex;align-items:flex-start;">
+        			          <ion-button style="height:100%;"
+        			                      class="btn text-generic"
+        			                      (onClick)="this.presentPopover.bind(this)">
+        			            <svg xmlns="http://www.w3.org/2000/svg"
+        			                 width="14" height="14" viewBox="0 0 24 24"
+        			                 fill="none" stroke="currentColor"
+        			                 stroke-width="2" stroke-linecap="round"
+        			                 stroke-linejoin="round"
+        			                 class="lucide lucide-ellipsis-vertical-icon lucide-ellipsis-vertical">
+        			              <circle cx="12" cy="12" r="1"/>
+        			              <circle cx="12" cy="5" r="1"/>
+        			              <circle cx="12" cy="19" r="1"/>
+        			            </svg>
+        			          </ion-button>
+        			        </div>
+        			      </div>
+        			    </div>
+        			  `;
+        
+        
+        			  // Initial style update
+        		//	  updateCardStyle();
+        
+        			  // 🔄 Update style when selection changes (checkbox or row click)
+        		//	  params.node.addEventListener("selectedChanged", updateCardStyle);
+        
+        			  // ⚙️ Handle ion-button click
+        			  const btn = wrapper.querySelector("ion-button");
+        			  if (btn) {
+        //			    btn.addEventListener("click", (event) => {
+        //		//	      event.stopPropagation();
+        //				  params.api.deselectAll();
+        //				  params.node.setSelected(true);
+        //			      this.presentPopover(event, "group",params);
+        //			    });
+        			  }
+        
+        			  return wrapper;
+        			}
+        
+        
+        					
+        			public UsersCellRenderer(params: any) {
+        			  const wrapper = document.createElement(''div'');
+        			  wrapper.style.paddingBottom = ''0.25rem'';
+        
+        			  const card = document.createElement(''div'');
+        		//	  card.className = this.getCardClass2(params);
+        			  console.log(this.groupSelected)
+        			  card.className = (this.groupSelected === "all_users" || !this.groupSelected || this.groupSelected == undefined) ? "hover-card-grid--all" : "hover-card-grid";
+        			  card.style.cssText = `
+        			    cursor: pointer;
+        			    display: flex;
+        			    width: 100%;
+        			    height: calc(98.5px - 0.25rem);
+        			    padding: 15px 15px 1px 15px;
+        			    flex-direction: row;
+        			    align-items: flex-start;
+        			    flex: 3 1;
+        			    flex-shrink: 0;
+        			    border-radius: 10.5px;
+        			    border: 1px solid #E2E8F0;
+        			    background: #FFF;
+        			    transition: all 0.15s ease-in-out;
+        			  `;
+        
+        			  const left = document.createElement(''div'');
+        			  left.style.width = ''90%'';
+        
+        			  // 🔹 Nom + statut actif
+        			  const name = document.createElement(''p'');
+        			  name.style.cssText = `
+        			    margin: 0;
+        			    color: #0F172A;
+        			    font-size: 14px;
+        			    font-weight: 500;
+        			    line-height: 21px;
+        			    letter-spacing: -0.15px;
+        			  `;
+        			  name.textContent = params.data.displayName ?? '''';
+        
+        			  const activeGroup = this.getCurrentActiveGroup(params?.data);
+        			  if (typeof activeGroup === ''number'' && activeGroup === 1) {
+        			    const activeSpan = document.createElement(''span'');
+        			    activeSpan.style.cssText = `
+        			      margin-left: 0.43rem;
+        			      color: #06D6A0;
+        			      font-family: Inter;
+        			      font-size: 10.5px;
+        			      font-weight: 500;
+        			      line-height: 14px;
+        			      letter-spacing: 0.092px;
+        			      display: inline-flex;
+        			      align-items: center;
+        			    `;
+        
+        			    const dot = document.createElement(''span'');
+        			    dot.style.cssText = `
+        			      display: inline-flex;
+        			      margin-right: 0.33rem;
+        			      border-radius: 9999px;
+        			      background: #06D6A0;
+        			      width: 0.4375rem;
+        			      height: 0.4375rem;
+        			    `;
+        
+        			    activeSpan.appendChild(dot);
+        			    activeSpan.appendChild(document.createTextNode(''Actif''));
+        			    name.appendChild(activeSpan);
+        			  }
+        
+        			  left.appendChild(name);
+        
+        			  // 🔹 Description traduite
+        			  const desc = document.createElement(''p'');
+        			  desc.style.cssText = `
+        			    margin: 0;
+        			    margin-top: 0.25rem;
+        			    color: #475569;
+        			    font-family: Inter;
+        			    font-size: 12.25px;
+        			    font-weight: 400;
+        			    line-height: 17.5px;
+        			    letter-spacing: -0.018px;
+        			  `;
+        			  desc.textContent = this.translate.instant(this.getGroupDescriptionKey(params?.data));
+        			  left.appendChild(desc);
+        
+        			  // 🔹 Permissions renderer
+        			  const permissionsContainer = document.createElement(''div'');
+        			  permissionsContainer.style.cssText = `
+        			    display: flex;
+        			    justify-content: flex-end;
+        			    align-items: center;
+        			    height: 0.875rem;
+        			    margin-top: 0.25rem;
+        			  `;
+        			  // Insère ton rendu HTML depuis PermissionsCellRenderer
+        			  const permissionsHTML = this.PermissionsCellRenderer(params?.data);
+        			  if (permissionsHTML) {
+        			    permissionsContainer.innerHTML = permissionsHTML;
+        			  }
+        			  left.appendChild(permissionsContainer);
+        
+        			  // 🔹 Bouton (à droite)
+        			  const right = document.createElement(''div'');
+        			  right.style.cssText = `
+        			    display: flex;
+        			    align-items: flex-start;
+        			  `;
+        
+        			  const btn = document.createElement(''ion-button'');
+        			  btn.className = ''btn text-generic'';
+        			  btn.style.height = ''100%'';
+        			  btn.innerHTML = `
+        			    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+        			         viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        			         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        			         class="lucide lucide-ellipsis-vertical">
+        			      <circle cx="12" cy="12" r="1"/>
+        			      <circle cx="12" cy="5" r="1"/>
+        			      <circle cx="12" cy="19" r="1"/>
+        			    </svg>
+        			  `;
+        
+        //			  btn.addEventListener(''click'', (event) => {
+        //		//	    event.stopPropagation();
+        //				params.api.deselectAll();
+        //				params.node.setSelected(true);
+        //			    this.presentPopover(event, "users", params);
+        //			  });
+        
+        			  right.appendChild(btn);
+        			  card.appendChild(left);
+        			  card.appendChild(right);
+        			  wrapper.appendChild(card);
+        
+        			  // 🔄 Refresh method pour éviter les recréations
+        			  (wrapper as any).refresh = (newParams: any) => {
+        			    params = newParams;
+        			    card.className = this.getCardClass2(params);
+        			    name.textContent = params.data.displayName ?? '''';
+        			    desc.textContent = this.translate.instant(this.getGroupDescriptionKey(params?.data));
+        
+        			    // Met à jour le statut actif dynamiquement
+        			    const active = this.getCurrentActiveGroup(params?.data);
+        			    if (typeof active === ''number'' && active === 1) {
+        			      if (!name.querySelector(''span'')) {
+        			        const span = document.createElement(''span'');
+        			        span.style.marginLeft = ''0.43rem'';
+        			        span.style.color = ''#06D6A0'';
+        			        span.textContent = ''• Actif'';
+        			        name.appendChild(span);
+        			      }
+        			    } else {
+        			      const activeEl = name.querySelector(''span'');
+        			      if (activeEl) activeEl.remove();
+        			    }
+        
+        			    // Rafraîchit les permissions
+        			    permissionsContainer.innerHTML = this.PermissionsCellRenderer(params?.data) || '''';
+        			    return true; // ne recrée pas le DOM
+        			  };
+        
+        			  return wrapper;
+        			}
+        
         			
         	getH1(): string {
         		let h1 = this.translate.instant(''add_selected_users_to_group'');
         		return (h1 != undefined && h1.length > 30) ? h1.substring(0, 30) + ''...'' : h1
         	}
+        	
+        				public PermissionsCellRenderer(params: any, tooltip: boolean = false) {
+        		//			console.log(params.data)
+        					const admin = params?.admin;
+        					const formulas = params?.formulas;
+        					const nocode_db_rights = params?.nocode_db_rights;
+        					const publication  = params?.publication;
+        					const editing_rights = params?.editing_rights;
+        					const admin_readonly = params?.admin_readonly;
+        					let permissions = [];
+        					let permissionsLength = 0;
+        					const isTrue = (v: any) => v === true || v === "true";
+        
+        					
+        					for (let i = 0; i < 6; i++) {				
+        						if (isTrue(admin) && permissions.indexOf("admin") === -1) {
+        						  permissions.push("admin");
+        						  permissionsLength++;
+        						}
+        						
+        						if (isTrue(nocode_db_rights) && permissions.indexOf("nocode_db_rights") === -1) {
+        						  permissions.push("nocode_db_rights");
+        						  permissionsLength++;
+        						}
+        
+        						if (isTrue(formulas) && permissions.indexOf("formulas") === -1) {
+        						  permissions.push("formulas");
+        						  permissionsLength++;
+        						}
+        
+        						if (isTrue(publication) && permissions.indexOf("publication") === -1) {
+        						  permissions.push("publication");
+        						  permissionsLength++;
+        						}
+        
+        						if (isTrue(editing_rights) && permissions.indexOf("editing_rights") === -1) {
+        						  permissions.push("editing_rights");
+        						  permissionsLength++;
+        						}
+        
+        						if (isTrue(admin_readonly) && permissions.indexOf("admin_readonly") === -1) {
+        						  permissions.push("admin_readonly");
+        						  permissionsLength++;
+        						}
+        
+        
+        					}
+        					
+        		//			console.log(permissions);
+        
+        				  if (permissionsLength === 0) {
+        				    return `<span style="color:#9ca3af;height:100%; font-size:12px;">-</span>`;
+        				  }
+        
+        				  // mapping permission → couleur
+        				  const colors: Record<string, string> = {
+        				    admin: "#ef4444",      // rouge
+        				    nocode_db_rights: "#f59e0b",       // orange
+        					formulas: "#10b981",       // violet
+        				    publication: "#3b82f6",       // bleu
+        				    editing_rights: "#10b981",    // vert
+        				    admin_readonly: "#8b5cf6",       // violet
+        				  };
+        				  
+        				  const styleClasses: Record<string, string> = {
+        				    admin: "metric-icon-badge--danger",      // rouge
+        				    nocode_db_rights: "metric-icon-badge--warning",       // orange
+        				  formulas: "metric-icon-badge--success",       // violet
+        				    publication: "metric-icon-badge--info",       // bleu
+        				    editing_rights: "metric-icon-badge--success",    // vert
+        				    admin_readonly: "metric-icon-badge--tertiary",       // violet
+        				  };
+        				  
+        				  const permsNames: Record<string, string> = {
+        				    publication: this.translate.instant("publication_perm"),       // bleu
+        				    admin: this.translate.instant("admin_perm"),      // rouge
+        				    nocode_db_rights: this.translate.instant("nocode_db_rights_perm"),       // orange
+        				    editing_rights: this.translate.instant("editing_rights_perm"),    // vert
+        				    admin_readonly: this.translate.instant("admin_readonly_perm"),       // violet
+        				  formulas: this.translate.instant("formulas_perm")      // violet
+        				  };
+        
+        				  const dots = permissions.map(p => {
+        				    const color = colors[p] || "#9ca3af";
+        					const styleClass = styleClasses[p] || "";
+        				    return `<span class="${styleClass} ${(tooltip)? styleClass+''--tooltip'' : ''''}" data-text="${permsNames[p]}" style="filter:brightness(1) contrast(1.75);background:${color} !important;width:8px; height:8px; border-radius:50%; display:inline-block;"></span>`;
+        				  }).join(" ");
+        
+        				  return `<div style="display:flex; height: 100%;overflow:auto!important;gap:6px; justify-content: flex-end;align-items:center;width: 10.52881rem;">${dots}</div>`;
+        				}
+        				
+        				public ActionsCellRenderer(params, type = "group") {
+        			      const wrapper = document.createElement(''div'');
+        				  wrapper.style.height = "56px";
+        				  wrapper.style.position = "absolute";
+        				  wrapper.style.top = "-7px";
+        			      wrapper.innerHTML = `
+        			        <ion-button style="height:100%;" class="btn text-generic">
+        						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis-vertical-icon lucide-ellipsis-vertical"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        			        </ion-button>
+        			      `;
+        			
+        			      const ionButton = wrapper.querySelector(''ion-button'');
+        			
+        				
+        	//		      ionButton?.addEventListener(''click'', 
+        	//				this.presentPopover.bind(this)
+        	//		      );
+        			
+        			      return wrapper;
+        				}
+        				
+        				public getPermissionsValuesGetter(params) {
+        				  const d = params.data;
+        				  const roles: string[] = [];
+        				  const isTrue = (v: any) => v === true || v === "true";
+        
+        				  if (d.admin === true || d.admin === "true") {
+        				    roles.push("Admin");
+        				  }
+        				  if (d.nocode_db_rights === true || d.nocode_db_rights === "true") {
+        				    roles.push("No Code Editor");
+        				  }
+        				  if (d.admin_readonly === true || d.admin_readonly === "true") {
+        				    roles.push("Admin Read Only");
+        				  }
+        				  if (d.publication === true || d.publication === "true") {
+        				    roles.push("Publisher");
+        				  }
+        				  if (d.editing_rights === true || d.editing_rights === "true") {
+        				    roles.push("Editor");
+        				  }
+        				  if (d.formulas === true || d.formulas === "true") {
+        				    roles.push("Formulas Editor");
+        				  }
+        
+        				  return roles.join(" · "); // ex: "Admin · Publisher · Editor"
+        				}
+        				
+        					public getTotalGroups(): number | string {
+        						return (this.local.data?.result?.values) ? this.local.data?.result?.values.length : ''—'';
+        					}
+        					
+        					public getTotalActiveGroups(): number | string {
+        						if (!this.local.data?.result?.values) {
+        							return "—";
+        						}
+        						return this.local.data?.result?.values.filter(item => (item?.rights?.editing_rights || item?.rights?.formulas || item?.rights?.nocode_db_rights || item?.rights?.admin || item?.rights?.admin_readonly || item?.publication)).length;
+        					}
+        					
+        					public getCurrentActiveGroup(params: any): number | string {
+        						if (!this.local.data?.result?.values) {
+        							return "—";
+        						}
+        						return [params.data].filter(item => (item?.editing_rights || item?.formulas || item?.nocode_db_rights || item?.admin || item?.admin_readonly || item?.publication)).length;
+        					}
+        					
+        					public getActiveGroupsPerOfTotalGroups() {
+        						let total = this.getTotalGroups();
+        						let activeT = this.getTotalActiveGroups();
+        						if  (typeof total === ''string'' || typeof activeT === ''string'') {
+        							return ''—'';
+        						}
+        				//		console.log(activeT, total);
+        						return Math.floor(activeT / total * 100);
+        					}
+        					
+        					
+        					public getUsersAssignedToGroup() {
+        						if (!this.local.data?.result?.values) {
+        							return "—";
+        						}
+        						let sum = 0;
+        
+        						for (let i = 1; i < this.local.data?.result?.values.length; i++) {
+        						  sum += (this.local.data?.result?.values[i]?.count) ? Number(this.local.data?.result?.values[i]?.count) : 0;
+        						}
+        						return (this.local.data?.result?.values) ? sum : ''—'';
+        					}
+        					
+        					public getUniquePerms() {
+        						if (!this.local.data?.result?.values) {
+        							return "—";
+        						}
+        						let unique = [];
+        						let copy = {};
+        						for(let i = 0; i < this.local.data?.result?.values.length; i++) {
+        							const item = this.local.data?.result?.values[i];
+        							copy = {...item.rights};
+        							delete copy["_rev"];
+        							let str = JSON.stringify(copy);
+        							if (unique.indexOf(str) === -1) {
+        								unique.push(str);
+        							}
+        						}
+        						return unique.length;
+        					}
+        
+        					public getGroupDescriptionKey(perms: Permissions): string {
+        					  // 🔑 Cas Admin prioritaires
+        					  if (perms?.admin && perms?.publication && perms?.editing_rights && perms?.formulas && perms?.nocode_db_rights) {
+        					    return "group_desc_admin_full";
+        					  }
+        					  if (perms?.admin) {
+        					    return "group_desc_admin";
+        					  }
+        					  if (perms?.admin_readonly) {
+        					    return "group_desc_admin_readonly";
+        					  }
+        
+        					  // 🔧 Cas editing_rights
+        					  if (perms?.editing_rights && perms?.publication && perms?.formulas && perms?.nocode_db_rights) {
+        					    return "group_desc_edit_all";
+        					  }
+        					  if (perms?.editing_rights && perms?.formulas && perms?.nocode_db_rights) {
+        					    return "group_desc_edit_db_js";
+        					  }
+        					  if (perms?.editing_rights && perms?.formulas) {
+        					    return "group_desc_edit_js";
+        					  }
+        					  if (perms?.editing_rights && perms?.nocode_db_rights) {
+        					    return "group_desc_edit_db";
+        					  }
+        					  if (perms?.editing_rights && perms?.publication) {
+        					    return "group_desc_edit_publish";
+        					  }
+        					  if (perms?.editing_rights) {
+        					    return "group_desc_edit";
+        					  }
+        
+        					  // 📦 Cas Publication sans édition
+        					  if (perms?.publication && perms?.nocode_db_rights) {
+        					    return "group_desc_publish_db";
+        					  }
+        					  if (perms?.publication && perms?.formulas) {
+        					    return "group_desc_publish_js";
+        					  }
+        					  if (perms?.publication) {
+        					    return "group_desc_publish";
+        					  }
+        
+        					  // 📊 Cas Data & JS seuls
+        					  if (perms?.nocode_db_rights && perms?.formulas) {
+        					    return "group_desc_db_js";
+        					  }
+        					  if (perms?.nocode_db_rights) {
+        					    return "group_desc_db";
+        					  }
+        					  if (perms?.formulas) {
+        					    return "group_desc_js";
+        					  }
+        
+        					  // 🔘 Par défaut (aucune permission)
+        					  return "—";
+        					}
+        					
+        					public getCardClass(params) {
+        					  let clasS = "hover-card-grid";
+        						console.log(params.node.selected, this.groupSelected, params.data.value)
+        					  if (params?.node?.selected && this.groupSelected !== params?.data?.value ) {
+        					    clasS = "hover-card-grid--selected";
+        					  } else if (params?.node?.selected && this.groupSelected === params?.data?.value) {
+        					    clasS = "hover-card-grid--group-clicked";
+        					  }
+        
+        					  return clasS;
+        					}
+        					
+        					public getCardClass2(params) {
+        					  let clasS = "hover-card-grid";
+        						console.log(params.node.selected, this.groupSelected, params.data.value)
+        					  if (params?.node?.selected && this.userSelected !== params?.data?._id ) {
+        					    clasS = "hover-card-grid--selected";
+        					  } else if (params?.node?.selected && this.userSelected === params?.data?._id) {
+        					    clasS = "hover-card-grid--group-clicked";
+        					  }
+        
+        					  return clasS;
+        					}
         	/*End_c8o_CompFunction*/
         '
 ↓Style [ngx.components.UIStyle-1759506947046]: 
@@ -310,7 +1032,7 @@ scriptContent:
                   'flex-grow: 1;
                   '
         ↓UseSharedComponent [ngx.components.UIUseShared-1759506947115]: 
-          identifier: myaggrid3
+          identifier: myaggrid
           sharedcomponent: lib_ExtendedComponents_ui_ngx.MobileApplication.Application.agGrid
           ↓pagination [ngx.components.UIUseVariable-1759506947118]: 
             comment: 'boolean: true (default) or false'
@@ -525,8 +1247,8 @@ scriptContent:
                     →: |
                       '		try {
                       //			console.log(page.local.navParams)
-                      			page.local.selected = page.myaggrid3?.agGrid?.api?.getSelectedNodes({ startRow: 0, endRow: 1 }).length > 0;
-                      			page.selectedGroups = page.myaggrid3?.agGrid?.api?.getSelectedNodes();
+                      			page.local.selected = page.myaggrid?.agGrid?.api?.getSelectedNodes({ startRow: 0, endRow: 1 }).length > 0;
+                      			page.selectedGroups = page.myaggrid?.agGrid?.api?.getSelectedNodes();
                       			page.ref.detectChanges();
                       			return;
                       		} catch (e) {
@@ -545,10 +1267,10 @@ scriptContent:
                     →: |
                       		try {
                       			if(page.local.loading){
-                      				if(page.myaggrid3?.agGrid?.api){
-                      					page.myaggrid3.agGrid.api.showLoadingOverlay();
-                      					page.myaggrid3.agGrid.api = event.api;
-                      					page.myaggrid3.agGrid.columnApi = event.columnApi;
+                      				if(page.myaggrid?.agGrid?.api){
+                      					page.myaggrid.agGrid.api.showLoadingOverlay();
+                      					page.myaggrid.agGrid.api = event.api;
+                      					page.myaggrid.agGrid.columnApi = event.columnApi;
                       				}
                       			}		
                       		} catch (e) {
@@ -599,6 +1321,296 @@ scriptContent:
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:{}
+        ↓UseSharedComponent1 [ngx.components.UIUseShared-1759770716325]: 
+          identifier: myaggrid2
+          sharedcomponent: lib_ExtendedComponents_ui_ngx.MobileApplication.Application.agGrid
+          ↓pagination [ngx.components.UIUseVariable-1759770716346]: 
+            comment: 'boolean: true (default) or false'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓paginationPageSize [ngx.components.UIUseVariable-1759770716349]: 
+            comment: 'integer: 10 by default'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:10
+          ↓paginationPageSizeSelector [ngx.components.UIUseVariable-1759770716352]: 
+            comment: 'array | boolean: [20,50,100] by default'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:true
+          ↓rowSelection [ngx.components.UIUseVariable-1759770716355]: 
+            comment: 'string: ''single'' (default) or ''multiple'''
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'multiple'
+          ↓rowDeselection [ngx.components.UIUseVariable-1759770716358]: 
+            comment: 'boolean: true (default) or false'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:true
+          ↓defaultColDef [ngx.components.UIUseVariable-1759770716361]: 
+            comment: 'default is {hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false}'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: 'script:{hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false}'
+          ↓columnDefs [ngx.components.UIUseVariable-1759770716364]: 
+            comment: 'Array of columnDef {headerName: ''headerName'', field: ''fieldName''} objects'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.data?.data?.labels
+          ↓rowData [ngx.components.UIUseVariable-1759770716367]: 
+            comment: 'Array of row { fieldName1: ''value1'', fieldName2: ''value2'', fieldName3: true, ...} objects'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.data?.data?.values
+          ↓width [ngx.components.UIUseVariable-1759770716370]: 
+            comment: width value in % or px
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'100%'
+          ↓height [ngx.components.UIUseVariable-1759770716373]: 
+            comment: height is 'auto' or value in % or px
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'100%'
+          ↓class [ngx.components.UIUseVariable-1759770716376]: 
+            comment: |
+              'One of the themes provided here :
+              
+              https://www.ag-grid.com/javascript-grid-themes-provided/
+              
+              Also be shure to add the theme in the Theme object as :
+              
+              @import "../../node_modules/ag-grid-community/dist/styles/ag-theme-balham-dark/sass/ag-theme-balham-dark.scss";
+              
+              
+              
+              '
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'ag-theme-quartz'
+          ↓id [ngx.components.UIUseVariable-1759770716379]: 
+            comment: An Optional ID
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:''
+          ↓suppressCellSelection [ngx.components.UIUseVariable-1759770716382]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓suppressRowClickSelection [ngx.components.UIUseVariable-1759770716385]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓overlayLoadingTemplate [ngx.components.UIUseVariable-1759770716388]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.overlayLoading
+          ↓overlayNoRowsTemplate [ngx.components.UIUseVariable-1759770716391]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.overlayNoRows
+          ↓rowHeight [ngx.components.UIUseVariable-1759770716394]: 
+            comment: Height of the row in pixels as a string
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'50'
+          ↓wrapperClass [ngx.components.UIUseVariable-1759770716397]: 
+            comment: Height of the row in pixels as a string
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'gridWrapperAutoHeight2'
+          ↓rowModelType [ngx.components.UIUseVariable-1759770716400]: 
+            comment: Row model type
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'clientSide'
+          ↓maxBlocksInCache [ngx.components.UIUseVariable-1759770716403]: 
+            comment: How many blocks to keep in the store. Default is no limit, so every requested block is kept
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:''
+          ↓autoSizeColumns [ngx.components.UIUseVariable-1759770716406]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓accessibility [ngx.components.UIUseVariable-1759770716409]: 
+            comment: 'boolean: true (default) or false'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓ariaLabel [ngx.components.UIUseVariable-1759770716412]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:''
+          ↓showCsvDownload [ngx.components.UIUseVariable-1759770716415]: 
+            comment: |
+              If set to true will display a side bar menu where user can click a download button to download the grid content as a CSV file.
+              
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓localeText [ngx.components.UIUseVariable-1759770716418]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.translate.currentLang
+          ↓getLocaleText [ngx.components.UIUseVariable-1759770716421]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:null
+          ↓suppressFieldDotNotation [ngx.components.UIUseVariable-1759770716424]: 
+            comment: 'boolean: true (default) or false'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓domLayout [ngx.components.UIUseVariable-1759770716427]: 
+            comment: 'boolean: true (default) or false'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'autoHeight'
+          ↓Event [ngx.components.UIControlEvent-1759770716430]: 
+            attrName: (CellClicked)
+            comment: Fired when a cell is clicked. Data will be the agGrid event
+            eventName: CellClicked
+          ↓Event1 [ngx.components.UIControlEvent-1759770716433]: 
+            attrName: (RowClicked)
+            comment: Fired when a row is clicked. Data will be the agGrid event
+            eventName: RowClicked
+          ↓Event2 [ngx.components.UIControlEvent-1759770716436]: 
+            attrName: (RowSelected)
+            comment: Fired when a row is selected. Data will be the agGrid event
+            eventName: RowSelected
+          ↓Event3 [ngx.components.UIControlEvent-1759770716439]: 
+            attrName: (SortChanged)
+            comment: Fired when a a column is sorted. Data will be the agGrid event
+            eventName: SortChanged
+          ↓Event4 [ngx.components.UIControlEvent-1759770716442]: 
+            attrName: (RowDataChanged)
+            comment: Fired when Row data changed. Data will be the agGrid event
+            eventName: RowDataChanged
+          ↓Event5 [ngx.components.UIControlEvent-1759770716445]: 
+            attrName: (CellValueChanged)
+            comment: Fired when A Cell is edited changed. Data will be the agGrid event
+            eventName: CellValueChanged
+          ↓Event6 [ngx.components.UIControlEvent-1759770716448]: 
+            attrName: (RowDoubleClicked)
+            comment: Fired when A Cell is edited changed. Data will be the agGrid event
+            eventName: RowDoubleClicked
+          ↓Event7 [ngx.components.UIControlEvent-1759770716451]: 
+            attrName: (SelectionChanged)
+            comment: Fired when selectionChange. Data will be the agGrid event
+            eventName: SelectionChanged
+            ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1759770716454]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '		try {
+                      //			console.log(page.local.navParams)
+                      			page.local.selected = page.myaggrid2?.agGrid?.api?.getSelectedNodes({ startRow: 0, endRow: 1 }).length > 0;
+                      			page.selectedGroups = page.myaggrid2?.agGrid?.api?.getSelectedNodes();
+                      			page.ref.detectChanges();
+                      			return;
+                      		} catch (e) {
+                      		
+                      		}
+                      '
+          ↓Event8 [ngx.components.UIControlEvent-1759770716457]: 
+            attrName: (GridReady)
+            comment: Fired when the Grid is ready. Data will be the agGrid event
+            eventName: GridReady
+            ↓setLoadingIfNotReady [ngx.components.UICustomAsyncAction-1759770716460]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      		try {
+                      			if(page.local.loading){
+                      				if(page.myaggrid2?.agGrid?.api){
+                      					page.myaggrid2.agGrid.api.showLoadingOverlay();
+                      					page.myaggrid2.agGrid.api = event.api;
+                      					page.myaggrid2.agGrid.columnApi = event.columnApi;
+                      				}
+                      			}		
+                      		} catch (e) {
+                      		
+                      		} finally {
+                      			return;
+                      		}
+                      
+          ↓Event9 [ngx.components.UIControlEvent-1759770716463]: 
+            attrName: (GetRows)
+            comment: Fire when the RowModelType is 'infinite'. Excepts fromatted data into a agGridUpdateRows action
+            eventName: GetRows
+          ↓datasource [ngx.components.UIUseVariable-1759770716466]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:null
+          ↓cacheBlockSize [ngx.components.UIUseVariable-1759770716469]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:100
+          ↓showCsvDownloadPosition [ngx.components.UIUseVariable-1759770716472]: 
+            comment: |
+              If 'showCsvDownload' is set to true, you can define the CSV button position to 'top', 'bottom', 'left', 'right', 'both_row' or 'both_col' relative to the Grid. 
+              
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'top'
+          ↓showCsvDownloadAlignment [ngx.components.UIUseVariable-1759770716475]: 
+            comment: |
+              If 'showCsvDownload' is set to true, you can define the CSV button horizontal or vertical alignment to 'start', 'center' or 'end'.
+              
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'end'
+          ↓customLocaleText [ngx.components.UIUseVariable-1759770716478]: 
+            comment: |
+              'Add or surcharge Grid localisation.
+              You have to provide:
+              
+               - { [key_lang: string]: { [key: string]: string } } => A map of key_lang->object pairs for adding or surcharging localising text within the grid.
+              
+              The default value is an empty object.'
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:{}
       ↓Style [ngx.components.UIStyle-1759506947253]: 
         styleContent: 
           - xmlizable: 
@@ -622,10 +1634,10 @@ scriptContent:
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
                 '		try {
-                			if (page.myaggrid3?.agGrid?.api?.getSelectedNodes().length == 0) {
+                			if (page.myaggrid?.agGrid?.api?.getSelectedNodes().length == 0) {
                 				return;
                 			}
-                		   let docs = page.myaggrid3?.agGrid?.api?.getSelectedNodes().map((node) => { return node.data.group});
+                		   let docs = page.myaggrid?.agGrid?.api?.getSelectedNodes().map((node) => { return node.data.group});
                            let docs2 = page.local.navParams.data.selectedUsers.map((node) => { return node.data["~c8oAcl"]});
                            var deleted : any = {success: true};
                            let meta = {groups: JSON.stringify(docs), users: JSON.stringify(docs2)};
