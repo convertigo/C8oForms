@@ -4661,6 +4661,44 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_CleanThumbnailsWallpapersB64</b> : Scans for documents carrying Base64 thumbnail/wallpaper data and can strip those payloads safely</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_CleanThumbnailsWallpapersB64
+
+Scans for documents carrying Base64 thumbnail/wallpaper data and can strip those payloads safely.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;chunkSize
+</td>
+<td>
+Number of documents fetched per CouchDB page while iterating.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute
+</td>
+<td>
+Set to true to remove the Base64 fields instead of only listing impacted documents.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_createEmptyFolder</b></summary><blockquote><p>
 
 

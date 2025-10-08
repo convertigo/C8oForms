@@ -1,0 +1,207 @@
+accessibility: Private
+comment: Scans for documents carrying Base64 thumbnail/wallpaper data and can strip those payloads safely.
+↓Sequence_JS [steps.SimpleStep-202406070001]: 
+  expression: |
+    'var enums = com.twinsoft.convertigo.engine.enums;
+        var HashMap = java.util.HashMap;
+        var theApp = com.twinsoft.convertigo.engine.Engine.theApp;
+        var fsclient = theApp.couchDbManager.getFullSyncClient();
+        var toJSON = function(json) {
+            return JSON.parse(json.toString());
+        };
+        var toJettison = function(json) {
+            var txt = (typeof json == "string") ? json : JSON.stringify(json);
+            return txt.startsWith("{") ? new org.codehaus.jettison.json.JSONObject(txt) : new org.codehaus.jettison.json.JSONArray(txt);
+        };
+        var hasOwn = function(obj, key) {
+            return Object.prototype.hasOwnProperty.call(obj, key);
+        };
+        var getKeys = function(obj) {
+            var keys = [];
+            for (var key in obj) {
+                if (hasOwn(obj, key)) {
+                    keys.push(key);
+                }
+            }
+            return keys;
+        };
+        var shouldExecute = ("" + execute) == "true";
+        var parsedChunkSize = parseInt(chunkSize || "1000", 10);
+        var limit = isNaN(parsedChunkSize) || parsedChunkSize <= 0 ? 100 : parsedChunkSize;
+        var docsNode = context.addTextNodeUnderRoot("documents", "");
+        var updatedNode = context.addTextNodeUnderRoot("updated", "");
+        var errorsNode = context.addTextNodeUnderRoot("errors", "");
+        var useIndex = ["_design/mangoIndexes2", "cleanup_thumbnail_wallpaper_b64"];
+        var bookmark = null;
+        var running = true;
+        while (running) {
+            context.getRootContext().lastAccessTime = new Date().getTime();
+            var query = {
+                selector: {
+                    "$and": [
+                        {
+                            "_deleted": {
+                                "$exists": false
+                            }
+                        },
+                        {
+                            "$or": [
+                                {
+                                    "thumbnail.b64": {
+                                        "$exists": true
+                                    }
+                                },
+                                {
+                                    "wallpaper.b64": {
+                                        "$exists": true
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                limit: limit,
+                use_index: useIndex,
+                fields: ["_id", "_rev"]
+            };
+            if (bookmark !== null) {
+                query.bookmark = bookmark;
+            }
+            var response = toJSON(fsclient.postFind("c8oforms_fs", toJettison(query)));
+            var docs = response.docs || [];
+            if (docs.length === 0) {
+                log.debug("Cleanup lookup completed; no additional documents match the Mango selector.");
+                break;
+            }
+            log.debug("Cleanup lookup retrieved " + docs.length + " candidate documents" + (shouldExecute ? " for sanitization." : "."));
+            var toUpdate = [];
+            for (var i = 0; i < docs.length; i++) {
+                var docEntry = docs[i];
+                if (!docEntry || !docEntry._id) {
+                    continue;
+                }
+                context.addTextNode(docsNode, "_id", docEntry._id);
+                if (!shouldExecute) {
+                    continue;
+                }
+                log.warn("Fetching full document " + docEntry._id + " for cleanup processing.");
+                var fullDoc = null;
+                try {
+                    fullDoc = toJSON(fsclient.getDocument("c8oforms_fs", docEntry._id, new HashMap()));
+                }
+                catch (e) {
+                    log.error("Failed to fetch document " + docEntry._id + " while preparing cleanup: " + e);
+                    context.addTextNode(errorsNode, "_id", docEntry._id);
+                    continue;
+                }
+                var hasChanges = false;
+                var thumbnailChanged = false;
+                var wallpaperChanged = false;
+                var cleanedThumbnail = null;
+                var cleanedWallpaper = null;
+                if (fullDoc.thumbnail && typeof fullDoc.thumbnail === "object" && hasOwn(fullDoc.thumbnail, "b64")) {
+                    thumbnailChanged = true;
+                    cleanedThumbnail = {};
+                    var thumbKeys = getKeys(fullDoc.thumbnail);
+                    for (var t = 0; t < thumbKeys.length; t++) {
+                        var tKey = thumbKeys[t];
+                        if (tKey !== "b64") {
+                            cleanedThumbnail[tKey] = fullDoc.thumbnail[tKey];
+                        }
+                    }
+                    if (getKeys(cleanedThumbnail).length === 0) {
+                        cleanedThumbnail = null;
+                    }
+                    hasChanges = true;
+                }
+                if (fullDoc.wallpaper && typeof fullDoc.wallpaper === "object" && hasOwn(fullDoc.wallpaper, "b64")) {
+                    wallpaperChanged = true;
+                    cleanedWallpaper = {};
+                    var wallKeys = getKeys(fullDoc.wallpaper);
+                    for (var w = 0; w < wallKeys.length; w++) {
+                        var wKey = wallKeys[w];
+                        if (wKey !== "b64") {
+                            cleanedWallpaper[wKey] = fullDoc.wallpaper[wKey];
+                        }
+                    }
+                    if (getKeys(cleanedWallpaper).length === 0) {
+                        cleanedWallpaper = null;
+                    }
+                    hasChanges = true;
+                }
+                if (hasChanges) {
+                    var updateDoc = {
+                        _id: fullDoc._id,
+                        _rev: fullDoc._rev
+                    };
+                    if (thumbnailChanged) {
+                        updateDoc.thumbnail = cleanedThumbnail;
+                    }
+                    if (wallpaperChanged) {
+                        updateDoc.wallpaper = cleanedWallpaper;
+                    }
+                    toUpdate.push(updateDoc);
+                    log.warn("Prepared sanitized payload for document " + fullDoc._id + ".");
+                }
+            }
+            if (shouldExecute && toUpdate.length > 0) {
+                try {
+                    var mergeRules = new HashMap();
+                    mergeRules.put(java.util.Arrays.asList(new java.lang.String("thumbnail")), new java.lang.String("override"));
+                    mergeRules.put(java.util.Arrays.asList(new java.lang.String("wallpaper")), new java.lang.String("override"));
+                    log.warn("Submitting bulk update for " + toUpdate.length + " sanitized documents.");
+                    var result = toJSON(fsclient.postBulkDocs(java.lang.String("c8oforms_fs"), toJettison(toUpdate), false, true, enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+                    var isArray = function(obj) {
+                        return Object.prototype.toString.call(obj) === "[object Array]";
+                    };
+                    if (isArray(result)) {
+                        for (var j = 0; j < result.length; j++) {
+                            var entry = result[j];
+                            var targetDocId = toUpdate[j] ? toUpdate[j]._id : (entry && entry.id ? entry.id : "");
+                            var ok = entry && (entry.ok === true || entry.error === undefined);
+                            context.addTextNode(ok ? updatedNode : errorsNode, "_id", targetDocId);
+                            if (!ok) {
+                                log.error("Failed to update document " + targetDocId + ": " + JSON.stringify(entry));
+                            }
+                        }
+                    }
+                    else {
+                        var isSuccess = true;
+                        if (result && result._c8oMeta && result._c8oMeta.statusCode) {
+                            isSuccess = ("" + result._c8oMeta.statusCode).indexOf("20") === 0;
+                        }
+                        else if (result && result.error) {
+                            isSuccess = false;
+                        }
+                        var targetNode = isSuccess ? updatedNode : errorsNode;
+                        for (var k = 0; k < toUpdate.length; k++) {
+                            context.addTextNode(targetNode, "_id", toUpdate[k]._id);
+                        }
+                        if (!isSuccess) {
+                            log.error("Failed to update documents while removing b64 fields: " + JSON.stringify(result));
+                        }
+                        else {
+                            log.warn("Bulk update succeeded; sanitized " + toUpdate.length + " documents.");
+                        }
+                    }
+                }
+                catch (e) {
+                    log.error("Exception while updating documents in CleanThumbnailsWallpapersB64: " + e);
+                    for (var m = 0; m < toUpdate.length; m++) {
+                        context.addTextNode(errorsNode, "_id", toUpdate[m]._id);
+                    }
+                }
+            }
+            var nextBookmark = response.bookmark || null;
+            if (!nextBookmark || docs.length < limit) {
+                running = false;
+                log.warn("Cleanup loop finished after processing " + docs.length + " documents in the last batch.");
+            }
+            bookmark = nextBookmark;
+        }'
+↓execute [variables.RequestableVariable-202406070002]: 
+  comment: Set to true to remove the Base64 fields instead of only listing impacted documents.
+  value: false
+↓chunkSize [variables.RequestableVariable-202406070003]: 
+  comment: Number of documents fetched per CouchDB page while iterating.
+  value: 1000
