@@ -1784,9 +1784,10 @@ scriptContent:
             		page.local.data = JSON.parse(JSON.stringify(page.local.navParams.data.page.local.data))
             		page.local.groupSelected = page.local.navParams.data.page.groupSelected;
             		page.local.selectedUsers = page.local.navParams?.data?.selectedUsers.map((node) => {return node.data})
+            		page.local.countUsersGroup = page.local.navParams?.data?.countUsersGroup;
             //		debugger;
             //		let h = structuredClone(page.local.navParams.data.page);
-            //		console.log(h)
+            		console.log(page.local.groupSelected);
             		page.loadGridData("willLoad");
             
     comment: Set the navParams local and the data grid
@@ -1911,7 +1912,7 @@ scriptContent:
                     			}
                     		   let docs = page.myaggrid4?.agGrid?.api?.getSelectedNodes().map((node) => { return node.data.value});
                     //           console.log(page.myaggrid4?.agGrid?.api?.getSelectedNodes())
-                    		   let docs2 = page.local.navParams.data.selectedUsers.map((node) => { return node.data["~c8oAcl"]});
+                    		   let docs2 = page.local.selectedUsers.map((node) => { return node["~c8oAcl"]});
                                var deleted : any = {success: true};
                                let meta = {groups: JSON.stringify(docs), users: JSON.stringify(docs2)};
                                let sequence = "C8Oforms.admin_users_post_in_groups";
@@ -1939,6 +1940,69 @@ scriptContent:
               beanData: '{"ionBean":"IfAction"}'
               ↓CloseModal [ngx.components.UIDynamicAction-1759850368234]: 
                 beanData: '{"ionBean":"CloseModalAction","data":"script:{''refresh'': true}"}'
+          ↓Else_Handler [ngx.components.UIActionElseEvent-1759912568200]: 
+            ↓If [ngx.components.UIDynamicAction-1759912604202]: 
+              beanData: '{"ionBean":"IfAction","condition":"script:this.local.groupSelected && this.local.groupSelected.length > 0"}'
+              ↓callSequence [ngx.components.UICustomAsyncAction-1759912645707]: 
+                actionValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '		try {
+                        			if (page.myaggrid4?.agGrid?.api?.getSelectedNodes().length == 0) {
+                        				return;
+                        			}
+                        			
+                        //			console.log(''in'')
+                        			
+                        			if (page.local.countUsersGroup == page.local.selectedUsers.length) {
+                        				let data = await page.c8o.callJsonObject("C8Oforms.admin_group_delete", {_use_doc_id: page.local.groupSelected}).async();
+                        			}
+                        			
+                        			let docs = page.myaggrid4?.agGrid?.api?.getSelectedNodes().map((node) => { return node.data.value });
+                        			console.log(page.local.selectedUsers)
+                        			let docs2 = page.local.selectedUsers.map((node) => { return node[''~c8oAcl'']});
+                        			var deleted : any = {success: true};	
+                        // 			console.log(docs)
+                        			let meta = {groups: JSON.stringify([page.local.groupSelected]), users: JSON.stringify(docs2)};
+                        			let sequence = "C8Oforms.admin_users_remove_from_groups";
+                        			deleted = await this.c8o.callJsonObject(sequence, meta).async();
+                           
+                        			meta = {groups: JSON.stringify(docs), users: JSON.stringify(docs2)};
+                        			sequence = "C8Oforms.admin_users_post_in_groups";
+                        
+                        			deleted = await page.c8o.callJsonObject(sequence, meta).async();
+                        			if(deleted || (deleted?.success != undefined && deleted?.success.length == 0) || deleted?.success || deleted?.success.indexOf(''is added'') != -1){
+                        				if (page.local.countUsersGroup == page.local.selectedUsers.length) {
+                        					await page.presentToast(page.translate.instant("user_move_to_group_successfull", {groupName: ''''}), ''toastSuccess'');
+                        					if(page["pageOwner"] != undefined){
+                        						page = page["pageOwner"];
+                        						page.loadGridData("willLoad");
+                        					}
+                        					return true;
+                        				}
+                        				await page.presentToast(page.translate.instant("user_move_to_group_successfull", {groupName: ''''}), ''toastSuccess'');
+                        				return true;
+                        			}
+                        			else if(!deleted || !deleted?.success){
+                        				await page.presentToast(page.translate.instant("user_already_moved_to_group", { groupName: '''' }), ''toastError'');
+                        				return false;
+                        			}
+                        			else{
+                        				await page.presentToast(page.translate.instant("user_move_to_group_failed", { groupName: '''' }), ''toastError'');
+                        				return false;
+                        			}
+                        		} catch (e) {
+                        			console.error(e);
+                        			await page.presentToast(page.translate.instant("user_move_to_group_failed", { groupName: '''' }), ''toastError'');
+                        			return false;
+                        		}
+                        '
+                ↓If [ngx.components.UIDynamicAction-1759912645710]: 
+                  beanData: '{"ionBean":"IfAction"}'
+                  ↓CloseModal [ngx.components.UIDynamicAction-1759912645713]: 
+                    beanData: '{"ionBean":"CloseModalAction","data":"script:{''refresh'': true}"}'
       ↓DivInput [ngx.components.UIDynamicElement-1759850272679]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -2842,6 +2906,7 @@ scriptContent:
                      "ionBean": "CheckBox",
                      "ControlName": "plain:move",
                      "DoubleBinding": "script:this.move",
+                     "Disabled": "script:(!this.local.groupSelected || this.local.groupSelected === undefined || this.local.groupSelected.length === 0)",
                      "Checked": "script:this.move",
                      "Justify": "plain:start",
                      "LabelPlacement": "plain:end"
@@ -2937,7 +3002,7 @@ scriptContent:
                     textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: plain:Retirer des groupes actuels et ajouter aux nouveaux groupes
+                        - MobileSmartSourceType: plain:Retirer du groupe actuel et ajouter aux nouveaux groupes
                   ↓text1 [ngx.components.UIStyle-1759855026979]: 
                     styleContent: 
                       - xmlizable: 
