@@ -5723,6 +5723,44 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_RebuildC8oGrp</b> : Audits forms for c8oGrp consistency and can rebuild the mapping from sharing metadata</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_RebuildC8oGrp
+
+Audits forms for c8oGrp consistency and can rebuild the mapping from sharing metadata.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;chunkSize
+</td>
+<td>
+Number of documents fetched per Mango page during the audit.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute
+</td>
+<td>
+Set to true to rebuild c8oGrp based on computed expectations.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_SetManageAccessRights</b></summary><blockquote><p>
 
 
