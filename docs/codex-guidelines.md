@@ -7,6 +7,9 @@ This document sums up the conventions Codex must follow when generating assets f
 - Only modify or create files inside `_c8oProject/…` (sequences, mobile pages, shared actions, etc.) unless explicitly requested.
 - **Do not edit generated front-end code** under `_private/ionic/`. Any UI change must be done through the Convertigo YAML descriptors (`_c8oProject/mobilePages/*.yaml`, `_c8oProject/sharedActions/*.yaml`, components in `_c8oProject/mobileComponents/`, …); Convertigo will regenerate the Ionic TypeScript/HTML from those sources.
 - When a bug surfaces in the generated app (e.g., viewer/editor toast behavior), locate the corresponding YAML definition and patch the script block there. Never patch `_private/ionic/src/...` directly.
+- If IntelliSense/Monaco typings need updates, adjust the relevant shared component YAML (e.g., `_c8oProject/mobileSharedComponents/monacoEditor.yaml`) so generated definitions and completions stay in sync with actual page properties. Avoid touching the compiled TS files.
+- When you need richer completion (e.g., expose `page.formsSubmit.*` members), extend the TypeScript interfaces inside those YAML definitions—define helper types (mirroring the structures you see in the relevant mobile page, such as `viewerPage.fillFormSubmit`) and update the page interface so Monaco offers the expected properties.
+- The form submission cache is exposed as `page.formsSubmit`; ensure Monaco interfaces and API completion dictionaries reuse that plural key so IntelliSense keeps the right suggestions (avoid reintroducing `formSubmit`).
 - Prefer ASCII characters. Introduce non-ASCII only if the existing files already use them and it is necessary (e.g., translation strings).
 - Avoid destructive git commands or removing user changes unless the user explicitly asks for it.
 
