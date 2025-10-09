@@ -30,80 +30,113 @@ responseTimeout: 600
     };
     
     var buildHeaderRow = function(headers, key) {
-    	var headerRow = [];
-    	for (var idx = 0; idx < headers.length; idx++) {
-    		var header = headers[idx];
-    		if (header != null) {
-    			var labelValue = header[key];
-    			if (labelValue == null) {
-    				labelValue = "";
-    			}
-    			if (key === "labelHtml") {
-    				try {
-    					var doc = Jsoup.parse(labelValue);
-    					labelValue = "" + doc.body().text();
-    				}
-    				catch (e) { }
-    			}
-    			if (header["type"] === "checkbox_group" || header["type"] === "radio_group") {
-    				var categories = header["categories"] || [];
-    				for (var c = 0; c < categories.length; c++) {
-    					headerRow.push(labelValue + "_" + categories[c]);
-    				}
-    			}
-    			else {
-    				headerRow.push(labelValue);
-    			}
-    		}
-    	}
-    	return headerRow;
+      var headerRow = [];
+      for (var idx = 0; idx < headers.length; idx++) {
+        try {
+          var header = headers[idx];
+          if (!header) {
+            // si un header null existe, garde la place
+            headerRow.push("");
+            continue;
+          }
+    
+          var labelValue = header[key] || "";
+          if (key === "labelHtml") {
+            try {
+              var doc = Jsoup.parse(labelValue);
+              labelValue = "" + doc.body().text();
+            } catch (e) {}
+          }
+    
+          if (header.type === "checkbox_group" || header.type === "radio_group") {
+            var categories = header.categories || [];
+            if (categories.length === 0) {
+              // si pas de catégories, garde quand même une colonne
+              headerRow.push(labelValue);
+            } else {
+              // ➜ AJOUTE une colonne par catégorie
+              for (var c = 0; c < categories.length; c++) {
+                headerRow.push(labelValue + "_" + categories[c]);
+              }
+            }
+          } else {
+            // champ simple ➜ une seule colonne
+            headerRow.push(labelValue);
+          }
+        } catch (e) {
+          headerRow.push("");
+        }
+      }
+      return headerRow;
     };
     
+    
     var buildDataRow = function(nestedResponse, reverse_separator) {
-    	var currentLineResponse = [];
-    	var i = 0;
-    	for (var colIndex = 0; colIndex < nestedResponse.length; colIndex++) {
-    		var col = nestedResponse[colIndex];
-    		if (col != null) {
-    			switch (col.type) {
-    				case "radio_group":
-    				case "checkbox_group":
-    					for (var subIndex = 0; subIndex < col.value.length; subIndex++) {
-    						var subcol = col.value[subIndex];
-    						for (var j = 0; j < subcol.data.length; j++) {
-    							if (currentLineResponse[i + j] == null) {
-    								currentLineResponse[i + j] = "";
-    							}
-    							if (subcol.data[j] == 1) {
-    								currentLineResponse[i + j] += (currentLineResponse[i + j].length > 0 ? reverse_separator : "") + subcol.name;
-    							}
-    						}
-    					}
-    					i = i + (col.value.length > 0 ? col.value[0].data.length : 0);
-    					break;
-    				default:
-    					var value = col.value;
-    					if (Array.isArray(value)) {
-    						currentLineResponse.push(value.join(","));
-    					}
-    					else {
-    						currentLineResponse.push(value != null ? "" + value : "");
-    					}
-    					i++;
-    					break;
-    			}
-    		}
-    		else {
-    			i++;
-    		}
-    	}
-    	for (var cleanIndex = 0; cleanIndex < currentLineResponse.length; cleanIndex++) {
-    		if (currentLineResponse[cleanIndex] == null) {
-    			currentLineResponse[cleanIndex] = "";
-    		}
-    	}
-    	return currentLineResponse;
+      var currentLineResponse = [];
+      var i = 0;
+    
+      for (var colIndex = 0; colIndex < nestedResponse.length; colIndex++) {
+        var col = nestedResponse[colIndex];
+    
+        if (col == null) {
+          // ➜ préserver l’alignement
+          currentLineResponse.push("");
+          i++;
+          continue;
+        }
+    
+        switch (col.type) {
+          case "radio_group":
+          case "checkbox_group":
+            // On construit N cellules (N = nb de catégories)
+            // col.value = tableau d’options (OK/NOK/NA/...), chacune avec un .data de longueur N
+            var nbCols = 0;
+            if (Array.isArray(col.value) && col.value.length > 0 && Array.isArray(col.value[0].data)) {
+              nbCols = col.value[0].data.length;
+            }
+    
+            // pré-alloue les N cellules à ""
+            for (var j = 0; j < nbCols; j++) {
+              currentLineResponse.push("");
+            }
+    
+            // remplit avec “OK|NOK|NA|...” selon data[j] == 1
+            // (on concatène si plusieurs valeurs sont vraies)
+            for (var subIndex = 0; subIndex < col.value.length; subIndex++) {
+              var subcol = col.value[subIndex];
+              var optName = subcol.name || "";
+              for (var j2 = 0; j2 < subcol.data.length; j2++) {
+                if (subcol.data[j2] == 1) {
+                  var cellIdx = currentLineResponse.length - nbCols + j2; // les N dernières qu’on vient de pousser
+                  var prev = currentLineResponse[cellIdx];
+                  currentLineResponse[cellIdx] = prev
+                    ? (prev + reverse_separator + optName)
+                    : optName;
+                }
+              }
+            }
+            i += nbCols;
+            break;
+    
+          default:
+            var value = col.value;
+            if (Array.isArray(value)) {
+              currentLineResponse.push(value.join(","));
+            } else {
+              currentLineResponse.push(value != null ? ("" + value) : "");
+            }
+            i++;
+            break;
+        }
+      }
+    
+      // nettoyage (sécurité)
+      for (var k = 0; k < currentLineResponse.length; k++) {
+        if (currentLineResponse[k] == null) currentLineResponse[k] = "";
+      }
+      return currentLineResponse;
     };
+    
     
     let res = {};
     // map params
@@ -188,7 +221,7 @@ responseTimeout: 600
     
     	  var payload = (call && call.document) ? call.document.res : null;
     	  if (!payload || !payload.response) break;
-    
+    	   
     	  // entêtes 1x
     	  var headers = payload.response.value || [];
     	  if (!headerWritten) {
@@ -199,12 +232,13 @@ responseTimeout: 600
     
     	  // données
     	  var rows = payload.response.nestedResponses || [];
+    	  
     	  if (rows.length === 0) break;
     
-    	  for (var r = 0; r < rows.length; r++) {
-    	    var row = buildDataRow(rows[r], reverse_separator);
-    	    writeCsvRow(writer, row, options);
-    	    rowsWritten++;
+    	  for(var e of rows){
+    			var row = buildDataRow(e, reverse_separator);
+    		    writeCsvRow(writer, row, options);
+    		    rowsWritten++;
     	  }
     
     	  // ➕ avance le curseur avec la vraie quantité retournée
