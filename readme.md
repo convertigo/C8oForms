@@ -235,6 +235,8 @@ For more technical informations : [documentation](./project.md)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
         - [DraggableElementApiPalette](#draggableelementapipalette)
         - [editorToolbarButton](#editortoolbarbutton)
+        - [FilterBR](#filterbr)
+        - [FilterBRADD](#filterbradd)
         - [getApplicationDetail](#getapplicationdetail)
         - [getUserGroupsDetail](#getusergroupsdetail)
         - [inputMultiVal](#inputmultival)
@@ -356,6 +358,7 @@ For more technical informations : [documentation](./project.md)
         - [SharedStyleMarginEditor](#sharedstylemargineditor)
         - [SharedTabs](#sharedtabs)
         - [SharedVersion](#sharedversion)
+        - [SortBR](#sortbr)
         - [stripeBackground](#stripebackground)
         - [switchItemEdition](#switchitemedition)
         - [switchItemViewer](#switchitemviewer)
@@ -374,13 +377,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1082
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1082.zip
      ```
      </td></tr>
     </table>
@@ -3339,6 +3342,68 @@ Display an apex chart comp. or an ag-grid comp.
 <td>clicked</td><td></td>
 </tr>
 </table>
+#### FilterBR
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>complByName</td><td></td>
+</tr>
+<tr>
+<td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>item1680251775490</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>keyName</td><td></td>
+</tr>
+<tr>
+<td>l</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>save</td><td></td>
+</tr>
+</table>
+#### FilterBRADD
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>addGroups</td><td></td>
+</tr>
+<tr>
+<td>currentObject</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>save</td><td></td>
+</tr>
+</table>
 #### getApplicationDetail
 
 #### getUserGroupsDetail
@@ -5453,6 +5518,12 @@ This component displays a user menu with user info, categorized navigation items
 <td>currentItem</td><td></td>
 </tr>
 <tr>
+<td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>disableAlreadySelected</td><td></td>
+</tr>
+<tr>
 <td>keyName</td><td></td>
 </tr>
 </table>
@@ -5780,6 +5851,46 @@ This component is a modal dialog for resetting the password. It accepts an input
 
 #### SharedVersion
 
+#### SortBR
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>complByName</td><td></td>
+</tr>
+<tr>
+<td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>item1680251775490</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>keyName</td><td></td>
+</tr>
+<tr>
+<td>l</td><td></td>
+</tr>
+<tr>
+<td>typeByName</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>save</td><td></td>
+</tr>
+</table>
 #### stripeBackground
 
 #### switchItemEdition

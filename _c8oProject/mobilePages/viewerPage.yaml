@@ -3394,7 +3394,7 @@ scriptContent:
         				else if (item.type == "map") {
         					if (item["config"]["sourceMarkersEnabled"]) {
         						let sources: any = page["searchForSources"](item, "sourcesMarkers", true);
-        						debugger;
+        //						debugger;
         					}
         				}
         				if (item.config.html != null) {
@@ -3548,8 +3548,60 @@ scriptContent:
         									})
         								}
         							}
+        							// Recursively format nested groups
+        							if (Array.isArray(vars[va].groups)) {
+        							    for (let subgroup of vars[va].groups) {
+        							        let groupFormatted = {
+        							            mode: subgroup.condVisible?.toUpperCase() || "AND",
+        							            filters: []
+        							        };
+        
+        							        // Conditions of subgroup
+        							        if (Array.isArray(subgroup.conds)) {
+        							            for (let cond of subgroup.conds) {
+        							                if (cond.val1?.name !== "" && cond.operator !== "") {
+        							                    groupFormatted.filters.push({
+        							                        field: cond.val1.name,
+        							                        op: cond.operator,
+        							                        value: this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
+        							                    });
+        							                }
+        							            }
+        							        }
+        
+        							        // Handle nested sub-subgroups
+        							        if (Array.isArray(subgroup.groups)) {
+        							            for (let subsubgroup of subgroup.groups) {
+        							                let subGroupFormatted = {
+        							                    mode: subsubgroup.condVisible?.toUpperCase() || "AND",
+        							                    filters: []
+        							                };
+        
+        							                if (Array.isArray(subsubgroup.conds)) {
+        							                    for (let cond of subsubgroup.conds) {
+        							                        if (cond.val1?.name !== "" && cond.operator !== "") {
+        							                            subGroupFormatted.filters.push({
+        							                                field: cond.val1.name,
+        							                                op: cond.operator,
+        							                                value: this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
+        							                            });
+        							                        }
+        							                    }
+        							                }
+        
+        							                groupFormatted.filters.push(subGroupFormatted); // nest level 2
+        							            }
+        							        }
+        
+        							        res.filters.push(groupFormatted); // nest level 1
+        							    }
+        							}
         							// store the result
         							vars[va] = res;
+        						}
+        						else if (vars[va]["type"] == "sort"){
+        							debugger;
+        							vars[va] = { sorts: vars[va].conds};
         						}
         						else if (Array.isArray(vars[va])) {
         							let temp = {};
@@ -3568,6 +3620,9 @@ scriptContent:
         				}
         			}
         		}
+        		
+        //		console.log({ findVars: vars, findName: sourceName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha, fullSyncArgs: fullSyncArgs })
+        		
         		return { findVars: vars, findName: sourceName, ObjectThatHaveToCallFunc: ObjectThatHaveToCallFunc, sha: sha, fullSyncArgs: fullSyncArgs }
         	}
         	
@@ -3770,6 +3825,8 @@ scriptContent:
         			stringOf$$ = stringOf$$.substring(3);
         			stringOf$$ = stringOf$$.substring(0, stringOf$$.length - 3);
         		}
+        //		console.log(stringOf$$)
+        		//debugger;
         		return stringOf$$;
         		
         		
@@ -4857,9 +4914,45 @@ scriptContent:
         				else {
         					let res = JSON.parse(JSON.stringify(findVars[va]));
         					// assume its filter
+        //					console.log(res)
         					if (res.filters != null && Array.isArray(res.filters)) {
         						res.filters = res.filters.map((x) => {
-        							x.value = eval(x.value);
+        							if (x.filters != null && Array.isArray(x.filters)) {
+        								x.filters = x.filters.map((y) => {
+        									if (y.filters != null && Array.isArray(y.filters)) {
+        										y.filters = y.filters.map((z) => {
+        											z.value = eval(z.value);
+        											return z;
+        										})
+        									} else {
+        										y.value = eval(y.value);
+        									}
+        									return y;
+        								})
+        							} else {								
+        								x.value = eval(x.value);
+        							}
+        							return x;
+        						})
+        						variables[va] = JSON.stringify(res);
+        					}
+        					else if (res.sorts != null && Array.isArray(res.sorts)) {
+        						res.sorts = res.sorts.map((x) => {
+        							if (x.sorts != null && Array.isArray(x.sorts)) {
+        								x.sorts = x.sorts.map((y) => {
+        									if (y.sorts != null && Array.isArray(y.sorts)) {
+        										y.sorts = y.sorts.map((z) => {
+        											z.value = eval(z.value);
+        											return z;
+        										})
+        									} else {
+        										y.value = eval(y.value);
+        									}
+        									return y;
+        								})
+        							} else {								
+        								x.value = eval(x.value);
+        							}
         							return x;
         						})
         						variables[va] = JSON.stringify(res);
