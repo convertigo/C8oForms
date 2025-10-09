@@ -11834,6 +11834,14 @@ When fullpage mode have been changed
 When fullpage mode have been changed
 </td>
 </tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onMetricsValues
+</td>
+<td>
+When data is fetched, we got send to parent the data for metrics
+</td>
+</tr>
 </table>
 
 </p></blockquote></details>
