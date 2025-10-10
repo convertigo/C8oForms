@@ -12,6 +12,7 @@ This document sums up the conventions Codex must follow when generating assets f
 - The form submission cache is exposed as `page.formsSubmit`; ensure Monaco interfaces and API completion dictionaries reuse that plural key so IntelliSense keeps the right suggestions (avoid reintroducing `formSubmit`).
 - When overriding user settings through `APIV2_OverrideUserSettings`, use `hasOwnProperty` (or equivalent) when copying meta entries so boolean flags like `advancedEditing: false` persist instead of being dropped by truthy checks.
 - For CSV exports (`APIV2_CSV`), always iterate according to the header definitions when building rows so that empty responses still reserve their column slots and keep the data aligned, even when a header entry is `null`.
+- After editing YAML, reload the project to validate the descriptors: `JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew load` (or `./gradlew load` when Java is already set). Finish only if the build succeeds without errors.
 - Prefer ASCII characters. Introduce non-ASCII only if the existing files already use them and it is necessary (e.g., translation strings).
 - Avoid destructive git commands or removing user changes unless the user explicitly asks for it.
 

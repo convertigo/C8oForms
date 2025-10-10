@@ -1288,6 +1288,9 @@ Reads and formats the manage-access-rights document for a form.
 <tr>
 <td>id</td><td>Generic identifier for the targeted resource.</td>
 </tr>
+<tr>
+<td>showAllGroups</td><td>Flag allowing non-admin users to list every group.</td>
+</tr>
 </table>
 ### APIV2_getOwnerShip
 

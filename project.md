@@ -5440,6 +5440,14 @@ comment
 Generic identifier for the targeted resource.
 </td>
 </tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;showAllGroups
+</td>
+<td>
+Flag allowing non-admin users to list every group.
+</td>
+</tr>
 </table>
 
 </p></blockquote></details>
