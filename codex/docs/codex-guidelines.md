@@ -12,7 +12,7 @@ This document sums up the conventions Codex must follow when generating assets f
 - The form submission cache is exposed as `page.formsSubmit`; ensure Monaco interfaces and API completion dictionaries reuse that plural key so IntelliSense keeps the right suggestions (avoid reintroducing `formSubmit`).
 - When overriding user settings through `APIV2_OverrideUserSettings`, use `hasOwnProperty` (or equivalent) when copying meta entries so boolean flags like `advancedEditing: false` persist instead of being dropped by truthy checks.
 - For CSV exports (`APIV2_CSV`), always iterate according to the header definitions when building rows so that empty responses still reserve their column slots and keep the data aligned, even when a header entry is `null`.
-- After editing YAML, reload the project to validate the descriptors: `JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew load` (or `./gradlew load` when Java is already set). Finish only if the build succeeds without errors.
+- After editing YAML, Codex must immediately reload the project. Preferred path is the Convertigo CLI with debug logs enabled: `java -cp "$(jarPath from codex/.env)/*" com.twinsoft.convertigo.engine.CLI -p . -l debug`. The reload is considered successful only when the output contains `Project "C8Oforms" imported!`. Once this check passes, call the Studio reload endpoint so the running instance picks up the changes: `curl 'http://localhost:18080/convertigo//projects/codex_tooling/.json' -H 'x-xsrf: Fetch' -H 'sec-ch-ua-platform: "macOS"' -H 'Referer: http://localhost:18080/convertigo/dashboard/codex_tooling/backend/' -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' -H 'sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"' -H 'Content-Type: application/x-www-form-urlencoded' -H 'sec-ch-ua-mobile: ?0' --data-raw '__sequence=reloadProject&projectName=C8Oforms'`. Wait 10 seconds before you proceed, then trigger a Studio compile: `curl 'http://localhost:18080/convertigo//projects/codex_tooling/.json' -H 'x-xsrf: Fetch' -H 'sec-ch-ua-platform: "macOS"' -H 'Referer: http://localhost:18080/convertigo/dashboard/codex_tooling/backend/' -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' -H 'sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"' -H 'Content-Type: application/x-www-form-urlencoded' -H 'sec-ch-ua-mobile: ?0' --data-raw '__sequence=compileProject&projectName=C8Oforms'`. You may fall back to `JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew load --info --no-build-cache --no-daemon` (omit the `JAVA_HOME=` if JDK 17 is already active) if the CLI run is not available. In every case the run is valid **only when no `Exception occurs for project: C8Oforms` warning appears**; the recurring undefined-global-symbol notices can be ignored.
 - Prefer ASCII characters. Introduce non-ASCII only if the existing files already use them and it is necessary (e.g., translation strings).
 - Avoid destructive git commands or removing user changes unless the user explicitly asks for it.
 
@@ -27,7 +27,7 @@ accessibility: Private
     'var ...'
 ```
 
-- Use two spaces for indentation inside YAML structures, matching the existing files.
+- Use two spaces for indentation inside YAML structures, matching the existing files. Never introduce tab characters; Convertigo’s exporter only writes spaces.
 - Use the Unicode arrow (↓) prefix (already present in existing files) when adding new sequence steps.
 - Quote strings uniformly: existing files typically use single quotes inside the Rhino JS expression block.
 - Preserve trailing spaces and blank lines only when they already exist; otherwise keep the file tidy.
@@ -37,6 +37,7 @@ accessibility: Private
 - Keep JavaScript/Rhino code inside `expression: |` blocks, wrapped in single quotes in accordance with Convertigo exports.
 - Keep the closing quote on the final line.
 - Avoid trailing spaces in these blocks.
+- Inside `FormatedContent` blocks, indent the script exactly like the converter produces: two leading spaces before the opening quote, tab-indented Rhino code (`'\t…`), and a closing line containing the quote alone. Any deviation (missing quote, extra spaces, wrong indentation) will make `YamlConverter` fail with a `no match` exception.
 
 ## 3. JavaScript / Rhino Inside Sequences
 
