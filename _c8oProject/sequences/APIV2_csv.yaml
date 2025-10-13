@@ -11,6 +11,7 @@ responseTimeout: 600
     Otherkey = "Other";
     const logLevel = "warn";
     const DEFAULT_BATCH_SIZE = 1000;
+    var excludedHeaderIndexes = {};
     
     var writeCsvRow = function(writer, row, options) {
     	var stringDelimiter = options.stringDelimiter || ''"'';
@@ -34,12 +35,15 @@ responseTimeout: 600
     
     var buildHeaderRow = function(headers, key) {
       var headerRow = [];
+      excludedHeaderIndexes = {};
+      if (!Array.isArray(headers)) {
+        return headerRow;
+      }
       for (var idx = 0; idx < headers.length; idx++) {
         try {
           var header = headers[idx];
           if (!header) {
-            // si un header null existe, garde la place
-            headerRow.push("");
+            excludedHeaderIndexes[idx] = true;
             continue;
           }
     
@@ -75,16 +79,20 @@ responseTimeout: 600
     
     
     var buildDataRow = function(nestedResponse, reverse_separator) {
+      if (!Array.isArray(nestedResponse)) {
+        return [];
+      }
       var currentLineResponse = [];
-      var i = 0;
     
       for (var colIndex = 0; colIndex < nestedResponse.length; colIndex++) {
+        if (excludedHeaderIndexes && excludedHeaderIndexes[colIndex]) {
+          continue;
+        }
         var col = nestedResponse[colIndex];
     
         if (col == null) {
           // ➜ préserver l’alignement
           currentLineResponse.push("");
-          i++;
           continue;
         }
     
@@ -118,7 +126,6 @@ responseTimeout: 600
                 }
               }
             }
-            i += nbCols;
             break;
     
           default:
@@ -128,7 +135,6 @@ responseTimeout: 600
             } else {
               currentLineResponse.push(value != null ? ("" + value) : "");
             }
-            i++;
             break;
         }
       }
@@ -239,6 +245,9 @@ responseTimeout: 600
     	  if (rows.length === 0) break;
     
     	  for(var e of rows){
+    			if (!Array.isArray(e)) {
+    				continue;
+    			}
     			var row = buildDataRow(e, reverse_separator);
     		    writeCsvRow(writer, row, options);
     		    rowsWritten++;
