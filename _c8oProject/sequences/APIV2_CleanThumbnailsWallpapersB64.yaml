@@ -36,6 +36,7 @@ comment: |
         var useIndex = ["_design/mangoIndexes2", "cleanup_thumbnail_wallpaper_b64"];
         var bookmark = null;
         var running = true;
+        var creatorDisplayCache = {};
         while (running) {
             context.getRootContext().lastAccessTime = new Date().getTime();
             var query = {
@@ -82,17 +83,91 @@ comment: |
                 if (!docEntry || !docEntry._id) {
                     continue;
                 }
-                context.addTextNode(docsNode, "_id", docEntry._id);
-                if (!shouldExecute) {
-                    continue;
+                var docNode = context.addTextNode(docsNode, "document", "");
+                context.addTextNode(docNode, "_id", docEntry._id);
+                if (shouldExecute) {
+                    log.warn("Fetching full document " + docEntry._id + " for cleanup processing.");
                 }
-                log.warn("Fetching full document " + docEntry._id + " for cleanup processing.");
                 var fullDoc = null;
                 try {
                     fullDoc = toJSON(fsclient.getDocument("c8oforms_fs", docEntry._id, new HashMap()));
                 }
                 catch (e) {
-                    log.error("Failed to fetch document " + docEntry._id + " while preparing cleanup: " + e);
+                    log.error("Failed to fetch document " + docEntry._id + " while preparing cleanup metadata: " + e);
+                    context.addTextNode(docNode, "metadataFetchStatus", "error");
+                    context.addTextNode(errorsNode, "_id", docEntry._id);
+                    continue;
+                }
+                if (fullDoc) {
+                    if (hasOwn(fullDoc, "creator") && fullDoc.creator !== undefined && fullDoc.creator !== null) {
+                        var creatorValue = ("" + fullDoc.creator).trim();
+                        if (creatorValue.length > 0) {
+                            context.addTextNode(docNode, "creator", creatorValue);
+                            var cacheKey = creatorValue;
+                            var cachedDisplay = hasOwn(creatorDisplayCache, cacheKey) ? creatorDisplayCache[cacheKey] : undefined;
+                            if (cachedDisplay === undefined) {
+                                var creatorDocId = creatorValue.indexOf("C8Oreserved_") === 0 ? creatorValue : "C8Oreserved_" + creatorValue;
+                                try {
+                                    var creatorDoc = toJSON(fsclient.getDocument("c8oforms_fs", creatorDocId, new HashMap()));
+                                    if (creatorDoc && hasOwn(creatorDoc, "displayName") && creatorDoc.displayName !== null && creatorDoc.displayName !== undefined) {
+                                        cachedDisplay = "" + creatorDoc.displayName;
+                                    }
+                                    else {
+                                        cachedDisplay = "";
+                                    }
+                                }
+                                catch (err) {
+                                    log.warn("Failed to fetch creator profile " + creatorDocId + " while preparing metadata for " + docEntry._id + ": " + err);
+                                    cachedDisplay = "";
+                                }
+                                creatorDisplayCache[cacheKey] = cachedDisplay;
+                            }
+                            var displayNameValue = cachedDisplay !== undefined && cachedDisplay !== null ? "" + cachedDisplay : "";
+                            context.addTextNode(docNode, "creatorDisplayName", displayNameValue);
+                        }
+                    }
+                    if (hasOwn(fullDoc, "name") && fullDoc.name !== undefined && fullDoc.name !== null) {
+                        context.addTextNode(docNode, "name", "" + fullDoc.name);
+                    }
+                    if (hasOwn(fullDoc, "lastMofification") && fullDoc.lastMofification !== undefined && fullDoc.lastMofification !== null) {
+                        var rawLastModification = fullDoc.lastMofification;
+                        var lastModificationMillis = null;
+                        if (typeof rawLastModification === "number") {
+                            lastModificationMillis = rawLastModification;
+                        }
+                        else if (typeof rawLastModification === "string") {
+                            var trimmed = rawLastModification.trim();
+                            if (trimmed.length > 0) {
+                                var parsedMillis = parseInt(trimmed, 10);
+                                if (!isNaN(parsedMillis)) {
+                                    lastModificationMillis = parsedMillis;
+                                }
+                                else {
+                                    var parsedDate = Date.parse(trimmed);
+                                    if (!isNaN(parsedDate)) {
+                                        lastModificationMillis = parsedDate;
+                                    }
+                                }
+                            }
+                        }
+                        else {
+                            var coerced = +rawLastModification;
+                            if (!isNaN(coerced)) {
+                                lastModificationMillis = coerced;
+                            }
+                        }
+                        if (lastModificationMillis !== null) {
+                            var lastModificationDate = new Date(lastModificationMillis);
+                            if (!isNaN(lastModificationDate.getTime())) {
+                                context.addTextNode(docNode, "lastMofificationDate", "" + lastModificationDate);
+                            }
+                        }
+                    }
+                }
+                if (!shouldExecute) {
+                    continue;
+                }
+                if (!fullDoc) {
                     context.addTextNode(errorsNode, "_id", docEntry._id);
                     continue;
                 }
@@ -207,3 +282,8 @@ comment: |
 ↓chunkSize [variables.RequestableVariable-202406070003]: 
   comment: Number of documents fetched per CouchDB page while iterating.
   value: 1000
+↓Test_Case_exec [core.TestCase]: 
+  ↓execute [variables.TestCaseVariable-1760444342789]: 
+    value: true
+  ↓chunkSize [variables.TestCaseVariable-1760444342791]: 
+    value: 1000

@@ -157,6 +157,7 @@ comment: |
         var useIndex = ["_design/mangoIndexes2", "forms_c8ogrp_audit"];
         var bookmark = null;
         var running = true;
+        var creatorDisplayCache = {};
         log.warn("Starting c8oGrp audit in " + (shouldExecute ? "apply" : "dry-run") + " mode with batch size " + limit + ".");
         while (running) {
             context.getRootContext().lastAccessTime = new Date().getTime();
@@ -188,7 +189,9 @@ comment: |
                     "c8oGrp",
                     "shared",
                     "collabs",
-                    "creator"
+                    "creator",
+                    "name",
+                    "lastMofification"
                 ]
             };
             if (bookmark !== null) {
@@ -235,9 +238,74 @@ comment: |
                     if (docNode === null) {
                         docNode = context.addTextNode(docsNode, "document", "");
                         context.addTextNode(docNode, "id", docEntry._id);
+                        if (docEntry.creator !== undefined && docEntry.creator !== null) {
+                            var rawCreator = ("" + docEntry.creator).trim();
+                            if (rawCreator.length > 0) {
+                                context.addTextNode(docNode, "creator", rawCreator);
+                                var cacheKey = rawCreator;
+                                var cachedDisplay = hasOwn(creatorDisplayCache, cacheKey) ? creatorDisplayCache[cacheKey] : undefined;
+                                if (cachedDisplay === undefined) {
+                                    var creatorDocId = rawCreator.indexOf("C8Oreserved_") === 0 ? rawCreator : "C8Oreserved_" + rawCreator;
+                                    try {
+                                        var creatorDoc = toJSON(fsclient.getDocument("c8oforms_fs", creatorDocId, new HashMap()));
+                                        if (creatorDoc && hasOwn(creatorDoc, "displayName") && creatorDoc.displayName !== null && creatorDoc.displayName !== undefined) {
+                                            cachedDisplay = "" + creatorDoc.displayName;
+                                        }
+                                        else {
+                                            cachedDisplay = "";
+                                        }
+                                    }
+                                    catch (err) {
+                                        log.warn("Failed to fetch creator profile " + creatorDocId + " while preparing metadata for " + docEntry._id + ": " + err);
+                                        cachedDisplay = "";
+                                    }
+                                    creatorDisplayCache[cacheKey] = cachedDisplay;
+                                }
+                                var displayNameValue = cachedDisplay !== undefined && cachedDisplay !== null ? "" + cachedDisplay : "";
+                                context.addTextNode(docNode, "creatorDisplayName", displayNameValue);
+                            }
+                        }
+                        if (hasOwn(docEntry, "name") && docEntry.name !== undefined && docEntry.name !== null) {
+                            context.addTextNode(docNode, "name", "" + docEntry.name);
+                        }
+                        if (hasOwn(docEntry, "lastMofification") && docEntry.lastMofification !== undefined && docEntry.lastMofification !== null) {
+                            var rawLastModification = docEntry.lastMofification;
+                            var lastModificationMillis = null;
+                            if (typeof rawLastModification === "number") {
+                                lastModificationMillis = rawLastModification;
+                            }
+                            else if (typeof rawLastModification === "string") {
+                                var trimmed = rawLastModification.trim();
+                                if (trimmed.length > 0) {
+                                    var parsedMillis = parseInt(trimmed, 10);
+                                    if (!isNaN(parsedMillis)) {
+                                        lastModificationMillis = parsedMillis;
+                                    }
+                                    else {
+                                        var parsedDate = Date.parse(trimmed);
+                                        if (!isNaN(parsedDate)) {
+                                            lastModificationMillis = parsedDate;
+                                        }
+                                    }
+                                }
+                            }
+                            else {
+                                var coerced = +rawLastModification;
+                                if (!isNaN(coerced)) {
+                                    lastModificationMillis = coerced;
+                                }
+                            }
+                            if (lastModificationMillis !== null) {
+                                var lastModificationDate = new Date(lastModificationMillis);
+                                if (!isNaN(lastModificationDate.getTime())) {
+                                    context.addTextNode(docNode, "lastMofificationDate", "" + lastModificationDate);
+                                }
+                            }
+                        }
                         context.addTextNode(docNode, "current", JSON.stringify(currentKeys));
                         context.addTextNode(docNode, "expected", JSON.stringify(expectedKeys));
                     }
+                    return docNode;
                 };
                 if (mismatch) {
                     ensureDocNode();
@@ -363,7 +431,12 @@ comment: |
         log.warn("c8oGrp audit summary: scanned=" + totalScanned + ", mismatched=" + totalMismatched + ", updated=" + totalUpdated + ", errors=" + totalErrors + ".");'
 ↓execute [variables.RequestableVariable-202406070022]: 
   comment: Set to true to rebuild c8oGrp based on computed expectations.
-  value: true
+  value: false
 ↓chunkSize [variables.RequestableVariable-202406070023]: 
   comment: Number of documents fetched per Mango page during the audit.
   value: 100
+↓Test_Case_execute [core.TestCase]: 
+  ↓execute [variables.TestCaseVariable-1760521991270]: 
+    value: true
+  ↓chunkSize [variables.TestCaseVariable-1760521991272]: 
+    value: 100
