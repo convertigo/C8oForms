@@ -153,22 +153,24 @@ see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/8.4
 <details><summary><span style="color:DarkGoldenRod"><i>Connectors</i></span></summary><blockquote><p>
 
 
-<details><summary><b>c8oforms_fs</b> : Fullsync connector that holds all forms and user settings</summary><blockquote><p>
+<details><summary><b>c8oforms_fs</b> : Forms fullsync store</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/connectors/images/fullsyncconnector_color_16x16.png?raw=true "FullSyncConnector") c8oforms_fs
 
-Fullsync connector that holds all forms and user settings
+Forms fullsync store.
+CouchDB FullSync connector storing forms, settings, and shared metadata.
 
 <details><summary><span style="color:DarkGoldenRod"><i>Transactions</i></span></summary><blockquote><p>
 
 
-<details><summary><b>DeleteDocument</b></summary><blockquote><p>
+<details><summary><b>DeleteDocument</b> : Delete form document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/deletedocument_color_16x16.png?raw=true "DeleteDocumentTransaction") DeleteDocument
 
-
+Delete form document.
+Deletes a document from c8oforms_fs using the provided id.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -186,19 +188,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocument</b></summary><blockquote><p>
+<details><summary><b>GetDocument</b> : Get form document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocument_color_16x16.png?raw=true "GetDocumentTransaction") GetDocument
 
-
+Get form document.
+Fetches a document from c8oforms_fs by id with optional test coverage.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -216,19 +219,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocumentAttachment</b></summary><blockquote><p>
+<details><summary><b>GetDocumentAttachment</b> : Get attachment by path</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocumentattachment_color_16x16.png?raw=true "GetDocumentAttachmentTransaction") GetDocumentAttachment
 
-
+Get attachment by path.
+Streams an attachment by name and path from c8oforms_fs.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -246,7 +250,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -254,7 +258,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -262,7 +266,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 <tr>
@@ -270,19 +274,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_rev
 </td>
 <td>
-
+Revision token of the targeted document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocumentAttachment1</b></summary><blockquote><p>
+<details><summary><b>GetDocumentAttachment1</b> : Get attachment by name</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocumentattachment_color_16x16.png?raw=true "GetDocumentAttachmentTransaction") GetDocumentAttachment1
 
-
+Get attachment by name.
+Retrieves an attachment solely by document id and name.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -300,7 +305,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -308,7 +313,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -316,19 +321,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocumentAttachmentB64</b></summary><blockquote><p>
+<details><summary><b>GetDocumentAttachmentB64</b> : Get attachment as base64</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocumentattachment_color_16x16.png?raw=true "GetDocumentAttachmentTransaction") GetDocumentAttachmentB64
 
-
+Get attachment as base64.
+Returns an attachment encoded as base64 for inline transfers.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -346,7 +352,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -354,19 +360,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocumentRev</b></summary><blockquote><p>
+<details><summary><b>GetDocumentRev</b> : Get document revision</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocument_color_16x16.png?raw=true "GetDocumentTransaction") GetDocumentRev
 
-
+Get document revision.
+Fetches a document by id and revision for optimistic locking.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -384,7 +391,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 <tr>
@@ -392,35 +399,38 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_rev
 </td>
 <td>
-
+Revision token of the targeted document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetServerInfo</b></summary><blockquote><p>
+<details><summary><b>GetServerInfo</b> : Get server info</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getserverinfo_color_16x16.png?raw=true "GetServerInfoTransaction") GetServerInfo
 
-
+Get server info.
+Retrieves CouchDB server information for health checks.
 </p></blockquote></details>
 
-<details><summary><b>GetServerInfo1</b></summary><blockquote><p>
+<details><summary><b>GetServerInfo1</b> : Get server info copy</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getserverinfo_color_16x16.png?raw=true "GetServerInfoTransaction") GetServerInfo1
 
-
+Get server info copy.
+Alternative server info accessor kept for backward compatibility.
 </p></blockquote></details>
 
-<details><summary><b>GetUsersByACL</b></summary><blockquote><p>
+<details><summary><b>GetUsersByACL</b> : List users by ACL</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetUsersByACL
 
-
+List users by ACL.
+Queries view usersV2/byACL to resolve user membership from ACL entries.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -438,7 +448,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_ddoc
 </td>
 <td>
-
+Design document identifier to query.
 </td>
 </tr>
 <tr>
@@ -446,7 +456,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_include_docs
 </td>
 <td>
-
+Whether to embed full documents in the view response.
 </td>
 </tr>
 <tr>
@@ -454,7 +464,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_keys
 </td>
 <td>
-
+List of keys used to filter view results.
 </td>
 </tr>
 <tr>
@@ -462,19 +472,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_view
 </td>
 <td>
-
+Name of the view to execute.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetView</b></summary><blockquote><p>
+<details><summary><b>GetView</b> : Run integrity view</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetView
 
-
+Run integrity view.
+Executes data_integrity/check_published_collabResponse_groups with long timeout.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -492,7 +503,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_ddoc
 </td>
 <td>
-
+Design document identifier to query.
 </td>
 </tr>
 <tr>
@@ -500,7 +511,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_descending
 </td>
 <td>
-
+Return view rows in descending key order when true.
 </td>
 </tr>
 <tr>
@@ -508,7 +519,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_group
 </td>
 <td>
-
+Whether to group reduced view results.
 </td>
 </tr>
 <tr>
@@ -516,7 +527,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_group_level
 </td>
 <td>
-
+Group level used when reducing view rows.
 </td>
 </tr>
 <tr>
@@ -524,7 +535,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_reduce
 </td>
 <td>
-
+Whether to apply the reduce function on the view.
 </td>
 </tr>
 <tr>
@@ -532,19 +543,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_view
 </td>
 <td>
-
+Name of the view to execute.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetViewAuth</b></summary><blockquote><p>
+<details><summary><b>GetViewAuth</b> : Run authentication view</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetViewAuth
 
-
+Run authentication view.
+Calls authentication/distinctGroups grouped to inspect group usage.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -562,7 +574,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_group
 </td>
 <td>
-
+Whether to group reduced view results.
 </td>
 </tr>
 <tr>
@@ -570,7 +582,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_group_level
 </td>
 <td>
-
+Group level used when reducing view rows.
 </td>
 </tr>
 <tr>
@@ -578,7 +590,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_keys
 </td>
 <td>
-
+List of keys used to filter view results.
 </td>
 </tr>
 <tr>
@@ -586,19 +598,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_reduce
 </td>
 <td>
-
+Whether to apply the reduce function on the view.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetViewByKeys</b></summary><blockquote><p>
+<details><summary><b>GetViewByKeys</b> : Run view by keys</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetViewByKeys
 
-
+Run view by keys.
+Executes the formsV2 view with an explicit keys list.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -616,7 +629,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_ddoc
 </td>
 <td>
-
+Design document identifier to query.
 </td>
 </tr>
 <tr>
@@ -624,7 +637,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_keys
 </td>
 <td>
-
+List of keys used to filter view results.
 </td>
 </tr>
 <tr>
@@ -632,19 +645,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_view
 </td>
 <td>
-
+Name of the view to execute.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetViewIncludeDocs</b></summary><blockquote><p>
+<details><summary><b>GetViewIncludeDocs</b> : Run view including docs</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetViewIncludeDocs
 
-
+Run view including docs.
+Loads formsV2 view entries while embedding full documents.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -662,7 +676,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_ddoc
 </td>
 <td>
-
+Design document identifier to query.
 </td>
 </tr>
 <tr>
@@ -670,7 +684,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_include_docs
 </td>
 <td>
-
+Whether to embed full documents in the view response.
 </td>
 </tr>
 <tr>
@@ -678,19 +692,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_view
 </td>
 <td>
-
+Name of the view to execute.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetViewPublishedbyAcl</b></summary><blockquote><p>
+<details><summary><b>GetViewPublishedbyAcl</b> : Run published-by-ACL view</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetViewPublishedbyAcl
 
-
+Run published-by-ACL view.
+Queries published_forms/distinct_by_acl to list ACL driven publications.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -708,7 +723,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_ddoc
 </td>
 <td>
-
+Design document identifier to query.
 </td>
 </tr>
 <tr>
@@ -716,7 +731,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
 </td>
 <td>
-
+Single key used to filter view results.
 </td>
 </tr>
 <tr>
@@ -724,19 +739,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_view
 </td>
 <td>
-
+Name of the view to execute.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>HeadDocument</b></summary><blockquote><p>
+<details><summary><b>HeadDocument</b> : Head form document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/headdocument_color_16x16.png?raw=true "HeadDocumentTransaction") HeadDocument
 
-
+Head form document.
+Performs a HEAD request on a document to check its existence.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -754,19 +770,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostBulkDocuments_1</b></summary><blockquote><p>
+<details><summary><b>PostBulkDocuments_1</b> : Bulk merge documents</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postbulkdocuments_color_16x16.png?raw=true "PostBulkDocumentsTransaction") PostBulkDocuments_1
 
-
+Bulk merge documents.
+Merges a batch of documents into c8oforms_fs with merge policy.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -784,19 +801,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocument</b></summary><blockquote><p>
+<details><summary><b>PostDocument</b> : Post document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocument
 
-
+Post document.
+Creates or updates a document with merge policy and metadata protections.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -814,7 +832,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -822,7 +840,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -830,7 +848,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 <tr>
@@ -838,7 +856,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;actions
 </td>
 <td>
-
+Array of actions executed by the connector call.
 </td>
 </tr>
 <tr>
@@ -846,7 +864,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_published_form
 </td>
 <td>
-
+Flag identifying published form documents.
 </td>
 </tr>
 <tr>
@@ -854,7 +872,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8oGrp
 </td>
 <td>
-
+Group membership map attached to the document.
 </td>
 </tr>
 <tr>
@@ -862,7 +880,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;collabs
 </td>
 <td>
-
+Collaborators array stored on the form.
 </td>
 </tr>
 <tr>
@@ -870,7 +888,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;collabsResponse
 </td>
 <td>
-
+Collaborators allowed to read responses.
 </td>
 </tr>
 <tr>
@@ -878,7 +896,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;creationDate
 </td>
 <td>
-
+Creation timestamp saved on the document.
 </td>
 </tr>
 <tr>
@@ -886,7 +904,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;creator
 </td>
 <td>
-
+Creator identifier tied to the document.
 </td>
 </tr>
 <tr>
@@ -894,7 +912,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descform
 </td>
 <td>
-
+Long description of the form.
 </td>
 </tr>
 <tr>
@@ -902,7 +920,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descformPosition
 </td>
 <td>
-
+Display order for the form description.
 </td>
 </tr>
 <tr>
@@ -910,7 +928,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formulaire
 </td>
 <td>
-
+Serialized form definition payload.
 </td>
 </tr>
 <tr>
@@ -918,7 +936,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;lastMofification
 </td>
 <td>
-
+Timestamp of the last modification.
 </td>
 </tr>
 <tr>
@@ -926,7 +944,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Name of the entity written into the document.
 </td>
 </tr>
 <tr>
@@ -934,7 +952,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;namePosition
 </td>
 <td>
-
+Display order for the name field.
 </td>
 </tr>
 <tr>
@@ -942,7 +960,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pages
 </td>
 <td>
-
+Serialized page definitions for the form.
 </td>
 </tr>
 <tr>
@@ -950,7 +968,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentId
 </td>
 <td>
-
+Parent document identifier in the hierarchy.
 </td>
 </tr>
 <tr>
@@ -958,7 +976,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentRev
 </td>
 <td>
-
+Parent revision reference used during migration.
 </td>
 </tr>
 <tr>
@@ -966,7 +984,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pwa_enabled
 </td>
 <td>
-
+Flag enabling PWA generation for the form.
 </td>
 </tr>
 <tr>
@@ -974,7 +992,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pwa_subPath
 </td>
 <td>
-
+Sub-path used to host the generated PWA.
 </td>
 </tr>
 <tr>
@@ -982,7 +1000,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;respNameRequired
 </td>
 <td>
-
+Flag making response name mandatory.
 </td>
 </tr>
 <tr>
@@ -990,7 +1008,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;sharedAnonymous
 </td>
 <td>
-
+Flag enabling anonymous sharing on the form.
 </td>
 </tr>
 <tr>
@@ -998,7 +1016,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;subTag
 </td>
 <td>
-
+Secondary tag set on the document.
 </td>
 </tr>
 <tr>
@@ -1006,7 +1024,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;tag
 </td>
 <td>
-
+Tag label applied to the form.
 </td>
 </tr>
 <tr>
@@ -1014,7 +1032,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;thumbnail
 </td>
 <td>
-
+Thumbnail metadata or payload stored with the document.
 </td>
 </tr>
 <tr>
@@ -1022,7 +1040,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string of the migrated document.
 </td>
 </tr>
 <tr>
@@ -1030,19 +1048,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;wallpaper
 </td>
 <td>
-
+Wallpaper metadata or payload stored with the document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocument1</b></summary><blockquote><p>
+<details><summary><b>PostDocument1</b> : Post document (raw)</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocument1
 
-
+Post document (raw).
+Posts a document with keep-attachments flag for specialized flows.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1060,7 +1079,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -1068,7 +1087,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1076,7 +1095,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 <tr>
@@ -1084,7 +1103,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;actions
 </td>
 <td>
-
+Array of actions executed by the connector call.
 </td>
 </tr>
 <tr>
@@ -1092,7 +1111,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_published_form
 </td>
 <td>
-
+Flag identifying published form documents.
 </td>
 </tr>
 <tr>
@@ -1100,7 +1119,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8oGrp
 </td>
 <td>
-
+Group membership map attached to the document.
 </td>
 </tr>
 <tr>
@@ -1108,7 +1127,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;collabs
 </td>
 <td>
-
+Collaborators array stored on the form.
 </td>
 </tr>
 <tr>
@@ -1116,7 +1135,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;collabsResponse
 </td>
 <td>
-
+Collaborators allowed to read responses.
 </td>
 </tr>
 <tr>
@@ -1124,7 +1143,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;creationDate
 </td>
 <td>
-
+Creation timestamp saved on the document.
 </td>
 </tr>
 <tr>
@@ -1132,7 +1151,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;creator
 </td>
 <td>
-
+Creator identifier tied to the document.
 </td>
 </tr>
 <tr>
@@ -1140,7 +1159,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descform
 </td>
 <td>
-
+Long description of the form.
 </td>
 </tr>
 <tr>
@@ -1148,7 +1167,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descformPosition
 </td>
 <td>
-
+Display order for the form description.
 </td>
 </tr>
 <tr>
@@ -1156,7 +1175,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formulaire
 </td>
 <td>
-
+Serialized form definition payload.
 </td>
 </tr>
 <tr>
@@ -1164,7 +1183,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;lastMofification
 </td>
 <td>
-
+Timestamp of the last modification.
 </td>
 </tr>
 <tr>
@@ -1172,7 +1191,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Name of the entity written into the document.
 </td>
 </tr>
 <tr>
@@ -1180,7 +1199,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;namePosition
 </td>
 <td>
-
+Display order for the name field.
 </td>
 </tr>
 <tr>
@@ -1188,7 +1207,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pages
 </td>
 <td>
-
+Serialized page definitions for the form.
 </td>
 </tr>
 <tr>
@@ -1196,7 +1215,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentId
 </td>
 <td>
-
+Parent document identifier in the hierarchy.
 </td>
 </tr>
 <tr>
@@ -1204,7 +1223,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentRev
 </td>
 <td>
-
+Parent revision reference used during migration.
 </td>
 </tr>
 <tr>
@@ -1212,7 +1231,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pwa_enabled
 </td>
 <td>
-
+Flag enabling PWA generation for the form.
 </td>
 </tr>
 <tr>
@@ -1220,7 +1239,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pwa_subPath
 </td>
 <td>
-
+Sub-path used to host the generated PWA.
 </td>
 </tr>
 <tr>
@@ -1228,7 +1247,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;respNameRequired
 </td>
 <td>
-
+Flag making response name mandatory.
 </td>
 </tr>
 <tr>
@@ -1236,7 +1255,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;sharedAnonymous
 </td>
 <td>
-
+Flag enabling anonymous sharing on the form.
 </td>
 </tr>
 <tr>
@@ -1244,7 +1263,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;subTag
 </td>
 <td>
-
+Secondary tag set on the document.
 </td>
 </tr>
 <tr>
@@ -1252,7 +1271,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;tag
 </td>
 <td>
-
+Tag label applied to the form.
 </td>
 </tr>
 <tr>
@@ -1260,7 +1279,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;thumbnail
 </td>
 <td>
-
+Thumbnail metadata or payload stored with the document.
 </td>
 </tr>
 <tr>
@@ -1268,7 +1287,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string of the migrated document.
 </td>
 </tr>
 <tr>
@@ -1276,19 +1295,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;wallpaper
 </td>
 <td>
-
+Wallpaper metadata or payload stored with the document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocument_PWA</b></summary><blockquote><p>
+<details><summary><b>PostDocument_PWA</b> : Post PWA document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocument_PWA
 
-
+Post PWA document.
+Stores generated PWA metadata and assets.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1306,7 +1326,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -1314,7 +1334,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1322,7 +1342,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -1330,7 +1350,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 <tr>
@@ -1338,7 +1358,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;backgroundColor
 </td>
 <td>
-
+Background color value stored with the document.
 </td>
 </tr>
 <tr>
@@ -1346,7 +1366,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_pwa_document
 </td>
 <td>
-
+Flag identifying generated PWA documents.
 </td>
 </tr>
 <tr>
@@ -1354,7 +1374,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Name of the entity written into the document.
 </td>
 </tr>
 <tr>
@@ -1362,7 +1382,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;notAnonymous
 </td>
 <td>
-
+Flag forcing authenticated access to the document.
 </td>
 </tr>
 <tr>
@@ -1370,7 +1390,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;originalFormId
 </td>
 <td>
-
+Original form identifier referenced by the record.
 </td>
 </tr>
 <tr>
@@ -1378,7 +1398,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;querystr
 </td>
 <td>
-
+Query string appended when calling the view.
 </td>
 </tr>
 <tr>
@@ -1386,7 +1406,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;shortName
 </td>
 <td>
-
+Short name used in lists and menus.
 </td>
 </tr>
 <tr>
@@ -1394,7 +1414,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;targetId
 </td>
 <td>
-
+Target identifier referenced by the notification.
 </td>
 </tr>
 <tr>
@@ -1402,19 +1422,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;themeColor
 </td>
 <td>
-
+Theme color applied to the generated PWA.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocument_restore_deleted</b></summary><blockquote><p>
+<details><summary><b>PostDocument_restore_deleted</b> : Restore deleted form</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocument_restore_deleted
 
-
+Restore deleted form.
+Restores a previously deleted document by clearing _deleted flag.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1432,19 +1453,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;data
 </td>
 <td>
-
+Main data payload written to the document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentAddArgc8o_view_type_pwa_document</b></summary><blockquote><p>
+<details><summary><b>PostDocumentAddArgc8o_view_type_pwa_document</b> : Flag PWA document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentAddArgc8o_view_type_pwa_document
 
-
+Flag PWA document.
+Marks a document with the PWA view type during creation.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1462,7 +1484,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1470,7 +1492,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_pwa_document
 </td>
 <td>
-
+Flag identifying generated PWA documents.
 </td>
 </tr>
 <tr>
@@ -1478,19 +1500,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;targetId
 </td>
 <td>
-
+Target identifier referenced by the notification.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentBaserowPassword</b></summary><blockquote><p>
+<details><summary><b>PostDocumentBaserowPassword</b> : Save Baserow password</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentBaserowPassword
 
-
+Save Baserow password.
+Stores hashed Baserow credentials in the connector.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1508,7 +1531,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1516,19 +1539,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;password
 </td>
 <td>
-
+Password or secret associated with the record.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentCreateNotif</b></summary><blockquote><p>
+<details><summary><b>PostDocumentCreateNotif</b> : Create notification doc</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentCreateNotif
 
-
+Create notification doc.
+Adds notification documents for user alerts.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1546,7 +1570,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1554,7 +1578,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_notification
 </td>
 <td>
-
+Flag identifying notification documents.
 </td>
 </tr>
 <tr>
@@ -1562,7 +1586,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;date
 </td>
 <td>
-
+Timestamp or date value stored during migration.
 </td>
 </tr>
 <tr>
@@ -1570,7 +1594,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formId
 </td>
 <td>
-
+Identifier of the parent form document.
 </td>
 </tr>
 <tr>
@@ -1578,7 +1602,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;new
 </td>
 <td>
-
+Flag telling whether the record is newly created.
 </td>
 </tr>
 <tr>
@@ -1586,7 +1610,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;status
 </td>
 <td>
-
+Workflow status value of the form.
 </td>
 </tr>
 <tr>
@@ -1594,7 +1618,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;targetId
 </td>
 <td>
-
+Target identifier referenced by the notification.
 </td>
 </tr>
 <tr>
@@ -1602,7 +1626,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;targetName
 </td>
 <td>
-
+Human readable name of the target referenced item.
 </td>
 </tr>
 <tr>
@@ -1610,19 +1634,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;type
 </td>
 <td>
-
+Document type marker used by design documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentCreateUserSettings</b></summary><blockquote><p>
+<details><summary><b>PostDocumentCreateUserSettings</b> : Create user settings</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentCreateUserSettings
 
-
+Create user settings.
+Initialises default user settings structures.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1640,7 +1665,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -1648,7 +1673,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1656,7 +1681,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -1664,7 +1689,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_users
 </td>
 <td>
-
+Flag identifying user documents.
 </td>
 </tr>
 <tr>
@@ -1672,7 +1697,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;displayName
 </td>
 <td>
-
+Display name saved for the target entity.
 </td>
 </tr>
 <tr>
@@ -1680,7 +1705,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;editing_rights
 </td>
 <td>
-
+Editing rights object merged into the document.
 </td>
 </tr>
 <tr>
@@ -1688,7 +1713,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;favorites
 </td>
 <td>
-
+List of favourites associated with the user.
 </td>
 </tr>
 <tr>
@@ -1696,7 +1721,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;language
 </td>
 <td>
-
+Language code stored on the document.
 </td>
 </tr>
 <tr>
@@ -1704,7 +1729,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;mail
 </td>
 <td>
-
+Email address stored on the document.
 </td>
 </tr>
 <tr>
@@ -1712,7 +1737,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Name of the entity written into the document.
 </td>
 </tr>
 <tr>
@@ -1720,7 +1745,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;picture
 </td>
 <td>
-
+Binary or base64 picture payload.
 </td>
 </tr>
 <tr>
@@ -1728,7 +1753,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;provider
 </td>
 <td>
-
+Name of the identity or external provider.
 </td>
 </tr>
 <tr>
@@ -1736,7 +1761,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;published_First
 </td>
 <td>
-
+Flag used during first publication of a form.
 </td>
 </tr>
 <tr>
@@ -1744,19 +1769,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;surname
 </td>
 <td>
-
+Surname stored on the user document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentFromAclKey</b></summary><blockquote><p>
+<details><summary><b>PostDocumentFromAclKey</b> : Post from ACL key</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentFromAclKey
 
-
+Post from ACL key.
+Creates a document using ACL information as base JSON.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1774,7 +1800,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -1782,7 +1808,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1790,7 +1816,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 <tr>
@@ -1798,7 +1824,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;actions
 </td>
 <td>
-
+Array of actions executed by the connector call.
 </td>
 </tr>
 <tr>
@@ -1806,7 +1832,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8oGrp
 </td>
 <td>
-
+Group membership map attached to the document.
 </td>
 </tr>
 <tr>
@@ -1814,7 +1840,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;creator
 </td>
 <td>
-
+Creator identifier tied to the document.
 </td>
 </tr>
 <tr>
@@ -1822,7 +1848,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descform
 </td>
 <td>
-
+Long description of the form.
 </td>
 </tr>
 <tr>
@@ -1830,7 +1856,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descformPosition
 </td>
 <td>
-
+Display order for the form description.
 </td>
 </tr>
 <tr>
@@ -1838,7 +1864,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formulaire
 </td>
 <td>
-
+Serialized form definition payload.
 </td>
 </tr>
 <tr>
@@ -1846,7 +1872,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Name of the entity written into the document.
 </td>
 </tr>
 <tr>
@@ -1854,7 +1880,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;namePosition
 </td>
 <td>
-
+Display order for the name field.
 </td>
 </tr>
 <tr>
@@ -1862,7 +1888,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pages
 </td>
 <td>
-
+Serialized page definitions for the form.
 </td>
 </tr>
 <tr>
@@ -1870,7 +1896,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentId
 </td>
 <td>
-
+Parent document identifier in the hierarchy.
 </td>
 </tr>
 <tr>
@@ -1878,7 +1904,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentRev
 </td>
 <td>
-
+Parent revision reference used during migration.
 </td>
 </tr>
 <tr>
@@ -1886,7 +1912,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;respNameRequired
 </td>
 <td>
-
+Flag making response name mandatory.
 </td>
 </tr>
 <tr>
@@ -1894,7 +1920,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string of the migrated document.
 </td>
 </tr>
 <tr>
@@ -1902,19 +1928,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;wallpaper
 </td>
 <td>
-
+Wallpaper metadata or payload stored with the document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentFromAclKeyMerge</b></summary><blockquote><p>
+<details><summary><b>PostDocumentFromAclKeyMerge</b> : Merge from ACL key</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentFromAclKeyMerge
 
-
+Merge from ACL key.
+Merges ACL-based JSON into an existing document.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -1932,7 +1959,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -1940,7 +1967,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -1948,7 +1975,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 <tr>
@@ -1956,7 +1983,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;actions
 </td>
 <td>
-
+Array of actions executed by the connector call.
 </td>
 </tr>
 <tr>
@@ -1964,7 +1991,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8oGrp
 </td>
 <td>
-
+Group membership map attached to the document.
 </td>
 </tr>
 <tr>
@@ -1972,7 +1999,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;creator
 </td>
 <td>
-
+Creator identifier tied to the document.
 </td>
 </tr>
 <tr>
@@ -1980,7 +2007,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descform
 </td>
 <td>
-
+Long description of the form.
 </td>
 </tr>
 <tr>
@@ -1988,7 +2015,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;descformPosition
 </td>
 <td>
-
+Display order for the form description.
 </td>
 </tr>
 <tr>
@@ -1996,7 +2023,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formulaire
 </td>
 <td>
-
+Serialized form definition payload.
 </td>
 </tr>
 <tr>
@@ -2004,7 +2031,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Name of the entity written into the document.
 </td>
 </tr>
 <tr>
@@ -2012,7 +2039,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;namePosition
 </td>
 <td>
-
+Display order for the name field.
 </td>
 </tr>
 <tr>
@@ -2020,7 +2047,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pages
 </td>
 <td>
-
+Serialized page definitions for the form.
 </td>
 </tr>
 <tr>
@@ -2028,7 +2055,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentId
 </td>
 <td>
-
+Parent document identifier in the hierarchy.
 </td>
 </tr>
 <tr>
@@ -2036,7 +2063,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;parentRev
 </td>
 <td>
-
+Parent revision reference used during migration.
 </td>
 </tr>
 <tr>
@@ -2044,7 +2071,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;respNameRequired
 </td>
 <td>
-
+Flag making response name mandatory.
 </td>
 </tr>
 <tr>
@@ -2052,7 +2079,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string of the migrated document.
 </td>
 </tr>
 <tr>
@@ -2060,19 +2087,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;wallpaper
 </td>
 <td>
-
+Wallpaper metadata or payload stored with the document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentJSONBASE</b></summary><blockquote><p>
+<details><summary><b>PostDocumentJSONBASE</b> : Post JSON base</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentJSONBASE
 
-
+Post JSON base.
+Posts documents using json_base template expansion.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2090,7 +2118,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -2098,19 +2126,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentJsonBaseKeepACL</b></summary><blockquote><p>
+<details><summary><b>PostDocumentJsonBaseKeepACL</b> : Post JSON base keep ACL</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentJsonBaseKeepACL
 
-
+Post JSON base keep ACL.
+Posts documents while preserving existing ACL metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2128,7 +2157,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -2136,19 +2165,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentJsonBaseOverride</b></summary><blockquote><p>
+<details><summary><b>PostDocumentJsonBaseOverride</b> : Post JSON base override</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentJsonBaseOverride
 
-
+Post JSON base override.
+Posts documents overriding fields defined in the merge template.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2166,7 +2196,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -2174,19 +2204,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentMigrationAll</b></summary><blockquote><p>
+<details><summary><b>PostDocumentMigrationAll</b> : Migration - all docs</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentMigrationAll
 
-
+Migration - all docs.
+Pushes migration results for draft, published and response artifacts.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2204,7 +2235,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2212,7 +2243,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;subTag
 </td>
 <td>
-
+Secondary tag set on the document.
 </td>
 </tr>
 <tr>
@@ -2220,19 +2251,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;tag
 </td>
 <td>
-
+Tag label applied to the form.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentMigrationDraft</b></summary><blockquote><p>
+<details><summary><b>PostDocumentMigrationDraft</b> : Migration - drafts</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentMigrationDraft
 
-
+Migration - drafts.
+Writes migrated draft documents generated by scripts.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2250,7 +2282,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2258,19 +2290,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_drafts_form
 </td>
 <td>
-
+Flag identifying draft form documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentMigrationPublished</b></summary><blockquote><p>
+<details><summary><b>PostDocumentMigrationPublished</b> : Migration - published</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentMigrationPublished
 
-
+Migration - published.
+Stores migrated published documents for legacy upgrade.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2288,7 +2321,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2296,19 +2329,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_published_form
 </td>
 <td>
-
+Flag identifying published form documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentMigrationPublished11</b></summary><blockquote><p>
+<details><summary><b>PostDocumentMigrationPublished11</b> : Migration - published v11</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentMigrationPublished11
 
-
+Migration - published v11.
+Applies published-form adjustments for version 11 upgrade.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2326,7 +2360,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2334,19 +2368,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_published_form
 </td>
 <td>
-
+Flag identifying published form documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentMigrationUsers</b></summary><blockquote><p>
+<details><summary><b>PostDocumentMigrationUsers</b> : Migration - users</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentMigrationUsers
 
-
+Migration - users.
+Migrates user records into the new structure.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2364,7 +2399,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2372,19 +2407,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_users
 </td>
 <td>
-
+Flag identifying user documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentMigrationUsersModif</b></summary><blockquote><p>
+<details><summary><b>PostDocumentMigrationUsersModif</b> : Migration - user updates</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentMigrationUsersModif
 
-
+Migration - user updates.
+Stores incremental changes for migrated user records.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2402,7 +2438,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2410,19 +2446,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8o_view_type_usersModif
 </td>
 <td>
-
+Flag identifying user modification documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentPolicyMerge</b></summary><blockquote><p>
+<details><summary><b>PostDocumentPolicyMerge</b> : Post with merge policy</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentPolicyMerge
 
-
+Post with merge policy.
+Posts documents enforcing the merge policy supplied in variables.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2440,7 +2477,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2448,19 +2485,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;sharedAnonymous
 </td>
 <td>
-
+Flag enabling anonymous sharing on the form.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentPublicFormJSONbase</b></summary><blockquote><p>
+<details><summary><b>PostDocumentPublicFormJSONbase</b> : Post public form template</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentPublicFormJSONbase
 
-
+Post public form template.
+Creates public form documents using a JSON base.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2478,19 +2516,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentSetDone</b></summary><blockquote><p>
+<details><summary><b>PostDocumentSetDone</b> : Mark document done</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentSetDone
 
-
+Mark document done.
+Updates checklist status on migration helper documents.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2508,7 +2547,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2516,19 +2555,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;done
 </td>
 <td>
-
+Boolean flag marking the record as completed.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentSetPWAEnabled</b></summary><blockquote><p>
+<details><summary><b>PostDocumentSetPWAEnabled</b> : Toggle PWA enabled</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentSetPWAEnabled
 
-
+Toggle PWA enabled.
+Sets the pwa_enabled flag and derived metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2546,7 +2586,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2554,7 +2594,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pwa_enabled
 </td>
 <td>
-
+Flag enabling PWA generation for the form.
 </td>
 </tr>
 <tr>
@@ -2562,19 +2602,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;pwa_subPath
 </td>
 <td>
-
+Sub-path used to host the generated PWA.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentSetStatus</b></summary><blockquote><p>
+<details><summary><b>PostDocumentSetStatus</b> : Update form status</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentSetStatus
 
-
+Update form status.
+Writes the status field for workflow transitions.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2592,7 +2633,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2600,19 +2641,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;status
 </td>
 <td>
-
+Workflow status value of the form.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentUpdateRights</b></summary><blockquote><p>
+<details><summary><b>PostDocumentUpdateRights</b> : Update rights document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentUpdateRights
 
-
+Update rights document.
+Stores ACL changes and collaborator rights.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2630,7 +2672,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -2638,7 +2680,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2646,35 +2688,38 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;editing_rights
 </td>
 <td>
-
+Editing rights object merged into the document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostFind</b></summary><blockquote><p>
+<details><summary><b>PostFind</b> : Run Mango query</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postfind_color_16x16.png?raw=true "PostFindTransaction") PostFind
 
-
+Run Mango query.
+Executes a Mango query with custom selector and bookmark.
 </p></blockquote></details>
 
-<details><summary><b>PurgeDatabase</b></summary><blockquote><p>
+<details><summary><b>PurgeDatabase</b> : Purge database</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/purgedatabase_color_16x16.png?raw=true "PurgeDatabaseTransaction") PurgeDatabase
 
-
+Purge database.
+Issues purge calls to permanently remove deleted revisions.
 </p></blockquote></details>
 
-<details><summary><b>PutDocumentAttachment</b></summary><blockquote><p>
+<details><summary><b>PutDocumentAttachment</b> : Put attachment (merge)</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/putdocumentattachment_color_16x16.png?raw=true "PutDocumentAttachmentTransaction") PutDocumentAttachment
 
-
+Put attachment (merge).
+Uploads or replaces an attachment with merge policy awareness.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2692,7 +2737,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -2700,7 +2745,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -2708,19 +2753,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PutDocumentAttachmentFromBase64</b></summary><blockquote><p>
+<details><summary><b>PutDocumentAttachmentFromBase64</b> : Put attachment from base64</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/putdocumentattachment_color_16x16.png?raw=true "PutDocumentAttachmentTransaction") PutDocumentAttachmentFromBase64
 
-
+Put attachment from base64.
+Uploads an attachment supplied as base64 content.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2738,7 +2784,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attbase64
 </td>
 <td>
-
+Base64 encoded payload for attachment upload.
 </td>
 </tr>
 <tr>
@@ -2746,7 +2792,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attcontent_type
 </td>
 <td>
-
+MIME type applied to the attachment.
 </td>
 </tr>
 <tr>
@@ -2754,7 +2800,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -2762,19 +2808,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PutDocumentAttachmentFromFile</b></summary><blockquote><p>
+<details><summary><b>PutDocumentAttachmentFromFile</b> : Put attachment from file</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/putdocumentattachment_color_16x16.png?raw=true "PutDocumentAttachmentTransaction") PutDocumentAttachmentFromFile
 
-
+Put attachment from file.
+Uploads an attachment from a server-side file path.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2792,7 +2839,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attcontent_type
 </td>
 <td>
-
+MIME type applied to the attachment.
 </td>
 </tr>
 <tr>
@@ -2800,7 +2847,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -2808,7 +2855,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -2816,19 +2863,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PutDocumentAttachmentOK</b></summary><blockquote><p>
+<details><summary><b>PutDocumentAttachmentOK</b> : Confirm attachment update</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/putdocumentattachment_color_16x16.png?raw=true "PutDocumentAttachmentTransaction") PutDocumentAttachmentOK
 
-
+Confirm attachment update.
+Finalizes attachment upload returning metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2846,7 +2894,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attcontent_type
 </td>
 <td>
-
+MIME type applied to the attachment.
 </td>
 </tr>
 <tr>
@@ -2854,7 +2902,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -2862,7 +2910,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -2870,19 +2918,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>SetLanguage</b></summary><blockquote><p>
+<details><summary><b>SetLanguage</b> : Set language doc</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") SetLanguage
 
-
+Set language doc.
+Updates the language settings document stored in c8oforms_fs.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2900,7 +2949,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -2908,7 +2957,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;language
 </td>
 <td>
-
+Language code stored on the document.
 </td>
 </tr>
 </table>
@@ -2917,30 +2966,33 @@ comment
 </p></blockquote></details>
 </p></blockquote></details>
 
-<details><summary><b>c8oforms_response_fs</b> : Fullsync connector that holds all responses</summary><blockquote><p>
+<details><summary><b>c8oforms_response_fs</b> : Responses fullsync store</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/connectors/images/fullsyncconnector_color_16x16.png?raw=true "FullSyncConnector") c8oforms_response_fs
 
-Fullsync connector that holds all responses
+Responses fullsync store.
+CouchDB FullSync connector storing submitted responses and related attachments.
 
 <details><summary><span style="color:DarkGoldenRod"><i>Transactions</i></span></summary><blockquote><p>
 
 
-<details><summary><b>AllDocs</b></summary><blockquote><p>
+<details><summary><b>AllDocs</b> : List all response docs</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/alldocs_color_16x16.png?raw=true "AllDocsTransaction") AllDocs
 
-
+List all response docs.
+Lists response documents in bulk using _all_docs.
 </p></blockquote></details>
 
-<details><summary><b>Generic_GetView</b></summary><blockquote><p>
+<details><summary><b>Generic_GetView</b> : Generic response view</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") Generic_GetView
 
-
+Generic response view.
+Runs arbitrary response design views with provided identifiers.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -2958,7 +3010,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_ddoc
 </td>
 <td>
-
+Design document identifier to query.
 </td>
 </tr>
 <tr>
@@ -2966,7 +3018,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
 </td>
 <td>
-
+Single key used to filter view results.
 </td>
 </tr>
 <tr>
@@ -2974,19 +3026,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_view
 </td>
 <td>
-
+Name of the view to execute.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocument</b></summary><blockquote><p>
+<details><summary><b>GetDocument</b> : Get response document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocument_color_16x16.png?raw=true "GetDocumentTransaction") GetDocument
 
-
+Get response document.
+Retrieves a response document by id.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3004,19 +3057,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocumentAttachment</b></summary><blockquote><p>
+<details><summary><b>GetDocumentAttachment</b> : Get response attachment</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocumentattachment_color_16x16.png?raw=true "GetDocumentAttachmentTransaction") GetDocumentAttachment
 
-
+Get response attachment.
+Streams attachments stored with a response.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3034,7 +3088,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -3042,7 +3096,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -3050,19 +3104,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetDocumentRev</b></summary><blockquote><p>
+<details><summary><b>GetDocumentRev</b> : Get response revision</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getdocument_color_16x16.png?raw=true "GetDocumentTransaction") GetDocumentRev
 
-
+Get response revision.
+Fetches a response document by id and revision.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3080,7 +3135,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 <tr>
@@ -3088,19 +3143,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_rev
 </td>
 <td>
-
+Revision token of the targeted document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetResponseByFormId</b></summary><blockquote><p>
+<details><summary><b>GetResponseByFormId</b> : Responses by form id</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetResponseByFormId
 
-
+Responses by form id.
+Queries responsesByFormId view for a given form.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3118,27 +3174,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
 </td>
 <td>
-
+Single key used to filter view results.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetServerInfo</b></summary><blockquote><p>
+<details><summary><b>GetServerInfo</b> : Get server info</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getserverinfo_color_16x16.png?raw=true "GetServerInfoTransaction") GetServerInfo
 
-
+Get server info.
+Retrieves CouchDB server details for diagnostics.
 </p></blockquote></details>
 
-<details><summary><b>GetView</b></summary><blockquote><p>
+<details><summary><b>GetView</b> : Run response view</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetView
 
-
+Run response view.
+Runs Design_document/view for broad queries.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3156,19 +3214,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
 </td>
 <td>
-
+Single key used to filter view results.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetView1</b></summary><blockquote><p>
+<details><summary><b>GetView1</b> : Run response view1</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetView1
 
-
+Run response view1.
+Runs Design_document/view1 for filtered queries.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3186,19 +3245,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
 </td>
 <td>
-
+Single key used to filter view results.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetView1_multiple</b></summary><blockquote><p>
+<details><summary><b>GetView1_multiple</b> : Run response view1 multiple</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetView1_multiple
 
-
+Run response view1 multiple.
+Runs view1_multiple to load aggregated rows.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3216,19 +3276,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
 </td>
 <td>
-
+Single key used to filter view results.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetView1Pretty</b></summary><blockquote><p>
+<details><summary><b>GetView1Pretty</b> : Run response view1 pretty</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetView1Pretty
 
-
+Run response view1 pretty.
+Runs view1_Pretty returning formatted rows.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3246,19 +3307,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
 </td>
 <td>
-
+Single key used to filter view results.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetViewNotOnMapOnly</b></summary><blockquote><p>
+<details><summary><b>GetViewNotOnMapOnly</b> : Run response view custom</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetViewNotOnMapOnly
 
-
+Run response view custom.
+Executes dynamic view lookups with grouping options.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3276,7 +3338,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_ddoc
 </td>
 <td>
-
+Design document identifier to query.
 </td>
 </tr>
 <tr>
@@ -3284,7 +3346,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_descending
 </td>
 <td>
-
+Return view rows in descending key order when true.
 </td>
 </tr>
 <tr>
@@ -3292,7 +3354,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_group
 </td>
 <td>
-
+Whether to group reduced view results.
 </td>
 </tr>
 <tr>
@@ -3300,7 +3362,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_group_level
 </td>
 <td>
-
+Group level used when reducing view rows.
 </td>
 </tr>
 <tr>
@@ -3308,7 +3370,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_reduce
 </td>
 <td>
-
+Whether to apply the reduce function on the view.
 </td>
 </tr>
 <tr>
@@ -3316,19 +3378,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_view
 </td>
 <td>
-
+Name of the view to execute.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostBulkDocumentsMergeOverrideGrp</b></summary><blockquote><p>
+<details><summary><b>PostBulkDocumentsMergeOverrideGrp</b> : Bulk merge responses</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postbulkdocuments_color_16x16.png?raw=true "PostBulkDocumentsTransaction") PostBulkDocumentsMergeOverrideGrp
 
-
+Bulk merge responses.
+Merges response documents with override-capable policy.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3346,7 +3409,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -3354,19 +3417,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocument</b></summary><blockquote><p>
+<details><summary><b>PostDocument</b> : Post response document</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocument
 
-
+Post response document.
+Creates or updates a response document with merge policy.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3384,7 +3448,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_c8oAcl
 </td>
 <td>
-
+ACL metadata stored on the document.
 </td>
 </tr>
 <tr>
@@ -3392,7 +3456,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -3400,7 +3464,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -3408,7 +3472,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c8oGrp
 </td>
 <td>
-
+Group membership map attached to the document.
 </td>
 </tr>
 <tr>
@@ -3416,19 +3480,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;resp
 </td>
 <td>
-
+Response document payload handled by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentAttachmentB64IntoField</b></summary><blockquote><p>
+<details><summary><b>PostDocumentAttachmentB64IntoField</b> : Store attachment in field</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentAttachmentB64IntoField
 
-
+Store attachment in field.
+Uploads base64 attachments into a document field.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3446,7 +3511,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -3454,7 +3519,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -3462,19 +3527,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentJBASE</b></summary><blockquote><p>
+<details><summary><b>PostDocumentJBASE</b> : Post JSON base response</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentJBASE
 
-
+Post JSON base response.
+Posts responses built from json_base template.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3492,7 +3558,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -3500,19 +3566,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PostDocumentOverride</b></summary><blockquote><p>
+<details><summary><b>PostDocumentOverride</b> : Post response override</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/postdocument_color_16x16.png?raw=true "PostDocumentTransaction") PostDocumentOverride
 
-
+Post response override.
+Posts responses overriding specified fields.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3530,7 +3597,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_id
 </td>
 <td>
-
+Identifier of the document to process.
 </td>
 </tr>
 <tr>
@@ -3538,7 +3605,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_json_base
 </td>
 <td>
-
+JSON base template used to build documents.
 </td>
 </tr>
 <tr>
@@ -3546,27 +3613,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
 </td>
 <td>
-
+Merge policy instructions applied during bulk uploads.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PurgeDatabase</b></summary><blockquote><p>
+<details><summary><b>PurgeDatabase</b> : Purge response database</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/purgedatabase_color_16x16.png?raw=true "PurgeDatabaseTransaction") PurgeDatabase
 
-
+Purge response database.
+Purges deleted revisions from the responses database.
 </p></blockquote></details>
 
-<details><summary><b>PutDocumentAttachment</b></summary><blockquote><p>
+<details><summary><b>PutDocumentAttachment</b> : Upload response attachment</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/putdocumentattachment_color_16x16.png?raw=true "PutDocumentAttachmentTransaction") PutDocumentAttachment
 
-
+Upload response attachment.
+Uploads attachments associated with a response id.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3584,7 +3653,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attbase64
 </td>
 <td>
-
+Base64 encoded payload for attachment upload.
 </td>
 </tr>
 <tr>
@@ -3592,7 +3661,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attcontent_type
 </td>
 <td>
-
+MIME type applied to the attachment.
 </td>
 </tr>
 <tr>
@@ -3600,7 +3669,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -3608,7 +3677,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -3616,19 +3685,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>PutDocumentAttachmentFromFile</b></summary><blockquote><p>
+<details><summary><b>PutDocumentAttachmentFromFile</b> : Upload response attachment file</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/putdocumentattachment_color_16x16.png?raw=true "PutDocumentAttachmentTransaction") PutDocumentAttachmentFromFile
 
-
+Upload response attachment file.
+Uploads attachments from server-side files.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3646,7 +3716,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attcontent_type
 </td>
 <td>
-
+MIME type applied to the attachment.
 </td>
 </tr>
 <tr>
@@ -3654,7 +3724,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
 </td>
 <td>
-
+Attachment name to read or write.
 </td>
 </tr>
 <tr>
@@ -3662,7 +3732,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attpath
 </td>
 <td>
-
+File system path used to fetch attachment content.
 </td>
 </tr>
 <tr>
@@ -3670,7 +3740,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
 </td>
 <td>
-
+Identifier of the document targeted by the transaction.
 </td>
 </tr>
 </table>
@@ -3683,12 +3753,13 @@ comment
 <details><summary><span style="color:DarkGoldenRod"><i>Sequences</i></span></summary><blockquote><p>
 
 
-<details><summary><b>AddUser</b> : Add a new user </summary><blockquote><p>
+<details><summary><b>AddUser</b> : Add user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") AddUser
 
-Add a new user 
+Add user.
+Creates or updates a user record with default rights and metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3714,7 +3785,7 @@ should be en/fr/it/es
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;editing_rights
 </td>
 <td>
-
+Rights JSON used when patching collaborators.
 </td>
 </tr>
 <tr>
@@ -3738,7 +3809,7 @@ should be en/fr/it/es
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;password
 </td>
 <td>
-
+Password submitted by the user.
 </td>
 </tr>
 <tr>
@@ -3746,7 +3817,7 @@ should be en/fr/it/es
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;published_First
 </td>
 <td>
-
+True when first publication should be marked.
 </td>
 </tr>
 <tr>
@@ -3769,20 +3840,22 @@ should be a valid email
 
 </p></blockquote></details>
 
-<details><summary><b>admin_get_current_dependencies</b></summary><blockquote><p>
+<details><summary><b>admin_get_current_dependencies</b> : List current dependencies</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_get_current_dependencies
 
-
+List current dependencies.
+Returns the currently loaded Convertigo project dependencies.
 </p></blockquote></details>
 
-<details><summary><b>admin_group_delete</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_group_delete</b> : Delete group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_group_delete
 
-Retrieves multiple user's information, requires admin privileges.
+Delete group.
+Checks admin rights then deletes the group document from CouchDB.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3800,19 +3873,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_doc_id
 </td>
 <td>
-
+Document identifier sent to the DeleteDocument transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>admin_group_get</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_group_get</b> : Get group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_group_get
 
-Retrieves multiple user's information, requires admin privileges.
+Get group.
+Retrieves a specific group definition with its members.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3830,19 +3904,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_doc_id
 </td>
 <td>
-
+Document identifier sent to the DeleteDocument transaction.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>admin_group_upsert</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_group_upsert</b> : Upsert group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_group_upsert
 
-Retrieves multiple user's information, requires admin privileges.
+Upsert group.
+Creates or updates a group definition and metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3860,19 +3935,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
 </td>
 <td>
-
+JSON metadata payload associated with the operation.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>admin_group_upsert_bulk</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_group_upsert_bulk</b> : Bulk upsert groups</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_group_upsert_bulk
 
-Retrieves multiple user's information, requires admin privileges.
+Bulk upsert groups.
+Upserts multiple group definitions in one call.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3890,7 +3966,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;docs
 </td>
 <td>
-
+Collection of documents supplied to the maintenance job.
 </td>
 </tr>
 <tr>
@@ -3898,7 +3974,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;right
 </td>
 <td>
-
+Single right entry to grant or revoke.
 </td>
 </tr>
 <tr>
@@ -3913,12 +3989,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_groups_delete</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_groups_delete</b> : Delete groups</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_groups_delete
 
-Updates a user's information, requires admin privileges.
+Delete groups.
+Deletes several group documents after admin validation.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3943,20 +4020,22 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_groups_get</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_groups_get</b> : List groups</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_groups_get
 
-Retrieves multiple user's information, requires admin privileges.
+List groups.
+Returns all groups along with summary data.
 </p></blockquote></details>
 
-<details><summary><b>admin_groups_get_by_user_id</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_groups_get_by_user_id</b> : Groups by user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_groups_get_by_user_id
 
-Retrieves multiple user's information, requires admin privileges.
+Groups by user.
+Lists groups that contain the requested user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -3981,12 +4060,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_groups_patch</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_groups_patch</b> : Patch groups</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_groups_patch
 
-Updates a user's information, requires admin privileges.
+Patch groups.
+Applies partial updates to group definitions.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4011,12 +4091,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_groups_post</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_groups_post</b> : Create group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_groups_post
 
-Updates a user's information, requires admin privileges.
+Create group.
+Creates a new group from admin inputs.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4041,44 +4122,49 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCountAnswersPerDay</b> : Retrieves the count of answers per day, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getCountAnswersPerDay</b> : Answers per day</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerDay
 
-Retrieves the count of answers per day, requires admin privileges.
+Answers per day.
+Computes daily counts of submitted answers for admin dashboards.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCountAnswersPerForm</b> : Retrieves the count of answers per form, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getCountAnswersPerForm</b> : Answers per form</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCountAnswersPerForm
 
-Retrieves the count of answers per form, requires admin privileges.
+Answers per form.
+Counts answers per form for reporting.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedAnswersPerDay</b> : Retrieves the cumulative count of answers per day, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedAnswersPerDay</b> : Cumulated answers per day</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedAnswersPerDay
 
-Retrieves the cumulative count of answers per day, requires admin privileges.
+Cumulated answers per day.
+Builds cumulative answer counts day by day.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getCumulatedFormsPerDay</b> : Retrieves the cumulative count of forms per day, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getCumulatedFormsPerDay</b> : Cumulated forms per day</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getCumulatedFormsPerDay
 
-Retrieves the cumulative count of forms per day, requires admin privileges.
+Cumulated forms per day.
+Computes cumulative counts of created forms per day.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getDocumentById</b></summary><blockquote><p>
+<details><summary><b>admin_stats_getDocumentById</b> : Get document by id</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getDocumentById
 
-
+Get document by id.
+Retrieves any document by id for admin diagnosis.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4096,67 +4182,74 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getFormsCountPerDay</b> : Retrieves the count of forms per day, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getFormsCountPerDay</b> : Forms per day</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getFormsCountPerDay
 
-Retrieves the count of forms per day, requires admin privileges.
+Forms per day.
+Counts created forms per day for admin charts.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getMoreThan5versionsOwners</b> : Retrieves owners with more than 5 versions, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getMoreThan5versionsOwners</b> : Owners with many versions</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getMoreThan5versionsOwners
 
-Retrieves owners with more than 5 versions, requires admin privileges.
+Owners with many versions.
+Lists owners whose forms have more than five versions.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopAnswersForms</b> : Retrieves forms with the highest number of answers, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getTopAnswersForms</b> : Top answered forms</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopAnswersForms
 
-Retrieves forms with the highest number of answers, requires admin privileges.
+Top answered forms.
+Returns forms ranked by total answers.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopPublishedComplex</b> : Retrieves the top complex published items, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getTopPublishedComplex</b> : Top published complex forms</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishedComplex
 
-Retrieves the top complex published items, requires admin privileges.
+Top published complex forms.
+Ranks complex published forms using admin metrics.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_getTopPublishers</b> : Retrieves the top publishers, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_getTopPublishers</b> : Top publishers</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_getTopPublishers
 
-Retrieves the top publishers, requires admin privileges.
+Top publishers.
+Lists top publishers by volume of forms.
 </p></blockquote></details>
 
-<details><summary><b>admin_stats_home</b> : Displays the admin statistics home page, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_stats_home</b> : Admin stats home</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_stats_home
 
-Displays the admin statistics home page, requires admin privileges.
+Admin stats home.
+Aggregates various stats for the admin dashboard.
 </p></blockquote></details>
 
-<details><summary><b>admin_user_add_to_group</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_user_add_to_group</b> : Add user to group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_add_to_group
 
-Updates a user's information, requires admin privileges.
+Add user to group.
+Adds a user to a group through admin APIs.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4181,12 +4274,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_user_delete_from_group</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_user_delete_from_group</b> : Remove user from group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_delete_from_group
 
-Updates a user's information, requires admin privileges.
+Remove user from group.
+Removes a user from a group through admin APIs.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4211,12 +4305,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_user_patch</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_user_patch</b> : Patch user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_patch
 
-Updates a user's information, requires admin privileges.
+Patch user.
+Applies partial updates to a user profile.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4241,12 +4336,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_user_post</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_user_post</b> : Create user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_user_post
 
-Updates a user's information, requires admin privileges.
+Create user.
+Creates a user via the admin interface.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4271,12 +4367,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_delete</b> : Deletes multiple users, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_delete</b> : Delete users</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_delete
 
-Deletes multiple users, requires admin privileges.
+Delete users.
+Deletes multiple user accounts in one admin call.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4301,12 +4398,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_get</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_get</b> : List users</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_get
 
-Retrieves multiple user's information, requires admin privileges.
+List users.
+Lists users with pagination and filters for admin views.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4324,7 +4422,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;admin_readonly
 </td>
 <td>
-
+Flag forcing admin view access in read only mode.
 </td>
 </tr>
 <tr>
@@ -4332,7 +4430,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;editing_apps_default_rights
 </td>
 <td>
-
+Default editing rights for applications.
 </td>
 </tr>
 <tr>
@@ -4340,7 +4438,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formulas_default_rights
 </td>
 <td>
-
+Default rights for formula based widgets.
 </td>
 </tr>
 <tr>
@@ -4348,7 +4446,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;no_code_db_default_rights
 </td>
 <td>
-
+Default rights for no-code database elements.
 </td>
 </tr>
 <tr>
@@ -4356,27 +4454,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;publication
 </td>
 <td>
-
+Publication flag or structure applied to the form.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_get_by_group</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_get_by_group</b> : Users by group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_get_by_group
 
-Retrieves multiple user's information, requires admin privileges.
+Users by group.
+Lists users belonging to a specific group.
 </p></blockquote></details>
 
-<details><summary><b>admin_users_get_by_group_v2</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_get_by_group_v2</b> : Users by group v2</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_get_by_group_v2
 
-Retrieves multiple user's information, requires admin privileges.
+Users by group v2.
+Improved list of users for a given group with roles.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4394,7 +4494,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;admin_readonly
 </td>
 <td>
-
+Flag forcing admin view access in read only mode.
 </td>
 </tr>
 <tr>
@@ -4402,7 +4502,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;editing_apps_default_rights
 </td>
 <td>
-
+Default editing rights for applications.
 </td>
 </tr>
 <tr>
@@ -4410,7 +4510,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formulas_default_rights
 </td>
 <td>
-
+Default rights for formula based widgets.
 </td>
 </tr>
 <tr>
@@ -4418,7 +4518,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;no_code_db_default_rights
 </td>
 <td>
-
+Default rights for no-code database elements.
 </td>
 </tr>
 <tr>
@@ -4426,7 +4526,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;publication
 </td>
 <td>
-
+Publication flag or structure applied to the form.
 </td>
 </tr>
 <tr>
@@ -4434,19 +4534,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;targetGroup
 </td>
 <td>
-
+Group identifier receiving the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_get_by_id</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_get_by_id</b> : Get user by id</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_get_by_id
 
-Retrieves multiple user's information, requires admin privileges.
+Get user by id.
+Retrieves a single user's details by id.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4471,12 +4572,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_of_group_get</b> : Retrieves multiple user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_of_group_get</b> : Groups memberships</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_of_group_get
 
-Retrieves multiple user's information, requires admin privileges.
+Groups memberships.
+Returns group memberships for the requested user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4494,19 +4596,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;group
 </td>
 <td>
-
+Target group identifier.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_patch</b> : Updates multiple users' information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_patch</b> : Patch users</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_patch
 
-Updates multiple users' information, requires admin privileges.
+Patch users.
+Applies partial updates to multiple users.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4524,7 +4627,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;docs
 </td>
 <td>
-
+Collection of documents supplied to the maintenance job.
 </td>
 </tr>
 <tr>
@@ -4532,7 +4635,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;right
 </td>
 <td>
-
+Single right entry to grant or revoke.
 </td>
 </tr>
 <tr>
@@ -4547,12 +4650,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_post_in_groups</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_post_in_groups</b> : Add users to groups</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_post_in_groups
 
-Updates a user's information, requires admin privileges.
+Add users to groups.
+Adds several users to one or more groups.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4570,7 +4674,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;groups
 </td>
 <td>
-
+List of groups to add or remove.
 </td>
 </tr>
 <tr>
@@ -4585,12 +4689,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>admin_users_remove_from_groups</b> : Updates a user's information, requires admin privileges</summary><blockquote><p>
+<details><summary><b>admin_users_remove_from_groups</b> : Remove users from groups</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") admin_users_remove_from_groups
 
-Updates a user's information, requires admin privileges.
+Remove users from groups.
+Removes multiple users from listed groups.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4608,7 +4713,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;groups
 </td>
 <td>
-
+List of groups to add or remove.
 </td>
 </tr>
 <tr>
@@ -4623,12 +4728,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_checkForPendingInvitationNewUsers</b></summary><blockquote><p>
+<details><summary><b>APIV2_checkForPendingInvitationNewUsers</b> : Check pending invites</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_checkForPendingInvitationNewUsers
 
-
+Check pending invites.
+Looks for pending invitations created for new users in API v2 flows.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4646,7 +4752,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;email
 </td>
 <td>
-
+Email address targeted by the sequence.
 </td>
 </tr>
 <tr>
@@ -4654,19 +4760,59 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;grp
 </td>
 <td>
-
+Group metadata object to update.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_createEmptyFolder</b></summary><blockquote><p>
+<details><summary><b>APIV2_CleanThumbnailsWallpapersB64</b> : Clean thumbnail B64</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_CleanThumbnailsWallpapersB64
+
+Clean thumbnail B64.
+Scans forms for base64 thumbnail/wallpaper blobs and optionally strips them in safe batches.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;chunkSize
+</td>
+<td>
+Number of documents fetched per CouchDB page while iterating.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute
+</td>
+<td>
+Set to true to remove the Base64 fields instead of only listing impacted documents.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_createEmptyFolder</b> : Create empty folder</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_createEmptyFolder
 
-
+Create empty folder.
+Creates a folder placeholder document for organising forms.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4691,20 +4837,22 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_createIndexes</b></summary><blockquote><p>
+<details><summary><b>APIV2_createIndexes</b> : Ensure API indexes</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_createIndexes
 
-
+Ensure API indexes.
+Creates or updates required CouchDB indexes for API v2 sequences.
 </p></blockquote></details>
 
-<details><summary><b>APIV2_csv</b></summary><blockquote><p>
+<details><summary><b>APIV2_csv</b> : Export responses CSV</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_csv
 
-
+Export responses CSV.
+Builds a CSV stream for responses while respecting header order and privacy.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4743,10 +4891,26 @@ formId
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;k
+</td>
+<td>
+formId
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;l
 </td>
 <td>
 lang
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;li
+</td>
+<td>
+formId
 </td>
 </tr>
 <tr>
@@ -4791,6 +4955,14 @@ string_separator
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;sk
+</td>
+<td>
+formId
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;v
 </td>
 <td>
@@ -4801,12 +4973,13 @@ version
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_deleteDocument</b></summary><blockquote><p>
+<details><summary><b>APIV2_deleteDocument</b> : Delete form document</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_deleteDocument
 
-
+Delete form document.
+Removes a form draft or folder after validating ownership.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4824,7 +4997,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;fromResponse
 </td>
 <td>
-
+Indicates the fetch originates from response doc context.
 </td>
 </tr>
 <tr>
@@ -4832,7 +5005,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -4840,19 +5013,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;rev
 </td>
 <td>
-
+Document revision ensuring optimistic locking.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_deleteResponses</b></summary><blockquote><p>
+<details><summary><b>APIV2_deleteResponses</b> : Delete form responses</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_deleteResponses
 
-
+Delete form responses.
+Purges stored responses for a form and logs errors.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4870,7 +5044,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -4885,12 +5059,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_DuplicateFormulaireDocument</b></summary><blockquote><p>
+<details><summary><b>APIV2_DuplicateFormulaireDocument</b> : Duplicate draft form</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_DuplicateFormulaireDocument
 
-
+Duplicate draft form.
+Validates ACLs, clones attachments, and resets metadata to produce a new draft document.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4915,12 +5090,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_Execute_Sequences</b></summary><blockquote><p>
+<details><summary><b>APIV2_Execute_Sequences</b> : Run API v2 jobs</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_Execute_Sequences
 
-
+Run API v2 jobs.
+Dispatches API v2 maintenance sequences sequentially or asynchronously.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4962,19 +5138,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute_Async
 </td>
 <td>
-
+True to run the maintenance job asynchronously.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_ExecuteView</b></summary><blockquote><p>
+<details><summary><b>APIV2_ExecuteView</b> : Execute forms view</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_ExecuteView
 
-
+Execute forms view.
+Builds Mango queries with filters and ACLs to list forms or responses.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -4992,7 +5169,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;dynamicParams
 </td>
 <td>
-
+JSON encoded dynamic filter parameters.
 </td>
 </tr>
 <tr>
@@ -5000,7 +5177,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;fromResponses
 </td>
 <td>
-
+True when targeting the responses database.
 </td>
 </tr>
 <tr>
@@ -5008,19 +5185,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;target
 </td>
 <td>
-
+Target identifier for the action.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_GeneratePwaAsset</b></summary><blockquote><p>
+<details><summary><b>APIV2_GeneratePwaAsset</b> : Generate PWA assets</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_GeneratePwaAsset
 
-
+Generate PWA assets.
+Transforms uploaded files into PWA thumbnails or wallpapers and updates metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5038,7 +5216,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;from_start_server
 </td>
 <td>
-
+True when invocation happens from server start hook.
 </td>
 </tr>
 <tr>
@@ -5053,12 +5231,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_getAttachments</b></summary><blockquote><p>
+<details><summary><b>APIV2_getAttachments</b> : Fetch form attachments</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getAttachments
 
-
+Fetch form attachments.
+Streams document attachments as base64 payloads with metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5084,7 +5263,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formId
 </td>
 <td>
-
+Identifier of the form being handled.
 </td>
 </tr>
 <tr>
@@ -5092,19 +5271,59 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string applied to the project or document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_getDocument</b></summary><blockquote><p>
+<details><summary><b>APIV2_getCSVkey</b> : Get CSV key</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getCSVkey
+
+Get CSV key.
+Returns the CSV export key used to secure download links.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+Generic identifier for the targeted resource.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;secretCSV
+</td>
+<td>
+Shared secret protecting CSV export endpoints.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_getDocument</b> : Fetch form document</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getDocument
 
-
+Fetch form document.
+Retrieves form data with ACL filtering and computed flags.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5122,7 +5341,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;exportForm
 </td>
 <td>
-
+Form identifier used for export routines.
 </td>
 </tr>
 <tr>
@@ -5130,7 +5349,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;fromResponse
 </td>
 <td>
-
+Indicates the fetch originates from response doc context.
 </td>
 </tr>
 <tr>
@@ -5138,7 +5357,15 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;k
+</td>
+<td>
+Legacy key parameter forwarded to sub sequences.
 </td>
 </tr>
 <tr>
@@ -5146,7 +5373,15 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;rev
 </td>
 <td>
-
+Document revision ensuring optimistic locking.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;secretCSV
+</td>
+<td>
+Shared secret protecting CSV export endpoints.
 </td>
 </tr>
 <tr>
@@ -5154,27 +5389,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;target
 </td>
 <td>
-
+Target identifier for the action.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_getKnownUsersFormatted</b></summary><blockquote><p>
+<details><summary><b>APIV2_getKnownUsersFormatted</b> : List known users</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getKnownUsersFormatted
 
-
+List known users.
+Formats known users for UI selectors including groups and badges.
 </p></blockquote></details>
 
-<details><summary><b>APIV2_GetManageAccessRights</b></summary><blockquote><p>
+<details><summary><b>APIV2_GetManageAccessRights</b> : Fetch manage rights</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_GetManageAccessRights
 
-
+Fetch manage rights.
+Reads and formats the manage-access-rights document for a form.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5200,19 +5437,28 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;showAllGroups
+</td>
+<td>
+Flag allowing non-admin users to list every group.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_getOwnerShip</b></summary><blockquote><p>
+<details><summary><b>APIV2_getOwnerShip</b> : Get ownership info</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getOwnerShip
 
-
+Get ownership info.
+Returns owner and collaborators metadata for a form.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5237,12 +5483,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_getPWA</b></summary><blockquote><p>
+<details><summary><b>APIV2_getPWA</b> : Get PWA package</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getPWA
 
-
+Get PWA package.
+Provides published PWA metadata and download paths.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5267,12 +5514,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_getResponses</b></summary><blockquote><p>
+<details><summary><b>APIV2_getResponses</b> : Fetch API responses</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getResponses
 
-
+Fetch API responses.
+Retrieves paginated responses with filtering, formatting and attachments.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5290,7 +5538,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;archive
 </td>
 <td>
-
+True to mark the form as archived.
 </td>
 </tr>
 <tr>
@@ -5298,7 +5546,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;csv
 </td>
 <td>
-
+CSV content or configuration passed to the sequence.
 </td>
 </tr>
 <tr>
@@ -5306,12 +5554,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;element
 </td>
 <td>
-
+Element identifier inside the document.
 </td>
 </tr>
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formId
+</td>
+<td>
+Identifier of the form being handled.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;k
 </td>
 <td>
 
@@ -5322,7 +5578,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
 </td>
 <td>
-
+JSON metadata payload associated with the operation.
 </td>
 </tr>
 <tr>
@@ -5330,7 +5586,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;summary
 </td>
 <td>
-
+Summary text displayed in notifications.
 </td>
 </tr>
 <tr>
@@ -5338,19 +5594,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string applied to the project or document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_mapper_redirect</b></summary><blockquote><p>
+<details><summary><b>APIV2_mapper_redirect</b> : Redirect mapper call</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_mapper_redirect
 
-
+Redirect mapper call.
+Rebuilds parameters and returns a 302 redirect to the target sequence.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5375,12 +5632,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_NotifyUsersSharing</b></summary><blockquote><p>
+<details><summary><b>APIV2_NotifyUsersSharing</b> : Notify shared users</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_NotifyUsersSharing
 
-
+Notify shared users.
+Sends sharing notifications to collaborators and tracks delivery status.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5398,7 +5656,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
 </td>
 <td>
-
+JSON metadata payload associated with the operation.
 </td>
 </tr>
 <tr>
@@ -5406,7 +5664,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;smtpAuthType
 </td>
 <td>
-
+SMTP authentication mechanism to use.
 </td>
 </tr>
 <tr>
@@ -5414,7 +5672,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;smtpPassword
 </td>
 <td>
-
+SMTP account password.
 </td>
 </tr>
 <tr>
@@ -5422,7 +5680,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;smtpPort
 </td>
 <td>
-
+SMTP server port.
 </td>
 </tr>
 <tr>
@@ -5430,7 +5688,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;smtpServer
 </td>
 <td>
-
+SMTP server hostname.
 </td>
 </tr>
 <tr>
@@ -5438,7 +5696,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;smtpUsername
 </td>
 <td>
-
+SMTP account username.
 </td>
 </tr>
 <tr>
@@ -5446,7 +5704,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;sSender
 </td>
 <td>
-
+Sender email displayed in notifications.
 </td>
 </tr>
 <tr>
@@ -5454,7 +5712,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;sslProtocols
 </td>
 <td>
-
+Allowed SSL protocols list for SMTP connections.
 </td>
 </tr>
 <tr>
@@ -5462,19 +5720,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;xslFilepath
 </td>
 <td>
-
+XSL file path needed for email rendering.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_OverrideUserSettings</b></summary><blockquote><p>
+<details><summary><b>APIV2_OverrideUserSettings</b> : Override user settings</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_OverrideUserSettings
 
-
+Override user settings.
+Merges provided overrides into user settings while preserving explicit false values.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5499,12 +5758,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_postResponse</b></summary><blockquote><p>
+<details><summary><b>APIV2_postResponse</b> : Submit API response</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_postResponse
 
-
+Submit API response.
+Validates, normalises and stores a response coming from the PWA.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5530,7 +5790,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -5538,19 +5798,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
 </td>
 <td>
-
+JSON metadata payload associated with the operation.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_Publish</b></summary><blockquote><p>
+<details><summary><b>APIV2_Publish</b> : Publish form</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_Publish
 
-
+Publish form.
+Promotes a draft, regenerates its PWA and synchronises publication metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5568,7 +5829,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;file
 </td>
 <td>
-
+Binary file content processed by the sequence.
 </td>
 </tr>
 <tr>
@@ -5576,7 +5837,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -5584,7 +5845,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
 </td>
 <td>
-
+JSON metadata payload associated with the operation.
 </td>
 </tr>
 <tr>
@@ -5592,19 +5853,59 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;rev
 </td>
 <td>
-
+Document revision ensuring optimistic locking.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_SetManageAccessRights</b></summary><blockquote><p>
+<details><summary><b>APIV2_RebuildC8oGrp</b> : Rebuild c8oGrp flags</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_RebuildC8oGrp
+
+Rebuild c8oGrp flags.
+Audits forms and responses to rebuild c8oGrp membership maps.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;chunkSize
+</td>
+<td>
+Number of documents fetched per Mango page during the audit.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute
+</td>
+<td>
+Set to true to rebuild c8oGrp based on computed expectations.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_SetManageAccessRights</b> : Set manage rights</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_SetManageAccessRights
 
-
+Set manage rights.
+Applies manage-access-rights updates and keeps ACLs in sync.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5622,7 +5923,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;collab
 </td>
 <td>
-
+Collaborator identifier to add or update.
 </td>
 </tr>
 <tr>
@@ -5630,7 +5931,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -5645,12 +5946,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_setOwnerShip</b></summary><blockquote><p>
+<details><summary><b>APIV2_setOwnerShip</b> : Update ownership</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_setOwnerShip
 
-
+Update ownership.
+Updates owner and collaborators, syncing ACL and group lists.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5668,7 +5970,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -5683,12 +5985,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_SetSharedAnonymous</b></summary><blockquote><p>
+<details><summary><b>APIV2_SetSharedAnonymous</b> : Toggle anonymous sharing</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_SetSharedAnonymous
 
-
+Toggle anonymous sharing.
+Updates the anonymous sharing flags and supporting metadata for a form.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5706,7 +6009,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -5721,12 +6024,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_setUserAdmin</b> : Sets a user as an admin, requires admin privileges</summary><blockquote><p>
+<details><summary><b>APIV2_setUserAdmin</b> : Flag admin user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_setUserAdmin
 
-Sets a user as an admin, requires admin privileges.
+Flag admin user.
+Promotes or demotes a Convertigo user as an admin helper.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5751,12 +6055,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_updateFormulaireDocument</b></summary><blockquote><p>
+<details><summary><b>APIV2_updateFormulaireDocument</b> : Update form document</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_updateFormulaireDocument
 
-
+Update form document.
+Applies draft updates, merges metadata and handles attachments.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5774,7 +6079,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;file
 </td>
 <td>
-
+Binary file content processed by the sequence.
 </td>
 </tr>
 <tr>
@@ -5782,19 +6087,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
 </td>
 <td>
-
+JSON metadata payload associated with the operation.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>APIV2_updateTags</b></summary><blockquote><p>
+<details><summary><b>APIV2_updateTags</b> : Update form tags</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_updateTags
 
-
+Update form tags.
+Applies tag changes on a form and refreshes derived structures.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5812,7 +6118,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -5828,19 +6134,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;rev
 </td>
 <td>
-
+Document revision ensuring optimistic locking.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>b</b> : Build responses csv from a document id, providing a name</summary><blockquote><p>
+<details><summary><b>b</b> : Legacy bridge</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") b
 
-Build responses csv from a document id, providing a name
+Legacy bridge.
+Provides a thin compatibility layer for legacy clients.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5858,7 +6165,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;c
 </td>
 <td>
-
+Generic parameter used by legacy clients.
 </td>
 </tr>
 <tr>
@@ -5866,7 +6173,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;e
 </td>
 <td>
-
+Email address parameter used by legacy flows.
 </td>
 </tr>
 <tr>
@@ -5874,7 +6181,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;f
 </td>
 <td>
-
+Filter fragment passed by legacy API calls.
 </td>
 </tr>
 <tr>
@@ -5882,7 +6189,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;l
 </td>
 <td>
-
+Language code supplied by legacy clients.
 </td>
 </tr>
 <tr>
@@ -5890,7 +6197,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;n
 </td>
 <td>
-
+Notification identifier handled by the flow.
 </td>
 </tr>
 <tr>
@@ -5898,7 +6205,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;o
 </td>
 <td>
-
+Output selector used by legacy APIs.
 </td>
 </tr>
 <tr>
@@ -5906,7 +6213,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;p
 </td>
 <td>
-
+Pagination or page parameter for legacy requests.
 </td>
 </tr>
 <tr>
@@ -5914,7 +6221,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;s
 </td>
 <td>
-
+Search term supplied by the caller.
 </td>
 </tr>
 <tr>
@@ -5922,7 +6229,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;se
 </td>
 <td>
-
+Sequence identifier forwarded by legacy APIs.
 </td>
 </tr>
 <tr>
@@ -5930,19 +6237,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;v
 </td>
 <td>
-
+Version value used in compatibility checks.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>BaserowAccount</b></summary><blockquote><p>
+<details><summary><b>BaserowAccount</b> : Save Baserow account</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") BaserowAccount
 
-
+Save Baserow account.
+Stores Baserow credentials and metadata for the current user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5960,19 +6268,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;password
 </td>
 <td>
-
+Password submitted by the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>BaserowAccountGet</b></summary><blockquote><p>
+<details><summary><b>BaserowAccountGet</b> : Get Baserow account</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") BaserowAccountGet
 
-
+Get Baserow account.
+Returns Baserow credentials and sync flags for the current user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -5997,12 +6306,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>BuildCsvByFormId</b> : Build responses csv from a document id, providing a name</summary><blockquote><p>
+<details><summary><b>BuildCsvByFormId</b> : Build CSV by form</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") BuildCsvByFormId
 
-Build responses csv from a document id, providing a name
+Build CSV by form.
+Creates a CSV report for a form using stored configuration.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6020,7 +6330,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;column_name
 </td>
 <td>
-
+Column name when querying Baserow tables.
 </td>
 </tr>
 <tr>
@@ -6028,7 +6338,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;encoding
 </td>
 <td>
-
+Character encoding requested for exports.
 </td>
 </tr>
 <tr>
@@ -6036,7 +6346,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formId
 </td>
 <td>
-
+Identifier of the form being handled.
 </td>
 </tr>
 <tr>
@@ -6044,7 +6354,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;lang
 </td>
 <td>
-
+Language code ISO used for localisation.
 </td>
 </tr>
 <tr>
@@ -6052,7 +6362,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Human readable name of the target entity.
 </td>
 </tr>
 <tr>
@@ -6060,7 +6370,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;offset
 </td>
 <td>
-
+Pagination offset for queries.
 </td>
 </tr>
 <tr>
@@ -6068,7 +6378,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;privacy
 </td>
 <td>
-
+Privacy level requested for exports.
 </td>
 </tr>
 <tr>
@@ -6076,7 +6386,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;separator
 </td>
 <td>
-
+CSV separator character requested.
 </td>
 </tr>
 <tr>
@@ -6084,7 +6394,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;string_separator
 </td>
 <td>
-
+Separator string used in CSV exports.
 </td>
 </tr>
 <tr>
@@ -6092,19 +6402,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string applied to the project or document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>ChangePassword</b> : Change user account password</summary><blockquote><p>
+<details><summary><b>ChangePassword</b> : Change password</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") ChangePassword
 
-Change user account password
+Change password.
+Verifies reset token and updates the user password.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6137,12 +6448,13 @@ Compte utilisateur
 
 </p></blockquote></details>
 
-<details><summary><b>ChangeUserEditingRights</b></summary><blockquote><p>
+<details><summary><b>ChangeUserEditingRights</b> : Change editing rights</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") ChangeUserEditingRights
 
-
+Change editing rights.
+Adjusts collaborator editing rights for forms or folders.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6160,7 +6472,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;editingRights
 </td>
 <td>
-
+Editing rights payload to apply on the target.
 </td>
 </tr>
 <tr>
@@ -6176,19 +6488,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;user
 </td>
 <td>
-
+User identifier concerned by the request.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>CheckForPendingInvitationNewUsers</b></summary><blockquote><p>
+<details><summary><b>CheckForPendingInvitationNewUsers</b> : Check pending invites</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") CheckForPendingInvitationNewUsers
 
-
+Check pending invites.
+Lists pending invitations created for new users.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6214,19 +6527,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;mail
 </td>
 <td>
-
+Email payload returned to the caller.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>checkIfDeleteIsPermitted</b></summary><blockquote><p>
+<details><summary><b>checkIfDeleteIsPermitted</b> : Check delete permission</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") checkIfDeleteIsPermitted
 
-
+Check delete permission.
+Ensures the caller can delete the targeted document.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6251,12 +6565,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>CreatePublicUserAddGroupe</b> : Create a new user that will allow to share an anonymous link</summary><blockquote><p>
+<details><summary><b>CreatePublicUserAddGroupe</b> : Create public user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") CreatePublicUserAddGroupe
 
-Create a new user that will allow to share an anonymous link
+Create public user.
+Creates an anonymous user and grants access to a group.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6274,7 +6589,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;deleteControlDoc
 </td>
 <td>
-
+Flag deciding whether control documents must be erased.
 </td>
 </tr>
 <tr>
@@ -6289,52 +6604,58 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>data_integrity_accessRights_check_between_edition_published_pwa_doc_anonymous</b></summary><blockquote><p>
+<details><summary><b>data_integrity_accessRights_check_between_edition_published_pwa_doc_anonymous</b> : Check access rights integrity</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") data_integrity_accessRights_check_between_edition_published_pwa_doc_anonymous
 
-
+Check access rights integrity.
+Compares edition, published and anonymous docs to detect access-right mismatches.
 </p></blockquote></details>
 
-<details><summary><b>data_integrity_collabsResponse_check_between_edition_published</b></summary><blockquote><p>
+<details><summary><b>data_integrity_collabsResponse_check_between_edition_published</b> : Check collab response integrity</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") data_integrity_collabsResponse_check_between_edition_published
 
-
+Check collab response integrity.
+Ensures collaborator responses match between edition and published docs.
 </p></blockquote></details>
 
-<details><summary><b>data_integrity_collabsResponse_check_between_forms_and_response</b></summary><blockquote><p>
+<details><summary><b>data_integrity_collabsResponse_check_between_forms_and_response</b> : Check collab response links</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") data_integrity_collabsResponse_check_between_forms_and_response
 
-
+Check collab response links.
+Validates collab response linkage between forms and responses databases.
 </p></blockquote></details>
 
-<details><summary><b>data_integrity_collabsResponse_repair_between_forms_and_response</b></summary><blockquote><p>
+<details><summary><b>data_integrity_collabsResponse_repair_between_forms_and_response</b> : Repair collab response links</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") data_integrity_collabsResponse_repair_between_forms_and_response
 
-
+Repair collab response links.
+Repairs inconsistencies between forms and response documents.
 </p></blockquote></details>
 
-<details><summary><b>delete_all_templates</b></summary><blockquote><p>
+<details><summary><b>delete_all_templates</b> : Delete all templates</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") delete_all_templates
 
-
+Delete all templates.
+Purges all template documents from the project.
 </p></blockquote></details>
 
-<details><summary><b>DeleteB64FromExistingResponses</b></summary><blockquote><p>
+<details><summary><b>DeleteB64FromExistingResponses</b> : Delete response B64</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") DeleteB64FromExistingResponses
 
-
+Delete response B64.
+Removes base64 data from existing response attachments.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6352,7 +6673,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;chunkSize
 </td>
 <td>
-
+Maximum number of documents processed per batch.
 </td>
 </tr>
 <tr>
@@ -6360,19 +6681,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute
 </td>
 <td>
-
+True to run the sequence in apply mode.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>DeleteUser</b> : Deletes a given user</summary><blockquote><p>
+<details><summary><b>DeleteUser</b> : Delete user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") DeleteUser
 
-Deletes a given user
+Delete user.
+Removes a user account and related ACL references.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6390,19 +6712,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;user
 </td>
 <td>
-
+User identifier concerned by the request.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>downloadFile</b></summary><blockquote><p>
+<details><summary><b>downloadFile</b> : Download file</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") downloadFile
 
-
+Download file.
+Streams a file attachment from the FullSync database.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6428,19 +6751,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;filename
 </td>
 <td>
-
+Filename of the processed attachment.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>Execute_Sequences</b> : When a document is submited this sequences calls other sequences if actions are defined</summary><blockquote><p>
+<details><summary><b>Execute_Sequences</b> : Run maintenance jobs</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") Execute_Sequences
 
-When a document is submited this sequences calls other sequences if actions are defined
+Run maintenance jobs.
+Sequentially executes the maintenance sequences configured for the project.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6465,12 +6789,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>ForgotPassword</b> : sends a reset password mail</summary><blockquote><p>
+<details><summary><b>ForgotPassword</b> : Send reset mail</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") ForgotPassword
 
-sends a reset password mail
+Send reset mail.
+Generates a reset token and emails the password recovery link.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6488,7 +6813,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;email
 </td>
 <td>
-
+Email address targeted by the sequence.
 </td>
 </tr>
 <tr>
@@ -6496,7 +6821,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;emailBody
 </td>
 <td>
-
+Email body template for notifications.
 </td>
 </tr>
 <tr>
@@ -6504,7 +6829,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;emailLogo
 </td>
 <td>
-
+Email logo URL used inside templates.
 </td>
 </tr>
 <tr>
@@ -6512,7 +6837,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;emailSubject
 </td>
 <td>
-
+Email subject template.
 </td>
 </tr>
 <tr>
@@ -6543,12 +6868,13 @@ Email where to send the reset password link to
 
 </p></blockquote></details>
 
-<details><summary><b>GeneratePwaAsset</b></summary><blockquote><p>
+<details><summary><b>GeneratePwaAsset</b> : Generate PWA assets</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") GeneratePwaAsset
 
-
+Generate PWA assets.
+Processes images to generate icons, splash screens and runtime metadata.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6574,7 +6900,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;from_start_server
 </td>
 <td>
-
+True when invocation happens from server start hook.
 </td>
 </tr>
 <tr>
@@ -6582,19 +6908,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;threads
 </td>
 <td>
-
+Number of worker threads to use for job execution.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getAnonymousForm</b></summary><blockquote><p>
+<details><summary><b>getAnonymousForm</b> : Get anonymous form</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getAnonymousForm
 
-
+Get anonymous form.
+Returns the anonymous version of a published form.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6612,19 +6939,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;login
 </td>
 <td>
-
+Login identifier submitted by the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getAvailableAuthModeForLogin</b></summary><blockquote><p>
+<details><summary><b>getAvailableAuthModeForLogin</b> : List auth modes</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getAvailableAuthModeForLogin
 
-
+List auth modes.
+Lists authentication modes available to the login page.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6642,7 +6970,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;AD
 </td>
 <td>
-
+Whether Active Directory login is requested.
 </td>
 </tr>
 <tr>
@@ -6650,7 +6978,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;autoCheckActiveDirectory
 </td>
 <td>
-
+Flag enabling automatic Active Directory lookup.
 </td>
 </tr>
 <tr>
@@ -6658,7 +6986,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;cloudBranding
 </td>
 <td>
-
+Branding identifier applied to the cloud deployment.
 </td>
 </tr>
 <tr>
@@ -6666,7 +6994,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;hideConvertigoLogin
 </td>
 <td>
-
+Flag hiding the Convertigo login page.
 </td>
 </tr>
 <tr>
@@ -6674,7 +7002,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;hidePasswordForgotten
 </td>
 <td>
-
+Flag hiding the password forgotten link.
 </td>
 </tr>
 <tr>
@@ -6682,7 +7010,15 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;Identifier
 </td>
 <td>
-
+Identifier of the target record or user.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;loginAdLabel
+</td>
+<td>
+Active Directory label shown on login page.
 </td>
 </tr>
 <tr>
@@ -6690,19 +7026,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;openIdBrand
 </td>
 <td>
-
+Brand identifier used during OpenID login.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getBrevoChatId</b></summary><blockquote><p>
+<details><summary><b>getBrevoChatId</b> : Get Brevo chat id</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getBrevoChatId
 
-
+Get Brevo chat id.
+Retrieves the Brevo conversations identifier for the user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6720,7 +7057,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;aiVisible
 </td>
 <td>
-
+Flag indicating AI related features visibility.
 </td>
 </tr>
 <tr>
@@ -6728,7 +7065,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;BrevoConversationsID
 </td>
 <td>
-
+Brevo conversations identifier used for chat handoff.
 </td>
 </tr>
 <tr>
@@ -6736,7 +7073,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;EnableProductTour
 </td>
 <td>
-
+Flag enabling the product tour for the user.
 </td>
 </tr>
 <tr>
@@ -6744,35 +7081,38 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;legacyLogo
 </td>
 <td>
-
+Legacy logo URL to migrate.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getConvertigoUrl</b></summary><blockquote><p>
+<details><summary><b>getConvertigoUrl</b> : Get Convertigo URL</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getConvertigoUrl
 
-
+Get Convertigo URL.
+Returns the base Convertigo endpoint configured for the app.
 </p></blockquote></details>
 
-<details><summary><b>getCSVDefaultCharacterSet</b></summary><blockquote><p>
+<details><summary><b>getCSVDefaultCharacterSet</b> : Get CSV charset</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCSVDefaultCharacterSet
 
-
+Get CSV charset.
+Returns the default character set used for CSV exports.
 </p></blockquote></details>
 
-<details><summary><b>getCurrentUserSettings</b></summary><blockquote><p>
+<details><summary><b>getCurrentUserSettings</b> : Get user settings</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getCurrentUserSettings
 
-
+Get user settings.
+Loads the settings document for the connected user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6790,7 +7130,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;editing_apps_default_rights
 </td>
 <td>
-
+Default editing rights for applications.
 </td>
 </tr>
 <tr>
@@ -6798,7 +7138,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formulas_default_rights
 </td>
 <td>
-
+Default rights for formula based widgets.
 </td>
 </tr>
 <tr>
@@ -6806,7 +7146,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;no_code_db_default_rights
 </td>
 <td>
-
+Default rights for no-code database elements.
 </td>
 </tr>
 <tr>
@@ -6814,19 +7154,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;publication
 </td>
 <td>
-
+Publication flag or structure applied to the form.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getGDRPmenu</b></summary><blockquote><p>
+<details><summary><b>getGDRPmenu</b> : Get GDPR menu</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getGDRPmenu
 
-
+Get GDPR menu.
+Returns GDPR menu content stored in settings.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6844,19 +7185,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;symbol
 </td>
 <td>
-
+Symbol or tag referencing a statistic axis.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getGDRPtoast</b></summary><blockquote><p>
+<details><summary><b>getGDRPtoast</b> : Get GDPR toast</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getGDRPtoast
 
-
+Get GDPR toast.
+Returns GDPR toast configuration for display.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6874,19 +7216,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;symbol
 </td>
 <td>
-
+Symbol or tag referencing a statistic axis.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getInactiveForms</b></summary><blockquote><p>
+<details><summary><b>getInactiveForms</b> : List inactive forms</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getInactiveForms
 
-
+List inactive forms.
+Lists forms marked as inactive or archived.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6904,27 +7247,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;monthsAgo
 </td>
 <td>
-
+Number of months to look back in stats.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getKnownUsers</b></summary><blockquote><p>
+<details><summary><b>getKnownUsers</b> : List known users</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getKnownUsers
 
-
+List known users.
+Returns all known users for sharing and invitations.
 </p></blockquote></details>
 
-<details><summary><b>GetLanguage</b> : Get current language of user</summary><blockquote><p>
+<details><summary><b>GetLanguage</b> : Get language</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") GetLanguage
 
-Get current language of user
+Get language.
+Returns the language preferences of the current user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6942,19 +7287,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;email
 </td>
 <td>
-
+Email address targeted by the sequence.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GetSequences</b> : List all sequences that match a pattern</summary><blockquote><p>
+<details><summary><b>GetSequences</b> : List sequences</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") GetSequences
 
-List all sequences that match a pattern
+List sequences.
+Returns a list of sequences that can be triggered remotely.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -6972,7 +7318,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;projectFilter
 </td>
 <td>
-
+Project filter applied to stats queries.
 </td>
 </tr>
 <tr>
@@ -6980,7 +7326,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;sequenceFilter
 </td>
 <td>
-
+Filter selecting which sequences to execute.
 </td>
 </tr>
 <tr>
@@ -6988,7 +7334,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;type
 </td>
 <td>
-
+Type of element processed (form, folder, etc.).
 </td>
 </tr>
 <tr>
@@ -6996,19 +7342,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;variableFilter
 </td>
 <td>
-
+Filter used to select variables in maintenance flows.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>getTinyMaxs</b></summary><blockquote><p>
+<details><summary><b>getTinyMaxs</b> : Get TinyMCE limits</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") getTinyMaxs
 
-
+Get TinyMCE limits.
+Returns TinyMCE text and image size limits.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7026,7 +7373,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;error_message
 </td>
 <td>
-
+Error message to log or forward.
 </td>
 </tr>
 <tr>
@@ -7034,7 +7381,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;max_size
 </td>
 <td>
-
+Maximum allowed attachment size in bytes.
 </td>
 </tr>
 <tr>
@@ -7042,27 +7389,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;warn_message
 </td>
 <td>
-
+Warning message shown to the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>GroupsOf</b> : Get group for a given user</summary><blockquote><p>
+<details><summary><b>GroupsOf</b> : List user groups</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") GroupsOf
 
-Get group for a given user
+List user groups.
+Lists the groups the given user belongs to.
 </p></blockquote></details>
 
-<details><summary><b>HasProject</b></summary><blockquote><p>
+<details><summary><b>HasProject</b> : Check project ownership</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") HasProject
 
-
+Check project ownership.
+Verifies that the requester owns the current project.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7080,27 +7429,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;projectName
 </td>
 <td>
-
+Convertigo project name referenced by the request.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>importTemplates</b></summary><blockquote><p>
+<details><summary><b>importTemplates</b> : Import templates</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") importTemplates
 
-
+Import templates.
+Imports template documents from provided archives.
 </p></blockquote></details>
 
-<details><summary><b>initAllPWAS</b></summary><blockquote><p>
+<details><summary><b>initAllPWAS</b> : Init all PWAs</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") initAllPWAS
 
-
+Init all PWAs.
+Regenerates all PWA artifacts from stored forms.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7118,7 +7469,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;from_start_server
 </td>
 <td>
-
+True when invocation happens from server start hook.
 </td>
 </tr>
 <tr>
@@ -7126,19 +7477,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;threads
 </td>
 <td>
-
+Number of worker threads to use for job execution.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>InsertNotifIntoCurrentUser</b></summary><blockquote><p>
+<details><summary><b>InsertNotifIntoCurrentUser</b> : Insert notification</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") InsertNotifIntoCurrentUser
 
-
+Insert notification.
+Adds a notification entry into the current user's document.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7156,7 +7508,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formId
 </td>
 <td>
-
+Identifier of the form being handled.
 </td>
 </tr>
 <tr>
@@ -7164,7 +7516,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
 </td>
 <td>
-
+Generic identifier for the targeted resource.
 </td>
 </tr>
 <tr>
@@ -7172,7 +7524,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;status
 </td>
 <td>
-
+Status value to apply to the document.
 </td>
 </tr>
 <tr>
@@ -7180,7 +7532,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;targetId
 </td>
 <td>
-
+Target document or user identifier.
 </td>
 </tr>
 <tr>
@@ -7196,27 +7548,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;type
 </td>
 <td>
-
+Type of element processed (form, folder, etc.).
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>listAllPWAsUrls</b></summary><blockquote><p>
+<details><summary><b>listAllPWAsUrls</b> : List PWA URLs</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") listAllPWAsUrls
 
-
+List PWA URLs.
+Lists accessible URLs for every generated PWA.
 </p></blockquote></details>
 
-<details><summary><b>Login</b> : Allow to login</summary><blockquote><p>
+<details><summary><b>Login</b> : Login user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") Login
 
-Allow to login
+Login user.
+Authenticates using internal credentials and returns session data.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7234,7 +7588,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;email
 </td>
 <td>
-
+Email address targeted by the sequence.
 </td>
 </tr>
 <tr>
@@ -7242,7 +7596,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;password
 </td>
 <td>
-
+Password submitted by the user.
 </td>
 </tr>
 <tr>
@@ -7250,19 +7604,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;secretL
 </td>
 <td>
-
+Shared secret used by legacy authentication flows.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>LoginAD</b> : Allow to login</summary><blockquote><p>
+<details><summary><b>LoginAD</b> : Login with AD</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") LoginAD
 
-Allow to login
+Login with AD.
+Performs Active Directory login and mirrors user data.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7280,7 +7635,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;email
 </td>
 <td>
-
+Email address targeted by the sequence.
 </td>
 </tr>
 <tr>
@@ -7288,7 +7643,15 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;group_ad_login
 </td>
 <td>
-
+Active Directory group login value.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;LDAP
+</td>
+<td>
+Raw LDAP payload received from the identity provider.
 </td>
 </tr>
 <tr>
@@ -7296,7 +7659,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;password
 </td>
 <td>
-
+Password submitted by the user.
 </td>
 </tr>
 <tr>
@@ -7304,19 +7667,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;secretL
 </td>
 <td>
-
+Shared secret used by legacy authentication flows.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>LoginGoogle</b></summary><blockquote><p>
+<details><summary><b>LoginGoogle</b> : Login with Google</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") LoginGoogle
 
-
+Login with Google.
+Handles Google OAuth callback and authenticates the user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7334,7 +7698,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;decodedToken
 </td>
 <td>
-
+Decoded identity token payload.
 </td>
 </tr>
 <tr>
@@ -7342,7 +7706,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;displayName
 </td>
 <td>
-
+Display name for the user or group.
 </td>
 </tr>
 <tr>
@@ -7350,7 +7714,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;lang
 </td>
 <td>
-
+Language code ISO used for localisation.
 </td>
 </tr>
 <tr>
@@ -7358,7 +7722,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Human readable name of the target entity.
 </td>
 </tr>
 <tr>
@@ -7374,19 +7738,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;surname
 </td>
 <td>
-
+Surname or last name of the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>LoginLinkedIn</b></summary><blockquote><p>
+<details><summary><b>LoginLinkedIn</b> : Login with LinkedIn</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") LoginLinkedIn
 
-
+Login with LinkedIn.
+Handles LinkedIn OAuth callback and authenticates the user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7404,7 +7769,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;decodedToken
 </td>
 <td>
-
+Decoded identity token payload.
 </td>
 </tr>
 <tr>
@@ -7412,7 +7777,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;displayName
 </td>
 <td>
-
+Display name for the user or group.
 </td>
 </tr>
 <tr>
@@ -7420,7 +7785,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;isTrial
 </td>
 <td>
-
+Flag telling if the user is a trial account.
 </td>
 </tr>
 <tr>
@@ -7428,7 +7793,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;lang
 </td>
 <td>
-
+Language code ISO used for localisation.
 </td>
 </tr>
 <tr>
@@ -7436,7 +7801,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;mail
 </td>
 <td>
-
+Email payload returned to the caller.
 </td>
 </tr>
 <tr>
@@ -7444,7 +7809,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Human readable name of the target entity.
 </td>
 </tr>
 <tr>
@@ -7452,19 +7817,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;surname
 </td>
 <td>
-
+Surname or last name of the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>LoginMicrosoft</b></summary><blockquote><p>
+<details><summary><b>LoginMicrosoft</b> : Login with Microsoft</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") LoginMicrosoft
 
-
+Login with Microsoft.
+Handles Azure AD OAuth callback and authenticates the user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7482,7 +7848,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;decodedToken
 </td>
 <td>
-
+Decoded identity token payload.
 </td>
 </tr>
 <tr>
@@ -7498,7 +7864,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;lang
 </td>
 <td>
-
+Language code ISO used for localisation.
 </td>
 </tr>
 <tr>
@@ -7506,7 +7872,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Human readable name of the target entity.
 </td>
 </tr>
 <tr>
@@ -7514,19 +7880,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;surname
 </td>
 <td>
-
+Surname or last name of the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>LoginOpenID</b></summary><blockquote><p>
+<details><summary><b>LoginOpenID</b> : Login with OpenID</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") LoginOpenID
 
-
+Login with OpenID.
+Performs OpenID Connect authentication and stores tokens.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7544,7 +7911,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;decodedToken
 </td>
 <td>
-
+Decoded identity token payload.
 </td>
 </tr>
 <tr>
@@ -7552,7 +7919,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;displayName
 </td>
 <td>
-
+Display name for the user or group.
 </td>
 </tr>
 <tr>
@@ -7568,7 +7935,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
 </td>
 <td>
-
+Human readable name of the target entity.
 </td>
 </tr>
 <tr>
@@ -7576,43 +7943,47 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;surname
 </td>
 <td>
-
+Surname or last name of the user.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>Logout</b> : Allow to logout</summary><blockquote><p>
+<details><summary><b>Logout</b> : Logout user</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") Logout
 
-Allow to logout
+Logout user.
+Clears session data and revokes tokens if needed.
 </p></blockquote></details>
 
-<details><summary><b>MIgrateToAllPWA</b></summary><blockquote><p>
+<details><summary><b>MIgrateToAllPWA</b> : Migrate all PWAs</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") MIgrateToAllPWA
 
-
+Migrate all PWAs.
+Migrates existing apps to the unified PWA deployment.
 </p></blockquote></details>
 
-<details><summary><b>MigrationApiV2</b></summary><blockquote><p>
+<details><summary><b>MigrationApiV2</b> : Run API v2 migration</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") MigrationApiV2
 
-
+Run API v2 migration.
+Ensures data structures comply with API v2 requirements.
 </p></blockquote></details>
 
-<details><summary><b>NotifyNewUsersSharing</b></summary><blockquote><p>
+<details><summary><b>NotifyNewUsersSharing</b> : Notify new users</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") NotifyNewUsersSharing
 
-
+Notify new users.
+Sends sharing notifications to newly invited users.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7630,7 +8001,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;body
 </td>
 <td>
-
+Email body or message payload.
 </td>
 </tr>
 <tr>
@@ -7638,7 +8009,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;emails
 </td>
 <td>
-
+Collection of email addresses to process.
 </td>
 </tr>
 <tr>
@@ -7654,19 +8025,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;subject
 </td>
 <td>
-
+Email subject line to send.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>NotifyResponseByMail</b> : Can be triggered by an email to notify form's owner when a response is submitted</summary><blockquote><p>
+<details><summary><b>NotifyResponseByMail</b> : Mail response notification</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") NotifyResponseByMail
 
-Can be triggered by an email to notify form's owner when a response is submitted
+Mail response notification.
+Builds and sends email notifications for form responses.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7691,12 +8063,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>NotifyUsersSharing</b></summary><blockquote><p>
+<details><summary><b>NotifyUsersSharing</b> : Notify collaborators</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") NotifyUsersSharing
 
-
+Notify collaborators.
+Alerts existing collaborators about sharing changes.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7722,7 +8095,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;grps
 </td>
 <td>
-
+List of group identifiers stored on the document.
 </td>
 </tr>
 <tr>
@@ -7730,27 +8103,29 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;subject
 </td>
 <td>
-
+Email subject line to send.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>Ping</b> : Simple ping sequence</summary><blockquote><p>
+<details><summary><b>Ping</b> : Ping endpoint</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") Ping
 
-Simple ping sequence
+Ping endpoint.
+Returns a simple pong node for health checks.
 </p></blockquote></details>
 
-<details><summary><b>RemoveNewUserSharing</b></summary><blockquote><p>
+<details><summary><b>RemoveNewUserSharing</b> : Remove pending share</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") RemoveNewUserSharing
 
-
+Remove pending share.
+Cancels pending sharing invitations for new users.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7775,12 +8150,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>RemoveUserFromGroup</b> : remove a user from a group</summary><blockquote><p>
+<details><summary><b>RemoveUserFromGroup</b> : Remove user from group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") RemoveUserFromGroup
 
-remove a user from a group
+Remove user from group.
+Removes a user from a group and updates ACLs.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7806,19 +8182,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;user
 </td>
 <td>
-
+User identifier concerned by the request.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>SetLanguage</b> : Defines language for a given user</summary><blockquote><p>
+<details><summary><b>SetLanguage</b> : Set language</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") SetLanguage
 
-Defines language for a given user
+Set language.
+Updates the preferred language of the current user.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7836,7 +8213,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;email
 </td>
 <td>
-
+Email address targeted by the sequence.
 </td>
 </tr>
 <tr>
@@ -7851,12 +8228,13 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>SetUserInGroup</b> : add a user to a group</summary><blockquote><p>
+<details><summary><b>SetUserInGroup</b> : Assign user to group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") SetUserInGroup
 
-add a user to a group
+Assign user to group.
+Adds a user to a group and refreshes ACL caches.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7882,19 +8260,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;user
 </td>
 <td>
-
+User identifier concerned by the request.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>submitResponseAnonymous</b></summary><blockquote><p>
+<details><summary><b>submitResponseAnonymous</b> : Submit anonymous response</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") submitResponseAnonymous
 
-
+Submit anonymous response.
+Stores an anonymous response and handles confirmation flows.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -7912,7 +8291,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;actions
 </td>
 <td>
-
+List of actions to execute sequentially.
 </td>
 </tr>
 <tr>
@@ -7928,7 +8307,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;filesInfo
 </td>
 <td>
-
+JSON metadata about files to manage.
 </td>
 </tr>
 <tr>
@@ -7936,7 +8315,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formId
 </td>
 <td>
-
+Identifier of the form being handled.
 </td>
 </tr>
 <tr>
@@ -7944,7 +8323,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;formRev
 </td>
 <td>
-
+Revision of the form document.
 </td>
 </tr>
 <tr>
@@ -7952,7 +8331,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;grp
 </td>
 <td>
-
+Group metadata object to update.
 </td>
 </tr>
 <tr>
@@ -7960,7 +8339,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;login
 </td>
 <td>
-
+Login identifier submitted by the user.
 </td>
 </tr>
 <tr>
@@ -7968,7 +8347,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;myId
 </td>
 <td>
-
+Current user identifier used to personalise the request.
 </td>
 </tr>
 <tr>
@@ -7976,7 +8355,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;resp
 </td>
 <td>
-
+Response document payload to process.
 </td>
 </tr>
 <tr>
@@ -7984,7 +8363,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;timestamp
 </td>
 <td>
-
+Timestamp used for caching control.
 </td>
 </tr>
 <tr>
@@ -7992,19 +8371,20 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;version
 </td>
 <td>
-
+Version string applied to the project or document.
 </td>
 </tr>
 </table>
 
 </p></blockquote></details>
 
-<details><summary><b>usersOf</b></summary><blockquote><p>
+<details><summary><b>usersOf</b> : Users of group</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") usersOf
 
-
+Users of group.
+Returns the users associated with a given group.
 
 <span style="color:DarkGoldenRod">Variables</span>
 

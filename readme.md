@@ -26,6 +26,131 @@ Even more, data entry can trigger complex actions and workflows in their back- e
 For more technical informations : [documentation](./project.md)
 
 - [Installation](#installation)
+- [Sequences](#sequences)
+    - [AddUser](#adduser)
+    - [admin_get_current_dependencies](#admin_get_current_dependencies)
+    - [admin_group_delete](#admin_group_delete)
+    - [admin_group_get](#admin_group_get)
+    - [admin_group_upsert](#admin_group_upsert)
+    - [admin_group_upsert_bulk](#admin_group_upsert_bulk)
+    - [admin_groups_delete](#admin_groups_delete)
+    - [admin_groups_get](#admin_groups_get)
+    - [admin_groups_get_by_user_id](#admin_groups_get_by_user_id)
+    - [admin_groups_patch](#admin_groups_patch)
+    - [admin_groups_post](#admin_groups_post)
+    - [admin_stats_getCountAnswersPerDay](#admin_stats_getcountanswersperday)
+    - [admin_stats_getCountAnswersPerForm](#admin_stats_getcountanswersperform)
+    - [admin_stats_getCumulatedAnswersPerDay](#admin_stats_getcumulatedanswersperday)
+    - [admin_stats_getCumulatedFormsPerDay](#admin_stats_getcumulatedformsperday)
+    - [admin_stats_getDocumentById](#admin_stats_getdocumentbyid)
+    - [admin_stats_getFormsCountPerDay](#admin_stats_getformscountperday)
+    - [admin_stats_getMoreThan5versionsOwners](#admin_stats_getmorethan5versionsowners)
+    - [admin_stats_getTopAnswersForms](#admin_stats_gettopanswersforms)
+    - [admin_stats_getTopPublishedComplex](#admin_stats_gettoppublishedcomplex)
+    - [admin_stats_getTopPublishers](#admin_stats_gettoppublishers)
+    - [admin_stats_home](#admin_stats_home)
+    - [admin_user_add_to_group](#admin_user_add_to_group)
+    - [admin_user_delete_from_group](#admin_user_delete_from_group)
+    - [admin_user_patch](#admin_user_patch)
+    - [admin_user_post](#admin_user_post)
+    - [admin_users_delete](#admin_users_delete)
+    - [admin_users_get](#admin_users_get)
+    - [admin_users_get_by_group](#admin_users_get_by_group)
+    - [admin_users_get_by_group_v2](#admin_users_get_by_group_v2)
+    - [admin_users_get_by_id](#admin_users_get_by_id)
+    - [admin_users_of_group_get](#admin_users_of_group_get)
+    - [admin_users_patch](#admin_users_patch)
+    - [admin_users_post_in_groups](#admin_users_post_in_groups)
+    - [admin_users_remove_from_groups](#admin_users_remove_from_groups)
+    - [APIV2_checkForPendingInvitationNewUsers](#apiv2_checkforpendinginvitationnewusers)
+    - [APIV2_CleanThumbnailsWallpapersB64](#apiv2_cleanthumbnailswallpapersb64)
+    - [APIV2_createEmptyFolder](#apiv2_createemptyfolder)
+    - [APIV2_createIndexes](#apiv2_createindexes)
+    - [APIV2_csv](#apiv2_csv)
+    - [APIV2_deleteDocument](#apiv2_deletedocument)
+    - [APIV2_deleteResponses](#apiv2_deleteresponses)
+    - [APIV2_DuplicateFormulaireDocument](#apiv2_duplicateformulairedocument)
+    - [APIV2_Execute_Sequences](#apiv2_execute_sequences)
+    - [APIV2_ExecuteView](#apiv2_executeview)
+    - [APIV2_GeneratePwaAsset](#apiv2_generatepwaasset)
+    - [APIV2_getAttachments](#apiv2_getattachments)
+    - [APIV2_getCSVkey](#apiv2_getcsvkey)
+    - [APIV2_getDocument](#apiv2_getdocument)
+    - [APIV2_getKnownUsersFormatted](#apiv2_getknownusersformatted)
+    - [APIV2_GetManageAccessRights](#apiv2_getmanageaccessrights)
+    - [APIV2_getOwnerShip](#apiv2_getownership)
+    - [APIV2_getPWA](#apiv2_getpwa)
+    - [APIV2_getResponses](#apiv2_getresponses)
+    - [APIV2_mapper_redirect](#apiv2_mapper_redirect)
+    - [APIV2_NotifyUsersSharing](#apiv2_notifyuserssharing)
+    - [APIV2_OverrideUserSettings](#apiv2_overrideusersettings)
+    - [APIV2_postResponse](#apiv2_postresponse)
+    - [APIV2_Publish](#apiv2_publish)
+    - [APIV2_RebuildC8oGrp](#apiv2_rebuildc8ogrp)
+    - [APIV2_SetManageAccessRights](#apiv2_setmanageaccessrights)
+    - [APIV2_setOwnerShip](#apiv2_setownership)
+    - [APIV2_SetSharedAnonymous](#apiv2_setsharedanonymous)
+    - [APIV2_setUserAdmin](#apiv2_setuseradmin)
+    - [APIV2_updateFormulaireDocument](#apiv2_updateformulairedocument)
+    - [APIV2_updateTags](#apiv2_updatetags)
+    - [b](#b)
+    - [BaserowAccount](#baserowaccount)
+    - [BaserowAccountGet](#baserowaccountget)
+    - [BuildCsvByFormId](#buildcsvbyformid)
+    - [ChangePassword](#changepassword)
+    - [ChangeUserEditingRights](#changeusereditingrights)
+    - [CheckForPendingInvitationNewUsers](#checkforpendinginvitationnewusers)
+    - [checkIfDeleteIsPermitted](#checkifdeleteispermitted)
+    - [CreatePublicUserAddGroupe](#createpublicuseraddgroupe)
+    - [data_integrity_accessRights_check_between_edition_published_pwa_doc_anonymous](#data_integrity_accessrights_check_between_edition_published_pwa_doc_anonymous)
+    - [data_integrity_collabsResponse_check_between_edition_published](#data_integrity_collabsresponse_check_between_edition_published)
+    - [data_integrity_collabsResponse_check_between_forms_and_response](#data_integrity_collabsresponse_check_between_forms_and_response)
+    - [data_integrity_collabsResponse_repair_between_forms_and_response](#data_integrity_collabsresponse_repair_between_forms_and_response)
+    - [delete_all_templates](#delete_all_templates)
+    - [DeleteB64FromExistingResponses](#deleteb64fromexistingresponses)
+    - [DeleteUser](#deleteuser)
+    - [downloadFile](#downloadfile)
+    - [Execute_Sequences](#execute_sequences)
+    - [ForgotPassword](#forgotpassword)
+    - [GeneratePwaAsset](#generatepwaasset)
+    - [getAnonymousForm](#getanonymousform)
+    - [getAvailableAuthModeForLogin](#getavailableauthmodeforlogin)
+    - [getBrevoChatId](#getbrevochatid)
+    - [getConvertigoUrl](#getconvertigourl)
+    - [getCSVDefaultCharacterSet](#getcsvdefaultcharacterset)
+    - [getCurrentUserSettings](#getcurrentusersettings)
+    - [getGDRPmenu](#getgdrpmenu)
+    - [getGDRPtoast](#getgdrptoast)
+    - [getInactiveForms](#getinactiveforms)
+    - [getKnownUsers](#getknownusers)
+    - [GetLanguage](#getlanguage)
+    - [GetSequences](#getsequences)
+    - [getTinyMaxs](#gettinymaxs)
+    - [GroupsOf](#groupsof)
+    - [HasProject](#hasproject)
+    - [importTemplates](#importtemplates)
+    - [initAllPWAS](#initallpwas)
+    - [InsertNotifIntoCurrentUser](#insertnotifintocurrentuser)
+    - [listAllPWAsUrls](#listallpwasurls)
+    - [Login](#login)
+    - [LoginAD](#loginad)
+    - [LoginGoogle](#logingoogle)
+    - [LoginLinkedIn](#loginlinkedin)
+    - [LoginMicrosoft](#loginmicrosoft)
+    - [LoginOpenID](#loginopenid)
+    - [Logout](#logout)
+    - [MIgrateToAllPWA](#migratetoallpwa)
+    - [MigrationApiV2](#migrationapiv2)
+    - [NotifyNewUsersSharing](#notifynewuserssharing)
+    - [NotifyResponseByMail](#notifyresponsebymail)
+    - [NotifyUsersSharing](#notifyuserssharing)
+    - [Ping](#ping)
+    - [RemoveNewUserSharing](#removenewusersharing)
+    - [RemoveUserFromGroup](#removeuserfromgroup)
+    - [SetLanguage](#setlanguage)
+    - [SetUserInGroup](#setuseringroup)
+    - [submitResponseAnonymous](#submitresponseanonymous)
+    - [usersOf](#usersof)
 - [Connectors](#connectors)
     - [c8oforms_fs](#c8oforms_fs)
         - [Transactions](#transactions)
@@ -76,7 +201,7 @@ For more technical informations : [documentation](./project.md)
             - [PutDocumentAttachmentFromBase64](#putdocumentattachmentfrombase64)
             - [PutDocumentAttachmentFromFile](#putdocumentattachmentfromfile)
             - [PutDocumentAttachmentOK](#putdocumentattachmentok)
-            - [SetLanguage](#setlanguage)
+            - [SetLanguage](#setlanguage-1)
     - [c8oforms_response_fs](#c8oforms_response_fs)
         - [Transactions](#transactions-1)
             - [AllDocs](#alldocs)
@@ -390,15 +515,12 @@ For more technical informations : [documentation](./project.md)
 3. Click the `Finish` button. This will automatically import the __C8Oforms__ project
 
 
-## Connectors
+## Sequences
 
-### c8oforms_fs
+### AddUser
 
-Fullsync connector that holds all forms and user settings
-
-#### Transactions
-
-##### DeleteDocument
+Add user.
+Creates or updates a user record with default rights and metadata.
 
 **variables**
 
@@ -407,10 +529,39 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>displayName</td><td>should be en/fr/it/es</td>
+</tr>
+<tr>
+<td>editing_rights</td><td>Rights JSON used when patching collaborators.</td>
+</tr>
+<tr>
+<td>language</td><td>should be en/fr/it/es</td>
+</tr>
+<tr>
+<td>name</td><td>should be en/fr/it/es</td>
+</tr>
+<tr>
+<td>password</td><td>Password submitted by the user.</td>
+</tr>
+<tr>
+<td>published_First</td><td>True when first publication should be marked.</td>
+</tr>
+<tr>
+<td>surname</td><td>should be en/fr/it/es</td>
+</tr>
+<tr>
+<td>user</td><td>should be a valid email</td>
 </tr>
 </table>
-##### GetDocument
+### admin_get_current_dependencies
+
+List current dependencies.
+Returns the currently loaded Convertigo project dependencies.
+
+### admin_group_delete
+
+Delete group.
+Checks admin rights then deletes the group document from CouchDB.
 
 **variables**
 
@@ -419,10 +570,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>_use_doc_id</td><td>Document identifier sent to the DeleteDocument transaction.</td>
 </tr>
 </table>
-##### GetDocumentAttachment
+### admin_group_get
+
+Get group.
+Retrieves a specific group definition with its members.
 
 **variables**
 
@@ -431,19 +585,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_attname</td><td></td>
-</tr>
-<tr>
-<td>_use_attpath</td><td></td>
-</tr>
-<tr>
-<td>_use_docid</td><td></td>
-</tr>
-<tr>
-<td>_use_rev</td><td></td>
+<td>_use_doc_id</td><td>Document identifier sent to the DeleteDocument transaction.</td>
 </tr>
 </table>
-##### GetDocumentAttachment1
+### admin_group_upsert
+
+Upsert group.
+Creates or updates a group definition and metadata.
 
 **variables**
 
@@ -452,16 +600,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_attname</td><td></td>
-</tr>
-<tr>
-<td>_use_attpath</td><td></td>
-</tr>
-<tr>
-<td>_use_docid</td><td></td>
+<td>meta</td><td>JSON metadata payload associated with the operation.</td>
 </tr>
 </table>
-##### GetDocumentAttachmentB64
+### admin_group_upsert_bulk
+
+Bulk upsert groups.
+Upserts multiple group definitions in one call.
 
 **variables**
 
@@ -470,13 +615,19 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_attname</td><td></td>
+<td>docs</td><td>Collection of documents supplied to the maintenance job.</td>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>right</td><td>Single right entry to grant or revoke.</td>
+</tr>
+<tr>
+<td>value</td><td></td>
 </tr>
 </table>
-##### GetDocumentRev
+### admin_groups_delete
+
+Delete groups.
+Deletes several group documents after admin validation.
 
 **variables**
 
@@ -485,17 +636,18 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
-</tr>
-<tr>
-<td>_use_rev</td><td></td>
+<td>meta</td><td></td>
 </tr>
 </table>
-##### GetServerInfo
+### admin_groups_get
 
-##### GetServerInfo1
+List groups.
+Returns all groups along with summary data.
 
-##### GetUsersByACL
+### admin_groups_get_by_user_id
+
+Groups by user.
+Lists groups that contain the requested user.
 
 **variables**
 
@@ -504,19 +656,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_ddoc</td><td></td>
-</tr>
-<tr>
-<td>_use_include_docs</td><td></td>
-</tr>
-<tr>
-<td>_use_keys</td><td></td>
-</tr>
-<tr>
-<td>_use_view</td><td></td>
+<td>user</td><td></td>
 </tr>
 </table>
-##### GetView
+### admin_groups_patch
+
+Patch groups.
+Applies partial updates to group definitions.
 
 **variables**
 
@@ -525,25 +671,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_ddoc</td><td></td>
-</tr>
-<tr>
-<td>_use_descending</td><td></td>
-</tr>
-<tr>
-<td>_use_group</td><td></td>
-</tr>
-<tr>
-<td>_use_group_level</td><td></td>
-</tr>
-<tr>
-<td>_use_reduce</td><td></td>
-</tr>
-<tr>
-<td>_use_view</td><td></td>
+<td>meta</td><td></td>
 </tr>
 </table>
-##### GetViewAuth
+### admin_groups_post
+
+Create group.
+Creates a new group from admin inputs.
 
 **variables**
 
@@ -552,19 +686,33 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_group</td><td></td>
-</tr>
-<tr>
-<td>_use_group_level</td><td></td>
-</tr>
-<tr>
-<td>_use_keys</td><td></td>
-</tr>
-<tr>
-<td>_use_reduce</td><td></td>
+<td>meta</td><td></td>
 </tr>
 </table>
-##### GetViewByKeys
+### admin_stats_getCountAnswersPerDay
+
+Answers per day.
+Computes daily counts of submitted answers for admin dashboards.
+
+### admin_stats_getCountAnswersPerForm
+
+Answers per form.
+Counts answers per form for reporting.
+
+### admin_stats_getCumulatedAnswersPerDay
+
+Cumulated answers per day.
+Builds cumulative answer counts day by day.
+
+### admin_stats_getCumulatedFormsPerDay
+
+Cumulated forms per day.
+Computes cumulative counts of created forms per day.
+
+### admin_stats_getDocumentById
+
+Get document by id.
+Retrieves any document by id for admin diagnosis.
 
 **variables**
 
@@ -573,16 +721,43 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_ddoc</td><td></td>
-</tr>
-<tr>
-<td>_use_keys</td><td></td>
-</tr>
-<tr>
-<td>_use_view</td><td></td>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
 </tr>
 </table>
-##### GetViewIncludeDocs
+### admin_stats_getFormsCountPerDay
+
+Forms per day.
+Counts created forms per day for admin charts.
+
+### admin_stats_getMoreThan5versionsOwners
+
+Owners with many versions.
+Lists owners whose forms have more than five versions.
+
+### admin_stats_getTopAnswersForms
+
+Top answered forms.
+Returns forms ranked by total answers.
+
+### admin_stats_getTopPublishedComplex
+
+Top published complex forms.
+Ranks complex published forms using admin metrics.
+
+### admin_stats_getTopPublishers
+
+Top publishers.
+Lists top publishers by volume of forms.
+
+### admin_stats_home
+
+Admin stats home.
+Aggregates various stats for the admin dashboard.
+
+### admin_user_add_to_group
+
+Add user to group.
+Adds a user to a group through admin APIs.
 
 **variables**
 
@@ -591,16 +766,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_ddoc</td><td></td>
-</tr>
-<tr>
-<td>_use_include_docs</td><td></td>
-</tr>
-<tr>
-<td>_use_view</td><td></td>
+<td>meta</td><td></td>
 </tr>
 </table>
-##### GetViewPublishedbyAcl
+### admin_user_delete_from_group
+
+Remove user from group.
+Removes a user from a group through admin APIs.
 
 **variables**
 
@@ -609,16 +781,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_ddoc</td><td></td>
-</tr>
-<tr>
-<td>_use_key</td><td></td>
-</tr>
-<tr>
-<td>_use_view</td><td></td>
+<td>meta</td><td></td>
 </tr>
 </table>
-##### HeadDocument
+### admin_user_patch
+
+Patch user.
+Applies partial updates to a user profile.
 
 **variables**
 
@@ -627,10 +796,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>meta</td><td></td>
 </tr>
 </table>
-##### PostBulkDocuments_1
+### admin_user_post
+
+Create user.
+Creates a user via the admin interface.
 
 **variables**
 
@@ -639,10 +811,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>meta</td><td></td>
 </tr>
 </table>
-##### PostDocument
+### admin_users_delete
+
+Delete users.
+Deletes multiple user accounts in one admin call.
 
 **variables**
 
@@ -651,244 +826,308 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_c8oAcl</td><td></td>
+<td>docs</td><td></td>
+</tr>
+</table>
+### admin_users_get
+
+List users.
+Lists users with pagination and filters for admin views.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>admin_readonly</td><td>Flag forcing admin view access in read only mode.</td>
 </tr>
 <tr>
-<td>_use_merge</td><td></td>
+<td>editing_apps_default_rights</td><td>Default editing rights for applications.</td>
 </tr>
 <tr>
-<td>actions</td><td></td>
+<td>formulas_default_rights</td><td>Default rights for formula based widgets.</td>
 </tr>
 <tr>
-<td>c8o_view_type_published_form</td><td></td>
+<td>no_code_db_default_rights</td><td>Default rights for no-code database elements.</td>
 </tr>
 <tr>
-<td>c8oGrp</td><td></td>
+<td>publication</td><td>Publication flag or structure applied to the form.</td>
+</tr>
+</table>
+### admin_users_get_by_group
+
+Users by group.
+Lists users belonging to a specific group.
+
+### admin_users_get_by_group_v2
+
+Users by group v2.
+Improved list of users for a given group with roles.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>collabs</td><td></td>
+<td>admin_readonly</td><td>Flag forcing admin view access in read only mode.</td>
 </tr>
 <tr>
-<td>collabsResponse</td><td></td>
+<td>editing_apps_default_rights</td><td>Default editing rights for applications.</td>
 </tr>
 <tr>
-<td>creationDate</td><td></td>
+<td>formulas_default_rights</td><td>Default rights for formula based widgets.</td>
 </tr>
 <tr>
-<td>creator</td><td></td>
+<td>no_code_db_default_rights</td><td>Default rights for no-code database elements.</td>
 </tr>
 <tr>
-<td>descform</td><td></td>
+<td>publication</td><td>Publication flag or structure applied to the form.</td>
 </tr>
 <tr>
-<td>descformPosition</td><td></td>
+<td>targetGroup</td><td>Group identifier receiving the user.</td>
+</tr>
+</table>
+### admin_users_get_by_id
+
+Get user by id.
+Retrieves a single user's details by id.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>formulaire</td><td></td>
+<td>c8oAcl</td><td></td>
+</tr>
+</table>
+### admin_users_of_group_get
+
+Groups memberships.
+Returns group memberships for the requested user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>lastMofification</td><td></td>
+<td>group</td><td>Target group identifier.</td>
+</tr>
+</table>
+### admin_users_patch
+
+Patch users.
+Applies partial updates to multiple users.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>name</td><td></td>
+<td>docs</td><td>Collection of documents supplied to the maintenance job.</td>
 </tr>
 <tr>
-<td>namePosition</td><td></td>
+<td>right</td><td>Single right entry to grant or revoke.</td>
 </tr>
 <tr>
-<td>pages</td><td></td>
+<td>value</td><td></td>
+</tr>
+</table>
+### admin_users_post_in_groups
+
+Add users to groups.
+Adds several users to one or more groups.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>parentId</td><td></td>
+<td>groups</td><td>List of groups to add or remove.</td>
 </tr>
 <tr>
-<td>parentRev</td><td></td>
+<td>users</td><td></td>
+</tr>
+</table>
+### admin_users_remove_from_groups
+
+Remove users from groups.
+Removes multiple users from listed groups.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>pwa_enabled</td><td></td>
+<td>groups</td><td>List of groups to add or remove.</td>
 </tr>
 <tr>
-<td>pwa_subPath</td><td></td>
+<td>users</td><td></td>
+</tr>
+</table>
+### APIV2_checkForPendingInvitationNewUsers
+
+Check pending invites.
+Looks for pending invitations created for new users in API v2 flows.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>respNameRequired</td><td></td>
+<td>email</td><td>Email address targeted by the sequence.</td>
 </tr>
 <tr>
-<td>sharedAnonymous</td><td></td>
+<td>grp</td><td>Group metadata object to update.</td>
+</tr>
+</table>
+### APIV2_CleanThumbnailsWallpapersB64
+
+Clean thumbnail B64.
+Scans forms for base64 thumbnail/wallpaper blobs and optionally strips them in safe batches.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>subTag</td><td></td>
+<td>chunkSize</td><td>Number of documents fetched per CouchDB page while iterating.</td>
 </tr>
 <tr>
-<td>tag</td><td></td>
+<td>execute</td><td>Set to true to remove the Base64 fields instead of only listing impacted documents.</td>
+</tr>
+</table>
+### APIV2_createEmptyFolder
+
+Create empty folder.
+Creates a folder placeholder document for organising forms.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>thumbnail</td><td></td>
+<td>meta</td><td></td>
+</tr>
+</table>
+### APIV2_createIndexes
+
+Ensure API indexes.
+Creates or updates required CouchDB indexes for API v2 sequences.
+
+### APIV2_csv
+
+Export responses CSV.
+Builds a CSV stream for responses while respecting header order and privacy.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>c</td><td>column_name</td>
+</tr>
+<tr>
+<td>e</td><td>encoding</td>
+</tr>
+<tr>
+<td>f</td><td>formId</td>
+</tr>
+<tr>
+<td>k</td><td>formId</td>
+</tr>
+<tr>
+<td>l</td><td>lang</td>
+</tr>
+<tr>
+<td>li</td><td>formId</td>
+</tr>
+<tr>
+<td>n</td><td>name</td>
+</tr>
+<tr>
+<td>o</td><td>offset</td>
+</tr>
+<tr>
+<td>p</td><td>privacy</td>
+</tr>
+<tr>
+<td>s</td><td>separator</td>
+</tr>
+<tr>
+<td>se</td><td>string_separator</td>
+</tr>
+<tr>
+<td>sk</td><td>formId</td>
+</tr>
+<tr>
+<td>v</td><td>version</td>
+</tr>
+</table>
+### APIV2_deleteDocument
+
+Delete form document.
+Removes a form draft or folder after validating ownership.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>fromResponse</td><td>Indicates the fetch originates from response doc context.</td>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>rev</td><td>Document revision ensuring optimistic locking.</td>
+</tr>
+</table>
+### APIV2_deleteResponses
+
+Delete form responses.
+Purges stored responses for a form and logs errors.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
 </tr>
 <tr>
 <td>version</td><td></td>
 </tr>
-<tr>
-<td>wallpaper</td><td></td>
-</tr>
 </table>
-##### PostDocument1
+### APIV2_DuplicateFormulaireDocument
 
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_c8oAcl</td><td></td>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>_use_merge</td><td></td>
-</tr>
-<tr>
-<td>actions</td><td></td>
-</tr>
-<tr>
-<td>c8o_view_type_published_form</td><td></td>
-</tr>
-<tr>
-<td>c8oGrp</td><td></td>
-</tr>
-<tr>
-<td>collabs</td><td></td>
-</tr>
-<tr>
-<td>collabsResponse</td><td></td>
-</tr>
-<tr>
-<td>creationDate</td><td></td>
-</tr>
-<tr>
-<td>creator</td><td></td>
-</tr>
-<tr>
-<td>descform</td><td></td>
-</tr>
-<tr>
-<td>descformPosition</td><td></td>
-</tr>
-<tr>
-<td>formulaire</td><td></td>
-</tr>
-<tr>
-<td>lastMofification</td><td></td>
-</tr>
-<tr>
-<td>name</td><td></td>
-</tr>
-<tr>
-<td>namePosition</td><td></td>
-</tr>
-<tr>
-<td>pages</td><td></td>
-</tr>
-<tr>
-<td>parentId</td><td></td>
-</tr>
-<tr>
-<td>parentRev</td><td></td>
-</tr>
-<tr>
-<td>pwa_enabled</td><td></td>
-</tr>
-<tr>
-<td>pwa_subPath</td><td></td>
-</tr>
-<tr>
-<td>respNameRequired</td><td></td>
-</tr>
-<tr>
-<td>sharedAnonymous</td><td></td>
-</tr>
-<tr>
-<td>subTag</td><td></td>
-</tr>
-<tr>
-<td>tag</td><td></td>
-</tr>
-<tr>
-<td>thumbnail</td><td></td>
-</tr>
-<tr>
-<td>version</td><td></td>
-</tr>
-<tr>
-<td>wallpaper</td><td></td>
-</tr>
-</table>
-##### PostDocument_PWA
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_c8oAcl</td><td></td>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>_use_json_base</td><td></td>
-</tr>
-<tr>
-<td>_use_merge</td><td></td>
-</tr>
-<tr>
-<td>backgroundColor</td><td></td>
-</tr>
-<tr>
-<td>c8o_view_type_pwa_document</td><td></td>
-</tr>
-<tr>
-<td>name</td><td></td>
-</tr>
-<tr>
-<td>notAnonymous</td><td></td>
-</tr>
-<tr>
-<td>originalFormId</td><td></td>
-</tr>
-<tr>
-<td>querystr</td><td></td>
-</tr>
-<tr>
-<td>shortName</td><td></td>
-</tr>
-<tr>
-<td>targetId</td><td></td>
-</tr>
-<tr>
-<td>themeColor</td><td></td>
-</tr>
-</table>
-##### PostDocument_restore_deleted
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>data</td><td></td>
-</tr>
-</table>
-##### PostDocumentAddArgc8o_view_type_pwa_document
+Duplicate draft form.
+Validates ACLs, clones attachments, and resets metadata to produce a new draft document.
 
 **variables**
 
@@ -899,14 +1138,11 @@ Fullsync connector that holds all forms and user settings
 <tr>
 <td>_id</td><td></td>
 </tr>
-<tr>
-<td>c8o_view_type_pwa_document</td><td></td>
-</tr>
-<tr>
-<td>targetId</td><td></td>
-</tr>
 </table>
-##### PostDocumentBaserowPassword
+### APIV2_Execute_Sequences
+
+Run API v2 jobs.
+Dispatches API v2 maintenance sequences sequentially or asynchronously.
 
 **variables**
 
@@ -915,13 +1151,22 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>attachments</td><td></td>
 </tr>
 <tr>
-<td>password</td><td></td>
+<td>attachments_meta</td><td></td>
+</tr>
+<tr>
+<td>doc</td><td></td>
+</tr>
+<tr>
+<td>execute_Async</td><td>True to run the maintenance job asynchronously.</td>
 </tr>
 </table>
-##### PostDocumentCreateNotif
+### APIV2_ExecuteView
+
+Execute forms view.
+Builds Mango queries with filters and ACLs to list forms or responses.
 
 **variables**
 
@@ -930,34 +1175,1090 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>dynamicParams</td><td>JSON encoded dynamic filter parameters.</td>
 </tr>
 <tr>
-<td>c8o_view_type_notification</td><td></td>
+<td>fromResponses</td><td>True when targeting the responses database.</td>
 </tr>
 <tr>
-<td>date</td><td></td>
+<td>target</td><td>Target identifier for the action.</td>
+</tr>
+</table>
+### APIV2_GeneratePwaAsset
+
+Generate PWA assets.
+Transforms uploaded files into PWA thumbnails or wallpapers and updates metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>formId</td><td></td>
+<td>from_start_server</td><td>True when invocation happens from server start hook.</td>
 </tr>
 <tr>
-<td>new</td><td></td>
+<td>meta</td><td></td>
+</tr>
+</table>
+### APIV2_getAttachments
+
+Fetch form attachments.
+Streams document attachments as base64 payloads with metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>status</td><td></td>
+<td>element</td><td></td>
 </tr>
 <tr>
-<td>targetId</td><td></td>
+<td>formId</td><td>Identifier of the form being handled.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string applied to the project or document.</td>
+</tr>
+</table>
+### APIV2_getCSVkey
+
+Get CSV key.
+Returns the CSV export key used to secure download links.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>secretCSV</td><td>Shared secret protecting CSV export endpoints.</td>
+</tr>
+</table>
+### APIV2_getDocument
+
+Fetch form document.
+Retrieves form data with ACL filtering and computed flags.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>exportForm</td><td>Form identifier used for export routines.</td>
+</tr>
+<tr>
+<td>fromResponse</td><td>Indicates the fetch originates from response doc context.</td>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>k</td><td>Legacy key parameter forwarded to sub sequences.</td>
+</tr>
+<tr>
+<td>rev</td><td>Document revision ensuring optimistic locking.</td>
+</tr>
+<tr>
+<td>secretCSV</td><td>Shared secret protecting CSV export endpoints.</td>
+</tr>
+<tr>
+<td>target</td><td>Target identifier for the action.</td>
+</tr>
+</table>
+### APIV2_getKnownUsersFormatted
+
+List known users.
+Formats known users for UI selectors including groups and badges.
+
+### APIV2_GetManageAccessRights
+
+Fetch manage rights.
+Reads and formats the manage-access-rights document for a form.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>collab</td><td></td>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>showAllGroups</td><td>Flag allowing non-admin users to list every group.</td>
+</tr>
+</table>
+### APIV2_getOwnerShip
+
+Get ownership info.
+Returns owner and collaborators metadata for a form.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td></td>
+</tr>
+</table>
+### APIV2_getPWA
+
+Get PWA package.
+Provides published PWA metadata and download paths.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td></td>
+</tr>
+</table>
+### APIV2_getResponses
+
+Fetch API responses.
+Retrieves paginated responses with filtering, formatting and attachments.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>archive</td><td>True to mark the form as archived.</td>
+</tr>
+<tr>
+<td>csv</td><td>CSV content or configuration passed to the sequence.</td>
+</tr>
+<tr>
+<td>element</td><td>Element identifier inside the document.</td>
+</tr>
+<tr>
+<td>formId</td><td>Identifier of the form being handled.</td>
+</tr>
+<tr>
+<td>k</td><td></td>
+</tr>
+<tr>
+<td>meta</td><td>JSON metadata payload associated with the operation.</td>
+</tr>
+<tr>
+<td>summary</td><td>Summary text displayed in notifications.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string applied to the project or document.</td>
+</tr>
+</table>
+### APIV2_mapper_redirect
+
+Redirect mapper call.
+Rebuilds parameters and returns a 302 redirect to the target sequence.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>targetSequence</td><td></td>
+</tr>
+</table>
+### APIV2_NotifyUsersSharing
+
+Notify shared users.
+Sends sharing notifications to collaborators and tracks delivery status.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>meta</td><td>JSON metadata payload associated with the operation.</td>
+</tr>
+<tr>
+<td>smtpAuthType</td><td>SMTP authentication mechanism to use.</td>
+</tr>
+<tr>
+<td>smtpPassword</td><td>SMTP account password.</td>
+</tr>
+<tr>
+<td>smtpPort</td><td>SMTP server port.</td>
+</tr>
+<tr>
+<td>smtpServer</td><td>SMTP server hostname.</td>
+</tr>
+<tr>
+<td>smtpUsername</td><td>SMTP account username.</td>
+</tr>
+<tr>
+<td>sSender</td><td>Sender email displayed in notifications.</td>
+</tr>
+<tr>
+<td>sslProtocols</td><td>Allowed SSL protocols list for SMTP connections.</td>
+</tr>
+<tr>
+<td>xslFilepath</td><td>XSL file path needed for email rendering.</td>
+</tr>
+</table>
+### APIV2_OverrideUserSettings
+
+Override user settings.
+Merges provided overrides into user settings while preserving explicit false values.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>meta</td><td></td>
+</tr>
+</table>
+### APIV2_postResponse
+
+Submit API response.
+Validates, normalises and stores a response coming from the PWA.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>files</td><td></td>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>meta</td><td>JSON metadata payload associated with the operation.</td>
+</tr>
+</table>
+### APIV2_Publish
+
+Publish form.
+Promotes a draft, regenerates its PWA and synchronises publication metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>file</td><td>Binary file content processed by the sequence.</td>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>meta</td><td>JSON metadata payload associated with the operation.</td>
+</tr>
+<tr>
+<td>rev</td><td>Document revision ensuring optimistic locking.</td>
+</tr>
+</table>
+### APIV2_RebuildC8oGrp
+
+Rebuild c8oGrp flags.
+Audits forms and responses to rebuild c8oGrp membership maps.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>chunkSize</td><td>Number of documents fetched per Mango page during the audit.</td>
+</tr>
+<tr>
+<td>execute</td><td>Set to true to rebuild c8oGrp based on computed expectations.</td>
+</tr>
+</table>
+### APIV2_SetManageAccessRights
+
+Set manage rights.
+Applies manage-access-rights updates and keeps ACLs in sync.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>collab</td><td>Collaborator identifier to add or update.</td>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>meta</td><td></td>
+</tr>
+</table>
+### APIV2_setOwnerShip
+
+Update ownership.
+Updates owner and collaborators, syncing ACL and group lists.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>owner</td><td></td>
+</tr>
+</table>
+### APIV2_SetSharedAnonymous
+
+Toggle anonymous sharing.
+Updates the anonymous sharing flags and supporting metadata for a form.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>meta</td><td></td>
+</tr>
+</table>
+### APIV2_setUserAdmin
+
+Flag admin user.
+Promotes or demotes a Convertigo user as an admin helper.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td></td>
+</tr>
+</table>
+### APIV2_updateFormulaireDocument
+
+Update form document.
+Applies draft updates, merges metadata and handles attachments.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>file</td><td>Binary file content processed by the sequence.</td>
+</tr>
+<tr>
+<td>meta</td><td>JSON metadata payload associated with the operation.</td>
+</tr>
+</table>
+### APIV2_updateTags
+
+Update form tags.
+Applies tag changes on a form and refreshes derived structures.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>meta</td><td></td>
+</tr>
+<tr>
+<td>rev</td><td>Document revision ensuring optimistic locking.</td>
+</tr>
+</table>
+### b
+
+Legacy bridge.
+Provides a thin compatibility layer for legacy clients.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>c</td><td>Generic parameter used by legacy clients.</td>
+</tr>
+<tr>
+<td>e</td><td>Email address parameter used by legacy flows.</td>
+</tr>
+<tr>
+<td>f</td><td>Filter fragment passed by legacy API calls.</td>
+</tr>
+<tr>
+<td>l</td><td>Language code supplied by legacy clients.</td>
+</tr>
+<tr>
+<td>n</td><td>Notification identifier handled by the flow.</td>
+</tr>
+<tr>
+<td>o</td><td>Output selector used by legacy APIs.</td>
+</tr>
+<tr>
+<td>p</td><td>Pagination or page parameter for legacy requests.</td>
+</tr>
+<tr>
+<td>s</td><td>Search term supplied by the caller.</td>
+</tr>
+<tr>
+<td>se</td><td>Sequence identifier forwarded by legacy APIs.</td>
+</tr>
+<tr>
+<td>v</td><td>Version value used in compatibility checks.</td>
+</tr>
+</table>
+### BaserowAccount
+
+Save Baserow account.
+Stores Baserow credentials and metadata for the current user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>password</td><td>Password submitted by the user.</td>
+</tr>
+</table>
+### BaserowAccountGet
+
+Get Baserow account.
+Returns Baserow credentials and sync flags for the current user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>owner</td><td></td>
+</tr>
+</table>
+### BuildCsvByFormId
+
+Build CSV by form.
+Creates a CSV report for a form using stored configuration.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>column_name</td><td>Column name when querying Baserow tables.</td>
+</tr>
+<tr>
+<td>encoding</td><td>Character encoding requested for exports.</td>
+</tr>
+<tr>
+<td>formId</td><td>Identifier of the form being handled.</td>
+</tr>
+<tr>
+<td>lang</td><td>Language code ISO used for localisation.</td>
+</tr>
+<tr>
+<td>name</td><td>Human readable name of the target entity.</td>
+</tr>
+<tr>
+<td>offset</td><td>Pagination offset for queries.</td>
+</tr>
+<tr>
+<td>privacy</td><td>Privacy level requested for exports.</td>
+</tr>
+<tr>
+<td>separator</td><td>CSV separator character requested.</td>
+</tr>
+<tr>
+<td>string_separator</td><td>Separator string used in CSV exports.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string applied to the project or document.</td>
+</tr>
+</table>
+### ChangePassword
+
+Change password.
+Verifies reset token and updates the user password.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>newPwd</td><td>Nouveau mot de passe</td>
+</tr>
+<tr>
+<td>user</td><td>Compte utilisateur</td>
+</tr>
+</table>
+### ChangeUserEditingRights
+
+Change editing rights.
+Adjusts collaborator editing rights for forms or folders.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>editingRights</td><td>Editing rights payload to apply on the target.</td>
+</tr>
+<tr>
+<td>forceCreation</td><td></td>
+</tr>
+<tr>
+<td>user</td><td>User identifier concerned by the request.</td>
+</tr>
+</table>
+### CheckForPendingInvitationNewUsers
+
+Check pending invites.
+Lists pending invitations created for new users.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>acl</td><td></td>
+</tr>
+<tr>
+<td>mail</td><td>Email payload returned to the caller.</td>
+</tr>
+</table>
+### checkIfDeleteIsPermitted
+
+Check delete permission.
+Ensures the caller can delete the targeted document.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>doc</td><td></td>
+</tr>
+</table>
+### CreatePublicUserAddGroupe
+
+Create public user.
+Creates an anonymous user and grants access to a group.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>deleteControlDoc</td><td>Flag deciding whether control documents must be erased.</td>
+</tr>
+<tr>
+<td>doc</td><td></td>
+</tr>
+</table>
+### data_integrity_accessRights_check_between_edition_published_pwa_doc_anonymous
+
+Check access rights integrity.
+Compares edition, published and anonymous docs to detect access-right mismatches.
+
+### data_integrity_collabsResponse_check_between_edition_published
+
+Check collab response integrity.
+Ensures collaborator responses match between edition and published docs.
+
+### data_integrity_collabsResponse_check_between_forms_and_response
+
+Check collab response links.
+Validates collab response linkage between forms and responses databases.
+
+### data_integrity_collabsResponse_repair_between_forms_and_response
+
+Repair collab response links.
+Repairs inconsistencies between forms and response documents.
+
+### delete_all_templates
+
+Delete all templates.
+Purges all template documents from the project.
+
+### DeleteB64FromExistingResponses
+
+Delete response B64.
+Removes base64 data from existing response attachments.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>chunkSize</td><td>Maximum number of documents processed per batch.</td>
+</tr>
+<tr>
+<td>execute</td><td>True to run the sequence in apply mode.</td>
+</tr>
+</table>
+### DeleteUser
+
+Delete user.
+Removes a user account and related ACL references.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>user</td><td>User identifier concerned by the request.</td>
+</tr>
+</table>
+### downloadFile
+
+Download file.
+Streams a file attachment from the FullSync database.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>documentName</td><td></td>
+</tr>
+<tr>
+<td>filename</td><td>Filename of the processed attachment.</td>
+</tr>
+</table>
+### Execute_Sequences
+
+Run maintenance jobs.
+Sequentially executes the maintenance sequences configured for the project.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>doc</td><td></td>
+</tr>
+</table>
+### ForgotPassword
+
+Send reset mail.
+Generates a reset token and emails the password recovery link.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>email</td><td>Email address targeted by the sequence.</td>
+</tr>
+<tr>
+<td>emailBody</td><td>Email body template for notifications.</td>
+</tr>
+<tr>
+<td>emailLogo</td><td>Email logo URL used inside templates.</td>
+</tr>
+<tr>
+<td>emailSubject</td><td>Email subject template.</td>
+</tr>
+<tr>
+<td>newPassword</td><td>New password to be set</td>
+</tr>
+<tr>
+<td>passwordResetKey</td><td>Password reset key</td>
+</tr>
+<tr>
+<td>targetApplicationName</td><td>Email where to send the reset password link to</td>
+</tr>
+</table>
+### GeneratePwaAsset
+
+Generate PWA assets.
+Processes images to generate icons, splash screens and runtime metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>doc</td><td></td>
+</tr>
+<tr>
+<td>from_start_server</td><td>True when invocation happens from server start hook.</td>
+</tr>
+<tr>
+<td>threads</td><td>Number of worker threads to use for job execution.</td>
+</tr>
+</table>
+### getAnonymousForm
+
+Get anonymous form.
+Returns the anonymous version of a published form.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>login</td><td>Login identifier submitted by the user.</td>
+</tr>
+</table>
+### getAvailableAuthModeForLogin
+
+List auth modes.
+Lists authentication modes available to the login page.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>AD</td><td>Whether Active Directory login is requested.</td>
+</tr>
+<tr>
+<td>autoCheckActiveDirectory</td><td>Flag enabling automatic Active Directory lookup.</td>
+</tr>
+<tr>
+<td>cloudBranding</td><td>Branding identifier applied to the cloud deployment.</td>
+</tr>
+<tr>
+<td>hideConvertigoLogin</td><td>Flag hiding the Convertigo login page.</td>
+</tr>
+<tr>
+<td>hidePasswordForgotten</td><td>Flag hiding the password forgotten link.</td>
+</tr>
+<tr>
+<td>Identifier</td><td>Identifier of the target record or user.</td>
+</tr>
+<tr>
+<td>loginAdLabel</td><td>Active Directory label shown on login page.</td>
+</tr>
+<tr>
+<td>openIdBrand</td><td>Brand identifier used during OpenID login.</td>
+</tr>
+</table>
+### getBrevoChatId
+
+Get Brevo chat id.
+Retrieves the Brevo conversations identifier for the user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>aiVisible</td><td>Flag indicating AI related features visibility.</td>
+</tr>
+<tr>
+<td>BrevoConversationsID</td><td>Brevo conversations identifier used for chat handoff.</td>
+</tr>
+<tr>
+<td>EnableProductTour</td><td>Flag enabling the product tour for the user.</td>
+</tr>
+<tr>
+<td>legacyLogo</td><td>Legacy logo URL to migrate.</td>
+</tr>
+</table>
+### getConvertigoUrl
+
+Get Convertigo URL.
+Returns the base Convertigo endpoint configured for the app.
+
+### getCSVDefaultCharacterSet
+
+Get CSV charset.
+Returns the default character set used for CSV exports.
+
+### getCurrentUserSettings
+
+Get user settings.
+Loads the settings document for the connected user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>editing_apps_default_rights</td><td>Default editing rights for applications.</td>
+</tr>
+<tr>
+<td>formulas_default_rights</td><td>Default rights for formula based widgets.</td>
+</tr>
+<tr>
+<td>no_code_db_default_rights</td><td>Default rights for no-code database elements.</td>
+</tr>
+<tr>
+<td>publication</td><td>Publication flag or structure applied to the form.</td>
+</tr>
+</table>
+### getGDRPmenu
+
+Get GDPR menu.
+Returns GDPR menu content stored in settings.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>symbol</td><td>Symbol or tag referencing a statistic axis.</td>
+</tr>
+</table>
+### getGDRPtoast
+
+Get GDPR toast.
+Returns GDPR toast configuration for display.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>symbol</td><td>Symbol or tag referencing a statistic axis.</td>
+</tr>
+</table>
+### getInactiveForms
+
+List inactive forms.
+Lists forms marked as inactive or archived.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>monthsAgo</td><td>Number of months to look back in stats.</td>
+</tr>
+</table>
+### getKnownUsers
+
+List known users.
+Returns all known users for sharing and invitations.
+
+### GetLanguage
+
+Get language.
+Returns the language preferences of the current user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>email</td><td>Email address targeted by the sequence.</td>
+</tr>
+</table>
+### GetSequences
+
+List sequences.
+Returns a list of sequences that can be triggered remotely.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>projectFilter</td><td>Project filter applied to stats queries.</td>
+</tr>
+<tr>
+<td>sequenceFilter</td><td>Filter selecting which sequences to execute.</td>
+</tr>
+<tr>
+<td>type</td><td>Type of element processed (form, folder, etc.).</td>
+</tr>
+<tr>
+<td>variableFilter</td><td>Filter used to select variables in maintenance flows.</td>
+</tr>
+</table>
+### getTinyMaxs
+
+Get TinyMCE limits.
+Returns TinyMCE text and image size limits.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>error_message</td><td>Error message to log or forward.</td>
+</tr>
+<tr>
+<td>max_size</td><td>Maximum allowed attachment size in bytes.</td>
+</tr>
+<tr>
+<td>warn_message</td><td>Warning message shown to the user.</td>
+</tr>
+</table>
+### GroupsOf
+
+List user groups.
+Lists the groups the given user belongs to.
+
+### HasProject
+
+Check project ownership.
+Verifies that the requester owns the current project.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>projectName</td><td>Convertigo project name referenced by the request.</td>
+</tr>
+</table>
+### importTemplates
+
+Import templates.
+Imports template documents from provided archives.
+
+### initAllPWAS
+
+Init all PWAs.
+Regenerates all PWA artifacts from stored forms.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>from_start_server</td><td>True when invocation happens from server start hook.</td>
+</tr>
+<tr>
+<td>threads</td><td>Number of worker threads to use for job execution.</td>
+</tr>
+</table>
+### InsertNotifIntoCurrentUser
+
+Insert notification.
+Adds a notification entry into the current user's document.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>formId</td><td>Identifier of the form being handled.</td>
+</tr>
+<tr>
+<td>id</td><td>Generic identifier for the targeted resource.</td>
+</tr>
+<tr>
+<td>status</td><td>Status value to apply to the document.</td>
+</tr>
+<tr>
+<td>targetId</td><td>Target document or user identifier.</td>
 </tr>
 <tr>
 <td>targetName</td><td></td>
 </tr>
 <tr>
-<td>type</td><td></td>
+<td>type</td><td>Type of element processed (form, folder, etc.).</td>
 </tr>
 </table>
-##### PostDocumentCreateUserSettings
+### listAllPWAsUrls
+
+List PWA URLs.
+Lists accessible URLs for every generated PWA.
+
+### Login
+
+Login user.
+Authenticates using internal credentials and returns session data.
 
 **variables**
 
@@ -966,49 +2267,76 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_c8oAcl</td><td></td>
+<td>email</td><td>Email address targeted by the sequence.</td>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>password</td><td>Password submitted by the user.</td>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>secretL</td><td>Shared secret used by legacy authentication flows.</td>
+</tr>
+</table>
+### LoginAD
+
+Login with AD.
+Performs Active Directory login and mirrors user data.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>c8o_view_type_users</td><td></td>
+<td>email</td><td>Email address targeted by the sequence.</td>
 </tr>
 <tr>
-<td>displayName</td><td></td>
+<td>group_ad_login</td><td>Active Directory group login value.</td>
 </tr>
 <tr>
-<td>editing_rights</td><td></td>
+<td>LDAP</td><td>Raw LDAP payload received from the identity provider.</td>
 </tr>
 <tr>
-<td>favorites</td><td></td>
+<td>password</td><td>Password submitted by the user.</td>
 </tr>
 <tr>
-<td>language</td><td></td>
+<td>secretL</td><td>Shared secret used by legacy authentication flows.</td>
+</tr>
+</table>
+### LoginGoogle
+
+Login with Google.
+Handles Google OAuth callback and authenticates the user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>mail</td><td></td>
+<td>decodedToken</td><td>Decoded identity token payload.</td>
 </tr>
 <tr>
-<td>name</td><td></td>
+<td>displayName</td><td>Display name for the user or group.</td>
+</tr>
+<tr>
+<td>lang</td><td>Language code ISO used for localisation.</td>
+</tr>
+<tr>
+<td>name</td><td>Human readable name of the target entity.</td>
 </tr>
 <tr>
 <td>picture</td><td></td>
 </tr>
 <tr>
-<td>provider</td><td></td>
-</tr>
-<tr>
-<td>published_First</td><td></td>
-</tr>
-<tr>
-<td>surname</td><td></td>
+<td>surname</td><td>Surname or last name of the user.</td>
 </tr>
 </table>
-##### PostDocumentFromAclKey
+### LoginLinkedIn
+
+Login with LinkedIn.
+Handles LinkedIn OAuth callback and authenticates the user.
 
 **variables**
 
@@ -1017,58 +2345,31 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_c8oAcl</td><td></td>
+<td>decodedToken</td><td>Decoded identity token payload.</td>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>displayName</td><td>Display name for the user or group.</td>
 </tr>
 <tr>
-<td>_use_merge</td><td></td>
+<td>isTrial</td><td>Flag telling if the user is a trial account.</td>
 </tr>
 <tr>
-<td>actions</td><td></td>
+<td>lang</td><td>Language code ISO used for localisation.</td>
 </tr>
 <tr>
-<td>c8oGrp</td><td></td>
+<td>mail</td><td>Email payload returned to the caller.</td>
 </tr>
 <tr>
-<td>creator</td><td></td>
+<td>name</td><td>Human readable name of the target entity.</td>
 </tr>
 <tr>
-<td>descform</td><td></td>
-</tr>
-<tr>
-<td>descformPosition</td><td></td>
-</tr>
-<tr>
-<td>formulaire</td><td></td>
-</tr>
-<tr>
-<td>name</td><td></td>
-</tr>
-<tr>
-<td>namePosition</td><td></td>
-</tr>
-<tr>
-<td>pages</td><td></td>
-</tr>
-<tr>
-<td>parentId</td><td></td>
-</tr>
-<tr>
-<td>parentRev</td><td></td>
-</tr>
-<tr>
-<td>respNameRequired</td><td></td>
-</tr>
-<tr>
-<td>version</td><td></td>
-</tr>
-<tr>
-<td>wallpaper</td><td></td>
+<td>surname</td><td>Surname or last name of the user.</td>
 </tr>
 </table>
-##### PostDocumentFromAclKeyMerge
+### LoginMicrosoft
+
+Login with Microsoft.
+Handles Azure AD OAuth callback and authenticates the user.
 
 **variables**
 
@@ -1077,58 +2378,25 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_c8oAcl</td><td></td>
+<td>decodedToken</td><td>Decoded identity token payload.</td>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>displayName</td><td></td>
 </tr>
 <tr>
-<td>_use_merge</td><td></td>
+<td>lang</td><td>Language code ISO used for localisation.</td>
 </tr>
 <tr>
-<td>actions</td><td></td>
+<td>name</td><td>Human readable name of the target entity.</td>
 </tr>
 <tr>
-<td>c8oGrp</td><td></td>
-</tr>
-<tr>
-<td>creator</td><td></td>
-</tr>
-<tr>
-<td>descform</td><td></td>
-</tr>
-<tr>
-<td>descformPosition</td><td></td>
-</tr>
-<tr>
-<td>formulaire</td><td></td>
-</tr>
-<tr>
-<td>name</td><td></td>
-</tr>
-<tr>
-<td>namePosition</td><td></td>
-</tr>
-<tr>
-<td>pages</td><td></td>
-</tr>
-<tr>
-<td>parentId</td><td></td>
-</tr>
-<tr>
-<td>parentRev</td><td></td>
-</tr>
-<tr>
-<td>respNameRequired</td><td></td>
-</tr>
-<tr>
-<td>version</td><td></td>
-</tr>
-<tr>
-<td>wallpaper</td><td></td>
+<td>surname</td><td>Surname or last name of the user.</td>
 </tr>
 </table>
-##### PostDocumentJSONBASE
+### LoginOpenID
+
+Login with OpenID.
+Performs OpenID Connect authentication and stores tokens.
 
 **variables**
 
@@ -1137,13 +2405,40 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_c8oAcl</td><td></td>
+<td>decodedToken</td><td>Decoded identity token payload.</td>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>displayName</td><td>Display name for the user or group.</td>
+</tr>
+<tr>
+<td>mail</td><td></td>
+</tr>
+<tr>
+<td>name</td><td>Human readable name of the target entity.</td>
+</tr>
+<tr>
+<td>surname</td><td>Surname or last name of the user.</td>
 </tr>
 </table>
-##### PostDocumentJsonBaseKeepACL
+### Logout
+
+Logout user.
+Clears session data and revokes tokens if needed.
+
+### MIgrateToAllPWA
+
+Migrate all PWAs.
+Migrates existing apps to the unified PWA deployment.
+
+### MigrationApiV2
+
+Run API v2 migration.
+Ensures data structures comply with API v2 requirements.
+
+### NotifyNewUsersSharing
+
+Notify new users.
+Sends sharing notifications to newly invited users.
 
 **variables**
 
@@ -1152,13 +2447,22 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>body</td><td>Email body or message payload.</td>
 </tr>
 <tr>
-<td>_use_merge</td><td></td>
+<td>emails</td><td>Collection of email addresses to process.</td>
+</tr>
+<tr>
+<td>idDoc</td><td></td>
+</tr>
+<tr>
+<td>subject</td><td>Email subject line to send.</td>
 </tr>
 </table>
-##### PostDocumentJsonBaseOverride
+### NotifyResponseByMail
+
+Mail response notification.
+Builds and sends email notifications for form responses.
 
 **variables**
 
@@ -1167,13 +2471,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
-</tr>
-<tr>
-<td>_use_merge</td><td></td>
+<td>doc</td><td></td>
 </tr>
 </table>
-##### PostDocumentMigrationAll
+### NotifyUsersSharing
+
+Notify collaborators.
+Alerts existing collaborators about sharing changes.
 
 **variables**
 
@@ -1182,16 +2486,24 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>body</td><td></td>
 </tr>
 <tr>
-<td>subTag</td><td></td>
+<td>grps</td><td>List of group identifiers stored on the document.</td>
 </tr>
 <tr>
-<td>tag</td><td></td>
+<td>subject</td><td>Email subject line to send.</td>
 </tr>
 </table>
-##### PostDocumentMigrationDraft
+### Ping
+
+Ping endpoint.
+Returns a simple pong node for health checks.
+
+### RemoveNewUserSharing
+
+Remove pending share.
+Cancels pending sharing invitations for new users.
 
 **variables**
 
@@ -1200,13 +2512,13 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>c8o_view_type_drafts_form</td><td></td>
+<td>id</td><td></td>
 </tr>
 </table>
-##### PostDocumentMigrationPublished
+### RemoveUserFromGroup
+
+Remove user from group.
+Removes a user from a group and updates ACLs.
 
 **variables**
 
@@ -1215,13 +2527,16 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>group</td><td></td>
 </tr>
 <tr>
-<td>c8o_view_type_published_form</td><td></td>
+<td>user</td><td>User identifier concerned by the request.</td>
 </tr>
 </table>
-##### PostDocumentMigrationPublished11
+### SetLanguage
+
+Set language.
+Updates the preferred language of the current user.
 
 **variables**
 
@@ -1230,244 +2545,1320 @@ Fullsync connector that holds all forms and user settings
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>c8o_view_type_published_form</td><td></td>
-</tr>
-</table>
-##### PostDocumentMigrationUsers
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>c8o_view_type_users</td><td></td>
-</tr>
-</table>
-##### PostDocumentMigrationUsersModif
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>c8o_view_type_usersModif</td><td></td>
-</tr>
-</table>
-##### PostDocumentPolicyMerge
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>sharedAnonymous</td><td></td>
-</tr>
-</table>
-##### PostDocumentPublicFormJSONbase
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_use_json_base</td><td></td>
-</tr>
-</table>
-##### PostDocumentSetDone
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>done</td><td></td>
-</tr>
-</table>
-##### PostDocumentSetPWAEnabled
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>pwa_enabled</td><td></td>
-</tr>
-<tr>
-<td>pwa_subPath</td><td></td>
-</tr>
-</table>
-##### PostDocumentSetStatus
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>status</td><td></td>
-</tr>
-</table>
-##### PostDocumentUpdateRights
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_c8oAcl</td><td></td>
-</tr>
-<tr>
-<td>_id</td><td></td>
-</tr>
-<tr>
-<td>editing_rights</td><td></td>
-</tr>
-</table>
-##### PostFind
-
-##### PurgeDatabase
-
-##### PutDocumentAttachment
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_use_attname</td><td></td>
-</tr>
-<tr>
-<td>_use_attpath</td><td></td>
-</tr>
-<tr>
-<td>_use_docid</td><td></td>
-</tr>
-</table>
-##### PutDocumentAttachmentFromBase64
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_use_attbase64</td><td></td>
-</tr>
-<tr>
-<td>_use_attcontent_type</td><td></td>
-</tr>
-<tr>
-<td>_use_attname</td><td></td>
-</tr>
-<tr>
-<td>_use_docid</td><td></td>
-</tr>
-</table>
-##### PutDocumentAttachmentFromFile
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_use_attcontent_type</td><td></td>
-</tr>
-<tr>
-<td>_use_attname</td><td></td>
-</tr>
-<tr>
-<td>_use_attpath</td><td></td>
-</tr>
-<tr>
-<td>_use_docid</td><td></td>
-</tr>
-</table>
-##### PutDocumentAttachmentOK
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_use_attcontent_type</td><td></td>
-</tr>
-<tr>
-<td>_use_attname</td><td></td>
-</tr>
-<tr>
-<td>_use_attpath</td><td></td>
-</tr>
-<tr>
-<td>_use_docid</td><td></td>
-</tr>
-</table>
-##### SetLanguage
-
-**variables**
-
-<table
-<tr>
-<th>name</th><th>comment</th>
-</tr>
-<tr>
-<td>_id</td><td></td>
+<td>email</td><td>Email address targeted by the sequence.</td>
 </tr>
 <tr>
 <td>language</td><td></td>
 </tr>
 </table>
+### SetUserInGroup
+
+Assign user to group.
+Adds a user to a group and refreshes ACL caches.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>group</td><td></td>
+</tr>
+<tr>
+<td>user</td><td>User identifier concerned by the request.</td>
+</tr>
+</table>
+### submitResponseAnonymous
+
+Submit anonymous response.
+Stores an anonymous response and handles confirmation flows.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>actions</td><td>List of actions to execute sequentially.</td>
+</tr>
+<tr>
+<td>files</td><td></td>
+</tr>
+<tr>
+<td>filesInfo</td><td>JSON metadata about files to manage.</td>
+</tr>
+<tr>
+<td>formId</td><td>Identifier of the form being handled.</td>
+</tr>
+<tr>
+<td>formRev</td><td>Revision of the form document.</td>
+</tr>
+<tr>
+<td>grp</td><td>Group metadata object to update.</td>
+</tr>
+<tr>
+<td>login</td><td>Login identifier submitted by the user.</td>
+</tr>
+<tr>
+<td>myId</td><td>Current user identifier used to personalise the request.</td>
+</tr>
+<tr>
+<td>resp</td><td>Response document payload to process.</td>
+</tr>
+<tr>
+<td>timestamp</td><td>Timestamp used for caching control.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string applied to the project or document.</td>
+</tr>
+</table>
+### usersOf
+
+Users of group.
+Returns the users associated with a given group.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>group</td><td></td>
+</tr>
+</table>
+## Connectors
+
+### c8oforms_fs
+
+Forms fullsync store.
+CouchDB FullSync connector storing forms, settings, and shared metadata.
+
+#### Transactions
+
+##### DeleteDocument
+
+Delete form document.
+Deletes a document from c8oforms_fs using the provided id.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### GetDocument
+
+Get form document.
+Fetches a document from c8oforms_fs by id with optional test coverage.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### GetDocumentAttachment
+
+Get attachment by path.
+Streams an attachment by name and path from c8oforms_fs.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
+</tr>
+<tr>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+<tr>
+<td>_use_rev</td><td>Revision token of the targeted document.</td>
+</tr>
+</table>
+##### GetDocumentAttachment1
+
+Get attachment by name.
+Retrieves an attachment solely by document id and name.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
+</tr>
+<tr>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### GetDocumentAttachmentB64
+
+Get attachment as base64.
+Returns an attachment encoded as base64 for inline transfers.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### GetDocumentRev
+
+Get document revision.
+Fetches a document by id and revision for optimistic locking.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+<tr>
+<td>_use_rev</td><td>Revision token of the targeted document.</td>
+</tr>
+</table>
+##### GetServerInfo
+
+Get server info.
+Retrieves CouchDB server information for health checks.
+
+##### GetServerInfo1
+
+Get server info copy.
+Alternative server info accessor kept for backward compatibility.
+
+##### GetUsersByACL
+
+List users by ACL.
+Queries view usersV2/byACL to resolve user membership from ACL entries.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_ddoc</td><td>Design document identifier to query.</td>
+</tr>
+<tr>
+<td>_use_include_docs</td><td>Whether to embed full documents in the view response.</td>
+</tr>
+<tr>
+<td>_use_keys</td><td>List of keys used to filter view results.</td>
+</tr>
+<tr>
+<td>_use_view</td><td>Name of the view to execute.</td>
+</tr>
+</table>
+##### GetView
+
+Run integrity view.
+Executes data_integrity/check_published_collabResponse_groups with long timeout.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_ddoc</td><td>Design document identifier to query.</td>
+</tr>
+<tr>
+<td>_use_descending</td><td>Return view rows in descending key order when true.</td>
+</tr>
+<tr>
+<td>_use_group</td><td>Whether to group reduced view results.</td>
+</tr>
+<tr>
+<td>_use_group_level</td><td>Group level used when reducing view rows.</td>
+</tr>
+<tr>
+<td>_use_reduce</td><td>Whether to apply the reduce function on the view.</td>
+</tr>
+<tr>
+<td>_use_view</td><td>Name of the view to execute.</td>
+</tr>
+</table>
+##### GetViewAuth
+
+Run authentication view.
+Calls authentication/distinctGroups grouped to inspect group usage.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_group</td><td>Whether to group reduced view results.</td>
+</tr>
+<tr>
+<td>_use_group_level</td><td>Group level used when reducing view rows.</td>
+</tr>
+<tr>
+<td>_use_keys</td><td>List of keys used to filter view results.</td>
+</tr>
+<tr>
+<td>_use_reduce</td><td>Whether to apply the reduce function on the view.</td>
+</tr>
+</table>
+##### GetViewByKeys
+
+Run view by keys.
+Executes the formsV2 view with an explicit keys list.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_ddoc</td><td>Design document identifier to query.</td>
+</tr>
+<tr>
+<td>_use_keys</td><td>List of keys used to filter view results.</td>
+</tr>
+<tr>
+<td>_use_view</td><td>Name of the view to execute.</td>
+</tr>
+</table>
+##### GetViewIncludeDocs
+
+Run view including docs.
+Loads formsV2 view entries while embedding full documents.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_ddoc</td><td>Design document identifier to query.</td>
+</tr>
+<tr>
+<td>_use_include_docs</td><td>Whether to embed full documents in the view response.</td>
+</tr>
+<tr>
+<td>_use_view</td><td>Name of the view to execute.</td>
+</tr>
+</table>
+##### GetViewPublishedbyAcl
+
+Run published-by-ACL view.
+Queries published_forms/distinct_by_acl to list ACL driven publications.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_ddoc</td><td>Design document identifier to query.</td>
+</tr>
+<tr>
+<td>_use_key</td><td>Single key used to filter view results.</td>
+</tr>
+<tr>
+<td>_use_view</td><td>Name of the view to execute.</td>
+</tr>
+</table>
+##### HeadDocument
+
+Head form document.
+Performs a HEAD request on a document to check its existence.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### PostBulkDocuments_1
+
+Bulk merge documents.
+Merges a batch of documents into c8oforms_fs with merge policy.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+</table>
+##### PostDocument
+
+Post document.
+Creates or updates a document with merge policy and metadata protections.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
+</tr>
+<tr>
+<td>actions</td><td>Array of actions executed by the connector call.</td>
+</tr>
+<tr>
+<td>c8o_view_type_published_form</td><td>Flag identifying published form documents.</td>
+</tr>
+<tr>
+<td>c8oGrp</td><td>Group membership map attached to the document.</td>
+</tr>
+<tr>
+<td>collabs</td><td>Collaborators array stored on the form.</td>
+</tr>
+<tr>
+<td>collabsResponse</td><td>Collaborators allowed to read responses.</td>
+</tr>
+<tr>
+<td>creationDate</td><td>Creation timestamp saved on the document.</td>
+</tr>
+<tr>
+<td>creator</td><td>Creator identifier tied to the document.</td>
+</tr>
+<tr>
+<td>descform</td><td>Long description of the form.</td>
+</tr>
+<tr>
+<td>descformPosition</td><td>Display order for the form description.</td>
+</tr>
+<tr>
+<td>formulaire</td><td>Serialized form definition payload.</td>
+</tr>
+<tr>
+<td>lastMofification</td><td>Timestamp of the last modification.</td>
+</tr>
+<tr>
+<td>name</td><td>Name of the entity written into the document.</td>
+</tr>
+<tr>
+<td>namePosition</td><td>Display order for the name field.</td>
+</tr>
+<tr>
+<td>pages</td><td>Serialized page definitions for the form.</td>
+</tr>
+<tr>
+<td>parentId</td><td>Parent document identifier in the hierarchy.</td>
+</tr>
+<tr>
+<td>parentRev</td><td>Parent revision reference used during migration.</td>
+</tr>
+<tr>
+<td>pwa_enabled</td><td>Flag enabling PWA generation for the form.</td>
+</tr>
+<tr>
+<td>pwa_subPath</td><td>Sub-path used to host the generated PWA.</td>
+</tr>
+<tr>
+<td>respNameRequired</td><td>Flag making response name mandatory.</td>
+</tr>
+<tr>
+<td>sharedAnonymous</td><td>Flag enabling anonymous sharing on the form.</td>
+</tr>
+<tr>
+<td>subTag</td><td>Secondary tag set on the document.</td>
+</tr>
+<tr>
+<td>tag</td><td>Tag label applied to the form.</td>
+</tr>
+<tr>
+<td>thumbnail</td><td>Thumbnail metadata or payload stored with the document.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string of the migrated document.</td>
+</tr>
+<tr>
+<td>wallpaper</td><td>Wallpaper metadata or payload stored with the document.</td>
+</tr>
+</table>
+##### PostDocument1
+
+Post document (raw).
+Posts a document with keep-attachments flag for specialized flows.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
+</tr>
+<tr>
+<td>actions</td><td>Array of actions executed by the connector call.</td>
+</tr>
+<tr>
+<td>c8o_view_type_published_form</td><td>Flag identifying published form documents.</td>
+</tr>
+<tr>
+<td>c8oGrp</td><td>Group membership map attached to the document.</td>
+</tr>
+<tr>
+<td>collabs</td><td>Collaborators array stored on the form.</td>
+</tr>
+<tr>
+<td>collabsResponse</td><td>Collaborators allowed to read responses.</td>
+</tr>
+<tr>
+<td>creationDate</td><td>Creation timestamp saved on the document.</td>
+</tr>
+<tr>
+<td>creator</td><td>Creator identifier tied to the document.</td>
+</tr>
+<tr>
+<td>descform</td><td>Long description of the form.</td>
+</tr>
+<tr>
+<td>descformPosition</td><td>Display order for the form description.</td>
+</tr>
+<tr>
+<td>formulaire</td><td>Serialized form definition payload.</td>
+</tr>
+<tr>
+<td>lastMofification</td><td>Timestamp of the last modification.</td>
+</tr>
+<tr>
+<td>name</td><td>Name of the entity written into the document.</td>
+</tr>
+<tr>
+<td>namePosition</td><td>Display order for the name field.</td>
+</tr>
+<tr>
+<td>pages</td><td>Serialized page definitions for the form.</td>
+</tr>
+<tr>
+<td>parentId</td><td>Parent document identifier in the hierarchy.</td>
+</tr>
+<tr>
+<td>parentRev</td><td>Parent revision reference used during migration.</td>
+</tr>
+<tr>
+<td>pwa_enabled</td><td>Flag enabling PWA generation for the form.</td>
+</tr>
+<tr>
+<td>pwa_subPath</td><td>Sub-path used to host the generated PWA.</td>
+</tr>
+<tr>
+<td>respNameRequired</td><td>Flag making response name mandatory.</td>
+</tr>
+<tr>
+<td>sharedAnonymous</td><td>Flag enabling anonymous sharing on the form.</td>
+</tr>
+<tr>
+<td>subTag</td><td>Secondary tag set on the document.</td>
+</tr>
+<tr>
+<td>tag</td><td>Tag label applied to the form.</td>
+</tr>
+<tr>
+<td>thumbnail</td><td>Thumbnail metadata or payload stored with the document.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string of the migrated document.</td>
+</tr>
+<tr>
+<td>wallpaper</td><td>Wallpaper metadata or payload stored with the document.</td>
+</tr>
+</table>
+##### PostDocument_PWA
+
+Post PWA document.
+Stores generated PWA metadata and assets.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
+</tr>
+<tr>
+<td>backgroundColor</td><td>Background color value stored with the document.</td>
+</tr>
+<tr>
+<td>c8o_view_type_pwa_document</td><td>Flag identifying generated PWA documents.</td>
+</tr>
+<tr>
+<td>name</td><td>Name of the entity written into the document.</td>
+</tr>
+<tr>
+<td>notAnonymous</td><td>Flag forcing authenticated access to the document.</td>
+</tr>
+<tr>
+<td>originalFormId</td><td>Original form identifier referenced by the record.</td>
+</tr>
+<tr>
+<td>querystr</td><td>Query string appended when calling the view.</td>
+</tr>
+<tr>
+<td>shortName</td><td>Short name used in lists and menus.</td>
+</tr>
+<tr>
+<td>targetId</td><td>Target identifier referenced by the notification.</td>
+</tr>
+<tr>
+<td>themeColor</td><td>Theme color applied to the generated PWA.</td>
+</tr>
+</table>
+##### PostDocument_restore_deleted
+
+Restore deleted form.
+Restores a previously deleted document by clearing _deleted flag.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>data</td><td>Main data payload written to the document.</td>
+</tr>
+</table>
+##### PostDocumentAddArgc8o_view_type_pwa_document
+
+Flag PWA document.
+Marks a document with the PWA view type during creation.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>c8o_view_type_pwa_document</td><td>Flag identifying generated PWA documents.</td>
+</tr>
+<tr>
+<td>targetId</td><td>Target identifier referenced by the notification.</td>
+</tr>
+</table>
+##### PostDocumentBaserowPassword
+
+Save Baserow password.
+Stores hashed Baserow credentials in the connector.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>password</td><td>Password or secret associated with the record.</td>
+</tr>
+</table>
+##### PostDocumentCreateNotif
+
+Create notification doc.
+Adds notification documents for user alerts.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>c8o_view_type_notification</td><td>Flag identifying notification documents.</td>
+</tr>
+<tr>
+<td>date</td><td>Timestamp or date value stored during migration.</td>
+</tr>
+<tr>
+<td>formId</td><td>Identifier of the parent form document.</td>
+</tr>
+<tr>
+<td>new</td><td>Flag telling whether the record is newly created.</td>
+</tr>
+<tr>
+<td>status</td><td>Workflow status value of the form.</td>
+</tr>
+<tr>
+<td>targetId</td><td>Target identifier referenced by the notification.</td>
+</tr>
+<tr>
+<td>targetName</td><td>Human readable name of the target referenced item.</td>
+</tr>
+<tr>
+<td>type</td><td>Document type marker used by design documents.</td>
+</tr>
+</table>
+##### PostDocumentCreateUserSettings
+
+Create user settings.
+Initialises default user settings structures.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+<tr>
+<td>c8o_view_type_users</td><td>Flag identifying user documents.</td>
+</tr>
+<tr>
+<td>displayName</td><td>Display name saved for the target entity.</td>
+</tr>
+<tr>
+<td>editing_rights</td><td>Editing rights object merged into the document.</td>
+</tr>
+<tr>
+<td>favorites</td><td>List of favourites associated with the user.</td>
+</tr>
+<tr>
+<td>language</td><td>Language code stored on the document.</td>
+</tr>
+<tr>
+<td>mail</td><td>Email address stored on the document.</td>
+</tr>
+<tr>
+<td>name</td><td>Name of the entity written into the document.</td>
+</tr>
+<tr>
+<td>picture</td><td>Binary or base64 picture payload.</td>
+</tr>
+<tr>
+<td>provider</td><td>Name of the identity or external provider.</td>
+</tr>
+<tr>
+<td>published_First</td><td>Flag used during first publication of a form.</td>
+</tr>
+<tr>
+<td>surname</td><td>Surname stored on the user document.</td>
+</tr>
+</table>
+##### PostDocumentFromAclKey
+
+Post from ACL key.
+Creates a document using ACL information as base JSON.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
+</tr>
+<tr>
+<td>actions</td><td>Array of actions executed by the connector call.</td>
+</tr>
+<tr>
+<td>c8oGrp</td><td>Group membership map attached to the document.</td>
+</tr>
+<tr>
+<td>creator</td><td>Creator identifier tied to the document.</td>
+</tr>
+<tr>
+<td>descform</td><td>Long description of the form.</td>
+</tr>
+<tr>
+<td>descformPosition</td><td>Display order for the form description.</td>
+</tr>
+<tr>
+<td>formulaire</td><td>Serialized form definition payload.</td>
+</tr>
+<tr>
+<td>name</td><td>Name of the entity written into the document.</td>
+</tr>
+<tr>
+<td>namePosition</td><td>Display order for the name field.</td>
+</tr>
+<tr>
+<td>pages</td><td>Serialized page definitions for the form.</td>
+</tr>
+<tr>
+<td>parentId</td><td>Parent document identifier in the hierarchy.</td>
+</tr>
+<tr>
+<td>parentRev</td><td>Parent revision reference used during migration.</td>
+</tr>
+<tr>
+<td>respNameRequired</td><td>Flag making response name mandatory.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string of the migrated document.</td>
+</tr>
+<tr>
+<td>wallpaper</td><td>Wallpaper metadata or payload stored with the document.</td>
+</tr>
+</table>
+##### PostDocumentFromAclKeyMerge
+
+Merge from ACL key.
+Merges ACL-based JSON into an existing document.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
+</tr>
+<tr>
+<td>actions</td><td>Array of actions executed by the connector call.</td>
+</tr>
+<tr>
+<td>c8oGrp</td><td>Group membership map attached to the document.</td>
+</tr>
+<tr>
+<td>creator</td><td>Creator identifier tied to the document.</td>
+</tr>
+<tr>
+<td>descform</td><td>Long description of the form.</td>
+</tr>
+<tr>
+<td>descformPosition</td><td>Display order for the form description.</td>
+</tr>
+<tr>
+<td>formulaire</td><td>Serialized form definition payload.</td>
+</tr>
+<tr>
+<td>name</td><td>Name of the entity written into the document.</td>
+</tr>
+<tr>
+<td>namePosition</td><td>Display order for the name field.</td>
+</tr>
+<tr>
+<td>pages</td><td>Serialized page definitions for the form.</td>
+</tr>
+<tr>
+<td>parentId</td><td>Parent document identifier in the hierarchy.</td>
+</tr>
+<tr>
+<td>parentRev</td><td>Parent revision reference used during migration.</td>
+</tr>
+<tr>
+<td>respNameRequired</td><td>Flag making response name mandatory.</td>
+</tr>
+<tr>
+<td>version</td><td>Version string of the migrated document.</td>
+</tr>
+<tr>
+<td>wallpaper</td><td>Wallpaper metadata or payload stored with the document.</td>
+</tr>
+</table>
+##### PostDocumentJSONBASE
+
+Post JSON base.
+Posts documents using json_base template expansion.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+</table>
+##### PostDocumentJsonBaseKeepACL
+
+Post JSON base keep ACL.
+Posts documents while preserving existing ACL metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
+</tr>
+</table>
+##### PostDocumentJsonBaseOverride
+
+Post JSON base override.
+Posts documents overriding fields defined in the merge template.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
+</tr>
+</table>
+##### PostDocumentMigrationAll
+
+Migration - all docs.
+Pushes migration results for draft, published and response artifacts.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>subTag</td><td>Secondary tag set on the document.</td>
+</tr>
+<tr>
+<td>tag</td><td>Tag label applied to the form.</td>
+</tr>
+</table>
+##### PostDocumentMigrationDraft
+
+Migration - drafts.
+Writes migrated draft documents generated by scripts.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>c8o_view_type_drafts_form</td><td>Flag identifying draft form documents.</td>
+</tr>
+</table>
+##### PostDocumentMigrationPublished
+
+Migration - published.
+Stores migrated published documents for legacy upgrade.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>c8o_view_type_published_form</td><td>Flag identifying published form documents.</td>
+</tr>
+</table>
+##### PostDocumentMigrationPublished11
+
+Migration - published v11.
+Applies published-form adjustments for version 11 upgrade.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>c8o_view_type_published_form</td><td>Flag identifying published form documents.</td>
+</tr>
+</table>
+##### PostDocumentMigrationUsers
+
+Migration - users.
+Migrates user records into the new structure.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>c8o_view_type_users</td><td>Flag identifying user documents.</td>
+</tr>
+</table>
+##### PostDocumentMigrationUsersModif
+
+Migration - user updates.
+Stores incremental changes for migrated user records.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>c8o_view_type_usersModif</td><td>Flag identifying user modification documents.</td>
+</tr>
+</table>
+##### PostDocumentPolicyMerge
+
+Post with merge policy.
+Posts documents enforcing the merge policy supplied in variables.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>sharedAnonymous</td><td>Flag enabling anonymous sharing on the form.</td>
+</tr>
+</table>
+##### PostDocumentPublicFormJSONbase
+
+Post public form template.
+Creates public form documents using a JSON base.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+</table>
+##### PostDocumentSetDone
+
+Mark document done.
+Updates checklist status on migration helper documents.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>done</td><td>Boolean flag marking the record as completed.</td>
+</tr>
+</table>
+##### PostDocumentSetPWAEnabled
+
+Toggle PWA enabled.
+Sets the pwa_enabled flag and derived metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>pwa_enabled</td><td>Flag enabling PWA generation for the form.</td>
+</tr>
+<tr>
+<td>pwa_subPath</td><td>Sub-path used to host the generated PWA.</td>
+</tr>
+</table>
+##### PostDocumentSetStatus
+
+Update form status.
+Writes the status field for workflow transitions.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>status</td><td>Workflow status value of the form.</td>
+</tr>
+</table>
+##### PostDocumentUpdateRights
+
+Update rights document.
+Stores ACL changes and collaborator rights.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>editing_rights</td><td>Editing rights object merged into the document.</td>
+</tr>
+</table>
+##### PostFind
+
+Run Mango query.
+Executes a Mango query with custom selector and bookmark.
+
+##### PurgeDatabase
+
+Purge database.
+Issues purge calls to permanently remove deleted revisions.
+
+##### PutDocumentAttachment
+
+Put attachment (merge).
+Uploads or replaces an attachment with merge policy awareness.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
+</tr>
+<tr>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### PutDocumentAttachmentFromBase64
+
+Put attachment from base64.
+Uploads an attachment supplied as base64 content.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attbase64</td><td>Base64 encoded payload for attachment upload.</td>
+</tr>
+<tr>
+<td>_use_attcontent_type</td><td>MIME type applied to the attachment.</td>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### PutDocumentAttachmentFromFile
+
+Put attachment from file.
+Uploads an attachment from a server-side file path.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attcontent_type</td><td>MIME type applied to the attachment.</td>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
+</tr>
+<tr>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### PutDocumentAttachmentOK
+
+Confirm attachment update.
+Finalizes attachment upload returning metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attcontent_type</td><td>MIME type applied to the attachment.</td>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
+</tr>
+<tr>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
+##### SetLanguage
+
+Set language doc.
+Updates the language settings document stored in c8oforms_fs.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_id</td><td>Identifier of the document to process.</td>
+</tr>
+<tr>
+<td>language</td><td>Language code stored on the document.</td>
+</tr>
+</table>
 ### c8oforms_response_fs
 
-Fullsync connector that holds all responses
+Responses fullsync store.
+CouchDB FullSync connector storing submitted responses and related attachments.
 
 #### Transactions
 
 ##### AllDocs
 
+List all response docs.
+Lists response documents in bulk using _all_docs.
+
 ##### Generic_GetView
+
+Generic response view.
+Runs arbitrary response design views with provided identifiers.
 
 **variables**
 
@@ -1476,17 +3867,20 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_ddoc</td><td></td>
+<td>_use_ddoc</td><td>Design document identifier to query.</td>
 </tr>
 <tr>
-<td>_use_key</td><td></td>
+<td>_use_key</td><td>Single key used to filter view results.</td>
 </tr>
 <tr>
-<td>_use_view</td><td></td>
+<td>_use_view</td><td>Name of the view to execute.</td>
 </tr>
 </table>
 ##### GetDocument
 
+Get response document.
+Retrieves a response document by id.
+
 **variables**
 
 <table
@@ -1494,11 +3888,14 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
 </tr>
 </table>
 ##### GetDocumentAttachment
 
+Get response attachment.
+Streams attachments stored with a response.
+
 **variables**
 
 <table
@@ -1506,17 +3903,20 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_attname</td><td></td>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
 </tr>
 <tr>
-<td>_use_attpath</td><td></td>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
 </tr>
 </table>
 ##### GetDocumentRev
 
+Get response revision.
+Fetches a response document by id and revision.
+
 **variables**
 
 <table
@@ -1524,14 +3924,17 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
 </tr>
 <tr>
-<td>_use_rev</td><td></td>
+<td>_use_rev</td><td>Revision token of the targeted document.</td>
 </tr>
 </table>
 ##### GetResponseByFormId
 
+Responses by form id.
+Queries responsesByFormId view for a given form.
+
 **variables**
 
 <table
@@ -1539,12 +3942,18 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_key</td><td></td>
+<td>_use_key</td><td>Single key used to filter view results.</td>
 </tr>
 </table>
 ##### GetServerInfo
 
+Get server info.
+Retrieves CouchDB server details for diagnostics.
+
 ##### GetView
+
+Run response view.
+Runs Design_document/view for broad queries.
 
 **variables**
 
@@ -1553,11 +3962,14 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_key</td><td></td>
+<td>_use_key</td><td>Single key used to filter view results.</td>
 </tr>
 </table>
 ##### GetView1
 
+Run response view1.
+Runs Design_document/view1 for filtered queries.
+
 **variables**
 
 <table
@@ -1565,11 +3977,14 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_key</td><td></td>
+<td>_use_key</td><td>Single key used to filter view results.</td>
 </tr>
 </table>
 ##### GetView1_multiple
 
+Run response view1 multiple.
+Runs view1_multiple to load aggregated rows.
+
 **variables**
 
 <table
@@ -1577,11 +3992,14 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_key</td><td></td>
+<td>_use_key</td><td>Single key used to filter view results.</td>
 </tr>
 </table>
 ##### GetView1Pretty
 
+Run response view1 pretty.
+Runs view1_Pretty returning formatted rows.
+
 **variables**
 
 <table
@@ -1589,11 +4007,14 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_key</td><td></td>
+<td>_use_key</td><td>Single key used to filter view results.</td>
 </tr>
 </table>
 ##### GetViewNotOnMapOnly
 
+Run response view custom.
+Executes dynamic view lookups with grouping options.
+
 **variables**
 
 <table
@@ -1601,26 +4022,29 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_ddoc</td><td></td>
+<td>_use_ddoc</td><td>Design document identifier to query.</td>
 </tr>
 <tr>
-<td>_use_descending</td><td></td>
+<td>_use_descending</td><td>Return view rows in descending key order when true.</td>
 </tr>
 <tr>
-<td>_use_group</td><td></td>
+<td>_use_group</td><td>Whether to group reduced view results.</td>
 </tr>
 <tr>
-<td>_use_group_level</td><td></td>
+<td>_use_group_level</td><td>Group level used when reducing view rows.</td>
 </tr>
 <tr>
-<td>_use_reduce</td><td></td>
+<td>_use_reduce</td><td>Whether to apply the reduce function on the view.</td>
 </tr>
 <tr>
-<td>_use_view</td><td></td>
+<td>_use_view</td><td>Name of the view to execute.</td>
 </tr>
 </table>
 ##### PostBulkDocumentsMergeOverrideGrp
 
+Bulk merge responses.
+Merges response documents with override-capable policy.
+
 **variables**
 
 <table
@@ -1628,14 +4052,17 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
 </tr>
 <tr>
-<td>_use_merge</td><td></td>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
 </tr>
 </table>
 ##### PostDocument
 
+Post response document.
+Creates or updates a response document with merge policy.
+
 **variables**
 
 <table
@@ -1643,23 +4070,26 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_c8oAcl</td><td></td>
+<td>_c8oAcl</td><td>ACL metadata stored on the document.</td>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>_id</td><td>Identifier of the document to process.</td>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
 </tr>
 <tr>
-<td>c8oGrp</td><td></td>
+<td>c8oGrp</td><td>Group membership map attached to the document.</td>
 </tr>
 <tr>
-<td>resp</td><td></td>
+<td>resp</td><td>Response document payload handled by the transaction.</td>
 </tr>
 </table>
 ##### PostDocumentAttachmentB64IntoField
 
+Store attachment in field.
+Uploads base64 attachments into a document field.
+
 **variables**
 
 <table
@@ -1667,17 +4097,20 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>_id</td><td>Identifier of the document to process.</td>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
 </tr>
 <tr>
-<td>_use_merge</td><td></td>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
 </tr>
 </table>
 ##### PostDocumentJBASE
 
+Post JSON base response.
+Posts responses built from json_base template.
+
 **variables**
 
 <table
@@ -1685,14 +4118,17 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>_id</td><td>Identifier of the document to process.</td>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
 </tr>
 </table>
 ##### PostDocumentOverride
 
+Post response override.
+Posts responses overriding specified fields.
+
 **variables**
 
 <table
@@ -1700,18 +4136,24 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_id</td><td></td>
+<td>_id</td><td>Identifier of the document to process.</td>
 </tr>
 <tr>
-<td>_use_json_base</td><td></td>
+<td>_use_json_base</td><td>JSON base template used to build documents.</td>
 </tr>
 <tr>
-<td>_use_merge</td><td></td>
+<td>_use_merge</td><td>Merge policy instructions applied during bulk uploads.</td>
 </tr>
 </table>
 ##### PurgeDatabase
 
+Purge response database.
+Purges deleted revisions from the responses database.
+
 ##### PutDocumentAttachment
+
+Upload response attachment.
+Uploads attachments associated with a response id.
 
 **variables**
 
@@ -1720,23 +4162,26 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_attbase64</td><td></td>
+<td>_use_attbase64</td><td>Base64 encoded payload for attachment upload.</td>
 </tr>
 <tr>
-<td>_use_attcontent_type</td><td></td>
+<td>_use_attcontent_type</td><td>MIME type applied to the attachment.</td>
 </tr>
 <tr>
-<td>_use_attname</td><td></td>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
 </tr>
 <tr>
-<td>_use_attpath</td><td></td>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
 </tr>
 </table>
 ##### PutDocumentAttachmentFromFile
 
+Upload response attachment file.
+Uploads attachments from server-side files.
+
 **variables**
 
 <table
@@ -1744,16 +4189,16 @@ Fullsync connector that holds all responses
 <th>name</th><th>comment</th>
 </tr>
 <tr>
-<td>_use_attcontent_type</td><td></td>
+<td>_use_attcontent_type</td><td>MIME type applied to the attachment.</td>
 </tr>
 <tr>
-<td>_use_attname</td><td></td>
+<td>_use_attname</td><td>Attachment name to read or write.</td>
 </tr>
 <tr>
-<td>_use_attpath</td><td></td>
+<td>_use_attpath</td><td>File system path used to fetch attachment content.</td>
 </tr>
 <tr>
-<td>_use_docid</td><td></td>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
 </tr>
 </table>
 ## Rest Web Service

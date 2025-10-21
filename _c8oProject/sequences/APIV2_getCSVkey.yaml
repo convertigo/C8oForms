@@ -1,0 +1,81 @@
+accessibility: Hidden
+comment: |
+  Get CSV key.
+  Returns the CSV export key used to secure download links.
+↓Sequence_JS [steps.SimpleStep-1759311500931]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    var authenticatedUserID = context.getAuthenticatedUser();
+    
+    let loglevel = "warn";
+    let authGranted = false;
+    let db = "c8oforms_fs";
+    
+    var doc = getDoc(id, null, db);
+    // now check if doc is authorized for currentUser
+    if (doc._deleted == null && (((doc["~c8oAcl"] == null && doc.c8oGrp == null) || doc["~c8oAcl"] == authenticatedUserID)) || (doc["~c8oAcl"].indexOf("C8Oreserved_") == -1) && doc["~c8oAcl"].length == 64)  {
+       authGranted = true;
+    }
+    // if acl is not enough to grant access, check with used groups and doc.grp is not null
+    let grpIsArray = isArray(doc.c8oGrp);
+    let grpIsObject = isObject(doc.c8oGrp);
+    if (!authGranted && doc.c8oGrp != null && ((grpIsArray && doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(doc.c8oGrp).length > 0))) {
+       // call c8ofullsyncgrp =>  design/get_groups_by_user
+       query = new java.util.HashMap();
+       query.put(''reduce'', ''false'');
+       keys = toJettison([authenticatedUserID]);
+       rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
+    
+       // call c8oforms_fs =>  authentication/distinctGroups
+       query = new java.util.HashMap();
+       query.put(''reduce'', ''true'');
+       query.put(''group'', ''true'');
+       _use_keys = rows.map((x) => { return x.value });
+       keys = toJettison(_use_keys);
+       usedGroups = toJSON(fsclient.postView(db, ''authentication'', ''distinctGroups'', query, keys));
+       usedGroups = usedGroups.rows.map((x) => { return x.key });
+       if (usedGroups.length > 0 && ((grpIsArray && doc.c8oGrp.some(function (value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function (group) { return (doc.c8oGrp[group] == true || doc.c8oGrp[group] == "true") })))) {
+          authGranted = true;
+       }
+    }
+    if (!authGranted) {
+    	// check if its an admin
+    	try{
+    		include("js/isAdmin.js");
+    		authGranted = true;
+    	}
+    	catch(e){
+    		doc = null;
+    	}
+       
+    }
+    if (doc && doc.error) {
+       doc = null;
+    }
+    if (doc != null) {
+    	var myKey = sha256Base64(id + secretCSV);
+    }'
+↓object2 [steps.JsonToXmlStep-1759312841524]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: myKey
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓id [variables.RequestableVariable-1759312903583]: 
+  comment: Generic identifier for the targeted resource.
+↓secretCSV [variables.RequestableVariable-1759312999515]: 
+  comment: Shared secret protecting CSV export endpoints.
+  value: 
+    - ↑ciphered: true
+    - ↑traceable: false
+    - →→: xdc98be9b69416c3ca72546af1d4a57b685a1c306b83721ab9176ca0ffd0180616d79f2049b0777b1c07ec172695c9cb73712010fc51b6c7e21f45be57694f590a4f816c3996503379188ab04629c95fd8433dec20c026b245b6294d6bad06653
+  visibility: '-1'
