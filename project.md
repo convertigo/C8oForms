@@ -38,7 +38,7 @@ see [documentation](http://localhost:18080/convertigo/xsd/couchdb/CouchDb.xsd)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Actions_C8Oforms
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/master#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/07caf9c3c8e0214aed1921fb1e8170cc742c6c82#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_BaseRow</b></summary><blockquote><p>
@@ -47,7 +47,6 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/mast
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_BaseRow
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
@@ -56,7 +55,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/c6c6dd5e05c49c22490ed93e968eb6d4ada89c7a#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -65,7 +64,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_FullSyncGrp
 
 Reference to fs group
-see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/1363f51659be30b7a5d4a028c26ef7bcc4977430#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_GeneratePWAAssets</b></summary><blockquote><p>
@@ -74,7 +73,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/8.0.0#re
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_GeneratePWAAssets
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/a9679417ad75d0fb064159073b8a7965468755a6#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Geocoding_ui_ngx</b></summary><blockquote><p>
@@ -92,7 +91,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/390c
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Leaflet
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/26d47b16b4666d6da551b6c670a8fe153f613699#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
@@ -110,7 +109,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/8.0.0#readme)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ProductTour
 
 
-see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/8.4.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/7174edc040e7e4f88f458416db0025fe4194f224#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager</b> : Reference to secured login library</summary><blockquote><p>
@@ -119,7 +118,7 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/8.4.0#readme
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/4165b67b6746dac890221fcc54c362fbcbb375d9#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
@@ -146,7 +145,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-vonage-ui-ngx/tree/8.0.0#r
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") libApexCharts
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/484aa50e40843b27642a49464a0a5d76354c180e#readme)
 </p></blockquote></details>
 </p></blockquote></details>
 
@@ -8630,6 +8629,14 @@ Page to share a form, or add collaborators
 
 </p></blockquote></details>
 
+<details><summary><b>popoverToolbar</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") popoverToolbar
+
+
+</p></blockquote></details>
+
 <details><summary><b>PreviewMultiple</b></summary><blockquote><p>
 
 
@@ -11124,6 +11131,14 @@ Video tag identifier to output video camera. Default: 'video'. Optional
 
 </p></blockquote></details>
 
+<details><summary><b>adminHelpCenter</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") adminHelpCenter
+
+
+</p></blockquote></details>
+
 <details><summary><b>cardSelector</b></summary><blockquote><p>
 
 
@@ -11960,6 +11975,14 @@ comment
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isApplicationsDisplayed
+</td>
+<td>
+(String) - The current breakpoint (sm, xs, ...)
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isLoading
 </td>
 <td>
@@ -12092,6 +12115,22 @@ comment
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;icon
+</td>
+<td>
+(String) - The current breakpoint (sm, xs, ...)
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isApplicationsDisplayed
+</td>
+<td>
+(String) - The current breakpoint (sm, xs, ...)
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isExpanded
 </td>
 <td>
@@ -12164,6 +12203,14 @@ comment
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;type
+</td>
+<td>
+(String) - The current breakpoint (sm, xs, ...)
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;types
 </td>
 <td>
@@ -12206,6 +12253,14 @@ When fullpage mode have been changed
 </td>
 <td>
 When fullpage mode have been changed
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompevent_16x16.png?raw=true "  alt="UICompEvent" >&nbsp;onMetricsValues
+</td>
+<td>
+When data is fetched, we got send to parent the data for metrics
 </td>
 </tr>
 </table>
@@ -12439,6 +12494,22 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>editPermsModal</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") editPermsModal
+
+
+</p></blockquote></details>
+
+<details><summary><b>editUserModal</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") editUserModal
+
 
 </p></blockquote></details>
 
@@ -17844,6 +17915,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>PermissionsHeaderComponent</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PermissionsHeaderComponent
+
+
+</p></blockquote></details>
+
 <details><summary><b>PopoverFilters</b></summary><blockquote><p>
 
 
@@ -17871,6 +17950,22 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>PopoverGroupActions</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PopoverGroupActions
+
+
+</p></blockquote></details>
+
+<details><summary><b>PopoverGroupUserActions</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PopoverGroupUserActions
+
 
 </p></blockquote></details>
 
@@ -17917,6 +18012,14 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>PopoverPermissions</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PopoverPermissions
+
 
 </p></blockquote></details>
 
@@ -18001,6 +18104,14 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>PopoverUserActions</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") PopoverUserActions
+
 
 </p></blockquote></details>
 
@@ -18132,6 +18243,22 @@ comment
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>searchApp</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") searchApp
+
+
+</p></blockquote></details>
+
+<details><summary><b>seeProfilModal</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") seeProfilModal
+
 
 </p></blockquote></details>
 
@@ -19064,6 +19191,14 @@ comment
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isAdminGuideDisplayed
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;logoAlt
 </td>
 <td>
@@ -19084,6 +19219,14 @@ URL of the logo image displayed on the left side
 </td>
 <td>
 Main text displayed next to the logo
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;searchBarType
+</td>
+<td>
+
 </td>
 </tr>
 <tr>
