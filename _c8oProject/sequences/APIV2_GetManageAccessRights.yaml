@@ -1,9 +1,49 @@
 accessibility: Hidden
+comment: |
+  Fetch manage rights.
+  Reads and formats the manage-access-rights document for a form.
 ↓getCollabsOrShare [steps.SimpleStep-1695134647168]: 
   expression: |
     '// Imports and helpers functions
     include("js/common.js");
     let logLevel = "warn";
+    var computeSortLabel = function(entry) {
+       if (!entry) {
+          return "";
+       }
+       var label = "";
+       if (entry.display !== undefined && entry.display !== null && entry.display !== "") {
+          label = entry.display;
+       }
+       else if (entry.displayName !== undefined && entry.displayName !== null && entry.displayName !== "") {
+          label = entry.displayName;
+       }
+       else if (entry.displayMail !== undefined && entry.displayMail !== null && entry.displayMail !== "") {
+          label = entry.displayMail;
+       }
+       else if (entry.value !== undefined && entry.value !== null) {
+          label = entry.value;
+       }
+       return ("" + label).toLocaleLowerCase();
+    };
+    var sortEntries = function(list) {
+       if (!isArray(list)) {
+          return list;
+       }
+       var copy = list.slice();
+       copy.sort(function(a, b) {
+          var aLabel = computeSortLabel(a);
+          var bLabel = computeSortLabel(b);
+          if (aLabel < bLabel) {
+             return -1;
+          }
+          if (aLabel > bLabel) {
+             return 1;
+          }
+          return 0;
+       });
+       return copy;
+    };
     
     // ensure params are ok ....
     if (collab == "true") {
@@ -11,6 +51,12 @@ accessibility: Hidden
     }
     else if (collab == "false") {
        collab = false;
+    }
+    if (showAllGroups == "true" || showAllGroups === true) {
+       showAllGroups = true;
+    }
+    else {
+       showAllGroups = false;
     }
     var res = { grpsOrUsers: [] };
     var authenticatedUserID = context.getAuthenticatedUser();
@@ -50,17 +96,24 @@ accessibility: Hidden
           }
        }
        
-    
+       
        // get current user groups
        query = new HashMap();
        query.put(''reduce'', "false");
+       var canSeeAllGroups = false;
        try{
     		include("js/isAdmin.js")
        }
        catch(e){
     	
        }
-       if(isAdmin){
+       if(typeof isAdmin != "undefined" && isAdmin === true){
+    		canSeeAllGroups = true;
+       }
+       if(showAllGroups === true){
+    		canSeeAllGroups = true;
+       }
+       if(canSeeAllGroups){
     		groups = toJSON(fsclient.getView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query)).rows.map((x) => { return x.value });
     		let uniqueGroups = [];
     		let seen = {};
@@ -195,6 +248,8 @@ accessibility: Hidden
              return true;
           }
        });
+       res.grpsOrUsers = sortEntries(res.grpsOrUsers);
+       existingGrpsOrUsersArrayFormated = sortEntries(existingGrpsOrUsersArrayFormated);
        //res.existingGrpsOrUsersArray = existingGrpsOrUsersArray;
        res.existingGrpsOrUsersArrayFormated = existingGrpsOrUsersArrayFormated;
        if(collab == false){
@@ -229,4 +284,8 @@ accessibility: Hidden
         - ↑mode: PLAIN
         - →→: res
 ↓id [variables.RequestableVariable-1695136974278]: 
+  comment: Generic identifier for the targeted resource.
 ↓collab [variables.RequestableVariable-1695140091901]: 
+↓showAllGroups [variables.RequestableVariable-1750605000000]: 
+  comment: Flag allowing non-admin users to list every group.
+  value: ${C8Oforms.share.showAllGroups=false}

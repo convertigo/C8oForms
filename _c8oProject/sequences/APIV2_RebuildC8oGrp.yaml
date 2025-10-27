@@ -1,0 +1,442 @@
+accessibility: Private
+comment: |
+  Rebuild c8oGrp flags.
+  Audits forms and responses to rebuild c8oGrp membership maps.
+↓Sequence_JS [steps.SimpleStep-202406070021]: 
+  expression: |
+    'var enums = com.twinsoft.convertigo.engine.enums;
+        var HashMap = java.util.HashMap;
+        var theApp = com.twinsoft.convertigo.engine.Engine.theApp;
+        var fsclient = theApp.couchDbManager.getFullSyncClient();
+        var toJSON = function(json) {
+            return JSON.parse(json.toString());
+        };
+        var toJettison = function(json) {
+            var txt = (typeof json == "string") ? json : JSON.stringify(json);
+            return txt.startsWith("{") ? new org.codehaus.jettison.json.JSONObject(txt) : new org.codehaus.jettison.json.JSONArray(txt);
+        };
+        var hasOwn = function(obj, key) {
+            return Object.prototype.hasOwnProperty.call(obj, key);
+        };
+        var truthy = function(value) {
+            return value === true || value === "true" || value === 1;
+        };
+        var addGroup = function(target, raw) {
+            if (raw === null || raw === undefined) {
+                return;
+            }
+            if (Array.isArray(raw)) {
+                for (var i = 0; i < raw.length; i++) {
+                    addGroup(target, raw[i]);
+                }
+                return;
+            }
+            if (typeof raw === "string" || raw instanceof java.lang.String) {
+                var value = ("" + raw).trim();
+                if (value.length > 0) {
+                    target[value] = true;
+                }
+                return;
+            }
+            if (typeof raw === "number") {
+                target["" + raw] = true;
+                return;
+            }
+            if (typeof raw === "object") {
+                if (hasOwn(raw, "value")) {
+                    addGroup(target, raw.value);
+                    return;
+                }
+                if (hasOwn(raw, "id")) {
+                    addGroup(target, raw.id);
+                    return;
+                }
+                if (hasOwn(raw, "group")) {
+                    addGroup(target, raw.group);
+                    return;
+                }
+                for (var key in raw) {
+                    if (!hasOwn(raw, key)) {
+                        continue;
+                    }
+                    var val = raw[key];
+                    if (truthy(val)) {
+                        target[key] = true;
+                    }
+                }
+            }
+        };
+        var hasMembership = function(raw) {
+            if (raw === null || raw === undefined) {
+                return false;
+            }
+            if (Array.isArray(raw)) {
+                for (var i = 0; i < raw.length; i++) {
+                    if (hasMembership(raw[i])) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (typeof raw === "string" || raw instanceof java.lang.String) {
+                return ("" + raw).trim().length > 0;
+            }
+            if (typeof raw === "number") {
+                return true;
+            }
+            if (typeof raw === "object") {
+                if (hasOwn(raw, "value")) {
+                    return hasMembership(raw.value);
+                }
+                if (hasOwn(raw, "id")) {
+                    return hasMembership(raw.id);
+                }
+                if (hasOwn(raw, "group")) {
+                    return hasMembership(raw.group);
+                }
+                for (var key in raw) {
+                    if (!hasOwn(raw, key)) {
+                        continue;
+                    }
+                    if (truthy(raw[key])) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        var mapFromC8oGrp = function(source) {
+            var map = {};
+            if (source === null || source === undefined) {
+                return map;
+            }
+            addGroup(map, source);
+            return map;
+        };
+        var sortedKeys = function(map) {
+            var list = [];
+            for (var key in map) {
+                if (hasOwn(map, key) && truthy(map[key])) {
+                    list.push(key);
+                }
+            }
+            list.sort();
+            return list;
+        };
+        var mapsEqual = function(current, expected) {
+            var keys = {};
+            for (var key in current) {
+                if (hasOwn(current, key) && truthy(current[key])) {
+                    keys[key] = true;
+                }
+            }
+            for (var key2 in expected) {
+                if (hasOwn(expected, key2) && truthy(expected[key2])) {
+                    keys[key2] = true;
+                }
+            }
+            for (var key3 in keys) {
+                var inCurrent = truthy(current[key3]);
+                var inExpected = truthy(expected[key3]);
+                if (inCurrent !== inExpected) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        var shouldExecute = ("" + execute) == "true";
+        var parsedChunkSize = parseInt(chunkSize || "100", 10);
+        var limit = isNaN(parsedChunkSize) || parsedChunkSize <= 0 ? 100 : parsedChunkSize;
+        var summaryNode = context.addTextNodeUnderRoot("summary", "");
+        var docsNode = context.addTextNodeUnderRoot("documents", "");
+        var errorsNode = context.addTextNodeUnderRoot("errors", "");
+        var totalScanned = 0;
+        var totalMismatched = 0;
+        var totalUpdated = 0;
+        var totalErrors = 0;
+        var useIndex = ["_design/mangoIndexes2", "forms_c8ogrp_audit"];
+        var bookmark = null;
+        var running = true;
+        var creatorDisplayCache = {};
+        log.warn("Starting c8oGrp audit in " + (shouldExecute ? "apply" : "dry-run") + " mode with batch size " + limit + ".");
+        while (running) {
+            context.getRootContext().lastAccessTime = new Date().getTime();
+            var query = {
+                selector: {
+                    "$and": [
+                        {
+                            "_deleted": {
+                                "$exists": false
+                            }
+                        },
+                        {
+                            "$or": [
+                                {
+                                    "c8o_view_type_drafts_form": true
+                                },
+                                {
+                                    "c8o_view_type_published_form": true
+                                }
+                            ]
+                        }
+                    ]
+                },
+                limit: limit,
+                use_index: useIndex,
+                fields: [
+                    "_id",
+                    "_rev",
+                    "c8oGrp",
+                    "shared",
+                    "collabs",
+                    "creator",
+                    "name",
+                    "lastMofification"
+                ]
+            };
+            if (bookmark !== null) {
+                query.bookmark = bookmark;
+            }
+            var response = toJSON(fsclient.postFind("c8oforms_fs", toJettison(query)));
+            var docs = response.docs || [];
+            if (docs.length === 0) {
+                log.warn("c8oGrp audit completed; no additional forms match the selector.");
+                break;
+            }
+            totalScanned += docs.length;
+            log.warn("c8oGrp audit retrieved " + docs.length + " documents for analysis.");
+            var toUpdate = [];
+            var pendingContexts = [];
+            for (var i = 0; i < docs.length; i++) {
+                var docEntry = docs[i];
+                if (!docEntry || !docEntry._id) {
+                    continue;
+                }
+                var currentMap = mapFromC8oGrp(docEntry.c8oGrp);
+                var hasAnyMembership = hasMembership(docEntry.shared) || hasMembership(docEntry.collabs);
+                if (!hasAnyMembership) {
+                    continue;
+                }
+                var expectedMap = {};
+                addGroup(expectedMap, docEntry.shared);
+                addGroup(expectedMap, docEntry.collabs);
+                if (docEntry.creator !== undefined && docEntry.creator !== null) {
+                    var creatorId = ("" + docEntry.creator).trim();
+                    if (creatorId.length > 0) {
+                        var creatorKey = creatorId.indexOf("C8Oreserved_") === 0 ? creatorId : "C8Oreserved_" + creatorId;
+                        addGroup(expectedMap, creatorKey);
+                    }
+                }
+                var expectedKeys = sortedKeys(expectedMap);
+                for (var ek = 0; ek < expectedKeys.length; ek++) {
+                    expectedMap[expectedKeys[ek]] = true;
+                }
+                var currentKeys = sortedKeys(currentMap);
+                var mismatch = !mapsEqual(currentMap, expectedMap);
+                var docNode = null;
+                var ensureDocNode = function() {
+                    if (docNode === null) {
+                        docNode = context.addTextNode(docsNode, "document", "");
+                        context.addTextNode(docNode, "id", docEntry._id);
+                        if (docEntry.creator !== undefined && docEntry.creator !== null) {
+                            var rawCreator = ("" + docEntry.creator).trim();
+                            if (rawCreator.length > 0) {
+                                context.addTextNode(docNode, "creator", rawCreator);
+                                var cacheKey = rawCreator;
+                                var cachedDisplay = hasOwn(creatorDisplayCache, cacheKey) ? creatorDisplayCache[cacheKey] : undefined;
+                                if (cachedDisplay === undefined) {
+                                    var creatorDocId = rawCreator.indexOf("C8Oreserved_") === 0 ? rawCreator : "C8Oreserved_" + rawCreator;
+                                    try {
+                                        var creatorDoc = toJSON(fsclient.getDocument("c8oforms_fs", creatorDocId, new HashMap()));
+                                        if (creatorDoc && hasOwn(creatorDoc, "displayName") && creatorDoc.displayName !== null && creatorDoc.displayName !== undefined) {
+                                            cachedDisplay = "" + creatorDoc.displayName;
+                                        }
+                                        else {
+                                            cachedDisplay = "";
+                                        }
+                                    }
+                                    catch (err) {
+                                        log.warn("Failed to fetch creator profile " + creatorDocId + " while preparing metadata for " + docEntry._id + ": " + err);
+                                        cachedDisplay = "";
+                                    }
+                                    creatorDisplayCache[cacheKey] = cachedDisplay;
+                                }
+                                var displayNameValue = cachedDisplay !== undefined && cachedDisplay !== null ? "" + cachedDisplay : "";
+                                context.addTextNode(docNode, "creatorDisplayName", displayNameValue);
+                            }
+                        }
+                        if (hasOwn(docEntry, "name") && docEntry.name !== undefined && docEntry.name !== null) {
+                            context.addTextNode(docNode, "name", "" + docEntry.name);
+                        }
+                        if (hasOwn(docEntry, "lastMofification") && docEntry.lastMofification !== undefined && docEntry.lastMofification !== null) {
+                            var rawLastModification = docEntry.lastMofification;
+                            var lastModificationMillis = null;
+                            if (typeof rawLastModification === "number") {
+                                lastModificationMillis = rawLastModification;
+                            }
+                            else if (typeof rawLastModification === "string") {
+                                var trimmed = rawLastModification.trim();
+                                if (trimmed.length > 0) {
+                                    var parsedMillis = parseInt(trimmed, 10);
+                                    if (!isNaN(parsedMillis)) {
+                                        lastModificationMillis = parsedMillis;
+                                    }
+                                    else {
+                                        var parsedDate = Date.parse(trimmed);
+                                        if (!isNaN(parsedDate)) {
+                                            lastModificationMillis = parsedDate;
+                                        }
+                                    }
+                                }
+                            }
+                            else {
+                                var coerced = +rawLastModification;
+                                if (!isNaN(coerced)) {
+                                    lastModificationMillis = coerced;
+                                }
+                            }
+                            if (lastModificationMillis !== null) {
+                                var lastModificationDate = new Date(lastModificationMillis);
+                                if (!isNaN(lastModificationDate.getTime())) {
+                                    context.addTextNode(docNode, "lastMofificationDate", "" + lastModificationDate);
+                                }
+                            }
+                        }
+                        context.addTextNode(docNode, "current", JSON.stringify(currentKeys));
+                        context.addTextNode(docNode, "expected", JSON.stringify(expectedKeys));
+                    }
+                    return docNode;
+                };
+                if (mismatch) {
+                    ensureDocNode();
+                    context.addTextNode(docNode, "status", "mismatch");
+                    totalMismatched++;
+                    if (shouldExecute) {
+                        if (!docEntry._rev) {
+                            log.error("Missing revision for document " + docEntry._id + "; skipping update.");
+                            ensureDocNode();
+                            context.addTextNode(docNode, "remediation", "skipped-missing-rev");
+                            context.addTextNode(errorsNode, "document", docEntry._id + ": missing revision");
+                            totalErrors++;
+                        }
+                        else {
+                            var updateDoc = {
+                                _id: docEntry._id,
+                                _rev: docEntry._rev,
+                                c8oGrp: expectedMap
+                            };
+                            toUpdate.push(updateDoc);
+                            pendingContexts.push({
+                                node: docNode,
+                                id: docEntry._id
+                            });
+                            context.addTextNode(docNode, "remediation", "scheduled");
+                        }
+                    }
+                    else {
+                        context.addTextNode(docNode, "remediation", "dry-run");
+                    }
+                }
+                else {
+                    if (shouldExecute && (!docEntry._rev)) {
+                        ensureDocNode();
+                        context.addTextNode(docNode, "status", "aligned");
+                        log.error("Document " + docEntry._id + " is aligned but missing revision.");
+                        context.addTextNode(docNode, "remediation", "skipped-missing-rev");
+                        context.addTextNode(errorsNode, "document", docEntry._id + ": missing revision");
+                        totalErrors++;
+                    }
+                }
+            }
+            if (shouldExecute && toUpdate.length > 0) {
+                try {
+                    log.warn("Submitting bulk c8oGrp remediation for " + toUpdate.length + " documents.");
+                    var mergeRules = new HashMap();
+                    mergeRules.put(java.util.Arrays.asList(new java.lang.String("c8oGrp")), new java.lang.String("override"));
+                    var result = toJSON(fsclient.postBulkDocs(java.lang.String("c8oforms_fs"), toJettison(toUpdate), false, true, enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+                    var isArray = function(obj) {
+                        return Object.prototype.toString.call(obj) === "[object Array]";
+                    };
+                    if (isArray(result)) {
+                        for (var j = 0; j < result.length; j++) {
+                            var entry = result[j];
+                            var ctx = pendingContexts[j];
+                            var targetNode = ctx ? ctx.node : null;
+                            var targetId = ctx ? ctx.id : (entry && entry.id ? entry.id : "");
+                            var ok = entry && (entry.ok === true || entry.error === undefined);
+                            if (ok) {
+                                if (targetNode) {
+                                    context.addTextNode(targetNode, "remediationResult", "updated");
+                                }
+                                totalUpdated++;
+                            }
+                            else {
+                                var message = entry && entry.error ? (entry.error + (entry.reason ? " - " + entry.reason : "")) : "unknown error";
+                                log.error("Failed to update document " + targetId + " during c8oGrp remediation: " + message);
+                                context.addTextNode(errorsNode, "document", targetId + ": " + message);
+                                totalErrors++;
+                                if (targetNode) {
+                                    context.addTextNode(targetNode, "remediationResult", "failed");
+                                }
+                            }
+                        }
+                    }
+                    else {
+                        var isSuccess = true;
+                        if (result && result._c8oMeta && result._c8oMeta.statusCode) {
+                            isSuccess = ("" + result._c8oMeta.statusCode).indexOf("20") === 0;
+                        }
+                        else if (result && result.error) {
+                            isSuccess = false;
+                        }
+                        if (isSuccess) {
+                            for (var k = 0; k < pendingContexts.length; k++) {
+                                context.addTextNode(pendingContexts[k].node, "remediationResult", "updated");
+                                totalUpdated++;
+                            }
+                        }
+                        else {
+                            log.error("Bulk c8oGrp remediation failed: " + JSON.stringify(result));
+                            for (var m = 0; m < pendingContexts.length; m++) {
+                                var ctxFail = pendingContexts[m];
+                                context.addTextNode(ctxFail.node, "remediationResult", "failed");
+                                context.addTextNode(errorsNode, "document", ctxFail.id + ": bulk failure");
+                                totalErrors++;
+                            }
+                        }
+                    }
+                }
+                catch (e) {
+                    log.error("Exception during c8oGrp remediation: " + e);
+                    for (var n = 0; n < pendingContexts.length; n++) {
+                        var ctxError = pendingContexts[n];
+                        context.addTextNode(ctxError.node, "remediationResult", "failed");
+                        context.addTextNode(errorsNode, "document", ctxError.id + ": exception during update");
+                        totalErrors++;
+                    }
+                }
+            }
+            var nextBookmark = response.bookmark || null;
+            if (!nextBookmark || docs.length < limit) {
+                running = false;
+                log.warn("c8oGrp audit loop finished after processing the current batch.");
+            }
+            bookmark = nextBookmark;
+        }
+        context.addTextNode(summaryNode, "mode", shouldExecute ? "apply" : "dry-run");
+        context.addTextNode(summaryNode, "totalScanned", "" + totalScanned);
+        context.addTextNode(summaryNode, "totalMismatched", "" + totalMismatched);
+        context.addTextNode(summaryNode, "totalUpdated", "" + totalUpdated);
+        context.addTextNode(summaryNode, "totalErrors", "" + totalErrors);
+        log.warn("c8oGrp audit summary: scanned=" + totalScanned + ", mismatched=" + totalMismatched + ", updated=" + totalUpdated + ", errors=" + totalErrors + ".");'
+↓execute [variables.RequestableVariable-202406070022]: 
+  comment: Set to true to rebuild c8oGrp based on computed expectations.
+  value: false
+↓chunkSize [variables.RequestableVariable-202406070023]: 
+  comment: Number of documents fetched per Mango page during the audit.
+  value: 100
+↓Test_Case_execute [core.TestCase]: 
+  ↓execute [variables.TestCaseVariable-1760521991270]: 
+    value: true
+  ↓chunkSize [variables.TestCaseVariable-1760521991272]: 
+    value: 100

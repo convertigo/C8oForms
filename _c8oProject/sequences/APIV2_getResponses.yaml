@@ -1,4 +1,8 @@
 accessibility: Hidden
+comment: |
+  Fetch API responses.
+  Retrieves paginated responses with filtering, formatting and attachments.
+responseTimeout: 600
 ↓computeResponses [steps.SimpleStep-1697532248606]: 
   expression: |
     '// Imports and helpers functions
@@ -11,16 +15,32 @@ accessibility: Hidden
     csv = csv == "true";
     let meta;
     let max_len = 120;
-    try{
+    try {
     	meta = JSON.parse(meta);
     }
-    catch(e){
-    	
+    catch (e) {
+    
+    }
+    var metaSkip = 0;
+    var metaLimit = null;
+    if (meta != null) {
+    	try {
+    		if (meta.skip != undefined && meta.skip !== "") {
+    			metaSkip = Math.max(0, +meta.skip);
+    		}
+    	}
+    	catch (e) { }
+    	try {
+    		if (meta.limit != undefined && meta.limit !== "") {
+    			metaLimit = Math.max(0, +meta.limit);
+    		}
+    	}
+    	catch (e) { }
     }
     // start functions
-    var getI18nForCsv = (key, lang) =>{
-    	if(key == "timestamp"){
-    		switch(""+lang){
+    var getI18nForCsv = (key, lang) => {
+    	if (key == "timestamp") {
+    		switch ("" + lang) {
     			case "en":
     			case "fr":
     				return "Date";
@@ -32,8 +52,8 @@ accessibility: Hidden
     				return "Date";
     		}
     	}
-    	else if(key == "author"){
-    		switch(""+lang){
+    	else if (key == "author") {
+    		switch ("" + lang) {
     			case "en":
     				return "Author";
     			case "fr":
@@ -46,8 +66,8 @@ accessibility: Hidden
     				return "Author";
     		}
     	}
-    	else if(key == "anonymous"){
-    		switch(""+lang){
+    	else if (key == "anonymous") {
+    		switch ("" + lang) {
     			case "en":
     				return "Anonymous user";
     			case "fr":
@@ -60,8 +80,8 @@ accessibility: Hidden
     				return "Anonymous user";
     		}
     	}
-    	else if(key == "Other"){
-    		switch(""+lang){
+    	else if (key == "Other") {
+    		switch ("" + lang) {
     			case "en":
     				return "Other responses";
     			case "fr":
@@ -75,270 +95,495 @@ accessibility: Hidden
     		}
     	}
     	return key;
-    	
+    
     }
     // used to format responses, will be used recursively
     var extractResponse = (response, _i, type, _id, responseArray, structure, csv, opts) => {
-    	switch (type) {
-    		case "text":
-    		case "datetime":
-    		case "time":
-    		case "barcode":
-    			if (response.value != "") {
-    				responseArray[_i].value.push(response.value);
-    			}
-    			break;
-    		case "signature":
-    		case "img":
-    			if (response.value != "") {
-    				//if (j == 0) {
+    	try {
+    		switch (type) {
+    			case "text":
+    			case "datetime":
+    			case "time":
+    			case "barcode":
+    				if (response.value != "") {
+    					responseArray[_i].value.push(response.value);
+    				}
+    				break;
+    			case "signature":
+    			case "img":
+    				if (response.value != "") {
+    					//if (j == 0) {
     					try { structure[_i].att_type = response.att_type == true; } catch (e) { }
-    				//}
-    				if (structure[_i].att_type) {
-    					var _val;
-    					if(csv){
-    						_val = context.getConvertigoUrl() + "convertigo/projects/C8Oforms/.bin?__sequence=downloadFile&filename=" + encodeURIComponent(response.name) + "&documentName=" + encodeURIComponent(_id);
+    					//}
+    					if (structure[_i].att_type) {
+    						var _val;
+    						if (csv) {
+    							_val = context.getConvertigoUrl() + "projects/C8Oforms/.bin?__sequence=downloadFile&filename=" + encodeURIComponent(response.name) + "&documentName=" + encodeURIComponent(_id);
+    						}
+    						else {
+    							_val = context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.name);
+    						}
+    						responseArray[_i].value.push(_val);
     					}
-    					else{
-    						_val = context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.name);
+    					else {
+    						responseArray[_i].value.push(response.value);
     					}
-    					responseArray[_i].value.push(_val);
+    				}
+    				break;
+    			case "location":
+    				if (Object.keys(response.value.gps).length > 0) {
+    					if (response["value"]["bounding_box"] != undefined) {
+    						response.value = JSON.stringify(response["value"]["bounding_box"]);
+    					}
+    					else if (response["value"]["addr"] != undefined && response["value"]["addr"]["FormattedAddress"] != undefined && response["value"]["addr"]["FormattedAddress"] != "") {
+    						if (csv) {
+    							response.value = response["value"]["addr"]["FormattedAddress"];
+    						}
+    						else {
+    							response.value = { text: response["value"]["addr"]["FormattedAddress"], gps: response["value"]["gps"] };
+    						}
+    					}
+    					else {
+    						response.value = { text: "Latitude : " + response["value"]["gps"]["latitude"] + ", Longitude : " + response["value"]["gps"]["longitude"] + ", précision : " + ("" + response["value"]["gps"]["accuracy"]).split(".")[0] + " métres", gps: response["value"]["gps"] };
+    					}
+    					responseArray[_i].value.push(response.value);
+    				}
+    				break;
+    			case "grid":
+    				if (response.value != null && response.value != "" && JSON.stringify(response.value) != "{}") {
+    					var val;
+    					if (!(response.value instanceof String)) {
+    						val = JSON.stringify(response.value);
+    					}
+    					else {
+    						val = response.value;
+    					}
+    					responseArray[_i].value.push(val);
+    				}
+    				break;
+    			case "file":
+    				if (response.value != "") {
+    					var first = true;
+    					var values = [];
+    					if (response.value instanceof Array) {
+    						for (var entryFile of response.value) {
+    							if (typeof (entryFile) === "string") {
+    								values.push({ "name": entryFile.split("_C80C80_")[1], "url": context.getConvertigoUrl() + "projects/C8Oforms/.bin?__sequence=downloadFile&filename=" + encodeURIComponent(entryFile) + "&documentName=" + encodeURIComponent(_id) });
+    							}
+    						}
+    					}
+    					responseArray[_i].value = responseArray[_i].value.concat(values);
+    					// if for csv just give file url
+    					if (csv) {
+    						responseArray[_i].value = responseArray[_i].value.map((x) => {
+    							return x.url;
+    						})
+    					}
+    				}
+    				break;
+    			case "checkbox":
+    			case "radio":
+    			case "select":
+    				// Solution finale
+    				response["children"].sort((a, b) => {
+    					// Place les objets avec "other: true" après les autres
+    					return (a.other === true ? 1 : 0) - (b.other === true ? 1 : 0);
+    				});
+    				for (var k in response["children"]) {
+    					if (responseArray[_i].value[k] == undefined) {
+    						responseArray[_i].value[k] = 0;
+    					}
+    					if (csv || summary != "true" || (structure[_i].categories[k] == null || structure[_i].categories[k] == "")) {
+    						if (response["children"][k].other == true) {
+    							if (csv) {
+    								structure[_i].categories[k] = response["children"][k]["value"] != null ? (response["children"][k]["value"].length > max_len ? response["children"][k]["value"].substring(0, max_len) + "..." : response["children"][k]["value"]) : "";
+    							}
+    							else {
+    								structure[_i].categories[k] = getI18nForCsv(Otherkey, (meta && meta.lang) ? meta.lang : "en");
+    								responseArray[_i].other = response["children"][k]["selected"] == true && response["children"][k]["value"] != null && response["children"][k]["value"] != "" ? response["children"][k]["value"] : structure[_i].categories[k];
+    							}
+    
+    						}
+    						else {
+    							structure[_i].categories[k] = response["children"][k]["value"].length > max_len ? response["children"][k]["value"].substring(0, max_len) + "..." : response["children"][k]["value"];
+    						}
+    					}
+    					if (response["children"][k]["selected"] == true) {
+    						responseArray[_i].value[k]++
+    					}
+    				}
+    				// if for csv replace number of occurence by structure value
+    				if (csv) {
+    					var val = responseArray[_i].value;
+    					var cat = structure[_i].categories;
+    					var _temp = [];
+    					for (var l = 0; l < val.length; l++) {
+    						if (val[l] == 1) {
+    							_temp.push(cat[l]);
+    						}
+    					}
+    					responseArray[_i].value = _temp;
+    				}
+    				break;
+    			case "checkbox_group":
+    				var offsetCreated = 0;
+    				var m = 0;
+    				for (var k in response["children"]) {
+    					structure[_i]["categories"][m] = k.length > max_len ? k.substring(0, max_len) + "..." : k;
+    					for (var l in response["children"][k]) {
+    						if (responseArray[_i]["value"][+l] == undefined) {
+    							responseArray[_i]["value"][+l] = {};
+    						}
+    						if (responseArray[_i]["value"][+l]["name"] == undefined) {
+    							responseArray[_i]["value"][+l]["name"] = response["children"][k][l]["value"].length > max_len ? response["children"][k][l]["value"].substring(0, max_len) + "..." : response["children"][k][l]["value"];
+    						}
+    						if (responseArray[_i]["value"][+l]["data"] == undefined) {
+    							responseArray[_i]["value"][+l]["data"] = [];
+    						}
+    						if (responseArray[_i]["value"][+l]["data"][m] == undefined) {
+    							responseArray[_i]["value"][+l]["data"][m] = 0;
+    						}
+    						if (response["children"][k][l]["selected"] == true) {
+    							responseArray[_i]["value"][+l]["data"][m]++;
+    						}
+    					}
+    					m++;
+    				}
+    				// if for csv add type to allow more complexe computations in APIV2_CSV sequence
+    				if (csv) {
+    					responseArray[_i].type = type;
+    				}
+    				break;
+    			case "radio_group":
+    				m = 0;
+    				for (var k in response["children"]) {
+    					structure[_i]["categories"][m] = k.length > max_len ? k.substring(0, max_len) + "..." : k;
+    					for (var l in response["children_label"]) {
+    						if (responseArray[_i]["value"][+l] == undefined) {
+    							responseArray[_i]["value"][+l] = {};
+    						}
+    						if (responseArray[_i]["value"][+l]["name"] == undefined) {
+    							responseArray[_i]["value"][+l]["name"] = response["children_label"][+l]["value"].length > max_len ? response["children_label"][+l]["value"].substring(0, max_len) + "..." : response["children_label"][+l]["value"];
+    						}
+    						if (responseArray[_i]["value"][+l]["data"] == undefined) {
+    							responseArray[_i]["value"][+l]["data"] = [];
+    						}
+    						if (responseArray[_i]["value"][+l]["data"][m] == undefined) {
+    							responseArray[_i]["value"][+l]["data"][m] = 0;
+    						}
+    						if (response["children_label"][l].value == response["children"][k]) {
+    							responseArray[_i]["value"][+l]["data"][m]++;
+    						}
+    					}
+    					m++;
+    				}
+    				// if for csv add type to allow more complexe computations in APIV2_CSV sequence
+    				if (csv) {
+    					responseArray[_i].type = type;
+    				}
+    				break;
+    			case "slider":
+    				if (response["value"] !== "") {
+    					if (csv) {
+    						responseArray[_i].value.push(response["value"]);
+    						break;
+    					}
+    					if (structure[_i]["categories"].length === 0) {
+    						structure[_i]["categories"].push("");
+    					}
+    					if (table == undefined) {
+    						table = [];
+    					}
+    					if (table[_i] == undefined) {
+    						table[_i] = {};
+    					}
+    					if (table[_i][response["value"]] == undefined) {
+    						table[_i][response["value"]] =
+    							responseArray[_i]["value"].push({ data: [1], name: response["value"] }) - 1;
+    					} else {
+    						const index = table[_i][response["value"]];
+    						if (responseArray[_i]["value"][index] != null) {
+    							const count = responseArray[_i]["value"][index]["data"][0];
+    							responseArray[_i]["value"][index]["data"] = [count + 1];
+    						}
+    					}
+    				}
+    				break;
+    			case "actionValue":
+    				if (response["valueType"] == "attachment") {
+    					//if (i == 0) {
+    					structure[_i].att_type = true;
+    					//}
+    					responseArray[_i].value.push({ "name": responseArray[_i].name, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
+    					if (csv) {
+    						responseArray[_i].value = responseArray[_i].value.map((x) => {
+    							return x.url;
+    						})
+    					}
     				}
     				else {
     					responseArray[_i].value.push(response.value);
     				}
-    			}
-    			break;
-    		case "location":
-    			if (Object.keys(response.value.gps).length > 0) {
-    				if (response["value"]["bounding_box"] != undefined) {
-    					response.value = JSON.stringify(response["value"]["bounding_box"]);
+    				break;
+    			case "timestamp":
+    				var offsetDiff = (opts != null && opts.offsetDiff != null) ? opts.offsetDiff : 0;
+    				responseArray[_i].value.push(getFormattedDate(new Date(+response + offsetDiff)));
+    				break;
+    			case "author":
+    				if (opts && opts.transform) {
+    					try {
+    						let resp = getDoc("C8Oreserved_" + response, null, "c8oforms_fs");
+    						if (!resp.error) {
+    							if (resp.displayName) {
+    								response = resp.displayName;
+    							}
+    							else if (resp.mail) {
+    								response = resp.mail;
+    							}
+    						}
+    					}
+    					catch (e) { }
     				}
-    				else if (response["value"]["addr"] != undefined && response["value"]["addr"]["FormattedAddress"] != undefined && response["value"]["addr"]["FormattedAddress"] != "") {
-    					if(csv){
-    						response.value = response["value"]["addr"]["FormattedAddress"];
-    					}
-    					else{
-    						response.value = {text : response["value"]["addr"]["FormattedAddress"], gps: response["value"]["gps"]};
-    					}
+    				if (_id.indexOf("anonymous") == 0) {
+    					responseArray[_i].value.push(getI18nForCsv("anonymous", (meta && meta.lang) ? meta.lang : "en"))
     				}
     				else {
-    					response.value = { text: "Latitude : " + response["value"]["gps"]["latitude"] + ", Longitude : " + response["value"]["gps"]["longitude"] + ", précision : " + ("" + response["value"]["gps"]["accuracy"]).split(".")[0] + " métres", gps: response["value"]["gps"] };
+    					responseArray[_i].value.push(response);
     				}
-    				responseArray[_i].value.push(response.value);
+    
+    				break;
+    		}
+    	}
+    	catch (e) {
+    		log.warn("an error occured while extracting data from a form : " + JSON.stringify(e));
+    	}
+    
+    }
+    var fillFormSubmit = function(list, formSubmit) {
+    	try {
+    		if (!(list instanceof Array)) {
+    			return;
+    		}
+    		for (var idx = 0; idx < list.length; idx++) {
+    			var item = list[idx];
+    			if (!item || !item.name) {
+    				continue;
     			}
-    			break;
-    		case "grid":
-    			if (response.value != null && response.value != "" && JSON.stringify(response.value) != "{}") {
-    				var val;
-    				if (!(response.value instanceof String)) {
-    					val = JSON.stringify(response.value);
-    				}
-    				else {
-    					val = response.value;
-    				}
-    				responseArray[_i].value.push(val);
+    			var type = item["type"];
+    			if (type == "ion-card" && item.children != undefined) {
+    				var label = item["config"] && item["config"]["title"] ? item["config"]["title"]["text"] : item["name"];
+    				var labelHtml = item["config"] && item["config"]["title"] ? (item["config"]["title"]["personalized"] ? item["config"]["title"]["html"] : item["config"]["title"]["text"]) : label;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "children": {}, "label": label, "labelHtml": labelHtml };
+    				fillFormSubmit(item["children"], formSubmit[item["name"]]["children"]);
     			}
-    			break;
-    		case "file":
-    			if (response.value != "") {
-    				var first = true;
-    				var values = [];
-    				if (response.value instanceof Array) {
-    					for (var entryFile of response.value) {
-    						if (typeof (entryFile) === "string") {							
-    							values.push({ "name": entryFile.split("_C80C80_")[1], "url": context.getConvertigoUrl() + "convertigo/projects/C8Oforms/.bin?__sequence=downloadFile&filename=" + encodeURIComponent(entryFile) + "&documentName=" + encodeURIComponent(_id) });
+    			else if (type == "text") {
+    				var textLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var textLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : textLabel;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": textLabel, "value": "", "labelHtml": textLabelHtml };
+    			}
+    			else if (type == "location") {
+    				var locLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var locLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : locLabel;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": locLabel, "value": { "addr": {}, "gps": {} }, "labelHtml": locLabelHtml };
+    			}
+    			else if (type == "checkbox") {
+    				var chkLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var chkLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : chkLabel;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": chkLabel, "children": [], "labelHtml": chkLabelHtml };
+    				if (!item.config || item.config.sourceEnabled != true) {
+    					if (item["children"] instanceof Array) {
+    						for (var childIdx = 0; childIdx < item["children"].length; childIdx++) {
+    							var child = item["children"][childIdx];
+    							formSubmit[item["name"]]["children"].push({ "value": child["value"], "selected": child["selected"], "other": child["other"] });
     						}
     					}
     				}
-    				responseArray[_i].value = responseArray[_i].value.concat(values);
-    				// if for csv just give file url
-    				if(csv){
-    					responseArray[_i].value = responseArray[_i].value.map((x)=>{
-    						return x.url;
-    					})
-    				}
     			}
-    			break;
-    		case "checkbox":
-    		case "radio":
-    		case "select":
-    			var titi ="toutou";
-    			// Solution finale
-    			response["children"].sort((a, b) => {
-    			  // Place les objets avec "other: true" après les autres
-    			  return (a.other === true ? 1 : 0) - (b.other === true ? 1 : 0);
-    			});
-    			var toto = "tata";
-    			for (var k in response["children"]) {
-    				if (responseArray[_i].value[k] == undefined) {
-    					responseArray[_i].value[k] = 0;
-    				}
-    				if (csv || summary != "true" || (structure[_i].categories[k] == null || structure[_i].categories[k] == "")) {
-    					if (response["children"][k].other == true) {
-    						if(csv){
-    							structure[_i].categories[k] = response["children"][k]["value"].length > max_len ? response["children"][k]["value"].substring(0, max_len) + "..." : response["children"][k]["value"];
+    			else if (type == "grid") {
+    				var gridLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var gridLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : gridLabel;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": gridLabel, "value": "", "labelHtml": gridLabelHtml };
+    			}
+    			else if (type == "radio" || type == "select") {
+    				var radLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var radLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : radLabel;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": radLabel, "children": [], "labelHtml": radLabelHtml };
+    				if (!item.config || item.config.sourceEnabled != true) {
+    					if (item["children"] instanceof Array) {
+    						for (var childIdx2 = 0; childIdx2 < item["children"].length; childIdx2++) {
+    							var child2 = item["children"][childIdx2];
+    							formSubmit[item["name"]]["children"].push({ "value": child2["value"], "selected": child2["selected"], "other": child2["other"] });
     						}
-    						else{
-    							structure[_i].categories[k] = getI18nForCsv(Otherkey, (meta && meta.lang) ? meta.lang : "en");
-    							responseArray[_i].other = response["children"][k]["selected"] == true && response["children"][k]["value"] != null && response["children"][k]["value"] != "" ? response["children"][k]["value"] : structure[_i].categories[k];
+    					}
+    				}
+    			}
+    			else if (type == "slider" || type == "datetime" || type == "time" || type == "barcode" || type == "img" || type == "file" || type == "signature") {
+    				var sliderLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var sliderLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : sliderLabel;
+    				var defaultSlider = (type == "slider" && item["config"]) ? item["config"]["defaultvalue"] : null;
+    				var value = defaultSlider != null ? defaultSlider : "";
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": sliderLabel, "value": value, "labelHtml": sliderLabelHtml };
+    			}
+    			else if (type == "radio_group") {
+    				var radioGroupLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var radioGroupLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : radioGroupLabel;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": radioGroupLabel, children: {}, children_label: item["children"], "labelHtml": radioGroupLabelHtml };
+    				if (item["lines"] instanceof Array) {
+    					for (var lineIdx = 0; lineIdx < item["lines"].length; lineIdx++) {
+    						var line = item["lines"][lineIdx];
+    						formSubmit[item["name"]].children[line.title] = "";
+    					}
+    				}
+    			}
+    			else if (type == "checkbox_group") {
+    				var checkboxGroupLabel = item["config"] ? item["config"]["label"] : item["name"];
+    				var checkboxGroupLabelHtml = item["config"] ? (item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]) : checkboxGroupLabel;
+    				formSubmit[item["name"]] = { "name": item["name"], "type": type, "label": checkboxGroupLabel, children: {}, "labelHtml": checkboxGroupLabelHtml };
+    				if (!item.config || item.config.sourceEnabled != true) {
+    					if (item["lines"] instanceof Array) {
+    						for (var lineIdx2 = 0; lineIdx2 < item["lines"].length; lineIdx2++) {
+    							var line2 = item["lines"][lineIdx2];
+    							formSubmit[item["name"]].children[line2.title] = [];
+    							for (var childKey in item["children"]) {
+    								if (item["children"].hasOwnProperty(childKey)) {
+    									var childObj = item["children"][childKey];
+    									formSubmit[item["name"]].children[line2.title].push({ "value": childObj["value"], "selected": childObj["selected"] });
+    								}
+    							}
     						}
-    							
-    					}
-    					else {
-    						structure[_i].categories[k] = response["children"][k]["value"].length > max_len ? response["children"][k]["value"].substring(0, max_len) + "..." : response["children"][k]["value"];
     					}
     				}
-    				if (response["children"][k]["selected"] == true) {
-    					responseArray[_i].value[k]++
-    				}
     			}
-    			// if for csv replace number of occurence by structure value
-    			if(csv){
-    				var val = responseArray[_i].value;
-    				var cat = structure[_i].categories;
-    				var _temp = [];
-    				for(var l = 0; l < val.length; l++){
-    					if(val[l] == 1){
-    						_temp.push(cat[l]);
-    					}
-    				}
-    				responseArray[_i].value = _temp;
-    			}
-    			break;
-    		case "checkbox_group":
-    			var offsetCreated = 0;
-    			var m = 0;
-    			for (var k in response["children"]) {
-    				structure[_i]["categories"][m] = k.length > max_len ? k.substring(0, max_len) + "..." : k;
-    				for (var l in response["children"][k]) {
-    					if (responseArray[_i]["value"][+l] == undefined) {
-    						responseArray[_i]["value"][+l] = {};
-    					}
-    					if (responseArray[_i]["value"][+l]["name"] == undefined) {
-    						responseArray[_i]["value"][+l]["name"] = response["children"][k][l]["value"].length > max_len ? response["children"][k][l]["value"].substring(0, max_len) + "..." : response["children"][k][l]["value"];
-    					}
-    					if (responseArray[_i]["value"][+l]["data"] == undefined) {
-    						responseArray[_i]["value"][+l]["data"] = [];
-    					}
-    					if (responseArray[_i]["value"][+l]["data"][m] == undefined) {
-    						responseArray[_i]["value"][+l]["data"][m] = 0;
-    					}
-    					if (response["children"][k][l]["selected"] == true) {
-    						responseArray[_i]["value"][+l]["data"][m]++;
-    					}
-    				}
-    				m++;
-    			}
-    			// if for csv add type to allow more complexe computations in APIV2_CSV sequence
-    			if(csv){
-    				responseArray[_i].type = type;
-    			}
-    			break;
-    		case "radio_group":
-    			m = 0;
-    			for (var k in response["children"]) {
-    				structure[_i]["categories"][m] = k.length > max_len ? k.substring(0, max_len) + "..." : k;
-    				for (var l in response["children_label"]) {
-    					if (responseArray[_i]["value"][+l] == undefined) {
-    						responseArray[_i]["value"][+l] = {};
-    					}
-    					if (responseArray[_i]["value"][+l]["name"] == undefined) {
-    						responseArray[_i]["value"][+l]["name"] = response["children_label"][+l]["value"].length > max_len ? response["children_label"][+l]["value"].substring(0, max_len) + "..." : response["children_label"][+l]["value"];
-    					}
-    					if (responseArray[_i]["value"][+l]["data"] == undefined) {
-    						responseArray[_i]["value"][+l]["data"] = [];
-    					}
-    					if (responseArray[_i]["value"][+l]["data"][m] == undefined) {
-    						responseArray[_i]["value"][+l]["data"][m] = 0;
-    					}
-    					if (response["children_label"][l].value == response["children"][k]) {
-    						responseArray[_i]["value"][+l]["data"][m]++;
-    					}
-    				}
-    				m++;
-    			}
-    			// if for csv add type to allow more complexe computations in APIV2_CSV sequence
-    			if(csv){
-    				responseArray[_i].type = type;
-    			}
-    			break;
-    			case "slider":
-    			    if (response["value"] !== "") {
-    			        if (csv) {
-    			            responseArray[_i].value.push(response["value"]);
-    			            break;         
-    			        }
-    			        if (structure[_i]["categories"].length === 0) {
-    			            structure[_i]["categories"].push("");
-    			        }
-    			        if (table == undefined) {
-    			            table = [];
-    			        }
-    			        if (table[_i] == undefined) {
-    			            table[_i] = {};
-    			        }
-    			        if (table[_i][response["value"]] == undefined) {
-    			            table[_i][response["value"]] =
-    			                responseArray[_i]["value"].push({ data: [1], name: response["value"] }) - 1;
-    			        } else {
-    			            const index = table[_i][response["value"]];
-    			            if (responseArray[_i]["value"][index] != null) {
-    			                const count = responseArray[_i]["value"][index]["data"][0];
-    			                responseArray[_i]["value"][index]["data"] = [count + 1];
-    			            }
-    			        }
-    			    }
-    			    break;
-    		case "actionValue":
-    			if (response["valueType"] == "attachment") {
-    				//if (i == 0) {
-    					structure[_i].att_type = true;
-    				//}
-    				responseArray[_i].value.push({ "name": responseArray[_i].name, "url": context.getConvertigoUrl() + "fullsync/c8oforms_response_fs/" + encodeURIComponent(_id) + "/" + encodeURIComponent(response.value) });
-    				if(csv){
-    					responseArray[_i].value = responseArray[_i].value.map((x)=>{
-    						return x.url;
-    					})
-    				}
+    		}
+    	}
+    	catch (e) {
+    		try {
+    			log.error("[fillFormSubmit] An error occured while building formSubmit structure " + e);
+    		}
+    		catch (ignored) { }
+    	}
+    };
+    var buildPathEntry = function(segments, type, meta, extra) {
+    	var segs = [];
+    	for (var i = 0; i < segments.length; i++) {
+    		segs.push("" + segments[i]);
+    	}
+    	var entry = { path: segs.join("."), type: type, segments: segs };
+    	if (meta != null) {
+    		entry.meta = meta;
+    	}
+    	if (extra != null) {
+    		for (var key in extra) {
+    			entry[key] = extra[key];
+    		}
+    	}
+    	return entry;
+    };
+    var resolvePath = function(root, segments) {
+    	var info = { value: undefined, key: null, found: false };
+    	if (root === undefined || root === null) {
+    		return info;
+    	}
+    	var current = root;
+    	for (var idx = 0; idx < segments.length; idx++) {
+    		var segment = segments[idx];
+    		if (segment === "") {
+    			continue;
+    		}
+    		var key = segment;
+    		var nextValue;
+    		var isArray = Array.isArray ? Array.isArray(current) : current instanceof Array;
+    		if (isArray) {
+    			var indexCandidate = parseInt(segment, 10);
+    			if (("" + indexCandidate) == segment) {
+    				key = indexCandidate;
+    				nextValue = current[indexCandidate];
     			}
     			else {
-    				responseArray[_i].value.push(response.value);
+    				nextValue = current[segment];
     			}
-    			break;
-    		case "timestamp":
-    			var offsetDiff = (opts != null && opts.offsetDiff != null) ? opts.offsetDiff : 0;
-    			responseArray[_i].value.push(getFormattedDate(new Date(+response +offsetDiff)));
-    			break;
-    		case "author":
-    			if(opts && opts.transform){
-    				try {
-    					let resp = getDoc("C8Oreserved_"+response,null, "c8oforms_fs");
-    					if(!resp.error){
-    						if(resp.displayName){
-    							response = resp.displayName;
-    						}
-    						else if(resp.mail){
-    							response = resp.mail;
-    						}
-    					}
-    				}	
-    				catch(e){}
+    		}
+    		else {
+    			nextValue = current[segment];
+    		}
+    		if (nextValue === undefined && !isArray && current != null) {
+    			var combinedKey = segment;
+    			var combinedIndex = idx;
+    			while (nextValue === undefined && combinedIndex + 1 < segments.length) {
+    				combinedIndex++;
+    				combinedKey += "." + segments[combinedIndex];
+    				nextValue = current[combinedKey];
     			}
-    			if(_id.indexOf("anonymous") == 0){
-    				responseArray[_i].value.push(getI18nForCsv("anonymous", (meta && meta.lang) ? meta.lang : "en"))
+    			if (nextValue !== undefined) {
+    				key = combinedKey;
+    				idx = combinedIndex;
     			}
-    			else{
-    				responseArray[_i].value.push(response);
-    			}
-    			
-    			break;
+    		}
+    		if (nextValue === undefined) {
+    			return info;
+    		}
+    		current = nextValue;
+    		info.key = "" + key;
     	}
-    }
+    	info.value = current;
+    	info.found = true;
+    	return info;
+    };
+    var getPathSegments = function(item) {
+    	if (item == null) {
+    		return [];
+    	}
+    	if (item.segments && item.segments.length != undefined) {
+    		var segs = [];
+    		for (var i = 0; i < item.segments.length; i++) {
+    			segs.push("" + item.segments[i]);
+    		}
+    		return segs;
+    	}
+    	var parts = ("" + item.path).split(".");
+    	var result = [];
+    	for (var j = 0; j < parts.length; j++) {
+    		result.push(parts[j]);
+    	}
+    	return result;
+    };
+    var computeSortedIdsFromForm = function(form) {
+    	var result = { ids: [], lenActions: 0 };
+    	if (!form) {
+    		return result;
+    	}
+    	try {
+    		if (form.pages && form.formulaire) {
+    			for (var pageIdx = 0; pageIdx < form.pages.length; pageIdx++) {
+    				var page = form.pages[pageIdx];
+    				var tempArr = form.formulaire.filter(function(x) {
+    					return x.config && x.config.page == page.pageTechName && ((x.type === "ion-card" && x.children != undefined) || x.type !== "ion-card") && x.type !== "layout" && x.type !== "description" && x.type !== "chart" && x.type !== "map" && x.type !== "button";
+    				}).flatMap(function(x) {
+    					if (x.type === "ion-card" && x.children != undefined) {
+    						var prefix = x.name;
+    						return x.children.map(function(y) {
+    							return buildPathEntry([prefix, "children", y.name], y.type, y.meta ? y.meta : null, { name: y.name });
+    						});
+    					}
+    					return buildPathEntry([x.name], x.type, x.meta ? x.meta : null, { name: x.name });
+    				});
+    				result.ids = result.ids.concat(tempArr);
+    			}
+    		}
+    		if (form.actions) {
+    			result.lenActions = form.actions.filter(function(x) { return x.type === "submit"; }).length;
+    		}
+    		else if (form.flows && form.flows.length > 1 && form.flows[1] && form.flows[1].elements) {
+    			result.lenActions = form.flows[1].elements.filter(function(x) { return x.type === "submit"; }).length;
+    		}
+    	}
+    	catch (e) { }
+    	return result;
+    };
     //start code
     var published_form;
     try {
-    	published_form = (callSequence("C8Oforms", "APIV2_getDocument", { id: formId })).document.res;
+    	published_form = (callSequence("C8Oforms", "APIV2_getDocument", { id: formId, k: k })).document.res;
     }
     catch (e) {
     	var to = e;
@@ -359,16 +604,24 @@ accessibility: Hidden
     	res["currentVersion"] = currentVersion;
     	query = new java.util.HashMap();
     	query.put(''reduce'', ''false'');
-    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId+"_anonymous", "" + currentVersion]]));
+    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]));
     	query.put("include_docs", "true");
+    	if (metaSkip > 0) {
+    		query.put(''skip'', "" + metaSkip);
+    	}
+    	if (metaLimit != null && metaLimit > 0) {
+    		query.put(''limit'', "" + metaLimit);
+    	}
     	var responses;
     	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
     	res.response = { length: responses.length };
     	//res["raw_responses"] = responses;
     
+    	var hasNoResponses = responses.length == 0;
+    
     	var sortedsIds = [];
     	var lenActions = 0;
-    	if(responses.length > 0){
+    	if (responses.length > 0) {
     		// if we are in forms 2.0 responses, sortedsIds are stored in response itself
     		if (responses[0] && responses[0].doc && responses[0].doc.sortedsIds) {
     			sortedsIds = responses[0].doc.sortedsIds;
@@ -377,31 +630,9 @@ accessibility: Hidden
     		}
     		// if form was created before forms 2.0 release, responses doean''t contains sortedsIds. => we can compute it from actual publidhed form
     		else if (+published_form.version == +currentVersion) {
-    			published_form.pages.forEach((page, index) => {
-    				var _tempArr = published_form.formulaire.filter((x) => {
-    					return x.config.page == page.pageTechName && ((x.type === "ion-card" && x.children != undefined) || x.type !== "ion-card") && x.type !== "layout" && x.type !== "description" && x.type !== "chart" && x.type !== "map" && x.type !== "button";
-    				}).flatMap((x) => {
-    					if (x.type === "ion-card" && x.children != undefined) {
-    						var prefix = x.name;
-    						const _temp_subArray = x.children.map((y) => {
-    							return { path: prefix + ".children." + y.name, type: y.type };
-    						});
-    						return _temp_subArray;
-    					}
-    					else {
-    						return { path: x.name, type: x.type };
-    
-    					}
-    				});
-    				sortedsIds = sortedsIds.concat(_tempArr);
-    			});
-    			if(published_form.actions){
-    				lenActions = published_form.actions.filter((x) => { return x.type === "submit" }).length;
-    			}
-    			else if(published_form.flows){
-    				lenActions = published_form.flows[1].elements.filter((x) => { return x.type === "submit" }).length;
-    			}
-    			
+    			var computed = computeSortedIdsFromForm(published_form);
+    			sortedsIds = sortedsIds.concat(computed.ids);
+    			lenActions = computed.lenActions;
     			res.response.sort = true;
     		}
     		// if none of both previous conditions are met, we can''t sort responses.
@@ -414,11 +645,11 @@ accessibility: Hidden
     					var prefix = x.name;
     					for (var f in x.children) {
     						y = x.children[f];
-    						_tempArr.push({ path: prefix + ".children." + y.name, type: y.type });
+    						_tempArr.push(buildPathEntry([prefix, "children", y.name], y.type, y.meta ? y.meta : null, { name: y.name }));
     					}
     				}
     				else {
-    					_tempArr.push({ path: x.name, type: x.type });
+    					_tempArr.push(buildPathEntry([x.name], x.type, x.meta ? x.meta : null, { name: x.name }));
     
     				}
     			}
@@ -430,37 +661,59 @@ accessibility: Hidden
     			}
     		}
     	}
-    	if(csv){
-    		var arrayCsv = [{path: ''/.doc.timestamp'', type:"timestamp", meta: {}}];
-    		if(meta){
-    			if(meta.offset){
+    	else {
+    		var computedNoResponse = computeSortedIdsFromForm(published_form);
+    		sortedsIds = sortedsIds.concat(computedNoResponse.ids);
+    		lenActions = computedNoResponse.lenActions;
+    		if (computedNoResponse.ids.length > 0) {
+    			res.response.sort = true;
+    		}
+    	}
+    	if (csv) {
+    		var arrayCsv = [buildPathEntry(["/", "doc", "timestamp"], "timestamp", {})];
+    		if (meta) {
+    			if (meta.offset) {
     				var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
     				offset = +meta.offset;
     				arrayCsv[0].meta.offsetDiff = offset - offSetServer;
     			}
-    			if(meta.authorId){
-    				arrayCsv.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: false}});
+    			if (meta.authorId) {
+    				arrayCsv.push(buildPathEntry(["/", "doc", "~c8oAcl"], "author", { transform: false }));
     			}
-    			else if(meta.authorName){
-    				arrayCsv.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: true}});
+    			else if (meta.authorName) {
+    				arrayCsv.push(buildPathEntry(["/", "doc", "~c8oAcl"], "author", { transform: true }));
     			}
     		}
     		sortedsIds = arrayCsv.concat(sortedsIds);
     	}
-    	else{
-    		var arraySummary = [{path: ''/.doc.timestamp'', type:"timestamp", meta: {}}];
-    		if(meta && meta.offset){
+    	else {
+    		var arraySummary = [buildPathEntry(["/", "doc", "timestamp"], "timestamp", {})];
+    		if (meta && meta.offset) {
     			var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
     			offset = +meta.offset;
     			arraySummary[0].meta.offsetDiff = offset - offSetServer;
     		}
-    		arraySummary.push({path: ''/.doc.~c8oAcl'', type:"author", meta: {transform: true}});
+    		arraySummary.push(buildPathEntry(["/", "doc", "~c8oAcl"], "author", { transform: true }));
     		sortedsIds = arraySummary.concat(sortedsIds);
     	}
     
     	// sorted responses for current versions
     	var len = sortedsIds.length;
     	var lenResponses = responses.length;
+    	var emptyFormSubmit = null;
+    	if (hasNoResponses) {
+    		emptyFormSubmit = {};
+    		try {
+    			fillFormSubmit(published_form.formulaire, emptyFormSubmit);
+    		}
+    		catch (e) {
+    			try {
+    				log.error("[APIV2_getResponses] Unable to build empty formSubmit structure " + e);
+    			}
+    			catch (ignored) { }
+    		}
+    		res.response.formSubmit = emptyFormSubmit;
+    	}
     
     	// if export to csv mode
     	var nestedResponses;
@@ -468,7 +721,7 @@ accessibility: Hidden
     		nestedResponses = [];
     	}
     	var flatResponses = [];
-    	responses.sort((a, b)=>{
+    	responses.sort((a, b) => {
     		return +a.doc.timestamp - +b.doc.timestamp
     	})
     	// go over each fields of the form
@@ -477,59 +730,79 @@ accessibility: Hidden
     		for (var j = 0; j < lenResponses; j++) {
     			// create resp struct
     			var prefix = false;
-    			var s = sortedsIds[i].path.split(".");
-    			var response;
-    			if(s[0] != "/"){
-    				response = responses[j].doc.resp;
-    			}
-    			else{
-    				response = responses[j];
+    			var segments = getPathSegments(sortedsIds[i]);
+    			var baseResponse;
+    			if (segments.length > 0 && segments[0] == "/") {
     				prefix = true;
-    				s.shift();
+    				baseResponse = responses[j];
+    				segments = segments.slice(1);
     			}
-    			var elem;
-    			try{
-    				for (var part of s) {
-    					response = response[part];
-    					elem = part;
-    				}
+    			else {
+    				baseResponse = responses[j].doc.resp;
     			}
-    			catch(e){
-    				
-    			}
-    			
+    			var resolved = resolvePath(baseResponse, segments);
+    			var response = resolved.value;
+    			var elem = resolved.key;
     			if (response) {
     				if (j == 0) {
     					// prefix for csv as timestamp or author
-    					if(prefix){
+    					if (prefix) {
     						var i18nKey = getI18nForCsv(sortedsIds[i].type, (meta && meta.lang) ? meta.lang : "en");
     						flatResponses[i] = { "id": i18nKey, att_type: false, "label": i18nKey, "labelHtml": i18nKey, "type": sortedsIds[i].type, "name": i18nKey };
     					}
-    					else{
+    					else {
     						flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, categories: [], "name": response.name };
     					}
-    					if(nestedResponses == undefined){
+    					if (nestedResponses == undefined) {
     						flatResponses[i]["value"] = [];
     					}
     				}
-    				if(nestedResponses != undefined){
+    				if (nestedResponses != undefined) {
     					if (nestedResponses[j] == undefined) {
     						nestedResponses[j] = [];
     					}
-    					if(nestedResponses[j][i] == undefined){
-    						nestedResponses[j][i] = { value: []};
+    					if (nestedResponses[j][i] == undefined) {
+    						nestedResponses[j][i] = { value: [] };
     					}
     					extractResponse(response, i, sortedsIds[i].type, responses[j].id, nestedResponses[j], flatResponses, csv, sortedsIds[i].meta);
-    					
+    
     				}
-    				else{
+    				else {
     					extractResponse(response, i, sortedsIds[i].type, responses[j].id, flatResponses, flatResponses, csv, sortedsIds[i].meta);
     				}
-    				
+    
     			}
     		}
     	}
     	var k = +("" + flatResponses.length);
+    	if (hasNoResponses) {
+    		var templateRoot = emptyFormSubmit ? emptyFormSubmit : {};
+    		for (var ti = 0; ti < len; ti++) {
+    			var segmentsTemplate = getPathSegments(sortedsIds[ti]);
+    			if (segmentsTemplate.length > 0 && segmentsTemplate[0] == "/") {
+    				var i18nTemplateKey = getI18nForCsv(sortedsIds[ti].type, (meta && meta.lang) ? meta.lang : "en");
+    				flatResponses[ti] = { "id": i18nTemplateKey, att_type: false, "label": i18nTemplateKey, "labelHtml": i18nTemplateKey, "type": sortedsIds[ti].type, "name": i18nTemplateKey, "value": [], categories: [] };
+    			}
+    			else {
+    				var resolvedTemplate = resolvePath(templateRoot, segmentsTemplate);
+    				var templateNode = resolvedTemplate.value;
+    				var elemTemplate = resolvedTemplate.key != null ? resolvedTemplate.key : sortedsIds[ti].path;
+    				var templateLabel = templateNode && templateNode.label != undefined ? templateNode.label : elemTemplate;
+    				var templateLabelHtml = templateNode && templateNode.labelHtml != undefined ? templateNode.labelHtml : templateLabel;
+    				var templateType = templateNode && templateNode.type ? templateNode.type : sortedsIds[ti].type;
+    				var templateName = templateNode && templateNode.name ? templateNode.name : elemTemplate;
+    				var templateAtt = templateNode && templateNode.att_type ? templateNode.att_type : false;
+    				flatResponses[ti] = { "id": elemTemplate, att_type: templateAtt, "label": templateLabel, "labelHtml": templateLabelHtml, "type": templateType, categories: [], "name": templateName, "value": [] };
+    				if (templateNode) {
+    					extractResponse(templateNode, ti, templateType, "", flatResponses, flatResponses, csv, sortedsIds[ti].meta);
+    				}
+    			}
+    		}
+    		if (nestedResponses != undefined) {
+    			nestedResponses = [];
+    		}
+    		k = +("" + flatResponses.length);
+    	}
     
     	// go over each actions of the form
     	for (i = 0; i < lenActions; i++) {
@@ -543,20 +816,20 @@ accessibility: Hidden
     					response.type = "actionValue";
     					if (j == 0) {
     						flatResponses[k + i] = { "id": indexName, att_type: false, "label": indexName, "labelHtml": indexName, "type": "actionValue", "name": indexName };
-    						if(nestedResponses == undefined){
+    						if (nestedResponses == undefined) {
     							flatResponses[k + i]["value"] = [];
     						}
     					}
-    					if(nestedResponses != undefined){
+    					if (nestedResponses != undefined) {
     						if (nestedResponses[j] == undefined) {
     							nestedResponses[j] = [];
     						}
-    						if(nestedResponses[j][k + i] == undefined){
-    							nestedResponses[j][k + i] = { value: []};
+    						if (nestedResponses[j][k + i] == undefined) {
+    							nestedResponses[j][k + i] = { value: [] };
     						}
     						extractResponse(response, k + i, response.type, responses[j].id, nestedResponses[j], flatResponses, csv, null);
     					}
-    					else{
+    					else {
     						extractResponse(response, k + i, response.type, responses[j].id, flatResponses, flatResponses, csv, null);
     					}
     				}
@@ -566,11 +839,11 @@ accessibility: Hidden
     
     	}
     	res.response.value = flatResponses;
-    	if(nestedResponses){
+    	if (nestedResponses) {
     		res.response.nestedResponses = nestedResponses;
     		res.response.summerized = false;
     	}
-    	else{
+    	else {
     		res.response.summerized = true;
     	}
     }'
@@ -588,14 +861,22 @@ accessibility: Hidden
         - ↑mode: PLAIN
         - →→: res
 ↓formId [variables.RequestableVariable-1697532236824]: 
+  comment: Identifier of the form being handled.
   value: published_1697531850821
 ↓version [variables.RequestableVariable-1697536095803]: 
+  comment: Version string applied to the project or document.
 ↓summary [variables.RequestableVariable-1699003881651]: 
+  comment: Summary text displayed in notifications.
   value: true
 ↓csv [variables.RequestableVariable-1699367933220]: 
+  comment: CSV content or configuration passed to the sequence.
   value: false
 ↓meta [variables.RequestableVariable-1707225958131]: 
+  comment: JSON metadata payload associated with the operation.
 ↓archive [variables.RequestableVariable-1749140640933]: 
+  comment: True to mark the form as archived.
   value: false
 ↓element [variables.RequestableVariable-1749140698219]: 
+  comment: Element identifier inside the document.
   value: false
+↓k [variables.RequestableVariable-1759314071597]: 
