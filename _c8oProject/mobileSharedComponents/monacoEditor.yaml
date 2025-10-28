@@ -10,9 +10,15 @@ scriptContent:
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	public toastController: ToastController;
+        	public monacoResizeObserver: any;
+        	public monacoResizeListener: any;
+        	public monacoEditorInstance: any;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.toastController = this.getInstance(ToastController);
+        		this.monacoResizeObserver = null;
+        		this.monacoResizeListener = null;
+        		this.monacoEditorInstance = null;
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
         		/*End_c8o_CompInitialization*/
@@ -476,17 +482,85 @@ scriptContent:
         	}
         
         	public async onMonacoInit(editor) {
+        		this.monacoEditorInstance = editor;
         		editor.onDidBlurEditorText(async () => {
         			let val = editor.getValue();
         			this.code = await this.parse(val);
         			let evt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
         			this.onBlur.emit(evt);
-        		})
+        		});
         		editor.onDropIntoEditor((event) => { setTimeout(() => { editor.trigger('''', ''editor.action.triggerSuggest''); }) });
-        
+        		const layoutEditor = () => {
+        			try {
+        				const domNode = editor.getDomNode();
+        				const host = domNode != null ? domNode.parentElement : null;
+        				if (host) {
+        					const width = host.clientWidth;
+        					const height = host.clientHeight;
+        					if (width > 0 && height > 0) {
+        						editor.layout({ width, height });
+        						return;
+        					}
+        				}
+        				editor.layout();
+        			}
+        			catch (e) { }
+        		};
+        		const scheduleLayout = () => {
+        			if (typeof requestAnimationFrame === "function") {
+        				requestAnimationFrame(() => {
+        					layoutEditor();
+        				});
+        			}
+        		else {
         		setTimeout(() => {
-        			window.dispatchEvent(new Event(''resize''));
+        			layoutEditor();
         		}, 0);
+        			}
+        		};
+        		if (this.monacoResizeObserver && typeof this.monacoResizeObserver.disconnect === "function") {
+        			try { this.monacoResizeObserver.disconnect(); } catch (e) { }
+        			this.monacoResizeObserver = null;
+        		}
+        		if (this.monacoResizeListener) {
+        			window.removeEventListener("resize", this.monacoResizeListener);
+        			this.monacoResizeListener = null;
+        		}
+        		layoutEditor();
+        		setTimeout(() => {
+        			layoutEditor();
+        		}, 0);
+        		const domNode = editor.getDomNode();
+        		const hostElement = domNode != null ? domNode.parentElement : null;
+        		if (hostElement && typeof ResizeObserver !== "undefined") {
+        			const observer = new ResizeObserver(() => {
+        				scheduleLayout();
+        			});
+        			observer.observe(hostElement);
+        			this.monacoResizeObserver = observer;
+        			editor.onDidDispose(() => {
+        				try { observer.disconnect(); } catch (e) { }
+        				this.monacoResizeObserver = null;
+        			});
+        		}
+        		else {
+        			const listener = () => {
+        				scheduleLayout();
+        			};
+        			window.addEventListener("resize", listener);
+        			this.monacoResizeListener = listener;
+        			editor.onDidDispose(() => {
+        				if (this.monacoResizeListener) {
+        					window.removeEventListener("resize", this.monacoResizeListener);
+        					this.monacoResizeListener = null;
+        				}
+        			});
+        		}
+        		if (editor.onDidContentSizeChange) {
+        			editor.onDidContentSizeChange(() => {
+        				scheduleLayout();
+        			});
+        		}
         		let defs = await this.computeDefs();
         		window["monaco"].languages.typescript.javascriptDefaults.addExtraLib(defs);
         		window["monaco"].editor.createModel(defs, ''typescript'');
