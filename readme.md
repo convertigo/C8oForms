@@ -76,6 +76,7 @@ For more technical informations : [documentation](./project.md)
     - [APIV2_getAttachments](#apiv2_getattachments)
     - [APIV2_getCSVkey](#apiv2_getcsvkey)
     - [APIV2_getDocument](#apiv2_getdocument)
+    - [APIV2_getGroupsDistinct](#apiv2_getgroupsdistinct)
     - [APIV2_getKnownUsersFormatted](#apiv2_getknownusersformatted)
     - [APIV2_GetManageAccessRights](#apiv2_getmanageaccessrights)
     - [APIV2_getOwnerShip](#apiv2_getownership)
@@ -224,6 +225,10 @@ For more technical informations : [documentation](./project.md)
             - [PurgeDatabase](#purgedatabase-1)
             - [PutDocumentAttachment](#putdocumentattachment-1)
             - [PutDocumentAttachmentFromFile](#putdocumentattachmentfromfile-1)
+    - [c8ofullsyncgrp](#c8ofullsyncgrp)
+        - [Transactions](#transactions-2)
+            - [GetGroupsDistinct](#getgroupsdistinct)
+            - [GetServerInfo](#getserverinfo-2)
 - [Rest Web Service](#rest-web-service)
     - [Mappings](#mappings)
         - [/forms/export/{id}](#formsexport{id})
@@ -494,13 +499,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=hotfix/2.1.8
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=hotfix/2.1.9
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/hotfix/2.1.8.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/hotfix/2.1.9.zip
      ```
      </td></tr>
     </table>
@@ -1266,6 +1271,8 @@ Retrieves form data with ACL filtering and computed flags.
 <td>target</td><td>Target identifier for the action.</td>
 </tr>
 </table>
+### APIV2_getGroupsDistinct
+
 ### APIV2_getKnownUsersFormatted
 
 List known users.
@@ -4193,6 +4200,24 @@ Uploads attachments from server-side files.
 <td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
 </tr>
 </table>
+### c8ofullsyncgrp
+
+#### Transactions
+
+##### GetGroupsDistinct
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_key</td><td></td>
+</tr>
+</table>
+##### GetServerInfo
+
 ## Rest Web Service
 
 ### Mappings

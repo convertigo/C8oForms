@@ -3748,6 +3748,56 @@ Identifier of the document targeted by the transaction.
 </p></blockquote></details>
 </p></blockquote></details>
 </p></blockquote></details>
+
+<details><summary><b>c8ofullsyncgrp</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/connectors/images/fullsyncconnector_color_16x16.png?raw=true "FullSyncConnector") c8ofullsyncgrp
+
+
+
+<details><summary><span style="color:DarkGoldenRod"><i>Transactions</i></span></summary><blockquote><p>
+
+
+<details><summary><b>GetGroupsDistinct</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getview_color_16x16.png?raw=true "GetViewTransaction") GetGroupsDistinct
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_key
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>GetServerInfo</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/getserverinfo_color_16x16.png?raw=true "GetServerInfoTransaction") GetServerInfo
+
+
+</p></blockquote></details>
+</p></blockquote></details>
+</p></blockquote></details>
 </p></blockquote></details>
 
 <details><summary><span style="color:DarkGoldenRod"><i>Sequences</i></span></summary><blockquote><p>
@@ -5393,6 +5443,14 @@ Target identifier for the action.
 </td>
 </tr>
 </table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_getGroupsDistinct</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getGroupsDistinct
+
 
 </p></blockquote></details>
 
