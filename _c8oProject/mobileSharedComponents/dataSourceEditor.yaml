@@ -5,13 +5,13 @@ scriptContent:
       →: |
         '/*Begin_c8o_CompImport*/
         import { C8Oforms_PopOverSourceCompletion } from ''../c8oforms.popoversourcecompletion/c8oforms-popoversourcecompletion'';
-        import {KeyValue} from ''@angular/common'';
+        import { KeyValue } from ''@angular/common'';
         import { environment } from ''src/environments/environment'';
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
-        		window["dtse"]= this;
+        		window["dtse"] = this;
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
         		//this.buildFilters();
@@ -31,63 +31,144 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
-        	public isJSON(el){
-        		try{
+        	public isJSON(el) {
+        		try {
         			JSON.parse(el)
         			return true;
         		}
-        		catch(e){
+        		catch (e) {
         			return false;
         		}
         	}
-        	public keys(el){
-        		if(el != null){
+        	public keys(el) {
+        		if (el != null) {
         			return Object.keys(el);
         		}
         		return null;
         	}
-        	public cptString(key, el){
+        	public cptString(key, el) {
         		el = JSON.parse(el);
-        		let str =   this.translate.instant(key) + ": ";
-        		 if(Array.isArray(el[key])){
-        			str +=  el[key].join(", ")
-        		 }else{
-        			 str += el[key]
-        		 }
-        		 return str;
+        		let str = this.translate.instant(key) + ": ";
+        		if (Array.isArray(el[key])) {
+        			str += el[key].join(", ")
+        		} else {
+        			str += el[key]
+        		}
+        		return str;
         	}
-        	
-        	public async buildFilters(){
-        		try{
+        
+        	public async buildFilters() {
+        		try {
         			this.local.compl = null;
-        			if(this.pageOwner.getTypeByActions(this.sources, this.isSource) == ''filter''){
-        				let baseURL = environment.production ? window.location.href.substring(0, (window.location.href.indexOf("/projects/") + 10 )  ) : "http://localhost:18080/convertigo/projects/"; 
+        			if (this.pageOwner.getTypeByActions(this.sources, this.isSource) == ''filter'') {
+        				let baseURL = environment.production ? window.location.href.substring(0, (window.location.href.indexOf("/projects/") + 10)) : "http://localhost:18080/convertigo/projects/";
         				let req = this.pageOwner.getEnabled(this.sources);
         				this.sources[req].vars
         				let defaultVars = {};
         				let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
-        				try{
-        					defaultVars = defaultVars = Object.keys(this.sources[req].vars).map((x=>{return {key: x, value: this.sources[req].vars[x].str != undefined ? this.sources[req].vars[x].str.replace(regex, "") : "" }})).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
+        				try {
+        					defaultVars = defaultVars = Object.keys(this.sources[req].vars).map((x => { return { key: x, value: this.sources[req].vars[x].str != undefined ? this.sources[req].vars[x].str.replace(regex, "") : "" } })).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
         				}
-        				catch(e){
-        					
+        				catch (e) {
+        
         				}
-        				let res = await this.c8o.callJsonObject(req,{model: true, ...defaultVars}).async();
-        				if(res.data && res.data[0]){
+        				let res = await this.c8o.callJsonObject(req, { model: true, ...defaultVars }).async();
+        				if (res.data && res.data[0]) {
         					this.local.compl = Object.keys(res.data[0]);
         				}
         			}
         			//else{
         			//}
         		}
-        		catch(e){
-        			
+        		catch (e) {
+        
         		}
-        		
+        
         	}
         	private onCompare(_left: KeyValue<any, any>, _right: KeyValue<any, any>): number {
         		return -1;
         	}
+        	public async __convertTsToText(sourceStr) {
+        		try {
+        			if (sourceStr == null) {
+        				return "";
+        			}
+        			var raw = "" + sourceStr;
+        			var body = raw.trim();
+        			if (body.indexOf("(async ()=>{") === 0) {
+        				var startReturn = body.indexOf("return ");
+        				if (startReturn !== -1) {
+        					body = body.substring(startReturn + 7);
+        				}
+        				var closing = body.lastIndexOf("})();");
+        				if (closing !== -1) {
+        					body = body.substring(0, closing);
+        				}
+        			}
+        			body = body.trim();
+        			if (body.indexOf("return ") === 0) {
+        				body = body.substring(7);
+        			}
+        			body = body.trim();
+        			if (body.lastIndexOf(";") === body.length - 1) {
+        				body = body.substring(0, body.length - 1);
+        			}
+        			body = body.trim();
+        			if (body === "") {
+        				return "";
+        			}
+        			var translated = body;
+        			if (this.c8oforms_monacoeditor && typeof this.c8oforms_monacoeditor.parse === "function") {
+        				try {
+        					translated = await this.c8oforms_monacoeditor.parse(body);
+        				}
+        				catch (parseError) {
+        					translated = body;
+        				}
+        			}
+        			var builder = "";
+        			var tokenRegex = /(\$\$(?:START)?\d+(?:[\s\S]*?)(?:END)?(?:\d+)?\$\$|"(?:\\.|[^"\\])*")/g;
+        			var lastIndex = 0;
+        			var match;
+        			var cleanup = function(fragment) {
+        				return fragment.replace(/[+\s;\r\n()]/g, "");
+        			};
+        			while ((match = tokenRegex.exec(translated)) != null) {
+        				if (match.index > lastIndex) {
+        					var between = cleanup(translated.substring(lastIndex, match.index));
+        					if (between.length > 0) {
+        						return raw;
+        					}
+        				}
+        				var token = match[0];
+        				if (token.indexOf("$$") === 0) {
+        					builder += token;
+        				}
+        				else {
+        					var literal = token;
+        					var value = "";
+        					try {
+        						value = JSON.parse(literal);
+        					}
+        					catch (ex) {
+        						value = literal.substring(1, literal.length - 1);
+        					}
+        					builder += value;
+        				}
+        				lastIndex = match.index + match[0].length;
+        			}
+        			if (lastIndex < translated.length) {
+        				var tail = cleanup(translated.substring(lastIndex));
+        				if (tail.length > 0) {
+        					return raw;
+        				}
+        			}
+        			return builder;
+        		}
+        		catch (error) {
+        			return sourceStr == null ? "" : "" + sourceStr;
+        		}
+        	};
         	/*End_c8o_CompFunction*/
         '
 ↓GridRow [ngx.components.UIDynamicElement-1610637187950]: 
@@ -3306,7 +3387,7 @@ scriptContent:
                                 							}
                                 							let token = match[0];
                                 							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : "''");
+                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
                                 							lastIndex = match.index + match[0].length;
                                 						}
                                 						if(lastIndex < sourceStr.length){
@@ -4146,7 +4227,7 @@ scriptContent:
                                 							}
                                 							let token = match[0];
                                 							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : "''");
+                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
                                 							lastIndex = match.index + match[0].length;
                                 						}
                                 						if(lastIndex < sourceStr.length){
@@ -4564,40 +4645,51 @@ scriptContent:
                               →: |
                                 '		try {
                                 			page.local.props = null;
-                                			if(this.global?.settings?.formulas){
-                                				if(page.currentEdit){
+                                			if (this.global?.settings?.formulas) {
+                                				if (page.currentEdit) {
                                 					page.currentEdit.editor._editor.bodyElement.style.backgroundColor = "#FFF3CD";
                                 				}
-                                				page.local.props = {props: {type: ''text''}};
+                                				let convertedFormulas = "";
+                                				if (page.currentObject?.type === "ts") {
+                                					convertedFormulas = await page.__convertTsToText(page.currentObject?.str);
+                                				}
+                                				page.local.props = convertedFormulas === ""
+                                					? { props: { type: "text" } }
+                                					: { props: { type: "text", str: convertedFormulas, html: false } };
                                 				return true;
                                 			}
                                 			else{
                                 				let alertController = page.getInstance(AlertController);
-                                				// send an alert to confirm data will be lost
                                 				const alert = await alertController.create({
-                                			      header: page.translate.instant("header_pwamsg"),
-                                			      subHeader: page.translate.instant("compat_aa"),
-                                			      buttons: [
-                                					  {
-                                						  text: page.translate.instant("cancel_pwamsg"),
-                                						  role: ''cancel'',
-                                					  },
-                                					  {
-                                  						  text: page.translate.instant("continue_pwamsg"),
-                                  						  role: ''confirm'',
-                                  					  },
+                                					header: page.translate.instant("header_pwamsg"),
+                                					subHeader: page.translate.instant("compat_aa"),
+                                					buttons: [
+                                						{
+                                							text: page.translate.instant("cancel_pwamsg"),
+                                							role: "cancel",
+                                						},
+                                						{
+                                							text: page.translate.instant("continue_pwamsg"),
+                                							role: "confirm",
+                                						},
                                 					]
-                                			    });
-                                			    await alert.present();
-                                			    let res = await alert.onDidDismiss();
-                                			    let str = "";
-                                				page.local.props = {props: {type: ''text'', str: ""}};
-                                			    return res.role === ''confirm'';
+                                				});
+                                				await alert.present();
+                                				let res = await alert.onDidDismiss();
+                                				if (res.role !== "confirm") {
+                                					return false;
+                                				}
+                                				let converted = "";
+                                				if (page.currentEdit) {
+                                					page.currentEdit.editor._editor.bodyElement.style.backgroundColor = "#FFF3CD";
+                                				}
+                                				page.local.props = { props: { type: "text", str: converted, html: false } };
+                                				return true;
                                 			}
                                 			
                                 		} catch (e) {
-                                		
                                 		}
+                                
                                 '
                         ↓IfElse [ngx.components.UIDynamicIf-1747155141696]: 
                           beanData: '{"ionBean":"IfElseAction"}'
@@ -4704,7 +4796,7 @@ scriptContent:
                                 							}
                                 							let token = match[0];
                                 							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : "''");
+                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
                                 							lastIndex = match.index + match[0].length;
                                 						}
                                 						if(lastIndex < sourceStr.length){
