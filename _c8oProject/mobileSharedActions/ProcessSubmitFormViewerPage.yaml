@@ -96,6 +96,49 @@
           				}
           			};
           
+          			const itemsIndex: any = {};
+          			const indexAllItems = (list: any) => {
+          				if (!Array.isArray(list)) {
+          					return;
+          				}
+          				for (let idx = 0; idx < list.length; idx++) {
+          					const element = list[idx];
+          					if (element && element.id != null) {
+          						itemsIndex[element.id] = element;
+          					}
+          					if (element && element.children != null && Array.isArray(element.children)) {
+          						indexAllItems(element.children);
+          					}
+          				}
+          			};
+          			indexAllItems(page["formsList"]);
+          			let visibilityCache: any = {};
+          			const computeVisibility = (element) => {
+          				if (!element) {
+          					return true;
+          				}
+          				const cacheKey = element.id != null ? element.id : undefined;
+          				if (cacheKey != null && Object.prototype.hasOwnProperty.call(visibilityCache, cacheKey)) {
+          					return visibilityCache[cacheKey];
+          				}
+          				let visible = true;
+          				try {
+          					visible = element.conditions != undefined ? !!eval(page["evaluateConditions"](element.conditions)) : true;
+          				}
+          				catch (e) {
+          					visible = true;
+          				}
+          				if (visible && element.parentRef != undefined) {
+          					const parent = itemsIndex[element.parentRef];
+          					if (parent) {
+          						visible = computeVisibility(parent) && visible;
+          					}
+          				}
+          				if (cacheKey != null) {
+          					visibilityCache[cacheKey] = visible;
+          				}
+          				return visible;
+          			};
           			const checkMandatoryAndJustOnebyColumn = (currentList: any, formsSubmit, pages, currentIndex) => {
           				for (let item in currentList) {
           					// Reassign each value as virgin
@@ -111,13 +154,7 @@
           						doThis = true;
           					}
           					if (doThis) {
-          						try {
-          							doThis = currentList[item].conditions != undefined ? eval(page["evaluateConditions"](currentList[item].conditions)) : true
-          						}
-          						catch (e) {
-          							// normal do nothing
-          						}
-          
+          						doThis = computeVisibility(currentList[item]);
           					}
           					if (doThis) {
           						// Process just one by column
@@ -275,6 +312,7 @@
           
           			// call the function
           			if (vars.performCheckMandatory) {
+          				visibilityCache = {};
           				checkMandatoryAndJustOnebyColumn(page["formsList"], page["formsSubmit"], pages, currentIndex);
           			}
           			if (doAll == true) {
