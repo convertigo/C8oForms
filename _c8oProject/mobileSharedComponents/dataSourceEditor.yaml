@@ -4942,95 +4942,106 @@ scriptContent:
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             '		try {
-            			if(page.type == "filter"){
-            				if(page.currentObject.type != "filter"){
-            					page.currentObject.conds = [{val1: {name:"", displayName:""}, val2 : {type: "text", str:""}, operator: "" }];
+            			if (page.type == "filter") {
+            				if (page.currentObject.type != "filter") {
+            					page.currentObject.conds = [{ val1: { name: "", displayName: "" }, val2: { type: "text", str: "" }, operator: "" }];
             					page.currentObject.condVisible = "and";
             					page.currentObject.type = "filter";
             					page.ref.detectChanges();
             				}
-            				if(page.local.keyName == null && page.local.done != true){
-            					page.local.done = true;
-            					page.local.processed = false;
-            					page.local.missing_formsConfig = false;
-            					let currentElem = page.item;
-            				    let structure = { "compl": {}, "builtin": {} };
-            				    try {
-            				        // if its a sourced elem
-            				        if (currentElem.sources != undefined) {
-            				            for (let source in currentElem.sources) {
-            				                if (currentElem.sources[source].enabled) {
-            				                    //try to compute default vars values
-            				                    let defaultVars: any = {};
-            				                    let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
-            				                    try {
-            				                        defaultVars = Object.keys(currentElem.sources[source].vars).map((x => { return { key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" } })).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
-            				                    }
-            				                    catch (e) {
-            				
-            				                    }
-            									if(defaultVars && defaultVars.forms_config != null && defaultVars.forms_config == ''''){
+            				let currentElem = page.item;
+            				let structure = { "compl": {}, "builtin": {} };
+            				try {
+            					// if its a sourced elem
+            					if (currentElem.sources != undefined) {
+            						for (let source in currentElem.sources) {
+            							if (currentElem.sources[source].enabled) {
+            
+            								//try to compute default vars values
+            								let defaultVars: any = {};
+            								let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
+            								try {
+            									defaultVars = Object.keys(currentElem.sources[source].vars).map((x => { return { key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" } })).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
+            
+            								}
+            								catch (e) {
+            
+            								}
+            								if ((page.local.keyName == null && page.local.done != true) || page.local.errored == true || JSON.stringify(defaultVars) != page.local.jsonDefaultVars) {
+            									page.local.done = true;
+            									page.local.processed = false;
+            									page.local.errored = false;
+            									page.local.missing_formsConfig = false;
+            									page.local.jsonDefaultVars = JSON.stringify(defaultVars);
+            									if (defaultVars && defaultVars.forms_config != null && defaultVars.forms_config == '''') {
             										page.local.missing_formsConfig = true;
             									}
-            				                    let res = await this.c8o.callJsonObject(source, { model: true, ...defaultVars }).async();
-            				                    if(res && res.data && res.data[0]){
+            									let res = await this.c8o.callJsonObject(source, { model: true, ...defaultVars }).async();
+            									if (res && res.data && res.data[0]) {
             										page.local.keyName = [];
             										page.local.complByName = {};
-            										for(let elem in res.data[0]){
-            											if(!(res.data[0][elem].filterHide === true)){
+            										for (let elem in res.data[0]) {
+            											if (!(res.data[0][elem].filterHide === true)) {
             												page.local.keyName.push(
             													{
             														name: elem,
-            														displayName:  res.data[0][elem].displayName != undefined ? res.data[0][elem].displayName : elem
+            														displayName: res.data[0][elem].displayName != undefined ? res.data[0][elem].displayName : elem
             													}
             												);
             												page.local.complByName[elem] = res.data[0][elem].filterCompletion;
-            												
+            
             											}
             										}
             										page.local.processed = true;
             										page.ref.detectChanges();
             									}
-            				                }
-            				            }
-            				        }
-            				    }
-            				    catch (e) {
-            						page.local.errored = true;
-            				    }
-            					finally{
-            						page.local.errored = page.local.errored == true || page.local.processed == false;
+            									else if (res && res.error == true) {
+            										page.local.errored = true;
+            										if (res.error.removed_db) {
+            											page.local.removed_db = true;
+            										}
+            									}
+            								}
+            							}
+            						}
             					}
             				}
-            				
+            				catch (e) {
+            					page.local.errored = true;
+            				}
+            				finally {
+            					page.local.errored = page.local.errored == true || page.local.processed == false;
+            				}
             			}
-            			else if(page.type == "boolean" && page.currentObject?.str == ""){
-            				page.currentObject.str = "true";
-            			}
-            			else if(page.type == "condition" && page.currentObject?.cond == null){
-            				page.currentObject.cond = [{
-            					subject:"",
-            					"type":"visibleIf"
-            				}];
-            				page.currentObject.condVisible = "and";
-            			}
-            		} catch (e) {
+            
             		
+            			else if (page.type == "boolean" && page.currentObject?.str == "") {
+            			page.currentObject.str = "true";
             		}
-            		try{
-            			if(props.stack.root.scope.changes.currentObject){
-            				if(page.subIndex != null){
-            					page.local.transform = page.pageOwner.transform$toHtml(props.stack.root.scope.changes.currentObject?.currentValue?.[page.subIndex]?.str);
-            				}
-            				else{
-            					page.local.transform = page.pageOwner.transform$toHtml(props.stack.root.scope.changes.currentObject?.currentValue?.str);
-            				}
-            				
-            			}
+            		else if (page.type == "condition" && page.currentObject?.cond == null) {
+            			page.currentObject.cond = [{
+            				subject: "",
+            				"type": "visibleIf"
+            			}];
+            			page.currentObject.condVisible = "and";
             		}
-            		catch(e){
-            			console.error("error occured here",e);
+            	} catch(e) {
+            
+            	}
+            		try {
+            	if (props.stack.root.scope.changes.currentObject) {
+            		if (page.subIndex != null) {
+            			page.local.transform = page.pageOwner.transform$toHtml(props.stack.root.scope.changes.currentObject?.currentValue?.[page.subIndex]?.str);
             		}
+            		else {
+            			page.local.transform = page.pageOwner.transform$toHtml(props.stack.root.scope.changes.currentObject?.currentValue?.str);
+            		}
+            
+            	}
+            }
+            catch (e) {
+            	console.error("error occured here", e);
+            }
             '
 ↓tag [ngx.components.UIControlDirective-1680524753344]: 
   directiveName: If
