@@ -38,6 +38,7 @@ scriptContent:
         	public tinyFuncDropWithCancel;
         	public tinyFuncDropWithCancelText;
         	public tinyPostInit;
+        	public insertHtmlContent;
         
         	public safeBackground: any;
         	public subscriber_tree: Subject<any>;
@@ -53,13 +54,215 @@ scriptContent:
         		this.tinyPostInit = function(editor) {
         			editor.getBody().style.backgroundColor = "red";
         		}
+        		this.insertHtmlContent = function(editor, html, event = null) {
+        			try {
+        				if (!editor) {
+        					return;
+        				}
+        				const selection = editor.selection;
+        				const doc = editor.getDoc && editor.getDoc();
+        				if (!selection || !doc) {
+        					editor.insertContent(html);
+        					return;
+        				}
+        				const badgeFromEvent = event?.target?.closest?.(''[fakeid],[contenteditable="false"],[c8otype]'');
+        				const currentRange = selection.getRng ? selection.getRng() : null;
+        				let safeRange = null;
+        				const referenceBadge = badgeFromEvent || selection.getStart?.(true)?.closest?.(''[fakeid],[contenteditable="false"],[c8otype]'') || selection.getNode?.()?.closest?.(''[fakeid],[contenteditable="false"],[c8otype]'');
+        				if (referenceBadge) {
+        					safeRange = doc.createRange();
+        					safeRange.setStartAfter(referenceBadge);
+        					safeRange.collapse(true);
+        				}
+        				else if (currentRange) {
+        					safeRange = currentRange.cloneRange ? currentRange.cloneRange() : currentRange;
+        					if (!safeRange.collapsed) {
+        						safeRange.collapse(false);
+        					}
+        				}
+        				if (!safeRange) {
+        					editor.insertContent(html);
+        					return;
+        				}
+        				const container = doc.createElement("div");
+        				container.innerHTML = html;
+        				const fragment = doc.createDocumentFragment();
+        				const nodes = [];
+        				while (container.firstChild) {
+        					const node = container.firstChild;
+        					nodes.push(node);
+        					fragment.appendChild(node);
+        				}
+        				if (nodes.length === 0) {
+        					return;
+        				}
+        				const lastNode = nodes[nodes.length - 1];
+        				editor.undoManager.transact(() => {
+        					safeRange.deleteContents();
+        					safeRange.insertNode(fragment);
+        					if (lastNode) {
+        						const postRange = doc.createRange();
+        						postRange.setStartAfter(lastNode);
+        						postRange.collapse(true);
+        						selection.setRng(postRange);
+        					}
+        				});
+        				editor.nodeChanged();
+        			}
+        			catch (error) {
+        				try {
+        					editor.insertContent(html);
+        				}
+        				catch (err) {
+        				}
+        			}
+        		}
         		this.tinyFuncDrop = function(editor) {
+        			const setCaretFromEvent = (event) => {
+        				try {
+        					const doc = editor?.getDoc?.();
+        					const selection = editor?.selection;
+        					const body = editor?.getBody?.();
+        					if (!doc || !selection || !body) {
+        						return false;
+        					}
+        					const x = typeof event?.clientX === "number" ? event.clientX : event?.pageX;
+        					const y = typeof event?.clientY === "number" ? event.clientY : event?.pageY;
+        					let range = null;
+        					if (typeof doc.caretRangeFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						range = doc.caretRangeFromPoint(x, y);
+        					}
+        					if ((!range || !range.startContainer) && typeof doc.caretPositionFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						const pos = doc.caretPositionFromPoint(x, y);
+        						if (pos?.offsetNode != null) {
+        							range = doc.createRange();
+        							range.setStart(pos.offsetNode, pos.offset);
+        						}
+        					}
+        					if (!range || !range.startContainer) {
+        						const ensureRangeFromTarget = (target) => {
+        							if (!target) {
+        								return null;
+        							}
+        							let current = target;
+        							while (current && current !== body && current.nodeType !== 1 && current.nodeType !== 3) {
+        								current = current.parentNode;
+        							}
+        							if (!current) {
+        								return null;
+        							}
+        							const candidateElement = current.nodeType === 1 ? current : current.parentElement;
+        							const anchor = candidateElement?.closest?.(''[contenteditable="false"], [c8otype]'');
+        							if (anchor) {
+        								const anchorRange = doc.createRange();
+        								if (anchor.nextSibling) {
+        									anchorRange.setStartBefore(anchor.nextSibling);
+        								}
+        								else {
+        									anchorRange.setStartAfter(anchor);
+        								}
+        								anchorRange.collapse(true);
+        								return anchorRange;
+        							}
+        							const computedRange = doc.createRange();
+        							if (current.nodeType === 3) {
+        								const length = current.textContent?.length ?? 0;
+        								computedRange.setStart(current, length);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							if (current === body) {
+        								computedRange.selectNodeContents(body);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.childNodes && current.childNodes.length > 0) {
+        								computedRange.selectNodeContents(current);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.parentNode) {
+        								computedRange.setStartAfter(current);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							return null;
+        						};
+        						let computedRange = ensureRangeFromTarget(event?.target);
+        						if (!computedRange && event?.relatedTarget) {
+        							computedRange = ensureRangeFromTarget(event.relatedTarget);
+        						}
+        						if (!computedRange) {
+        							computedRange = doc.createRange();
+        							computedRange.selectNodeContents(body);
+        							computedRange.collapse(false);
+        						}
+        						range = computedRange;
+        					}
+        					if (!range) {
+        						return false;
+        					}
+        					if (!range.collapsed) {
+        						range.collapse(true);
+        					}
+        					selection.setRng(range);
+        					return true;
+        				}
+        				catch (err) {
+        				}
+        				return false;
+        			};
+        			const focusEditorDuringDrag = (event) => {
+        				try {
+        					const types = event?.dataTransfer?.types;
+        					const isDragging = _this?.local?.dragging === true || _this?.local?.draggingActions === true;
+        					const allowCaret = isDragging || (types && Array.from(types).some((type) => typeof type === "string" && (type.indexOf("__c8oforms") === 0 || type === "__pagec8oformsdrag")));
+        					if (!allowCaret) {
+        						return false;
+        					}
+        					if (event?.dataTransfer) {
+        						try {
+        							event.dataTransfer.dropEffect = "copy";
+        						}
+        						catch (dropErr) {
+        						}
+        					}
+        					if (typeof editor.focus === "function") {
+        						editor.focus();
+        					}
+        					const caretPlaced = setCaretFromEvent(event);
+        					if (!caretPlaced && typeof editor.selection?.getSel === "function") {
+        						const currentSelection = editor.selection.getSel();
+        						if (!currentSelection || currentSelection.rangeCount === 0) {
+        							setCaretFromEvent(event);
+        						}
+        					}
+        					return true;
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			editor.on(''dragenter'', (event) => {
+        				focusEditorDuringDrag(event);
+        			});
+        			editor.on(''dragover'', (event) => {
+        				if (focusEditorDuringDrag(event)) {
+        					event?.preventDefault?.();
+        				}
+        			});
         			editor.on(''drop'', (e) => {
+        				focusEditorDuringDrag(e);
         				if (e.dataTransfer) {
-        					const html = e.dataTransfer.getData(''text/html'');
-        					let content = html.replace(/<meta.*?>/, '''');
-        					editor.selection.placeCaretAt(e.clientX, e.clientY);
-        					editor.insertContent(content);
+        					let html = e.dataTransfer.getData(''text/html'');
+        					if (!html) {
+        						html = e.dataTransfer.getData(''text/plain'');
+        					}
+        					let content = (html || '''').replace(/<meta.*?>/, '''');
+        					if (!setCaretFromEvent(e) && typeof editor.selection?.placeCaretAt === "function") {
+        						editor.selection.placeCaretAt(e.clientX, e.clientY);
+        					}
+        					_this.insertHtmlContent(editor, content, e);
         					e.preventDefault();
         					setTimeout(() => {
         						editor.fire("blur");
@@ -137,12 +340,151 @@ scriptContent:
         
         		}
         		this.tinyFuncDropWithCancel = function(editor) {
+        			const setCaretFromEvent = (event) => {
+        				try {
+        					const doc = editor?.getDoc?.();
+        					const selection = editor?.selection;
+        					const body = editor?.getBody?.();
+        					if (!doc || !selection || !body) {
+        						return false;
+        					}
+        					const x = typeof event?.clientX === "number" ? event.clientX : event?.pageX;
+        					const y = typeof event?.clientY === "number" ? event.clientY : event?.pageY;
+        					let range = null;
+        					if (typeof doc.caretRangeFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						range = doc.caretRangeFromPoint(x, y);
+        					}
+        					if ((!range || !range.startContainer) && typeof doc.caretPositionFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						const pos = doc.caretPositionFromPoint(x, y);
+        						if (pos?.offsetNode != null) {
+        							range = doc.createRange();
+        							range.setStart(pos.offsetNode, pos.offset);
+        						}
+        					}
+        					if (!range || !range.startContainer) {
+        						const ensureRangeFromTarget = (target) => {
+        							if (!target) {
+        								return null;
+        							}
+        							let current = target;
+        							while (current && current !== body && current.nodeType !== 1 && current.nodeType !== 3) {
+        								current = current.parentNode;
+        							}
+        							if (!current) {
+        								return null;
+        							}
+        							const candidateElement = current.nodeType === 1 ? current : current.parentElement;
+        							const anchor = candidateElement?.closest?.(''[contenteditable="false"], [c8otype]'');
+        							if (anchor) {
+        								const anchorRange = doc.createRange();
+        								if (anchor.nextSibling) {
+        									anchorRange.setStartBefore(anchor.nextSibling);
+        								}
+        								else {
+        									anchorRange.setStartAfter(anchor);
+        								}
+        								anchorRange.collapse(true);
+        								return anchorRange;
+        							}
+        							const computedRange = doc.createRange();
+        							if (current.nodeType === 3) {
+        								const length = current.textContent?.length ?? 0;
+        								computedRange.setStart(current, length);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							if (current === body) {
+        								computedRange.selectNodeContents(body);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.childNodes && current.childNodes.length > 0) {
+        								computedRange.selectNodeContents(current);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.parentNode) {
+        								computedRange.setStartAfter(current);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							return null;
+        						};
+        						let computedRange = ensureRangeFromTarget(event?.target);
+        						if (!computedRange && event?.relatedTarget) {
+        							computedRange = ensureRangeFromTarget(event.relatedTarget);
+        						}
+        						if (!computedRange) {
+        							computedRange = doc.createRange();
+        							computedRange.selectNodeContents(body);
+        							computedRange.collapse(false);
+        						}
+        						range = computedRange;
+        					}
+        					if (!range) {
+        						return false;
+        					}
+        					if (!range.collapsed) {
+        						range.collapse(true);
+        					}
+        					selection.setRng(range);
+        					return true;
+        				}
+        				catch (err) {
+        				}
+        				return false;
+        			};
+        			const focusEditorDuringDrag = (event) => {
+        				try {
+        					const types = event?.dataTransfer?.types;
+        					const isDragging = _this?.local?.dragging === true || _this?.local?.draggingActions === true;
+        					const allowCaret = isDragging || (types && Array.from(types).some((type) => typeof type === "string" && (type.indexOf("__c8oforms") === 0 || type === "__pagec8oformsdrag")));
+        					if (!allowCaret) {
+        						return false;
+        					}
+        					if (event?.dataTransfer) {
+        						try {
+        							event.dataTransfer.dropEffect = "copy";
+        						}
+        						catch (dropErr) {
+        						}
+        					}
+        					if (typeof editor.focus === "function") {
+        						editor.focus();
+        					}
+        					const caretPlaced = setCaretFromEvent(event);
+        					if (!caretPlaced && typeof editor.selection?.getSel === "function") {
+        						const currentSelection = editor.selection.getSel();
+        						if (!currentSelection || currentSelection.rangeCount === 0) {
+        							setCaretFromEvent(event);
+        						}
+        					}
+        					return true;
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			editor.on(''dragenter'', (event) => {
+        				focusEditorDuringDrag(event);
+        			});
+        			editor.on(''dragover'', (event) => {
+        				if (focusEditorDuringDrag(event)) {
+        					event?.preventDefault?.();
+        				}
+        			});
         			editor.on(''drop'', (e) => {
+        				focusEditorDuringDrag(e);
         				if (e.dataTransfer) {
-        					const html = e.dataTransfer.getData(''text/html'');
-        					let content = html.replace(/<meta.*?>/, '''');
-        					editor.selection.placeCaretAt(e.clientX, e.clientY);
-        					editor.insertContent(content);
+        					let html = e.dataTransfer.getData(''text/html'');
+        					if (!html) {
+        						html = e.dataTransfer.getData(''text/plain'');
+        					}
+        					let content = (html || '''').replace(/<meta.*?>/, '''');
+        					if (!setCaretFromEvent(e) && typeof editor.selection?.placeCaretAt === "function") {
+        						editor.selection.placeCaretAt(e.clientX, e.clientY);
+        					}
+        					_this.insertHtmlContent(editor, content, e);
         					e.preventDefault();
         					setTimeout(() => {
         						editor.fire("blur");
