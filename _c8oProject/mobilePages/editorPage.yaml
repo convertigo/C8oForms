@@ -3958,6 +3958,88 @@ scriptContent:
         		return ev;
         	}
         
+        	public sanitizeCompletionValue(value, skipKeys: string[] = []) {
+        		if (value == null) {
+        			return "";
+        		}
+        		if (Array.isArray(value)) {
+        			if (value.length > 0) {
+        				return [this.sanitizeCompletionValue(value[0], skipKeys)];
+        			}
+        			else {
+        				return [];
+        			}
+        		}
+        		if (typeof (value) == "object") {
+        			let sanitized = {};
+        			for (let key of Object.keys(value)) {
+        				if (skipKeys.indexOf(key) != -1) {
+        					continue;
+        				}
+        				sanitized[key] = this.sanitizeCompletionValue(value[key], skipKeys);
+        			}
+        			return sanitized;
+        		}
+        		return "";
+        	}
+        
+        	public buildGridFallbackRow(currentElem) {
+        		let row = {};
+        		if (Array.isArray(currentElem?.config?.columns)) {
+        			currentElem.config.columns.forEach((column, index) => {
+        				let key = column?.technicalName ?? column?.name ?? column?.field ?? `column_${index}`;
+        				if (key == null || key == "") {
+        					key = `column_${index}`;
+        				}
+        				row[key] = { value: "", displayValue: "" };
+        			});
+        		}
+        		return row;
+        	}
+        
+        	public buildCellSelectedStructures(currentElem, sampleRow) {
+        		let baseRow = sampleRow && Object.keys(sampleRow).length > 0 ? sampleRow : this.buildGridFallbackRow(currentElem);
+        		let sanitizedRow = this.sanitizeCompletionValue(baseRow, ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        		let firstColumnKey = null;
+        		if (baseRow != null && typeof (baseRow) == "object") {
+        			for (let key of Object.keys(baseRow)) {
+        				if (key == "__rowValue") {
+        					continue;
+        				}
+        				firstColumnKey = key;
+        				break;
+        			}
+        		}
+        		let rawFirstColumn = firstColumnKey != null ? baseRow[firstColumnKey] : null;
+        		let cellSelectedSample = this.sanitizeCompletionValue(rawFirstColumn, ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        		if ((cellSelectedSample == null || cellSelectedSample === "" || (typeof (cellSelectedSample) == "object" && Object.keys(cellSelectedSample).length == 0)) && sanitizedRow != null && typeof (sanitizedRow) == "object") {
+        			for (let key of Object.keys(sanitizedRow)) {
+        				if (key == "__rowValue") {
+        					continue;
+        				}
+        				cellSelectedSample = sanitizedRow[key];
+        				break;
+        			}
+        		}
+        		let cellSelected: any;
+        		if (cellSelectedSample != null && typeof (cellSelectedSample) == "object") {
+        			cellSelected = JSON.parse(JSON.stringify(cellSelectedSample));
+        		}
+        		else if (cellSelectedSample != null) {
+        			cellSelected = { value: cellSelectedSample };
+        		}
+        		else {
+        			cellSelected = { value: "", displayValue: "" };
+        		}
+        		let parentRow: any = {};
+        		if (sanitizedRow != null && typeof (sanitizedRow) == "object") {
+        			parentRow = JSON.parse(JSON.stringify(sanitizedRow));
+        		}
+        		return {
+        			cellSelected: cellSelected,
+        			parentRow: parentRow
+        		};
+        	}
         
         	public async searchCompletionWithElem(currentElem, graphic = false, remote = true) {
         		let structure = { "compl": {}, "builtin": {} };
@@ -3984,12 +4066,20 @@ scriptContent:
         
         								switch (currentElem.type) {
         									case "grid":
-        										if (currentElem.config.returned_value == "nothing" || currentElem.config.returned_value == "all_the_data" || currentElem.config.returned_value == "multiple_row_selected") {
+        										if (currentElem.config.returned_value == "cell_selected") {
+        											let sanitizedRow = this.sanitizeCompletionValue(res?.data?.[0], ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        											let built = this.buildCellSelectedStructures(currentElem, sanitizedRow);
+        											structure.compl = {
+        												cellSelected: built.cellSelected,
+        												parentRow: built.parentRow
+        											};
+        										}
+        										else if (currentElem.config.returned_value == "nothing" || currentElem.config.returned_value == "all_the_data" || currentElem.config.returned_value == "multiple_row_selected") {
         											// here insert index selector and explain
-        											structure.compl = { __c8o__index__reserved: res?.data?.[0] };
+        											structure.compl = { __c8o__index__reserved: this.sanitizeCompletionValue(res?.data?.[0], ["hidden", "filterCompletion", "ctype", "filterHide", "type"]) };
         										}
         										else {
-        											structure.compl = res?.data?.[0];
+        											structure.compl = this.sanitizeCompletionValue(res?.data?.[0], ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
         										}
         										break;
         									case "select":
@@ -4102,6 +4192,13 @@ scriptContent:
         					}
         					break;
         				case "grid":
+        				if (currentElem?.config?.returned_value == "cell_selected" && Object.keys(structure.compl).length == 0) {
+        					let built = this.buildCellSelectedStructures(currentElem, null);
+        					structure.compl = {
+        						cellSelected: built.cellSelected,
+        						parentRow: built.parentRow
+        					};
+        				}
         					structure.builtin =
         					{
         
