@@ -13701,19 +13701,46 @@ title: Title for editor
                                                       		let clone =  JSON.parse(JSON.stringify(vars.elm));
                                                       		let oldId = clone.id;
                                                       		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                              let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
-                                                              clone.name = page["getNameDispo"](typeToClone, null);
-                                                      		newnames.push(clone.name)
+                                                      		let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
+                                                      		const indexToInsert = page["getElementIndexById"](oldId) + 1;
+                                                      		clone.name = page["getNameDispo"](typeToClone, null);
+                                                      		newnames.push(clone.name);
                                                       		clone.id = new Date().getTime();
-                                                      		if(clone.type == "ion-card"){
-                                                      			clone.children.forEach((elem, index) => {
-                                                      				let typeComputes = typesfreindly[elem.type] != undefined ? typesfreindly[elem.type]: elem.type;
-                                                      				elem.name = page["getNameDispo"](typeComputes, newnames);
-                                                      				newnames.push(elem.name)
-                                                      				elem.id = clone.id + index + 1;
-                                                      			});
+                                                      		let lastGeneratedId = clone.id;
+                                                      		
+                                                      		if((clone.type == "ion-card" || clone.type == "layout") && Array.isArray(clone.childrenRefs) && clone.childrenRefs.length > 0){
+                                                      			for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
+                                                      				let childRef = clone.childrenRefs[i];
+                                                      				let childId = typeof childRef === "object" ? childRef.id : childRef;
+                                                      				let originalChild = page.getElementById(+childId);
+                                                      				if(originalChild == null && typeof childRef === "object"){
+                                                      					originalChild = childRef;
+                                                      				}
+                                                      				if(originalChild == null){
+                                                      					clone.childrenRefs.splice(i, 1);
+                                                      					continue;
+                                                      				}
+                                                      				let child = JSON.parse(JSON.stringify(originalChild));
+                                                      				let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
+                                                      				child.name = page["getNameDispo"](typeComputed, newnames);
+                                                      				newnames.push(child.name);
+                                                      				lastGeneratedId = lastGeneratedId + 1;
+                                                      				child.id = lastGeneratedId;
+                                                      				child.parentRef = clone.id;
+                                                      				child.config = child.config || {};
+                                                      				child.config.page = clone.config.page;
+                                                      				clone.childrenRefs[i] = child.id;
+                                                      				page["formsList"].splice(indexToInsert + i, 0, child);
+                                                      			}
                                                       		}
-                                                      		page["formsList"].splice(page["getElementIndexById"](oldId) + 1, 0, clone);
+                                                      		else {
+                                                      			if(clone.children != undefined){
+                                                      				for(let elem of clone.children){
+                                                      					elem.id = (Math.random() + "").substring(2);
+                                                      				}
+                                                      			}
+                                                      		}
+                                                      		page["formsList"].splice(indexToInsert, 0, clone);
                                                       		resolve();
                                                       '
                                               ↓elm [ngx.components.UIControlVariable-1650357060569]: 
