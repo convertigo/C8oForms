@@ -36,6 +36,9 @@ module.exports = {
         new webpack.SourceMapDevToolPlugin({
       		filename: '[file].map',
       		exclude: ['vendor.js'],
-    	})
+    	}),
+        new webpack.DefinePlugin({
+        'process.env.BABEL_TYPES_8_BREAKING': JSON.stringify(true) // Or false, depending on the library's needs
+        })
     ]
 };

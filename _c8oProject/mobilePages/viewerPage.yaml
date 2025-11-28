@@ -11,7 +11,8 @@ scriptContent:
         import { of, zip, map, Observable, Subject } from ''rxjs'';
         import { Input, EventEmitter, Output } from ''@angular/core'';
         import { indexationPage } from ''../indexationPage/indexationpage'';
-        
+        import { parse } from "@babel/parser";
+        import traverse from "@babel/traverse";
         //Used by conditional
         interface ValFieldObject {
         	str: string;
@@ -4900,13 +4901,58 @@ scriptContent:
         	 * @param {string} src - code JS d’origine
         	 * @returns {string}  - code transformé
         	 */
+        	removeSafeOperatorsInLHSOLD(code) {
+        		const assignmentRegex = /(^|[^<>=!+\-*/%&|^~?:])((?:const|let|var)?\s*)([^=]+?)(?==)/g;
+        		return code.replace(assignmentRegex, (full, prefix, decl, lhs) => {
+        			const cleanedLHS = lhs
+        				.replace(/\?\.\s*\[/g, ''['')
+        				.replace(/\?\.(\w+)/g, ''.$1'');
+        			return prefix + decl + cleanedLHS;
+        		});
+        	}
         	removeSafeOperatorsInLHS(code) {
-        	  return code.replace(/(?:const|let|var)?\s*([^=]+?)=(?!=)/g, (match, lhs) => {
-        	    const cleanedLHS = lhs
-        	      .replace(/\?\.\s*\[/g, ''['')          // ?.["x"] or ?.[index] → ["x"]
-        	      .replace(/\?\.(\w+)/g, ''.$1'');       // ?.prop → .prop
-        	    return match.replace(lhs, cleanedLHS);
+        	  const ast = parse(code, {
+        	    sourceType: "module",
+        	    plugins: 		[
+        		    "optionalChaining",
+        		    ["optionalChainingAssign", { version: "2023-07" }],
+        		    "classProperties",
+        		    "classPrivateProperties",
+        		    "classPrivateMethods"
+        		],
+        	    errorRecovery: true
         	  });
+        
+        	  const edits = [];
+        
+        	  function patchRange(start, end) {
+        	    const lhsSrc = code.slice(start, end);
+        	    if (!lhsSrc.includes("?."))
+        	      return;
+        
+        	    const cleaned = lhsSrc
+        	      .replace(/\?\.\s*\[/g, "[")
+        	      .replace(/\?\.(\w+)/g, ".$1");
+        
+        	    if (cleaned !== lhsSrc) {
+        	      edits.push({ start, end, replacement: cleaned });
+        	    }
+        	  }
+        
+        	  traverse(ast, {
+        	    AssignmentExpression(path) {
+        	      const left = path.node.left;
+        	      if (left.start == null || left.end == null) return;
+        	      patchRange(left.start, left.end);
+        	    }
+        	  });
+        
+        	  edits.sort((a, b) => b.start - a.start);
+        	  let result = code;
+        	  for (const { start, end, replacement } of edits) {
+        	    result = result.slice(0, start) + replacement + result.slice(end);
+        	  }
+        	  return result;
         	}
         
         	/**
