@@ -8490,6 +8490,14 @@ Admin Dashboard Users
 Admin Dashboard Users
 </p></blockquote></details>
 
+<details><summary><b>adminGdrp</b> : Admin Gdrp Config</summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") adminGdrp
+
+Admin Gdrp Config
+</p></blockquote></details>
+
 <details><summary><b>aiChat</b></summary><blockquote><p>
 
 
