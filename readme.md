@@ -206,6 +206,7 @@ For more technical informations : [documentation](./project.md)
     - [c8oforms_response_fs](#c8oforms_response_fs)
         - [Transactions](#transactions-1)
             - [AllDocs](#alldocs)
+            - [DeleteDocumentAttachment](#deletedocumentattachment)
             - [Generic_GetView](#generic_getview)
             - [GetDocument](#getdocument-1)
             - [GetDocumentAttachment](#getdocumentattachment-1)
@@ -499,13 +500,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=hotfix/2.1.11
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1193
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/hotfix/2.1.11.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1193.zip
      ```
      </td></tr>
     </table>
@@ -2586,6 +2587,9 @@ Stores an anonymous response and handles confirmation flows.
 <td>files</td><td></td>
 </tr>
 <tr>
+<td>filesDelete</td><td>Attachment names to delete from the response document.</td>
+</tr>
+<tr>
 <td>filesInfo</td><td>JSON metadata about files to manage.</td>
 </tr>
 <tr>
@@ -3854,6 +3858,24 @@ CouchDB FullSync connector storing submitted responses and related attachments.
 List all response docs.
 Lists response documents in bulk using _all_docs.
 
+##### DeleteDocumentAttachment
+
+Delete response attachment.
+Removes an attachment from a response document by name.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to delete.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
 ##### Generic_GetView
 
 Generic response view.
@@ -4076,6 +4098,9 @@ Creates or updates a response document with merge policy.
 </tr>
 <tr>
 <td>_use_json_base</td><td>JSON base template used to build documents.</td>
+</tr>
+<tr>
+<td>_use_merge</td><td></td>
 </tr>
 <tr>
 <td>c8oGrp</td><td>Group membership map attached to the document.</td>

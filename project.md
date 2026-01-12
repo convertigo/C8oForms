@@ -2986,6 +2986,45 @@ List all response docs.
 Lists response documents in bulk using _all_docs.
 </p></blockquote></details>
 
+<details><summary><b>DeleteDocumentAttachment</b> : Delete response attachment</summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/transactions/couchdb/images/deletedocumentattachment_color_16x16.png?raw=true "DeleteDocumentAttachmentTransaction") DeleteDocumentAttachment
+
+Delete response attachment.
+Removes an attachment from a response document by name.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_attname
+</td>
+<td>
+Attachment name to delete.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_docid
+</td>
+<td>
+Identifier of the document targeted by the transaction.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>Generic_GetView</b> : Generic response view</summary><blockquote><p>
 
 
@@ -3465,6 +3504,14 @@ Identifier of the document to process.
 </td>
 <td>
 JSON base template used to build documents.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;_use_merge
+</td>
+<td>
+
 </td>
 </tr>
 <tr>
@@ -8358,6 +8405,14 @@ List of actions to execute sequentially.
 </td>
 <td>
 
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/multivaluedvariable_color_16x16.png?raw=true "  alt="RequestableMultiValuedVariable" >&nbsp;filesDelete
+</td>
+<td>
+Attachment names to delete from the response document.
 </td>
 </tr>
 <tr>
