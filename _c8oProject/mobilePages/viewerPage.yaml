@@ -1289,6 +1289,9 @@ scriptContent:
         				else if (item.type == "grid") {
         					let value = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : {};
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["config"]["label"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
+        					if(response?.[item["name"]]?.parentNodeId){
+        						formSubmit[item["name"]].parentNodeId = response?.[item["name"]]?.parentNodeId;
+        					}
         				}
         				else if (item["type"] == "radio" || item["type"] == "select") {
         					if (response != undefined && response[item.name] != undefined) {
@@ -1336,6 +1339,61 @@ scriptContent:
         						urlParams = (isNaN(+urlParams) == false && urlParams != "" && urlParams != null) ? +urlParams : null;
         						default_slider = item.config.defaultvalue;
         					}
+        					else if(page.local.fromResponse && response?.[item["name"]]?.["value"] != "" && response?.[item["name"]]?.["value"] != null){
+        						let getFileBlob = async (url)=>{
+        							const r = await fetch(url);
+        							return await r.blob();
+        						}
+        						let imageUrlToBase64 = async (url)=> {
+        							const blob = await getFileBlob(url);
+        							return new Promise((resolve, reject) => {
+        								const reader = new FileReader();
+        								reader.onloadend = () => resolve(reader.result);
+        								reader.onerror = reject;
+        								reader.readAsDataURL(blob);
+        							});
+        						}
+        						let url = this.c8o.endpointConvertigo + ''/fullsync/c8oforms_response_fs/'' + this?.local?.myFormId+ ''/''+ response[item["name"]]["value"]
+        						if(item["type"] == "signature"){
+        							// get attch and convert to b64
+        							imageUrlToBase64(url)
+        							  .then((base64) => {
+        								value = base64
+        								formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
+        							  });
+        						}
+        						else if(item["type"] == "img"){
+        							getFileBlob(url)
+        							  .then((blob) => {
+        								value = blob
+        								formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"], att_type:  response?.[item["name"]]?.att_type == true};
+        							  });
+        						}
+        						else if(item["type"] == "file"){
+        							value = [];
+        							//this.global[this.idFiles][item.id] = value;
+        							formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+        							for(let elem of response[item["name"]]["value"]){
+        								if(typeof elem == "string"){
+        									url = this.c8o.endpointConvertigo + ''/fullsync/c8oforms_response_fs/'' + this?.local?.myFormId+ ''/''+ elem;
+        									let nameF  = elem.substring(elem.indexOf(''_C80C80_'') + 8);
+        									nameF = nameF.substring(0, nameF.indexOf(''_C80C80_''));
+        							getFileBlob(url)
+        						    .then((blob) => {
+        								blob["name"] = nameF;
+        								blob["c8oFileName"] = elem;
+        								blob["bean"] = item.id;
+        								blob["fromEdit"] = true;
+        							  value = blob;
+        							  this.global[this.idFiles][item.id].push(value);
+        							  formSubmit[item["name"]].value.push(blob);
+        						    });
+        								}
+        							}
+        							
+        						}
+        					}
+        					
         					value = (response != null && response[item["name"]] != null && response[item["name"]]["value"] != null) ? response[item["name"]]["value"] : urlParams != null ? urlParams : default_slider != null ? default_slider : "";
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
         				}
@@ -3366,10 +3424,10 @@ scriptContent:
         					let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
         					let sha = sources.sha;
         					let variables = {};
-        					this.functionsById[sha] = async () => {
+        					this.functionsById[sha] = async (init = false) => {
         						await page["computeVariable"](findVars, variables, item);
         						// if value has changed update it and call functions
-        						if (formSubmit[item["name"]]?.value !== variables["selfVar"] && variables["selfVar"] !== undefined && variables["selfVar"] !== null && (item.type != "slider" || (item.type == "slider" && variables["selfVar"] != "") )) {
+        						if ((!init || (init && !page.local.fromResponse)) &&formSubmit[item["name"]]?.value !== variables["selfVar"] && variables["selfVar"] !== undefined && variables["selfVar"] !== null && (item.type != "slider" || (item.type == "slider" && variables["selfVar"] != "") )) {
         							formSubmit[item["name"]].value = variables["selfVar"];
         							try {
         								if (page.local["processingDataS"] == undefined) {
@@ -3401,7 +3459,7 @@ scriptContent:
         							}
         						}
         					}
-        					await this.functionsById[sha]();
+        					await this.functionsById[sha](true);
         					this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         
         				}
@@ -5109,7 +5167,7 @@ scriptContent:
         		for (let bean in this.global[this.idFiles]) {
         			// Iterate over each file in the current bean
         			for (let file of this.global[this.idFiles][bean]) {
-        				if (file.deleted === undefined) {
+        				if (file.deleted === undefined && file.fromEdit != true) {
         					// If the ''deleted'' property is undefined, it means the file is not deleted
         					arr.push({ file: file, bean: bean }); // Push the file and bean into the array
         					cpt = cpt + 1; // Increment the counter for non-deleted files
@@ -7352,6 +7410,11 @@ title: Visualisateur
                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1610052928702]: 
                   beanData: '{"ionBean":"InvokeAction"}'
                   stack: C8Oforms.MobileApplication.Application.removeSpinner
+                ↓fromId [ngx.components.UIControlVariable-1768233532088]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.edit
               ↓Else_Handler [ngx.components.UIActionElseEvent-1593622954755]: 
                 ↓RootPage [ngx.components.UIDynamicAction-1572269500185]: 
                   beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
