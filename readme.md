@@ -7691,6 +7691,9 @@ The Chart Widget viewer
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>addTagText</td><td></td>
+</tr>
+<tr>
 <td>autocompleteItems</td><td></td>
 </tr>
 <tr>
