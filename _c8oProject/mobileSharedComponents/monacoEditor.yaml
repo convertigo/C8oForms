@@ -13,16 +13,42 @@ scriptContent:
         	public monacoResizeObserver: any;
         	public monacoResizeListener: any;
         	public monacoEditorInstance: any;
+        	public monacoLayoutTimer: any;
+        	public monacoRenderTimer: any;
+        	public monacoRenderStableCount: number;
+        	public monacoRenderLastSize: any;
+        	public monacoRenderTries: number;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.toastController = this.getInstance(ToastController);
         		this.monacoResizeObserver = null;
         		this.monacoResizeListener = null;
         		this.monacoEditorInstance = null;
+        		this.monacoLayoutTimer = null;
+        		this.monacoRenderTimer = null;
+        		this.monacoRenderStableCount = 0;
+        		this.monacoRenderLastSize = null;
+        		this.monacoRenderTries = 0;
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
+        		if (this.monacoRenderTimer) {
+        			clearTimeout(this.monacoRenderTimer);
+        			this.monacoRenderTimer = null;
+        		}
+        		if (this.monacoLayoutTimer) {
+        			clearTimeout(this.monacoLayoutTimer);
+        			this.monacoLayoutTimer = null;
+        		}
+        		if (this.monacoResizeObserver && typeof this.monacoResizeObserver.disconnect === "function") {
+        			try { this.monacoResizeObserver.disconnect(); } catch (e) { }
+        			this.monacoResizeObserver = null;
+        		}
+        		if (this.monacoResizeListener) {
+        			window.removeEventListener("resize", this.monacoResizeListener);
+        			this.monacoResizeListener = null;
+        		}
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompChanges*/
         		/*End_c8o_CompChanges*/
@@ -33,6 +59,8 @@ scriptContent:
         /*Begin_c8o_CompAfterContentChecked*/
         		/*End_c8o_CompAfterContentChecked*/
         /*Begin_c8o_CompAfterViewInit*/
+        		this.local.show = false;
+        		this.scheduleMonacoRender();
         		/*End_c8o_CompAfterViewInit*/
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
@@ -61,6 +89,69 @@ scriptContent:
         		await toast.present();
         	}
         
+        	private getMonacoHostElement() {
+        		const host = this["elRef"] != null ? this["elRef"].nativeElement : null;
+        		if (host == null) {
+        			return null;
+        		}
+        		return host.parentElement != null ? host.parentElement : host;
+        	}
+        	
+        	private getMonacoHostSize() {
+        		const host = this.getMonacoHostElement();
+        		if (host == null || typeof host.getBoundingClientRect !== "function") {
+        			return null;
+        		}
+        		const rect = host.getBoundingClientRect();
+        		return { width: Math.round(rect.width), height: Math.round(rect.height) };
+        	}
+        	
+        	private scheduleMonacoLayout(editor) {
+        		if (this.monacoLayoutTimer) {
+        			return;
+        		}
+        		this.monacoLayoutTimer = setTimeout(() => {
+        			this.monacoLayoutTimer = null;
+        			try { editor.layout(); } catch (e) { }
+        		}, 0);
+        	}
+        	
+        	private scheduleMonacoRender() {
+        		if (this.monacoRenderTimer) {
+        			clearTimeout(this.monacoRenderTimer);
+        			this.monacoRenderTimer = null;
+        		}
+        		this.monacoRenderTries = 0;
+        		this.monacoRenderStableCount = 0;
+        		this.monacoRenderLastSize = null;
+        		const check = () => {
+        			this.monacoRenderTries++;
+        			const size = this.getMonacoHostSize();
+        			if (size != null && size.width > 0 && size.height > 0) {
+        				if (this.monacoRenderLastSize != null && size.width === this.monacoRenderLastSize.width && size.height === this.monacoRenderLastSize.height) {
+        					this.monacoRenderStableCount++;
+        				} else {
+        					this.monacoRenderStableCount = 0;
+        					this.monacoRenderLastSize = size;
+        				}
+        				if (this.monacoRenderStableCount >= 2) {
+        					this.monacoRenderTimer = null;
+        					this.local.show = true;
+        					this.ref.detectChanges();
+        					return;
+        				}
+        			}
+        			if (this.monacoRenderTries < 60) {
+        				this.monacoRenderTimer = setTimeout(check, 50);
+        			} else {
+        				this.monacoRenderTimer = null;
+        				this.local.show = true;
+        				this.ref.detectChanges();
+        			}
+        		};
+        		this.monacoRenderTimer = setTimeout(check, 0);
+        	}
+        	
         	/**
         	 * used to find tree leafs, not going more than 10 deep
         	 */
@@ -499,7 +590,7 @@ scriptContent:
         			this.onBlur.emit(evt);
         		});
         		editor.onDropIntoEditor((event) => { setTimeout(() => { editor.trigger('''', ''editor.action.triggerSuggest''); }) });
-        		const layoutEditor = () => {
+        		/*const layoutEditor = () => {
         			try {
         				const domNode = editor.getDomNode();
         				const host = domNode != null ? domNode.parentElement : null;
@@ -569,7 +660,55 @@ scriptContent:
         			editor.onDidContentSizeChange(() => {
         				scheduleLayout();
         			});
+        		}*/
+        		const domNode = editor.getDomNode();
+        		const hostElement = domNode != null ? domNode.parentElement : this.getMonacoHostElement();
+        		if (this.monacoResizeObserver && typeof this.monacoResizeObserver.disconnect === "function") {
+        			try { this.monacoResizeObserver.disconnect(); } catch (e) { }
+        			this.monacoResizeObserver = null;
         		}
+        		if (this.monacoResizeListener) {
+        			window.removeEventListener("resize", this.monacoResizeListener);
+        			this.monacoResizeListener = null;
+        		}
+        		if (hostElement && typeof ResizeObserver !== "undefined") {
+        			const observer = new ResizeObserver(() => {
+        				this.scheduleMonacoLayout(editor);
+        			});
+        			observer.observe(hostElement);
+        			this.monacoResizeObserver = observer;
+        			editor.onDidDispose(() => {
+        				try { observer.disconnect(); } catch (e) { }
+        				this.monacoResizeObserver = null;
+        				if (this.monacoLayoutTimer) {
+        					clearTimeout(this.monacoLayoutTimer);
+        					this.monacoLayoutTimer = null;
+        				}
+        			});
+        		} else {
+        			const listener = () => {
+        				this.scheduleMonacoLayout(editor);
+        			};
+        			window.addEventListener("resize", listener);
+        			this.monacoResizeListener = listener;
+        			editor.onDidDispose(() => {
+        				if (this.monacoResizeListener) {
+        					window.removeEventListener("resize", this.monacoResizeListener);
+        					this.monacoResizeListener = null;
+        				}
+        				if (this.monacoLayoutTimer) {
+        					clearTimeout(this.monacoLayoutTimer);
+        					this.monacoLayoutTimer = null;
+        				}
+        			});
+        		}
+        		if (editor.onDidContentSizeChange) {
+        			editor.onDidContentSizeChange(() => {
+        				this.scheduleMonacoLayout(editor);
+        			});
+        		}
+        		this.scheduleMonacoLayout(editor);
+        		
         		let defs = await this.computeDefs();
         		window["monaco"].languages.typescript.javascriptDefaults.addExtraLib(defs);
         		window["monaco"].editor.createModel(defs, ''typescript'');
@@ -2332,7 +2471,7 @@ scriptContent:
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             '		try {
-            			page.local.editorOptions = {theme: ''vs'', language: ''javascript''};
+            			page.local.editorOptions = {theme: ''vs'', language: ''javascript'', automaticLayout: true};
             		} catch (e) {
             			console.error("[CompMonacoEditor][afterViewInit][error]", e);
             		} finally {
@@ -2400,33 +2539,39 @@ scriptContent:
                 - ↑value: acorn-walk
               - java.lang.String: 
                 - ↑value: 8.3.4
-↓ngx_monaco_editor [ngx.components.UIElement-1681292694675]: 
-  identifier: monacoEditor
-  tagName: ngx-monaco-editor
-  ↓_options_ [ngx.components.UIAttribute-1681292820508]: 
-    attrName: '[options]'
-    attrValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: script:this.local.editorOptions
-  ↓attr [ngx.components.UIAttribute-1681292868963]: 
-    attrName: '[ngModel]'
-    attrValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: script:this.transform$toTsMonaco(this.code)
-  ↓attr1 [ngx.components.UIAttribute-1681293085229]: 
-    attrName: (onInit)
-    attrValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: script:onMonacoInit($event)
-  ↓attr3 [ngx.components.UIAttribute-1686242728676]: 
-    attrName: style
-    attrValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: 'plain:height: 100%'
+↓Directive [ngx.components.UIControlDirective-1768480616982]: 
+  directiveName: If
+  directiveSource: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+      - MobileSmartSourceType: script:this.local.show
+  ↓ngx_monaco_editor [ngx.components.UIElement-1681292694675]: 
+    identifier: monacoEditor
+    tagName: ngx-monaco-editor
+    ↓_options_ [ngx.components.UIAttribute-1681292820508]: 
+      attrName: '[options]'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.local.editorOptions
+    ↓attr [ngx.components.UIAttribute-1681292868963]: 
+      attrName: '[ngModel]'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.transform$toTsMonaco(this.code)
+    ↓attr1 [ngx.components.UIAttribute-1681293085229]: 
+      attrName: (onInit)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:onMonacoInit($event)
+    ↓attr3 [ngx.components.UIAttribute-1686242728676]: 
+      attrName: style
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: 'plain:flex: 1 1 0; min-width: 0; min-height: 0;'
 ↓code [ngx.components.UICompVariable-1681294557081]: 
 ↓onBlur [ngx.components.UICompEvent-1685453920617]: 
   attrName: onBlur
