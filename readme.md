@@ -28,6 +28,8 @@ For more technical informations : [documentation](./project.md)
 - [Installation](#installation)
 - [Sequences](#sequences)
     - [AddUser](#adduser)
+    - [admin_gdrp_get](#admin_gdrp_get)
+    - [admin_gdrp_upsert](#admin_gdrp_upsert)
     - [admin_get_current_dependencies](#admin_get_current_dependencies)
     - [admin_group_delete](#admin_group_delete)
     - [admin_group_get](#admin_group_get)
@@ -241,6 +243,7 @@ For more technical informations : [documentation](./project.md)
         - [adminDashboardHome](#admindashboardhome)
         - [adminDashboardUsers](#admindashboardusers)
         - [adminDashboardUsersWithinGroups](#admindashboarduserswithingroups)
+        - [adminGdrp](#admingdrp)
         - [aiChat](#aichat)
         - [aiDialog](#aidialog)
         - [colorPage](#colorpage)
@@ -468,6 +471,7 @@ For more technical informations : [documentation](./project.md)
         - [menuVersion](#menuversion)
         - [monacoEditor](#monacoeditor)
         - [moveUserToGroupForm](#moveusertogroupform)
+        - [ngxTagInput](#ngxtaginput)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
         - [PermissionsHeaderComponent](#permissionsheadercomponent)
         - [PopoverFilters](#popoverfilters)
@@ -568,6 +572,42 @@ Creates or updates a user record with default rights and metadata.
 </tr>
 <tr>
 <td>user</td><td>should be a valid email</td>
+</tr>
+</table>
+### admin_gdrp_get
+
+Create user.
+Creates a user via the admin interface.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>lang</td><td></td>
+</tr>
+<tr>
+<td>symbol_menu</td><td></td>
+</tr>
+<tr>
+<td>symbol_toast</td><td></td>
+</tr>
+</table>
+### admin_gdrp_upsert
+
+Create user.
+Creates a user via the admin interface.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>meta</td><td></td>
 </tr>
 </table>
 ### admin_get_current_dependencies
@@ -2098,6 +2138,9 @@ Returns GDPR menu content stored in settings.
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>lang</td><td></td>
+</tr>
+<tr>
 <td>symbol</td><td>Symbol or tag referencing a statistic axis.</td>
 </tr>
 </table>
@@ -2113,7 +2156,13 @@ Returns GDPR toast configuration for display.
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>lang</td><td></td>
+</tr>
+<tr>
 <td>symbol</td><td>Symbol or tag referencing a statistic axis.</td>
+</tr>
+<tr>
+<td>type</td><td></td>
 </tr>
 </table>
 ### getInactiveForms
@@ -4307,6 +4356,10 @@ Admin Dashboard Users
 #### adminDashboardUsersWithinGroups
 
 Admin Dashboard Users
+
+#### adminGdrp
+
+Admin Gdrp Config
 
 #### aiChat
 
@@ -7899,6 +7952,96 @@ This component displays a user menu with user info, categorized navigation items
 </table>
 #### moveUserToGroupForm
 
+#### ngxTagInput
+
+This component provides Chips management for your apps
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>addOnBlur</td><td></td>
+</tr>
+<tr>
+<td>autocompleteItems</td><td></td>
+</tr>
+<tr>
+<td>editableTag</td><td></td>
+</tr>
+<tr>
+<td>inputtext</td><td></td>
+</tr>
+<tr>
+<td>itemDisplayBy</td><td></td>
+</tr>
+<tr>
+<td>itemIdentifyBy</td><td></td>
+</tr>
+<tr>
+<td>items</td><td></td>
+</tr>
+<tr>
+<td>maxItems</td><td></td>
+</tr>
+<tr>
+<td>onlyFromAutocomplete</td><td></td>
+</tr>
+<tr>
+<td>placeholder</td><td></td>
+</tr>
+<tr>
+<td>removableTag</td><td></td>
+</tr>
+<tr>
+<td>secondaryPlaceholder</td><td></td>
+</tr>
+<tr>
+<td>showAutoCompleteDropdownIfEmpty</td><td></td>
+</tr>
+<tr>
+<td>theme</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>Add</td><td></td>
+</tr>
+<tr>
+<td>Blur</td><td></td>
+</tr>
+<tr>
+<td>Focus</td><td></td>
+</tr>
+<tr>
+<td>ModelChange</td><td></td>
+</tr>
+<tr>
+<td>Paste</td><td></td>
+</tr>
+<tr>
+<td>Remove</td><td></td>
+</tr>
+<tr>
+<td>Select</td><td></td>
+</tr>
+<tr>
+<td>TagEdited</td><td></td>
+</tr>
+<tr>
+<td>TextChange</td><td></td>
+</tr>
+<tr>
+<td>ValidationError</td><td></td>
+</tr>
+</table>
 #### ngxTagInputCustomC8oForms
 
 **variables**

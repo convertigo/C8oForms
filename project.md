@@ -101,7 +101,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0#readm
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_OAuth
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/806a726567d0362b59148046731dc34ec484ba10#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/8.0.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ProductTour</b></summary><blockquote><p>
@@ -128,6 +128,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#re
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager_ui_ngx
 
 
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8.4.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Vonage_ui_ngx</b></summary><blockquote><p>
