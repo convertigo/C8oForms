@@ -548,37 +548,120 @@ responseTimeout: 600
     	return result;
     };
     var computeSortedIdsFromForm = function(form) {
-    	var result = { ids: [], lenActions: 0 };
-    	if (!form) {
-    		return result;
-    	}
-    	try {
-    		if (form.pages && form.formulaire) {
-    			for (var pageIdx = 0; pageIdx < form.pages.length; pageIdx++) {
-    				var page = form.pages[pageIdx];
-    				var tempArr = form.formulaire.filter(function(x) {
-    					return x.config && x.config.page == page.pageTechName && ((x.type === "ion-card" && x.children != undefined) || x.type !== "ion-card") && x.type !== "layout" && x.type !== "description" && x.type !== "chart" && x.type !== "map" && x.type !== "button";
-    				}).flatMap(function(x) {
-    					if (x.type === "ion-card" && x.children != undefined) {
-    						var prefix = x.name;
-    						return x.children.map(function(y) {
-    							return buildPathEntry([prefix, "children", y.name], y.type, y.meta ? y.meta : null, { name: y.name });
-    						});
-    					}
-    					return buildPathEntry([x.name], x.type, x.meta ? x.meta : null, { name: x.name });
-    				});
-    				result.ids = result.ids.concat(tempArr);
-    			}
-    		}
-    		if (form.actions) {
-    			result.lenActions = form.actions.filter(function(x) { return x.type === "submit"; }).length;
-    		}
-    		else if (form.flows && form.flows.length > 1 && form.flows[1] && form.flows[1].elements) {
-    			result.lenActions = form.flows[1].elements.filter(function(x) { return x.type === "submit"; }).length;
-    		}
-    	}
-    	catch (e) { }
-    	return result;
+        var result = { ids: [], lenActions: 0 };
+        if (!form) {
+            return result;
+        }
+    
+        try {
+            var elementsById = {};
+            if (Array.isArray(form.formulaire)) {
+                form.formulaire.forEach(function (el) {
+                    if (el.id != null) {
+                        elementsById[el.id] = el;
+                    }
+                });
+            }
+    
+            if (form.pages && form.formulaire) {
+                for (var pageIdx = 0; pageIdx < form.pages.length; pageIdx++) {
+                    var page = form.pages[pageIdx];
+    
+                    var pageElements = form.formulaire.filter(function (x) {
+                        return x.config && x.config.page == page.pageTechName
+                            && x.type !== "description"
+                            && x.type !== "chart"
+                            && x.type !== "map"
+                            && x.type !== "button";
+                    });
+    
+                    var alreadyPushed = {};
+                    var orderedForPage = [];
+    
+                    pageElements.forEach(function (x) {
+                        var isGroupParent = (x.type === "ion-card" || x.type === "layout");
+    
+                        if (isGroupParent && Array.isArray(x.childrenRefs) && x.childrenRefs.length > 0) {
+                            x.childrenRefs.forEach(function (childId) {
+                                var child = elementsById[childId];
+                                if (!child) {
+                                    return;
+                                }
+                                if (!(child.config && child.config.page == page.pageTechName)) {
+                                    return;
+                                }
+                                if (child.id != null && alreadyPushed[child.id]) {
+                                    return;
+                                }
+                                orderedForPage.push(child);
+                                if (child.id != null) {
+                                    alreadyPushed[child.id] = true;
+                                }
+                            });
+                            return;
+                        }
+    
+                        if (x.parentRef != null) {
+                            var parent = elementsById[x.parentRef];
+                            if (parent && Array.isArray(parent.childrenRefs) && parent.childrenRefs.length > 0) {
+                                return;
+                            }
+                        }
+    
+                        if (x.type === "layout") {
+                            return;
+                        }
+    
+                        if (
+                            x.type === "ion-card" &&
+                            (!Array.isArray(x.children) || x.children.length === 0) &&
+                            (!Array.isArray(x.childrenRefs) || x.childrenRefs.length === 0)
+                        ) {
+                            return;
+                        }
+    
+                        if (x.id != null && alreadyPushed[x.id]) {
+                            return;
+                        }
+                        orderedForPage.push(x);
+                        if (x.id != null) {
+                            alreadyPushed[x.id] = true;
+                        }
+                    });
+    
+                    var tempArr = orderedForPage.flatMap(function (x) {
+                        if (x.type === "ion-card" && x.children != undefined) {
+                            var prefix = x.name;
+                            return x.children.map(function (y) {
+                                return buildPathEntry(
+                                    [prefix, "children", y.name],
+                                    y.type,
+                                    y.meta ? y.meta : null,
+                                    { name: y.name }
+                                );
+                            });
+                        }
+    
+                        return buildPathEntry(
+                            [x.name],
+                            x.type,
+                            x.meta ? x.meta : null,
+                            { name: x.name }
+                        );
+                    });
+    
+                    result.ids = result.ids.concat(tempArr);
+                }
+            }
+    
+            if (form.actions) {
+                result.lenActions = form.actions.filter(function (x) { return x.type === "submit"; }).length;
+            } else if (form.flows && form.flows.length > 1 && form.flows[1] && form.flows[1].elements) {
+                result.lenActions = form.flows[1].elements.filter(function (x) { return x.type === "submit"; }).length;
+            }
+        } catch (e) { }
+    
+        return result;
     };
     //start code
     var published_form;

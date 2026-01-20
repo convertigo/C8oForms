@@ -11,7 +11,8 @@ scriptContent:
         import { of, zip, map, Observable, Subject } from ''rxjs'';
         import { Input, EventEmitter, Output } from ''@angular/core'';
         import { indexationPage } from ''../indexationPage/indexationpage'';
-        
+        import { parse } from "@babel/parser";
+        import traverse from "@babel/traverse";
         //Used by conditional
         interface ValFieldObject {
         	str: string;
@@ -133,6 +134,8 @@ scriptContent:
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         		window["ro"] = this;
+        		this.local.stringified_vars = {};
+        		this.local.gridOverlays = {};
         		this.local.keepBlobs = [];
         		this.local.validMails = {};
         		this.alertController = this.getInstance(AlertController);
@@ -1178,6 +1181,7 @@ scriptContent:
         	 */
         	public showGridOverlayById(id) {
         		try {
+        			this.local.gridOverlays[id] = true;
         			for (let grid of this["all_comp1608286885281"][''_results'']) {
         				if (grid.myGrid.agGrid._nativeElement.id == id + "") {
         					grid.myGrid.agGrid.api.showLoadingOverlay();
@@ -1196,6 +1200,7 @@ scriptContent:
         	 */
         	public hideGridOverlayById(id) {
         		try {
+        			this.local.gridOverlays[id] = false;
         			for (let grid of this["all_comp1608286885281"][''_results'']) {
         				if (grid.myGrid.agGrid._nativeElement.id == id + "") {
         					grid.myGrid.agGrid.api.hideOverlay();
@@ -1288,6 +1293,9 @@ scriptContent:
         				else if (item.type == "grid") {
         					let value = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : {};
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["config"]["label"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
+        					if(response?.[item["name"]]?.parentNodeId){
+        						formSubmit[item["name"]].parentNodeId = response?.[item["name"]]?.parentNodeId;
+        					}
         				}
         				else if (item["type"] == "radio" || item["type"] == "select") {
         					if (response != undefined && response[item.name] != undefined) {
@@ -1335,6 +1343,61 @@ scriptContent:
         						urlParams = (isNaN(+urlParams) == false && urlParams != "" && urlParams != null) ? +urlParams : null;
         						default_slider = item.config.defaultvalue;
         					}
+        					else if(page.local.fromResponse && response?.[item["name"]]?.["value"] != "" && response?.[item["name"]]?.["value"] != null){
+        						let getFileBlob = async (url)=>{
+        							const r = await fetch(url);
+        							return await r.blob();
+        						}
+        						let imageUrlToBase64 = async (url)=> {
+        							const blob = await getFileBlob(url);
+        							return new Promise((resolve, reject) => {
+        								const reader = new FileReader();
+        								reader.onloadend = () => resolve(reader.result);
+        								reader.onerror = reject;
+        								reader.readAsDataURL(blob);
+        							});
+        						}
+        						let url = this.c8o.endpointConvertigo + ''/fullsync/c8oforms_response_fs/'' + this?.local?.myFormId+ ''/''+ response[item["name"]]["value"]
+        						if(item["type"] == "signature"){
+        							// get attch and convert to b64
+        							imageUrlToBase64(url)
+        							  .then((base64) => {
+        								value = base64
+        								formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
+        							  });
+        						}
+        						else if(item["type"] == "img"){
+        							getFileBlob(url)
+        							  .then((blob) => {
+        								value = blob
+        								formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"], att_type:  response?.[item["name"]]?.att_type == true};
+        							  });
+        						}
+        						else if(item["type"] == "file"){
+        							value = [];
+        							//this.global[this.idFiles][item.id] = value;
+        							formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"]};
+        							for(let elem of response[item["name"]]["value"]){
+        								if(typeof elem == "string"){
+        									url = this.c8o.endpointConvertigo + ''/fullsync/c8oforms_response_fs/'' + this?.local?.myFormId+ ''/''+ elem;
+        									let nameF  = elem.substring(elem.indexOf(''_C80C80_'') + 8);
+        									nameF = nameF.substring(0, nameF.indexOf(''_C80C80_''));
+        							getFileBlob(url)
+        						    .then((blob) => {
+        								blob["name"] = nameF;
+        								blob["c8oFileName"] = elem;
+        								blob["bean"] = item.id;
+        								blob["fromEdit"] = true;
+        							  value = blob;
+        							  this.global[this.idFiles][item.id].push(value);
+        							  formSubmit[item["name"]].value.push(blob);
+        						    });
+        								}
+        							}
+        							
+        						}
+        					}
+        					
         					value = (response != null && response[item["name"]] != null && response[item["name"]]["value"] != null) ? response[item["name"]]["value"] : urlParams != null ? urlParams : default_slider != null ? default_slider : "";
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["name"], "value": value, "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
         				}
@@ -2207,7 +2270,12 @@ scriptContent:
         										return;
         									}
         									let variables = {};
-        									page["computeVariable"](findVars, variables, item);
+        									await page["computeVariable"](findVars, variables, item);
+        									let stringified_vars = JSON.stringify(variables);
+        									if(stringified_vars == this.local.stringified_vars[sha]){
+        										return;
+        									} 
+        									this.local.stringified_vars[sha] = stringified_vars;
         									/*
         									let params = {[C8oLocalCache.PARAM]: new C8oLocalCache(Priority.LOCAL, 3.154e+10)}
         									page.c8o.callJsonObject(findName, {...variables, ...params})
@@ -2642,18 +2710,19 @@ scriptContent:
         								postFunc = (res) => {
         									// find Colomn definitions
         									let checkboxDone = item.config.returned_value != "multiple_row_selected" ? true : false;
-        									if (res.data != undefined && res.data.length > 0) {
+        									if ((res.data != undefined && res.data.length > 0 ) || res?.colDef != undefined && res.colDef.length > 0) {
+        										let workingObj = res.data != undefined && res.data.length > 0 ? res.data[0] : res.colDef[0];
         										let colDef =
-        											Object.keys(res.data[0]).map((y) => {
-        												let current = res.data[0];
+        											Object.keys(workingObj).map((y) => {
+        												let current = workingObj;
         												let obj = { "editable": false };
-        												if (y != "__rowValue" && !(res.data[0][y]["hidden"] == true)) {
+        												if (y != "__rowValue" && !(current[y]["hidden"] == true)) {
         													// if cell is a simple string
         													if (!checkboxDone && item.config.returned_value == "multiple_row_selected") {
         														obj["checkboxSelection"] = true;
         														checkboxDone = true;
         													}
-        													if (typeof (res.data[0][y]) === "string") {
+        													if (typeof (current[y]) === "string") {
         														obj["field"] = y;
         														return obj;
         													}
@@ -2730,6 +2799,14 @@ scriptContent:
         														else if (current[y].sortingType == "number") {
         															obj["comparator"] = (valueA, valueB, nodeA, nodeB, isInverted) => (+valueA[sortingField]) - (+valueB[sortingField])
         														}
+        														obj["filter"] = "agTextColumnFilter";
+        														obj["filterValueGetter"] = (params: any) => {
+        															const v = params.data[params.colDef.field as string];
+        															if(Array.isArray(v?.value)){
+        																return v.value.map(item => item.value).join('' '');
+        															}
+        															return v?.value ?? '''';
+        															}
         														return obj;
         													}
         												}
@@ -2741,7 +2818,9 @@ scriptContent:
         												}
         											});
         										// foreach row
-        										let data = res.data.map((x) => {
+        										let data = [];
+        										if((res.data != undefined && res.data.length > 0 )){
+        											data = res.data.map((x) => {
         											var row = { ...x };
         											// foreach col
         											Object.keys(row).forEach((col) => {
@@ -2766,6 +2845,8 @@ scriptContent:
         											});
         											return row;
         										})
+        										}
+        										
         										page.local.updating[item.id] = 1;
         										setTimeout(() => {
         											this.hideGridOverlayById(item.id);
@@ -2780,10 +2861,9 @@ scriptContent:
         									}
         									else {
         										page.local.updating[item.id] = 1;
-        										setTimeout(() => {
-        											this.hideGridOverlayById(item.id);
-        										})
         										page.local.sourceValue[item.name]["data"] = [];
+        										this.hideGridOverlayById(item.id);
+        										page.ref.detectChanges();
         									}
         								}
         								// fail function for grid
@@ -2943,27 +3023,34 @@ scriptContent:
         									catch (e) {
         
         									}
+        									let callFunctionToBecalled = false;
+        									if(formSubmit[item["name"]]["value"] != defaultSelected){
+        										callFunctionToBecalled = true;
+        									}
         									formSubmit[item["name"]]["value"] = defaultSelected;
         									page.local.sourceValue[item.name] = array;
         									page.local.updating[item.id] = 1;
         									formSubmit[item["name"]]["value"] = defaultSelected;
         									let currentSHA = page["shaById"][item.id];
-        									try {
-        										page.local.functionsToBeCalled[item.id]
-        											.forEach((id) => {
-        												// if its myself, and we asked to exclude myself i will not call the source
-        												if ((id == currentSHA)) {
-        													// do nothing
-        												}
-        												else {
-        													// if its not myself, i will call the source
-        													page["functionsById"][id]();
-        												}
-        											})
-        									}
-        									catch (e) {
+        									if(callFunctionToBecalled){
+        										try {
+        											page.local.functionsToBeCalled[item.id]
+        												.forEach((id) => {
+        													// if its myself, and we asked to exclude myself i will not call the source
+        													if ((id == currentSHA)) {
+        														// do nothing
+        													}
+        													else {
+        														// if its not myself, i will call the source
+        														page["functionsById"][id]();
+        													}
+        												})
+        										}
+        										catch (e) {
         
+        										}
         									}
+        									
         
         								}
         								// fail function for grid
@@ -3040,26 +3127,32 @@ scriptContent:
         									catch (e) {
         
         									}
+        									let callFunctionToBecalled = false;
+        									if(formSubmit[item["name"]]["value"] != defaultSelected){
+        										callFunctionToBecalled = true;
+        									}
         									formSubmit[item["name"]]["value"] = defaultSelected;
         									page.local.sourceValue[item.name] = array;
         									page.local.updating[item.id] = 1;
         									formSubmit[item["name"]]["value"] = defaultSelected;
         									let currentSHA = page["shaById"][item.id];
-        									try {
-        										page.local.functionsToBeCalled[item.id]
-        											.forEach((id) => {
-        												// if its myself, and we asked to exclude myself i will not call the source
-        												if ((id == currentSHA)) {
-        													// do nothing
-        												}
-        												else {
-        													// if its not myself, i will call the source
-        													page["functionsById"][id]();
-        												}
-        											})
-        									}
-        									catch (e) {
-        
+        									if(callFunctionToBecalled){
+        										try {
+        											page.local.functionsToBeCalled[item.id]
+        												.forEach((id) => {
+        													// if its myself, and we asked to exclude myself i will not call the source
+        													if ((id == currentSHA)) {
+        														// do nothing
+        													}
+        													else {
+        														// if its not myself, i will call the source
+        														page["functionsById"][id]();
+        													}
+        												})
+        										}
+        										catch (e) {
+        	
+        										}
         									}
         								}
         								// fail function for grid
@@ -3352,10 +3445,10 @@ scriptContent:
         					let ObjectThatHaveToCallFunc = sources.ObjectThatHaveToCallFunc;
         					let sha = sources.sha;
         					let variables = {};
-        					this.functionsById[sha] = async () => {
+        					this.functionsById[sha] = async (init = false) => {
         						await page["computeVariable"](findVars, variables, item);
         						// if value has changed update it and call functions
-        						if (formSubmit[item["name"]]?.value !== variables["selfVar"] && variables["selfVar"] !== undefined && variables["selfVar"] !== null && (item.type != "slider" || (item.type == "slider" && variables["selfVar"] != "") )) {
+        						if ((!init || (init && !page.local.fromResponse)) &&formSubmit[item["name"]]?.value !== variables["selfVar"] && variables["selfVar"] !== undefined && variables["selfVar"] !== null && (item.type != "slider" || (item.type == "slider" && variables["selfVar"] != "") )) {
         							formSubmit[item["name"]].value = variables["selfVar"];
         							try {
         								if (page.local["processingDataS"] == undefined) {
@@ -3387,7 +3480,7 @@ scriptContent:
         							}
         						}
         					}
-        					await this.functionsById[sha]();
+        					await this.functionsById[sha](true);
         					this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         
         				}
@@ -3430,7 +3523,8 @@ scriptContent:
         					page.local.htmlValue[name] = res != null && res != "null" && res != "undefined" ? res : "";
         				}
         				catch (e) {
-        					this.local.htmlValue[name] = ""
+        					this.local.htmlValue[name] = "";
+        					console.error("ee", e)
         				}
         				finally {
         					this.ref.detectChanges();
@@ -3920,7 +4014,7 @@ scriptContent:
         				case "datetime":
         				case "time":
         					// if no path is specified and it''s not "ts" expression
-        					if (meta.c8opath == "" && !ts) {
+        					if (meta.c8opath == "" && !ts && defElem?.type != "grid") {
         						currentVal = "`+" + this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format", ts) + "+`";
         					}
         					// if path is specified or if it''s "ts" expression
@@ -3930,61 +4024,145 @@ scriptContent:
         						let diffUndefined = " != undefined";
         						// if it''s a grid or a path
         						if (defElem.type == "grid" && meta.c8otype == "path") {
-        							// default base path is :
-        							let basePath = "page.local.techGrid";
-        							let indexBased = false;
-        							// if returned value is either all_the_data or nothing, we will use local source value
-        							if (defElem.config.returned_value == "all_the_data" || defElem.config.returned_value == "nothing") {
-        								basePath = "page.local.sourceValue";
-        								indexBased = true;
-        							}
-        							// if returned value is multiple_row_selected, we set it as index based
-        							else if (defElem.config.returned_value == "multiple_row_selected") {
-        								indexBased = true;
-        							}
-        
-        							//							let st = "(" + ("" + basePath) + diffUndefined + " && ";
-        							let splittedLen = splitted.length - 1;
-        							splitted.forEach((value, index) => {
-        								// ensure name of grid has not changed
-        								if (index == 0) {
-        									value = this.getNameById(+id);
+        							const gridName = this.getNameById(+id);
+        							if (defElem.config.returned_value == "cell_selected") {
+        								let firstSegment = splitted[1];
+        								if (firstSegment == undefined || firstSegment == '''') {
+        									firstSegment = "cell_selected";
         								}
-        								// if user first configured it''s grid returned_value to all_the_data or nothing and then changed it, ignore index key
-        								if (index == 1 && !isNaN(+value) && !indexBased) {
-        									// do nothing and ignore first value key index
+        								if (firstSegment == "cell_selected" || firstSegment == "cellSelected") {
+        									let basePath = "page.formsSubmit?.[''" + gridName + "'']?.[''value'']";
+        									for (let value of splitted.slice(2)) {
+        										basePath += "?.[''" + value + "'']";
+        									}
+        									if (ts) {
+        										currentVal = basePath;
+        									}
+        									else {
+        										currentVal = "`+ (" + basePath + " ?? '''') +`";
+        									}
         								}
-        								// if user first configured it''s grid returned_value to cell_selected or row_selected and then changed it, include index key
-        								else if (index == 1 && isNaN(+value) && indexBased && !ts) {
-        									// add default 0 index key
-        									basePath += "?.[''" + 0 + "'']";
-        									//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
-        									// then add the current key value
-        									basePath += "?.[''" + value + "'']";
-        									//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        								else if (firstSegment == "parentRow") {
+        									let basePath = "page.local.techGrid?.[''" + gridName + "'']?.[''data'']";
+        									for (let value of splitted.slice(2)) {
+        										basePath += "?.[''" + value + "'']";
+        									}
+        									if (ts) {
+        										currentVal = basePath;
+        									}
+        									else {
+        										currentVal = "`+ (" + basePath + " ?? '''') +`";
+        									}
         								}
-        								else if (index == 1 && !indexBased && !ts) {
-        									basePath += "?.[page.getIndexGridAtRunTime(''" + value + "'', ''" + defElem.name + "'')]";
-        									//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
-        								}
-        								// nominal case everything has been confired correctly
         								else {
-        									if (index == 2 && defElem.config.returned_value == "multiple_row_selected") {
-        										basePath += "?.[''data'']";
+        									let basePath = "page.local.techGrid";
+        									let indexBased = false;
+        									if (defElem.config.returned_value == "all_the_data" || defElem.config.returned_value == "nothing") {
+        										basePath = "page.local.sourceValue";
+        										indexBased = true;
         									}
-        									basePath += "?.[''" + value + "'']";
-        									//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
-        									// if experssion is not indexed based, we need to search into data key
-        									if (index == 0 && defElem.config.returned_value != "multiple_row_selected") {
-        										basePath += "?.[''data'']";
+        									else if (defElem.config.returned_value == "multiple_row_selected") {
+        										indexBased = true;
+        									}
+        									let splittedLen = splitted.length - 1;
+        									splitted.forEach((value, index) => {
+        										if (index == 0) {
+        											value = gridName;
+        										}
+        										if (index == 1 && !isNaN(+value) && !indexBased) {
+        										}
+        										else if (index == 1 && isNaN(+value) && indexBased && !ts) {
+        											basePath += "?.[''" + 0 + "'']";
+        											basePath += "?.[''" + value + "'']";
+        										}
+        										else if (index == 1 && !indexBased && !ts) {
+        											basePath += "?.[page.getIndexGridAtRunTime(''" + value + "'', ''" + defElem.name + "'')]";
+        										}
+        										else {
+        											if (index == 2 && defElem.config.returned_value == "multiple_row_selected") {
+        												basePath += "?.[''data'']";
+        											}
+        											basePath += "?.[''" + value + "'']";
+        											if (index == 0 && defElem.config.returned_value != "multiple_row_selected") {
+        												basePath += "?.[''data'']";
+        											}
+        										}
+        									});
+        									if (ts) {
+        										currentVal = basePath;
+        									}
+        									else {
+        										currentVal = "`+ (" + basePath + " ?? '''') +`";
         									}
         								}
-        							});
-        							if (ts) {
-        								currentVal = basePath;
         							}
         							else {
-        								currentVal = "`+ (" + basePath + " ?? '''') +`";
+        								// default base path is :
+        								let basePath = "page.local.techGrid";
+        								let indexBased = false;
+        								// if returned value is either all_the_data or nothing, we will use local source value
+        								if (defElem.config.returned_value == "all_the_data" || defElem.config.returned_value == "nothing") {
+        									basePath = "page.local.sourceValue";
+        									indexBased = true;
+        								}
+        								// if returned value is multiple_row_selected, we set it as index based
+        								else if (defElem.config.returned_value == "multiple_row_selected") {
+        									indexBased = true;
+        								}
+        
+        								//							let st = "(" + ("" + basePath) + diffUndefined + " && ";
+        								let splittedLen = splitted.length - 1;
+        								splitted.forEach((value, index) => {
+        									// ensure name of grid has not changed
+        									if (index == 0) {
+        										value = this.getNameById(+id);
+        									}
+        									// if user first configured it''s grid returned_value to all_the_data or nothing and then changed it, ignore first value key index
+        									if (index == 1 && !isNaN(+value) && !indexBased) {
+        										// do nothing and ignore first value key index
+        									}
+        									// if user first configured it''s grid returned_value to cell_selected or row_selected and then changed it, include index key
+        									else if (index == 1 && isNaN(+value) && indexBased && !ts) {
+        										// add default 0 index key
+        										basePath += "?.[''" + 0 + "'']";
+        										//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        										// then add the current key value
+        										basePath += "?.[''" + value + "'']";
+        										//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        									}
+        									else if (index == 1 && !indexBased && !ts) {
+        										basePath += "?.[page.getIndexGridAtRunTime(''" + value + "'', ''" + defElem.name + "'')]";
+        										//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        									}
+        									// nominal case everything has been confired correctly
+        									else {
+        										if (index == 2 && defElem.config.returned_value == "multiple_row_selected") {
+        											basePath += "?.[''data'']";
+        										}
+        										basePath += "?.[''" + value + "'']";
+        										//									st += ("" + basePath) + diffUndefined + (splittedLen != index ? " && " : " ");
+        										// if experssion is not indexed based, we need to search into data key
+        										if (index == 0 && defElem.config.returned_value != "multiple_row_selected") {
+        											basePath += "?.[''data'']";
+        										}
+        									}
+        								});
+        								if (ts) {
+        									if (defElem.config.returned_value == "multiple_row_selected" && splitted.length <= 2) {
+        										currentVal = "((" + basePath + " ?? []).map((node)=>node?.data).filter((x)=>x != null))";
+        									}
+        									else {
+        										currentVal = basePath;
+        									}
+        								}
+        								else {
+        									if (defElem.config.returned_value == "multiple_row_selected" && splitted.length <= 2) {
+        										currentVal = "`+ JSON.stringify((" + basePath + " ?? []).map((node)=>node?.data).filter((x)=>x != null)) +`";
+        									}
+        									else {
+        										currentVal = "`+ (" + basePath + " ?? '''') +`";
+        									}
+        								}
         							}
         						}
         						// if it''s a builtin expression
@@ -4864,13 +5042,58 @@ scriptContent:
         	 * @param {string} src - code JS d’origine
         	 * @returns {string}  - code transformé
         	 */
+        	removeSafeOperatorsInLHSOLD(code) {
+        		const assignmentRegex = /(^|[^<>=!+\-*/%&|^~?:])((?:const|let|var)?\s*)([^=]+?)(?==)/g;
+        		return code.replace(assignmentRegex, (full, prefix, decl, lhs) => {
+        			const cleanedLHS = lhs
+        				.replace(/\?\.\s*\[/g, ''['')
+        				.replace(/\?\.(\w+)/g, ''.$1'');
+        			return prefix + decl + cleanedLHS;
+        		});
+        	}
         	removeSafeOperatorsInLHS(code) {
-        	  return code.replace(/(?:const|let|var)?\s*([^=]+?)=(?!=)/g, (match, lhs) => {
-        	    const cleanedLHS = lhs
-        	      .replace(/\?\.\s*\[/g, ''['')          // ?.["x"] or ?.[index] → ["x"]
-        	      .replace(/\?\.(\w+)/g, ''.$1'');       // ?.prop → .prop
-        	    return match.replace(lhs, cleanedLHS);
+        	  const ast = parse(code, {
+        	    sourceType: "module",
+        	    plugins: 		[
+        		    "optionalChaining",
+        		    ["optionalChainingAssign", { version: "2023-07" }],
+        		    "classProperties",
+        		    "classPrivateProperties",
+        		    "classPrivateMethods"
+        		],
+        	    errorRecovery: true
         	  });
+        
+        	  const edits = [];
+        
+        	  function patchRange(start, end) {
+        	    const lhsSrc = code.slice(start, end);
+        	    if (!lhsSrc.includes("?."))
+        	      return;
+        
+        	    const cleaned = lhsSrc
+        	      .replace(/\?\.\s*\[/g, "[")
+        	      .replace(/\?\.(\w+)/g, ".$1");
+        
+        	    if (cleaned !== lhsSrc) {
+        	      edits.push({ start, end, replacement: cleaned });
+        	    }
+        	  }
+        
+        	  traverse(ast, {
+        	    AssignmentExpression(path) {
+        	      const left = path.node.left;
+        	      if (left.start == null || left.end == null) return;
+        	      patchRange(left.start, left.end);
+        	    }
+        	  });
+        
+        	  edits.sort((a, b) => b.start - a.start);
+        	  let result = code;
+        	  for (const { start, end, replacement } of edits) {
+        	    result = result.slice(0, start) + replacement + result.slice(end);
+        	  }
+        	  return result;
         	}
         
         	/**
@@ -5058,7 +5281,7 @@ scriptContent:
         		for (let bean in this.global[this.idFiles]) {
         			// Iterate over each file in the current bean
         			for (let file of this.global[this.idFiles][bean]) {
-        				if (file.deleted === undefined) {
+        				if (file.deleted === undefined && file.fromEdit != true) {
         					// If the ''deleted'' property is undefined, it means the file is not deleted
         					arr.push({ file: file, bean: bean }); // Push the file and bean into the array
         					cpt = cpt + 1; // Increment the counter for non-deleted files
@@ -6603,7 +6826,7 @@ scriptContent:
         	 */
         	public getSelectSelectedOne(arr: any[], val: any): any {
         		const filt = arr.find((x) => {
-        			return typeof x === "string" ? x == val : x.value != undefined ? x.value == val : x.displayValue == val;
+        			return typeof x === "string" ? x == val : x.value != undefined ? (typeof(x.value) == "string" ?  x.value == val : JSON.stringify(x.value) == val) : x.displayValue == val;
         		});
         
         		return { val: filt?.displayValue ? filt.displayValue : filt ?? "", type: filt.type };
@@ -7149,6 +7372,20 @@ title: Visualisateur
                 - ↑value: '@ctrl/tinycolor'
               - java.lang.String: 
                 - ↑value: 3.4.0
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: '@babel/parser'
+              - java.lang.String: 
+                - ↑value: 7.28.5
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: '@babel/traverse'
+              - java.lang.String: 
+                - ↑value: 7.28.5
     page_ts_imports: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -7287,6 +7524,11 @@ title: Visualisateur
                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1610052928702]: 
                   beanData: '{"ionBean":"InvokeAction"}'
                   stack: C8Oforms.MobileApplication.Application.removeSpinner
+                ↓fromId [ngx.components.UIControlVariable-1768233532088]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.edit
               ↓Else_Handler [ngx.components.UIActionElseEvent-1593622954755]: 
                 ↓RootPage [ngx.components.UIDynamicAction-1572269500185]: 
                   beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.selectorPage"}'
@@ -9300,7 +9542,7 @@ title: Visualisateur
                     directiveSource: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.local.currentIndex != 0
+                        - MobileSmartSourceType: script:this.local.currentIndex > 0 && this.isThereAPreviousPage()
                     ↓Button1 [ngx.components.UIDynamicElement-1592514986404]: 
                       beanData: '{"ionBean":"Button","IonFill":"plain:solid"}'
                       tagName: ion-button

@@ -8,6 +8,7 @@ scriptContent:
         /*Begin_c8o_CompDeclaration*/
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
+        		window["yy"] = this;
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
         		/*End_c8o_CompInitialization*/
@@ -31,9 +32,17 @@ scriptContent:
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
         	// All theses functions must be the same as treeviewListItem component
+        	public evalCurrentFieldForDisplay(elem, tree) {
+        		if (typeof (tree?.[elem]) == "object") {
+        			return (tree?.[elem]?.displayName != undefined && tree?.[elem]?.displayName != "" ? ((this.currentElement.type == "grid" && this.currentElement.config.returned_value == "cell_selected" && (tree[elem].displayName == "cellSelected" || tree[elem].displayName == "parentRow")) ? this.translate.instant(tree[elem].displayName) : tree[elem].displayName) : elem);
+        		}
+        		else {
+        			return elem;
+        		}
+        	}
         	public evalCurrentField(elem, tree) {
         		if (typeof (tree?.[elem]) == "object") {
-        			return (tree?.[elem]?.displayName != undefined ? tree[elem].displayName : elem);
+        			return (tree?.[elem]?.displayName != undefined && tree?.[elem]?.displayName != "" ? tree[elem].displayName : elem);
         		}
         		else {
         			return elem;
@@ -44,6 +53,94 @@ scriptContent:
         	}
         	isObject(elem, tree) {
         		return (typeof (tree[elem]) == "object");
+        	}
+        	public sanitizeCompletionValue(value, skipKeys: string[] = []) {
+        		if (value == null) {
+        			return "";
+        		}
+        		if (Array.isArray(value)) {
+        			if (value.length > 0) {
+        				return [this.sanitizeCompletionValue(value[0], skipKeys)];
+        			}
+        			else {
+        				return [];
+        			}
+        		}
+        		if (typeof (value) == "object") {
+        			let sanitized = {};
+        			for (let key of Object.keys(value)) {
+        				if (skipKeys.indexOf(key) != -1) {
+        					continue;
+        				}
+        				sanitized[key] = this.sanitizeCompletionValue(value[key], skipKeys);
+        			}
+        			return sanitized;
+        		}
+        		return "";
+        	}
+        	public buildGridFallbackRow(currentElem) {
+        		let row = {};
+        		if (Array.isArray(currentElem?.config?.columns)) {
+        			currentElem.config.columns.forEach((column, index) => {
+        				let key = column?.technicalName ?? column?.name ?? column?.field ?? `column_${index}`;
+        				if (key == null || key == "") {
+        					key = `column_${index}`;
+        				}
+        				row[key] = { value: "", displayValue: "" };
+        			});
+        		}
+        		return row;
+        	}
+        	public buildCellSelectedStructures(currentElem, sampleRow) {
+        		let baseRow = sampleRow && Object.keys(sampleRow).length > 0 ? sampleRow : this.buildGridFallbackRow(currentElem);
+        		let sanitizedRow = this.sanitizeCompletionValue(baseRow, ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        		let firstColumnKey = null;
+        		if (baseRow != null && typeof (baseRow) == "object") {
+        			for (let key of Object.keys(baseRow)) {
+        				if (key == "__rowValue") {
+        					continue;
+        				}
+        				firstColumnKey = key;
+        				break;
+        			}
+        		}
+        		let rawFirstColumn = firstColumnKey != null ? baseRow[firstColumnKey] : null;
+        		let cellSelectedSample = this.sanitizeCompletionValue(rawFirstColumn, ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        		if ((cellSelectedSample == null || cellSelectedSample === "" || (typeof (cellSelectedSample) == "object" && Object.keys(cellSelectedSample).length == 0)) && sanitizedRow != null && typeof (sanitizedRow) == "object") {
+        			for (let key of Object.keys(sanitizedRow)) {
+        				if (key == "__rowValue") {
+        					continue;
+        				}
+        				cellSelectedSample = sanitizedRow[key];
+        				break;
+        			}
+        		}
+        		let cellSelected: any;
+        		if (cellSelectedSample != null && typeof (cellSelectedSample) == "object") {
+        			let sampleClone = JSON.parse(JSON.stringify(cellSelectedSample));
+        			delete sampleClone.displayName;
+        			delete sampleClone.name;
+        			cellSelected = { displayName: "cellSelected", ...sampleClone };
+        		}
+        		else if (cellSelectedSample != null) {
+        			cellSelected = { displayName: "cellSelected", value: cellSelectedSample };
+        		}
+        		else {
+        			cellSelected = { displayName: "cellSelected", value: "", displayValue: "" };
+        		}
+        		let parentRow: any = { displayName: "parentRow" };
+        		if (sanitizedRow != null && typeof (sanitizedRow) == "object") {
+        			let rowClone = JSON.parse(JSON.stringify(sanitizedRow));
+        			delete rowClone.displayName;
+        			delete rowClone.name;
+        			for (let key of Object.keys(rowClone)) {
+        				parentRow[key] = rowClone[key];
+        			}
+        		}
+        		return {
+        			cellSelected: cellSelected,
+        			parentRow: parentRow
+        		};
         	}
         	public async searchCompletionWithElem(currentElem = this.currentElement) {
         		let structure = { "compl": {}, "builtin": {} };
@@ -64,12 +161,37 @@ scriptContent:
         						let res = await this.c8o.callJsonObject(source, { model: true, ...defaultVars }).async();
         						switch (currentElem.type) {
         							case "grid":
-        								if (this.currentElement.config.returned_value == "nothing" || this.currentElement.config.returned_value == "all_the_data" || this.currentElement.config.returned_value == "multiple_row_selected") {
+        								if (currentElem.config.returned_value == "cell_selected") {
+        									let built = this.buildCellSelectedStructures(currentElem, res?.data?.[0]);
+        									structure.compl = {
+        										cellSelected: built.cellSelected,
+        										parentRow: built.parentRow
+        									};
+        								}
+        								else if (this.currentElement.config.returned_value == "nothing" || this.currentElement.config.returned_value == "all_the_data" || this.currentElement.config.returned_value == "multiple_row_selected") {
+        									try{
+        										let keysToRemove = ["hidden", "filterCompletion", "cType", "filterHide", "type"];
+        										for(const col in res.data[0]){
+        									    	keysToRemove.forEach(k => delete res.data[0][col][k]);
+        									  	}
+        									}
+        									catch(e){
+        										
+        									}
         									// here insert index selector and explain
-        									structure.compl = { __c8o__index__reserved: res.data[0] };
+        									structure.compl = { __c8o__index__reserved: res?.data?.[0] };
         								}
         								else {
-        									structure.compl = res.data[0];
+        									try{
+        										let keysToRemove = ["hidden", "filterCompletion", "cType", "filterHide", "type"];
+        										for(const col in res.data[0]){
+        									    	keysToRemove.forEach(k => delete res.data[0][col][k]);
+        									  	}
+        									}
+        									catch(e){
+        										
+        									}
+        									structure.compl = res?.data?.[0];
         								}
         								break;
         							case "select":
@@ -185,6 +307,13 @@ scriptContent:
         					}
         					break;
         				case "grid":
+        				if (this.currentElement?.config?.returned_value == "cell_selected" && Object.keys(structure.compl).length == 0) {
+        					let built = this.buildCellSelectedStructures(this.currentElement, null);
+        					structure.compl = {
+        						cellSelected: built.cellSelected,
+        						parentRow: built.parentRow
+        					};
+        				}
         					structure.builtin =
         					{
         
@@ -507,38 +636,6 @@ scriptContent:
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: plain:ion-text-wrap
-              ↓Event [ngx.components.UIControlEvent-1670592497014]: 
-                ↓openChild [ngx.components.UICustomAsyncAction-1670592497017]: 
-                  actionValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          		try {
-                          			if(page.isObject(vars.item, page.tree)){
-                          				if(page.local.childsOpen[vars.id] != undefined){
-                          				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
-                          				}
-                          				else{
-                          					page.local.childsOpen[vars.id] = true;
-                          				}
-                          			}
-                          		} catch (e) {
-                          		
-                          		} finally {
-                          			return;
-                          		}
-                          
-                  ↓id [ngx.components.UIControlVariable-1670592497020]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.name + idx
-                  ↓item [ngx.components.UIControlVariable-1670592497023]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1670505250429}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
             ↓TextInput [ngx.components.UIDynamicElement-1670593180881]: 
               beanData: |
                 '{
@@ -591,31 +688,6 @@ scriptContent:
                    "IconSlot": "plain:start"
                   }'
                 tagName: ion-icon
-                ↓Event [ngx.components.UIControlEvent-1670592497032]: 
-                  ↓openChild [ngx.components.UICustomAsyncAction-1670592497035]: 
-                    actionValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            		try {
-                            			if(page.local.childsOpen[vars.id] != undefined){
-                            				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
-                            			}
-                            			else{
-                            				page.local.childsOpen[vars.id] = true;
-                            			}
-                            		} catch (e) {
-                            		
-                            		} finally {
-                            			return;
-                            		}
-                            
-                    ↓id [ngx.components.UIControlVariable-1670592497038]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.name + idx
             ↓Style [ngx.components.UIStyle-1670592497041]: 
               styleContent: 
                 - xmlizable: 
@@ -725,6 +797,38 @@ scriptContent:
                         - MobileSmartSourceType: script:item
                   ↓CloseModal [ngx.components.UIDynamicAction-1670592497071]: 
                     beanData: '{"ionBean":"CloseModalAction"}'
+            ↓Event [ngx.components.UIControlEvent-1670592497014]: 
+              ↓openChild [ngx.components.UICustomAsyncAction-1670592497017]: 
+                actionValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        		try {
+                        			if(page.isObject(vars.item, page.tree)){
+                        				if(page.local.childsOpen[vars.id] != undefined){
+                        				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
+                        				}
+                        				else{
+                        					page.local.childsOpen[vars.id] = true;
+                        				}
+                        			}
+                        		} catch (e) {
+                        		
+                        		} finally {
+                        			return;
+                        		}
+                        
+                ↓id [ngx.components.UIControlVariable-1670592497020]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.name + idx
+                ↓item [ngx.components.UIControlVariable-1670592497023]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1670505250429}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
         ↓Tag [ngx.components.UIElement-1670592266782]: 
           identifier: ElseBlock_1670592266782
           tagName: ng-template
@@ -738,7 +842,7 @@ scriptContent:
                 textValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:evalCurrentField(item, this.tree)
+                    - MobileSmartSourceType: script:evalCurrentFieldForDisplay(item, this.tree)
               ↓Style [ngx.components.UIStyle-1670505250441]: 
                 styleContent: 
                   - xmlizable: 
@@ -765,38 +869,6 @@ scriptContent:
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: plain:ion-text-wrap
-              ↓Event [ngx.components.UIControlEvent-1670507665868]: 
-                ↓openChild [ngx.components.UICustomAsyncAction-1670507665871]: 
-                  actionValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          		try {
-                          			if(page.isObject(vars.item, page.tree)){
-                          				if(page.local.childsOpen[vars.id] != undefined){
-                          				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
-                          				}
-                          				else{
-                          					page.local.childsOpen[vars.id] = true;
-                          				}
-                          			}
-                          		} catch (e) {
-                          		
-                          		} finally {
-                          			return;
-                          		}
-                          
-                  ↓id [ngx.components.UIControlVariable-1670507665874]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.name + idx
-                  ↓item [ngx.components.UIControlVariable-1670507874754]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1670505250429}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
             ↓Directive [ngx.components.UIControlDirective-1670505250447]: 
               directiveName: If
               directiveSource: 
@@ -811,31 +883,6 @@ scriptContent:
                    "IconSlot": "plain:start"
                   }'
                 tagName: ion-icon
-                ↓Event [ngx.components.UIControlEvent-1670505250480]: 
-                  ↓openChild [ngx.components.UICustomAsyncAction-1670505250483]: 
-                    actionValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            		try {
-                            			if(page.local.childsOpen[vars.id] != undefined){
-                            				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
-                            			}
-                            			else{
-                            				page.local.childsOpen[vars.id] = true;
-                            			}
-                            		} catch (e) {
-                            		
-                            		} finally {
-                            			return;
-                            		}
-                            
-                    ↓id [ngx.components.UIControlVariable-1670505250486]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.name + idx
             ↓Style [ngx.components.UIStyle-1670505250489]: 
               styleContent: 
                 - xmlizable: 
@@ -945,6 +992,38 @@ scriptContent:
                         - MobileSmartSourceType: script:item
                   ↓CloseModal [ngx.components.UIDynamicAction-1670505250534]: 
                     beanData: '{"ionBean":"CloseModalAction"}'
+            ↓Event [ngx.components.UIControlEvent-1670507665868]: 
+              ↓openChild [ngx.components.UICustomAsyncAction-1670507665871]: 
+                actionValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        		try {
+                        			if(page.isObject(vars.item, page.tree)){
+                        				if(page.local.childsOpen[vars.id] != undefined){
+                        				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
+                        				}
+                        				else{
+                        					page.local.childsOpen[vars.id] = true;
+                        				}
+                        			}
+                        		} catch (e) {
+                        		
+                        		} finally {
+                        			return;
+                        		}
+                        
+                ↓id [ngx.components.UIControlVariable-1670507665874]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.name + idx
+                ↓item [ngx.components.UIControlVariable-1670507874754]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1670505250429}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
         ↓Directive [ngx.components.UIControlDirective-1670505250537]: 
           directiveName: If
           directiveSource: 
@@ -1033,7 +1112,7 @@ scriptContent:
                 textValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:translateSeparator(evalCurrentField(item, this.treebuiltin))
+                    - MobileSmartSourceType: script:translateSeparator(evalCurrentFieldForDisplay(item, this.treebuiltin))
               ↓Style [ngx.components.UIStyle-1670511426576]: 
                 styleContent: 
                   - xmlizable: 
@@ -1060,38 +1139,6 @@ scriptContent:
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: plain:ion-text-wrap
-              ↓Event [ngx.components.UIControlEvent-1670511426582]: 
-                ↓openChild [ngx.components.UICustomAsyncAction-1670511426585]: 
-                  actionValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          		try {
-                          			if(page.isObject(vars.item, page.treebuiltin)){
-                          				if(page.local.childsOpen[vars.id] != undefined){
-                          				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
-                          				}
-                          				else{
-                          					page.local.childsOpen[vars.id] = true;
-                          				}
-                          			}
-                          		} catch (e) {
-                          		
-                          		} finally {
-                          			return;
-                          		}
-                          
-                  ↓id [ngx.components.UIControlVariable-1670511426588]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.name + idx
-                  ↓item [ngx.components.UIControlVariable-1670511426591]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1670505250429}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
             ↓Directive [ngx.components.UIControlDirective-1670511426594]: 
               directiveName: If
               directiveSource: 
@@ -1106,31 +1153,6 @@ scriptContent:
                    "IconSlot": "plain:start"
                   }'
                 tagName: ion-icon
-                ↓Event [ngx.components.UIControlEvent-1670511426600]: 
-                  ↓openChild [ngx.components.UICustomAsyncAction-1670511426603]: 
-                    actionValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            		try {
-                            			if(page.local.childsOpen[vars.id] != undefined){
-                            				page.local.childsOpen[vars.id] = !page.local.childsOpen[vars.id];
-                            			}
-                            			else{
-                            				page.local.childsOpen[vars.id] = true;
-                            			}
-                            		} catch (e) {
-                            		
-                            		} finally {
-                            			return;
-                            		}
-                            
-                    ↓id [ngx.components.UIControlVariable-1670511426606]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.name + idx
             ↓Style [ngx.components.UIStyle-1670511426609]: 
               styleContent: 
                 - xmlizable: 

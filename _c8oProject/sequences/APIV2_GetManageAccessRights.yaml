@@ -1,4 +1,5 @@
 accessibility: Hidden
+authenticatedContextRequired: true
 comment: |
   Fetch manage rights.
   Reads and formats the manage-access-rights document for a form.
@@ -114,31 +115,35 @@ comment: |
     		canSeeAllGroups = true;
        }
        if(canSeeAllGroups){
-    		groups = toJSON(fsclient.getView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query)).rows.map((x) => { return x.value });
-    		let uniqueGroups = [];
-    		let seen = {};
-    		for (let item of groups) {
-    		    if (!seen[item]) {
-    		        uniqueGroups.push(item);
-    		        seen[item] = true;
-    		    }
-    		}
-    		groups = uniqueGroups;
+    		groups = callSequence("C8Oforms", "APIV2_getGroupsDistinct", {}).document.key;
+    		//groups = toJSON(fsclient.getView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query)).rows.map((x) => { return x.value });
+    //		let uniqueGroups = [];
+    //		let seen = {};
+    //		for (let item of groups) {
+    //		    if (!seen[item]) {
+    //		        uniqueGroups.push(item);
+    //		        seen[item] = true;
+    //		    }
+    //		}
+    //		groups = uniqueGroups;
        }
        else{
     	   keys = toJettison([authenticatedUserID]);
-    	   groups = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows.map((x) => { return x.value });
+    	   groups = toJSON(fsclient.postView("c8ofullsyncgrp", ''groups'', ''byUserFiltered'', query, keys)).rows.map((x) => { return x.value });
        }
        
     
        //prevent from bug when there are only 1 response
+       if(groups == null){
+    	groups = [];
+       }
        if (!isArray(groups)) {
           groups = [groups];
        }
        // hide C8Oforms technicals groups
-       groups = groups.filter((x) => {
-          return x.indexOf("_C8O_HIDDEN_") == -1 && x.indexOf("C8Oreserved_") == -1;
-       });
+    //   groups = groups.filter((x) => {
+    //      return x.indexOf("_C8O_HIDDEN_") == -1 && x.indexOf("C8Oreserved_") == -1;
+    //   });
        //format grp
        groups = groups.map((x) => {
           const type = {
@@ -253,7 +258,7 @@ comment: |
        //res.existingGrpsOrUsersArray = existingGrpsOrUsersArray;
        res.existingGrpsOrUsersArrayFormated = existingGrpsOrUsersArrayFormated;
        if(collab == false){
-    	   var docPwa = callSequence("C8Oforms", "APIV2_getDocument", { id: id+"_pwa_document" }).document.res;
+    	   var docPwa = getDoc(id+"_pwa_document", null, "c8oforms_fs");
     	   res.pwa = docPwa;
     	   var basePath = context.getProjectUrl() + "DisplayObjects/pwas/" + res.pwa.targetId + "/";
     	   //notAnonymous => a link to connect to annonymously on a non anonnymous pwa

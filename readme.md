@@ -76,6 +76,7 @@ For more technical informations : [documentation](./project.md)
     - [APIV2_getAttachments](#apiv2_getattachments)
     - [APIV2_getCSVkey](#apiv2_getcsvkey)
     - [APIV2_getDocument](#apiv2_getdocument)
+    - [APIV2_getGroupsDistinct](#apiv2_getgroupsdistinct)
     - [APIV2_getKnownUsersFormatted](#apiv2_getknownusersformatted)
     - [APIV2_GetManageAccessRights](#apiv2_getmanageaccessrights)
     - [APIV2_getOwnerShip](#apiv2_getownership)
@@ -205,6 +206,7 @@ For more technical informations : [documentation](./project.md)
     - [c8oforms_response_fs](#c8oforms_response_fs)
         - [Transactions](#transactions-1)
             - [AllDocs](#alldocs)
+            - [DeleteDocumentAttachment](#deletedocumentattachment)
             - [Generic_GetView](#generic_getview)
             - [GetDocument](#getdocument-1)
             - [GetDocumentAttachment](#getdocumentattachment-1)
@@ -224,6 +226,10 @@ For more technical informations : [documentation](./project.md)
             - [PurgeDatabase](#purgedatabase-1)
             - [PutDocumentAttachment](#putdocumentattachment-1)
             - [PutDocumentAttachmentFromFile](#putdocumentattachmentfromfile-1)
+    - [c8ofullsyncgrp](#c8ofullsyncgrp)
+        - [Transactions](#transactions-2)
+            - [GetGroupsDistinct](#getgroupsdistinct)
+            - [GetServerInfo](#getserverinfo-2)
 - [Rest Web Service](#rest-web-service)
     - [Mappings](#mappings)
         - [/forms/export/{id}](#formsexport{id})
@@ -257,6 +263,7 @@ For more technical informations : [documentation](./project.md)
         - [Page](#page)
         - [PopOverInputs](#popoverinputs)
         - [popOverPageSelector](#popoverpageselector)
+        - [popoverToolbar](#popovertoolbar)
         - [PreviewMultiple](#previewmultiple)
         - [progressPage](#progresspage)
         - [resetPasswordPage](#resetpasswordpage)
@@ -343,6 +350,7 @@ For more technical informations : [documentation](./project.md)
         - [addGroupForm](#addgroupform)
         - [addUserForm](#adduserform)
         - [addUserToGroupForm](#addusertogroupform)
+        - [adminHelpCenter](#adminhelpcenter)
         - [cardSelector](#cardselector)
         - [chooseIcon](#chooseicon)
         - [colorPicker](#colorpicker)
@@ -360,6 +368,8 @@ For more technical informations : [documentation](./project.md)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
         - [DraggableElementApiPalette](#draggableelementapipalette)
         - [editorToolbarButton](#editortoolbarbutton)
+        - [editPermsModal](#editpermsmodal)
+        - [editUserModal](#editusermodal)
         - [FilterBR](#filterbr)
         - [FilterBRADD](#filterbradd)
         - [getApplicationDetail](#getapplicationdetail)
@@ -459,12 +469,19 @@ For more technical informations : [documentation](./project.md)
         - [monacoEditor](#monacoeditor)
         - [moveUserToGroupForm](#moveusertogroupform)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
+        - [PermissionsHeaderComponent](#permissionsheadercomponent)
         - [PopoverFilters](#popoverfilters)
+        - [PopoverGroupActions](#popovergroupactions)
+        - [PopoverGroupUserActions](#popovergroupuseractions)
         - [PopoverListPagesAndFlows](#popoverlistpagesandflows)
+        - [PopoverPermissions](#popoverpermissions)
         - [PopoverSort](#popoversort)
         - [PopOverSourceCompletion](#popoversourcecompletion)
+        - [PopoverUserActions](#popoveruseractions)
         - [ResetPasswordModalComponent](#resetpasswordmodalcomponent)
         - [searchableSelect](#searchableselect)
+        - [searchApp](#searchapp)
+        - [seeProfilModal](#seeprofilmodal)
         - [sharedDropIndicator](#shareddropindicator)
         - [sharedDropIndicatorSelector](#shareddropindicatorselector)
         - [SharedGrabHeader](#sharedgrabheader)
@@ -1274,6 +1291,8 @@ Retrieves form data with ACL filtering and computed flags.
 <td>target</td><td>Target identifier for the action.</td>
 </tr>
 </table>
+### APIV2_getGroupsDistinct
+
 ### APIV2_getKnownUsersFormatted
 
 List known users.
@@ -2587,6 +2606,9 @@ Stores an anonymous response and handles confirmation flows.
 <td>files</td><td></td>
 </tr>
 <tr>
+<td>filesDelete</td><td>Attachment names to delete from the response document.</td>
+</tr>
+<tr>
 <td>filesInfo</td><td>JSON metadata about files to manage.</td>
 </tr>
 <tr>
@@ -3855,6 +3877,24 @@ CouchDB FullSync connector storing submitted responses and related attachments.
 List all response docs.
 Lists response documents in bulk using _all_docs.
 
+##### DeleteDocumentAttachment
+
+Delete response attachment.
+Removes an attachment from a response document by name.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_attname</td><td>Attachment name to delete.</td>
+</tr>
+<tr>
+<td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
+</tr>
+</table>
 ##### Generic_GetView
 
 Generic response view.
@@ -4079,6 +4119,9 @@ Creates or updates a response document with merge policy.
 <td>_use_json_base</td><td>JSON base template used to build documents.</td>
 </tr>
 <tr>
+<td>_use_merge</td><td></td>
+</tr>
+<tr>
 <td>c8oGrp</td><td>Group membership map attached to the document.</td>
 </tr>
 <tr>
@@ -4201,6 +4244,24 @@ Uploads attachments from server-side files.
 <td>_use_docid</td><td>Identifier of the document targeted by the transaction.</td>
 </tr>
 </table>
+### c8ofullsyncgrp
+
+#### Transactions
+
+##### GetGroupsDistinct
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>_use_key</td><td></td>
+</tr>
+</table>
+##### GetServerInfo
+
 ## Rest Web Service
 
 ### Mappings
@@ -4298,6 +4359,8 @@ Page to share a form, or add collaborators
 #### PopOverInputs
 
 #### popOverPageSelector
+
+#### popoverToolbar
 
 #### PreviewMultiple
 
@@ -5271,6 +5334,8 @@ Update the state of a field
 
 #### addUserToGroupForm
 
+#### adminHelpCenter
+
 #### cardSelector
 
 **variables**
@@ -5598,6 +5663,9 @@ Display an apex chart comp. or an ag-grid comp.
 <td>fullpage</td><td>(Boolean) - The comp. is expanded (true)</td>
 </tr>
 <tr>
+<td>isApplicationsDisplayed</td><td>(String) - The current breakpoint (sm, xs, ...)</td>
+</tr>
+<tr>
 <td>isLoading</td><td>(Boolean) - A boolean flag used for skeleton</td>
 </tr>
 <tr>
@@ -5650,6 +5718,12 @@ Display an apex chart comp. or an ag-grid comp.
 <td>fullpage</td><td>(Boolean) - The comp. is expanded (true)</td>
 </tr>
 <tr>
+<td>icon</td><td>(String) - The current breakpoint (sm, xs, ...)</td>
+</tr>
+<tr>
+<td>isApplicationsDisplayed</td><td>(String) - The current breakpoint (sm, xs, ...)</td>
+</tr>
+<tr>
 <td>isExpanded</td><td>(Boolean) - The flag that set the card to fullpage mode</td>
 </tr>
 <tr>
@@ -5677,6 +5751,9 @@ Display an apex chart comp. or an ag-grid comp.
 <td>title</td><td>(String) - A title for the component card</td>
 </tr>
 <tr>
+<td>type</td><td>(String) - The current breakpoint (sm, xs, ...)</td>
+</tr>
+<tr>
 <td>types</td><td>(String) - A component type that could be one of the following values : "grid" | 'pie' | 'area' | 'line'</td>
 </tr>
 </table>
@@ -5694,6 +5771,9 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>onClickOnDataGridRow</td><td>When fullpage mode have been changed</td>
+</tr>
+<tr>
+<td>onMetricsValues</td><td>When data is fetched, we got send to parent the data for metrics</td>
 </tr>
 </table>
 #### documentationPanel
@@ -5787,6 +5867,10 @@ Display an apex chart comp. or an ag-grid comp.
 <td>clicked</td><td></td>
 </tr>
 </table>
+#### editPermsModal
+
+#### editUserModal
+
 #### FilterBR
 
 **variables**
@@ -7824,6 +7908,9 @@ This component displays a user menu with user info, categorized navigation items
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>addTagText</td><td></td>
+</tr>
+<tr>
 <td>autocompleteItems</td><td></td>
 </tr>
 <tr>
@@ -7909,6 +7996,8 @@ This component displays a user menu with user info, categorized navigation items
 <td>ngxTagInputValidationError</td><td></td>
 </tr>
 </table>
+#### PermissionsHeaderComponent
+
 #### PopoverFilters
 
 **variables**
@@ -7921,6 +8010,10 @@ This component displays a user menu with user info, categorized navigation items
 <td>settings</td><td></td>
 </tr>
 </table>
+#### PopoverGroupActions
+
+#### PopoverGroupUserActions
+
 #### PopoverListPagesAndFlows
 
 **variables**
@@ -7939,6 +8032,8 @@ This component displays a user menu with user info, categorized navigation items
 <td>pages</td><td></td>
 </tr>
 </table>
+#### PopoverPermissions
+
 #### PopoverSort
 
 **variables**
@@ -7972,6 +8067,8 @@ This component displays a user menu with user info, categorized navigation items
 <td>keyName</td><td></td>
 </tr>
 </table>
+#### PopoverUserActions
+
 #### ResetPasswordModalComponent
 
 This component is a modal dialog for resetting the password. It accepts an input property 'modalTitle' to display the modal header title and 'logoSrc' for the logo image source. The user can input their email address to receive a password reset link. The component emits 'cancel' and 'sendResetLink' events when the respective buttons are clicked.
@@ -8027,6 +8124,10 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>value</td><td></td>
 </tr>
 </table>
+#### searchApp
+
+#### seeProfilModal
+
 #### sharedDropIndicator
 
 **variables**
@@ -8389,6 +8490,9 @@ This component represents a toolbar UI similar to the provided image. It include
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>isAdminGuideDisplayed</td><td></td>
+</tr>
+<tr>
 <td>logoAlt</td><td>Alternative text for the logo image</td>
 </tr>
 <tr>
@@ -8396,6 +8500,9 @@ This component represents a toolbar UI similar to the provided image. It include
 </tr>
 <tr>
 <td>logoText</td><td>Main text displayed next to the logo</td>
+</tr>
+<tr>
+<td>searchBarType</td><td></td>
 </tr>
 <tr>
 <td>searchPlaceholder</td><td>Placeholder text for the search input</td>

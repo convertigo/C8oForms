@@ -13,6 +13,8 @@ scriptContent:
         import { C8Oforms_TreeviewContent } from "../../components/c8oforms.treeviewcontent/c8oforms-treeviewcontent";
         import { C8Oforms_ChooseIcon } from "../../components/c8oforms.chooseicon/c8oforms-chooseicon";
         import { C8Oforms_PopoverListPagesAndFlows } from "../../components/c8oforms.popoverlistpagesandflows/c8oforms-popoverlistpagesandflows";
+        import * as acorn from "acorn";
+        import * as walk from "acorn-walk";
         /*import { FileSelectDirective, FileDropDirective, FileUploader } from ''ng2-file-upload/ng2-file-upload'';
         //class FileSelectDirective
         @Directive({ selector: ''[ng2FileSelect]'' })*/
@@ -36,12 +38,13 @@ scriptContent:
         	public tinyFuncDropWithCancel;
         	public tinyFuncDropWithCancelText;
         	public tinyPostInit;
+        	public insertHtmlContent;
         
         	public safeBackground: any;
         	public subscriber_tree: Subject<any>;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
-        //		console.log(this.global.settings);
+        		//		console.log(this.global.settings);
         		window["totox"] = this;
         		this.local.labelBtn = this.translate.instant("defaultLabelBtn");
         		this.global.isDraggable = true;
@@ -51,13 +54,215 @@ scriptContent:
         		this.tinyPostInit = function(editor) {
         			editor.getBody().style.backgroundColor = "red";
         		}
+        		this.insertHtmlContent = function(editor, html, event = null) {
+        			try {
+        				if (!editor) {
+        					return;
+        				}
+        				const selection = editor.selection;
+        				const doc = editor.getDoc && editor.getDoc();
+        				if (!selection || !doc) {
+        					editor.insertContent(html);
+        					return;
+        				}
+        				const badgeFromEvent = event?.target?.closest?.(''[fakeid],[contenteditable="false"],[c8otype]'');
+        				const currentRange = selection.getRng ? selection.getRng() : null;
+        				let safeRange = null;
+        				const referenceBadge = badgeFromEvent || selection.getStart?.(true)?.closest?.(''[fakeid],[contenteditable="false"],[c8otype]'') || selection.getNode?.()?.closest?.(''[fakeid],[contenteditable="false"],[c8otype]'');
+        				if (referenceBadge) {
+        					safeRange = doc.createRange();
+        					safeRange.setStartAfter(referenceBadge);
+        					safeRange.collapse(true);
+        				}
+        				else if (currentRange) {
+        					safeRange = currentRange.cloneRange ? currentRange.cloneRange() : currentRange;
+        					if (!safeRange.collapsed) {
+        						safeRange.collapse(false);
+        					}
+        				}
+        				if (!safeRange) {
+        					editor.insertContent(html);
+        					return;
+        				}
+        				const container = doc.createElement("div");
+        				container.innerHTML = html;
+        				const fragment = doc.createDocumentFragment();
+        				const nodes = [];
+        				while (container.firstChild) {
+        					const node = container.firstChild;
+        					nodes.push(node);
+        					fragment.appendChild(node);
+        				}
+        				if (nodes.length === 0) {
+        					return;
+        				}
+        				const lastNode = nodes[nodes.length - 1];
+        				editor.undoManager.transact(() => {
+        					safeRange.deleteContents();
+        					safeRange.insertNode(fragment);
+        					if (lastNode) {
+        						const postRange = doc.createRange();
+        						postRange.setStartAfter(lastNode);
+        						postRange.collapse(true);
+        						selection.setRng(postRange);
+        					}
+        				});
+        				editor.nodeChanged();
+        			}
+        			catch (error) {
+        				try {
+        					editor.insertContent(html);
+        				}
+        				catch (err) {
+        				}
+        			}
+        		}
         		this.tinyFuncDrop = function(editor) {
+        			const setCaretFromEvent = (event) => {
+        				try {
+        					const doc = editor?.getDoc?.();
+        					const selection = editor?.selection;
+        					const body = editor?.getBody?.();
+        					if (!doc || !selection || !body) {
+        						return false;
+        					}
+        					const x = typeof event?.clientX === "number" ? event.clientX : event?.pageX;
+        					const y = typeof event?.clientY === "number" ? event.clientY : event?.pageY;
+        					let range = null;
+        					if (typeof doc.caretRangeFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						range = doc.caretRangeFromPoint(x, y);
+        					}
+        					if ((!range || !range.startContainer) && typeof doc.caretPositionFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						const pos = doc.caretPositionFromPoint(x, y);
+        						if (pos?.offsetNode != null) {
+        							range = doc.createRange();
+        							range.setStart(pos.offsetNode, pos.offset);
+        						}
+        					}
+        					if (!range || !range.startContainer) {
+        						const ensureRangeFromTarget = (target) => {
+        							if (!target) {
+        								return null;
+        							}
+        							let current = target;
+        							while (current && current !== body && current.nodeType !== 1 && current.nodeType !== 3) {
+        								current = current.parentNode;
+        							}
+        							if (!current) {
+        								return null;
+        							}
+        							const candidateElement = current.nodeType === 1 ? current : current.parentElement;
+        							const anchor = candidateElement?.closest?.(''[contenteditable="false"], [c8otype]'');
+        							if (anchor) {
+        								const anchorRange = doc.createRange();
+        								if (anchor.nextSibling) {
+        									anchorRange.setStartBefore(anchor.nextSibling);
+        								}
+        								else {
+        									anchorRange.setStartAfter(anchor);
+        								}
+        								anchorRange.collapse(true);
+        								return anchorRange;
+        							}
+        							const computedRange = doc.createRange();
+        							if (current.nodeType === 3) {
+        								const length = current.textContent?.length ?? 0;
+        								computedRange.setStart(current, length);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							if (current === body) {
+        								computedRange.selectNodeContents(body);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.childNodes && current.childNodes.length > 0) {
+        								computedRange.selectNodeContents(current);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.parentNode) {
+        								computedRange.setStartAfter(current);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							return null;
+        						};
+        						let computedRange = ensureRangeFromTarget(event?.target);
+        						if (!computedRange && event?.relatedTarget) {
+        							computedRange = ensureRangeFromTarget(event.relatedTarget);
+        						}
+        						if (!computedRange) {
+        							computedRange = doc.createRange();
+        							computedRange.selectNodeContents(body);
+        							computedRange.collapse(false);
+        						}
+        						range = computedRange;
+        					}
+        					if (!range) {
+        						return false;
+        					}
+        					if (!range.collapsed) {
+        						range.collapse(true);
+        					}
+        					selection.setRng(range);
+        					return true;
+        				}
+        				catch (err) {
+        				}
+        				return false;
+        			};
+        			const focusEditorDuringDrag = (event) => {
+        				try {
+        					const types = event?.dataTransfer?.types;
+        					const isDragging = _this?.local?.dragging === true || _this?.local?.draggingActions === true;
+        					const allowCaret = isDragging || (types && Array.from(types).some((type) => typeof type === "string" && (type.indexOf("__c8oforms") === 0 || type === "__pagec8oformsdrag")));
+        					if (!allowCaret) {
+        						return false;
+        					}
+        					if (event?.dataTransfer) {
+        						try {
+        							event.dataTransfer.dropEffect = "copy";
+        						}
+        						catch (dropErr) {
+        						}
+        					}
+        					if (typeof editor.focus === "function") {
+        						editor.focus();
+        					}
+        					const caretPlaced = setCaretFromEvent(event);
+        					if (!caretPlaced && typeof editor.selection?.getSel === "function") {
+        						const currentSelection = editor.selection.getSel();
+        						if (!currentSelection || currentSelection.rangeCount === 0) {
+        							setCaretFromEvent(event);
+        						}
+        					}
+        					return true;
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			editor.on(''dragenter'', (event) => {
+        				focusEditorDuringDrag(event);
+        			});
+        			editor.on(''dragover'', (event) => {
+        				if (focusEditorDuringDrag(event)) {
+        					event?.preventDefault?.();
+        				}
+        			});
         			editor.on(''drop'', (e) => {
+        				focusEditorDuringDrag(e);
         				if (e.dataTransfer) {
-        					const html = e.dataTransfer.getData(''text/html'');
-        					let content = html.replace(/<meta.*?>/, '''');
-        					editor.selection.placeCaretAt(e.clientX, e.clientY);
-        					editor.insertContent(content);
+        					let html = e.dataTransfer.getData(''text/html'');
+        					if (!html) {
+        						html = e.dataTransfer.getData(''text/plain'');
+        					}
+        					let content = (html || '''').replace(/<meta.*?>/, '''');
+        					if (!setCaretFromEvent(e) && typeof editor.selection?.placeCaretAt === "function") {
+        						editor.selection.placeCaretAt(e.clientX, e.clientY);
+        					}
+        					_this.insertHtmlContent(editor, content, e);
         					e.preventDefault();
         					setTimeout(() => {
         						editor.fire("blur");
@@ -135,12 +340,151 @@ scriptContent:
         
         		}
         		this.tinyFuncDropWithCancel = function(editor) {
+        			const setCaretFromEvent = (event) => {
+        				try {
+        					const doc = editor?.getDoc?.();
+        					const selection = editor?.selection;
+        					const body = editor?.getBody?.();
+        					if (!doc || !selection || !body) {
+        						return false;
+        					}
+        					const x = typeof event?.clientX === "number" ? event.clientX : event?.pageX;
+        					const y = typeof event?.clientY === "number" ? event.clientY : event?.pageY;
+        					let range = null;
+        					if (typeof doc.caretRangeFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						range = doc.caretRangeFromPoint(x, y);
+        					}
+        					if ((!range || !range.startContainer) && typeof doc.caretPositionFromPoint === "function" && typeof x === "number" && typeof y === "number") {
+        						const pos = doc.caretPositionFromPoint(x, y);
+        						if (pos?.offsetNode != null) {
+        							range = doc.createRange();
+        							range.setStart(pos.offsetNode, pos.offset);
+        						}
+        					}
+        					if (!range || !range.startContainer) {
+        						const ensureRangeFromTarget = (target) => {
+        							if (!target) {
+        								return null;
+        							}
+        							let current = target;
+        							while (current && current !== body && current.nodeType !== 1 && current.nodeType !== 3) {
+        								current = current.parentNode;
+        							}
+        							if (!current) {
+        								return null;
+        							}
+        							const candidateElement = current.nodeType === 1 ? current : current.parentElement;
+        							const anchor = candidateElement?.closest?.(''[contenteditable="false"], [c8otype]'');
+        							if (anchor) {
+        								const anchorRange = doc.createRange();
+        								if (anchor.nextSibling) {
+        									anchorRange.setStartBefore(anchor.nextSibling);
+        								}
+        								else {
+        									anchorRange.setStartAfter(anchor);
+        								}
+        								anchorRange.collapse(true);
+        								return anchorRange;
+        							}
+        							const computedRange = doc.createRange();
+        							if (current.nodeType === 3) {
+        								const length = current.textContent?.length ?? 0;
+        								computedRange.setStart(current, length);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							if (current === body) {
+        								computedRange.selectNodeContents(body);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.childNodes && current.childNodes.length > 0) {
+        								computedRange.selectNodeContents(current);
+        								computedRange.collapse(false);
+        								return computedRange;
+        							}
+        							if (current.parentNode) {
+        								computedRange.setStartAfter(current);
+        								computedRange.collapse(true);
+        								return computedRange;
+        							}
+        							return null;
+        						};
+        						let computedRange = ensureRangeFromTarget(event?.target);
+        						if (!computedRange && event?.relatedTarget) {
+        							computedRange = ensureRangeFromTarget(event.relatedTarget);
+        						}
+        						if (!computedRange) {
+        							computedRange = doc.createRange();
+        							computedRange.selectNodeContents(body);
+        							computedRange.collapse(false);
+        						}
+        						range = computedRange;
+        					}
+        					if (!range) {
+        						return false;
+        					}
+        					if (!range.collapsed) {
+        						range.collapse(true);
+        					}
+        					selection.setRng(range);
+        					return true;
+        				}
+        				catch (err) {
+        				}
+        				return false;
+        			};
+        			const focusEditorDuringDrag = (event) => {
+        				try {
+        					const types = event?.dataTransfer?.types;
+        					const isDragging = _this?.local?.dragging === true || _this?.local?.draggingActions === true;
+        					const allowCaret = isDragging || (types && Array.from(types).some((type) => typeof type === "string" && (type.indexOf("__c8oforms") === 0 || type === "__pagec8oformsdrag")));
+        					if (!allowCaret) {
+        						return false;
+        					}
+        					if (event?.dataTransfer) {
+        						try {
+        							event.dataTransfer.dropEffect = "copy";
+        						}
+        						catch (dropErr) {
+        						}
+        					}
+        					if (typeof editor.focus === "function") {
+        						editor.focus();
+        					}
+        					const caretPlaced = setCaretFromEvent(event);
+        					if (!caretPlaced && typeof editor.selection?.getSel === "function") {
+        						const currentSelection = editor.selection.getSel();
+        						if (!currentSelection || currentSelection.rangeCount === 0) {
+        							setCaretFromEvent(event);
+        						}
+        					}
+        					return true;
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			editor.on(''dragenter'', (event) => {
+        				focusEditorDuringDrag(event);
+        			});
+        			editor.on(''dragover'', (event) => {
+        				if (focusEditorDuringDrag(event)) {
+        					event?.preventDefault?.();
+        				}
+        			});
         			editor.on(''drop'', (e) => {
+        				focusEditorDuringDrag(e);
         				if (e.dataTransfer) {
-        					const html = e.dataTransfer.getData(''text/html'');
-        					let content = html.replace(/<meta.*?>/, '''');
-        					editor.selection.placeCaretAt(e.clientX, e.clientY);
-        					editor.insertContent(content);
+        					let html = e.dataTransfer.getData(''text/html'');
+        					if (!html) {
+        						html = e.dataTransfer.getData(''text/plain'');
+        					}
+        					let content = (html || '''').replace(/<meta.*?>/, '''');
+        					if (!setCaretFromEvent(e) && typeof editor.selection?.placeCaretAt === "function") {
+        						editor.selection.placeCaretAt(e.clientX, e.clientY);
+        					}
+        					_this.insertHtmlContent(editor, content, e);
         					e.preventDefault();
         					setTimeout(() => {
         						editor.fire("blur");
@@ -298,7 +642,7 @@ scriptContent:
         				.pipe(retry(3))
         				.subscribe(
         					(data: any) => {
-        						if(this.local.tree){
+        						if (this.local.tree) {
         							let result = this.computeAdditionalPaletteElements(this.local.tree, data);
         							data[result.index].objects = data[result.index].objects.concat(result.val);
         						}
@@ -320,111 +664,111 @@ scriptContent:
         		this.local.selectFilter = {};
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
-        	public computeAdditionalPaletteElements(tree, data: any){
+        	public computeAdditionalPaletteElements(tree, data: any) {
         		let val = [];
         		let index = null;
-        		data.forEach((el, i)=>{
-        			if(el.name == "background_process"){
+        		data.forEach((el, i) => {
+        			if (el.name == "background_process") {
         				index = i;
         			}
         		});
         		var tempHTML = document.createElement("p")
-        		for(let project of tree){
+        		for (let project of tree) {
         			let canBeVisible = true;
-        			try{
+        			try {
         				let meta = JSON.parse(project.comment);
-        				if(meta.hideFromPalette === "true" || meta.hideFromPalette === true){
+        				if (meta.hideFromPalette === "true" || meta.hideFromPalette === true) {
         					canBeVisible = false;
         				}
         			}
-        			catch(e){
-        				
+        			catch (e) {
+        
         			}
-        			if(project.name == ''lib_BaseRow''){
-        				if(!(this.global?.settings?.nocode_db_rights == "true" || this.global?.settings?.nocode_db_rights == true)){
+        			if (project.name == ''lib_BaseRow'') {
+        				if (!(this.global?.settings?.nocode_db_rights == "true" || this.global?.settings?.nocode_db_rights == true)) {
         					canBeVisible = false;
         				}
         			}
-        			if(canBeVisible){
-        				for(let sequence of project.sequences){
+        			if (canBeVisible) {
+        				for (let sequence of project.sequences) {
         					let _data = sequence.comment;
-        					try{
+        					try {
         						_data = JSON.parse(_data);
         						let sequenceCanBeVisible = true;
-        						if(_data.hideFromPalette === "true" || _data.hideFromPalette === true){
+        						if (_data.hideFromPalette === "true" || _data.hideFromPalette === true) {
         							sequenceCanBeVisible = false;
         						}
-        						if(sequenceCanBeVisible){
+        						if (sequenceCanBeVisible) {
         							let displayName;
         							let comment;
-        							try{
+        							try {
         								tempHTML.innerHTML = _data[this.translate.currentLang].displayName;
         								displayName = tempHTML.textContent;
         							}
-        							catch(e){
+        							catch (e) {
         								displayName = _data[this.translate.currentLang].displayName
         							}
         							tempHTML.innerHTML = "";
-        							try{
+        							try {
         								tempHTML.innerHTML = _data[this.translate.currentLang].comment;
         								comment = tempHTML.textContent;
         							}
-        							catch(e){
+        							catch (e) {
         								comment = _data[this.translate.currentLang].comment
         							}
         							// compute default vars
         							let elems = {};
         							try {
         								const projectName = project.name;
-        					   		    let elemChoosen = sequence;
-        		
+        								let elemChoosen = sequence;
+        
         								let va = {};
-        								if(typeof(elemChoosen.variables.name) == "string"){
+        								if (typeof (elemChoosen.variables.name) == "string") {
         									va[elemChoosen.variables.name] = {};
         								}
-        								else if(typeof(elemChoosen.variables.name) == "undefined"){
+        								else if (typeof (elemChoosen.variables.name) == "undefined") {
         								}
-        								else{
-        									for(let el of elemChoosen.variables.name){
-        					                   	va[el] = {};
-        					               	}
+        								else {
+        									for (let el of elemChoosen.variables.name) {
+        										va[el] = {};
+        									}
         								}
         								const sequenceName = elemChoosen.name;
-        								
+        
         								// if its a Fullsync connector
-        								if(elemChoosen.connector != undefined){
-        									elems = {"fullsync":true, name:projectName+"."+sequenceName,projectName: projectName, connectorName: elemChoosen.connector, "enabled": true, vars:va, viewName: elemChoosen.name};
+        								if (elemChoosen.connector != undefined) {
+        									elems = { "fullsync": true, name: projectName + "." + sequenceName, projectName: projectName, connectorName: elemChoosen.connector, "enabled": true, vars: va, viewName: elemChoosen.name };
         								}
         								// if its a sequence
-        					               else{
-        					                elems = {"fullsync":false, name:projectName+"."+sequenceName, "enabled":true, vars:va};
+        								else {
+        									elems = { "fullsync": false, name: projectName + "." + sequenceName, "enabled": true, vars: va };
         								}
-        						    }
-        						    catch(e){
-        						        // silent error if backend action is not made for c8oforms
-        						    }
+        							}
+        							catch (e) {
+        								// silent error if backend action is not made for c8oforms
+        							}
         							// push obj
         							let obj = {
-        								"type":"submit",
-        				                "cat":"action",
-        				                "url":this.c8o.endpointConvertigo + ''/projects/'' + project.name + ''/logos/'' +  sequence.name + ''.svg'',
-        				                "name": displayName,
-        				                "description": comment,
+        								"type": "submit",
+        								"cat": "action",
+        								"url": this.c8o.endpointConvertigo + ''/projects/'' + project.name + ''/logos/'' + sequence.name + ''.svg'',
+        								"name": displayName,
+        								"description": comment,
         								_techName: sequence.name,
         								custom: true,
-        								elems : elems
+        								elems: elems
         							};
         							val.push(obj);
         						}
         					}
-        					catch(e){
+        					catch (e) {
         						// silent error if backend action is not made for c8oforms
         					}
-        					
+        
         				}
         			}
         		}
-        		return {val:val, index: index};
+        		return { val: val, index: index };
         	}
         	public getGrids() {
         		return this.form.formulaire.filter((x) => { return x.type == "grid" });
@@ -435,7 +779,7 @@ scriptContent:
         				return elem.name;
         			}
         		}
-        		if(pageTechName == "__c8o_next" || pageTechName == "__c8o_previous"){
+        		if (pageTechName == "__c8o_next" || pageTechName == "__c8o_previous") {
         			return this.translate.instant(pageTechName.substring(6));
         		}
         		return "";
@@ -518,7 +862,7 @@ scriptContent:
         				})
         			}
         			else {
-        				return new Promise((resolve, reject)=>{
+        				return new Promise((resolve, reject) => {
         					resolve(resp.url);
         				})
         			}
@@ -537,9 +881,9 @@ scriptContent:
         			}
         			const reader = new FileReader();
         			reader.readAsDataURL(blobInfo.blob());
-        			return new Promise((resolve, reject)=>{
+        			return new Promise((resolve, reject) => {
         				reader.onloadend = () => {
-        						resolve(reader.result);
+        					resolve(reader.result);
         				};
         			})
         		}
@@ -607,9 +951,9 @@ scriptContent:
         				return "assets/i18n/" + lang + ".js";
         		}
         	}
-        	public getTinyCssPath(type = "standard"){
+        	public getTinyCssPath(type = "standard") {
         		let path = environment.production ? window.location.href.substring(0, window.location.href.indexOf("mobile/") + 7) : "http://localhost:18080/convertigo/projects/C8Oforms/DisplayObjects/mobile/";
-        		
+        
         		let suffix = type == "standard" ? ''assets/css/customTiny.css'' : "assets/css/customTinyForHtmlEditor.css";
         		return path + suffix;
         	}
@@ -663,6 +1007,9 @@ scriptContent:
         	public trackByIndex(index: number, obj: object): number {
         		return index;
         	};
+        	public trackByIndex8(index: number, obj: any): number {
+        			return obj.id;
+        		};
         	public trackById(index: number, obj: object): number {
         		return obj["id"];
         	};
@@ -838,22 +1185,22 @@ scriptContent:
         
         	// Renvoie le plus petit entier positif disponible (>=1), même si `localNumbers` contient des doublons ou est non trié
         	public getNextValueDispo(localNumbers: number[]): number {
-        	  // On garde uniquement les entiers positifs finis, on déduplique, puis on trie
-        	  const arr = Array.from(
-        	    new Set(localNumbers.filter(n => Number.isFinite(n) && n > 0))
-        	  ).sort((a, b) => a - b);
+        		// On garde uniquement les entiers positifs finis, on déduplique, puis on trie
+        		const arr = Array.from(
+        			new Set(localNumbers.filter(n => Number.isFinite(n) && n > 0))
+        		).sort((a, b) => a - b);
         
-        	  if (arr.length === 0) return 1;
-        	  if (arr[0] > 1) return 1;
+        		if (arr.length === 0) return 1;
+        		if (arr[0] > 1) return 1;
         
-        	  // Cherche la première “cassure” (ex: 1,2,4 -> 3)
-        	  for (let i = 0; i < arr.length - 1; i++) {
-        	    const cur = arr[i], next = arr[i + 1];
-        	    if (next !== cur + 1) return cur + 1;
-        	  }
+        		// Cherche la première “cassure” (ex: 1,2,4 -> 3)
+        		for (let i = 0; i < arr.length - 1; i++) {
+        			const cur = arr[i], next = arr[i + 1];
+        			if (next !== cur + 1) return cur + 1;
+        		}
         
-        	  // Sinon, c’est la suite directe
-        	  return arr[arr.length - 1] + 1;
+        		// Sinon, c’est la suite directe
+        		return arr[arr.length - 1] + 1;
         	}
         
         	getlocalNumbersSorted(items, localNumbers, defaultlabel, emplacement = "children", path = "value") {
@@ -1313,12 +1660,12 @@ scriptContent:
         	}
         
         	addElement(typ, index = null, into = false, action = false, flow = false, targetCardChild = ''childrenRefs'', customMeta = null) {
-        		if(customMeta != null){
-        			try{
-        				customMeta = {...customMeta};
+        		if (customMeta != null) {
+        			try {
+        				customMeta = { ...customMeta };
         			}
-        			catch(e){
-        				
+        			catch (e) {
+        
         			}
         		}
         		if (this.formsList == undefined) {
@@ -1587,7 +1934,7 @@ scriptContent:
         
         					lines: [{ "title": "Line 1", "value": [], "id": (Math.random() + "").substring(2) }, { "title": "Line 2", "value": [], "id": (Math.random() + "").substring(2) }, { "title": "Line 3", "value": [], "id": (Math.random() + "").substring(2) }],
         					"id": id,
-        					"name": this.getNameDispo(nameDispo != null ? nameDispo : "checkboxGroup", null),
+        					"name": this.getNameDispo(nameDispo != null ? nameDispo : "checkbox_group", null),
         					config: {
         						"mandatory": false,
         						"disabled": false,
@@ -1773,7 +2120,7 @@ scriptContent:
         					children: [{ "value": "Option 1", "id": (Math.random() + "").substring(2) }, { "value": "Option 2", "id": (Math.random() + "").substring(2) }],
         					lines: [{ "title": "Line 1", "value": "", "id": (Math.random() + "").substring(2) }, { "title": "Line 2", "value": "", "id": (Math.random() + "").substring(2) }, { "title": "Line 3", "value": "", "id": (Math.random() + "").substring(2) }],
         					"id": id,
-        					"name": this.getNameDispo(nameDispo != null ? nameDispo : "radioGroup", null),
+        					"name": this.getNameDispo(nameDispo != null ? nameDispo : "radio_group", null),
         					config: {
         						"mandatory": false,
         						"disabled": false,
@@ -2023,11 +2370,11 @@ scriptContent:
         				break;
         			case "submit":
         				let actions = {};
-        				if(customMeta){
-        					let name = ""+customMeta.name;
+        				if (customMeta) {
+        					let name = "" + customMeta.name;
         					delete customMeta.name;
         					actions = {
-        						[name]:customMeta
+        						[name]: customMeta
         					};
         				}
         				objToInsert =
@@ -2320,29 +2667,29 @@ scriptContent:
         					"name": this.getNameDispo(nameDispo != null ? nameDispo : "if_else", null)
         				};
         				break;
-        				case "refresh_grid":
-        					objToInsert =
-        					{
-        						"cat": "action",
-        						"type": "refresh_grid",
-        						"sources": {
-        							"self": {
-        								"enabled": true,
-        								"vars": {
-        									"selfVar": {
-        										str: "",
-        										type: "text"
-        									}
+        			case "refresh_grid":
+        				objToInsert =
+        				{
+        					"cat": "action",
+        					"type": "refresh_grid",
+        					"sources": {
+        						"self": {
+        							"enabled": true,
+        							"vars": {
+        								"selfVar": {
+        									str: "",
+        									type: "text"
         								}
         							}
-        						},
-        						"config": {
-        							"targetGrid": ""
-        						},
-        						"id": id,
-        						"name": this.getNameDispo(nameDispo != null ? nameDispo : "refresh_grid", null)
-        					};
-        					break;
+        						}
+        					},
+        					"config": {
+        						"targetGrid": ""
+        					},
+        					"id": id,
+        					"name": this.getNameDispo(nameDispo != null ? nameDispo : "refresh_grid", null)
+        				};
+        				break;
         
         			default:
         				break;
@@ -3417,6 +3764,180 @@ scriptContent:
         
         
         	}
+        	public inspectValue(node, arrayNodes, str = '''', memberExpressions = null, parentNode = null) {
+        		const regex = /\./g;
+        		if (parentNode == null) {
+        			parentNode = node;
+        		}
+        		if (node.property != undefined) {
+        			if (memberExpressions[node.property.range[0]] != undefined) {
+        				let randomSave = new Date().getTime() + ''_'' + ('''' + Math.random()).substring(2);
+        				str = '''' + `.$$START_SUB${randomSave}END_SUB$$` + str;
+        				parentNode.nested = true;
+        				if (parentNode.nestedByRandom == undefined) {
+        					parentNode.nestedByRandom = {};
+        				}
+        				parentNode.nestedByRandom[randomSave] = memberExpressions[node.property.range[0]];
+        				delete memberExpressions[node.property.range[0]];
+        			}
+        			else {
+        				if (node.property.type == ''Literal'') {
+        					try {
+        						str = ''.'' + node.property.value.replace(regex, ''\.'') + str;
+        					}
+        					catch (e) {
+        						str = ''.'' + node.property.value + str;
+        					}
+        
+        				}
+        				else {
+        					str = ''.'' + node.property.name + str;
+        				}
+        			}
+        			return this.inspectValue(
+        				node.object,
+        				arrayNodes,
+        				str,
+        				memberExpressions,
+        				parentNode
+        			);
+        		}
+        		else {
+        			parentNode.computedValue = node.name + str;
+        			return parentNode;
+        		}
+        	}
+        	public async tsMonacoto$$(memberExpressions, splitted, prefixAndSuffix = true) {
+        		let c8obuiltin = false;
+        		let id = this.getElementIdByName(splitted[1]);
+        		let pathPrefix = splitted[0];
+        		let splittedSliced = splitted.slice(1);
+        		let elem = this.getElementById(id);
+        		let struct = await this.searchCompletionWithElem(elem, false, false);
+        		if (struct.builtin != undefined && splittedSliced[1] != undefined && Object.keys(struct.builtin).indexOf(splittedSliced[1]) != -1) {
+        			c8obuiltin = true;
+        		}
+        		let path = splittedSliced.length > 1 ? splittedSliced.join(''.'') : '''';
+        		let prefix = `$$START${id}`;
+        		let suffix = `END${id}$$`;
+        		let obj: any = {
+        			"c8otype": "path",
+        			"c8opath": path,
+        			"c8oPrettyPath": null,
+        			"c8obuiltin": ("" + c8obuiltin),
+        			"id": id,
+        			"pathPrefix": pathPrefix,
+        			"nested": memberExpressions.nested ? memberExpressions.nestedByRandom : null,
+        			"name": splitted[1]
+        		};
+        		if (prefixAndSuffix) {
+        			return prefix + JSON.stringify(obj) + suffix;
+        		}
+        		else {
+        			return obj;
+        		}
+        	}
+        	public async presentToast(message: string, cssClass: string = '''') {
+        		try {
+        			const toastController = this.getInstance(ToastController);
+        			const toast = await toastController.create({
+        				message: message,
+        				position: ''bottom'',
+        				cssClass: cssClass,
+        				buttons: [
+        					{
+        						side: ''end'',
+        						icon: ''close'',
+        						role: ''cancel'',
+        						handler: () => {
+        							console.log(''Toast closed'');
+        						}
+        					}
+        				]
+        			});
+        			await toast.present();
+        		}
+        		catch (toastError) {
+        			this.c8o.log.warn(''Unable to present Monaco toast: '' + toastError);
+        		}
+        	}
+        	public async parseMonacoEditor(b, monacoComponent = null) {
+        		try {
+        			if (b == null) {
+        				return '''';
+        			}
+        			const arrayNodes = [];
+        			const memberExpressions = {};
+        			const ast = acorn.parse(b, {
+        				ecmaVersion: ''latest'',
+        				sourceType: ''module'',
+        				locations: true,
+        				ranges: true
+        			});
+        			walk.simple(ast, {
+        				MemberExpression(node: any) {
+        					const start = node.start;
+        					if (
+        						node.object.type === ''Identifier'' &&
+        						(node.object.name === ''fields'' || node.object.name === ''actions'')
+        					) {
+        						memberExpressions[start] = node;
+        					}
+        					else if (memberExpressions[start] !== undefined) {
+        						memberExpressions[start] = node;
+        					}
+        				},
+        			});
+        			Object.keys(memberExpressions)
+        				.sort((a, b) => +b - +a)
+        				.forEach((key) => {
+        					const currentMemberExpression = memberExpressions[key];
+        					const range = [currentMemberExpression.start, currentMemberExpression.end];
+        					const res = this.inspectValue(
+        						currentMemberExpression,
+        						arrayNodes,
+        						'''',
+        						memberExpressions,
+        						null
+        					);
+        					memberExpressions[range[0]] = res;
+        					arrayNodes.push({
+        						node: currentMemberExpression,
+        						range,
+        						childs: [],
+        						value: res,
+        					});
+        				});
+        			window[''arrayNodes''] = arrayNodes;
+        			window[''memberExpressions''] = memberExpressions;
+        			let workingB = '''' + b;
+        			const sortedKeys = Object.keys(memberExpressions).sort((a, b) => +b - +a);
+        			for (const key of sortedKeys) {
+        				const current = memberExpressions[key];
+        				if (current == null) {
+        					continue;
+        				}
+        				const range = [current.start, current.end];
+        				if (current.nested) {
+        					for (const rand in current.nestedByRandom) {
+        						const curr = current.nestedByRandom[rand];
+        						const splitted = curr.computedValue.split(/(?<!\\)\./);
+        						current.nestedByRandom[rand] = await this.tsMonacoto$$(curr, splitted, false);
+        					}
+        				}
+        				const splitted = current.computedValue.split(/(?<!\\)\./);
+        				const st = await this.tsMonacoto$$(current, splitted);
+        				workingB = workingB.substring(0, range[0]) + st + workingB.substring(range[1]);
+        			}
+        			this.transform$toTsMonaco(workingB);
+        			return workingB;
+        		}
+        		catch (e) {
+        			console.error(''an error occured while pasing'', e);
+        			await this.presentToast(this.translate.instant(''error_computing'', { err: e.name + '' : '' + e.message }), ''toastError'');
+        			throw e;
+        		}
+        	}
         
         	public findClickedPosition(editor, e) {
         		//get pos
@@ -3437,6 +3958,88 @@ scriptContent:
         		return ev;
         	}
         
+        	public sanitizeCompletionValue(value, skipKeys: string[] = []) {
+        		if (value == null) {
+        			return "";
+        		}
+        		if (Array.isArray(value)) {
+        			if (value.length > 0) {
+        				return [this.sanitizeCompletionValue(value[0], skipKeys)];
+        			}
+        			else {
+        				return [];
+        			}
+        		}
+        		if (typeof (value) == "object") {
+        			let sanitized = {};
+        			for (let key of Object.keys(value)) {
+        				if (skipKeys.indexOf(key) != -1) {
+        					continue;
+        				}
+        				sanitized[key] = this.sanitizeCompletionValue(value[key], skipKeys);
+        			}
+        			return sanitized;
+        		}
+        		return "";
+        	}
+        
+        	public buildGridFallbackRow(currentElem) {
+        		let row = {};
+        		if (Array.isArray(currentElem?.config?.columns)) {
+        			currentElem.config.columns.forEach((column, index) => {
+        				let key = column?.technicalName ?? column?.name ?? column?.field ?? `column_${index}`;
+        				if (key == null || key == "") {
+        					key = `column_${index}`;
+        				}
+        				row[key] = { value: "", displayValue: "" };
+        			});
+        		}
+        		return row;
+        	}
+        
+        	public buildCellSelectedStructures(currentElem, sampleRow) {
+        		let baseRow = sampleRow && Object.keys(sampleRow).length > 0 ? sampleRow : this.buildGridFallbackRow(currentElem);
+        		let sanitizedRow = this.sanitizeCompletionValue(baseRow, ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        		let firstColumnKey = null;
+        		if (baseRow != null && typeof (baseRow) == "object") {
+        			for (let key of Object.keys(baseRow)) {
+        				if (key == "__rowValue") {
+        					continue;
+        				}
+        				firstColumnKey = key;
+        				break;
+        			}
+        		}
+        		let rawFirstColumn = firstColumnKey != null ? baseRow[firstColumnKey] : null;
+        		let cellSelectedSample = this.sanitizeCompletionValue(rawFirstColumn, ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        		if ((cellSelectedSample == null || cellSelectedSample === "" || (typeof (cellSelectedSample) == "object" && Object.keys(cellSelectedSample).length == 0)) && sanitizedRow != null && typeof (sanitizedRow) == "object") {
+        			for (let key of Object.keys(sanitizedRow)) {
+        				if (key == "__rowValue") {
+        					continue;
+        				}
+        				cellSelectedSample = sanitizedRow[key];
+        				break;
+        			}
+        		}
+        		let cellSelected: any;
+        		if (cellSelectedSample != null && typeof (cellSelectedSample) == "object") {
+        			cellSelected = JSON.parse(JSON.stringify(cellSelectedSample));
+        		}
+        		else if (cellSelectedSample != null) {
+        			cellSelected = { value: cellSelectedSample };
+        		}
+        		else {
+        			cellSelected = { value: "", displayValue: "" };
+        		}
+        		let parentRow: any = {};
+        		if (sanitizedRow != null && typeof (sanitizedRow) == "object") {
+        			parentRow = JSON.parse(JSON.stringify(sanitizedRow));
+        		}
+        		return {
+        			cellSelected: cellSelected,
+        			parentRow: parentRow
+        		};
+        	}
         
         	public async searchCompletionWithElem(currentElem, graphic = false, remote = true) {
         		let structure = { "compl": {}, "builtin": {} };
@@ -3457,18 +4060,26 @@ scriptContent:
         
         								}
         								var res: any = null;
-        								if(source != "self"){
+        								if (source != "self") {
         									res = await this.c8o.callJsonObject(source, { model: true, ...defaultVars }).async();
         								}
-        								
+        
         								switch (currentElem.type) {
         									case "grid":
-        										if (currentElem.config.returned_value == "nothing" || currentElem.config.returned_value == "all_the_data" || currentElem.config.returned_value == "multiple_row_selected") {
+        										if (currentElem.config.returned_value == "cell_selected") {
+        											let sanitizedRow = this.sanitizeCompletionValue(res?.data?.[0], ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
+        											let built = this.buildCellSelectedStructures(currentElem, sanitizedRow);
+        											structure.compl = {
+        												cellSelected: built.cellSelected,
+        												parentRow: built.parentRow
+        											};
+        										}
+        										else if (currentElem.config.returned_value == "nothing" || currentElem.config.returned_value == "all_the_data" || currentElem.config.returned_value == "multiple_row_selected") {
         											// here insert index selector and explain
-        											structure.compl = { __c8o__index__reserved: res?.data?.[0] };
+        											structure.compl = { __c8o__index__reserved: this.sanitizeCompletionValue(res?.data?.[0], ["hidden", "filterCompletion", "ctype", "filterHide", "type"]) };
         										}
         										else {
-        											structure.compl = res?.data?.[0];
+        											structure.compl = this.sanitizeCompletionValue(res?.data?.[0], ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
         										}
         										break;
         									case "select":
@@ -3581,6 +4192,13 @@ scriptContent:
         					}
         					break;
         				case "grid":
+        				if (currentElem?.config?.returned_value == "cell_selected" && Object.keys(structure.compl).length == 0) {
+        					let built = this.buildCellSelectedStructures(currentElem, null);
+        					structure.compl = {
+        						cellSelected: built.cellSelected,
+        						parentRow: built.parentRow
+        					};
+        				}
         					structure.builtin =
         					{
         
@@ -7248,12 +7866,6 @@ title: Title for editor
                                     - xmlizable: 
                                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                       - MobileSmartSourceType: script:'unique_'+item.id
-                        ↓id [ngx.components.UIAttribute-1650357059921]: 
-                          attrName: id
-                          attrValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:headerPa
                       ↓Style [ngx.components.UIStyle-1749824961020]: 
                         styleContent: 
                           - xmlizable: 
@@ -7472,6 +8084,12 @@ title: Title for editor
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:'show_pages_and_actions' | translate
+                      ↓id [ngx.components.UIAttribute-1650357059921]: 
+                        attrName: id
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:headerPa
                     ↓Style [ngx.components.UIStyle-1650357062027]: 
                       styleContent: 
                         - xmlizable: 
@@ -13083,19 +13701,46 @@ title: Title for editor
                                                       		let clone =  JSON.parse(JSON.stringify(vars.elm));
                                                       		let oldId = clone.id;
                                                       		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                              let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
-                                                              clone.name = page["getNameDispo"](typeToClone, null);
-                                                      		newnames.push(clone.name)
+                                                      		let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
+                                                      		const indexToInsert = page["getElementIndexById"](oldId) + 1;
+                                                      		clone.name = page["getNameDispo"](typeToClone, null);
+                                                      		newnames.push(clone.name);
                                                       		clone.id = new Date().getTime();
-                                                      		if(clone.type == "ion-card"){
-                                                      			clone.children.forEach((elem, index) => {
-                                                      				let typeComputes = typesfreindly[elem.type] != undefined ? typesfreindly[elem.type]: elem.type;
-                                                      				elem.name = page["getNameDispo"](typeComputes, newnames);
-                                                      				newnames.push(elem.name)
-                                                      				elem.id = clone.id + index + 1;
-                                                      			});
+                                                      		let lastGeneratedId = clone.id;
+                                                      		
+                                                      		if((clone.type == "ion-card" || clone.type == "layout") && Array.isArray(clone.childrenRefs) && clone.childrenRefs.length > 0){
+                                                      			for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
+                                                      				let childRef = clone.childrenRefs[i];
+                                                      				let childId = typeof childRef === "object" ? childRef.id : childRef;
+                                                      				let originalChild = page.getElementById(+childId);
+                                                      				if(originalChild == null && typeof childRef === "object"){
+                                                      					originalChild = childRef;
+                                                      				}
+                                                      				if(originalChild == null){
+                                                      					clone.childrenRefs.splice(i, 1);
+                                                      					continue;
+                                                      				}
+                                                      				let child = JSON.parse(JSON.stringify(originalChild));
+                                                      				let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
+                                                      				child.name = page["getNameDispo"](typeComputed, newnames);
+                                                      				newnames.push(child.name);
+                                                      				lastGeneratedId = lastGeneratedId + 1;
+                                                      				child.id = lastGeneratedId;
+                                                      				child.parentRef = clone.id;
+                                                      				child.config = child.config || {};
+                                                      				child.config.page = clone.config.page;
+                                                      				clone.childrenRefs[i] = child.id;
+                                                      				page["formsList"].splice(indexToInsert + i, 0, child);
+                                                      			}
                                                       		}
-                                                      		page["formsList"].splice(page["getElementIndexById"](oldId) + 1, 0, clone);
+                                                      		else {
+                                                      			if(clone.children != undefined){
+                                                      				for(let elem of clone.children){
+                                                      					elem.id = (Math.random() + "").substring(2);
+                                                      				}
+                                                      			}
+                                                      		}
+                                                      		page["formsList"].splice(indexToInsert, 0, clone);
                                                       		resolve();
                                                       '
                                               ↓elm [ngx.components.UIControlVariable-1650357060569]: 
@@ -14311,7 +14956,7 @@ title: Title for editor
                                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                             →: |
                                               		this.local["showItemid"] = "";
-                                                      this.ref.detectChanges();
+                                                      //this.ref.detectChanges();
                                               		resolve();
                                               
                           ↓AfterItem [ngx.components.UIDynamicElement-1650357060914]: 
@@ -16922,7 +17567,7 @@ title: Title for editor
                                         ' margin-top: 0px;
                                         '
                           ↓Directive [ngx.components.UIControlDirective-1741109898583]: 
-                            directiveExpression: trackBy:trackByIndex
+                            directiveExpression: trackBy:trackByIndex8
                             directiveIndexName: t
                             directiveItemName: thing
                             directiveSource: 
@@ -18225,7 +18870,7 @@ title: Title for editor
                                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                             →: |
                                               		page.local["showItemid"] = vars.item.id;
-                                              		page.ref.detectChanges();
+                                              		//page.ref.detectChanges();
                                               		resolve();
                                               
                                       ↓item [ngx.components.UIControlVariable-1741109899045]: 
@@ -19082,7 +19727,12 @@ title: Title for editor
       beanData: '{"ionBean":"InvokeAction"}'
       stack: C8Oforms.MobileApplication.Application.importNg2Tooltips
     ↓CallSequence [ngx.components.UIDynamicAction-1728048119322]: 
-      beanData: '{"ionBean":"CallSequenceAction","requestable":"plain:C8Oforms.getTinyMaxs"}'
+      beanData: |
+        '{
+         "ionBean": "CallSequenceAction",
+         "requestable": "plain:C8Oforms.getTinyMaxs",
+         "noLoading": "plain:true"
+        }'
       ↓setValuesForTinyMax [ngx.components.UICustomAsyncAction-1728048152925]: 
         actionValue: 
           - xmlizable: 
@@ -19318,6 +19968,16 @@ title: Title for editor
             				document.getElementById("brevo-conversations").style.visibility = "visible";
             			}
             			catch(e){
+            			}
+            			try{
+            				const toastCtrl = page.getInstance(ToastController);
+            				const topToast = await toastCtrl.getTop();
+            				if (topToast) {
+            					await topToast.dismiss();
+            				}
+            			}
+            			catch(e){
+            				
             			}
             		} catch (e) {
             		

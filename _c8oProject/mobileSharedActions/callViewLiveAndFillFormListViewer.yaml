@@ -14,29 +14,50 @@
           		page.local.hash = undefined;
           		page.local.sizeWallPaper = undefined;
           		let isProd = page.local.published == true || page.local.anonymous == true;
+          		try{
+          			page.local._formId = JSON.parse(JSON.stringify(page.local.formId));
+          		}
+          		catch(e){
+          			
+          		}
+          		
           		// if in fullsync mode
           		if (vars.fromId) {
-          			let r: any = await page.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id:vars.fromId, fromResponse: "true"}).async();
-          			if(page.local.formId == r.res.formId){
+          			let r: any
+          			try {
+          				r = await page.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id:vars.fromId, fromResponse: "true"}).async();
+          			}
+          			catch(e){
+          				page.c8o.log.error("[callViewLiveAndFillFormListViewer] unable to get response", e);
+          				r = null;
+          			}
+          			 
+          			if(page.local.formId == r?.res?.formId || (page.local.anonymous == true && page.global.standalonePwa == r?.res?.formId?.substring(0, r.res?.formId?.length - 10))){
           				page.local.myId = vars.fromId;
           				page.local.myFormId = page.local.myId;
           				page.local.myRev = r.res._rev;
+          				page.local.fromResponse = true;
           			}
           			else{
           				page.local.myId = page.local.user+''_''+page.local.formId+''_''+new Date().getTime();
           				page.local.myFormId = page.local.myId;
           			}
-          			respInit = r.res.resp;
+          			respInit = r?.res?.resp;
           		}
           		else{
-          			page.local.myId = page.local.user+''_''+page.local.formId+''_''+new Date().getTime();
-          			page.local.myFormId = page.local.myId;
+          			if(page.local.anonymous == true){
+          				
+          			}
+          			else{
+          				page.local.myId = page.local.user+''_''+page.local.formId+''_''+new Date().getTime();
+          				page.local.myFormId = page.local.myId;
+          			}
+          			
           		}
           		if (vars.fs) {
           			let key = page.local["formId"];
-          			let respInit;
-          			if (page.local["respInit"] != null) {
-          				respInit = page.local["respInit"];
+          			if (respInit != null) {
+          				page.local["respInit"] = respInit;
           				page["edit"] = true;
           			}
           			
@@ -243,15 +264,84 @@
           				// calling fillSources
           				//if(isInitial){
           				let idsToCall = await page["fillSources"](page["formsList"], page["redList"], page["formsSubmit"]);
-          
-          				idsToCall.forEach((id) => {
-          					try {
-          						page["functionsById"][id]();
+          				page.local.techGrid = {};
+          				let execIdToCall = async ()=>{
+          					for(let id of idsToCall){
+          						try {
+          							page["functionsById"][id](true)
+          							.finally(()=>{
+          								//allows to retrive row or cell selected
+          								if(page.local.fromResponse){
+          									for(let _id in (page as any).shaById){
+          										if((page as any).shaById[_id] == id){
+          											let elem = (page as any).getItemById(_id);
+          											if(elem.type == "grid" && (page as any).formsSubmit[elem.name].value != null){
+          												let targetGrid = (page as any).all_c8oforms_itemgridviewer._results.find((x)=> x.item.name == elem.name);
+          												if(elem.config.returned_value === "row_selected"){
+          													targetGrid.myGrid.agGrid.api.forEachNode((node, rowIndex)=>{
+          														if(node?.data?.id?.value == (page as any).formsSubmit?.[elem.name]?.value?.id ){
+          															targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+          															node.setSelected(true, true);
+          														}
+          													});
+          												}
+          												else if(elem.config.returned_value === "multiple_row_selected"){
+          													targetGrid.myGrid.agGrid.api.forEachNode((node, rowIndex)=>{
+          														if((page as any).formsSubmit?.[elem.name]?.value.map((x)=>{return x.id})?.includes(node?.data?.id?.value)){
+          															targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+          															node.setSelected(true, false);
+          														}
+          													});
+          												}
+          												else if(elem.config.returned_value === "cell_selected"){
+          													targetGrid.myGrid.agGrid.api.forEachNode((node, rowIndex)=>{
+          														if(node?.data?.id?.value == (page as any).formsSubmit?.[elem.name]?.parentNodeId ){
+          															for(let i in node.data){
+          																let currentCell = node.data[i];
+          																if(typeof currentCell == "string"){
+          																	if(currentCell == (page as any).formsSubmit?.[elem.name]?.value){
+          																		targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+          																		targetGrid.myGrid.agGrid.api.setFocusedCell(rowIndex, i);
+          																		targetGrid.myGrid.elementRef.nativeElement.querySelector(`[row-id="${node.id}"]`).querySelector(`[col-id="${currentCell}"]`).classList.add(''ag-row-selected'');
+          																	}
+          																}
+          																else{
+          																	if(currentCell?.technicalName == (page as any).formsSubmit?.[elem.name]?.value.technicalName){
+          																		targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+          																		targetGrid.myGrid.agGrid.api.setFocusedCell(rowIndex, i);
+          																		targetGrid.myGrid.elementRef.nativeElement.querySelector(`[row-id="${node.id}"]`).querySelector(`[col-id="${currentCell?.technicalName}"]`).classList.add(''ag-row-selected'');
+          																	}
+          																}
+          															}
+          															
+          																											
+          														}
+          													});
+          												}
+          												console.log("there, elem", elem)
+          											}
+          										}
+          									}
+          								}
+          								
+          								console.log("id",id);
+          							})
+          						}
+          						catch (e) {
+          							console.error("an error occured idsToCall", e)
+          						}
           					}
-          					catch (e) {
-          						console.error("an error occured idsToCall", e)
-          					}
-          				});
+          				}
+          				execIdToCall();
+          //				idsToCall.forEach((id) => {
+          //					try {
+          //						page["functionsById"][id](true);
+          //					}
+          //					catch (e) {
+          //						console.error("an error occured idsToCall", e)
+          //					}
+          //				});
+          				
           
           
           				//}
@@ -336,6 +426,15 @@
           					const key = "_C8O_HIDDEN_" + myIdP.substring(0, myIdP.indexOf("_anonymous"));
           					page.local.grp[key] = true;
           					page.local.formId = response.rows[0].doc._id;
+          					if(!page.local.fromResponse){
+          						var array = new Uint32Array(2);
+          		                let result = RandomVal(array);
+          		                let random = result[0] * result[1];
+          		                let formId = page.local.formId.substring(0, page.local.formId.length -10);
+          		                page.local.myId = ''anonymous-''+ random +''_''+ page.local.formId + ''_'' + page["epoch"];
+          		                page.local.myFormId = page.local.myId;
+          					}
+          					
           				}
           				try {
           					var newHash = sha256(JSON.stringify(response.rows[0]));

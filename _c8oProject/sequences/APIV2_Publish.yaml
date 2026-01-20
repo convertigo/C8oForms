@@ -1,4 +1,5 @@
 accessibility: Hidden
+authenticatedContextRequired: true
 comment: |
   Publish form.
   Promotes a draft, regenerates its PWA and synchronises publication metadata.
@@ -72,6 +73,39 @@ comment: |
     	new_doc_published._id = "published_" + id;
     	// 8. get existing published doc if exists to :
     	let doc_published = toJSON(fsclient.getDocument("c8oforms_fs", new_doc_published._id));
+    	// preserve existing sharing from published doc (not present in draft)
+    	var sharedFromPublished = doc_published.shared != undefined ? doc_published.shared : doc.shared;
+    	if (sharedFromPublished != undefined) {
+    		new_doc_published.shared = sharedFromPublished;
+    		var addSharedGroup = function (value) {
+    			if (value != undefined && value != null && value !== "") {
+    				new_doc_published.c8oGrp[value] = true;
+    			}
+    		};
+    		if (isArray(sharedFromPublished)) {
+    			sharedFromPublished.forEach(function (value) {
+    				addSharedGroup(value);
+    			});
+    		}
+    		else if (typeof sharedFromPublished.forEach == "function") {
+    			sharedFromPublished.forEach(function (value) {
+    				addSharedGroup(value);
+    			});
+    		}
+    		else if (typeof sharedFromPublished.iterator == "function") {
+    			var iterator = sharedFromPublished.iterator();
+    			while (iterator.hasNext()) {
+    				addSharedGroup(iterator.next());
+    			}
+    		}
+    		else {
+    			addSharedGroup(sharedFromPublished);
+    		}
+    	}
+    	var invitedFromPublished = doc_published.invited != undefined ? doc_published.invited : doc.invited;
+    	if (invitedFromPublished != undefined) {
+    		new_doc_published.invited = invitedFromPublished;
+    	}
     	// 8.a compute new version
     	new_doc_published.version = doc_published.version != undefined && doc_published.version != "" ? "" + (+doc_published.version + 1) : "" + 1;
     	// 8.b affect or create creationDate
