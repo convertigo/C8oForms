@@ -1,6 +1,7 @@
 import {Injectable, OnDestroy } from '@angular/core';
-import {Subject, Subscription} from 'rxjs';
+import { Subscription } from 'rxjs';
 
+type EventHandler = (value: any) => any | Promise<any>;
 @Injectable({
     providedIn: 'root'
 })
@@ -12,31 +13,49 @@ export class Events implements OnDestroy{
         
     }
     
-    private getEventSubject(topic: string) : Subject<any> {
+    private getEventHandlers(topic: string) : EventHandler[] {
         if (topic == undefined || topic == '') {
             throw Error('Invalid topic');
         }
         
         if (this.eventMap[topic] == undefined) {
-            this.eventMap[topic] = new Subject<any>()
+            this.eventMap[topic] = [];
         }
         return this.eventMap[topic];
     }
     
-    public publish(topic: string, data?: any) {
-        let subject = this.getEventSubject(topic)
-        subject.next(data)
+    public async publish(topic: string, data?: any, async: boolean = true): Promise<void> {
+        const handlers = [...this.getEventHandlers(topic)];
+        let arr = [];
+        for (const handler of handlers) {
+             arr.push(Promise.resolve(handler(data)));
+        }
+        if(async){
+            return;
+        }
+        else{
+            await Promise.all(arr);
+        }
     }
     
-    public subscribe(topic: string, next?: (value: any) => void, error?: (error: any) => any, complete?: () => void): Subscription {
-        let subject = this.getEventSubject(topic)
-        return subject.subscribe(next, error, complete)
+    public subscribe(topic: string, next?: EventHandler, _error?: (error: any) => any, _complete?: () => void): Subscription {
+        const handlerList: EventHandler[] = this.getEventHandlers(topic);
+        if (!next) {
+            throw Error('Invalid handler');
+        }
+        handlerList.push(next);
+        return new Subscription(() => {
+            const index = handlerList.indexOf(next);
+            if (index !== -1) {
+                handlerList.splice(index, 1);
+            }
+            if (handlerList.length === 0) {
+                delete this.eventMap[topic];
+            }
+        });
     }
     
     ngOnDestroy() {
-        for (const topic in this.eventMap) {
-          this.eventMap[topic].complete()
-        }
         this.eventMap = {};
-    }    
+    }       
 }

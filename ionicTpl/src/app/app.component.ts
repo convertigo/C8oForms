@@ -1,15 +1,16 @@
-import { Component }                                                                    from '@angular/core';
+import { Component, Input, CUSTOM_ELEMENTS_SCHEMA }                    					from '@angular/core';
 import { ChangeDetectorRef, ChangeDetectionStrategy, InjectionToken, Injector, Type}    from "@angular/core";
-import { DomSanitizer }                                                                 from '@angular/platform-browser';
-import { Router, ActivatedRoute }                                          				from '@angular/router';
-import { SwUpdate }                                         							from '@angular/service-worker';
-import { NavParams, NavController, LoadingController, MenuController, Platform}         from '@ionic/angular';
-import { AlertController, ActionSheetController, ModalController }                      from '@ionic/angular';
-import { AnimationController, PopoverController, ToastController }                      from '@ionic/angular';
+import { BrowserModule, DomSanitizer }                                                  from '@angular/platform-browser';
+import { Router, ActivatedRoute, NavigationEnd }										from '@angular/router';
+import { ServiceWorkerModule, SwUpdate }                                         	   	from '@angular/service-worker';
+import { NavController, LoadingController, Platform}         							from '@ionic/angular/standalone';
+import { AlertController, ActionSheetController, ModalController, MenuController }      from '@ionic/angular/standalone';
+import { AnimationController, PopoverController, ToastController }                      from '@ionic/angular/standalone';
 import { SplashScreen }                                                                 from '@ionic-native/splash-screen/ngx';
 import { StatusBar }                                                                    from '@ionic-native/status-bar/ngx';
-import { TranslateService }                                                             from '@ngx-translate/core';
-import { Subject }                                                                      from 'rxjs';
+import { TranslateLoader, TranslateModule, TranslateService }                           from '@ngx-translate/core';
+import { filter, map } 																	from 'rxjs/operators';
+import { Subject, Observable  }                                                         from 'rxjs';
 
 //Convertigo CAF Imports
 import { C8oRouter }                                        from 'c8ocaf';
@@ -20,6 +21,19 @@ import { C8oNetworkStatus }                                 from "c8osdkangular"
 
 import { ActionBeans }                                      from './services/actionbeans.service';
 import { Events }                                           from './services/events.service';
+import { NavParams } 										from './patch/nav-params';
+import { NavParamsWrapperService } 							from './patch/nav-params-wrapper.service';
+
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { HttpClient, HttpClientModule } from '@angular/common/http';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { TranslateHttpLoader } from '@ngx-translate/http-loader';
+import { CommonModule } from '@angular/common';
+import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
+import * as icons from "ionicons/icons";
+import { addIcons } from 'ionicons';
+import { signal } from "@angular/core";
+
 
 /*
 	You can customize your application class by writing code between the :
@@ -38,47 +52,84 @@ import { Events }                                           from './services/eve
 
 /*=c8o_PagesImport*/ 
 
+export function patchModalController(patch: NavParamsWrapperService) {
+  return patch.getModalController();
+}
+export function patchPopoverController(patch: NavParamsWrapperService) {
+  return patch.getPopoverController();
+}
+
 @Component({
+  standalone: true, 
+  imports: [/*Begin_c8o_NgModules*/
+    CommonModule,
+    FormsModule,
+    IonApp,
+    IonRouterOutlet,
+    TranslateModule,
+	
+    /*End_c8o_NgModules*/
+  ],
+  providers: [
+	{
+	  provide: ModalController,
+	  useFactory: patchModalController,
+	  deps: [NavParamsWrapperService]
+	},
+	{
+	  provide: PopoverController,
+	  useFactory: patchPopoverController,
+	  deps: [NavParamsWrapperService]
+	},
+  ],
   selector: 'app-root',
   templateUrl: 'app.component.html',
-  styleUrls: ['app.component.scss']
+  styleUrls: ['app.component.scss'],
+  schemas: [ CUSTOM_ELEMENTS_SCHEMA ]
 })
 export class AppComponent extends C8oPageBase {
 	rootPage : any = /*=c8o_RootPage*/;
 	public appPages : /*=c8o_PageArrayDef*/;
     pagesKeyValue: any;
-	public navParams : NavParams;
 	public events: Events;
 	public subscriptions = {};
     public actionBeans: ActionBeans;
-	public selectedPath = '';
+	public selectedPath$: Observable<string>;
 	public appInit: Subject<any> = new Subject<any>();
     /*=c8o_AppDeclarations*/
     
     /*Begin_c8o_AppDeclaration*/
     /*End_c8o_AppDeclaration*/
 	
-    constructor(private platform: Platform, private splashScreen: SplashScreen, private statusBar: StatusBar, routerProvider: C8oRouter, private route: ActivatedRoute, private angularRouter: Router, loadingCtrl: LoadingController, sanitizer: DomSanitizer, ref: ChangeDetectorRef, injector: Injector, menuCtrl: MenuController, public translate: TranslateService){
+    constructor(public navParams : NavParams, private platform: Platform, private splashScreen: SplashScreen, private statusBar: StatusBar, routerProvider: C8oRouter, private route: ActivatedRoute, private angularRouter: Router, loadingCtrl: LoadingController, sanitizer: DomSanitizer, ref: ChangeDetectorRef, injector: Injector, menuCtrl: MenuController, public translate: TranslateService){
         super(injector, routerProvider, loadingCtrl, ref);
         this.events = this.getInstance(Events);
         this.actionBeans = this.getInstance(ActionBeans);
-		try {
-			// for PopoverController, ModalController
-			this.navParams = new NavParams(this.getInstance(NavParams).data)
-		} catch (e) {
-			// for NavController (based on angular router)
-			let params = {}
-			this.merge(params, this.route.snapshot.params)
-			this.merge(params, this.route.snapshot.queryParams)
-			this.navParams = new NavParams(params)
-		}
+		this.global.c8oLoadingOptions = {};
+		this.global.c8oLoadingOptions.isOpen = signal(false);
+		this.global.c8oLoadingOptions.mode = signal(undefined);
+		this.global.c8oLoadingOptions.spinner = signal(undefined);
+		this.global.c8oLoadingOptions.message = signal(undefined);
+		this.global.c8oLoadingOptions.duration = signal(undefined);
+		this.global.c8oLoadingOptions.keyboardClose = signal(undefined);
+		this.global.c8oLoadingOptions.showBackdrop = signal(undefined);
+		this.global.c8oLoadingOptions.backdropDismiss = signal(undefined);
+		this.global.c8oLoadingOptions.animated = signal(undefined);
+		this.global.c8oLoadingOptions.enterAnimation = signal(undefined);
+		this.global.c8oLoadingOptions.leaveAnimation = signal(undefined);
+		this.global.c8oLoadingOptions.cssClass = signal(undefined);
+		this.global.c8oLoadingOptions.translucent = signal(undefined);
+		
+		
+		this.navParams = new NavParams(this.route, this.navParams.data);
+		
+		this.selectedPath$ = this.angularRouter.events.pipe(
+		  filter(event => event instanceof NavigationEnd),
+		  map((event: NavigationEnd) => event.urlAfterRedirects)
+		);
 
-		this.angularRouter.events.subscribe((event: any) => {
-			if (event && event.urlAfterRedirects) {
-				this.selectedPath = event.urlAfterRedirects
-			}
-		})
-
+        addIcons(icons);
+        
 		this.appPages = [/*=c8o_PagesVariables*/];
         this.pagesKeyValue = {/*=c8o_PagesVariablesKeyValue*/}
         this.routerProvider.pagesArray = this.appPages;
@@ -127,7 +178,7 @@ export class AppComponent extends C8oPageBase {
                 this.resetImageCache();
                 /*Begin_c8o_AppInitialization*/
                 /*End_c8o_AppInitialization*/
-                this.appInit.next(null); //this.appInit.next();
+                this.appInit.next(null);
             });
 
         });
@@ -153,7 +204,7 @@ export class AppComponent extends C8oPageBase {
 	public navigateByUrl(url: string){
 	    this.angularRouter.navigateByUrl(url);
 	}
-	    
+	
     /*Begin_c8o_AppFunction*/
     /*End_c8o_AppFunction*/
     

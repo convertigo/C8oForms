@@ -390,6 +390,7 @@ var F = {
 				success: function (data) {
 					try {
 						F.remoteFiles = data;
+						F.remoteFiles.files = data.files.filter(f => f.uri.indexOf("md5.json") == -1 && f.uri.indexOf(".endpoint") == -1);
 						
 						$.extend(true, F.env, data.env);
 						
@@ -427,9 +428,11 @@ var F = {
 	},
 	
 	isRemoteNewer: function () {
-		F.debug("isRemoteNewer currentFiles: " + F.currentFiles.date + " remoteFiles: " + F.remoteFiles.date);
+		var lfiles = JSON.stringify(F.currentFiles.files);
+		var rfiles = JSON.stringify(F.remoteFiles.files);
+		F.debug("isRemoteNewer currentFiles: " + lfiles.length + " remoteFiles: " + rfiles.length + " same: " + (lfiles == rfiles));
 		
-		if (F.currentFiles.date < F.remoteFiles.date) {
+		if (lfiles != rfiles) {
 			if (!F.env.firstLaunch) {
 				$("#main").show();
 			} else {

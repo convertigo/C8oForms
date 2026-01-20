@@ -6,7 +6,7 @@
      * @param vars  , the object which holds variables key-value pairs
      * @param doLoop, the doLoop callback function
      */
-    IterateAction(page: C8oPageBase, props, vars, doLoop) : Promise<any> {
+    IterateAction(page: any, props, vars, doLoop) : Promise<any> {
         
         const iterate = async () => {
             let arr = [];

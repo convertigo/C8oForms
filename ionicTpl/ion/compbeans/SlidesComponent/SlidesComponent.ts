@@ -1,16 +1,19 @@
-import {Input, Output, Component, ElementRef, AfterViewInit, OnInit, ViewChild, EventEmitter} from '@angular/core';
+import {Input, Output, Component, ElementRef, AfterViewInit, OnInit, ViewChild, EventEmitter, CUSTOM_ELEMENTS_SCHEMA} from '@angular/core';
 
 import { register } from 'swiper/element/bundle';
 import Swiper from 'swiper';
 //import { SwiperOptions } from 'swiper/types';
+import { CommonModule } from '@angular/common';
 
 register();
 
 @Component({
+  standalone: true, 
+  imports:[CommonModule],
+  schemas: [ CUSTOM_ELEMENTS_SCHEMA ],
   selector: 'c8o-slides',
   templateUrl: './SlidesComponent.html',
-  styleUrls: ['./SlidesComponent.scss'],
-  standalone: false
+  styleUrls: ['./SlidesComponent.scss']
 })
 export class SlidesComponent implements OnInit, AfterViewInit {
 	@Input() public options: Object = {};

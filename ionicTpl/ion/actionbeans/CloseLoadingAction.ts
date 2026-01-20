@@ -7,31 +7,9 @@
      */
     CloseLoadingAction(page: C8oPageBase, props, vars) : Promise<any> {
         
-        function toString(data) {
-            if (data) {
-                try {
-                    return JSON.stringify(data);
-                } catch(e) {
-                    return data.toString();
-                }
-            } else {
-               return ""; 
-            }
-        }
-        
-        const closeLoading = async () => {
-            let loadingController = page.getInstance(LoadingController)
-            await loadingController.dismiss(props.data);
-        }
-        
+		page.global.c8oLoadingOptions.isOpen.set(false);
+		        
         return new Promise((resolve, reject) => {
-            Promise.resolve(closeLoading())
-            .then((data) => {
-                resolve(data);
-            }).catch((error:any) => {
-				//reject(error)
-				page.c8o.log.warn("[MB] CloseLoadingAction: bypass error " + toString(error));
-				resolve();
-			})
+            resolve()
         });
     }

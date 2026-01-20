@@ -1,15 +1,20 @@
-import { Component }																	from '@angular/core';
-import { Router, ActivatedRoute } 														from '@angular/router';
+import { Component, Input, CUSTOM_ELEMENTS_SCHEMA }										from '@angular/core';
+import { Router, ActivatedRoute }														from '@angular/router';
 import { DomSanitizer }                 												from '@angular/platform-browser';
-import { NavParams, NavController, LoadingController, MenuController, Platform}			from '@ionic/angular';
-import { AlertController, ActionSheetController, ModalController }						from '@ionic/angular';
-import { AnimationController, PopoverController, ToastController }						from '@ionic/angular';
+import { NavController, LoadingController, MenuController, Platform}					from '@ionic/angular/standalone';
+import { AlertController, ActionSheetController, ModalController }						from '@ionic/angular/standalone';
+import { AnimationController, PopoverController, ToastController }						from '@ionic/angular/standalone';
 import { C8oPage, C8oPageBase, C8oRouter, C8oCafUtils }                      			from 'c8ocaf';
 import { C8oNetworkStatus }                                 							from 'c8osdkangular';
 import { ChangeDetectorRef, ChangeDetectionStrategy, InjectionToken, Injector, Type}	from "@angular/core";
 import { TranslateService }                                 							from '@ngx-translate/core';
 import { ActionBeans } 																	from '../../services/actionbeans.service';
 import { Events } 																		from '../../services/events.service';
+import { NavParams }																	from '../../patch/nav-params';
+
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
 
 /*
 	You can customize your page class by writing code between the :
@@ -23,11 +28,29 @@ import { Events } 																		from '../../services/events.service';
 /*Begin_c8o_PageImport*/
 /*End_c8o_PageImport*/
 
-@Component({selector: /*=c8o_PageSelector*/, templateUrl: /*=c8o_PageTplUrl*/, styleUrls: [/*=c8o_PageStyleUrls*/], changeDetection: /*=c8o_PageChangeDetection*/})
+@Component({
+	standalone: true,
+	imports: [
+		CommonModule,
+		FormsModule,
+		TranslateModule,
+		
+		/*c8o_StandAloneNgModules*/
+	],
+	providers: [
+		/*Begin_c8o_NgProviders*/
+		/*End_c8o_NgProviders*/
+	],
+	selector: /*=c8o_PageSelector*/,
+	templateUrl: /*=c8o_PageTplUrl*/,
+	styleUrls: [/*=c8o_PageStyleUrls*/],
+	schemas: [ CUSTOM_ELEMENTS_SCHEMA ],
+	changeDetection: /*=c8o_PageChangeDetection*/
+})
+
 export class /*=c8o_PageName*/  extends C8oPage {
 	/*=c8o_PageDeclarations*/
 
-	public navParams : NavParams;
 	public events : Events;
 	public subscriptions = {};
 	public actionBeans: ActionBeans;
@@ -36,30 +59,13 @@ export class /*=c8o_PageName*/  extends C8oPage {
 	/*Begin_c8o_PageDeclaration*/
 	/*End_c8o_PageDeclaration*/
 
-	constructor(routerProvider: C8oRouter, private route: ActivatedRoute, private angularRouter: Router, loadingCtrl: LoadingController, sanitizer: DomSanitizer, ref: ChangeDetectorRef, injector: Injector, menuCtrl: MenuController, public translate: TranslateService){
+	constructor(public navParams : NavParams, routerProvider: C8oRouter, private route: ActivatedRoute, private angularRouter: Router, loadingCtrl: LoadingController, sanitizer: DomSanitizer, ref: ChangeDetectorRef, injector: Injector, menuCtrl: MenuController, public translate: TranslateService){
 		super(routerProvider, loadingCtrl, sanitizer, ref, injector, menuCtrl);
 		this.events = this.getInstance(Events);
 		this.actionBeans = this.getInstance(ActionBeans);
 
-        let updateNavParams = function(route: ActivatedRoute) {
-			let params = {}
-			Object.assign(params, route.snapshot.params)
-			Object.assign(params, route.snapshot.queryParams)
-			return new NavParams(params)
-		}
-
-		try {
-			// for PopoverController, ModalController
-			let params = this.getInstance(NavParams).data
-			this.navParams = new NavParams(params)
-		} catch (e) {
-			// for NavController (based on angular router)
-			this.navParams = updateNavParams(this.route)
-			this.route.queryParams.subscribe(queryParameters => {
-				this.navParams = updateNavParams(this.route)
-			})
-		}
-				
+		this.navParams = new NavParams(this.route, this.navParams.data);
+		
 		/*=c8o_PageConstructors*/
 		
 		/*Begin_c8o_PageConstructor*/
@@ -85,6 +91,30 @@ export class /*=c8o_PageName*/  extends C8oPage {
 	
 	public navigateByUrl(url: string){
 	    this.angularRouter.navigateByUrl(url);
+	}
+	
+	ngOnInit() {
+		/*Begin_c8o_PageInitialization*/
+		/*End_c8o_PageInitialization*/
+		
+		this.onInit();
+	}
+
+	ngAfterViewInit() {
+		this.afterViewInit();
+		
+		/*Begin_c8o_PageAfterViewInit*/
+		/*End_c8o_PageAfterViewInit*/		
+	}
+
+	ngOnDestroy() {
+		this.onDestroy();
+		
+		/*Begin_c8o_PageFinalization*/
+		/*End_c8o_PageFinalization*/
+		
+		this.subscriptions = {};
+		super.ngOnDestroy();
 	}
 	
 	/*Begin_c8o_PageFunction*/

@@ -1,12 +1,12 @@
-import { NgModule, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
-import { CommonModule } from '@angular/common';
+// import { NgModule, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+// import { CommonModule } from '@angular/common';
 
-import { SlidesComponent } from './SlidesComponent';
+// import { SlidesComponent } from './SlidesComponent';
 
-@NgModule({
-  declarations: [ SlidesComponent ],
-  exports: [ SlidesComponent ],
-  imports: [ CommonModule ],
-  schemas: [ CUSTOM_ELEMENTS_SCHEMA ]
-})
-export class SlidesModule {}
+// @NgModule({
+//   declarations: [ SlidesComponent ],
+//   exports: [ SlidesComponent ],
+//   imports: [ CommonModule ],
+//   schemas: [ CUSTOM_ELEMENTS_SCHEMA ]
+// })
+// export class SlidesModule {}

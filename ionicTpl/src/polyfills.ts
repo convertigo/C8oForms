@@ -98,5 +98,14 @@ window["browser"] = true;
         setTimeout(fn, 0);
     };
 })();
-// @ts-ignore
-window["Buffer"] = require('buffer/').Buffer;
+
+try {
+  //@ts-ignore
+  const bufferModule = require('buffer/');
+  if (bufferModule && bufferModule.Buffer) {
+    window["Buffer"] = bufferModule.Buffer;
+  }
+} catch (e) {
+  // Si une erreur est levée, on l'ignore simplement
+  console.warn('Module buffer introuvable, Buffer non défini');
+}

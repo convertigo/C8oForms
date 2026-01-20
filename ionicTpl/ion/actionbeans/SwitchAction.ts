@@ -8,6 +8,16 @@
      */
     SwitchAction(page: C8oPageBase, props, vars, cases) : Promise<any> {
 		
+		function evaluateCondition(expression: string, page: any, scope: any): boolean {
+		    const safeExpression = expression
+		        .replace(/this\./g, 'page.')
+		        .replace(/params(\d+)/g, 'scope.params$1');
+
+		    const fn = new Function('page', 'scope', "return ("+ safeExpression +");");
+
+		    return fn(page, scope);
+		}
+
 		const pseudoSwitch = async (page, props, vars) => {
 			// note: use 'for()' instead of 'forEach()' to able doSwitch to handle thrown error from async fn
 			if (cases) {
@@ -28,9 +38,8 @@
 				} else if (expression == true) {
 					for (let key of Object.keys(cases)) {
 						try {
-							let ekey = key.replace('this.', 'page.')
-							ekey = ekey.replace(/(params\d+)/, 'scope.$1')
-							if (eval(ekey) == true) {
+							const result = evaluateCondition(key, page, scope);
+							if (result === true) {
 								doDefault = false
 								let arr = cases[key]
 								for (let i = 0; i < arr.length; i++) {

@@ -1,12 +1,15 @@
-import { Component, Input, Output, EventEmitter, ViewChild, forwardRef, ElementRef, Renderer2, ViewEncapsulation } from '@angular/core';
-import { TreeComponent, TreeNode, TreeModel, TREE_ACTIONS, KEYS, IActionMapping, ITreeOptions } from '@ali-hm/angular-tree-component';
+import { Component, Input, Output, EventEmitter, ViewChild, forwardRef, ElementRef, Renderer2, ViewEncapsulation, CUSTOM_ELEMENTS_SCHEMA} from '@angular/core';
+import { TreeModule, TreeComponent, TreeNode, TreeModel, TREE_ACTIONS, KEYS, IActionMapping, ITreeOptions } from '@ali-hm/angular-tree-component';
+import { CommonModule } from '@angular/common';
 
 // Note: due to styleUrls path problems, we use embedded styles notation  
 
 @Component({
-    selector: 'c8o-treeview',
-		standalone: false,
-    styles: [
+  standalone: true, 
+  imports:[CommonModule, TreeModule],
+  schemas: [ CUSTOM_ELEMENTS_SCHEMA ],
+  selector: 'c8o-treeview',
+  styles: [
     `   
 .tree-children.tree-children-no-padding { padding-left: 0 }
 .tree-children { padding-left: 20px; overflow: hidden }
