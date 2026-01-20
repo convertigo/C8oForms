@@ -92,7 +92,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/8.1.
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Leaflet
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0_legacy#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
