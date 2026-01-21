@@ -7,17 +7,25 @@ function sha1File(filePath) {
   return crypto.createHash("sha1").update(buf).digest("hex");
 }
 
-function setBaseHref(html, newHref) {
-  const re = /<base\b[^>]*href\s*=\s*(['"])[^'"]*\1[^>]*>/i;
-  const replacement = `<base href="${newHref}">`;
+function setBaseHref(html) {
+  const exactBaseTag = `<base href="./" data-c8o-mode="web">`;
+
+  // Match n'importe quelle balise <base ...>
+  const re = /<base\b[^>]*>/i;
 
   if (!re.test(html)) {
-    const headRe = /<head[^>]*>/i;
-    if (!headRe.test(html)) throw new Error("No <head> tag found; cannot insert <base>.");
-    return html.replace(headRe, (m) => `${m}\n    ${replacement}`);
+    // Si aucune balise <base>, on l’insère juste après <head>
+    const headRe = /<head\b[^>]*>/i;
+    if (!headRe.test(html)) {
+      throw new Error("No <head> tag found; cannot insert <base>.");
+    }
+    return html.replace(headRe, (m) => `${m}\n    ${exactBaseTag}`);
   }
-  return html.replace(re, replacement);
+
+  // Remplacement strict par la balise exacte
+  return html.replace(re, exactBaseTag);
 }
+
 
 function updateIndexHashInNgsw(ngswPath, newHash) {
   const json = JSON.parse(fs.readFileSync(ngswPath, "utf8"));
@@ -51,7 +59,7 @@ function main() {
   if (!fs.existsSync(ngswFile)) throw new Error(`ngsw.json not found: ${ngswFile}`);
 
   const before = fs.readFileSync(indexFile, "utf8");
-  const after = setBaseHref(before, "./");
+  const after = setBaseHref(before);
   if (after !== before) {
     fs.writeFileSync(indexFile, after, "utf8");
     console.log(`✅ base href set to ./ in ${indexFile}`);
