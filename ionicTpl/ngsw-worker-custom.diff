@@ -1,0 +1,127 @@
+1a2
+>   var version = "1.0.0";
+432a434,437
+>           const accept = req.headers.get("Accept") || "";
+>           if (req.mode === "navigate" || url.endsWith("/index.html") || accept.indexOf("text/html") !== -1) {
+>             return await this.maybeRewriteIndexHtml(req, cachedResponse);
+>           }
+533a539
+>           const finalRes = await this.maybeRewriteIndexHtml(req, res);
+535c541
+<           await cache.put(req, res.clone());
+---
+>           await cache.put(req, finalRes.clone());
+541c547
+<           return res;
+---
+>           return finalRes;
+578c584
+<               throw new SwCriticalError(`Hash mismatch (cacheBustedFetchFromNetwork): ${req.url}: expected ${canonicalHash}, got ${cacheBustedHash} (after cache busting)`);
+---
+>               //throw new SwCriticalError(`Hash mismatch (cacheBustedFetchFromNetwork): ${req.url}: expected ${canonicalHash}, got ${cacheBustedHash} (after cache busting)`);
+637a644,684
+> 
+>     async maybeRewriteIndexHtml(req, res) {
+>       const url = this.adapter.normalizeUrl(req.url);
+>       const accept = req.headers.get("Accept") || "";
+>       if (!(url.endsWith("/index.html") || req.mode === "navigate" || accept.indexOf("text/html") !== -1)) {
+>         return res;
+>       }
+>       if (res.type === "opaque") {
+>         return res;
+>       }
+>       const contentType = res.headers.get("Content-Type") || "";
+>       if (contentType && contentType.indexOf("text/html") === -1) {
+>         return res;
+>       }
+>       let text;
+>       try {
+>         text = await res.clone().text();
+>       } catch (e) {
+>         return res;
+>       }
+>       const scopePath = this.adapter.parseUrl(this.scope.registration.scope).path;
+>       const baseHref = scopePath.endsWith("/") ? scopePath : scopePath + "/";
+>       const baseTag = `<base href="${baseHref}" data-c8o-mode="web">`;
+>       let next = text;
+>       if (/<base\b[^>]*>/i.test(next)) {
+>         next = next.replace(/<base\b[^>]*>/i, baseTag);
+>       } else if (/<head[^>]*>/i.test(next)) {
+>         next = next.replace(/<head[^>]*>/i, (m) => `${m}
+>     ${baseTag}`);
+>       } else {
+>         next = `${baseTag}
+> ${next}`;
+>       }
+>       if (next === text) {
+>         return res;
+>       }
+>       const headers = new Headers(res.headers);
+>       headers.set("Content-Type", "text/html; charset=utf-8");
+>       headers.delete("Content-Length");
+>       return this.adapter.newResponse(next, { status: res.status, statusText: res.statusText, headers });
+>     }
+1166a1214,1220
+>       const isNav = this.isNavigationRequest(req);
+>       const maybeRewrite = async (res) => {
+>         if (!isNav || res === null) {
+>           return res;
+>         }
+>         return await this.maybeRewriteIndexHtmlForNavigation(req, res);
+>       };
+1175c1229
+<         return asset;
+---
+>         return await maybeRewrite(asset);
+1185c1239
+<         return data;
+---
+>         return await maybeRewrite(data);
+1187c1241
+<       if (this.adapter.normalizeUrl(req.url) !== this.indexUrl && this.isNavigationRequest(req)) {
+---
+>       if (this.adapter.normalizeUrl(req.url) !== this.indexUrl && isNav) {
+1190c1244
+<             return await this.scope.fetch(req);
+---
+>             return await maybeRewrite(await this.scope.fetch(req));
+1194c1248
+<         return this.handleFetch(this.adapter.newRequest(this.indexUrl), event);
+---
+>         return await maybeRewrite(await this.handleFetch(this.adapter.newRequest(this.indexUrl), event));
+1197a1252,1286
+>     async maybeRewriteIndexHtmlForNavigation(req, res) {
+>       if (res.type === "opaque") {
+>         return res;
+>       }
+>       const contentType = res.headers.get("Content-Type") || "";
+>       if (contentType && contentType.indexOf("text/html") === -1) {
+>         return res;
+>       }
+>       let text;
+>       try {
+>         text = await res.clone().text();
+>       } catch (e) {
+>         return res;
+>       }
+>       const scopePath = this.adapter.parseUrl(this.scope.registration.scope).path;
+>       const baseHref = scopePath.endsWith("/") ? scopePath : scopePath + "/";
+>       const baseTag = `<base href="${baseHref}" data-c8o-mode="web">`;
+>       let next = text;
+>       if (/<base\b[^>]*>/i.test(next)) {
+>         next = next.replace(/<base\b[^>]*>/i, baseTag);
+>       } else if (/<head[^>]*>/i.test(next)) {
+>         next = next.replace(/<head[^>]*>/i, (m) => `${m}
+>     ${baseTag}`);
+>       } else {
+>         next = `${baseTag}
+> ${next}`;
+>       }
+>       if (next === text) {
+>         return res;
+>       }
+>       const headers = new Headers(res.headers);
+>       headers.set("Content-Type", "text/html; charset=utf-8");
+>       headers.delete("Content-Length");
+>       return this.adapter.newResponse(next, { status: res.status, statusText: res.statusText, headers });
+>     }
