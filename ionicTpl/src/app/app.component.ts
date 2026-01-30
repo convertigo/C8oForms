@@ -29,7 +29,7 @@ import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { TranslateHttpLoader } from '@ngx-translate/http-loader';
 import { CommonModule } from '@angular/common';
-import { IonApp, IonRouterOutlet, IonSplitPane } from '@ionic/angular/standalone';
+import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import * as icons from "ionicons/icons";
 import { addIcons } from 'ionicons';
 import { signal } from "@angular/core";
@@ -65,7 +65,6 @@ export function patchPopoverController(patch: NavParamsWrapperService) {
     CommonModule,
     FormsModule,
     IonApp,
-	IonSplitPane,
     IonRouterOutlet,
     TranslateModule,
 	
