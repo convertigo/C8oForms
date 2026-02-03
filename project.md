@@ -5697,6 +5697,37 @@ Version string applied to the project or document.
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_getUsersByIds</b> : Get users by ids</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_getUsersByIds
+
+Get users by ids.
+Fetches user documents by id to return display metadata.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;ids
+</td>
+<td>
+JSON array of user ids to fetch.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_mapper_redirect</b> : Redirect mapper call</summary><blockquote><p>
 
 

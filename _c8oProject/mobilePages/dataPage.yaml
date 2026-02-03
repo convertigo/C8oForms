@@ -6,11 +6,35 @@ scriptContent:
         '/*Begin_c8o_PageImport*/
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
+        	public toastController: any;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         		window["xo"] = this;
+        		this.toastController = this.getInstance(ToastController);
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
+        	async presentToast(message: string, cssClass: string = '''', position = "bottom", duration = 3000, closeBtn = false) {
+        		let opts: any = {
+        			message: message,
+        			duration: duration,
+        			position: position,
+        			cssClass: cssClass
+        		}
+        		if (closeBtn) {
+        			opts.buttons = [
+        				{
+        					side: ''end'',
+        					icon: ''close'',
+        					text: this.translate.instant("close"),
+        					handler: () => {
+        						toast.dismiss();
+        					}
+        				}
+        			]
+        		}
+        		const toast = await this.toastController.create(opts);
+        		await toast.present();
+        	}
         	public async getResponses(version? : string, summary: boolean = true, indexStart: number = 0, indexEnd: number = 2){
         		try {
         			var meta = JSON.stringify({"lang": this.translate.currentLang});
@@ -30,6 +54,7 @@ scriptContent:
         			this.local.published_form =  responses?.published_form;
         			if(summary){
         				this.local.responses[this.local.currentIndex] = responses?.response;
+        				await this.loadSharedRespondents(this.local.versions?.[this.local.currentIndex]);
         			}
         			else{
         				this.local.individualResponses[this.local.currentIndex] = responses?.response;
@@ -42,6 +67,428 @@ scriptContent:
         			this.local.spinner = false;
         			this.local.noresponse = false;
         			this.ref.markForCheck();
+        			return;
+        		}
+        	}
+        	public async loadSharedRespondents(version? : string){
+        		try {
+        			this.local.sharedLoading = true;
+        			this.local.sharedStats = null;
+        			var targetVersion = version;
+        			if(targetVersion == null){
+        				targetVersion = this.local.versions?.[this.local.currentIndex];
+        			}
+        			if(targetVersion == null){
+        				return;
+        			}
+        			if(this.local.published_form_doc == null){
+        				this.local.published_form_doc = (await this.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id: this.local.formId}).async())?.res;
+        			}
+        			var shared = Array.isArray(this.local.published_form_doc?.shared) ? this.local.published_form_doc.shared : [];
+        			var noInvitees = shared.length === 0;
+        			var invited = await this.expandSharedInvitees(shared);
+        			if(this.local.remindedUsers == null){
+        				this.local.remindedUsers = {};
+        			}
+        			await this.loadReminderLinks();
+        			var responseDocId = this.local.formId + "_" + targetVersion;
+        			var responseDoc = (await this.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id: responseDocId, fromResponse: "true"}).async())?.res;
+        			var respondent = responseDoc?.respondent ? responseDoc.respondent : {};
+        			var respondentIds = [];
+        			if(respondent != null){
+        				respondentIds = Object.keys(respondent).filter((key)=> respondent[key] === true || respondent[key] === "true");
+        			}
+        			var listIds = invited;
+        			if(noInvitees){
+        				listIds = respondentIds;
+        			}
+        			listIds = listIds.filter((value, index, array)=> array.indexOf(value) === index);
+        			var usersMap = {};
+        			try {
+        				if(listIds.length > 0){
+        					var usersResp = await this.c8o.callJsonObject("C8Oforms.APIV2_getUsersByIds", {ids: JSON.stringify(listIds)}).async();
+        					usersMap = usersResp?.res?.users ? usersResp.res.users : {};
+        				}
+        			} catch (e) {
+        				
+        			}
+        			var list = listIds.map((entry)=>{
+        				var responded = respondent != null && (respondent[entry] === true || respondent[entry] === "true");
+        				var userInfo = usersMap != null ? usersMap[entry] : null;
+        				var displayName = userInfo?.displayName;
+        				if(displayName == null || displayName === ""){
+        					var nameParts = [];
+        					if(userInfo?.name){
+        						nameParts.push(userInfo.name);
+        					}
+        					if(userInfo?.surname){
+        						nameParts.push(userInfo.surname);
+        					}
+        					if(nameParts.length > 0){
+        						displayName = nameParts.join(" ");
+        					}
+        				}
+        				var email = userInfo?.mail;
+        				if(email == null || email === ""){
+        					email = this.formatSharedInvitee(entry);
+        				}
+        				var label = displayName != null && displayName !== "" ? displayName : email;
+        				var provider = userInfo?.provider;
+        				if(provider == null || provider === ""){
+        					provider = this.extractSharedInviteeProvider(entry);
+        				}
+        				if(provider == null || provider === ""){
+        					provider = "email";
+        				}
+        				var metaParts = [];
+        				if(provider != null && provider !== ""){
+        					metaParts.push(provider);
+        				}
+        				if(email != null && email !== ""){
+        					metaParts.push(email);
+        				}
+        				var meta = metaParts.join(" - ");
+        				var sharedVia = "";
+        				var sharedGroups = this.local.sharedGroupByUser != null ? this.local.sharedGroupByUser[entry] : null;
+        				if(sharedGroups != null && sharedGroups.length > 0){
+        					if(sharedGroups.length === 1){
+        						sharedVia = this.translate.instant(''shared_invitees_shared_via_group'', {group: sharedGroups[0]});
+        					}
+        					else{
+        						sharedVia = this.translate.instant(''shared_invitees_shared_via_groups'', {groups: sharedGroups.join(", ")});
+        					}
+        				}
+        				if(sharedVia !== ""){
+        					meta = meta !== "" ? (meta + " • " + sharedVia) : sharedVia;
+        				}
+        				var reminded = this.local.remindedUsers?.[email] === true;
+        				return { id: entry, label: label, email: email, provider: provider, meta: meta, responded: responded, reminded: reminded };
+        			});
+        			list = this.sortSharedInvitees(list);
+        			var respondedCount = list.filter((entry)=> entry.responded).length;
+        			var remindableCount = list.filter((entry)=> !entry.responded && entry.email).length;
+        			var total = list.length;
+        			this.local.sharedStats = {
+        				total: total,
+        				respondedCount: respondedCount,
+        				notRespondedCount: total - respondedCount,
+        				remindableCount: remindableCount,
+        				noInvitees: noInvitees,
+        				list: list
+        			};
+        		} catch (e) {
+        			console.error("an error occured", e)
+        		} finally {
+        			this.local.sharedLoading = false;
+        			this.ref.markForCheck();
+        			return;
+        		}
+        	}
+        	private filterSharedInvitees(shared: any){
+        		var invited = [];
+        		if(shared == null){
+        			return invited;
+        		}
+        		shared.forEach((entry)=>{
+        			if(this.isSharedInvitee(entry)){
+        				invited.push("" + entry);
+        			}
+        		});
+        		invited = invited.filter((value, index, array)=> array.indexOf(value) === index);
+        		invited.sort((a, b)=> ("" + a).localeCompare("" + b));
+        		return invited;
+        	}
+        	private filterSharedGroups(shared: any){
+        		var groups = [];
+        		if(shared == null){
+        			return groups;
+        		}
+        		shared.forEach((entry)=>{
+        			if(typeof entry === "string" && !this.isSharedInvitee(entry)){
+        				groups.push("" + entry);
+        			}
+        		});
+        		groups = groups.filter((value, index, array)=> array.indexOf(value) === index);
+        		groups.sort((a, b)=> ("" + a).localeCompare("" + b));
+        		return groups;
+        	}
+        public async expandSharedInvitees(shared: any){
+        	var invited = this.filterSharedInvitees(shared);
+        	var groups = this.filterSharedGroups(shared);
+        	var groupByUser = {};
+        	if(groups.length === 0){
+        		this.local.sharedGroupByUser = {};
+        		return invited;
+        	}
+        	var groupUsers = [];
+        	for(var grp of groups){
+        		try {
+        			var resp = await this.c8o.callJsonObject("lib_FullSyncGrp.UsersOf", {group: grp}).async();
+        			var users = resp?.user ?? resp?.document?.user ?? resp?.res?.user;
+        			if(users != null){
+        				if(!Array.isArray(users)){
+        					users = [users];
+        				}
+        				users.forEach((user)=>{
+        					var userId = this.normalizeSharedInviteeId(user);
+        					if(userId != null && userId !== ""){
+        						groupUsers.push(userId);
+        						if(groupByUser[userId] == null){
+        							groupByUser[userId] = [];
+        						}
+        						if(groupByUser[userId].indexOf(grp) === -1){
+        							groupByUser[userId].push(grp);
+        						}
+        					}
+        				});
+        			}
+        		} catch (e) {
+        			
+        		}
+        	}
+        	this.local.sharedGroupByUser = groupByUser;
+        	var combined = invited.concat(groupUsers);
+        	combined = combined.filter((value, index, array)=> array.indexOf(value) === index);
+        	return combined;
+        }
+        private isSharedInvitee(entry: any){
+        	if(entry == null){
+        		return false;
+        	}
+        	if(typeof entry !== "string"){
+        		return false;
+        	}
+        	return entry.indexOf("C8Oreserved_") == 0;
+        }
+        private normalizeSharedInviteeId(entry: any){
+        	if(entry == null){
+        		return null;
+        	}
+        	if(typeof entry === "string"){
+        		var text = entry.trim();
+        		if(text === ""){
+        			return null;
+        		}
+        		var prefix = "C8Oreserved_";
+        		if(text.toLowerCase().indexOf(prefix.toLowerCase()) == 0){
+        			return prefix + text.substring(prefix.length);
+        		}
+        		return prefix + text;
+        	}
+        	if(typeof entry === "object"){
+        		var candidate = entry.id ?? entry._id ?? entry.user ?? entry.name ?? entry.email ?? entry.mail;
+        		return this.normalizeSharedInviteeId(candidate);
+        	}
+        	return null;
+        }
+        public formatSharedInvitee(entry: any){
+        	if(entry == null){
+        		return "";
+        	}
+        	var text = "" + entry;
+        	var idx = text.lastIndexOf(":");
+        	if(idx > -1 && idx < text.length - 1){
+        		text = text.substring(idx + 1);
+        		return text;
+        	}
+        	var prefix = "C8Oreserved_";
+        	if(text.indexOf(prefix) == 0 && text.length > prefix.length){
+        		return text.substring(prefix.length);
+        	}
+        	return text;
+        }
+        	public extractSharedInviteeProvider(entry: any){
+        		if(entry == null){
+        			return "";
+        		}
+        		var text = "" + entry;
+        		var prefix = "C8Oreserved_";
+        		if(text.indexOf(prefix) == 0){
+        			var idx = text.indexOf(":", prefix.length);
+        			if(idx > prefix.length){
+        				return text.substring(prefix.length, idx);
+        			}
+        		}
+        		return "";
+        	}
+        	public initSharedSort(){
+        		if(this.local.sharedSort == null){
+        			this.local.sharedSort = { key: "label", dir: "asc" };
+        		}
+        	}
+        	public getSharedSortIcon(key: string){
+        		this.initSharedSort();
+        		if(this.local.sharedSort?.key !== key){
+        			return "swap-vertical";
+        		}
+        		return this.local.sharedSort?.dir === "desc" ? "arrow-down" : "arrow-up";
+        	}
+        	public sortSharedInvitees(list: any[]){
+        		this.initSharedSort();
+        		if(list == null || !Array.isArray(list)){
+        			return list;
+        		}
+        		var key = this.local.sharedSort?.key;
+        		var dir = this.local.sharedSort?.dir === "desc" ? -1 : 1;
+        		var statusValue = function(item){
+        			if(item == null){
+        				return 0;
+        			}
+        			if(item.responded){
+        				return 2;
+        			}
+        			if(item.reminded){
+        				return 1;
+        			}
+        			return 0;
+        		};
+        		var actionValue = function(item){
+        			return item != null && !item.responded && item.email ? 1 : 0;
+        		};
+        		list.sort((a, b)=>{
+        			var comp = 0;
+        			if(key === "status"){
+        				comp = statusValue(a) - statusValue(b);
+        			}
+        			else if(key === "action"){
+        				comp = actionValue(a) - actionValue(b);
+        			}
+        			else{
+        				comp = ("" + (a != null && a.label != null ? a.label : "")).localeCompare("" + (b != null && b.label != null ? b.label : ""));
+        			}
+        			if(comp === 0){
+        				comp = ("" + (a != null && a.label != null ? a.label : "")).localeCompare("" + (b != null && b.label != null ? b.label : ""));
+        			}
+        			return comp * dir;
+        		});
+        		return list;
+        	}
+        	public toggleSharedSort(key: string){
+        		try {
+        			this.initSharedSort();
+        			if(this.local.sharedSort.key === key){
+        				this.local.sharedSort.dir = this.local.sharedSort.dir === "asc" ? "desc" : "asc";
+        			}
+        			else{
+        				this.local.sharedSort.key = key;
+        				this.local.sharedSort.dir = "asc";
+        			}
+        			if(this.local.sharedStats?.list){
+        				this.local.sharedStats.list = this.sortSharedInvitees(this.local.sharedStats.list);
+        			}
+        		} catch (e) {
+        			
+        		} finally {
+        			this.ref.markForCheck();
+        			return;
+        		}
+        	}
+        	public async loadReminderLinks(){
+        		try {
+        			if(this.local.reminderLinks != null){
+        				return;
+        			}
+        			var resp = await this.c8o.callJsonObject("C8Oforms.APIV2_GetManageAccessRights", {id: this.local.formId, collab: false}).async();
+        			this.local.reminderLinks = {
+        				auth: resp?.res?.linkAuth,
+        				anon: resp?.res?.linkAnno
+        			};
+        		} catch (e) {
+        			
+        		} finally {
+        			return;
+        		}
+        	}
+        	public getReminderLink(){
+        		return this.local?.reminderLinks?.auth ?? this.local?.reminderLinks?.anon ?? "";
+        	}
+        	public buildReminderHtml(bodyText: string){
+        		var link = this.getReminderLink();
+        		var linkHtml = "";
+        		if(link != null && link !== ""){
+        			var linkLabel = this.translate.instant(''OpenApp'');
+        			linkHtml = `<p style="text-align: center;"><strong><a title="${linkLabel}" href="${link}" target="_blank" rel="noopener">${linkLabel}</a></strong></p>`;
+        		}
+        		return `<div style="padding: 3pt 0; text-align: center; font-size: 1.1875rem; color: #fff; background-color: #326DF7;">Convertigo no code studio</div>
+        		<p style="text-align: center;">${bodyText}</p>${linkHtml}`;
+        	}
+        	public async sendReminderEmail(person: any){
+        		try {
+        			if(person == null || person.responded === true){
+        				return;
+        			}
+        			var email = person.email;
+        			if(email == null || email === ""){
+        				return;
+        			}
+        			await this.loadReminderLinks();
+        			var formName = this.local?.published_form_doc?.name ?? this.local?.published_form?.name ?? "";
+        			var subject = this.translate.instant(''shared_invitees_remind_subject'', {formName: formName});
+        			var bodyText = this.translate.instant(''shared_invitees_remind_body'', {formName: formName});
+        			var html = this.buildReminderHtml(bodyText);
+        			await this.c8o.callJsonObject("C8Oforms.APIV2_NotifyUsersSharing", {
+        				meta: JSON.stringify({
+        					group: [],
+        					invite_new: [email],
+        					subject: subject,
+        					body: html
+        				})
+        			}).async();
+        			if(this.local.remindedUsers == null){
+        				this.local.remindedUsers = {};
+        			}
+        			this.local.remindedUsers[email] = true;
+        			if(person){
+        				person.reminded = true;
+        			}
+        			this.ref.markForCheck();
+        			this.presentToast(this.translate.instant(''shared_invitees_remind_sent'', {email: email}), "toastSuccess", "bottom", 3000, true);
+        		} catch (e) {
+        			console.log("an error occured while sending reminder", e);
+        			this.presentToast(this.translate.instant(''shared_invitees_remind_error''), "toastError", "bottom", 5000, true);
+        		} finally {
+        			return;
+        		}
+        	}
+        	public async sendReminderToAll(){
+        		try {
+        			var list = this.local?.sharedStats?.list ?? [];
+        			var recipients = list.filter((entry)=> !entry.responded && entry.email).map((entry)=> entry.email);
+        			recipients = recipients.filter((value, index, array)=> array.indexOf(value) === index);
+        			if(recipients.length === 0){
+        				this.presentToast(this.translate.instant(''shared_invitees_remind_all_none''), "toastWarn", "bottom", 3000, true);
+        				return;
+        			}
+        			await this.loadReminderLinks();
+        			var formName = this.local?.published_form_doc?.name ?? this.local?.published_form?.name ?? "";
+        			var subject = this.translate.instant(''shared_invitees_remind_subject'', {formName: formName});
+        			var bodyText = this.translate.instant(''shared_invitees_remind_body'', {formName: formName});
+        			var html = this.buildReminderHtml(bodyText);
+        			await this.c8o.callJsonObject("C8Oforms.APIV2_NotifyUsersSharing", {
+        				meta: JSON.stringify({
+        					group: [],
+        					invite_new: recipients,
+        					subject: subject,
+        					body: html
+        				})
+        			}).async();
+        			if(this.local.remindedUsers == null){
+        				this.local.remindedUsers = {};
+        			}
+        			recipients.forEach((email)=>{
+        				this.local.remindedUsers[email] = true;
+        			});
+        			list.forEach((entry)=>{
+        				if(entry.email && this.local.remindedUsers[entry.email] === true){
+        					entry.reminded = true;
+        				}
+        			});
+        			this.ref.markForCheck();
+        			this.presentToast(this.translate.instant(''shared_invitees_remind_all_sent'', {count: recipients.length}), "toastSuccess", "bottom", 3000, true);
+        		} catch (e) {
+        			console.log("an error occured while sending reminder", e);
+        			this.presentToast(this.translate.instant(''shared_invitees_remind_error''), "toastError", "bottom", 5000, true);
+        		} finally {
         			return;
         		}
         	}
@@ -504,6 +951,9 @@ title: Title for dataPage
                                 				if(page.local.responses[page.local.currentIndex] == null){
                                 					page.getResponses(page.local.versions[page.local.currentIndex]);
                                 				}
+                                				else{
+                                					page.loadSharedRespondents(page.local.versions[page.local.currentIndex]);
+                                				}
                                 			}
                                 			else{
                                 				if(page.local.individualResponses?.[page.local.currentIndex] == null){
@@ -584,6 +1034,9 @@ title: Title for dataPage
                                 				if(page.local.responses[page.local.currentIndex] == null){
                                 					page.getResponses(page.local.versions[page.local.currentIndex]);
                                 				}
+                                				else{
+                                					page.loadSharedRespondents(page.local.versions[page.local.currentIndex]);
+                                				}
                                 			}
                                 			else{
                                 				if(page.local.individualResponses?.[page.local.currentIndex] == null){
@@ -644,8 +1097,12 @@ title: Title for dataPage
                               		try {
                               			page.local.spinner = true;
                               			page.local.summary = true;
+                              			page.local.invitees = false;
                               			if(page.local.responses?.[page.local.currentIndex] == null){
                               				page.getResponses(page.local.versions[page.local.currentIndex]);
+                              			}
+                              			else{
+                              				page.loadSharedRespondents(page.local.versions[page.local.currentIndex]);
                               			}
                               		} catch (e) {
                               		
@@ -680,12 +1137,54 @@ title: Title for dataPage
                             →: |
                               		try {
                               			page.local.summary = false;
+                              			page.local.invitees = false;
                               			if(page.local.individualResponses?.[page.local.currentIndex] == null){
                               				page.getResponses(page.local.versions[page.local.currentIndex],false,0, 100);
                               			}
                               		} catch (e) {
                               		
                               		} finally {
+                              			return;
+                              		}
+                              
+                ↓SegmentButtonInvitees [ngx.components.UIDynamicElement-1770125000020]: 
+                  beanData: '{"ionBean":"SegmentButton","Value":"plain:Invitees"}'
+                  tagName: ion-segment-button
+                  ↓Label [ngx.components.UIDynamicElement-1770125000021]: 
+                    beanData: '{"ionBean":"Label"}'
+                    tagName: ion-label
+                    ↓some_text [ngx.components.UIText-1770125000022]: 
+                      i18n: true
+                      textValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:shared_invitees_tab
+                  ↓attr [ngx.components.UIControlEvent-1770125000023]: 
+                    ↓ComputeInviteesResponse [ngx.components.UICustomAsyncAction-1770125000024]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              		try {
+                              			page.local.spinner = true;
+                              			page.local.summary = true;
+                              			page.local.invitees = true;
+                              			if(page.local.responses?.[page.local.currentIndex] == null){
+                              				page.getResponses(page.local.versions[page.local.currentIndex]);
+                              			}
+                              			else{
+                              				page.loadSharedRespondents(page.local.versions[page.local.currentIndex]);
+                              			}
+                              		} catch (e) {
+                              		
+                              		} finally {
+                              			page.ref.detectChanges();
+                              			setTimeout(()=>{
+                              				page.local.spinner = false;
+                              				page.ref.detectChanges();
+                              			});
+                              			
                               			return;
                               		}
                               
@@ -952,88 +1451,1167 @@ title: Title for dataPage
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:local.summary else ElseIndividual
-            ↓Directive2 [ngx.components.UIControlDirective-1698309099889]: 
-              directiveIndexName: i
-              directiveItemName: item1
-              directiveSource: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.value
-              ↓Directive [ngx.components.UIControlDirective-1770049714148]: 
-                directiveName: If
-                directiveSource: 
+            ↓CardSharedInviteesChart [ngx.components.UIDynamicElement-1770125000000]: 
+              beanData: '{"ionBean":"Card"}'
+              tagName: ion-card
+              ↓Attr [ngx.components.UIAttribute-1770125000001]: 
+                attrName: '*ngIf'
+                attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item1 != null
-                ↓UseSharedComponent [ngx.components.UIUseShared-1698309099892]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsInputText
-                  ↓element [ngx.components.UIUseVariable-1698309099895]: 
-                    varValue: 
+                    - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+              ↓Style [ngx.components.UIStyle-1770125000002]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'border-radius: 5px;
+                        '
+              ↓CardHeader [ngx.components.UIDynamicElement-1770125000003]: 
+                beanData: '{"ionBean":"CardHeader"}'
+                tagName: ion-card-header
+                ↓CardTitle [ngx.components.UIDynamicElement-1770125000004]: 
+                  beanData: '{"ionBean":"CardTitle"}'
+                  tagName: ion-card-title
+                  ↓Text [ngx.components.UIText-1770125000005]: 
+                    i18n: true
+                    textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item1
-                  ↓doTranslate [ngx.components.UIUseVariable-1749547807126]: 
-                    varValue: 
+                        - MobileSmartSourceType: plain:shared_invitees_title
+                ↓TextProgress [ngx.components.UIDynamicElement-1770125000006]: 
+                  beanData: '{"ionBean":"TextItem"}'
+                  tagName: ion-text
+                  ↓Text [ngx.components.UIText-1770125000007]: 
+                    textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.local?.responses?.[this?.local?.currentIndex]?.value?.[i]?.type == 'timestamp' || this.local?.responses?.[this?.local?.currentIndex]?.value?.[i]?.type == 'author'
-                ↓UseSharedComponent1 [ngx.components.UIUseShared-1698309099898]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckbox
-                  ↓element [ngx.components.UIUseVariable-1698309099901]: 
-                    varValue: 
+                        - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+              ↓CardContent [ngx.components.UIDynamicElement-1770125000008]: 
+                beanData: '{"ionBean":"CardContent"}'
+                tagName: ion-card-content
+                ↓DivLayoutChart [ngx.components.UIDynamicElement-1770125000009]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1770125000010]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'display: flex;
+                              flex-wrap: wrap;
+                              gap: 16px;
+                              align-items: stretch;
+                            '
+                  ↓DivChartSkeleton [ngx.components.UIDynamicElement-1770130700000]: 
+                    beanData: '{"ionBean":"DivTag"}'
+                    tagName: div
+                    ↓Attr [ngx.components.UIAttribute-1770130700001]: 
+                      attrName: '*ngIf'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:local.sharedLoading
+                    ↓Style [ngx.components.UIStyle-1770130700002]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'flex: 1 1 220px;
+                                min-width: 220px;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 12px;
+                                width: 100%;
+                              '
+                    ↓DivDonutSkeleton [ngx.components.UIDynamicElement-1770130700008]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓Style [ngx.components.UIStyle-1770130700009]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                'position: relative;
+                                  width: 160px;
+                                  height: 160px;
+                                  display: flex;
+                                  align-items: center;
+                                  justify-content: center;
+                                '
+                      ↓SkeletonChart [ngx.components.UIDynamicElement-1770130700003]: 
+                        beanData: |
+                          '{
+                           "ionBean": "SkeletonText",
+                           "Animated": "plain:true",
+                           "Width": "plain"
+                          }'
+                        tagName: ion-skeleton-text
+                        ↓Style [ngx.components.UIStyle-1770130700004]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  'width: 160px;
+                                    height: 160px;
+                                    border-radius: 50%;
+                                    display: block;
+                                  '
+                      ↓DivHole [ngx.components.UIDynamicElement-1770130700006]: 
+                        beanData: '{"ionBean":"DivTag"}'
+                        tagName: div
+                        ↓Style [ngx.components.UIStyle-1770130700007]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  'position: absolute;
+                                    width: 100px;
+                                    height: 100px;
+                                    border-radius: 50%;
+                                    background: var(--ion-background-color, #ffffff);
+                                  '
+                    ↓DivLegendSkeleton [ngx.components.UIDynamicElement-1770130700010]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓Style [ngx.components.UIStyle-1770130700011]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                'display: flex;
+                                  flex-direction: column;
+                                  gap: 6px;
+                                  width: 70%;
+                                '
+                      ↓LegendRow1 [ngx.components.UIDynamicElement-1770130700012]: 
+                        beanData: '{"ionBean":"DivTag"}'
+                        tagName: div
+                        ↓Style [ngx.components.UIStyle-1770130700013]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  'display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                  '
+                        ↓LegendDot1 [ngx.components.UIDynamicElement-1770130700014]: 
+                          beanData: |
+                            '{
+                             "ionBean": "SkeletonText",
+                             "Animated": "plain:true",
+                             "Width": "plain"
+                            }'
+                          tagName: ion-skeleton-text
+                          ↓Style [ngx.components.UIStyle-1770130700015]: 
+                            styleContent: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    'width: 10px;
+                                      height: 10px;
+                                      border-radius: 50%;
+                                    '
+                        ↓LegendText1 [ngx.components.UIDynamicElement-1770130700016]: 
+                          beanData: |
+                            '{
+                             "ionBean": "SkeletonText",
+                             "Animated": "plain:true",
+                             "Width": "plain"
+                            }'
+                          tagName: ion-skeleton-text
+                      ↓LegendRow2 [ngx.components.UIDynamicElement-1770130700017]: 
+                        beanData: '{"ionBean":"DivTag"}'
+                        tagName: div
+                        ↓Style [ngx.components.UIStyle-1770130700018]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  'display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                  '
+                        ↓LegendDot2 [ngx.components.UIDynamicElement-1770130700019]: 
+                          beanData: |
+                            '{
+                             "ionBean": "SkeletonText",
+                             "Animated": "plain:true",
+                             "Width": "plain"
+                            }'
+                          tagName: ion-skeleton-text
+                          ↓Style [ngx.components.UIStyle-1770130700020]: 
+                            styleContent: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    'width: 10px;
+                                      height: 10px;
+                                      border-radius: 50%;
+                                    '
+                        ↓LegendText2 [ngx.components.UIDynamicElement-1770130700021]: 
+                          beanData: |
+                            '{
+                             "ionBean": "SkeletonText",
+                             "Animated": "plain:true",
+                             "Width": "plain"
+                            }'
+                          tagName: ion-skeleton-text
+                  ↓DivChart [ngx.components.UIDynamicElement-1770058200033]: 
+                    beanData: '{"ionBean":"DivTag"}'
+                    tagName: div
+                    ↓Attr [ngx.components.UIAttribute-1770130700005]: 
+                      attrName: '*ngIf'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:!local.sharedLoading
+                    ↓Style [ngx.components.UIStyle-1770058200036]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'flex: 1 1 220px;
+                                min-width: 220px;
+                              '
+                    ↓Chart [ngx.components.UIUseShared-1770058200039]: 
+                      sharedcomponent: libApexCharts.Application.NgxApp.apxChart
+                      ↓chart [ngx.components.UIUseVariable-1770058200042]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: |
+                                'script:{
+                                  type: ''donut'',
+                                  height: 220
+                                }'
+                      ↓annotations [ngx.components.UIUseVariable-1770058200045]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓colors [ngx.components.UIUseVariable-1770058200048]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:['#2dd36f', '#cfd4d8']
+                      ↓dataLabels [ngx.components.UIUseVariable-1770058200051]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: |
+                                'script:{
+                                  enabled: true
+                                }'
+                      ↓series [ngx.components.UIUseVariable-1770058200054]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:[local.sharedStats?.respondedCount ?? 0, local.sharedStats?.notRespondedCount ?? 0]
+                      ↓stroke [ngx.components.UIUseVariable-1770058200057]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓labels [ngx.components.UIUseVariable-1770058200060]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:[this.translate.instant('shared_invitees_responded'), this.translate.instant('shared_invitees_not_responded')]
+                      ↓legend [ngx.components.UIUseVariable-1770058200063]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: 'script:{ position: ''bottom'' }'
+                      ↓fill [ngx.components.UIUseVariable-1770058200066]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓tooltip [ngx.components.UIUseVariable-1770058200069]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓plotOptions [ngx.components.UIUseVariable-1770058200072]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: |
+                                'script:{
+                                  pie: {
+                                    donut: {
+                                      size: ''60%''
+                                    }
+                                  }
+                                }'
+                      ↓responsive [ngx.components.UIUseVariable-1770058200075]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓xaxis [ngx.components.UIUseVariable-1770058200078]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓yaxis [ngx.components.UIUseVariable-1770058200081]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓grid [ngx.components.UIUseVariable-1770058200084]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓states [ngx.components.UIUseVariable-1770058200087]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓title [ngx.components.UIUseVariable-1770058200090]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓subtitle [ngx.components.UIUseVariable-1770058200093]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓theme [ngx.components.UIUseVariable-1770058200096]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                ↓DivLayout [ngx.components.UIDynamicElement-1770128756658]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  isEnabled: false
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1770128756661]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'display: flex;
+                              flex-wrap: wrap;
+                              gap: 16px;
+                              align-items: stretch;
+                            '
+                  ↓DivList [ngx.components.UIDynamicElement-1770128756664]: 
+                    beanData: '{"ionBean":"DivTag"}'
+                    tagName: div
+                    ↓Style [ngx.components.UIStyle-1770128756667]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'flex: 1 1 240px;
+                                min-width: 240px;
+                              '
+                    ↓ListSkeleton [ngx.components.UIDynamicElement-1770128756670]: 
+                      beanData: '{"ionBean":"List"}'
+                      tagName: ion-list
+                      ↓Attr [ngx.components.UIAttribute-1770128756673]: 
+                        attrName: '*ngIf'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:local.sharedLoading
+                      ↓Directive [ngx.components.UIControlDirective-1770128756676]: 
+                        directiveIndexName: idx
+                        directiveItemName: sk
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:[0,1,2,3]
+                        ↓Item [ngx.components.UIDynamicElement-1770128756679]: 
+                          beanData: '{"ionBean":"GenericItem","Lines":"plain:full"}'
+                          tagName: ion-item
+                          ↓GridRow [ngx.components.UIDynamicElement-1770128756682]: 
+                            beanData: '{"ionBean":"Grid"}'
+                            tagName: ion-grid
+                            ↓Style [ngx.components.UIStyle-1770128756685]: 
+                              styleContent: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      'width: 100%;
+                                        padding: 0;
+                                      '
+                            ↓Row [ngx.components.UIDynamicElement-1770128756688]: 
+                              beanData: '{"ionBean":"GridRow"}'
+                              tagName: ion-row
+                              ↓Style [ngx.components.UIStyle-1770128756691]: 
+                                styleContent: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        'align-items: center;
+                                        '
+                              ↓ColName [ngx.components.UIDynamicElement-1770128756694]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:7"}'
+                                tagName: ion-col
+                                ↓DivNameStack [ngx.components.UIDynamicElement-1770128756697]: 
+                                  beanData: '{"ionBean":"DivTag"}'
+                                  tagName: div
+                                  ↓Style [ngx.components.UIStyle-1770128756700]: 
+                                    styleContent: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            'display: flex;
+                                              flex-direction: column;
+                                              gap: 6px;
+                                            '
+                                  ↓SkeletonName [ngx.components.UIDynamicElement-1770128756703]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "SkeletonText",
+                                       "Animated": "plain:true",
+                                       "Width": "plain:70%"
+                                      }'
+                                    tagName: ion-skeleton-text
+                                  ↓SkeletonMeta [ngx.components.UIDynamicElement-1770128756706]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "SkeletonText",
+                                       "Animated": "plain:true",
+                                       "Width": "plain:90%"
+                                      }'
+                                    tagName: ion-skeleton-text
+                              ↓ColStatus [ngx.components.UIDynamicElement-1770128756709]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:3"}'
+                                tagName: ion-col
+                                ↓SkeletonStatus [ngx.components.UIDynamicElement-1770128756712]: 
+                                  beanData: '{"ionBean":"SkeletonText","Animated":"plain:true"}'
+                                  tagName: ion-skeleton-text
+                              ↓ColAction [ngx.components.UIDynamicElement-1770128756715]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
+                                tagName: ion-col
+                                ↓SkeletonAction [ngx.components.UIDynamicElement-1770128756718]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "SkeletonText",
+                                     "Animated": "plain:true",
+                                     "Width": "plain:24px"
+                                    }'
+                                  tagName: ion-skeleton-text
+                  ↓Attr [ngx.components.UIAttribute-1770128762542]: 
+                    attrName: '*ngIf'
+                    attrValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item1
-                  ↓total [ngx.components.UIUseVariable-1698416982189]: 
-                    varValue: 
+                        - MobileSmartSourceType: plain:local.sharedLoading
+            ↓CardSharedInvitees [ngx.components.UIDynamicElement-1770058200000]: 
+              beanData: '{"ionBean":"Card"}'
+              tagName: ion-card
+              ↓Attr [ngx.components.UIAttribute-1770058200006]: 
+                attrName: '*ngIf'
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+              ↓Style [ngx.components.UIStyle-1770058200003]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'border-radius: 5px;
+                        '
+              ↓DivHeaders [ngx.components.UIDynamicElement-1770111793270]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1770111799766]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          '	display: flex;
+                          '
+                ↓DivTexts [ngx.components.UIDynamicElement-1770111809683]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓CardHeader [ngx.components.UIDynamicElement-1770058200009]: 
+                    beanData: '{"ionBean":"CardHeader"}'
+                    tagName: ion-card-header
+                    ↓CardTitle [ngx.components.UIDynamicElement-1770058200012]: 
+                      beanData: '{"ionBean":"CardTitle"}'
+                      tagName: ion-card-title
+                      ↓Text [ngx.components.UIText-1770058200015]: 
+                        i18n: true
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:shared_invitees_title
+                    ↓TextProgress [ngx.components.UIDynamicElement-1770058200018]: 
+                      beanData: '{"ionBean":"TextItem"}'
+                      tagName: ion-text
+                      ↓Text [ngx.components.UIText-1770058200021]: 
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+                  ↓Style [ngx.components.UIStyle-1770111961897]: 
+                    styleContent: 
                       - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
-                ↓UseSharedComponent2 [ngx.components.UIUseShared-1698309099904]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsRadio
-                  ↓element [ngx.components.UIUseVariable-1698309099907]: 
-                    varValue: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	flex-grow: 1;
+                            '
+                ↓DivBtnRemindAll [ngx.components.UIDynamicElement-1770111826325]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓ButtonRemindAll [ngx.components.UIDynamicElement-1770061600000]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Button",
+                       "IonColor": "plain:primary",
+                       "IonFill": "plain:clear",
+                       "IonSize": "plain:small",
+                       "IconSlot": "plain:start"
+                      }'
+                    tagName: ion-button
+                    ↓Icon [ngx.components.UIDynamicElement-1770061600003]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IconName": "plain:mail-outline",
+                         "IconSlot": "plain:start"
+                        }'
+                      tagName: ion-icon
+                    ↓Text [ngx.components.UIText-1770061600006]: 
+                      i18n: true
+                      textValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:shared_invitees_remind_all_button
+                    ↓Attr [ngx.components.UIAttribute-1770061600009]: 
+                      attrName: '*ngIf'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:local.sharedStats?.remindableCount > 0
+                    ↓Event [ngx.components.UIControlEvent-1770061600012]: 
+                      ↓SendReminderAll [ngx.components.UICustomAsyncAction-1770061600015]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		try {
+                                			await page.sendReminderToAll();
+                                		} catch (e) {
+                                		
+                                		} finally {
+                                			return;
+                                		}
+                                
+                  ↓Style [ngx.components.UIStyle-1770111972519]: 
+                    styleContent: 
                       - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item1
-                  ↓total [ngx.components.UIUseVariable-1698420442201]: 
-                    varValue: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            '	display: flex;
+                            '
+              ↓CardContent [ngx.components.UIDynamicElement-1770058200024]: 
+                beanData: '{"ionBean":"CardContent"}'
+                tagName: ion-card-content
+                ↓DivLayout [ngx.components.UIDynamicElement-1770058200027]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1770058200030]: 
+                    styleContent: 
                       - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
-                ↓UseSharedComponent3 [ngx.components.UIUseShared-1698309099910]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckboxGroup
-                  ↓element [ngx.components.UIUseVariable-1698309099913]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item1
-                  ↓total [ngx.components.UIUseVariable-1698657122140]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
-                ↓UseSharedComponent41 [ngx.components.UIUseShared-1698309099922]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsImg
-                  ↓element [ngx.components.UIUseVariable-1698309099925]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item1
-                ↓UseSharedComponent5 [ngx.components.UIUseShared-1698750581988]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsFiles
-                  ↓element [ngx.components.UIUseVariable-1698750581991]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item1
-                ↓UseSharedComponent6 [ngx.components.UIUseShared-1698753167698]: 
-                  sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsLocation
-                  ↓element [ngx.components.UIUseVariable-1698753167701]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item1
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'display: flex;
+                              flex-wrap: wrap;
+                              gap: 16px;
+                              align-items: stretch;
+                            '
+                  ↓DivList [ngx.components.UIDynamicElement-1770058200099]: 
+                    beanData: '{"ionBean":"DivTag"}'
+                    tagName: div
+                    ↓Style [ngx.components.UIStyle-1770058200102]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'flex: 1 1 240px;
+                                min-width: 240px;
+                              '
+                    ↓TextNoInvitees [ngx.components.UIDynamicElement-1770130900000]: 
+                      beanData: '{"ionBean":"TextItem"}'
+                      tagName: ion-text
+                      ↓Attr [ngx.components.UIAttribute-1770130900001]: 
+                        attrName: '*ngIf'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:local.sharedStats?.noInvitees
+                      ↓Text [ngx.components.UIText-1770130900002]: 
+                        i18n: true
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:shared_invitees_no_invitees
+                      ↓Style [ngx.components.UIStyle-1770130900003]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                'display: block;
+                                  font-size: 0.85rem;
+                                  color: var(--ion-color-medium);
+                                  padding: 4px 0 8px;
+                                '
+                    ↓DivListHeader [ngx.components.UIDynamicElement-1770130800000]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓Style [ngx.components.UIStyle-1770130800001]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                'padding: 4px 0;
+                                  border-bottom: 1px solid var(--ion-color-light);
+                                '
+                      ↓GridHeader [ngx.components.UIDynamicElement-1770130800002]: 
+                        beanData: '{"ionBean":"Grid"}'
+                        tagName: ion-grid
+                        ↓Style [ngx.components.UIStyle-1770130800003]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  'width: 100%;
+                                    padding: 0;
+                                  '
+                        ↓Row [ngx.components.UIDynamicElement-1770130800004]: 
+                          beanData: '{"ionBean":"GridRow"}'
+                          tagName: ion-row
+                          ↓Style [ngx.components.UIStyle-1770130800005]: 
+                            styleContent: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    'align-items: center;
+                                    '
+                          ↓ColNameHeader [ngx.components.UIDynamicElement-1770130800006]: 
+                            beanData: '{"ionBean":"GridCol","Size":"plain:7"}'
+                            tagName: ion-col
+                            ↓ButtonSortName [ngx.components.UIDynamicElement-1770130800007]: 
+                              beanData: |
+                                '{
+                                 "ionBean": "Button",
+                                 "IonFill": "plain:clear",
+                                 "IonSize": "plain:small"
+                                }'
+                              tagName: ion-button
+                              ↓Text [ngx.components.UIText-1770130800008]: 
+                                i18n: true
+                                textValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:shared_invitees_col_name
+                              ↓Icon [ngx.components.UIDynamicElement-1770130800009]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "Icon",
+                                   "IconName": "script:this.getSharedSortIcon(''label'')",
+                                   "IconSlot": "plain:end"
+                                  }'
+                                tagName: ion-icon
+                              ↓Event [ngx.components.UIControlEvent-1770130800010]: 
+                                ↓SortByName [ngx.components.UICustomAsyncAction-1770130800011]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          		try {
+                                          			page.toggleSharedSort("label");
+                                          		} catch (e) {
+                                          		
+                                          		} finally {
+                                          			return;
+                                          		}
+                                          
+                          ↓ColStatusHeader [ngx.components.UIDynamicElement-1770130800012]: 
+                            beanData: '{"ionBean":"GridCol","Size":"plain:3"}'
+                            tagName: ion-col
+                            ↓ButtonSortStatus [ngx.components.UIDynamicElement-1770130800013]: 
+                              beanData: |
+                                '{
+                                 "ionBean": "Button",
+                                 "IonFill": "plain:clear",
+                                 "IonSize": "plain:small"
+                                }'
+                              tagName: ion-button
+                              ↓Text [ngx.components.UIText-1770130800014]: 
+                                i18n: true
+                                textValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:shared_invitees_col_status
+                              ↓Icon [ngx.components.UIDynamicElement-1770130800015]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "Icon",
+                                   "IconName": "script:this.getSharedSortIcon(''status'')",
+                                   "IconSlot": "plain:end"
+                                  }'
+                                tagName: ion-icon
+                              ↓Event [ngx.components.UIControlEvent-1770130800016]: 
+                                ↓SortByStatus [ngx.components.UICustomAsyncAction-1770130800017]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          		try {
+                                          			page.toggleSharedSort("status");
+                                          		} catch (e) {
+                                          		
+                                          		} finally {
+                                          			return;
+                                          		}
+                                          
+                          ↓ColActionHeader [ngx.components.UIDynamicElement-1770130800018]: 
+                            beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
+                            tagName: ion-col
+                            ↓ButtonSortAction [ngx.components.UIDynamicElement-1770130800019]: 
+                              beanData: |
+                                '{
+                                 "ionBean": "Button",
+                                 "IonFill": "plain:clear",
+                                 "IonSize": "plain:small"
+                                }'
+                              tagName: ion-button
+                              ↓Text [ngx.components.UIText-1770130800020]: 
+                                i18n: true
+                                textValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: plain:shared_invitees_col_action
+                              ↓Icon [ngx.components.UIDynamicElement-1770130800021]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "Icon",
+                                   "IconName": "script:this.getSharedSortIcon(''action'')",
+                                   "IconSlot": "plain:end"
+                                  }'
+                                tagName: ion-icon
+                              ↓Event [ngx.components.UIControlEvent-1770130800022]: 
+                                ↓SortByAction [ngx.components.UICustomAsyncAction-1770130800023]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          		try {
+                                          			page.toggleSharedSort("action");
+                                          		} catch (e) {
+                                          		
+                                          		} finally {
+                                          			return;
+                                          		}
+                                          
+                    ↓ListSkeleton [ngx.components.UIDynamicElement-1770130600100]: 
+                      beanData: '{"ionBean":"List"}'
+                      tagName: ion-list
+                      ↓Attr [ngx.components.UIAttribute-1770130600101]: 
+                        attrName: '*ngIf'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:local.sharedLoading
+                      ↓Directive [ngx.components.UIControlDirective-1770130600102]: 
+                        directiveIndexName: idx
+                        directiveItemName: sk
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:[0,1,2,3]
+                        ↓Item [ngx.components.UIDynamicElement-1770130600103]: 
+                          beanData: '{"ionBean":"GenericItem","Lines":"plain:full"}'
+                          tagName: ion-item
+                          ↓GridRow [ngx.components.UIDynamicElement-1770130600104]: 
+                            beanData: '{"ionBean":"Grid"}'
+                            tagName: ion-grid
+                            ↓Style [ngx.components.UIStyle-1770130600105]: 
+                              styleContent: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      'width: 100%;
+                                        padding: 0;
+                                      '
+                            ↓Row [ngx.components.UIDynamicElement-1770130600106]: 
+                              beanData: '{"ionBean":"GridRow"}'
+                              tagName: ion-row
+                              ↓Style [ngx.components.UIStyle-1770130600107]: 
+                                styleContent: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        'align-items: center;
+                                        '
+                              ↓ColName [ngx.components.UIDynamicElement-1770130600108]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:7"}'
+                                tagName: ion-col
+                                ↓DivNameStack [ngx.components.UIDynamicElement-1770130600109]: 
+                                  beanData: '{"ionBean":"DivTag"}'
+                                  tagName: div
+                                  ↓Style [ngx.components.UIStyle-1770130600110]: 
+                                    styleContent: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            'display: flex;
+                                              flex-direction: column;
+                                              gap: 6px;
+                                            '
+                                  ↓SkeletonName [ngx.components.UIDynamicElement-1770130600111]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "SkeletonText",
+                                       "Animated": "plain:true",
+                                       "Width": "plain:70%"
+                                      }'
+                                    tagName: ion-skeleton-text
+                                  ↓SkeletonMeta [ngx.components.UIDynamicElement-1770130600112]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "SkeletonText",
+                                       "Animated": "plain:true",
+                                       "Width": "plain:90%"
+                                      }'
+                                    tagName: ion-skeleton-text
+                              ↓ColStatus [ngx.components.UIDynamicElement-1770130600113]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:3"}'
+                                tagName: ion-col
+                                ↓SkeletonStatus [ngx.components.UIDynamicElement-1770130600114]: 
+                                  beanData: '{"ionBean":"SkeletonText","Animated":"plain:true"}'
+                                  tagName: ion-skeleton-text
+                              ↓ColAction [ngx.components.UIDynamicElement-1770130600115]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
+                                tagName: ion-col
+                                ↓SkeletonAction [ngx.components.UIDynamicElement-1770130600116]: 
+                                  beanData: |
+                                    '{
+                                     "ionBean": "SkeletonText",
+                                     "Animated": "plain:true",
+                                     "Width": "plain:24px"
+                                    }'
+                                  tagName: ion-skeleton-text
+                    ↓List [ngx.components.UIDynamicElement-1770058200105]: 
+                      beanData: '{"ionBean":"List"}'
+                      tagName: ion-list
+                      ↓Attr [ngx.components.UIAttribute-1770130600117]: 
+                        attrName: '*ngIf'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:!local.sharedLoading
+                      ↓Directive [ngx.components.UIControlDirective-1770058200108]: 
+                        directiveIndexName: idx
+                        directiveItemName: person
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:local.sharedStats?.list
+                        ↓Item [ngx.components.UIDynamicElement-1770058200111]: 
+                          beanData: '{"ionBean":"GenericItem","Lines":"plain:full"}'
+                          tagName: ion-item
+                          ↓GridRow [ngx.components.UIDynamicElement-1770061800000]: 
+                            beanData: '{"ionBean":"Grid"}'
+                            tagName: ion-grid
+                            ↓Style [ngx.components.UIStyle-1770061800003]: 
+                              styleContent: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      'width: 100%;
+                                        padding: 0;
+                                      '
+                            ↓Row [ngx.components.UIDynamicElement-1770061800006]: 
+                              beanData: '{"ionBean":"GridRow"}'
+                              tagName: ion-row
+                              ↓Style [ngx.components.UIStyle-1770061800009]: 
+                                styleContent: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        'align-items: center;
+                                        '
+                              ↓ColName [ngx.components.UIDynamicElement-1770061800012]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:7"}'
+                                tagName: ion-col
+                                ↓DivNameStack [ngx.components.UIDynamicElement-1770130600000]: 
+                                  beanData: '{"ionBean":"DivTag"}'
+                                  tagName: div
+                                  ↓Style [ngx.components.UIStyle-1770130600001]: 
+                                    styleContent: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            'display: flex;
+                                              flex-direction: column;
+                                              gap: 2px;
+                                              overflow: hidden;
+                                            '
+                                  ↓TextName [ngx.components.UIDynamicElement-1770130600002]: 
+                                    beanData: '{"ionBean":"TextItem"}'
+                                    tagName: ion-text
+                                    ↓Text [ngx.components.UIText-1770130600008]: 
+                                      textValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:person.label
+                                    ↓Style [ngx.components.UIStyle-1770130600003]: 
+                                      styleContent: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              'overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                white-space: nowrap;
+                                              '
+                                  ↓TextMeta [ngx.components.UIDynamicElement-1770130600004]: 
+                                    beanData: '{"ionBean":"TextItem"}'
+                                    tagName: ion-text
+                                    ↓Text [ngx.components.UIText-1770130600009]: 
+                                      textValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:person.meta
+                                    ↓Style1 [ngx.components.UIStyle-1770130600006]: 
+                                      styleContent: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              'font-size: 0.75rem;
+                                                color: var(--ion-color-medium);
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                white-space: nowrap;
+                                              '
+                              ↓ColStatus [ngx.components.UIDynamicElement-1770061800021]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:3"}'
+                                tagName: ion-col
+                                ↓DivStatus [ngx.components.UIDynamicElement-1770061800024]: 
+                                  beanData: '{"ionBean":"DivTag"}'
+                                  tagName: div
+                                  ↓Style [ngx.components.UIStyle-1770061800027]: 
+                                    styleContent: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            'display: flex;
+                                              align-items: center;
+                                              gap: 6px;
+                                              justify-content: flex-start;
+                                            '
+                                  ↓Badge [ngx.components.UIDynamicElement-1770061800030]: 
+                                    beanData: '{"ionBean":"Badge","IonColor":"script:person.responded ? ''success'' : ''medium''"}'
+                                    tagName: ion-badge
+                                    ↓Text [ngx.components.UIText-1770061800033]: 
+                                      textValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: 'script:person.responded ? this.translate.instant(''shared_invitees_responded'') : this.translate.instant(''shared_invitees_not_responded'')'
+                                  ↓BadgeReminded [ngx.components.UIDynamicElement-1770061800036]: 
+                                    beanData: '{"ionBean":"Badge","IonColor":"plain:warning"}'
+                                    tagName: ion-badge
+                                    ↓Attr [ngx.components.UIAttribute-1770061800039]: 
+                                      attrName: '*ngIf'
+                                      attrValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: plain:!person.responded && person.reminded
+                                    ↓Text [ngx.components.UIText-1770061800042]: 
+                                      i18n: true
+                                      textValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: plain:shared_invitees_reminded
+                              ↓ColAction [ngx.components.UIDynamicElement-1770061800045]: 
+                                beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
+                                tagName: ion-col
+                                ↓DivAction [ngx.components.UIDynamicElement-1770061800048]: 
+                                  beanData: '{"ionBean":"DivTag"}'
+                                  tagName: div
+                                  ↓Style [ngx.components.UIStyle-1770061800051]: 
+                                    styleContent: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            'display: flex;
+                                              justify-content: flex-end;
+                                            '
+                                  ↓ButtonRemind [ngx.components.UIDynamicElement-1770061800054]: 
+                                    beanData: |
+                                      '{
+                                       "ionBean": "Button",
+                                       "IonColor": "plain:primary",
+                                       "IonFill": "plain:clear",
+                                       "IonSize": "plain:small",
+                                       "IconSlot": "plain:icon-only"
+                                      }'
+                                    tagName: ion-button
+                                    ↓Icon [ngx.components.UIDynamicElement-1770061800057]: 
+                                      beanData: '{"ionBean":"Icon","IconName":"plain:mail-unread-outline"}'
+                                      tagName: ion-icon
+                                    ↓Attr [ngx.components.UIAttribute-1770061800060]: 
+                                      attrName: '*ngIf'
+                                      attrValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: plain:!person.responded && person.email
+                                    ↓Event [ngx.components.UIControlEvent-1770061800063]: 
+                                      ↓SendReminder [ngx.components.UICustomAsyncAction-1770061800066]: 
+                                        actionValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                              →: |
+                                                		try {
+                                                			await page.sendReminderEmail(vars.person);
+                                                		} catch (e) {
+                                                		
+                                                		} finally {
+                                                			return;
+                                                			}
+                                                
+                                        ↓person [ngx.components.UIControlVariable-1770061800069]: 
+                                          varValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:person
+        ↓Directive2 [ngx.components.UIControlDirective-1698309099889]: 
+          directiveIndexName: i
+          directiveItemName: item1
+          directiveSource: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: 'script:local.invitees ? [] : local?.responses?.[local?.currentIndex]?.value'
+          ↓Directive [ngx.components.UIControlDirective-1770049714148]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:item1 != null
+            ↓UseSharedComponent [ngx.components.UIUseShared-1698309099892]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsInputText
+              ↓element [ngx.components.UIUseVariable-1698309099895]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:item1
+              ↓doTranslate [ngx.components.UIUseVariable-1749547807126]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local?.responses?.[this?.local?.currentIndex]?.value?.[i]?.type == 'timestamp' || this.local?.responses?.[this?.local?.currentIndex]?.value?.[i]?.type == 'author'
+            ↓UseSharedComponent1 [ngx.components.UIUseShared-1698309099898]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckbox
+              ↓element [ngx.components.UIUseVariable-1698309099901]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:item1
+              ↓total [ngx.components.UIUseVariable-1698416982189]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
+            ↓UseSharedComponent2 [ngx.components.UIUseShared-1698309099904]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsRadio
+              ↓element [ngx.components.UIUseVariable-1698309099907]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:item1
+              ↓total [ngx.components.UIUseVariable-1698420442201]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
+            ↓UseSharedComponent3 [ngx.components.UIUseShared-1698309099910]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsCheckboxGroup
+              ↓element [ngx.components.UIUseVariable-1698309099913]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:item1
+              ↓total [ngx.components.UIUseVariable-1698657122140]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:local?.responses?.[local?.currentIndex]?.length
+            ↓UseSharedComponent41 [ngx.components.UIUseShared-1698309099922]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsImg
+              ↓element [ngx.components.UIUseVariable-1698309099925]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:item1
+            ↓UseSharedComponent5 [ngx.components.UIUseShared-1698750581988]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsFiles
+              ↓element [ngx.components.UIUseVariable-1698750581991]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:item1
+            ↓UseSharedComponent6 [ngx.components.UIUseShared-1698753167698]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.sharedStatsLocation
+              ↓element [ngx.components.UIUseVariable-1698753167701]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:item1
           ↓tag1 [ngx.components.UIElement-1698944403192]: 
             identifier: ElseIndividual
             tagName: ng-template
@@ -1295,6 +2873,10 @@ title: Title for dataPage
             		page.local.responses = [];
             		page.local.individualResponses = [];
             		page.local.currentIndividualIndex = 1;
+            		page.local.sharedStats = null;
+            		page.local.sharedLoading = false;
+            		page.local.published_form_doc = null;
+            		page.local.reminderLinks = null;
             		let target_version = page.navParams.get(''version'');
             		target_version = target_version != null && target_version != ":version" ? target_version : null;
             		await page.getResponses(target_version);

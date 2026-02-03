@@ -107,3 +107,8 @@ expression: |
 4. Lorsqu un bean reference un sous-fichier, verifier que `_c8oProject/<chemin>` existe et contient la definition complete.
 5. Conserver les priorites (`-123456789`) dans la cle `yaml_key` lorsqu elles sont presentes.
 6. Tester la reimportation dans Convertigo Studio si possible pour valider le YAML.
+
+## 8. Erreurs frequentes a eviter
+
+- Ne pas indenter un bean (`↓QuelqueChose`) sous une liste `directiveSource` / `attrValue` : il doit etre aligne avec le parent. Sinon le bean est interprete comme un element de liste et l import echoue.
+- Toujours encadrer les blocs `FormatedContent` (`→: |`) par une ligne d ouverture contenant uniquement `'` et une ligne de fermeture contenant uniquement `'`. Sans ces quotes, `YamlConverter` retourne `no match`.
