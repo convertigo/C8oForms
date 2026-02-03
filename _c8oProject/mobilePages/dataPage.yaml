@@ -81,101 +81,62 @@ scriptContent:
         			if(targetVersion == null){
         				return;
         			}
-        			if(this.local.published_form_doc == null){
-        				this.local.published_form_doc = (await this.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id: this.local.formId}).async())?.res;
-        			}
-        			var shared = Array.isArray(this.local.published_form_doc?.shared) ? this.local.published_form_doc.shared : [];
-        			var noInvitees = shared.length === 0;
-        			var invited = await this.expandSharedInvitees(shared);
         			if(this.local.remindedUsers == null){
         				this.local.remindedUsers = {};
         			}
-        			await this.loadReminderLinks();
-        			var responseDocId = this.local.formId + "_" + targetVersion;
-        			var responseDoc = (await this.c8o.callJsonObject("C8Oforms.APIV2_getDocument", {id: responseDocId, fromResponse: "true"}).async())?.res;
-        			var respondent = responseDoc?.respondent ? responseDoc.respondent : {};
-        			var respondentIds = [];
-        			if(respondent != null){
-        				respondentIds = Object.keys(respondent).filter((key)=> respondent[key] === true || respondent[key] === "true");
+        			var resp = await this.c8o.callJsonObject("C8Oforms.APIV2_getSharedInviteesStats", {formId: this.local.formId, version: targetVersion}).async();
+        			var data = resp?.res;
+        			if(data?.form){
+        				this.local.published_form_doc = data.form;
         			}
-        			var listIds = invited;
-        			if(noInvitees){
-        				listIds = respondentIds;
+        			if(data?.reminderLinks){
+        				this.local.reminderLinks = data.reminderLinks;
         			}
-        			listIds = listIds.filter((value, index, array)=> array.indexOf(value) === index);
-        			var usersMap = {};
-        			try {
-        				if(listIds.length > 0){
-        					var usersResp = await this.c8o.callJsonObject("C8Oforms.APIV2_getUsersByIds", {ids: JSON.stringify(listIds)}).async();
-        					usersMap = usersResp?.res?.users ? usersResp.res.users : {};
+        			var stats = data?.stats != null ? data.stats : null;
+        			var list = stats?.list != null ? stats.list : [];
+        			list.forEach((entry)=>{
+        				if(entry == null){
+        					return;
         				}
-        			} catch (e) {
-        				
-        			}
-        			var list = listIds.map((entry)=>{
-        				var responded = respondent != null && (respondent[entry] === true || respondent[entry] === "true");
-        				var userInfo = usersMap != null ? usersMap[entry] : null;
-        				var displayName = userInfo?.displayName;
-        				if(displayName == null || displayName === ""){
-        					var nameParts = [];
-        					if(userInfo?.name){
-        						nameParts.push(userInfo.name);
-        					}
-        					if(userInfo?.surname){
-        						nameParts.push(userInfo.surname);
-        					}
-        					if(nameParts.length > 0){
-        						displayName = nameParts.join(" ");
-        					}
-        				}
-        				var email = userInfo?.mail;
-        				if(email == null || email === ""){
-        					email = this.formatSharedInvitee(entry);
-        				}
-        				var label = displayName != null && displayName !== "" ? displayName : email;
-        				var provider = userInfo?.provider;
-        				if(provider == null || provider === ""){
-        					provider = this.extractSharedInviteeProvider(entry);
-        				}
-        				if(provider == null || provider === ""){
-        					provider = "email";
-        				}
-        				var metaParts = [];
-        				if(provider != null && provider !== ""){
-        					metaParts.push(provider);
-        				}
-        				if(email != null && email !== ""){
-        					metaParts.push(email);
-        				}
-        				var meta = metaParts.join(" - ");
-        				var sharedVia = "";
-        				var sharedGroups = this.local.sharedGroupByUser != null ? this.local.sharedGroupByUser[entry] : null;
+        				var sharedGroups = entry.sharedGroups;
+        				var meta = entry.meta != null ? entry.meta : "";
         				if(sharedGroups != null && sharedGroups.length > 0){
+        					var sharedVia = "";
         					if(sharedGroups.length === 1){
         						sharedVia = this.translate.instant(''shared_invitees_shared_via_group'', {group: sharedGroups[0]});
         					}
         					else{
         						sharedVia = this.translate.instant(''shared_invitees_shared_via_groups'', {groups: sharedGroups.join(", ")});
         					}
+        					if(sharedVia !== ""){
+        						meta = meta !== "" ? (meta + " • " + sharedVia) : sharedVia;
+        					}
         				}
-        				if(sharedVia !== ""){
-        					meta = meta !== "" ? (meta + " • " + sharedVia) : sharedVia;
+        				entry.meta = meta;
+        				if(entry.email != null && this.local.remindedUsers?.[entry.email] === true){
+        					entry.reminded = true;
         				}
-        				var reminded = this.local.remindedUsers?.[email] === true;
-        				return { id: entry, label: label, email: email, provider: provider, meta: meta, responded: responded, reminded: reminded };
         			});
-        			list = this.sortSharedInvitees(list);
-        			var respondedCount = list.filter((entry)=> entry.responded).length;
-        			var remindableCount = list.filter((entry)=> !entry.responded && entry.email).length;
-        			var total = list.length;
-        			this.local.sharedStats = {
-        				total: total,
-        				respondedCount: respondedCount,
-        				notRespondedCount: total - respondedCount,
-        				remindableCount: remindableCount,
-        				noInvitees: noInvitees,
-        				list: list
-        			};
+        			if(stats == null){
+        				var respondedCount = list.filter((entry)=> entry != null && entry.responded).length;
+        				var remindableCount = list.filter((entry)=> entry != null && !entry.responded && entry.email).length;
+        				var total = list.length;
+        				stats = {
+        					total: total,
+        					respondedCount: respondedCount,
+        					notRespondedCount: total - respondedCount,
+        					remindableCount: remindableCount,
+        					noInvitees: false,
+        					list: list
+        				};
+        			}
+        			else{
+        				stats.list = list;
+        			}
+        			this.local.sharedStats = stats;
+        			if(this.local.sharedStats?.list){
+        				this.local.sharedStats.list = this.sortSharedInvitees(this.local.sharedStats.list);
+        			}
         		} catch (e) {
         			console.error("an error occured", e)
         		} finally {

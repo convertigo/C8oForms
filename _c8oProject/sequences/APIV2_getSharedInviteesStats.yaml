@@ -1,0 +1,266 @@
+accessibility: Hidden
+authenticatedContextRequired: true
+comment: |
+  Shared invitees stats.
+  Aggregates invitees, group members, respondents and reminder links for a form version.
+↓Sequence_JS [steps.SimpleStep-1770132000000]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    var res = {};
+    var stats = { list: [] };
+    var formDoc = null;
+    var shared = [];
+    var noInvitees = false;
+    var invited = [];
+    var groups = [];
+    var groupByUser = {};
+    var groupUsers = [];
+    var respondent = {};
+    var respondentIds = [];
+    var listIds = [];
+    var usersMap = {};
+    var reminderLinks = {};
+    var targetVersion = version;
+    var isSharedInvitee = function(entry){
+    	if(entry == null){
+    		return false;
+    	}
+    	if(typeof entry !== "string"){
+    		return false;
+    	}
+    	return entry.indexOf("C8Oreserved_") == 0;
+    };
+    var normalizeSharedInviteeId = function(entry){
+    	if(entry == null){
+    		return null;
+    	}
+    	if(typeof entry === "string"){
+    		var text = entry.trim();
+    		if(text === ""){
+    			return null;
+    		}
+    		var prefix = "C8Oreserved_";
+    		if(text.toLowerCase().indexOf(prefix.toLowerCase()) == 0){
+    			return prefix + text.substring(prefix.length);
+    		}
+    		return prefix + text;
+    	}
+    	if(typeof entry === "object"){
+    		var candidate = entry.id != null ? entry.id : (entry._id != null ? entry._id : (entry.user != null ? entry.user : (entry.name != null ? entry.name : (entry.email != null ? entry.email : entry.mail))));
+    		return normalizeSharedInviteeId(candidate);
+    	}
+    	return null;
+    };
+    var formatSharedInvitee = function(entry){
+    	if(entry == null){
+    		return "";
+    	}
+    	var text = "" + entry;
+    	var idx = text.lastIndexOf(":");
+    	if(idx > -1 && idx < text.length - 1){
+    		return text.substring(idx + 1);
+    	}
+    	var prefix = "C8Oreserved_";
+    	if(text.indexOf(prefix) == 0 && text.length > prefix.length){
+    		return text.substring(prefix.length);
+    	}
+    	return text;
+    };
+    var extractSharedInviteeProvider = function(entry){
+    	if(entry == null){
+    		return "";
+    	}
+    	var text = "" + entry;
+    	var prefix = "C8Oreserved_";
+    	if(text.indexOf(prefix) == 0){
+    		var idx = text.indexOf(":", prefix.length);
+    		if(idx > prefix.length){
+    			return text.substring(prefix.length, idx);
+    		}
+    	}
+    	return "";
+    };
+    try {
+    	if(formId != null && formId !== ""){
+    		formDoc = callSequence("C8Oforms", "APIV2_getDocument", { id: formId }).document.res;
+    	}
+    }
+    catch (e) {
+    	log.warn("APIV2_getSharedInviteesStats: unable to load form document", e);
+    }
+    if(formDoc != null){
+    	shared = isArray(formDoc.shared) ? formDoc.shared : [];
+    }
+    noInvitees = shared.length === 0;
+    shared.forEach(function(entry){
+    	if(isSharedInvitee(entry)) {
+    		var normalized = normalizeSharedInviteeId(entry);
+    		if(normalized != null && normalized !== ""){
+    			invited.push(normalized);
+    		}
+    	}
+    	else if(typeof entry === "string") {
+    		groups.push("" + entry);
+    	}
+    });
+    invited = invited.filter(function(value, index, array){ return array.indexOf(value) === index; });
+    groups = groups.filter(function(value, index, array){ return array.indexOf(value) === index; });
+    if(groups.length > 0){
+    	try {
+    		query = new java.util.HashMap();
+    		query.put(''reduce'', ''false'');
+    		keys = toJettison(groups);
+    		var grpRes = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_users_by_group'', query, keys));
+    		if(grpRes && grpRes.rows){
+    			grpRes.rows.forEach(function(row){
+    				if(row == null){
+    					return;
+    				}
+    				var userId = normalizeSharedInviteeId(row.value);
+    				if(userId != null && userId !== ""){
+    					groupUsers.push(userId);
+    					var grpName = row.key != null ? row.key : row.id;
+    					if(grpName != null && grpName !== ""){
+    						if(groupByUser[userId] == null){
+    							groupByUser[userId] = [];
+    						}
+    						if(groupByUser[userId].indexOf(grpName) === -1){
+    							groupByUser[userId].push(grpName);
+    						}
+    					}
+    				}
+    			});
+    		}
+    	}
+    	catch (e) {
+    		log.warn("APIV2_getSharedInviteesStats: failed to expand groups", e);
+    	}
+    }
+    listIds = invited.concat(groupUsers);
+    listIds = listIds.filter(function(value, index, array){ return array.indexOf(value) === index; });
+    try {
+    	if(formId != null && formId !== "" && targetVersion != null && targetVersion !== ""){
+    		var responseDocId = formId + "_" + targetVersion;
+    		var responseDoc = getDoc(responseDocId, null, "c8oforms_response_fs");
+    		if(responseDoc && !responseDoc.error && responseDoc.respondent){
+    			respondent = responseDoc.respondent;
+    		}
+    	}
+    }
+    catch (e) {
+    	log.warn("APIV2_getSharedInviteesStats: unable to load response document", e);
+    }
+    if(respondent != null){
+    	for (var key in respondent){
+    		if(respondent[key] === true || respondent[key] === "true"){
+    			respondentIds.push(key);
+    		}
+    	}
+    }
+    if(noInvitees){
+    	listIds = respondentIds;
+    }
+    listIds = listIds.filter(function(value, index, array){ return array.indexOf(value) === index; });
+    if(listIds.length > 0){
+    	try {
+    		query = new java.util.HashMap();
+    		query.put(''include_docs'', ''true'');
+    		query.put(''reduce'', ''false'');
+    		keys = toJettison(listIds);
+    		var usersResp = toJSON(fsclient.postView("c8oforms_fs", ''usersV2'', ''all2'', query, keys));
+    		if(usersResp && usersResp.rows){
+    			usersResp.rows.forEach(function(row){
+    				if(row && row.doc){
+    					usersMap[row.id] = row.doc;
+    				}
+    			});
+    		}
+    	}
+    	catch (e) {
+    		log.warn("APIV2_getSharedInviteesStats: failed to bulk load users", e);
+    	}
+    }
+    var list = [];
+    listIds.forEach(function(entry){
+    	var responded = respondent != null && (respondent[entry] === true || respondent[entry] === "true");
+    	var userInfo = usersMap != null ? usersMap[entry] : null;
+    	var displayName = userInfo != null ? userInfo.displayName : null;
+    	if(displayName == null || displayName === ""){
+    		var nameParts = [];
+    		if(userInfo != null && userInfo.name){
+    			nameParts.push(userInfo.name);
+    		}
+    		if(userInfo != null && userInfo.surname){
+    			nameParts.push(userInfo.surname);
+    		}
+    		if(nameParts.length > 0){
+    			displayName = nameParts.join(" ");
+    		}
+    	}
+    	var email = userInfo != null ? userInfo.mail : null;
+    	if(email == null || email === ""){
+    		email = formatSharedInvitee(entry);
+    	}
+    	var label = displayName != null && displayName !== "" ? displayName : email;
+    	var provider = userInfo != null ? userInfo.provider : null;
+    	if(provider == null || provider === ""){
+    		provider = extractSharedInviteeProvider(entry);
+    	}
+    	if(provider == null || provider === ""){
+    		provider = "email";
+    	}
+    	var metaParts = [];
+    	if(provider != null && provider !== ""){
+    		metaParts.push(provider);
+    	}
+    	if(email != null && email !== ""){
+    		metaParts.push(email);
+    	}
+    	var meta = metaParts.join(" - ");
+    	var sharedGroups = groupByUser[entry] != null ? groupByUser[entry] : [];
+    	list.push({ id: entry, label: label, email: email, provider: provider, meta: meta, responded: responded, sharedGroups: sharedGroups });
+    });
+    var respondedCount = list.filter(function(entry){ return entry != null && entry.responded; }).length;
+    var remindableCount = list.filter(function(entry){ return entry != null && !entry.responded && entry.email; }).length;
+    var total = list.length;
+    stats = {
+    	total: total,
+    	respondedCount: respondedCount,
+    	notRespondedCount: total - respondedCount,
+    	remindableCount: remindableCount,
+    	noInvitees: noInvitees,
+    	list: list
+    };
+    try {
+    	if(formId != null && formId !== ""){
+    		var accessRes = callSequence("C8Oforms", "APIV2_GetManageAccessRights", { id: formId, collab: false }).document.res;
+    		if(accessRes){
+    			reminderLinks = { auth: accessRes.linkAuth, anon: accessRes.linkAnno };
+    		}
+    	}
+    }
+    catch (e) {
+    	log.warn("APIV2_getSharedInviteesStats: unable to load reminder links", e);
+    }
+    res.stats = stats;
+    res.form = formDoc;
+    res.reminderLinks = reminderLinks;
+    '
+↓object2 [steps.JsonToXmlStep-1770132000003]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓formId [variables.RequestableVariable-1770132000006]: 
+  comment: Identifier of the form document.
+↓version [variables.RequestableVariable-1770132000007]: 
+  comment: Form version used to read respondents.

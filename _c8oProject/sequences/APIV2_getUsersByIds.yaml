@@ -21,27 +21,43 @@ comment: |
     if (!isArray(idsList)) {
     	idsList = [idsList];
     }
-    idsList.forEach((entry) => {
-    	if (entry == null || entry === "") {
-    		return;
-    	}
-    	var doc;
+    idsList = idsList.map(function(entry){
+    	return entry == null ? "" : "" + entry;
+    }).filter(function(entry){
+    	return entry != null && entry !== "";
+    });
+    idsList = idsList.filter(function(value, index, array){
+    	return array.indexOf(value) === index;
+    });
+    if (idsList.length > 0) {
     	try {
-    		doc = getDoc("" + entry, null, "c8oforms_fs");
+    		query = new java.util.HashMap();
+    		query.put(''include_docs'', ''true'');
+    		query.put(''reduce'', ''false'');
+    		keys = toJettison(idsList);
+    		var response = toJSON(fsclient.postView("c8oforms_fs", ''usersV2'', ''all2'', query, keys));
+    		if (response && response.rows) {
+    			response.rows.forEach(function(row){
+    				if (row && row.doc) {
+    					var doc = row.doc;
+    					users["" + doc._id] = {
+    						id: doc._id,
+    						displayName: doc.displayName,
+    						mail: doc.mail,
+    						name: doc.name,
+    						surname: doc.surname,
+    						provider: doc.provider
+    					};
+    				}
+    			});
+    		}
     	}
     	catch (e) {
+    		log.warn("APIV2_getUsersByIds: bulk lookup failed", e);
     	}
-    	if (doc && !doc.error && doc._id != null) {
-    		users["" + entry] = {
-    			id: doc._id,
-    			displayName: doc.displayName,
-    			mail: doc.mail,
-    			name: doc.name,
-    			surname: doc.surname
-    		};
-    	}
-    });
-    res.users = users;'
+    }
+    res.users = users;
+    '
 ↓object2 [steps.JsonToXmlStep-1770061400003]: 
   jsonObject: 
     - xmlizable: 
