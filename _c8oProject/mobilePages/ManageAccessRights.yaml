@@ -34,9 +34,7 @@ scriptContent:
         			return this.translate.instant(''share_form'') + '' '' + this.local?.form?.name
         		}
         	}
-        	
         	public isAcollab(id){
-        		
         		if(this.local.collab == false && this.local.form.c8oCollabs != undefined && this.local.form.c8oCollabs[id] != undefined && this.local.form.c8oCollabs[id] == true){
         			return true
         		}
@@ -49,9 +47,7 @@ scriptContent:
         	    else{
         	        return []
         	        }
-        	    
         	}
-        	
         	public computeSortLabel(entry: any){
         		if (!entry) {
         			return ""
@@ -59,7 +55,6 @@ scriptContent:
         		let base = entry.display ?? entry.displayName ?? entry.displayMail ?? entry.value ?? ""
         		return ("" + base).toLocaleLowerCase()
         	}
-        	
         	public computeFilteredGrp(){
         		let source = Array.isArray(this.local.grp) ? this.local.grp.slice() : []
         		source.sort((a, b) => {
@@ -89,7 +84,6 @@ scriptContent:
         			return showUsers
         		})
         	}
-        	
         	public refreshFilteredGrp(event = null, target = null){
         		if(!this.local.filters){
         			this.local.filters = { showGroups: true, showUsers: true };
@@ -108,7 +102,161 @@ scriptContent:
         		}
         		this.local.filteredGrp = this.computeFilteredGrp();
         	}
-        	
+        	public normalizeCsvEmail(value){
+        		if(value == undefined || value == null){
+        			return "";
+        		}
+        		return ("" + value).trim().toLowerCase();
+        	}
+        	public normalizeCsvRights(value){
+        		if(value == undefined || value == null){
+        			return "";
+        		}
+        		var raw = ("" + value).trim();
+        		if((raw.startsWith("\"") && raw.endsWith("\"")) || (raw.startsWith("''") && raw.endsWith("''"))){
+        			raw = raw.substring(1, raw.length - 1);
+        		}
+        		raw = raw.trim().toLowerCase();
+        		if(raw == ""){
+        			return "";
+        		}
+        		raw = raw.replace(/[\s-]+/g, "_");
+        		raw = raw.replace(/_+/g, "_");
+        		raw = raw.replace(/^_+|_+$/g, "");
+        		if(raw == "responses"){
+        			return "Responses";
+        		}
+        		if(raw == "edition"){
+        			return "Edition";
+        		}
+        		if(raw == "edition_responses" || raw == "editionresponses"){
+        			return "Edition_Responses";
+        		}
+        		return "";
+        	}
+        	public extractCsvEntries(text){
+        		var csvText = "" + (text != null ? text : "");
+        		var lines = csvText.split(/\r?\n/);
+        		var values = [];
+        		lines.forEach((line)=>{
+        			if(line == null){
+        				return;
+        			}
+        			var raw = ("" + line).trim();
+        			if(raw == ""){
+        				return;
+        			}
+        			if(raw.charCodeAt(0) == 0xFEFF){
+        				raw = raw.substring(1);
+        			}
+        			var sepIndex = raw.search(/[,;\t]/);
+        			var first = "";
+        			var second = "";
+        			if(sepIndex >= 0){
+        				first = raw.substring(0, sepIndex);
+        				second = raw.substring(sepIndex + 1);
+        				var nextIndex = second.search(/[,;\t]/);
+        				if(nextIndex >= 0){
+        					second = second.substring(0, nextIndex);
+        				}
+        			}
+        			else{
+        				first = raw;
+        			}
+        			first = ("" + first).trim();
+        			second = ("" + second).trim();
+        			if((first.startsWith("\"") && first.endsWith("\"")) || (first.startsWith("''") && first.endsWith("''"))){
+        				first = first.substring(1, first.length - 1);
+        			}
+        			if((second.startsWith("\"") && second.endsWith("\"")) || (second.startsWith("''") && second.endsWith("''"))){
+        				second = second.substring(1, second.length - 1);
+        			}
+        			first = first.trim();
+        			second = second.trim();
+        			if(first == "" || first.indexOf("@") == -1){
+        				return;
+        			}
+        			values.push({email: first, rights: this.normalizeCsvRights(second)});
+        		});
+        		return values;
+        	}
+        	public async importUsersFromCsv(event){
+        		try {
+        			var file = event?.target?.files?.[0] || event?.srcElement?.files?.[0];
+        			if(!file){
+        				return;
+        			}
+        			var text = await new Promise((resolve, reject)=>{
+        				var reader = new FileReader();
+        				reader.onload = ()=>{resolve(reader.result);};
+        				reader.onerror = ()=>{reject(reader.error);};
+        				reader.readAsText(file);
+        			});
+        			var entries = this.extractCsvEntries(text);
+        			this.addUsersFromCsvEntries(entries);
+        		} catch (e) {
+        		} finally {
+        			try {
+        				if(event && event.target){
+        					event.target.value = "";
+        				}
+        			} catch (e) {
+        			}
+        		}
+        	}
+        	public addUsersFromCsvEntries(entries){
+        		try {
+        			if(!Array.isArray(entries) || entries.length == 0){
+        				return;
+        			}
+        			var existing = {};
+        			(this.local.newUsersOrGroups || []).forEach((item)=>{
+        				var key = this.normalizeCsvEmail(item?.displayMail || item?.display || item?.value);
+        				if(key != ""){
+        					existing[key] = true;
+        				}
+        			});
+        			(this.local.existingGrpsOrUsersArray || []).forEach((item)=>{
+        				var key = this.normalizeCsvEmail(item?.displayMail || item?.display || item?.value);
+        				if(key != ""){
+        					existing[key] = true;
+        				}
+        			});
+        			var available = Array.isArray(this.local.filteredGrp) ? this.local.filteredGrp : [];
+        			entries.forEach((entry)=>{
+        				var email = entry?.email != undefined ? entry.email : entry;
+        				var rights = entry?.rights;
+        				var key = this.normalizeCsvEmail(email);
+        				if(key == "" || existing[key]){
+        					return;
+        				}
+        				var found = available.find((item)=>{
+        					return item?.type == "user" && this.normalizeCsvEmail(item.displayMail) == key;
+        				});
+        				if(this.local.collab == true){
+        					if(found){
+        						if(rights != undefined && rights != null && rights != ""){
+        							found.rights = rights;
+        						}
+        						this.local.newUsersOrGroups.push(found);
+        						existing[key] = true;
+        					}
+        					return;
+        				}
+        				if(found){
+        					this.local.newUsersOrGroups.push(found);
+        				}
+        				else{
+        					this.local.newUsersOrGroups.push({display: email, value: email});
+        				}
+        				existing[key] = true;
+        			});
+        			this.ref.detectChanges();
+        		} catch (e) {
+        		} finally {
+        			return;
+        		}
+        	}
         	public getTinyLang(lang){
         		switch(lang){
         			case "fr":
@@ -119,7 +267,6 @@ scriptContent:
         				return lang;
         		}
         	}
-        	
         	public getTinyPathLang(lang){
         		switch(lang){
         			case "fr":
@@ -141,7 +288,6 @@ scriptContent:
         	public creator(){
         		return {displayName: this.local.creator?.displayName, email: this.local.creator?.displayMail, id: this.local.creator?.value ? this.local.creator?.value?.substring(12): ""};
         	}
-        	
         	public async showConfirmationAlert(header: string, message: string, cancelLabel: string, confirmLabel: string, cssClass: string, btClass, confirmRed: boolean = true, cancelRed: boolean = false): Promise<boolean> {
         		let alertController = this.getInstance(AlertController)
         		const alert = await alertController.create({
@@ -167,7 +313,6 @@ scriptContent:
         				}
         			]
         		});
-        	
         		await alert.present();
         		return new Promise((resolve) => {
         			alert.onDidDismiss().then((data) => {
@@ -301,9 +446,7 @@ title: Title for ManageAccessRights
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                  →: |
-                    text-align:center;
-                    
+                  →: text-align:center;
     ↓Attr [ngx.components.UIAttribute-1591962005131]: 
       attrName: '*ngIf'
       attrValue: 
@@ -315,9 +458,7 @@ title: Title for ManageAccessRights
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
-            →: |
-              height:100%;
-              
+            →: height:100%;
   ↓Directive [ngx.components.UIControlDirective-1591962014581]: 
     directiveName: If
     directiveSource: 
@@ -358,10 +499,7 @@ title: Title for ManageAccessRights
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                  →: |
-                    display:inline-block;
-                    
-                    
+                  →: display:inline-block;
         ↓Div [ngx.components.UIDynamicElement-1621411644791]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -468,11 +606,9 @@ title: Title for ManageAccessRights
                             			try {
                             				page.refreshFilteredGrp(event, "groups");
                             			} catch (e) {
-                            
                             			} finally {
                             				return;
                             			}
-                            
             ↓GenericItemUsers [ngx.components.UIDynamicElement-1751005300024]: 
               beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
               tagName: ion-item
@@ -516,183 +652,323 @@ title: Title for ManageAccessRights
                             			try {
                             				page.refreshFilteredGrp(event, "users");
                             			} catch (e) {
-                            
                             			} finally {
                             				return;
                             			}
-                            
-          ↓UseSharedComponent [ngx.components.UIUseShared-1619512400544]: 
-            sharedcomponent: C8Oforms.MobileApplication.Application.ngxTagInputCustomC8oForms
-            ↓items [ngx.components.UIUseVariable-1619512400547]: 
-              binding: twoWayBinding
-              varValue: 
+          ↓DivCsvImportRow [ngx.components.UIDynamicElement-1769402000000]: 
+            beanData: '{"ionBean":"DivTag"}'
+            tagName: div
+            ↓Style [ngx.components.UIStyle-1769402000001]: 
+              styleContent: 
                 - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.local.newUsersOrGroups
-            ↓inputtext [ngx.components.UIUseVariable-1619512400550]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:''
-            ↓theme [ngx.components.UIUseVariable-1619512400553]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'bootstrap'
-            ↓maxItems [ngx.components.UIUseVariable-1619512400556]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:100000
-            ↓placeholder [ngx.components.UIUseVariable-1619512400559]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
-            ↓secondaryPlaceholder [ngx.components.UIUseVariable-1619512400562]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
-            ↓editableTag [ngx.components.UIUseVariable-1619512400565]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:true
-            ↓removableTag [ngx.components.UIUseVariable-1619512400568]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:true
-            ↓itemIdentifyBy [ngx.components.UIUseVariable-1619512400571]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'value'
-            ↓itemDisplayBy [ngx.components.UIUseVariable-1619512400574]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'display'
-            ↓autocompleteItems [ngx.components.UIUseVariable-1619512400577]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.local.filteredGrp
-            ↓onlyFromAutocomplete [ngx.components.UIUseVariable-1619512400580]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.local.collab
-            ↓showAutoCompleteDropdownIfEmpty [ngx.components.UIUseVariable-1619512400583]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:true
-            ↓errorMessages [ngx.components.UIUseVariable-1619512400589]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.local.errorMessages
-            ↓validators [ngx.components.UIUseVariable-1619512400592]: 
-              varValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.local.validators
-            ↓Event1 [ngx.components.UIControlEvent-1646929701366]: 
-              attrName: (ngxTagInputAdded)
-              eventName: ngxTagInputAdded
-              ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1646929795322]: 
-                actionValue: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      display:flex;
+                      align-items:center;
+                      gap:12px;
+                      flex-wrap:wrap;
+                      
+            ↓DivCsvTagWrapper [ngx.components.UIDynamicElement-1769402000002]: 
+              beanData: '{"ionBean":"DivTag"}'
+              tagName: div
+              ↓Style [ngx.components.UIStyle-1769402000003]: 
+                styleContent: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
-                        		var toast = false;
-                        		try {
-                        			//_this.local.grp == users from dropdown list
-                        			// _this.local.existingGrpsOrUsersArray == user already shared
-                        			// this.local.newUsersOrGroups users added
-                        			// this was added without auto complete
-                        			if(event.type == undefined){
-                        				// prevent from adding a user already existing
-                        				let founded = false;
-                        				this.local.existingGrpsOrUsersArray.forEach((element, index)=>{
-                        					if(element.type == "user"){
-                        						if(event.value == element.displayMail){
-                        							founded = true;
-                        						}
-                        					}
-                        				})
-                        				if(founded){
-                        					let indexToSplice = null;
-                        					this.local.newUsersOrGroups.forEach((element, index)=>{
-                        						if(element.value == event.value){
-                        							indexToSplice = index;
-                        						}
-                        					})
-                        					if(indexToSplice != null){
-                        						this.local.newUsersOrGroups.splice(indexToSplice, 1);
-                        						// toast it users already exists in list
-                        						toast = true;
-                        					}
-                        				}
-                        				else{
-                        					founded = false;
-                        					var elemToReplace = null;
-                        					this.local.grp.forEach((element, index)=>{
-                        						if(element.type == "user"){
-                        							if(event.value == element.displayMail){
-                        								founded = true;
-                        								elemToReplace = element;
-                        							}
-                        						}
-                        					});
-                        					if(founded){
-                        						let indexToSplice = null;
-                        						this.local.newUsersOrGroups.forEach((element, index)=>{
-                        							if(element.display == event.value){
-                        								indexToSplice = index;
-                        							}
-                        						})
-                        						if(indexToSplice != null){
-                        							this.local.newUsersOrGroups.splice(indexToSplice, 1, elemToReplace);
-                        							// toast it users already exists in list
-                        						}
-                        					}
-                        				}	
-                        			}
-                        		} catch (e) {
-                        		
-                        		} finally {
-                        			return toast;
-                        		}
+                        flex:1 1 260px;
+                        min-width:200px;
                         
-                ↓If [ngx.components.UIDynamicAction-1646929912244]: 
-                  beanData: '{"ionBean":"IfAction"}'
-                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1646929912247]: 
-                    beanData: '{"ionBean":"InvokeAction"}'
-                    stack: C8Oforms.MobileApplication.Application.showToast
-                    ↓msg [ngx.components.UIControlVariable-1646929912250]: 
+              ↓UseSharedComponent [ngx.components.UIUseShared-1619512400544]: 
+                sharedcomponent: C8Oforms.MobileApplication.Application.ngxTagInputCustomC8oForms
+                ↓items [ngx.components.UIUseVariable-1619512400547]: 
+                  binding: twoWayBinding
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.newUsersOrGroups
+                ↓inputtext [ngx.components.UIUseVariable-1619512400550]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:''
+                ↓theme [ngx.components.UIUseVariable-1619512400553]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:'bootstrap'
+                ↓maxItems [ngx.components.UIUseVariable-1619512400556]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:100000
+                ↓placeholder [ngx.components.UIUseVariable-1619512400559]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
+                ↓secondaryPlaceholder [ngx.components.UIUseVariable-1619512400562]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
+                ↓editableTag [ngx.components.UIUseVariable-1619512400565]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:true
+                ↓removableTag [ngx.components.UIUseVariable-1619512400568]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:true
+                ↓itemIdentifyBy [ngx.components.UIUseVariable-1619512400571]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:'value'
+                ↓itemDisplayBy [ngx.components.UIUseVariable-1619512400574]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:'display'
+                ↓autocompleteItems [ngx.components.UIUseVariable-1619512400577]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.filteredGrp
+                ↓onlyFromAutocomplete [ngx.components.UIUseVariable-1619512400580]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.collab
+                ↓showAutoCompleteDropdownIfEmpty [ngx.components.UIUseVariable-1619512400583]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:true
+                ↓errorMessages [ngx.components.UIUseVariable-1619512400589]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.errorMessages
+                ↓validators [ngx.components.UIUseVariable-1619512400592]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.validators
+                ↓Event1 [ngx.components.UIControlEvent-1646929701366]: 
+                  attrName: (ngxTagInputAdded)
+                  eventName: ngxTagInputAdded
+                  ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1646929795322]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		var toast = false;
+                            		try {
+                            			//_this.local.grp == users from dropdown list
+                            			// _this.local.existingGrpsOrUsersArray == user already shared
+                            			// this.local.newUsersOrGroups users added
+                            			// this was added without auto complete
+                            			if(event.type == undefined){
+                            				// prevent from adding a user already existing
+                            				let founded = false;
+                            				this.local.existingGrpsOrUsersArray.forEach((element, index)=>{
+                            					if(element.type == "user"){
+                            						if(event.value == element.displayMail){
+                            							founded = true;
+                            						}
+                            					}
+                            				})
+                            				if(founded){
+                            					let indexToSplice = null;
+                            					this.local.newUsersOrGroups.forEach((element, index)=>{
+                            						if(element.value == event.value){
+                            							indexToSplice = index;
+                            						}
+                            					})
+                            					if(indexToSplice != null){
+                            						this.local.newUsersOrGroups.splice(indexToSplice, 1);
+                            						// toast it users already exists in list
+                            						toast = true;
+                            					}
+                            				}
+                            				else{
+                            					founded = false;
+                            					var elemToReplace = null;
+                            					this.local.grp.forEach((element, index)=>{
+                            						if(element.type == "user"){
+                            							if(event.value == element.displayMail){
+                            								founded = true;
+                            								elemToReplace = element;
+                            							}
+                            						}
+                            					});
+                            					if(founded){
+                            						let indexToSplice = null;
+                            						this.local.newUsersOrGroups.forEach((element, index)=>{
+                            							if(element.display == event.value){
+                            								indexToSplice = index;
+                            							}
+                            						})
+                            						if(indexToSplice != null){
+                            							this.local.newUsersOrGroups.splice(indexToSplice, 1, elemToReplace);
+                            							// toast it users already exists in list
+                            						}
+                            					}
+                            				}	
+                            			}
+                            		} catch (e) {
+                            		} finally {
+                            			return toast;
+                            		}
+                    ↓If [ngx.components.UIDynamicAction-1646929912244]: 
+                      beanData: '{"ionBean":"IfAction"}'
+                      ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1646929912247]: 
+                        beanData: '{"ionBean":"InvokeAction"}'
+                        stack: C8Oforms.MobileApplication.Application.showToast
+                        ↓msg [ngx.components.UIControlVariable-1646929912250]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this.translate.instant('form_has_already_been_shared')
+                        ↓duration [ngx.components.UIControlVariable-1646929912253]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'3000'
+                        ↓position [ngx.components.UIControlVariable-1646929912256]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'bottom'
+                        ↓cssClass [ngx.components.UIControlVariable-1646929912259]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'toastError'
+            ↓DivCsvImportButton [ngx.components.UIDynamicElement-1769402000004]: 
+              beanData: '{"ionBean":"DivTag"}'
+              tagName: div
+              ↓Style [ngx.components.UIStyle-1769402000005]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        display:flex;
+                        align-items:center;
+                        
+              ↓Tag [ngx.components.UIElement-1769402000006]: 
+                selfClose: true
+                tagName: input
+                ↓Attr [ngx.components.UIAttribute-1769402000007]: 
+                  attrName: type
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:file
+                ↓Attr1 [ngx.components.UIAttribute-1769402000008]: 
+                  attrName: accept
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:.csv,text/csv
+                ↓Style [ngx.components.UIStyle-1769402000009]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'display: none;
+                          '
+                ↓Attr2 [ngx.components.UIAttribute-1769402000019]: 
+                  attrName: '[attr.id]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:manageAccessCsvCollabInput
+                ↓Event [ngx.components.UIControlEvent-1769402000010]: 
+                  attrName: (change)
+                  eventName: (change)
+                  ↓ImportUsersCsv [ngx.components.UICustomAsyncAction-1769402000011]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		try {
+                            			await page.importUsersFromCsv(event);
+                            		} catch (e) {
+                            		} finally {
+                            			return;
+                            		}
+                            
+              ↓Button [ngx.components.UIDynamicElement-1769402000012]: 
+                beanData: |
+                  '{
+                   "ionBean": "Button",
+                   "IonColor": "plain:primary",
+                   "IonFill": "plain:clear"
+                  }'
+                tagName: ion-button
+                ↓Event [ngx.components.UIControlEvent-1769402000013]: 
+                  ↓CustomAction [ngx.components.UICustomAction-1769402000014]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		document.getElementById(vars.id).click();
+                            		resolve();
+                    ↓id [ngx.components.UIControlVariable-1769402000015]: 
                       varValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.translate.instant('form_has_already_been_shared')
-                    ↓duration [ngx.components.UIControlVariable-1646929912253]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:'3000'
-                    ↓position [ngx.components.UIControlVariable-1646929912256]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:'bottom'
-                    ↓cssClass [ngx.components.UIControlVariable-1646929912259]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:'toastError'
+                          - MobileSmartSourceType: plain:manageAccessCsvCollabInput
+                ↓Icon [ngx.components.UIDynamicElement-1769402000016]: 
+                  beanData: |
+                    '{
+                     "ionBean": "Icon",
+                     "IconName": "plain:arrow-up-outline",
+                     "IconSlot": "plain:icon-only"
+                    }'
+                  tagName: ion-icon
+                  ↓Style [ngx.components.UIStyle-1769184585682]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'color: var(--ion-color-greenCsv);
+                            '
+                ↓Icon1 [ngx.components.UIDynamicElement-1769184356175]: 
+                  beanData: |
+                    '{
+                     "ionBean": "Icon",
+                     "IconName": "plain",
+                     "IconSlot": "plain:icon-only",
+                     "IconSource": "plain:assets\/images\/svg\/icon\/csv.svg"
+                    }'
+                  tagName: ion-icon
+                  ↓Style [ngx.components.UIStyle-1769184356178]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'color: var(--ion-color-greenCsv);
+                            '
+                ↓Attr1 [ngx.components.UIAttribute-1769185584986]: 
+                  attrName: '[matTooltip]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:'import_file_csv' | translate
           ↓Style [ngx.components.UIStyle-1619512400595]: 
             styleContent: 
               - xmlizable: 
@@ -1003,8 +1279,6 @@ title: Title for ManageAccessRights
                           			this.local.grp.push(this.local.existingGrpsOrUsersArray[vars.index])
                           			this.local.existingGrpsOrUsersArray.splice(vars.index, 1);
                           			this.refreshFilteredGrp();
-                          			
-                          
                   ↓item [ngx.components.UIControlVariable-1619512480479]: 
                     varValue: 
                       - xmlizable: 
@@ -1163,10 +1437,7 @@ title: Title for ManageAccessRights
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          margin:0 !important;
-                          
-                          
+                        →: margin:0 !important;
                 ↓Attr [ngx.components.UIAttribute-1706107640543]: 
                   attrName: '[innerHTML]'
                   attrValue: 
@@ -1251,9 +1522,7 @@ title: Title for ManageAccessRights
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      	margin-left:46px;
-                      
+                    →: 	margin-left:46px;
         ↓DivFlexShareWithUserOrGroups [ngx.components.UIDynamicElement-1706108357527]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -1308,10 +1577,7 @@ title: Title for ManageAccessRights
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          margin:0 !important;
-                          
-                          
+                        →: margin:0 !important;
                 ↓Attr1 [ngx.components.UIAttribute-1706109302723]: 
                   attrName: '[innerHTML]'
                   attrValue: 
@@ -1347,6 +1613,14 @@ title: Title for ManageAccessRights
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                       - MobileSmartSourceType: script:translate.instant('text_share_with_group_arg3')
+              ↓Tag3 [ngx.components.UIElement-1769185711581]: 
+                tagName: li
+                ↓Attr [ngx.components.UIAttribute-1769185711584]: 
+                  attrName: '[innerHTML]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:translate.instant('desc_sharing_user_file')
             ↓DivAddPersonOrGRP [ngx.components.UIDynamicElement-1706109405552]: 
               beanData: '{"ionBean":"DivTag"}'
               tagName: div
@@ -1416,11 +1690,9 @@ title: Title for ManageAccessRights
                                 			try {
                                 				page.refreshFilteredGrp(event, "groups");
                                 			} catch (e) {
-                                
                                 			} finally {
                                 				return;
                                 			}
-                                
                 ↓GenericItemUsers [ngx.components.UIDynamicElement-1751005301024]: 
                   beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
                   tagName: ion-item
@@ -1463,190 +1735,324 @@ title: Title for ManageAccessRights
                                 		try {
                                 			page.refreshFilteredGrp(event, "users");
                                 		} catch (e) {
-                                
                                 		} finally {
                                 			return;
                                 		}	
-                                
-              ↓UseSharedComponent [ngx.components.UIUseShared-1706109405555]: 
-                sharedcomponent: C8Oforms.MobileApplication.Application.ngxTagInputCustomC8oForms
-                ↓items [ngx.components.UIUseVariable-1706109405558]: 
-                  varValue: 
+              ↓DivCsvImportRow [ngx.components.UIDynamicElement-1769402100000]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1769402100001]: 
+                  styleContent: 
                     - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.newUsersOrGroups
-                ↓inputtext [ngx.components.UIUseVariable-1706109405561]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:''
-                ↓theme [ngx.components.UIUseVariable-1706109405564]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:''
-                ↓maxItems [ngx.components.UIUseVariable-1706109405567]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:100
-                ↓placeholder [ngx.components.UIUseVariable-1706109405570]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
-                ↓secondaryPlaceholder [ngx.components.UIUseVariable-1706109405573]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
-                ↓editableTag [ngx.components.UIUseVariable-1706109405576]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:true
-                ↓removableTag [ngx.components.UIUseVariable-1706109405579]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:true
-                ↓itemIdentifyBy [ngx.components.UIUseVariable-1706109405582]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:'value'
-                ↓itemDisplayBy [ngx.components.UIUseVariable-1706109405585]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:'display'
-                ↓autocompleteItems [ngx.components.UIUseVariable-1706109405588]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.filteredGrp
-                ↓onlyFromAutocomplete [ngx.components.UIUseVariable-1706109405591]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.collab
-                ↓showAutoCompleteDropdownIfEmpty [ngx.components.UIUseVariable-1706109405594]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:true
-                ↓errorMessages [ngx.components.UIUseVariable-1706109405597]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.errorMessages
-                ↓validators [ngx.components.UIUseVariable-1706109405600]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.validators
-                ↓keepOpen [ngx.components.UIUseVariable-1729074456044]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:false
-                ↓Event [ngx.components.UIControlEvent-1733328405695]: 
-                  attrName: (ngxTagInputEdited)
-                  eventName: ngxTagInputEdited
-                ↓Event1 [ngx.components.UIControlEvent-1733328405697]: 
-                  attrName: (ngxTagInputAdded)
-                  eventName: ngxTagInputAdded
-                  ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1733328416571]: 
-                    actionValue: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          display:flex;
+                          align-items:center;
+                          gap:12px;
+                          flex-wrap:wrap;
+                          
+                ↓DivCsvTagWrapper [ngx.components.UIDynamicElement-1769402100002]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1769402100003]: 
+                    styleContent: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
-                            '		try {
-                            			if(event.type != undefined){
-                            				// element is from autocomplete
-                            				delete event.object;
-                            				delete event.target;
-                            				page.local.newUsersOrGroups.push(event);
-                            			}
-                            			else if(event.display != undefined){
-                            				page.local.newUsersOrGroups.push({display : event.display, value: event.display});
-                            			}
-                            			else{
-                            				//Search ithe mail match in the list
-                            				let found = page.local.grp.find((x)=>{return x.displayMail == event.value});
-                            				if(found != undefined){
-                            					page.local.newUsersOrGroups.push(found);
-                            				}
-                            				else{
-                            					delete event.object;
-                            					delete event.target;
-                            					page.local.newUsersOrGroups.push(event);
-                            				}
-                            			}
-                            		} catch (e) {
-                            		
-                            		} finally {
-                            			return;
-                            		}
-                            '
-                ↓Event2 [ngx.components.UIControlEvent-1733328405699]: 
-                  attrName: (ngxTagInputRemoved)
-                  eventName: ngxTagInputRemoved
-                  ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1733419229665]: 
-                    actionValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            		try {
-                            			delete event.object;
-                            			delete event.target;
-                            			page.local.newUsersOrGroups.forEach((x, index)=>{ 
-                            				// search if each key of x has same value in event
-                            				let found = true;
-                            				Object.keys(event).forEach((key) => {
-                            					if (x[key] != event[key]) {
-                            						found = false;
-                            					}
-                            				});
-                            				if (found) {
-                            					page.local.newUsersOrGroups.splice(index, 1);
-                            				}
-                            				return;
-                            			});
-                            		} catch (e) {
-                            		
-                            		} finally {
-                            			return;
-                            		}
+                            flex:1 1 260px;
+                            min-width:200px;
                             
-                ↓Event3 [ngx.components.UIControlEvent-1733328405701]: 
-                  attrName: (ngxTagInputSelected)
-                  eventName: ngxTagInputSelected
-                ↓Event4 [ngx.components.UIControlEvent-1733328405703]: 
-                  attrName: (ngxTagInputFocused)
-                  eventName: ngxTagInputFocused
-                ↓Event5 [ngx.components.UIControlEvent-1733328405705]: 
-                  attrName: (ngxTagInputBlured)
-                  eventName: ngxTagInputBlured
-                ↓Event6 [ngx.components.UIControlEvent-1733328405707]: 
-                  attrName: (ngxTagInputChanged)
-                  eventName: ngxTagInputChanged
-                ↓Event7 [ngx.components.UIControlEvent-1733328405709]: 
-                  attrName: (ngxTagInputPasted)
-                  eventName: ngxTagInputPasted
-                ↓Event8 [ngx.components.UIControlEvent-1733328405711]: 
-                  attrName: (ngxTagInputValidationError)
-                  eventName: ngxTagInputValidationError
-                ↓Event9 [ngx.components.UIControlEvent-1733328405713]: 
-                  attrName: (ngxTagInputNgModelChange)
-                  eventName: ngxTagInputNgModelChange
-                ↓addTagText [ngx.components.UIUseVariable-1768300333786]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.translate.instant('add_user2')
+                  ↓UseSharedComponent [ngx.components.UIUseShared-1706109405555]: 
+                    sharedcomponent: C8Oforms.MobileApplication.Application.ngxTagInputCustomC8oForms
+                    ↓items [ngx.components.UIUseVariable-1706109405558]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.newUsersOrGroups
+                    ↓inputtext [ngx.components.UIUseVariable-1706109405561]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:''
+                    ↓theme [ngx.components.UIUseVariable-1706109405564]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:''
+                    ↓maxItems [ngx.components.UIUseVariable-1706109405567]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:100
+                    ↓placeholder [ngx.components.UIUseVariable-1706109405570]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
+                    ↓secondaryPlaceholder [ngx.components.UIUseVariable-1706109405573]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:translate.instant('Add_people_and_groups')
+                    ↓editableTag [ngx.components.UIUseVariable-1706109405576]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:true
+                    ↓removableTag [ngx.components.UIUseVariable-1706109405579]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:true
+                    ↓itemIdentifyBy [ngx.components.UIUseVariable-1706109405582]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:'value'
+                    ↓itemDisplayBy [ngx.components.UIUseVariable-1706109405585]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:'display'
+                    ↓autocompleteItems [ngx.components.UIUseVariable-1706109405588]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.filteredGrp
+                    ↓onlyFromAutocomplete [ngx.components.UIUseVariable-1706109405591]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.collab
+                    ↓showAutoCompleteDropdownIfEmpty [ngx.components.UIUseVariable-1706109405594]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:true
+                    ↓errorMessages [ngx.components.UIUseVariable-1706109405597]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.errorMessages
+                    ↓validators [ngx.components.UIUseVariable-1706109405600]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.validators
+                    ↓keepOpen [ngx.components.UIUseVariable-1729074456044]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:false
+                    ↓Event [ngx.components.UIControlEvent-1733328405695]: 
+                      attrName: (ngxTagInputEdited)
+                      eventName: ngxTagInputEdited
+                    ↓Event1 [ngx.components.UIControlEvent-1733328405697]: 
+                      attrName: (ngxTagInputAdded)
+                      eventName: ngxTagInputAdded
+                      ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1733328416571]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                '		try {
+                                			if(event.type != undefined){
+                                				// element is from autocomplete
+                                				delete event.object;
+                                				delete event.target;
+                                				page.local.newUsersOrGroups.push(event);
+                                			}
+                                			else if(event.display != undefined){
+                                				page.local.newUsersOrGroups.push({display : event.display, value: event.display});
+                                			}
+                                			else{
+                                				//Search ithe mail match in the list
+                                				let found = page.local.grp.find((x)=>{return x.displayMail == event.value});
+                                				if(found != undefined){
+                                					page.local.newUsersOrGroups.push(found);
+                                				}
+                                				else{
+                                					delete event.object;
+                                					delete event.target;
+                                					page.local.newUsersOrGroups.push(event);
+                                				}
+                                			}
+                                		} catch (e) {
+                                		} finally {
+                                			return;
+                                		}
+                                '
+                    ↓Event2 [ngx.components.UIControlEvent-1733328405699]: 
+                      attrName: (ngxTagInputRemoved)
+                      eventName: ngxTagInputRemoved
+                      ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1733419229665]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		try {
+                                			delete event.object;
+                                			delete event.target;
+                                			page.local.newUsersOrGroups.forEach((x, index)=>{ 
+                                				// search if each key of x has same value in event
+                                				let found = true;
+                                				Object.keys(event).forEach((key) => {
+                                					if (x[key] != event[key]) {
+                                						found = false;
+                                					}
+                                				});
+                                				if (found) {
+                                					page.local.newUsersOrGroups.splice(index, 1);
+                                				}
+                                				return;
+                                			});
+                                		} catch (e) {
+                                		} finally {
+                                			return;
+                                		}
+                    ↓Event3 [ngx.components.UIControlEvent-1733328405701]: 
+                      attrName: (ngxTagInputSelected)
+                      eventName: ngxTagInputSelected
+                    ↓Event4 [ngx.components.UIControlEvent-1733328405703]: 
+                      attrName: (ngxTagInputFocused)
+                      eventName: ngxTagInputFocused
+                    ↓Event5 [ngx.components.UIControlEvent-1733328405705]: 
+                      attrName: (ngxTagInputBlured)
+                      eventName: ngxTagInputBlured
+                    ↓Event6 [ngx.components.UIControlEvent-1733328405707]: 
+                      attrName: (ngxTagInputChanged)
+                      eventName: ngxTagInputChanged
+                    ↓Event7 [ngx.components.UIControlEvent-1733328405709]: 
+                      attrName: (ngxTagInputPasted)
+                      eventName: ngxTagInputPasted
+                    ↓Event8 [ngx.components.UIControlEvent-1733328405711]: 
+                      attrName: (ngxTagInputValidationError)
+                      eventName: ngxTagInputValidationError
+                    ↓Event9 [ngx.components.UIControlEvent-1733328405713]: 
+                      attrName: (ngxTagInputNgModelChange)
+                      eventName: ngxTagInputNgModelChange
+                    ↓addTagText [ngx.components.UIUseVariable-1768300333786]: 
+                      varValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.translate.instant('add_user2')
+                ↓DivCsvImportButton [ngx.components.UIDynamicElement-1769402100004]: 
+                  beanData: '{"ionBean":"DivTag"}'
+                  tagName: div
+                  ↓Style [ngx.components.UIStyle-1769402100005]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            display:flex;
+                            align-items:center;
+                            
+                  ↓Tag [ngx.components.UIElement-1769402100006]: 
+                    selfClose: true
+                    tagName: input
+                    ↓Attr [ngx.components.UIAttribute-1769402100007]: 
+                      attrName: type
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:file
+                    ↓Attr1 [ngx.components.UIAttribute-1769402100008]: 
+                      attrName: accept
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:.csv,text/csv
+                    ↓Style [ngx.components.UIStyle-1769402100009]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'display: none;
+                              '
+                    ↓Attr2 [ngx.components.UIAttribute-1769402100019]: 
+                      attrName: '[attr.id]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:manageAccessCsvShareInput
+                    ↓Event [ngx.components.UIControlEvent-1769402100010]: 
+                      attrName: (change)
+                      eventName: (change)
+                      ↓ImportUsersCsv [ngx.components.UICustomAsyncAction-1769402100011]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		try {
+                                			await page.importUsersFromCsv(event);
+                                		} catch (e) {
+                                		} finally {
+                                			return;
+                                		}
+                                
+                  ↓Button [ngx.components.UIDynamicElement-1769402100012]: 
+                    beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                    tagName: ion-button
+                    ↓Event [ngx.components.UIControlEvent-1769402100013]: 
+                      ↓CustomAction [ngx.components.UICustomAction-1769402100014]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                		document.getElementById(vars.id).click();
+                                		resolve();
+                        ↓id [ngx.components.UIControlVariable-1769402100015]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:manageAccessCsvShareInput
+                    ↓Attr1 [ngx.components.UIAttribute-1769185644449]: 
+                      attrName: '[matTooltip]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:'import_file_csv' | translate
+                    ↓Icon [ngx.components.UIDynamicElement-1769185657663]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IconName": "plain:arrow-up-outline",
+                         "IconSlot": "plain:icon-only"
+                        }'
+                      tagName: ion-icon
+                      ↓Style [ngx.components.UIStyle-1769185657666]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                'color: var(--ion-color-greenCsv);
+                                '
+                    ↓Icon1 [ngx.components.UIDynamicElement-1769185657669]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IconName": "plain",
+                         "IconSlot": "plain:icon-only",
+                         "IconSource": "plain:assets\/images\/svg\/icon\/csv.svg"
+                        }'
+                      tagName: ion-icon
+                      ↓Style [ngx.components.UIStyle-1769185657672]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                'color: var(--ion-color-greenCsv);
+                                '
               ↓Style [ngx.components.UIStyle-1706109405603]: 
                 styleContent: 
                   - xmlizable: 
@@ -1654,11 +2060,9 @@ title: Title for ManageAccessRights
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
                         '	display: block !important;
-                        
                         	.ng2-tag-input {
                         		border-bottom: unset !important;
                         	}
-                        
                         	box-shadow: inset 0 -1px 0 0 var(--ion-color-greyButton) !important;
                         	border-bottom-color: var(--ion-color-greyButton);
                         	margin:0 !important;
@@ -1820,8 +2224,6 @@ title: Title for ManageAccessRights
                             	.label{
                             		opacity:1 !important;
                             	}
-                            
-                            
                   ↓Attr [ngx.components.UIAttribute-1706109405690]: 
                     attrName: 
                     attrValue: 
@@ -1836,7 +2238,6 @@ title: Title for ManageAccessRights
                           →: |
                             	padding-left:0 !important;
                             	margin-left:0 !important;
-                            
             ↓Directive [ngx.components.UIControlDirective-1706109405696]: 
               directiveName: If
               directiveSource: 
@@ -1895,7 +2296,6 @@ title: Title for ManageAccessRights
                             		margin-top: 0px !important;
                             		margin-bottom: 0px !important;
                             	}
-                            
                             	padding-left:0 !important;
                             	padding-right:0 !important;
                             	margin-right:0 !important;
@@ -2022,11 +2422,9 @@ title: Title for ManageAccessRights
                               		try {
                               			page.local.emailBody = event.editor.getContent();
                               		} catch (e) {
-                              		
                               		} finally {
                               			return;
                               		}
-                              
                 ↓Attr2 [ngx.components.UIAttribute-1706109405789]: 
                   attrName: '[ngClass]'
                   attrValue: 
@@ -2042,7 +2440,6 @@ title: Title for ManageAccessRights
                           	padding-left:16px !important;
                           	margin-left:0 !important;
                           	margin-right:0 !important;
-                          
             ↓Tag2 [ngx.components.UIElement-1706109405795]: 
               identifier: ElseBlock_1613473667506
               tagName: ng-template
@@ -2455,8 +2852,6 @@ title: Title for ManageAccessRights
                                 			this.local.grp.push(this.local.existingGrpsOrUsersArray[vars.index])
                                 			this.local.existingGrpsOrUsersArray.splice(vars.index, 1);
                                 			this.refreshFilteredGrp();
-                                			
-                                
                         ↓item [ngx.components.UIControlVariable-1706109406017]: 
                           varValue: 
                             - xmlizable: 
@@ -2703,7 +3098,6 @@ title: Title for ManageAccessRights
                               →: |
                                 		    this.local.revoke_invit.push(this.local.invite_new[vars.index]);
                                 			this.local.invite_new.splice(vars.index, 1);
-                                
                         ↓item [ngx.components.UIControlVariable-1733396093742]: 
                           varValue: 
                             - xmlizable: 
@@ -2719,9 +3113,7 @@ title: Title for ManageAccessRights
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      	margin-left:46px;
-                      
+                    →: 	margin-left:46px;
         ↓DivFlexLink [ngx.components.UIDynamicElement-1706110119765]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -2776,10 +3168,7 @@ title: Title for ManageAccessRights
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          margin:0 !important;
-                          
-                          
+                        →: margin:0 !important;
                 ↓Text [ngx.components.UIText-1706110190986]: 
                   i18n: true
                   textValue: 
@@ -2914,11 +3303,9 @@ title: Title for ManageAccessRights
                               		try {
                               			window.open(this.local.linkAuth, "_blank");
                               		} catch (e) {
-                              		
                               		} finally {
                               			return;
                               		}
-                              
             ↓DivLinkAndQR [ngx.components.UIDynamicElement-1706110363419]: 
               beanData: '{"ionBean":"DivTag"}'
               tagName: div
@@ -3085,10 +3472,7 @@ title: Title for ManageAccessRights
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          margin:0 !important;
-                          
-                          
+                        →: margin:0 !important;
                 ↓Text [ngx.components.UIText-1706175050845]: 
                   i18n: true
                   textValue: 
@@ -3229,7 +3613,6 @@ title: Title for ManageAccessRights
                                     				this.local.form.sharedAnonymous = !this.local.form.sharedAnonymous;
                                     				page.ref.detectChanges();
                                     			})
-                                    			
                                     		}
                                     '
                             ↓Close_Loading [ngx.components.UIDynamicAction-1706180384880]: 
@@ -3349,11 +3732,9 @@ title: Title for ManageAccessRights
                               		try {
                               			window.open(this.local.linkAnno, "_blank");
                               		} catch (e) {
-                              		
                               		} finally {
                               			return;
                               		}
-                              
             ↓DivLinkAndQR [ngx.components.UIDynamicElement-1706175050920]: 
               beanData: '{"ionBean":"DivTag"}'
               tagName: div
@@ -3732,11 +4113,9 @@ title: Title for ManageAccessRights
                           				}	
                           			}
                           		} catch (e) {
-                          		
                           		} finally {
                           			return toast;
                           		}
-                          
                   ↓If [ngx.components.UIDynamicAction-1750255652449]: 
                     beanData: '{"ionBean":"IfAction"}'
                     ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1750255652452]: 
@@ -13014,7 +13393,6 @@ title: Title for ManageAccessRights
               				}
               				console.log(page.local.form)
               			}
-              			
               		} catch (e) {
               			page.local.errored = true;
               		} finally {
@@ -13034,11 +13412,9 @@ title: Title for ManageAccessRights
             		try {
             			document.getElementById("brevo-conversations").style.visibility = "hidden";
             		} catch (e) {
-            		
             		} finally {
             			return;
             		}
-            
 ↓Footer [ngx.components.UIDynamicElement-1591882841524]: 
   beanData: '{"ionBean":"Footer"}'
   isEnabled: false
@@ -13111,7 +13487,6 @@ title: Title for ManageAccessRights
                       					let resp = await page.c8o.callJsonObject("C8Oforms.APIV2_setOwnerShip", {
                       						id: page.navParams.data.existingGrps._id,
                       						owner : this.local.usersChoosen?.[0]?.value
-                      									
                       					}).async();
                       					if(resp?.res?.done === true){
                       						page.presentToast(page.translate.instant("success_transfer", {user: (this.local.usersChoosen?.[0]?.display ?? "")}), "toastSuccess", "bottom", 3000, true);
@@ -13123,7 +13498,6 @@ title: Title for ManageAccessRights
                       				else{
                       					close = false;
                       				}
-                      				
                       			}
                       			else{
                       				close = false;
@@ -13165,10 +13539,8 @@ title: Title for ManageAccessRights
                         					sendNotif: page.local.notif,
                         					revoke_invit: page.local.revoke_invit,
                         				})
-                        				
                         			}).async();
                         		} catch (e) {
-                        		
                         		} finally {
                         			return;
                         		}
@@ -13186,8 +13558,6 @@ title: Title for ManageAccessRights
             		try {
             			document.getElementById("brevo-conversations").style.visibility = "visible";
             		} catch (e) {
-            		
             		} finally {
             			return;
             		}
-            

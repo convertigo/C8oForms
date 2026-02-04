@@ -84,6 +84,8 @@ For more technical informations : [documentation](./project.md)
     - [APIV2_getOwnerShip](#apiv2_getownership)
     - [APIV2_getPWA](#apiv2_getpwa)
     - [APIV2_getResponses](#apiv2_getresponses)
+    - [APIV2_getSharedInviteesStats](#apiv2_getsharedinviteesstats)
+    - [APIV2_getUsersByIds](#apiv2_getusersbyids)
     - [APIV2_mapper_redirect](#apiv2_mapper_redirect)
     - [APIV2_NotifyUsersSharing](#apiv2_notifyuserssharing)
     - [APIV2_OverrideUserSettings](#apiv2_overrideusersettings)
@@ -1423,6 +1425,39 @@ Retrieves paginated responses with filtering, formatting and attachments.
 </tr>
 <tr>
 <td>version</td><td>Version string applied to the project or document.</td>
+</tr>
+</table>
+### APIV2_getSharedInviteesStats
+
+Shared invitees stats.
+Aggregates invitees, group members, respondents and reminder links for a form version.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>formId</td><td>Identifier of the form document.</td>
+</tr>
+<tr>
+<td>version</td><td>Form version used to read respondents.</td>
+</tr>
+</table>
+### APIV2_getUsersByIds
+
+Get users by ids.
+Fetches user documents by id to return display metadata.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>ids</td><td>JSON array of user ids to fetch.</td>
 </tr>
 </table>
 ### APIV2_mapper_redirect

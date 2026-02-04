@@ -41,6 +41,11 @@ accessibility: Private
 - Avoid trailing spaces in these blocks.
 - Inside `FormatedContent` blocks, indent the script exactly like the converter produces: two leading spaces before the opening quote, tab-indented Rhino code (`'\t…`), and a closing line containing the quote alone. Any deviation (missing quote, extra spaces, wrong indentation) will make `YamlConverter` fail with a `no match` exception.
 
+### Common YAML Failure Modes
+
+- **Mis-indented beans under SmartType lists:** After a `directiveSource` / `attrValue` list (e.g., `- MobileSmartSourceType: ...`), the next bean (`↓Something`) must align with the parent directive. If it is indented under the list, it becomes part of the list and the import fails (`no match`).
+- **Unquoted `FormatedContent` blocks:** For `actionValue` / `styleContent` / any `FormatedContent` `→: |`, the first content line must start with a single quote and the block must end with a line containing only `'`. Missing either quote breaks the import.
+
 ## 3. JavaScript / Rhino Inside Sequences
 
 When writing JS inside sequences:
