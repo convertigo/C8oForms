@@ -1557,22 +1557,29 @@ scriptContent:
         		let obj = [];
         		objB = this.formsList;
         		objB.forEach((item) => {
-        			if (item["type"] == "ion-card") {
-        				obj.push(item["name"]);
-        			}
-        			else {
-        				obj.push(item["name"]);
+        			const name = item != null ? item["name"] : null;
+        			if (typeof name == "string" && name !== "") {
+        				obj.push(name);
         			}
         		});
         		if (this.form.actions != undefined) {
         			this.form.actions.forEach((item) => {
-        				obj.push(item["name"]);
+        				const name = item != null ? item["name"] : null;
+        				if (typeof name == "string" && name !== "") {
+        					obj.push(name);
+        				}
         			})
         		}
         		if (this.form.flows != undefined) {
         			this.form.flows.forEach((flow) => {
+        				if (flow == null || !Array.isArray(flow.elements)) {
+        					return;
+        				}
         				flow.elements.forEach((item) => {
-        					obj.push(item["name"]);
+        					const name = item != null ? item["name"] : null;
+        					if (typeof name == "string" && name !== "") {
+        						obj.push(name);
+        					}
         				})
         			})
         		}
@@ -1581,16 +1588,20 @@ scriptContent:
         
         	getlocalNumbersSorted2(item, localNumbers, defaultlabel) {
         		for (let i in item) {
-        			if (item[i].indexOf(defaultlabel) != -1) {
+        			const value = item[i];
+        			if (typeof value != "string") {
+        				continue;
+        			}
+        			if (value.indexOf(defaultlabel) != -1) {
         				let whil = true;
         				let cpt = 0;
         				while (whil) {
-        					whil = this.checkStringIsANumber(item[i], cpt + 1);
+        					whil = this.checkStringIsANumber(value, cpt + 1);
         					cpt++;
         				}
         				cpt--;
         				if (cpt != 0) {
-        					localNumbers[i] = +item[i].substring(item[i].length - cpt);
+        					localNumbers[i] = +value.substring(value.length - cpt);
         				}
         			}
         		}
@@ -3808,9 +3819,30 @@ scriptContent:
         		}
         	}
         	public async tsMonacoto$$(memberExpressions, splitted, prefixAndSuffix = true) {
+        		let pathPrefix = splitted[0];
+        		if (pathPrefix == "api") {
+        			const apiPath = splitted.join(".");
+        			let apiName = splitted[splitted.length - 1] || null;
+        			if (apiName != null && apiName.indexOf("(") != -1) {
+        				apiName = apiName.split("(")[0];
+        			}
+        			const obj: any = {
+        				"c8otype": "path",
+        				"c8opath": apiPath,
+        				"c8oPrettyPath": null,
+        				"c8obuiltin": null,
+        				"fakeId": "${uniqueId}",
+        				"c8oName": apiName
+        			};
+        			if (prefixAndSuffix) {
+        				return `$$START1${JSON.stringify(obj)}END1$$`;
+        			}
+        			else {
+        				return obj;
+        			}
+        		}
         		let c8obuiltin = false;
         		let id = this.getElementIdByName(splitted[1]);
-        		let pathPrefix = splitted[0];
         		let splittedSliced = splitted.slice(1);
         		let elem = this.getElementById(id);
         		let struct = await this.searchCompletionWithElem(elem, false, false);
@@ -3877,10 +3909,10 @@ scriptContent:
         			walk.simple(ast, {
         				MemberExpression(node: any) {
         					const start = node.start;
-        					if (
-        						node.object.type === ''Identifier'' &&
-        						(node.object.name === ''fields'' || node.object.name === ''actions'')
-        					) {
+        				if (
+        					node.object.type === ''Identifier'' &&
+        					(node.object.name === ''fields'' || node.object.name === ''actions'' || node.object.name === ''api'')
+        				) {
         						memberExpressions[start] = node;
         					}
         					else if (memberExpressions[start] !== undefined) {
@@ -4348,6 +4380,749 @@ scriptContent:
         		let time = new Date().getTime();
         		let glob_index = 0;
         		let page = this;
+        		let actionVarsCache = null;
+        		const getNameToIdMap = () => {
+        			if (actionVarsCache != null) {
+        				return actionVarsCache;
+        			}
+        			const map: any = {};
+        			try {
+        				if (Array.isArray(this.formsList)) {
+        					for (let item of this.formsList) {
+        						if ((item as any)?.name != null && (item as any)?.id != null) {
+        							map[(item as any).name] = (item as any).id;
+        						}
+        					}
+        				}
+        			}
+        			catch (e) {
+        			}
+        			actionVarsCache = map;
+        			return map;
+        		};
+        		const buildC8oToken = (id, c8opath = "", c8oName = null) => {
+        			const meta = {
+        				c8otype: "path",
+        				c8opath: c8opath == null ? "" : c8opath,
+        				c8oPrettyPath: null,
+        				c8obuiltin: null,
+        				fakeId: "${uniqueId}",
+        				c8oName: c8oName
+        			};
+        			return `$$START${id}${JSON.stringify(meta)}END${id}$$`;
+        		};
+        		const resolvePlaceholderToken = (rawToken, nameToId) => {
+        			const token = (rawToken || "").trim();
+        			if (!token) {
+        				return null;
+        			}
+        			if (token.startsWith("api.") || token.startsWith("await api.")) {
+        				let apiPath = token;
+        				if (apiPath.startsWith("await ")) {
+        					apiPath = apiPath.substring(6).trim();
+        				}
+        				let apiName = apiPath.split(".").slice(-1)[0] || null;
+        				if (apiName != null && apiName.indexOf("(") != -1) {
+        					apiName = apiName.split("(")[0];
+        				}
+        				return buildC8oToken(1, apiPath, apiName);
+        			}
+        			let cleaned = token;
+        			if (cleaned.startsWith("fields.")) {
+        				cleaned = cleaned.substring(7);
+        			}
+        			if (cleaned.startsWith("field.")) {
+        				cleaned = cleaned.substring(6);
+        			}
+        			const id = nameToId[cleaned];
+        			if (id != null) {
+        				return buildC8oToken(id, "", null);
+        			}
+        			return null;
+        		};
+        		const replaceVarsPlaceholders = (value) => {
+        			if (typeof value != "string" || value.indexOf("{{") == -1) {
+        				return value;
+        			}
+        			const nameToId = getNameToIdMap();
+        			return value.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, raw) => {
+        				const resolved = resolvePlaceholderToken(raw, nameToId);
+        				return resolved != null ? resolved : match;
+        			});
+        		};
+        		const replaceHtmlPlaceholders = (value) => {
+        			if (typeof value != "string" || value.indexOf("{{") == -1) {
+        				return value;
+        			}
+        			const nameToId = getNameToIdMap();
+        			return value.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, raw) => {
+        				const resolved = resolvePlaceholderToken(raw, nameToId);
+        				return resolved != null ? `<span>${resolved}</span>` : match;
+        			});
+        		};
+        		const normalizeActionVars = (actions) => {
+        			if (actions == null || typeof actions != "object") {
+        				return actions;
+        			}
+        			try {
+        				Object.keys(actions).forEach((seqKey) => {
+        					const seq = actions[seqKey];
+        					if (seq == null || typeof seq != "object") {
+        						return;
+        					}
+        					const vars = seq.vars;
+        					if (vars != null && typeof vars == "object") {
+        						Object.keys(vars).forEach((varName) => {
+        							const val = vars[varName];
+        							if (typeof val == "string") {
+        								vars[varName] = { str: replaceVarsPlaceholders(val), html: false };
+        							}
+        							else if (val != null && typeof val == "object") {
+        								if (typeof val.str == "string") {
+        									val.str = replaceVarsPlaceholders(val.str);
+        								}
+        								if (val.html == null) {
+        									val.html = false;
+        								}
+        							}
+        						});
+        					}
+        				});
+        			}
+        			catch (e) {
+        			}
+        			return actions;
+        		};
+        		const normalizeType = (type) => {
+        			if (type == null) {
+        				return type;
+        			}
+        			switch (type) {
+        				case "camera":
+        					return "img";
+        				case "date":
+        				case "date_range":
+        				case "datetime":
+        					return "datetime";
+        				case "multiple_choice":
+        					return "checkbox";
+        				default:
+        					return type;
+        			}
+        		};
+        		const applyOverrides = (obj, field) => {
+        			if (obj == null || field == null) {
+        				return;
+        			}
+        			if (field.config != null && obj.config != null) {
+        				Object.keys(field.config).forEach((key) => {
+        					obj.config[key] = field.config[key];
+        				});
+        			}
+        			if (field.sources != null && obj.sources != null) {
+        				Object.keys(field.sources).forEach((key) => {
+        					obj.sources[key] = field.sources[key];
+        				});
+        			}
+        			if (field.actions != null && obj.actions != null) {
+        				Object.keys(field.actions).forEach((key) => {
+        					obj.actions[key] = field.actions[key];
+        				});
+        			}
+        			if (field.children != null && obj.children != null) {
+        				obj.children = field.children;
+        			}
+        			if (field.lines != null && obj.lines != null) {
+        				obj.lines = field.lines;
+        			}
+        		};
+        		const applyActionExtras = (obj, action, actionType) => {
+        			if (obj == null || action == null) {
+        				return;
+        			}
+        			if (actionType == "toast" && action.message != undefined && obj.sources?.self?.vars?.selfVar != undefined) {
+        				obj.sources.self.vars.selfVar.str = action.message;
+        			}
+        			if (actionType == "business_logic" && action.expression != undefined && obj.sources?.self?.vars?.selfVar != undefined) {
+        				obj.sources.self.vars.selfVar.str = action.expression;
+        				obj.sources.self.vars.selfVar.type = "ts";
+        			}
+        			if (action.targetGrid != undefined && obj.config != undefined) {
+        				obj.config.targetGrid = action.targetGrid;
+        			}
+        			if (actionType == "push_page" && action.targetPage != undefined && obj.config != undefined) {
+        				obj.config.targetPage = action.targetPage;
+        			}
+        			if (actionType == "push_app" && obj.config != undefined) {
+        				if (action.targetApp != undefined) {
+        					obj.config.targetApp = action.targetApp;
+        				}
+        				if (action.targetAppName != undefined) {
+        					obj.config.targetAppName = action.targetAppName;
+        				}
+        			}
+        			if (action.actions != undefined && obj.actions != undefined) {
+        				obj.actions = normalizeActionVars(action.actions);
+        			}
+        		};
+        		const ensureActions = () => {
+        			if (this.form.actions == undefined) {
+        				this.form.actions = [];
+        			}
+        		};
+        		const ensureFlows = () => {
+        			if (this.form.flows == undefined) {
+        				this.form.flows = [];
+        			}
+        		};
+        		const addToActions = (obj) => {
+        			ensureActions();
+        			this.form.actions.push(obj);
+        		};
+        		const getFlow = (flowRef) => {
+        			ensureFlows();
+        			let flow = null;
+        			if (flowRef != null && this.form.flows != undefined) {
+        				flow = this.form.flows.find((f) => f.id == flowRef || f.name == flowRef);
+        			}
+        			if (flow == null) {
+        				if (flowRef != null && flowRef !== "") {
+        					flow = { id: flowRef, elements: [] };
+        					if (flowRef != "formulas" && flowRef != "submit") {
+        						flow.name = flowRef;
+        					}
+        				} else {
+        					flow = { id: "flow_ai_" + (time++), name: "AI Flow", elements: [] };
+        				}
+        				this.form.flows.push(flow);
+        			}
+        			if (flow.elements == undefined) {
+        				flow.elements = [];
+        			}
+        			return flow;
+        		};
+        		const addToFlow = (obj, flowRef) => {
+        			let flow = getFlow(flowRef);
+        			flow.elements.push(obj);
+        		};
+        		const normalizeBusinessLogicObj = (obj) => {
+        			if (obj == null || obj.type != "business_logic") {
+        				return;
+        			}
+        			const promoteIdNameFromSources = () => {
+        				if (obj.sources == null || typeof obj.sources != "object") {
+        					return;
+        				}
+        				const toNumberIfNumeric = (v) => {
+        					if (typeof v == "number") {
+        						return v;
+        					}
+        					if (typeof v == "string" && /^[0-9]+$/.test(v)) {
+        						try {
+        							return +v;
+        						}
+        						catch (e) {
+        							return v;
+        						}
+        					}
+        					return v;
+        				};
+        				if (obj.id == null && obj.sources.id != null) {
+        					obj.id = toNumberIfNumeric(obj.sources.id);
+        				}
+        				if ((obj.name == null || obj.name === "") && obj.sources.name != null) {
+        					obj.name = "" + obj.sources.name;
+        				}
+        				try { delete obj.sources.id; } catch (e) {}
+        				try { delete obj.sources.name; } catch (e) {}
+        				const selfVarCandidate = obj.sources?.self?.vars?.selfVar;
+        				if (selfVarCandidate != null && typeof selfVarCandidate == "object") {
+        					if (obj.id == null && selfVarCandidate.id != null) {
+        						obj.id = toNumberIfNumeric(selfVarCandidate.id);
+        					}
+        					if ((obj.name == null || obj.name === "") && selfVarCandidate.name != null) {
+        						obj.name = "" + selfVarCandidate.name;
+        					}
+        					try { delete selfVarCandidate.id; } catch (e) {}
+        					try { delete selfVarCandidate.name; } catch (e) {}
+        				}
+        			};
+        			promoteIdNameFromSources();
+        			if (obj.cat == null) {
+        				obj.cat = "action";
+        			}
+        			if (obj.sources == null || typeof obj.sources != "object") {
+        				obj.sources = {};
+        			}
+        			if (obj.sources.self == null || typeof obj.sources.self != "object") {
+        				obj.sources.self = { enabled: true, vars: {} };
+        			}
+        			if (obj.sources.self.vars == null || typeof obj.sources.self.vars != "object") {
+        				obj.sources.self.vars = {};
+        			}
+        			let selfVar = obj.sources.self.vars.selfVar;
+        			if (typeof selfVar == "string") {
+        				selfVar = { str: selfVar, type: "ts" };
+        				obj.sources.self.vars.selfVar = selfVar;
+        			}
+        			else if (selfVar == null) {
+        				selfVar = { str: "", type: "ts" };
+        				obj.sources.self.vars.selfVar = selfVar;
+        			}
+        			else if (typeof selfVar != "object") {
+        				selfVar = { str: "" + selfVar, type: "ts" };
+        				obj.sources.self.vars.selfVar = selfVar;
+        			}
+        			if (typeof selfVar.str != "string") {
+        				if (typeof selfVar.value == "string") {
+        					selfVar.str = selfVar.value;
+        				}
+        				else if (selfVar.str == null) {
+        					selfVar.str = "";
+        				}
+        				else {
+        					selfVar.str = "" + selfVar.str;
+        				}
+        			}
+        			if (typeof obj.expression == "string" && selfVar.str.trim() === "") {
+        				selfVar.str = obj.expression;
+        			}
+        			selfVar.type = "ts";
+        			if (selfVar.html == null) {
+        				selfVar.html = false;
+        			}
+        			if (obj.config == null || typeof obj.config != "object") {
+        				obj.config = {};
+        			}
+        			obj.config.page = "formulas";
+        			if (obj.expression != undefined) {
+        				try { delete obj.expression; } catch (e) {}
+        			}
+        		};
+        		const isConfigOnlyElement = (elem) => {
+        			if (elem == null || typeof elem != "object") {
+        				return false;
+        			}
+        			if (elem.type != undefined || elem.cat != undefined) {
+        				return false;
+        			}
+        			if (elem.config == null || typeof elem.config != "object") {
+        				return false;
+        			}
+        			const keys = Object.keys(elem);
+        			return (keys.length == 1 || (keys.length == 2 && elem.id != undefined) || (keys.length == 3 && elem.id != undefined && elem.name != undefined));
+        		};
+        		const cleanupFlowElements = (flow) => {
+        			if (flow == null || !Array.isArray(flow.elements)) {
+        				return;
+        			}
+        			const cleaned = [];
+        			for (let i = 0; i < flow.elements.length; i++) {
+        				const elem = flow.elements[i];
+        				if (elem == null || typeof elem != "object") {
+        					continue;
+        				}
+        				if (isConfigOnlyElement(elem)) {
+        					let prev = cleaned.length > 0 ? cleaned[cleaned.length - 1] : null;
+        					if (prev != null && prev.type == "business_logic") {
+        						if (prev.config == null || typeof prev.config != "object") {
+        							prev.config = {};
+        						}
+        						try {
+        							Object.assign(prev.config, elem.config);
+        						}
+        						catch (e) {}
+        						if (prev.id == null && elem.id != null) {
+        							if (typeof elem.id == "string" && /^[0-9]+$/.test(elem.id)) {
+        								try {
+        									prev.id = +elem.id;
+        								}
+        								catch (e) {
+        									prev.id = elem.id;
+        								}
+        							}
+        							else {
+        								prev.id = elem.id;
+        							}
+        						}
+        						if ((prev.name == null || prev.name === "") && elem.name != null) {
+        							prev.name = "" + elem.name;
+        						}
+        						normalizeBusinessLogicObj(prev);
+        					}
+        					continue;
+        				}
+        				cleaned.push(elem);
+        			}
+        			flow.elements = cleaned;
+        		};
+        		const repairBrokenUnicode = (value) => {
+        			if (value == null) {
+        				return value;
+        			}
+        			if (typeof value == "string") {
+        				return value.replace(/\u0000([0-9a-fA-F]{2})/g, (match, hex) => {
+        					try {
+        						return String.fromCharCode(parseInt(hex, 16));
+        					}
+        					catch (e) {
+        						return match;
+        					}
+        				});
+        			}
+        			if (Array.isArray(value)) {
+        				for (let i = 0; i < value.length; i++) {
+        					value[i] = repairBrokenUnicode(value[i]);
+        				}
+        				return value;
+        			}
+        			if (typeof value == "object") {
+        				Object.keys(value).forEach((k) => {
+        					value[k] = repairBrokenUnicode(value[k]);
+        				});
+        				return value;
+        			}
+        			return value;
+        		};
+        		const normalizeGeneratedStructure = () => {
+        			ensureFlows();
+        			const formulasFlow = getFlow("formulas");
+        			if (!Array.isArray(formulasFlow.elements)) {
+        				formulasFlow.elements = [];
+        			}
+        			for (let i = 0; i < formulasFlow.elements.length; i++) {
+        				normalizeBusinessLogicObj(formulasFlow.elements[i]);
+        			}
+        			cleanupFlowElements(formulasFlow);
+        			if (Array.isArray(this.form.actions)) {
+        				const keptActions = [];
+        				for (let i = 0; i < this.form.actions.length; i++) {
+        					const action = this.form.actions[i];
+        					if (action != null && action.type == "business_logic") {
+        						normalizeBusinessLogicObj(action);
+        						formulasFlow.elements.push(action);
+        					}
+        					else {
+        						keptActions.push(action);
+        					}
+        				}
+        				this.form.actions = keptActions;
+        			}
+        			if (Array.isArray(this.form.flows)) {
+        				for (let i = 0; i < this.form.flows.length; i++) {
+        					const flow = this.form.flows[i];
+        					if (flow == null || flow == formulasFlow) {
+        						continue;
+        					}
+        					if (!Array.isArray(flow.elements)) {
+        						flow.elements = [];
+        						continue;
+        					}
+        					const keptElements = [];
+        					for (let j = 0; j < flow.elements.length; j++) {
+        						const elem = flow.elements[j];
+        						if (elem != null && elem.type == "business_logic") {
+        							normalizeBusinessLogicObj(elem);
+        							formulasFlow.elements.push(elem);
+        						}
+        						else {
+        							keptElements.push(elem);
+        						}
+        					}
+        					flow.elements = keptElements;
+        					cleanupFlowElements(flow);
+        				}
+        			}
+        			cleanupFlowElements(formulasFlow);
+        			if (Array.isArray(this.form.formulaire)) {
+        				const byId = {};
+        				for (let i = 0; i < this.form.formulaire.length; i++) {
+        					const formElt = this.form.formulaire[i];
+        					if (formElt != null && formElt.id != null) {
+        						byId["" + formElt.id] = formElt;
+        					}
+        				}
+        				for (let i = 0; i < this.form.formulaire.length; i++) {
+        					const parentElt = this.form.formulaire[i];
+        					if (parentElt == null || !Array.isArray(parentElt.childrenRefs)) {
+        						continue;
+        					}
+        					for (let j = 0; j < parentElt.childrenRefs.length; j++) {
+        						const childId = parentElt.childrenRefs[j];
+        						const childElt = byId["" + childId];
+        						if (childElt != null) {
+        							childElt.parentRef = parentElt.id;
+        						}
+        					}
+        				}
+        			}
+        			this.form = repairBrokenUnicode(this.form);
+        		};
+        		const cleanupAllFlows = () => {
+        			ensureFlows();
+        			if (!Array.isArray(this.form.flows)) {
+        				return;
+        			}
+        			for (let i = 0; i < this.form.flows.length; i++) {
+        				let flow = this.form.flows[i];
+        				cleanupFlowElements(flow);
+        			}
+        		};
+        		const repairBusinessLogicScripts = () => {
+        			ensureFlows();
+        			if (!Array.isArray(this.form.flows)) {
+        				return;
+        			}
+        			for (let i = 0; i < this.form.flows.length; i++) {
+        				let flow = this.form.flows[i];
+        				if (flow == null || !Array.isArray(flow.elements)) {
+        					continue;
+        				}
+        				for (let j = 0; j < flow.elements.length; j++) {
+        					let elem = flow.elements[j];
+        					if (elem == null || elem.type != "business_logic") {
+        						continue;
+        					}
+        					normalizeBusinessLogicObj(elem);
+        					try {
+        						if (elem.sources?.self?.vars?.selfVar?.str != null) {
+        							elem.sources.self.vars.selfVar.str = repairBrokenUnicode(elem.sources.self.vars.selfVar.str);
+        						}
+        					}
+        					catch (e) {}
+        				}
+        			}
+        		};
+        		const buttonFlowRefs = new Set();
+        		const buildField = (field, currentPage, options: any = {}) => {
+        			if (field == null || field.type == null) {
+        				return null;
+        			}
+        			const allowActions = options.allowActions !== false;
+        			const fieldType = normalizeType(field.type);
+        			if (!allowActions) {
+        				switch (fieldType) {
+        					case "business_logic":
+        					case "toast":
+        					case "push_page":
+        					case "push_app":
+        					case "add_row_to_local_grid":
+        					case "remove_row_from_local_grid":
+        					case "refresh_grid":
+        					case "submit":
+        					case "if_else":
+        					case "for_loop":
+        						console.warn(`[generateFromAiJson] layout child ${fieldType} ignored`);
+        						return null;
+        				}
+        			}
+        			let obj = null;
+        			switch (fieldType) {
+        				case "text":
+        				case "textarea":
+        					obj = this.getObjToInsert(fieldType == "textarea" ? "textarea" : "text", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					obj.config.placeholder = field.placeholder;
+        					if (fieldType == "textarea") {
+        						obj.config.short = false;
+        					}
+        					break;
+        				case "signature":
+        					obj = this.getObjToInsert("signature", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					break;
+        				case "img":
+        					obj = this.getObjToInsert("img", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					break;
+        				case "slider":
+        					obj = this.getObjToInsert("slider", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					try {
+        						if (+field.min < +field.max) {
+        							obj.config.min = field.min;
+        							obj.config.max = field.max;
+        						}
+        					}
+        					catch (e) {
+        						obj.config.min = 0;
+        						obj.config.max = 10;
+        					}
+        					obj.config.step = field.step;
+        					break;
+        				case "description":
+        					obj = this.getObjToInsert("description", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					break;
+        				case "radio":
+        				case "checkbox":
+        				case "select":
+        					obj = this.getObjToInsert(fieldType, (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					if (Array.isArray(field.values)) {
+        						obj.children = field.values.map((x) => {
+        							return {
+        								"value": x, "selected": false, "label_color": "#202124", "position": ''unset'', "id": (Math.random() + "").substring(2)
+        							}
+        						});
+        					}
+        					break;
+        				case "location":
+        					obj = this.getObjToInsert("location", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					break;
+        				case "datetime":
+        					obj = this.getObjToInsert("datetime", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					break;
+        				case "time":
+        					obj = this.getObjToInsert("time", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					break;
+        				case "radio_group":
+        				case "checkbox_group":
+        					obj = this.getObjToInsert(fieldType, (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					if (Array.isArray(field.rows)) {
+        						obj.lines = field.rows.map((x) => {
+        							return { "title": x, "value": "", "id": (Math.random() + "").substring(2) }
+        						});
+        					}
+        					let key = null;
+        					if (field.col) {
+        						key = "col";
+        					}
+        					else if (field.columns) {
+        						key = "columns";
+        					}
+        					if (key != null && Array.isArray(field[key])) {
+        						obj.children = field[key].map((x) => {
+        							return { "value": x, "id": (Math.random() + "").substring(2) }
+        						});
+        					}
+        					break;
+        				case "grid":
+        					obj = this.getObjToInsert("grid", (time++), currentPage.pageTechName, field.name);
+        					obj.config.html = replaceHtmlPlaceholders(field.description);
+        					if (Array.isArray(field.columns)) {
+        						obj.config.columns = field.columns;
+        					}
+        					break;
+        				case "chart":
+        				case "map":
+        				case "barcode":
+        				case "file":
+        					obj = this.getObjToInsert(fieldType, (time++), currentPage.pageTechName, field.name);
+        					if (obj.config != null && field.description != null) {
+        						obj.config.html = replaceHtmlPlaceholders(field.description);
+        					}
+        					applyOverrides(obj, field);
+        					break;
+        				case "ion-card":
+        					obj = this.getObjToInsert("ion-card", (time++), currentPage.pageTechName, field.name);
+        					if (field.title != undefined && obj.config?.title != undefined) {
+        						obj.config.title.html = replaceHtmlPlaceholders(field.title);
+        					}
+        					else if (field.description != undefined && obj.config?.title != undefined) {
+        						obj.config.title.html = replaceHtmlPlaceholders(field.description);
+        					}
+        					applyOverrides(obj, field);
+        					if (Array.isArray(field.children)) {
+        						obj.childrenRefs = [];
+        						for (let child of field.children) {
+        							let childObj = buildField(child, currentPage, { allowActions: false });
+        							if (childObj != null) {
+        								childObj.parentRef = obj.id;
+        								this.formsList.push(childObj);
+        								obj.childrenRefs.push(childObj.id);
+        							}
+        						}
+        					}
+        					break;
+        				case "layout":
+        					obj = this.getObjToInsert("layout", (time++), currentPage.pageTechName, field.name);
+        					if (field.cols != undefined) {
+        						obj.config.cols = field.cols;
+        					}
+        					if (field.tablet != undefined) {
+        						obj.config.tablet = field.tablet;
+        					}
+        					if (field.phoneL != undefined) {
+        						obj.config.phoneL = field.phoneL;
+        					}
+        					if (field.phoneP != undefined) {
+        						obj.config.phoneP = field.phoneP;
+        					}
+        					applyOverrides(obj, field);
+        				if (Array.isArray(field.children)) {
+        					obj.childrenRefs = [];
+        					for (let child of field.children) {
+        						let childObj = buildField(child, currentPage, { allowActions: false });
+        						if (childObj != null) {
+        							childObj.parentRef = obj.id;
+        							this.formsList.push(childObj);
+        							obj.childrenRefs.push(childObj.id);
+        						}
+        					}
+        				}
+        					break;
+        				case "button":
+        					ensureFlows();
+        					obj = this.getObjToInsert("button", (time++), currentPage.pageTechName, field.name);
+        					applyOverrides(obj, field);
+        					if (field.flow != undefined) {
+        						buttonFlowRefs.add(field.flow);
+        						if (obj.flow != undefined && this.form.flows != undefined) {
+        							this.form.flows = this.form.flows.filter((f) => f.id != obj.flow);
+        						}
+        						obj.flow = field.flow;
+        						let flow = this.form.flows?.find((f) => f.id == field.flow || f.name == field.flow);
+        						if (flow == null) {
+        							this.form.flows.push({ id: field.flow, name: field.flow, elements: [] });
+        						}
+        					}
+        					break;
+        				case "business_logic":
+        					obj = this.getObjToInsert(fieldType, (time++), currentPage.pageTechName, field.name);
+        					applyOverrides(obj, field);
+        					applyActionExtras(obj, field, fieldType);
+        					normalizeBusinessLogicObj(obj);
+        					addToFlow(obj, "formulas");
+        					obj = null;
+        					break;
+        				case "toast":
+        				case "push_page":
+        				case "push_app":
+        				case "add_row_to_local_grid":
+        				case "remove_row_from_local_grid":
+        				case "refresh_grid":
+        				case "submit":
+        					obj = this.getObjToInsert(fieldType, (time++), currentPage.pageTechName, field.name);
+        					applyActionExtras(obj, field, fieldType);
+        					applyOverrides(obj, field);
+        					addToActions(obj);
+        					obj = null;
+        					break;
+        				case "if_else":
+        				case "for_loop":
+        					if (field.condition == undefined || field.condition === "") {
+        						console.warn(`[generateFromAiJson] ${fieldType} missing condition`);
+        						break;
+        					}
+        					obj = this.getObjToInsert(fieldType, (time++), currentPage.pageTechName, field.name);
+        					if (field.condition != undefined && obj.sources?.self?.vars?.selfVar != undefined) {
+        						obj.sources.self.vars.selfVar.str = field.condition;
+        					}
+        					applyOverrides(obj, field);
+        					addToFlow(obj, field.flow);
+        					obj = null;
+        					break;
+        				default:
+        					console.warn(`[generateFromAiJson] ${fieldType} ignored`);
+        					break;
+        			}
+        			return obj;
+        		};
         		this.form.chatSummary = res.chatSummary;
         		// update forms title
         		if (res.name != undefined && res.name != "") {
@@ -4378,7 +5153,7 @@ scriptContent:
         		}
         		// update forms title
         		if (res.pages != undefined && Array.isArray(res.pages) && res.pages.length > 0) {
-        			for (let [i, page] of res.pages.entries()) {
+        			for (let [i, pageDef] of res.pages.entries()) {
         				if (this.form.pages[i] == undefined) {
         					//create a page if not exists
         					let list = this[''form''][''pages''].map(x => x.name);
@@ -4387,118 +5162,167 @@ scriptContent:
         				}
         				let currentPage = this.form.pages[i];
         				// update page name
-        				currentPage.name = page.name;
+        				currentPage.name = pageDef.name;
         				this.c8o.log.debug(`[generateFromAiJson] page [${i}] name updated`);
         				this.ref.detectChanges();
         
         				// update page desc
-        				currentPage.desc = page.description;
+        				currentPage.desc = replaceHtmlPlaceholders(pageDef.description);
         				this.c8o.log.debug(`[generateFromAiJson] page [${i}] description updated`);
         				this.ref.detectChanges();
         
         				// update page icon
-        				currentPage.iconName = page.ionicIcon;
+        				currentPage.iconName = pageDef.ionicIcon;
         				this.c8o.log.debug(`[generateFromAiJson] page [${i}] icon updated`);
         				//iterrate over each fields of current page
-        				for (let [j, field] of page.fields.entries()) {
-        					let obj = null;
-        					try {
-        						switch (field.type) {
-        							case "text":
-        							case "textarea":
-        								obj = this.getObjToInsert("text", (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								obj.config.placeholder = field.placeholder;
-        								if (field.type == "textarea") {
-        									obj.config.short = false;
-        								}
-        								break;
-        							case "signature":
-        								obj = this.getObjToInsert("signature", (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								break;
-        							case "camera":
-        								obj = this.getObjToInsert("img", (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								break;
-        							case "slider":
-        								obj = this.getObjToInsert("slider", (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								try {
-        									if (+field.min < +field.max) {
-        										obj.config.min = field.min;
-        										obj.config.max = field.max;
-        									}
-        								}
-        								catch (e) {
-        									obj.config.min = 0;
-        									obj.config.max = 10;
-        								}
-        								obj.config.step = field.step;
-        								break;
-        							case "description":
-        								obj = this.getObjToInsert("description", (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								break;
-        							case "radio":
-        							case "checkbox":
-        							case "select":
-        							case "multiple_choice":
-        								if (field.type == "multiple_choice") {
-        									field.type = "checkbox";
-        								}
-        								obj = this.getObjToInsert(field.type, (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								obj.children = field.values.map((x) => {
-        									return {
-        										"value": x, "selected": false, "label_color": "#202124", "position": ''unset'', "id": (Math.random() + "").substring(2)
-        									}
-        								});
-        								break;
-        							case "location":
-        								obj = this.getObjToInsert("location", (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								break;
-        							case "date_range":
-        							case "date":
-        								obj = this.getObjToInsert("datetime", (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								break;
-        							case "radio_group":
-        							case "checkbox_group":
-        								obj = this.getObjToInsert(field.type, (time++), currentPage.pageTechName, field.name);
-        								obj.config.html = field.description;
-        								obj.lines = field.rows.map((x) => {
-        									return { "title": x, "value": "", "id": (Math.random() + "").substring(2) }
-        								});
-        								let key = null;
-        								if (field.col) {
-        									key = "col";
-        								}
-        								else if (field.columns) {
-        									key = "columns";
-        								}
-        								obj.children = field[key].map((x) => {
-        									return { "value": x, "id": (Math.random() + "").substring(2) }
-        								});
-        								break;
-        							default:
-        								console.warn(`[generateFromAiJson] page [${i}] ${field.type} ignored`);
-        								break;
+        				if (pageDef.fields != undefined && Array.isArray(pageDef.fields)) {
+        					for (let [j, field] of pageDef.fields.entries()) {
+        						try {
+        							let obj = buildField(field, currentPage);
+        							if (obj != null) {
+        								this.formsList.push(obj);
+        								this.c8o.log.debug(`[generateFromAiJson] page [${i}] ${field.type} added`);
+        								this.ref.detectChanges();
+        							}
         						}
-        						if (obj != null) {
-        							this.formsList.push(obj);
-        							this.c8o.log.debug(`[generateFromAiJson] page [${i}] ${field.type} added`);
-        							this.ref.detectChanges();
+        						catch (e) {
+        							console.error(`[generateFromAiJson] page [${i}] an error occured while generating ${field.type}, it will be skipped`);
         						}
         					}
-        					catch (e) {
-        						console.error(`[generateFromAiJson] page [${i}] an error occured while generating ${field.type}, it will be skipped`);
-        					}
-        
         				}
         			}
         		}
+        		if (res.actions != undefined && Array.isArray(res.actions) && res.actions.length > 0) {
+        			let defaultPage = this.form.pages?.[0]?.pageTechName ?? this.local.currentPage;
+        			for (let action of res.actions) {
+        				let obj = null;
+        				try {
+        					if (action == null || action.type == null) {
+        						continue;
+        					}
+        					const actionType = normalizeType(action.type);
+        						switch (actionType) {
+        						case "business_logic":
+        							obj = this.getObjToInsert(actionType, (time++), defaultPage, action.name);
+        							applyOverrides(obj, action);
+        							applyActionExtras(obj, action, actionType);
+        							normalizeBusinessLogicObj(obj);
+        							addToFlow(obj, "formulas");
+        							break;
+        							case "toast":
+        							case "push_page":
+        							case "push_app":
+        							case "add_row_to_local_grid":
+        							case "remove_row_from_local_grid":
+        							case "refresh_grid":
+        							case "submit":
+        								obj = this.getObjToInsert(actionType, (time++), defaultPage, action.name);
+        								applyActionExtras(obj, action, actionType);
+        								applyOverrides(obj, action);
+        								addToActions(obj);
+        								break;
+        						case "if_else":
+        						case "for_loop":
+        							if (action.condition == undefined || action.condition === "") {
+        								console.warn(`[generateFromAiJson] action ${actionType} missing condition`);
+        								break;
+        							}
+        							obj = this.getObjToInsert(actionType, (time++), defaultPage, action.name);
+        							if (action.condition != undefined && obj.sources?.self?.vars?.selfVar != undefined) {
+        								obj.sources.self.vars.selfVar.str = action.condition;
+        							}
+        							applyOverrides(obj, action);
+        							addToFlow(obj, action.flow);
+        							break;
+        						default:
+        							console.warn(`[generateFromAiJson] action ${actionType} ignored`);
+        							break;
+        					}
+        				}
+        				catch (e) {
+        					console.error(`[generateFromAiJson] action ${action?.type} failed`, e);
+        				}
+        			}
+        		}
+        		if (res.flows != undefined && Array.isArray(res.flows) && res.flows.length > 0) {
+        			for (let flowDef of res.flows) {
+        				try {
+        					if (flowDef == null) {
+        						continue;
+        					}
+        					ensureFlows();
+        					let flowRef = flowDef.id != undefined ? flowDef.id : flowDef.name;
+        					let hasElements = Array.isArray(flowDef.elements) && flowDef.elements.length > 0;
+        					if (!hasElements && (flowRef == null || !buttonFlowRefs.has(flowRef))) {
+        						continue;
+        					}
+        					let flowId = flowDef.id != undefined ? flowDef.id : (flowDef.name != undefined ? flowDef.name : "flow_ai_" + (time++));
+        					let flowName = flowDef.name != undefined ? flowDef.name : (flowId != undefined ? flowId : "AI Flow");
+        					let flow = this.form.flows.find((f) => f.id == flowId);
+        					if (flow == null) {
+        						flow = { id: flowId, name: flowName, elements: [] };
+        						this.form.flows.push(flow);
+        					}
+        					else if (flowName != undefined) {
+        						flow.name = flowName;
+        					}
+        					if (flow.elements == undefined) {
+        						flow.elements = [];
+        					}
+        					if (Array.isArray(flowDef.elements)) {
+        						for (let elem of flowDef.elements) {
+        							if (elem == null || elem.type == null) {
+        								continue;
+        							}
+        							const elemType = normalizeType(elem.type);
+        							let obj = null;
+        							switch (elemType) {
+        								case "if_else":
+        								case "for_loop":
+        								case "toast":
+        								case "push_page":
+        								case "push_app":
+        								case "add_row_to_local_grid":
+        								case "remove_row_from_local_grid":
+        								case "refresh_grid":
+        								case "submit":
+        									if ((elemType == "if_else" || elemType == "for_loop") && (elem.condition == undefined || elem.condition === "")) {
+        										console.warn(`[generateFromAiJson] flow element ${elemType} missing condition`);
+        										break;
+        									}
+        									obj = this.getObjToInsert(elemType, (time++), this.local.currentPage, elem.name);
+        									if (elemType == "if_else" || elemType == "for_loop") {
+        										if (elem.condition != undefined && obj.sources?.self?.vars?.selfVar != undefined) {
+        											obj.sources.self.vars.selfVar.str = elem.condition;
+        										}
+        									}
+        									else {
+        										applyActionExtras(obj, elem, elemType);
+        									}
+        									applyOverrides(obj, elem);
+        									flow.elements.push(obj);
+        									break;
+        								case "business_logic":
+        									obj = this.getObjToInsert(elemType, (time++), this.local.currentPage, elem.name);
+        									applyOverrides(obj, elem);
+        									applyActionExtras(obj, elem, elemType);
+        									normalizeBusinessLogicObj(obj);
+        									addToFlow(obj, "formulas");
+        									break;
+        								default:
+        									console.warn(`[generateFromAiJson] flow element ${elemType} ignored`);
+        									break;
+        							}
+        						}
+        					}
+        				}
+        				catch (e) {
+        					console.error(`[generateFromAiJson] flow failed`, e);
+        				}
+        			}
+        		}
+        		cleanupAllFlows();
+        		repairBusinessLogicScripts();
         		await this.updateState();
         		if (res.thumbnailColor == undefined && res.thumbnailUrl != undefined) {
         			let file = await fetch(res.thumbnailUrl);
