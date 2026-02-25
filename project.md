@@ -7157,6 +7157,30 @@ Branding identifier applied to the cloud deployment.
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;customCarouselImage
+</td>
+<td>
+JSON stringified array of custom carousel image URLs for login page.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;customCarouselImageObjectFit
+</td>
+<td>
+Optional CSS object-fit value applied to login carousel images.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;customHeaderLogo
+</td>
+<td>
+URL of a custom header logo shown on login page.
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;hideConvertigoLogin
 </td>
 <td>
@@ -7232,6 +7256,14 @@ Flag indicating AI related features visibility.
 </td>
 <td>
 Brevo conversations identifier used for chat handoff.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;customHeaderLogo
+</td>
+<td>
+URL of a custom header logo used in application branding.
 </td>
 </tr>
 <tr>
