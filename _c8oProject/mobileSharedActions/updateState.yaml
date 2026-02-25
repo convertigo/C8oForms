@@ -59,6 +59,256 @@ comment: Update the state of a field
                       params["meta"]["subTag"] = page["form"]["subTag"];
                       params["meta"]["chatSummary"] = page["form"]["chatSummary"];
                       
+                      const buildC8oToken = (id, c8opath = "", c8oName = null) => {
+                      	const meta = {
+                      		c8otype: "path",
+                      		c8opath: c8opath == null ? "" : c8opath,
+                      		c8oPrettyPath: null,
+                      		c8obuiltin: null,
+                      		fakeId: "${uniqueId}",
+                      		c8oName: c8oName
+                      	};
+                      	return `$$START${id}${JSON.stringify(meta)}END${id}$$`;
+                      };
+                      const getNameToIdMap = () => {
+                      	const map = {};
+                      	const addItem = (item) => {
+                      		if (item != null && item.name != null && item.id != null && map[item.name] == null) {
+                      			map[item.name] = item.id;
+                      		}
+                      	};
+                      	const walkForm = (items) => {
+                      		if (!Array.isArray(items)) {
+                      			return;
+                      		}
+                      		for (const item of items) {
+                      			if (item != null && item.type == "ion-card" && Array.isArray(item.children)) {
+                      				for (const child of item.children) {
+                      					addItem(child);
+                      				}
+                      			}
+                      			addItem(item);
+                      		}
+                      	};
+                      	try {
+                      		walkForm(page["formsList"]);
+                      		walkForm((page as any)?.form?.formulaire);
+                      		if (Array.isArray((page as any)?.form?.actions)) {
+                      			for (const action of (page as any).form.actions) {
+                      				addItem(action);
+                      			}
+                      		}
+                      		if (Array.isArray((page as any)?.form?.flows)) {
+                      			for (const flow of (page as any).form.flows) {
+                      				if (Array.isArray(flow?.elements)) {
+                      					for (const elem of flow.elements) {
+                      						addItem(elem);
+                      					}
+                      				}
+                      			}
+                      		}
+                      	}
+                      	catch (e) {
+                      	}
+                      	return map;
+                      };
+                      const resolvePlaceholderToken = (rawToken, nameToId) => {
+                      	const token = (rawToken || "").trim();
+                      	if (token === "") {
+                      		return null;
+                      	}
+                      	if (token.indexOf("api.") == 0 || token.indexOf("await api.") == 0) {
+                      		let apiPath = token;
+                      		if (apiPath.indexOf("await ") == 0) {
+                      			apiPath = apiPath.substring(6).trim();
+                      		}
+                      		let apiName = apiPath.split(".").slice(-1)[0] || null;
+                      		if (apiName != null && apiName.indexOf("(") != -1) {
+                      			apiName = apiName.split("(")[0];
+                      		}
+                      		return buildC8oToken(1, apiPath, apiName);
+                      	}
+                      	let cleaned = token;
+                      	if (cleaned.indexOf("fields.") == 0) {
+                      		cleaned = cleaned.substring(7);
+                      	}
+                      	if (cleaned.indexOf("field.") == 0) {
+                      		cleaned = cleaned.substring(6);
+                      	}
+                      	if (cleaned.indexOf("actions.") == 0) {
+                      		cleaned = cleaned.substring(8);
+                      	}
+                      	const parts = cleaned.split(".");
+                      	const name = parts.shift();
+                      	const path = parts.join(".");
+                      	const id = name != null ? nameToId[name] : null;
+                      	if (id != null && id !== "") {
+                      		return buildC8oToken(id, path, null);
+                      	}
+                      	return null;
+                      };
+                      const replaceVarsPlaceholders = (value) => {
+                      	if (typeof value != "string" || value.indexOf("{{") == -1) {
+                      		return value;
+                      	}
+                      	const nameToId = getNameToIdMap();
+                      	return value.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, raw) => {
+                      		const resolved = resolvePlaceholderToken(raw, nameToId);
+                      		return resolved != null ? resolved : match;
+                      	});
+                      };
+                      const replaceHtmlPlaceholders = (value) => {
+                      	if (typeof value != "string" || value.indexOf("{{") == -1) {
+                      		return value;
+                      	}
+                      	const nameToId = getNameToIdMap();
+                      	return value.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, raw) => {
+                      		const resolved = resolvePlaceholderToken(raw, nameToId);
+                      		return resolved != null ? `<span>${resolved}</span>` : match;
+                      	});
+                      };
+                      const normalizeHtmlString = (value) => {
+                      	if (typeof value != "string") {
+                      		return value;
+                      	}
+                      	let updated = replaceHtmlPlaceholders(value);
+                      	try {
+                      		if (typeof (page as any)?.transformHtmlto$ === "function" && updated.indexOf("c8otype=") != -1) {
+                      			updated = (page as any).transformHtmlto$(updated, true);
+                      		}
+                      	}
+                      	catch (e) {
+                      	}
+                      	return updated;
+                      };
+                      const normalizeVarObject = async (varObj) => {
+                      	if (varObj == null || typeof varObj !== "object") {
+                      		return;
+                      	}
+                      	if (typeof varObj.str == "string") {
+                      		if (varObj.type == "ts") {
+                      			try {
+                      				if (varObj.str.indexOf("{{") != -1) {
+                      					varObj.str = replaceVarsPlaceholders(varObj.str);
+                      				}
+                      				if (varObj.str.indexOf("$$START") == -1 && typeof (page as any)?.parseMonacoEditor === "function") {
+                      					varObj.str = await (page as any).parseMonacoEditor(varObj.str);
+                      				}
+                      			}
+                      			catch (e) {
+                      			}
+                      		}
+                      		else if (varObj.html === true) {
+                      			varObj.str = normalizeHtmlString(varObj.str);
+                      		}
+                      		else {
+                      			varObj.str = replaceVarsPlaceholders(varObj.str);
+                      		}
+                      	}
+                      	if (Array.isArray(varObj.cond)) {
+                      		for (const cond of varObj.cond) {
+                      			if (cond?.val1 != null) {
+                      				await normalizeVarObject(cond.val1);
+                      			}
+                      			if (cond?.val2 != null) {
+                      				await normalizeVarObject(cond.val2);
+                      			}
+                      		}
+                      	}
+                      };
+                      const normalizeVars = async (vars) => {
+                      	if (vars == null || typeof vars !== "object") {
+                      		return;
+                      	}
+                      	for (const varName of Object.keys(vars)) {
+                      		const val = vars[varName];
+                      		if (typeof val == "string") {
+                      			vars[varName] = { str: replaceVarsPlaceholders(val), html: false };
+                      		}
+                      		else if (val != null && typeof val == "object") {
+                      			await normalizeVarObject(val);
+                      			if (val.html == null) {
+                      				val.html = false;
+                      			}
+                      		}
+                      	}
+                      };
+                      const normalizeSources = async (sources) => {
+                      	if (sources == null || typeof sources !== "object") {
+                      		return;
+                      	}
+                      	for (const sourceKey of Object.keys(sources)) {
+                      		const source = sources[sourceKey];
+                      		if (source?.vars != null) {
+                      			await normalizeVars(source.vars);
+                      		}
+                      	}
+                      };
+                      const normalizeActions = async (actions) => {
+                      	if (actions == null || typeof actions !== "object") {
+                      		return;
+                      	}
+                      	for (const seqKey of Object.keys(actions)) {
+                      		const seq = actions[seqKey];
+                      		if (seq?.vars != null) {
+                      			await normalizeVars(seq.vars);
+                      		}
+                      	}
+                      };
+                      const normalizeElement = async (elem) => {
+                      	if (elem == null || typeof elem !== "object") {
+                      		return;
+                      	}
+                      	if (elem.config != null && typeof elem.config === "object") {
+                      		if (typeof elem.config.html == "string") {
+                      			elem.config.html = normalizeHtmlString(elem.config.html);
+                      		}
+                      		if (elem.config.title != null && typeof elem.config.title === "object" && typeof elem.config.title.html == "string") {
+                      			elem.config.title.html = normalizeHtmlString(elem.config.title.html);
+                      		}
+                      	}
+                      	if (elem.sources != null) {
+                      		await normalizeSources(elem.sources);
+                      	}
+                      	if (elem.actions != null) {
+                      		await normalizeActions(elem.actions);
+                      	}
+                      	if (Array.isArray(elem.children)) {
+                      		for (const child of elem.children) {
+                      			await normalizeElement(child);
+                      		}
+                      	}
+                      };
+                      const normalizeElementsList = async (elements) => {
+                      	if (!Array.isArray(elements)) {
+                      		return;
+                      	}
+                      	for (const elem of elements) {
+                      		await normalizeElement(elem);
+                      	}
+                      };
+                      try {
+                      	if (typeof params?.meta?.descform == "string") {
+                      		params.meta.descform = normalizeHtmlString(params.meta.descform);
+                      	}
+                      	if (Array.isArray(params?.meta?.pages)) {
+                      		for (const pageDef of params.meta.pages) {
+                      			if (typeof pageDef?.desc == "string") {
+                      				pageDef.desc = normalizeHtmlString(pageDef.desc);
+                      			}
+                      		}
+                      	}
+                      	await normalizeElementsList(params?.meta?.formulaire);
+                      	if (Array.isArray(params?.meta?.flows)) {
+                      		for (const flow of params.meta.flows) {
+                      			await normalizeElementsList(flow?.elements);
+                      		}
+                      	}
+                      	await normalizeElementsList(params?.meta?.actions);
+                      }
+                      catch (e) {
+                      }
+                      
                       params.meta = JSON.stringify(params.meta);
                       
           	        let res = (await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async()).res;

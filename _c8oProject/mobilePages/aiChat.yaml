@@ -127,10 +127,18 @@ title: Title for aiChat
             tagName: ion-label
             ↓H3 [ngx.components.UIDynamicElement-1730196159172]: 
               beanData: '{"ionBean":"Heading3"}'
+              isEnabled: false
               tagName: h3
               ↓Text1 [ngx.components.UIText-1730196159175]: 
                 i18n: true
                 textValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1730196159139}],"path":"","prefix":"","suffix":"?.content ?? ''","custom":"","useCustom":false}}
+            ↓UseSharedComponent [ngx.components.UIUseShared-1770737596121]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.mdReader
+              ↓data [ngx.components.UIUseVariable-1770737602323]: 
+                varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1730196159139}],"path":"","prefix":"","suffix":"?.content ?? ''","custom":"","useCustom":false}}
@@ -295,7 +303,7 @@ title: Title for aiChat
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
               '		page.formAiChat.reset();
-              
+              		
               		try {
               			if (this.local.isRecording) {
               				this.local.speechReco.stop();
@@ -312,48 +320,197 @@ title: Title for aiChat
               			}
               		}, 6000);
               		const content = props.stack?.root?.out?.message ?? false;
-              		if (content && page.local.chat?.messages) {
-              			page.local.chat.messages.push({ role: ''user'', content });
-              			page.local.chat.messages.push({ role: ''assistant'', content: '''', waiting: true });
-              			window.setTimeout(() => {
-              				page.ref.detectChanges();
-              				page.content.scrollToBottom(200);
-              			},200);
+              		if (!page.local.chat || typeof page.local.chat !== ''object'') {
+              			page.local.chat = {
+              				id: this.navParams && this.navParams.data ? (this.navParams.data.form_id || '''') : '''',
+              				messages: []
+              			};
               		}
+              		if (!Array.isArray(page.local.chat.messages)) {
+              			page.local.chat.messages = [];
+              		}
+              		if (content) {
+              			page.local.chat.messages.push({ role: ''user'', content });
+              		}
+              		page.local.chat.messages.push({ role: ''assistant'', content: '''', waiting: true });
+              		window.setTimeout(() => {
+              			page.ref.detectChanges();
+              			page.content.scrollToBottom(200);
+              		},200);
+              		
               		resolve();
               '
-      ↓CallSequence [ngx.components.UIDynamicAction-1730198395692]: 
-        beanData: |
-          '{
-           "ionBean": "CallSequenceAction",
-           "requestable": "plain:lib_C8Oforms_AI.Chat",
-           "noLoading": "plain:true"
-          }'
-        ↓form_id [ngx.components.UIControlVariable-1730200694043]: 
-          comment: new variable
-          varValue: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.navParams?.data?.form_id ?? ""
-        ↓message [ngx.components.UIControlVariable-1730200694045]: 
-          comment: new variable
-          varValue: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1730200487383,"rootEvent":true,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"?.message ?? \"\"","custom":"","useCustom":false}}
-        ↓reset [ngx.components.UIControlVariable-1730219893805]: 
-          comment: new variable
-          varValue: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: source:{"filter":"Action","project":"C8Oforms","input":"","model":{"data":[{"priority":1730200487383,"rootEvent":true,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"?.reset ?? \"false\"","custom":"","useCustom":false}}
+      ↓CallSequence [ngx.components.UICustomAsyncAction-1730198395692]: 
+        actionValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                '		let timeout = (ms)=> {
+                		    return new Promise(resolve => setTimeout(resolve, ms));
+                		}
+                		let runAsyncChat = async ()=>{
+                			let start = await page.c8o.callJsonObject("lib_C8Oforms_AI.ChatStart",{
+                				form_id: this.navParams?.data?.form_id ?? "",
+                				message: props.stack?.root?.out?.message ?? "",
+                				reset: props.stack?.root?.out?.reset ?? "false",
+                				language: this.global?.settings?.language ?? "en"
+                			}).async();
+                			let startResponse = start.response || start;
+                			let jobId = startResponse?.jobId;
+                			if(!jobId){
+                				throw new Error("ChatStart returned no jobId");
+                			}
+                			let startedAt = Date.now();
+                			let maxDurationMs = 1000 * 60 * 5;
+                			while (Date.now() - startedAt < maxDurationMs) {
+                				await timeout(1200);
+                				let poll = await page.c8o.callJsonObject("lib_C8Oforms_AI.ChatPoll",{
+                					jobId: jobId
+                				}).async();
+                				let pollResponse = poll.response || poll;
+                				let streamText = pollResponse?.stream || pollResponse?.progress || "";
+                				if (streamText && Array.isArray(page.local?.chat?.messages) && page.local.chat.messages.length > 0) {
+                					let lastMsg = page.local.chat.messages[page.local.chat.messages.length - 1];
+                					if (lastMsg?.waiting === true) {
+                						lastMsg.content = "" + streamText;
+                						page.ref.detectChanges();
+                						if (page.content?.scrollToBottom) {
+                							page.content.scrollToBottom(120);
+                						}
+                					}
+                				}
+                				if (pollResponse?.status == "done") {
+                					let payload = pollResponse.response || {};
+                					if (payload?.document?.error) {
+                						throw payload.document.error;
+                					}
+                					if (payload?.doc?.error) {
+                						throw payload.doc.error;
+                					}
+                					if (payload?.error) {
+                						throw payload.error;
+                					}
+                					if (!payload.form && payload?.document?.form) {
+                						payload = payload.document;
+                					}
+                					if (!payload.form && payload?.doc?.form) {
+                						payload = payload.doc;
+                					}
+                					if (payload?.form && Array.isArray(payload.form.messages)) {
+                						page.local.chat = payload.form;
+                						page.ref.detectChanges();
+                						if (page.content?.scrollToBottom) {
+                							page.content.scrollToBottom(120);
+                						}
+                					}
+                					return payload;
+                				}
+                				if (pollResponse?.status == "error") {
+                					throw (pollResponse?.error || pollResponse?.response?.error || "Chat async error");
+                				}
+                			}
+                			throw new Error("Chat polling timeout");
+                		}
+                		try {
+                			return await runAsyncChat();
+                		} catch (e) {
+                			console.error("lib_C8Oforms_AI.Chat async error", e);
+                			console.warn("lib_C8Oforms_AI.Chat async error on first attempt. We will retry.");
+                			try {
+                				return await runAsyncChat();
+                			} catch (e) {
+                				console.error("lib_C8Oforms_AI.Chat async error", e);
+                				console.warn("lib_C8Oforms_AI.Chat async error on second attempt. we wont retry.");
+                				return {error: "" + e};
+                			}
+                		}
+                '
         ↓SetLocal [ngx.components.UIDynamicAction-1730280605676]: 
           beanData: |
             '{
              "ionBean": "SetLocalAction",
              "Property": "plain:chat",
-             "Value": "source:{\"filter\":\"Action\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1730198395692,\"rootEvent\":false,\"pageLocals\":false},{\"priority\":1730200487383,\"rootEvent\":true,\"pageLocals\":false}],\"path\":\"?.out?.form\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+             "Value": "source:{\"filter\":\"Action\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1730198395692,\"rootEvent\":false,\"pageLocals\":false},{\"priority\":1730200487383,\"rootEvent\":true,\"pageLocals\":false},{\"priority\":1730732820232,\"rootEvent\":false,\"pageLocals\":false},{\"priority\":1730199862999,\"rootEvent\":false,\"pageLocals\":false}],\"path\":\"?.out\",\"prefix\":\"typeof \",\"suffix\":\"?.form == ''object'' ? stack[''1730198395692'']?.out?.form : ((stack?.root?.out?.form && typeof stack.root.out.form == ''object'') ? stack.root.out.form : (this.local.chat || {id:(this.navParams && this.navParams.data ? (this.navParams.data.form_id || '''') : ''''), messages:[]}))\",\"custom\":\"\",\"useCustom\":false}}"
             }'
+          ↓HandleResult [ngx.components.UICustomAction-1893000000100]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '		var out: any = {};
+                    		if (props?.stack?.CallSequence?.out) {
+                    			out = props?.stack?.CallSequence?.out;
+                    		} else if (props?.stack?.root?.out) {
+                    			out = props?.stack?.root?.out;
+                    		}
+                    		
+                    		if (!page.local.chat || typeof page.local.chat != "object") {
+                    			page.local.chat = {
+                    				id: this.navParams && this.navParams.data ? (this.navParams.data.form_id || "") : "",
+                    				messages: []
+                    			};
+                    		}
+                    		
+                    		if (!Array.isArray(page.local.chat.messages)) {
+                    			page.local.chat.messages = [];
+                    		}
+                    		
+                    		var msgs = page.local.chat.messages;
+                    		if (msgs.length > 0) {
+                    			var last = msgs[msgs.length - 1];
+                    			if (last && last.waiting === true) {
+                    				msgs.pop();
+                    			}
+                    		}
+                    		
+                    		var err = out.error;
+                    		if (!err && out.response && out.response.error) {
+                    			err = out.response.error;
+                    		}
+                    		if (!err && out.document && out.document.error) {
+                    			err = out.document.error;
+                    		}
+                    		if (!err && out.doc && out.doc.error) {
+                    			err = out.doc.error;
+                    		}
+                    		
+                    		if (err) {
+                    			var message = "";
+                    			if (typeof err == "string") {
+                    				message = err;
+                    			} else if (err.message != null) {
+                    				message = "" + err.message;
+                    			} else {
+                    				try {
+                    					message = JSON.stringify(err);
+                    				} catch (e) {
+                    					message = "" + err;
+                    				}
+                    			}
+                    			msgs.push({role: "assistant", content: message});
+                    			page.ref.detectChanges();
+                    			resolve();
+                    			return;
+                    		}
+                    		
+                    		var outForm = null;
+                    		if (out.form && typeof out.form == "object") {
+                    			outForm = out.form;
+                    		} else if (out.response && out.response.form && typeof out.response.form == "object") {
+                    			outForm = out.response.form;
+                    		}
+                    		if (outForm != null) {
+                    			if (!Array.isArray(outForm.messages)) {
+                    				outForm.messages = msgs;
+                    			}
+                    			page.local.chat = outForm;
+                    		}
+                    		page.ref.detectChanges();
+                     
+                    		resolve();
+                    '
           ↓ScrollBottom [ngx.components.UICustomAction-1730201121737]: 
             actionValue: 
               - xmlizable: 
@@ -367,12 +524,6 @@ title: Title for aiChat
                     
           ↓Close_Loading [ngx.components.UIDynamicAction-1730732860615]: 
             beanData: '{"ionBean":"CloseLoadingAction"}'
-        ↓language [ngx.components.UIControlVariable-1730385215158]: 
-          comment: new variable
-          varValue: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.global?.settings?.language
 ↓PageEvent1 [ngx.components.UIPageEvent-1730721387130]: 
   viewEvent: onWillLeave
   ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1730721390390]: 

@@ -52,6 +52,18 @@ function PerformAnalysis() {
       local: {
         question: "Exemple de question",
         placeholder_label: "Exemple de placeholder",
+        placeholder_label2: "Exemple de label",
+        placeholder: "Exemple de placeholder",
+        placeholder_resp: "Exemple de réponse",
+        placeholderFile: "Exemple de fichier",
+        labelBtn: "Action",
+        title: "Titre"
+      },
+      translate: {
+        instant: (key) => key
+      },
+      form: {
+        flows: []
       }
     };
     eval(funcParsed);
