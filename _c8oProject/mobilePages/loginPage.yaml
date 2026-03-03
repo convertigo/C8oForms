@@ -12,6 +12,7 @@ scriptContent:
         '/*Begin_c8o_PageImport*/
         import { NativePageTransitions, NativeTransitionOptions } from ''@ionic-native/native-page-transitions'';
         import { NgZone, inject } from ''@angular/core'';
+        import { getColorSync, getPaletteSync, getSwatches } from ''colorthief'';
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
         	public fr = false;
@@ -53,6 +54,12 @@ scriptContent:
         		this.forgotPasswordText = this.translate.instant(''login_forgot_password_text'');
         		this.usernamePlaceholder = this.translate.instant(''login_email_placeholder'');
         		/*End_c8o_PageConstructor*/
+        /*Begin_c8o_PageInitialization*/
+        		/*End_c8o_PageInitialization*/
+        /*Begin_c8o_PageAfterViewInit*/
+        		/*End_c8o_PageAfterViewInit*/
+        /*Begin_c8o_PageFinalization*/
+        		/*End_c8o_PageFinalization*/
         /*Begin_c8o_PageFunction*/
         	togglePasswordVisibility(): void {
         		this.passwordVisible = !this.passwordVisible;
@@ -90,6 +97,145 @@ scriptContent:
         
         	stopTypewriter() {
         		if (this.typingTimer) { clearInterval(this.typingTimer); this.typingTimer = null; }
+        	}
+        	
+        	private async loadImage(url: string): Promise<HTMLImageElement> {
+        	  return new Promise((resolve, reject) => {
+        	    const img = new Image();
+        	    img.crossOrigin = ''anonymous'';
+        	    img.src = url;
+        
+        	    img.onload = () => resolve(img);
+        	    img.onerror = reject;
+        	  });
+        	}
+        
+        	/**
+        	 * Analyse complète en un seul chargement
+        	 */
+        	async analyzeImage(url: string) {
+        	  try {
+        	    const img = await this.loadImage(url);
+        
+        	    const dominant = getColorSync(img);
+        	    const palette = getPaletteSync(img, { colorCount: 6 });
+        	    const swatches = await getSwatches(img);
+        
+        	    return {
+        	      dominantHex: dominant.hex(),
+        	      dominantCss: dominant.css(),
+        	      dominantIsDark: dominant.isDark,
+        	      dominantTextColor: dominant.textColor,
+        
+        	      palette: palette.map(c => ({
+        	        hex: c.hex(),
+        	        css: c.css()
+        	      })),
+        
+        	      swatches: Object.fromEntries(
+        	        Object.entries(swatches).map(([key, value]) => [
+        	          key,
+        	          value ? {
+        	            hex: value.color.hex(),
+        	            textColor: value.color.textColor,
+        	            isDark: value.color.isDark
+        	          } : null
+        	        ])
+        	      )
+        	    };
+        
+        	  } catch(e) {
+        		console.error(e);
+        	    return null;
+        	  }
+        	}
+        	
+        	modernizeTextContrast(
+        	  bgHex: string,
+        	  textHex: string,
+        	  minContrast = 4.5
+        	): string {
+        
+        	  const hexToRgb = (hex: string) => {
+        	    const clean = hex.replace(''#'', '''');
+        	    const bigint = parseInt(clean, 16);
+        	    return {
+        	      r: (bigint >> 16) & 255,
+        	      g: (bigint >> 8) & 255,
+        	      b: bigint & 255
+        	    };
+        	  };
+        
+        	  const rgbToHsl = (r: number, g: number, b: number) => {
+        	    r /= 255; g /= 255; b /= 255;
+        	    const max = Math.max(r, g, b);
+        	    const min = Math.min(r, g, b);
+        	    let h = 0, s = 0;
+        	    const l = (max + min) / 2;
+        
+        	    if (max !== min) {
+        	      const d = max - min;
+        	      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        	      switch (max) {
+        	        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        	        case g: h = (b - r) / d + 2; break;
+        	        case b: h = (r - g) / d + 4; break;
+        	      }
+        	      h /= 6;
+        	    }
+        
+        	    return {
+        	      h: h * 360,
+        	      s: s * 100,
+        	      l: l * 100
+        	    };
+        	  };
+        
+        	  const hslToCss = (h: number, s: number, l: number) =>
+        	    `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
+        
+        	  const luminance = (r: number, g: number, b: number) => {
+        	    const a = [r, g, b].map(v => {
+        	      v /= 255;
+        	      return v <= 0.03928
+        	        ? v / 12.92
+        	        : Math.pow((v + 0.055) / 1.055, 2.4);
+        	    });
+        	    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+        	  };
+        
+        	  const contrastRatio = (bg: string, fg: string) => {
+        	    const b = hexToRgb(bg);
+        	    const f = hexToRgb(fg);
+        	    const l1 = luminance(b.r, b.g, b.b);
+        	    const l2 = luminance(f.r, f.g, f.b);
+        	    const brightest = Math.max(l1, l2);
+        	    const darkest = Math.min(l1, l2);
+        	    return (brightest + 0.05) / (darkest + 0.05);
+        	  };
+        
+        	  const bgRgb = hexToRgb(bgHex);
+        	  const textRgb = hexToRgb(textHex);
+        
+        	  const hsl = rgbToHsl(textRgb.r, textRgb.g, textRgb.b);
+        
+        	  // 🎨 Modernisation
+        	  let newS = Math.min(hsl.s + 10, 60); // boost léger saturation
+        	  let newL = hsl.l;
+        
+        	  // Inverser luminosité si trop proche du fond
+        	  const isBgDark = luminance(bgRgb.r, bgRgb.g, bgRgb.b) < 0.5;
+        
+        	  newL = isBgDark ? 88 : 15;
+        
+        	  let modernColor = hslToCss(hsl.h, newS, newL);
+        
+        	  // Vérifier contraste, fallback si insuffisant
+        	  if (contrastRatio(bgHex, textHex) < minContrast) {
+        	    modernColor = isBgDark ? ''#ffffff'' : ''#111111'';
+        	  }
+        
+        	  return modernColor;
         	}
         	/*End_c8o_PageFunction*/
         '
@@ -345,6 +491,43 @@ title: Title for loginPage1
                 		}
                 		resolve(null);
                 '
+        ↓setContrastColor [ngx.components.UICustomAsyncAction-1772552917680]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '		try {
+                  //			console.log(props, page, page.local.customCarouselImages);
+                  			if (page.local.customCarouselImages == null) {
+                  				return null;
+                  			}
+                  			const result = await page.analyzeImage(page.local.customCarouselImages[0]);
+                  
+                  			console.log(result);
+                  			
+                  			if (!result) return;
+                  
+                  //			let obj = {
+                  //				background : result.swatches.Vibrant.hex,
+                  //				text : result.swatches.Vibrant.textColor,
+                  //				hover : result.swatches.DarkVibrant.hex,
+                  //				border : result.swatches.Muted.hex
+                  //			}
+                  			
+                  //			console.log(obj);
+                  			page.global.externalBrandColor = page.modernizeTextContrast(result.dominantHex, result.dominantTextColor);
+                  			page.global.externalBrandColorLoginCard = result.palette[2].hex;
+                  			console.log(page);
+                  //			setTimeout(async () => {				
+                  //			}, 0);
+                  		} catch (e) {
+                  			console.error(e);
+                  			return;
+                  		} finally {
+                  			return;
+                  		}
+                  '
     ↓CallSequence1 [ngx.components.UIDynamicAction-1645091280431]: 
       beanData: |
         '{
@@ -379,13 +562,15 @@ title: Title for loginPage1
             			      : null;
             			}
             			
-            			page.fullText = page.global.legacyLogo ? ''Convertigo Forms'' : (page.global.legacyLogo != "true" && page.global.legacyLogo != "false" && page.global.legacyLogo != null && page.global.legacyLogo.length > 0) ? page.global.legacyLogo : ''No Code Studio'';
+            //			console.log(page.local)
+            			
+            			page.fullText = (page.global.legacyLogo == true) ? ''Convertigo Forms'' : (page.global.legacyLogo != true && page.global.legacyLogo != undefined && page.global.legacyLogo != null && page.global.legacyLogo.length > 0) ? page.global.legacyLogo : ''No Code Studio'';
             	//		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
             	//		if (page.typedOnce) return; // retire cette ligne si tu veux relancer à chaque entrée
-            			console.log(page.local.logo);
-            			if (page.local.logo == null) {			
+            //			console.log(page.local.logo, page);
+            //			if (page.local.logo == null) {			
             				page.startTypewriter(true); // true = reset à chaque démarrage
-            			}
+            //			}
             		} catch(e) {
             			console.error(e);
             		}
@@ -412,6 +597,29 @@ title: Title for loginPage1
        "Property": "plain:showLogin",
        "Value": "script:false"
       }'
+  ↓installColorThief [ngx.components.UICustomAction-1772550993845]: 
+    module_ts_imports: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: '{ getColorSync, getPaletteSync, getSwatches }'
+              - java.lang.String: 
+                - ↑value: colorthief
+    package_dependencies: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: colorthief
+              - java.lang.String: 
+                - ↑value: 3.0.0
 ↓Content [ngx.components.UIDynamicElement-1645091280434]: 
   beanData: |
     '{
@@ -1248,6 +1456,12 @@ title: Title for loginPage1
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:'|'
+                ↓Attr1 [ngx.components.UIAttribute-1772556757690]: 
+                  attrName: style
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: 'script:''color: ''+this.global?.externalBrandColor+'' !important;'''
               ↓Div2 [ngx.components.UIDynamicElement-1757502245264]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -1285,7 +1499,7 @@ title: Title for loginPage1
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.isSvg != null && this.local.isSvg
+                      - MobileSmartSourceType: script:this.local.isSvg != null && !this.local.isSvg
                   ↓Image [ngx.components.UIDynamicElement-1770742478631]: 
                     beanData: |
                       '{
@@ -1306,8 +1520,14 @@ title: Title for loginPage1
                               // left: 0; 
                               //  right: 0; 
                               //  top: 10px
+                              max-height: 40px;
+                              min-width: 40px;
                                 &::part(image) {
-                              	width: calc(128px * 1.4);
+                              	max-height: 40px;       /* hauteur max contrôlée */
+                              	max-width: 100%;
+                              //	object-fit: contain;    /* évite la déformation */
+                              	min-width: 40px;
+                              	height: 40px; 
                               //	height: 28px !important;
                                 }
                               //  margin-left: auto; 
@@ -1334,13 +1554,13 @@ title: Title for loginPage1
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.isSvg != null && !this.local.isSvg
+                      - MobileSmartSourceType: script:this.local.isSvg != null && this.local.isSvg
                   ↓Icon [ngx.components.UIDynamicElement-1770742478640]: 
                     beanData: |
                       '{
                        "ionBean": "Icon",
                        "IconName": "plain",
-                       "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/logo\\\/logo_convertigo_blue.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                       "IconSource": "script:this.local.logo"
                       }'
                     tagName: ion-icon
                     ↓Style [ngx.components.UIStyle-1770742478643]: 
@@ -1349,15 +1569,22 @@ title: Title for loginPage1
                           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                             →: |
-                              '	width: 100px !important;
-                              	height: 50px !important;
+                              '//	min-height: 50px !important;
+                              //	max-width: 100px !important;
+                              //	height: 50px !important;
+                              //	width: 50px !important;
+                              max-height: 48px;       /* hauteur max contrôlée */
+                              max-width: 100%;
+                              object-fit: contain;    /* évite la déformation */
+                              min-width: 48px;
+                              height: 48px; 
                               '
                 ↓Directive1 [ngx.components.UIControlDirective-1772538291295]: 
                   directiveName: If
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.isSvg == null
+                      - MobileSmartSourceType: script:this.local.isSvg == null && (this.global.legacyLogo == 'Convertigo Forms' || this.global.legacyLogo == 'No Code Studio')
                   ↓Icon [ngx.components.UIDynamicElement-1772538291298]: 
                     beanData: |
                       '{
@@ -1416,6 +1643,7 @@ title: Title for loginPage1
                          "IconName": "plain",
                          "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/logo\\\/logo_cloud_blue.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
                         }'
+                      isEnabled: false
                       tagName: ion-icon
                       ↓Style [ngx.components.UIStyle-1757954095950]: 
                         styleContent: 
@@ -1427,6 +1655,104 @@ title: Title for loginPage1
                                 height:2rem;
                                 //margin-right: 6px;
                                 '
+                    ↓Directive [ngx.components.UIControlDirective-1772559627716]: 
+                      directiveName: If
+                      directiveSource: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.isSvg != null && !this.local.isSvg
+                      ↓Image [ngx.components.UIDynamicElement-1772559627719]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Image",
+                           "url": "script:this.local.logo",
+                           "width": "plain",
+                           "height": "plain"
+                          }'
+                        selfClose: true
+                        tagName: img
+                        ↓Style [ngx.components.UIStyle-1772559627722]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '//position: absolute;
+                                  // left: 0; 
+                                  //  right: 0; 
+                                  //  top: 10px
+                                  max-height: 40px;
+                                  min-width: 40px;
+                                    &::part(image) {
+                                  	max-height: 40px;       /* hauteur max contrôlée */
+                                  	max-width: 100%;
+                                  //	object-fit: contain;    /* évite la déformation */
+                                  	min-width: 40px;
+                                  	height: 40px; 
+                                  //	height: 28px !important;
+                                    }
+                                  //  margin-left: auto; 
+                                  //  margin-right: auto;
+                                  '
+                    ↓Directive2 [ngx.components.UIControlDirective-1772559627725]: 
+                      directiveName: If
+                      directiveSource: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.isSvg != null && this.local.isSvg
+                      ↓Icon [ngx.components.UIDynamicElement-1772559627728]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Icon",
+                           "IconName": "plain",
+                           "IconSource": "script:this.local.logo"
+                          }'
+                        tagName: ion-icon
+                        ↓Style [ngx.components.UIStyle-1772559627731]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '//	min-height: 50px !important;
+                                  //	max-width: 100px !important;
+                                  //	height: 50px !important;
+                                  //	width: 50px !important;
+                                  max-height: 48px;       /* hauteur max contrôlée */
+                                  max-width: 100%;
+                                  object-fit: contain;    /* évite la déformation */
+                                  min-width: 48px;
+                                  height: 48px; 
+                                  '
+                        ↓Attr1 [ngx.components.UIAttribute-1772559754096]: 
+                          attrName: style
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: 'script:''color: ''+this.global?.externalBrandColorLoginCard+'' !important;'''
+                    ↓Directive1 [ngx.components.UIControlDirective-1772559627734]: 
+                      directiveName: If
+                      directiveSource: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.isSvg == null && (this.global.legacyLogo == 'Convertigo Forms' || this.global.legacyLogo == 'No Code Studio')
+                      ↓Icon [ngx.components.UIDynamicElement-1772559627737]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Icon",
+                           "IconName": "plain",
+                           "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/logo\\\/logo_convertigo_blue.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                          }'
+                        tagName: ion-icon
+                        ↓Style [ngx.components.UIStyle-1772559627740]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '	width: 100px !important;
+                                  	height: 50px !important;
+                                  '
                   ↓DivText [ngx.components.UIDynamicElement-1757953849597]: 
                     beanData: '{"ionBean":"DivTag"}'
                     tagName: div
@@ -1480,12 +1806,26 @@ title: Title for loginPage1
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                           - MobileSmartSourceType: plain:this.local.logo == null
+                      isEnabled: false
+                    ↓Attr2 [ngx.components.UIAttribute-1772556939783]: 
+                      attrName: style
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: 'script:''color: ''+this.local?.colorDesc+'' !important;'''
+                      isEnabled: false
+                    ↓Attr3 [ngx.components.UIAttribute-1772559782816]: 
+                      attrName: style
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: 'script:''color: ''+this.global?.externalBrandColorLoginCard+'' !important;'''
                 ↓Attr1 [ngx.components.UIAttribute-1757953849630]: 
                   attrName: '*ngIf'
                   attrValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: plain:window.innerWidth < 992 && this.local.logo == null
+                      - MobileSmartSourceType: plain:window.innerWidth < 992 || (window.innerWidth < 992 && this.global.legacyLogo != undefined && this.global.legacyLogo.length > 0 && this.local.logo != null)
                 ↓Attr [ngx.components.UIAttribute-1770735553531]: 
                   attrName: '[ngClass]'
                   attrValue: 

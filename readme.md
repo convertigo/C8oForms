@@ -26,6 +26,7 @@ Even more, data entry can trigger complex actions and workflows in their back- e
 For more technical informations : [documentation](./project.md)
 
 - [Installation](#installation)
+- [Branding Symbols](#branding-symbols)
 - [Sequences](#sequences)
     - [AddUser](#adduser)
     - [admin_gdrp_get](#admin_gdrp_get)
@@ -536,6 +537,40 @@ For more technical informations : [documentation](./project.md)
      </td></tr>
     </table>
 3. Click the `Finish` button. This will automatically import the __C8Oforms__ project
+
+
+## Branding Symbols
+
+The project supports the following branding symbols for logo and login carousel customization.
+
+| Symbol | Purpose | Expected value | Default / fallback behavior |
+|---|---|---|---|
+| `C8Oforms.legacy_logo` | Enables legacy header/logo branding mode. | Boolean-like value (`true` or `false`). | Defaults to `false`. When `false`, the standard no-code-studio logo is used. |
+| `C8Oforms.customHeaderLogo` | Overrides branded header/logo image with a custom logo URL. | Non-empty string URL/path (for example `https://...` or `assets/...`). | If empty or missing, fallback uses `C8Oforms.legacy_logo` behavior. If defined, it has priority. |
+| `C8Oforms.customCarouselImage` | Replaces default login carousel images. | JSON-stringified array of image URLs/paths, for example `["https://.../slide1.png","https://.../slide2.png"]`. | If empty/missing, the default login slides are used. |
+| `C8Oforms.customCarouselImageObjectFit` | Controls CSS `object-fit` for login carousel images. | One of: `fill`, `contain`, `cover`, `none`, `scale-down`. | If invalid/missing, no override is applied and default styling is kept. |
+
+### Notes
+
+- For URL/path symbols (`customHeaderLogo`, `customCarouselImage`), use web-accessible paths only.
+- Absolute URLs are recommended (`https://...`).
+- Relative app paths are supported when served by the application (`assets/...`).
+- Local filesystem paths (for example `/Users/...`) are not supported by the browser runtime.
+
+### Example values
+
+```properties
+C8Oforms.legacy_logo=true
+C8Oforms.customHeaderLogo=https://cdn.example.com/branding/header-logo.svg
+C8Oforms.customCarouselImage=["https://cdn.example.com/branding/slide-1.png","https://cdn.example.com/branding/slide-2.png"]
+C8Oforms.customCarouselImageObjectFit=cover
+```
+
+### Priority summary
+
+1. `C8Oforms.customHeaderLogo` (if non-empty)
+2. `C8Oforms.legacy_logo` behavior
+3. Default project logo behavior
 
 
 ## Sequences
@@ -8789,6 +8824,4 @@ if this compenent is renamed it must be also renamed in editorPage (edit page cl
 </tr>
 </table>
 #### updateGroupAccessRights
-
-
 

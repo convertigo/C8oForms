@@ -6,6 +6,7 @@
 <#global locale = "US" />
 <#global dictionnary = {
 		"installation":	{"US": "Installation"			, "FR": "Installation"},
+		"branding.symbols": {"US": "Branding Symbols"		, "FR": "Symboles de personnalisation"},
 		"more.info": 	{"US": "For more technical informations"	, "FR": "Pour plus d'informations techniques"},
 		"connectors": 	{"US": "Connectors"				, "FR": "Connecteurs"},
 		"transactions": {"US": "Transactions"			, "FR": "Transactions"},
@@ -28,6 +29,7 @@
 <#global show = {
 	"toc"			: true,
 	"installation"	: true,
+	"brandingSymbols" : true,
 	
 	"connectors"	: true,
 	"transactions"	: true,
@@ -155,6 +157,42 @@ ${title}${lineBreak}
 ${lineBreak}
 </#macro>
 
+<#-- brandingSymbols : add branding symbol documentation -->
+<#macro brandingSymbols>
+The project supports the following branding symbols for logo and login carousel customization.
+
+| Symbol | Purpose | Expected value | Default / fallback behavior |
+|---|---|---|---|
+| `C8Oforms.legacy_logo` | Enables legacy header/logo branding mode. | Boolean-like value (`true` or `false`). | Defaults to `false`. When `false`, the standard no-code-studio logo is used. |
+| `C8Oforms.customHeaderLogo` | Overrides branded header/logo image with a custom logo URL. | Non-empty string URL/path (for example `https://...` or `assets/...`). | If empty or missing, fallback uses `C8Oforms.legacy_logo` behavior. If defined, it has priority. |
+| `C8Oforms.customCarouselImage` | Replaces default login carousel images. | JSON-stringified array of image URLs/paths, for example `["https://.../slide1.png","https://.../slide2.png"]`. | If empty/missing, the default login slides are used. |
+| `C8Oforms.customCarouselImageObjectFit` | Controls CSS `object-fit` for login carousel images. | One of: `fill`, `contain`, `cover`, `none`, `scale-down`. | If invalid/missing, no override is applied and default styling is kept. |
+
+### Notes
+
+- For URL/path symbols (`customHeaderLogo`, `customCarouselImage`), use web-accessible paths only.
+- Absolute URLs are recommended (`https://...`).
+- Relative app paths are supported when served by the application (`assets/...`).
+- Local filesystem paths (for example `/Users/...`) are not supported by the browser runtime.
+
+### Example values
+
+```properties
+C8Oforms.legacy_logo=true
+C8Oforms.customHeaderLogo=https://cdn.example.com/branding/header-logo.svg
+C8Oforms.customCarouselImage=["https://cdn.example.com/branding/slide-1.png","https://cdn.example.com/branding/slide-2.png"]
+C8Oforms.customCarouselImageObjectFit=cover
+```
+
+### Priority summary
+
+1. `C8Oforms.customHeaderLogo` (if non-empty)
+2. `C8Oforms.legacy_logo` behavior
+3. Default project logo behavior
+
+${lineBreak}
+</#macro>
+
 <#-- DEFAULT PROJECT TEMPLATE -->
 
 <#-- anchors variable for TOC : do not modify -->
@@ -198,6 +236,10 @@ Even more, data entry can trigger complex actions and workflows in their back- e
 <#if on("installation") && (project.url?length > 0) && (project.url != project.name)>
 	<@header toc=toc anchors=anchors heading="##" text=help("installation") />
 	<@installation />
+</#if>
+<#if on("brandingSymbols")>
+	<@header toc=toc anchors=anchors heading="##" text=help("branding.symbols") />
+	<@brandingSymbols />
 </#if>
 <#if on("references") && has(project,"references")>
   	<@header toc=toc anchors=anchors heading="##" text=help("references") />
@@ -303,4 +345,3 @@ ${help("more.info")} : [documentation](./project.md)
 
 <#-- output project content -->
 ${content}
-
