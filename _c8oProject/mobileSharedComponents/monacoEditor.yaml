@@ -7,6 +7,8 @@ scriptContent:
         import { C8o } from "c8osdkangular";
         import * as acorn from "acorn";
         import * as walk from "acorn-walk";
+        import * as monaco from "monaco-editor";
+        import { AfterViewInit } from "@angular/core";
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	public toastController: ToastController;
@@ -18,6 +20,7 @@ scriptContent:
         	public monacoRenderStableCount: number;
         	public monacoRenderLastSize: any;
         	public monacoRenderTries: number;
+        	private editor!: monaco.editor.IStandaloneCodeEditor;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.toastController = this.getInstance(ToastController);
@@ -61,6 +64,11 @@ scriptContent:
         /*Begin_c8o_CompAfterViewInit*/
         		this.local.show = false;
         		this.scheduleMonacoRender();
+        		
+        //		setTimeout(() => {
+        //		  this.configureMonacoEnvironment();
+        //		  this.initMonaco();
+        //		});
         		/*End_c8o_CompAfterViewInit*/
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
@@ -116,39 +124,113 @@ scriptContent:
         		}, 0);
         	}
         	
+        //	private scheduleMonacoRender() {
+        //		if (this.monacoRenderTimer) {
+        //			clearTimeout(this.monacoRenderTimer);
+        //			this.monacoRenderTimer = null;
+        //		}
+        //		this.monacoRenderTries = 0;
+        //		this.monacoRenderStableCount = 0;
+        //		this.monacoRenderLastSize = null;
+        //		const check = () => {
+        //			this.monacoRenderTries++;
+        //			const size = this.getMonacoHostSize();
+        //			if (size != null && size.width > 0 && size.height > 0) {
+        //				if (this.monacoRenderLastSize != null && size.width === this.monacoRenderLastSize.width && size.height === this.monacoRenderLastSize.height) {
+        //					this.monacoRenderStableCount++;
+        //				} else {
+        //					this.monacoRenderStableCount = 0;
+        //					this.monacoRenderLastSize = size;
+        //				}
+        //				if (this.monacoRenderStableCount >= 2) {
+        //					this.monacoRenderTimer = null;
+        //					this.local.show = true;
+        //					this.ref.detectChanges();
+        //					return;
+        //				}
+        //			}
+        //			if (this.monacoRenderTries < 60) {
+        //				this.monacoRenderTimer = setTimeout(check, 50);
+        //			} else {
+        //				this.monacoRenderTimer = null;
+        //				this.local.show = true;
+        //				this.ref.detectChanges();
+        //			}
+        //		};
+        //		this.monacoRenderTimer = setTimeout(check, 0);
+        //	}
+        
         	private scheduleMonacoRender() {
+        	
         		if (this.monacoRenderTimer) {
         			clearTimeout(this.monacoRenderTimer);
         			this.monacoRenderTimer = null;
         		}
+        	
         		this.monacoRenderTries = 0;
         		this.monacoRenderStableCount = 0;
         		this.monacoRenderLastSize = null;
+        	
         		const check = () => {
+        	
         			this.monacoRenderTries++;
+        	
         			const size = this.getMonacoHostSize();
+        	
         			if (size != null && size.width > 0 && size.height > 0) {
-        				if (this.monacoRenderLastSize != null && size.width === this.monacoRenderLastSize.width && size.height === this.monacoRenderLastSize.height) {
+        	
+        				if (
+        					this.monacoRenderLastSize != null &&
+        					size.width === this.monacoRenderLastSize.width &&
+        					size.height === this.monacoRenderLastSize.height
+        				) {
         					this.monacoRenderStableCount++;
         				} else {
         					this.monacoRenderStableCount = 0;
         					this.monacoRenderLastSize = size;
         				}
+        	
         				if (this.monacoRenderStableCount >= 2) {
+        	
         					this.monacoRenderTimer = null;
+        	
         					this.local.show = true;
         					this.ref.detectChanges();
+        	
+        					// ⚡ attendre que Angular rende le DOM
+        					setTimeout(() => {
+        	
+        						if (!this.monacoEditorInstance) {
+        							this.configureMonacoEnvironment();
+        							this.initMonaco();
+        						}
+        	
+        					});
+        	
         					return;
         				}
         			}
+        	
         			if (this.monacoRenderTries < 60) {
         				this.monacoRenderTimer = setTimeout(check, 50);
         			} else {
+        	
         				this.monacoRenderTimer = null;
+        	
         				this.local.show = true;
         				this.ref.detectChanges();
+        	
+        				setTimeout(() => {
+        	
+        					if (!this.monacoEditorInstance) {
+        						this.configureMonacoEnvironment();
+        						this.initMonaco();
+        					}
+        	
+        				});
         			}
         		};
+        	
         		this.monacoRenderTimer = setTimeout(check, 0);
         	}
         	
@@ -709,9 +791,37 @@ scriptContent:
         		}
         		this.scheduleMonacoLayout(editor);
         		
-        		let defs = await this.computeDefs();
-        		window["monaco"].languages.typescript.javascriptDefaults.addExtraLib(defs);
-        		window["monaco"].editor.createModel(defs, ''typescript'');
+        //		let defs = await this.computeDefs();
+        		
+        //		window["monaco"].languages.typescript.javascriptDefaults.addExtraLib(defs);
+        //		window["monaco"].editor.createModel(defs, ''typescript'');
+        		const defs = await this.computeDefs();
+        		
+        		const m = (window as any).monaco || monaco;
+        		
+        		const uri = m.Uri.parse(''ts:convertigo-form-defs.d.ts'');
+        		
+        		let model = m.editor.getModel(uri);
+        		
+        		if (!model) {
+        		
+        		  m.languages.typescript.javascriptDefaults.addExtraLib(
+        		    defs,
+        		    uri.toString()
+        		  );
+        		
+        		  model = m.editor.createModel(
+        		    defs,
+        		    ''typescript'',
+        		    uri
+        		  );
+        		
+        		} else {
+        		
+        		  model.setValue(defs);
+        		
+        		}
+        		
         	}
         
         	public OldinspectValue(node, arrayNodes, str = "") {
@@ -2461,6 +2571,40 @@ scriptContent:
         		    purge(): number;
         		}`
         	}
+        	
+        	private configureMonacoEnvironment() {
+        	  const w = window as any;
+        
+        	  if (!w.MonacoEnvironment) {
+        	    w.MonacoEnvironment = {
+        	      getWorkerUrl: function () {
+        	        return ''/assets/monaco-editor/min/vs/base/worker/workerMain.js'';
+        	      }
+        	    };
+        	  }
+        	}
+        	
+        	private initMonaco() {
+        
+        	  const container = this.monacoEditor?.nativeElement;
+        
+        	  if (!container) {
+        		console.warn("Monaco container not found");
+        	    return;
+        	  }
+        
+        	  const editor = monaco.editor.create(container, {
+        	    value: this.transform$toTsMonaco(this.code),
+        	    language: ''javascript'',
+        	    theme: ''vs'',
+        	    automaticLayout: true,
+        	    minimap: { enabled: false }
+        	  });
+        
+        	  this.monacoEditorInstance = editor;
+        
+        	  this.onMonacoInit(editor);
+        	}
         	/*End_c8o_CompFunction*/
         '
 ↓SharedComponent_Event [ngx.components.UISharedComponentEvent-1681289095919]: 
@@ -2472,6 +2616,7 @@ scriptContent:
           →: |
             '		try {
             			page.local.editorOptions = {theme: ''vs'', language: ''javascript'', automaticLayout: true};
+            			console.log(window);
             		} catch (e) {
             			console.error("[CompMonacoEditor][afterViewInit][error]", e);
             		} finally {
@@ -2487,6 +2632,7 @@ scriptContent:
             - com.twinsoft.convertigo.beans.common.XMLVector: 
               - java.lang.String: 
                 - ↑value: '{ "glob": "**/*", "input": "node_modules/monaco-editor", "output": "assets/monaco-editor" }'
+    isEnabled: false
     local_module_ng_imports: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
@@ -2539,6 +2685,55 @@ scriptContent:
                 - ↑value: acorn-walk
               - java.lang.String: 
                 - ↑value: 8.3.4
+  ↓installDependencies1 [ngx.components.UICustomAsyncAction-1772807597793]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '		try {
+            			page.local.editorOptions = {theme: ''vs'', language: ''javascript'', automaticLayout: true};
+            //			console.log(window);
+            		} catch (e) {
+            			console.error("[CompMonacoEditor][afterViewInit][error]", e);
+            		} finally {
+            			return;
+            		}
+            '
+    build_assets: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: '{ "glob": "**/*", "input": "node_modules/monaco-editor", "output": "assets/monaco-editor" }'
+    package_dependencies: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: monaco-editor
+              - java.lang.String: 
+                - ↑value: 0.39.0
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: acorn
+              - java.lang.String: 
+                - ↑value: 8.14.1
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+            - com.twinsoft.convertigo.beans.common.XMLVector: 
+              - java.lang.String: 
+                - ↑value: acorn-walk
+              - java.lang.String: 
+                - ↑value: 8.3.4
 ↓Directive [ngx.components.UIControlDirective-1768480616982]: 
   directiveName: If
   directiveSource: 
@@ -2547,6 +2742,7 @@ scriptContent:
       - MobileSmartSourceType: script:this.local.show
   ↓ngx_monaco_editor [ngx.components.UIElement-1681292694675]: 
     identifier: monacoEditor
+    isEnabled: false
     tagName: ngx-monaco-editor
     ↓_options_ [ngx.components.UIAttribute-1681292820508]: 
       attrName: '[options]'
@@ -2572,8 +2768,48 @@ scriptContent:
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
           - MobileSmartSourceType: 'plain:flex: 1 1 0; min-width: 0; min-height: 0; height: 100%;'
+  ↓ngx_monaco_editor1 [ngx.components.UIElement-1772807784816]: 
+    identifier: monacoEditor
+    tagName: div
+    ↓_options_ [ngx.components.UIAttribute-1772807784819]: 
+      attrName: class
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: plain:monaco-editor-container
+    ↓attr [ngx.components.UIAttribute-1772807784822]: 
+      attrName: '[ngModel]'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.transform$toTsMonaco(this.code)
+      isEnabled: false
+    ↓attr1 [ngx.components.UIAttribute-1772807784825]: 
+      attrName: (onInit)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:onMonacoInit($event)
+      isEnabled: false
+    ↓attr3 [ngx.components.UIAttribute-1772807784828]: 
+      attrName: style
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: 'plain:flex: 1 1 0; min-width: 0; min-height: 0; height: 100%;'
 ↓code [ngx.components.UICompVariable-1681294557081]: 
 ↓onBlur [ngx.components.UICompEvent-1685453920617]: 
   attrName: onBlur
 ↓loop [ngx.components.UICompVariable-1743438243946]: 
   value: false
+↓Style [ngx.components.UIStyle-1772807845138]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.monaco-editor-container {
+            width: 100%;
+            height: 100%;
+            min-height: 300px;
+          }'
