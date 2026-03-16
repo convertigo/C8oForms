@@ -5798,6 +5798,53 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_MigrateADUsersToLowercase</b> : Migrate AD users to lowercase</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_MigrateADUsersToLowercase
+
+Migrate AD users to lowercase.
+Canonicalises AD/LDAP user ids in lowercase, exposes dry-run diffs, blocks on conflicts and can target a single canonical user.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;chunkSize
+</td>
+<td>
+Number of documents fetched per CouchDB page while iterating through impacted databases.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute
+</td>
+<td>
+Set to true to apply the migration instead of only listing impacted identities and documents.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;user
+</td>
+<td>
+Optional canonical user id to audit or migrate. Case is ignored and normalized to lowercase.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_NotifyUsersSharing</b> : Notify shared users</summary><blockquote><p>
 
 
