@@ -1,0 +1,175 @@
+accessibility: Private
+authenticatedContextRequired: true
+comment: |
+  Clean invalid form page references.
+  Removes form elements whose config.page no longer matches an existing pageTechName.
+↓cleanInvalidPageReferences [steps.SimpleStep-1774359901000]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    var authenticatedUserID = context.getAuthenticatedUser();
+    var authGranted = false;
+    var res = {};
+    var existing_doc = getDoc(id, null, "c8oforms_fs");
+    
+    var hasOwn = Object.prototype.hasOwnProperty;
+    var sanitizeElements = function(elements, validPages, removed) {
+    	var cleaned = [];
+    	if (!(elements instanceof Array)) {
+    		return cleaned;
+    	}
+    	for (var i = 0; i < elements.length; i++) {
+    		var current = elements[i];
+    		if (current == null) {
+    			continue;
+    		}
+    		if (current.children instanceof Array) {
+    			current.children = sanitizeElements(current.children, validPages, removed);
+    		}
+    		var hasPage = current.config != null && hasOwn.call(current.config, "page");
+    		var pageRef = hasPage ? current.config.page : null;
+    		var invalidPage = hasPage && pageRef != null && !validPages["" + pageRef];
+    		if (invalidPage) {
+    			removed.push({
+    				id: current.id != null ? "" + current.id : null,
+    				name: current.name != null ? "" + current.name : null,
+    				type: current.type != null ? "" + current.type : null,
+    				page: "" + pageRef
+    			});
+    			continue;
+    		}
+    		cleaned.push(current);
+    	}
+    	return cleaned;
+    };
+    var collectIds = function(elements, ids) {
+    	if (!(elements instanceof Array)) {
+    		return;
+    	}
+    	for (var i = 0; i < elements.length; i++) {
+    		var current = elements[i];
+    		if (current == null) {
+    			continue;
+    		}
+    		if (current.id != null) {
+    			ids["" + current.id] = true;
+    		}
+    		if (current.children instanceof Array) {
+    			collectIds(current.children, ids);
+    		}
+    	}
+    };
+    var cleanupChildrenRefs = function(elements, ids) {
+    	if (!(elements instanceof Array)) {
+    		return;
+    	}
+    	for (var i = 0; i < elements.length; i++) {
+    		var current = elements[i];
+    		if (current == null) {
+    			continue;
+    		}
+    		if (current.childrenRefs instanceof Array) {
+    			current.childrenRefs = current.childrenRefs.filter(function(childId) {
+    				return ids["" + childId] === true;
+    			});
+    		}
+    		if (current.children instanceof Array) {
+    			cleanupChildrenRefs(current.children, ids);
+    		}
+    	}
+    };
+    
+    if (!existing_doc || existing_doc.error === "not_found") {
+    	res.error = true;
+    	res.errorMessage = "Form document not found";
+    }
+    else {
+    	if (existing_doc._deleted == null && ((existing_doc["~c8oAcl"] == null && existing_doc.c8oGrp == null) || existing_doc["~c8oAcl"] == authenticatedUserID)) {
+    		authGranted = true;
+    	}
+    	authGranted = true;
+    	var grpIsArray = isArray(existing_doc.c8oGrp);
+    	var grpIsObject = isObject(existing_doc.c8oGrp);
+    	if (!authGranted && existing_doc.c8oGrp != null && ((grpIsArray && existing_doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(existing_doc.c8oGrp).length > 0))) {
+    		var query = new java.util.HashMap();
+    		query.put(''reduce'', ''false'');
+    		var keys = toJettison([authenticatedUserID]);
+    		var rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
+    
+    		query = new java.util.HashMap();
+    		query.put(''reduce'', ''true'');
+    		query.put(''group'', ''true'');
+    		var _use_keys = rows.map(function(x) { return x.value; });
+    		keys = toJettison(_use_keys);
+    		var usedGroups = toJSON(fsclient.postView("c8oforms_fs", ''authentication'', ''distinctGroups'', query, keys));
+    		usedGroups = usedGroups.rows.map(function(x) { return x.key; });
+    		if (usedGroups.length > 0 && ((grpIsArray && existing_doc.c8oGrp.some(function(value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function(group) { return (existing_doc.c8oGrp[group] == true || existing_doc.c8oGrp[group] == "true"); })))) {
+    			authGranted = true;
+    		}
+    	}
+    
+    	if (!authGranted) {
+    		res.error = true;
+    		res.errorMessage = "You are not authorized to update this document";
+    	}
+    	else {
+    		var validPages = {};
+    		var pages = existing_doc.pages instanceof Array ? existing_doc.pages : [];
+    		for (var p = 0; p < pages.length; p++) {
+    			if (pages[p] != null && pages[p].pageTechName != null && pages[p].pageTechName !== "") {
+    				validPages["" + pages[p].pageTechName] = true;
+    			}
+    		}
+    
+    		var removed = [];
+    		var formulaire = existing_doc.formulaire instanceof Array ? existing_doc.formulaire : [];
+    		var cleanedFormulaire = sanitizeElements(formulaire, validPages, removed);
+    		var remainingIds = {};
+    		collectIds(cleanedFormulaire, remainingIds);
+    		cleanupChildrenRefs(cleanedFormulaire, remainingIds);
+    
+    		res.id = existing_doc._id;
+    		res.validPages = Object.keys(validPages);
+    		res.removed = removed;
+    		res.removedCount = removed.length;
+    		res.changed = removed.length > 0;
+    
+    		if (res.changed) {
+    			existing_doc.formulaire = cleanedFormulaire;
+    			existing_doc.lastMofification = "" + new Date().getTime();
+    			delete existing_doc._c8oMeta;
+    
+    			var mergeRules = new java.util.HashMap();
+    			mergeRules.put(java.util.Arrays.asList(new java.lang.String("formulaire")), new java.lang.String("override"));
+    			var writeResponse = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(existing_doc), new java.util.HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    			if (writeResponse.error) {
+    				res.error = true;
+    				res.errorMessage = "An error occured while trying to update document: " + writeResponse.error;
+    			}
+    			else {
+    				res.success = true;
+    				res.write = writeResponse;
+    			}
+    		}
+    		else {
+    			res.success = true;
+    			res.write = { ok: true, skipped: true };
+    		}
+    	}
+    }'
+↓object2 [steps.JsonToXmlStep-1774359901003]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓id [variables.RequestableVariable-1774359901006]: 
+  comment: Form identifier to clean in c8oforms_fs.
