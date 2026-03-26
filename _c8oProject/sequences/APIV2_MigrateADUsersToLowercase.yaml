@@ -1,0 +1,1350 @@
+accessibility: Private
+authenticatedContextRequired: true
+comment: |
+  Migrate AD users to lowercase.
+  Canonicalises AD/LDAP user ids in lowercase, exposes dry-run diffs, blocks on conflicts and can target a single canonical user.
+↓checkAdminRights [steps.SimpleStep-1893000000200]: 
+  expression: include("js/isAdmin.js");
+↓Sequence_JS [steps.SimpleStep-1893000000201]: 
+  expression: |
+    'include("js/common.js");
+    var Arrays = java.util.Arrays;
+    var shouldExecute = ("" + execute) == "true";
+    var parsedChunkSize = parseInt(chunkSize || "200", 10);
+    var limit = isNaN(parsedChunkSize) || parsedChunkSize <= 0 ? 200 : parsedChunkSize;
+    var hasOwn = function(obj, key) {
+    	return Object.prototype.hasOwnProperty.call(obj, key);
+    };
+    var isArray = function(value) {
+    	return Object.prototype.toString.call(value) === "[object Array]";
+    };
+    var isObject = function(value) {
+    	return value != null && typeof value == "object" && !isArray(value);
+    };
+    var isTruthy = function(value) {
+    	return value === true || value === "true" || value === 1 || value === "1";
+    };
+    var isBlank = function(value) {
+    	return value === undefined || value === null || (typeof value == "string" && value.trim() === "");
+    };
+    var clone = function(value) {
+    	return value == null ? value : JSON.parse(JSON.stringify(value));
+    };
+    var canonicalizeRawUser = function(value) {
+    	if (value === undefined || value === null) {
+    		return null;
+    	}
+    	var text = ("" + value).trim();
+    	if (text === "") {
+    		return null;
+    	}
+    	return text.toLowerCase();
+    };
+    var requestedUser = canonicalizeRawUser(user);
+    var reservedId = function(rawUser) {
+    	return rawUser == null ? null : "C8Oreserved_" + rawUser;
+    };
+    var hiddenGroup = function(rawUser) {
+    	if (rawUser == null) {
+    		return null;
+    	}
+    	return "_C8O_HIDDEN_" + (("" + rawUser).replace(/@/g, "_").replace(/\./g, "-"));
+    };
+    var stableCopy = function(value) {
+    	if (isArray(value)) {
+    		var copiedArray = [];
+    		for (var i = 0; i < value.length; i++) {
+    			copiedArray.push(stableCopy(value[i]));
+    		}
+    		return copiedArray;
+    	}
+    	if (isObject(value)) {
+    		var keys = Object.keys(value).sort();
+    		var copiedObject = {};
+    		for (var j = 0; j < keys.length; j++) {
+    			copiedObject[keys[j]] = stableCopy(value[keys[j]]);
+    		}
+    		return copiedObject;
+    	}
+    	return value;
+    };
+    var stableStringify = function(value) {
+    	return JSON.stringify(stableCopy(value));
+    };
+    var displayValue = function(value) {
+    	if (value === undefined) {
+    		return "";
+    	}
+    	if (value === null) {
+    		return "null";
+    	}
+    	if (typeof value == "string") {
+    		return value;
+    	}
+    	return stableStringify(value);
+    };
+    var normalizeMailLike = function(value) {
+    	if (isBlank(value)) {
+    		return null;
+    	}
+    	return ("" + value).trim().toLowerCase();
+    };
+    var normalizeComparableValue = function(field, value) {
+    	if (isBlank(value)) {
+    		return null;
+    	}
+    	if (field === "mail") {
+    		return normalizeMailLike(value);
+    	}
+    	if (field === "published_First" || field === "editing_rights" || field === "nocode_db_rights" || field === "formulas" || field === "publication" || field === "admin" || field === "admin_readonly") {
+    		return isTruthy(value);
+    	}
+    	if (isArray(value) || isObject(value)) {
+    		return stableStringify(value);
+    	}
+    	return ("" + value).trim();
+    };
+    var dedupeArray = function(values) {
+    	var result = [];
+    	var seen = {};
+    	if (!isArray(values)) {
+    		return result;
+    	}
+    	for (var i = 0; i < values.length; i++) {
+    		var key = stableStringify(values[i]);
+    		if (!hasOwn(seen, key)) {
+    			seen[key] = true;
+    			result.push(values[i]);
+    		}
+    	}
+    	return result;
+    };
+    var mergeGenericDoc = function(target, source) {
+    	if (target == null) {
+    		return clone(source);
+    	}
+    	if (source == null) {
+    		return target;
+    	}
+    	for (var key in source) {
+    		if (!hasOwn(source, key) || key === "_id" || key === "_rev" || key === "_c8oMeta" || key === "_deleted") {
+    			continue;
+    		}
+    		var sourceValue = source[key];
+    		var targetValue = target[key];
+    		if (sourceValue === undefined) {
+    			continue;
+    		}
+    		if (isArray(sourceValue)) {
+    			if (!isArray(targetValue) || targetValue.length === 0) {
+    				target[key] = clone(sourceValue);
+    			}
+    			else {
+    				target[key] = dedupeArray(targetValue.concat(sourceValue));
+    			}
+    			continue;
+    		}
+    		if (isObject(sourceValue)) {
+    			if (!isObject(targetValue)) {
+    				target[key] = clone(sourceValue);
+    			}
+    			else {
+    				var mergedObject = clone(targetValue);
+    				for (var subKey in sourceValue) {
+    					if (!hasOwn(sourceValue, subKey)) {
+    						continue;
+    					}
+    					if (!hasOwn(mergedObject, subKey) || (isTruthy(sourceValue[subKey]) && !isTruthy(mergedObject[subKey]))) {
+    						mergedObject[subKey] = sourceValue[subKey];
+    					}
+    				}
+    				target[key] = mergedObject;
+    			}
+    			continue;
+    		}
+    		if (sourceValue === true || sourceValue === false || sourceValue === "true" || sourceValue === "false" || sourceValue === 1 || sourceValue === 0 || sourceValue === "1" || sourceValue === "0") {
+    			if (isTruthy(sourceValue)) {
+    				target[key] = true;
+    			}
+    			else if (targetValue === undefined) {
+    				target[key] = sourceValue;
+    			}
+    			continue;
+    		}
+    		if (isBlank(targetValue)) {
+    			target[key] = sourceValue;
+    		}
+    	}
+    	return target;
+    };
+    var mergeUserDoc = function(target, source, canonicalRaw, canonicalReserved) {
+    	target = mergeGenericDoc(target, source);
+    	delete target._c8oMeta;
+    	delete target._deleted;
+    	target._id = canonicalReserved;
+    	target["~c8oAcl"] = canonicalRaw;
+    	target.provider = "ad";
+    	target.c8o_view_type_users = true;
+    	return target;
+    };
+    var scoreUserDoc = function(doc, canonicalReserved) {
+    	if (doc == null) {
+    		return -1;
+    	}
+    	var score = doc._id === canonicalReserved ? 1000 : 0;
+    	if (!isBlank(doc.displayName)) {
+    		score += 50;
+    	}
+    	if (!isBlank(doc.mail)) {
+    		score += 40;
+    	}
+    	if (!isBlank(doc.language)) {
+    		score += 15;
+    	}
+    	if (!isBlank(doc.picture)) {
+    		score += 10;
+    	}
+    	if (isTruthy(doc.admin)) {
+    		score += 10;
+    	}
+    	if (isTruthy(doc.admin_readonly)) {
+    		score += 5;
+    	}
+    	if (isTruthy(doc.editing_rights)) {
+    		score += 5;
+    	}
+    	if (isTruthy(doc.nocode_db_rights)) {
+    		score += 5;
+    	}
+    	if (isTruthy(doc.formulas)) {
+    		score += 5;
+    	}
+    	if (isArray(doc.favorites) && doc.favorites.length > 0) {
+    		score += 5;
+    	}
+    	return score;
+    };
+    var scoreLibDoc = function(doc, canonicalRaw) {
+    	if (doc == null) {
+    		return -1;
+    	}
+    	var score = doc._id === canonicalRaw ? 1000 : 0;
+    	if (doc.account && !isBlank(doc.account.email)) {
+    		score += 50;
+    	}
+    	if (doc.account && !isBlank(doc.account.status)) {
+    		score += 20;
+    	}
+    	if (doc.account && isObject(doc.account.attributes) && Object.keys(doc.account.attributes).length > 0) {
+    		score += 10;
+    	}
+    	return score;
+    };
+    var normalizeAccountValue = function(value, keyName) {
+    	if (isArray(value)) {
+    		var normalizedArray = [];
+    		for (var i = 0; i < value.length; i++) {
+    			normalizedArray.push(normalizeAccountValue(value[i], keyName));
+    		}
+    		return normalizedArray;
+    	}
+    	if (isObject(value)) {
+    		var keys = Object.keys(value).sort();
+    		var normalizedObject = {};
+    		for (var j = 0; j < keys.length; j++) {
+    			normalizedObject[keys[j]] = normalizeAccountValue(value[keys[j]], keys[j]);
+    		}
+    		return normalizedObject;
+    	}
+    	if (typeof value == "string") {
+    		var trimmed = value.trim();
+    		if (keyName === "email" || keyName === "mail" || keyName === "userPrincipalName") {
+    			return trimmed.toLowerCase();
+    		}
+    		return trimmed;
+    	}
+    	return value;
+    };
+    var normalizeAccount = function(account) {
+    	if (!isObject(account)) {
+    		return null;
+    	}
+    	return normalizeAccountValue(account, "");
+    };
+    var pushChange = function(changes, field, before, after) {
+    	if (stableStringify(before) !== stableStringify(after)) {
+    		changes.push({
+    			field: field,
+    			before: clone(before),
+    			after: clone(after)
+    		});
+    	}
+    };
+    var computeDocChanges = function(beforeDoc, afterDoc, keys) {
+    	var changes = [];
+    	var fields = keys ? keys.slice(0) : [];
+    	if (!keys) {
+    		var union = {};
+    		var beforeKeys = beforeDoc ? Object.keys(beforeDoc) : [];
+    		var afterKeys = afterDoc ? Object.keys(afterDoc) : [];
+    		for (var i = 0; i < beforeKeys.length; i++) {
+    			union[beforeKeys[i]] = true;
+    		}
+    		for (var j = 0; j < afterKeys.length; j++) {
+    			union[afterKeys[j]] = true;
+    		}
+    		fields = Object.keys(union).sort();
+    	}
+    	for (var k = 0; k < fields.length; k++) {
+    		var key = fields[k];
+    		if (key === "_rev" || key === "_c8oMeta" || key === "_deleted") {
+    			continue;
+    		}
+    		pushChange(changes, key, beforeDoc ? beforeDoc[key] : undefined, afterDoc ? afterDoc[key] : undefined);
+    	}
+    	return changes;
+    };
+    var scanDocsByFind = function(dbName, selector, fields, onBatch) {
+    	var bookmark = null;
+    	var running = true;
+    	while (running) {
+    		context.getRootContext().lastAccessTime = new Date().getTime();
+    		var query = {
+    			selector: selector,
+    			limit: limit
+    		};
+    		if (fields != null) {
+    			query.fields = fields;
+    		}
+    		if (bookmark != null) {
+    			query.bookmark = bookmark;
+    		}
+    		var response = toJSON(fsclient.postFind(dbName, toJettison(query)));
+    		var docs = response.docs || [];
+    		if (docs.length === 0) {
+    			break;
+    		}
+    		onBatch(docs);
+    		var nextBookmark = response.bookmark || null;
+    		if (nextBookmark == null || docs.length < limit) {
+    			running = false;
+    		}
+    		bookmark = nextBookmark;
+    	}
+    };
+    var mergeRulesFor = function(keys) {
+    	var mergeRules = new HashMap();
+    	for (var i = 0; i < keys.length; i++) {
+    		mergeRules.put(Arrays.asList(new java.lang.String(keys[i])), new java.lang.String("override"));
+    	}
+    	return mergeRules;
+    };
+    var stats = {
+    	mode: shouldExecute ? "apply" : "dry-run",
+    	requestedUser: requestedUser == null ? "" : requestedUser,
+    	blocked: false,
+    	aliases: 0,
+    	matchedUsers: 0,
+    	userPlans: 0,
+    	duplicateUsers: 0,
+    	plannedUpdates: 0,
+    	plannedDeletes: 0,
+    	appliedUpdates: 0,
+    	appliedDeletes: 0,
+    	conflicts: 0,
+    	errors: 0
+    };
+    var rawAliasMap = {};
+    var reservedAliasMap = {};
+    var reservedAliasCanonicalMap = {};
+    var hiddenAliasMap = {};
+    var hiddenAliasCanonicalMap = {};
+    var groupedUsers = {};
+    var rawAliasesDescending = [];
+    var blockedCanonicalUsers = {};
+    var userConflictCount = {};
+    var aliasEntries = [];
+    var userEntries = [];
+    var documentEntries = [];
+    var conflictEntries = [];
+    var errorEntries = [];
+    var canonicalUserPlans = [];
+    var c8oformsUserDeletePlans = [];
+    var libUserPlans = [];
+    var libUserDeletePlans = [];
+    var groupUpdatePlans = [];
+    var groupDeletePlans = [];
+    var folderUpsertPlans = [];
+    var folderDeletePlans = [];
+    var c8oformsDocPlans = [];
+    var responsePlans = [];
+    var handledFolderIds = {};
+    var isBlockedCanonical = function(canonicalRaw) {
+    	return canonicalRaw != null && hasOwn(blockedCanonicalUsers, canonicalRaw) && blockedCanonicalUsers[canonicalRaw] === true;
+    };
+    var noteBlockedCanonical = function(canonicalRaw) {
+    	if (canonicalRaw != null) {
+    		blockedCanonicalUsers[canonicalRaw] = true;
+    	}
+    };
+    var recordError = function(dbName, id, detail) {
+    	stats.errors++;
+    	errorEntries.push({
+    		db: dbName == null ? "" : dbName,
+    		id: id == null ? "" : id,
+    		detail: detail == null ? "" : "" + detail
+    	});
+    };
+    var recordConflict = function(scope, id, field, detail, sources, values, canonicalRaw) {
+    	stats.conflicts++;
+    	if (canonicalRaw != null) {
+    		noteBlockedCanonical(canonicalRaw);
+    		userConflictCount[canonicalRaw] = (userConflictCount[canonicalRaw] || 0) + 1;
+    	}
+    	conflictEntries.push({
+    		scope: scope,
+    		id: id == null ? "" : id,
+    		field: field == null ? "" : field,
+    		detail: detail == null ? "" : detail,
+    		sources: sources || [],
+    		values: values || []
+    	});
+    };
+    var planMerge = function(target, dbName, doc, overrideKeys, action, detail, changes, sources) {
+    	stats.plannedUpdates++;
+    	var entry = {
+    		db: dbName,
+    		id: doc._id,
+    		action: "planned_" + action,
+    		detail: detail == null ? "" : detail,
+    		sources: sources || [],
+    		changes: changes || []
+    	};
+    	documentEntries.push(entry);
+    	target.push({
+    		dbName: dbName,
+    		doc: doc,
+    		overrideKeys: overrideKeys,
+    		action: action,
+    		entry: entry
+    	});
+    	return entry;
+    };
+    var planDelete = function(target, dbName, doc, detail, changes, sources) {
+    	stats.plannedDeletes++;
+    	var entry = {
+    		db: dbName,
+    		id: doc._id,
+    		action: "planned_deleted",
+    		detail: detail == null ? "" : detail,
+    		sources: sources || [],
+    		changes: changes || []
+    	};
+    	documentEntries.push(entry);
+    	target.push({
+    		dbName: dbName,
+    		doc: doc,
+    		entry: entry
+    	});
+    	return entry;
+    };
+    var markApplyError = function(plan, result) {
+    	plan.entry.action = "error";
+    	recordError(plan.dbName, plan.doc._id, stableStringify(result));
+    };
+    var updatePlansFromBulkResult = function(plans, result, isDelete) {
+    	var entries = null;
+    	if (isArray(result)) {
+    		entries = result;
+    	}
+    	else if (result && isArray(result.items)) {
+    		entries = result.items;
+    	}
+    	if (entries != null) {
+    		for (var i = 0; i < plans.length; i++) {
+    			var plan = plans[i];
+    			var entry = entries[i] || {};
+    			var ok = entry.ok === true || entry.error === undefined;
+    			if (ok) {
+    				plan.entry.action = isDelete ? "deleted" : plan.action;
+    				if (isDelete) {
+    					stats.appliedDeletes++;
+    				}
+    				else {
+    					stats.appliedUpdates++;
+    				}
+    			}
+    			else {
+    				markApplyError(plan, entry);
+    			}
+    		}
+    		return;
+    	}
+    	if (result && !result.error) {
+    		for (var j = 0; j < plans.length; j++) {
+    			plans[j].entry.action = isDelete ? "deleted" : plans[j].action;
+    			if (isDelete) {
+    				stats.appliedDeletes++;
+    			}
+    			else {
+    				stats.appliedUpdates++;
+    			}
+    		}
+    		return;
+    	}
+    	for (var k = 0; k < plans.length; k++) {
+    		markApplyError(plans[k], result);
+    	}
+    };
+    var applyMergePlans = function(plans) {
+    	if (!shouldExecute || stats.blocked || !plans || plans.length === 0) {
+    		return;
+    	}
+    	for (var i = 0; i < plans.length; i += limit) {
+    		var chunk = plans.slice(i, i + limit);
+    		var docs = [];
+    		for (var j = 0; j < chunk.length; j++) {
+    			docs.push(chunk[j].doc);
+    		}
+    		var overrideKeys = chunk[0].overrideKeys || [];
+    		var result = toJSON(fsclient.postBulkDocs(java.lang.String(chunk[0].dbName), toJettison(docs), false, true, enums.CouchPostDocumentPolicy.merge, mergeRulesFor(overrideKeys), false));
+    		updatePlansFromBulkResult(chunk, result, false);
+    	}
+    };
+    var applyDeletePlans = function(plans) {
+    	if (!shouldExecute || stats.blocked || !plans || plans.length === 0) {
+    		return;
+    	}
+    	for (var i = 0; i < plans.length; i += limit) {
+    		var chunk = plans.slice(i, i + limit);
+    		var docs = [];
+    		for (var j = 0; j < chunk.length; j++) {
+    			docs.push(chunk[j].doc);
+    		}
+    		var result = toJSON(fsclient.postBulkDocs(java.lang.String(chunk[0].dbName), toJettison(docs), false, true, enums.CouchPostDocumentPolicy.merge, new HashMap(), true));
+    		updatePlansFromBulkResult(chunk, result, true);
+    	}
+    };
+    var rewriteRawReference = function(value) {
+    	if (value === undefined || value === null) {
+    		return value;
+    	}
+    	var text = ("" + value).trim();
+    	if (text === "") {
+    		return value;
+    	}
+    	if (hasOwn(rawAliasMap, text) && !isBlockedCanonical(rawAliasMap[text])) {
+    		return rawAliasMap[text];
+    	}
+    	return value;
+    };
+    var rewriteGroupedReference = function(value) {
+    	if (value === undefined || value === null) {
+    		return value;
+    	}
+    	var text = ("" + value).trim();
+    	if (text === "") {
+    		return value;
+    	}
+    	if (hasOwn(reservedAliasMap, text) && !isBlockedCanonical(reservedAliasCanonicalMap[text])) {
+    		return reservedAliasMap[text];
+    	}
+    	if (hasOwn(hiddenAliasMap, text) && !isBlockedCanonical(hiddenAliasCanonicalMap[text])) {
+    		return hiddenAliasMap[text];
+    	}
+    	if (hasOwn(rawAliasMap, text) && !isBlockedCanonical(rawAliasMap[text])) {
+    		return rawAliasMap[text];
+    	}
+    	return value;
+    };
+    var rewriteListField = function(source, rewriter) {
+    	if (source === undefined || source === null) {
+    		return {
+    			changed: false,
+    			value: source
+    		};
+    	}
+    	if (isArray(source)) {
+    		var mapped = [];
+    		for (var i = 0; i < source.length; i++) {
+    			mapped.push(rewriter(source[i]));
+    		}
+    		mapped = dedupeArray(mapped);
+    		return {
+    			changed: stableStringify(mapped) !== stableStringify(source),
+    			value: mapped
+    		};
+    	}
+    	var rewritten = rewriter(source);
+    	return {
+    		changed: stableStringify(rewritten) !== stableStringify(source),
+    		value: rewritten
+    	};
+    };
+    var rewriteMapField = function(source, rewriter) {
+    	if (!isObject(source)) {
+    		return {
+    			changed: false,
+    			value: source
+    		};
+    	}
+    	var mapped = {};
+    	for (var key in source) {
+    		if (!hasOwn(source, key)) {
+    			continue;
+    		}
+    		var rewrittenKey = rewriter(key);
+    		if (!hasOwn(mapped, rewrittenKey)) {
+    			mapped[rewrittenKey] = source[key];
+    		}
+    		else if (isTruthy(source[key])) {
+    			mapped[rewrittenKey] = true;
+    		}
+    	}
+    	return {
+    		changed: stableStringify(mapped) !== stableStringify(source),
+    		value: mapped
+    	};
+    };
+    var rewriteFolderDocReferences = function(doc) {
+    	var rewritten = clone(doc);
+    	if (rewritten == null) {
+    		return rewritten;
+    	}
+    	if (hasOwn(rewritten, "~c8oAcl")) {
+    		rewritten["~c8oAcl"] = rewriteRawReference(rewritten["~c8oAcl"]);
+    	}
+    	if (hasOwn(rewritten, "c8oGrp")) {
+    		rewritten.c8oGrp = rewriteMapField(rewritten.c8oGrp, rewriteGroupedReference).value;
+    	}
+    	if (hasOwn(rewritten, "shared")) {
+    		rewritten.shared = rewriteListField(rewritten.shared, rewriteGroupedReference).value;
+    	}
+    	if (hasOwn(rewritten, "collabs")) {
+    		rewritten.collabs = rewriteListField(rewritten.collabs, rewriteGroupedReference).value;
+    	}
+    	if (hasOwn(rewritten, "collabsResponse")) {
+    		rewritten.collabsResponse = rewriteListField(rewritten.collabsResponse, rewriteGroupedReference).value;
+    	}
+    	return rewritten;
+    };
+    var normalizeFolderForCompare = function(doc, renameInfo) {
+    	var normalized = rewriteFolderDocReferences(doc);
+    	if (normalized == null) {
+    		return null;
+    	}
+    	delete normalized._rev;
+    	delete normalized._c8oMeta;
+    	delete normalized._deleted;
+    	normalized._id = renameInfo.newId;
+    	normalized["~c8oAcl"] = renameInfo.canonical;
+    	return stableCopy(normalized);
+    };
+    var buildDistinctFieldEntries = function(docs, field) {
+    	var distinct = {};
+    	var ordered = [];
+    	for (var i = 0; i < docs.length; i++) {
+    		var doc = docs[i];
+    		var normalized = normalizeComparableValue(field, doc[field]);
+    		if (normalized === null) {
+    			continue;
+    		}
+    		var key = stableStringify(normalized);
+    		if (!hasOwn(distinct, key)) {
+    			distinct[key] = {
+    				display: displayValue(doc[field]),
+    				sources: []
+    			};
+    			ordered.push(distinct[key]);
+    		}
+    		distinct[key].sources.push(doc._id);
+    	}
+    	return ordered;
+    };
+    var folderCandidates = [];
+    try {
+    	log.warn("Starting AD lowercase migration in " + (shouldExecute ? "apply" : "dry-run") + " mode" + (requestedUser ? " for user " + requestedUser : "") + ".");
+    	var queryUsers = new HashMap();
+    	queryUsers.put("include_docs", "true");
+    	var usersResponse = toJSON(fsclient.getView("c8oforms_fs", "usersV2", "all2", queryUsers));
+    	var rows = usersResponse.rows || [];
+    	for (var i = 0; i < rows.length; i++) {
+    		var doc = rows[i] ? rows[i].doc : null;
+    		if (!doc || doc.c8o_view_type_users !== true) {
+    			continue;
+    		}
+    		var provider = doc.provider != null ? ("" + doc.provider).toLowerCase() : "";
+    		if (provider !== "ad") {
+    			continue;
+    		}
+    		var docId = doc._id != null ? "" + doc._id : "";
+    		if (docId.indexOf("C8Oreserved_") !== 0) {
+    			continue;
+    		}
+    		var rawUser = docId.substring(12);
+    		var canonicalRaw = canonicalizeRawUser(rawUser);
+    		if (canonicalRaw == null) {
+    			continue;
+    		}
+    		if (requestedUser != null && canonicalRaw !== requestedUser) {
+    			continue;
+    		}
+    		var canonicalReserved = reservedId(canonicalRaw);
+    		rawAliasMap[rawUser] = canonicalRaw;
+    		reservedAliasMap[reservedId(rawUser)] = canonicalReserved;
+    		reservedAliasCanonicalMap[reservedId(rawUser)] = canonicalRaw;
+    		hiddenAliasMap[hiddenGroup(rawUser)] = hiddenGroup(canonicalRaw);
+    		hiddenAliasCanonicalMap[hiddenGroup(rawUser)] = canonicalRaw;
+    		if (!hasOwn(groupedUsers, canonicalRaw)) {
+    			groupedUsers[canonicalRaw] = {
+    				canonicalRaw: canonicalRaw,
+    				canonicalReserved: canonicalReserved,
+    				docs: [],
+    				raws: {}
+    			};
+    		}
+    		groupedUsers[canonicalRaw].docs.push(doc);
+    		groupedUsers[canonicalRaw].raws[rawUser] = true;
+    	}
+    	var canonicalKeys = Object.keys(groupedUsers).sort();
+    	stats.matchedUsers = canonicalKeys.length;
+    	for (var c = 0; c < canonicalKeys.length; c++) {
+    		var canonicalRawKey = canonicalKeys[c];
+    		var grouped = groupedUsers[canonicalRawKey];
+    		var rawKeys = Object.keys(grouped.raws).sort();
+    		for (var r = 0; r < rawKeys.length; r++) {
+    			var rawKey = rawKeys[r];
+    			if (rawKey !== canonicalRawKey) {
+    				stats.aliases++;
+    				aliasEntries.push({
+    					from: rawKey,
+    					to: canonicalRawKey
+    				});
+    				rawAliasesDescending.push(rawKey);
+    			}
+    		}
+    	}
+    	rawAliasesDescending.sort(function(a, b) {
+    		return b.length - a.length;
+    	});
+    	var conflictingUserFields = ["mail", "displayName", "language", "picture", "name", "surname", "published_First", "editing_rights", "nocode_db_rights", "formulas", "publication", "admin", "admin_readonly"];
+    	for (var u = 0; u < canonicalKeys.length; u++) {
+    		var canonicalForUser = canonicalKeys[u];
+    		var userGroup = groupedUsers[canonicalForUser];
+    		for (var f = 0; f < conflictingUserFields.length; f++) {
+    			var fieldName = conflictingUserFields[f];
+    			var distinctEntries = buildDistinctFieldEntries(userGroup.docs, fieldName);
+    			if (distinctEntries.length > 1) {
+    				var conflictValues = [];
+    				var conflictSources = [];
+    				for (var d = 0; d < distinctEntries.length; d++) {
+    					conflictValues.push(distinctEntries[d].display);
+    					conflictSources = conflictSources.concat(distinctEntries[d].sources);
+    				}
+    				recordConflict("user_doc", userGroup.canonicalReserved, fieldName, "Conflicting non-empty values detected across duplicate AD user documents.", dedupeArray(conflictSources), dedupeArray(conflictValues), canonicalForUser);
+    			}
+    		}
+    	}
+    	for (var l = 0; l < canonicalKeys.length; l++) {
+    		var canonicalForLib = canonicalKeys[l];
+    		var libGroup = groupedUsers[canonicalForLib];
+    		var knownIds = {};
+    		var rawCandidates = Object.keys(libGroup.raws);
+    		for (var ri = 0; ri < rawCandidates.length; ri++) {
+    			knownIds[rawCandidates[ri]] = true;
+    		}
+    		knownIds[libGroup.canonicalRaw] = true;
+    		var libDocs = [];
+    		var normalizedAccounts = {};
+    		var accountValues = [];
+    		var accountSources = [];
+    		var knownKeys = Object.keys(knownIds).sort();
+    		for (var li = 0; li < knownKeys.length; li++) {
+    			var libId = knownKeys[li];
+    			try {
+    				var fetchedLibDoc = toJSON(fsclient.getDocument("lib_usermanager_fullsync", libId, new HashMap()));
+    				if (fetchedLibDoc && !fetchedLibDoc.error) {
+    					libDocs.push(fetchedLibDoc);
+    					var normalizedAccount = normalizeAccount(fetchedLibDoc.account);
+    					if (normalizedAccount != null) {
+    						var accountKey = stableStringify(normalizedAccount);
+    						if (!hasOwn(normalizedAccounts, accountKey)) {
+    							normalizedAccounts[accountKey] = true;
+    							accountValues.push(displayValue(normalizedAccount));
+    						}
+    						accountSources.push(fetchedLibDoc._id);
+    					}
+    				}
+    			}
+    			catch (e0) {
+    			}
+    		}
+    		libGroup.libDocs = libDocs;
+    		if (Object.keys(normalizedAccounts).length > 1) {
+    			recordConflict("lib_account", libGroup.canonicalRaw, "account", "Conflicting account payloads detected in lib_usermanager_fullsync.", dedupeArray(accountSources), dedupeArray(accountValues), canonicalForLib);
+    		}
+    	}
+    	var findFolderRename = function(docId) {
+    		if (docId == null) {
+    			return null;
+    		}
+    		var text = "" + docId;
+    		if (text.indexOf("folder_") !== 0) {
+    			return null;
+    		}
+    		for (var i0 = 0; i0 < rawAliasesDescending.length; i0++) {
+    			var rawFolderUser = rawAliasesDescending[i0];
+    			var canonicalFolderUser = rawAliasMap[rawFolderUser];
+    			if (canonicalFolderUser == null || isBlockedCanonical(canonicalFolderUser)) {
+    				continue;
+    			}
+    			var suffix = "_" + rawFolderUser;
+    			if (text.length > suffix.length && text.lastIndexOf(suffix) === text.length - suffix.length) {
+    				return {
+    					raw: rawFolderUser,
+    					canonical: canonicalFolderUser,
+    					newId: text.substring(0, text.length - rawFolderUser.length) + canonicalFolderUser
+    				};
+    			}
+    		}
+    		return null;
+    	};
+    	scanDocsByFind("c8oforms_fs", {
+    		"$and": [{
+    			"_deleted": {
+    				"$exists": false
+    			}
+    		}, {
+    			"$or": [{
+    				"c8o_view_type_drafts_folder": true
+    			}, {
+    				"c8o_view_type_published_folder": true
+    			}]
+    		}]
+    	}, ["_id", "_rev"], function(docs) {
+    		for (var fd = 0; fd < docs.length; fd++) {
+    			var renameInfo = findFolderRename(docs[fd]._id);
+    			if (renameInfo != null) {
+    				folderCandidates.push({
+    					id: docs[fd]._id,
+    					rev: docs[fd]._rev,
+    					renameInfo: renameInfo
+    				});
+    			}
+    		}
+    	});
+    	var folderAnalysis = {};
+    	for (var fa = 0; fa < folderCandidates.length; fa++) {
+    		var folderCandidate = folderCandidates[fa];
+    		var canonicalForFolder = folderCandidate.renameInfo.canonical;
+    		if (isBlockedCanonical(canonicalForFolder)) {
+    			continue;
+    		}
+    		try {
+    			var aliasFolderDoc = getDoc(folderCandidate.id, null, "c8oforms_fs");
+    			if (!aliasFolderDoc || aliasFolderDoc.error) {
+    				recordError("c8oforms_fs", folderCandidate.id, "Unable to load folder alias during migration analysis.");
+    				continue;
+    			}
+    			var canonicalFolderDoc = null;
+    			var canonicalExists = false;
+    			try {
+    				canonicalFolderDoc = getDoc(folderCandidate.renameInfo.newId, null, "c8oforms_fs");
+    				canonicalExists = canonicalFolderDoc && !canonicalFolderDoc.error;
+    			}
+    			catch (e1) {
+    				canonicalFolderDoc = null;
+    				canonicalExists = false;
+    			}
+    			var conflict = false;
+    			if (canonicalExists) {
+    				var aliasComparable = normalizeFolderForCompare(aliasFolderDoc, folderCandidate.renameInfo);
+    				var canonicalComparable = normalizeFolderForCompare(canonicalFolderDoc, folderCandidate.renameInfo);
+    				if (stableStringify(aliasComparable) !== stableStringify(canonicalComparable)) {
+    					conflict = true;
+    					recordConflict("folder", folderCandidate.renameInfo.newId, "_id", "Folder alias would collide with an existing canonical folder carrying different content.", [folderCandidate.id, folderCandidate.renameInfo.newId], [displayValue(aliasComparable), displayValue(canonicalComparable)], canonicalForFolder);
+    				}
+    			}
+    			folderAnalysis[folderCandidate.id] = {
+    				aliasFolderDoc: aliasFolderDoc,
+    				canonicalFolderDoc: canonicalFolderDoc,
+    				canonicalExists: canonicalExists,
+    				renameInfo: folderCandidate.renameInfo,
+    				conflict: conflict
+    			};
+    		}
+    		catch (e2) {
+    			recordError("c8oforms_fs", folderCandidate.id, e2);
+    		}
+    	}
+    	for (var p0 = 0; p0 < canonicalKeys.length; p0++) {
+    		var canonicalForPlan = canonicalKeys[p0];
+    		var userPlanGroup = groupedUsers[canonicalForPlan];
+    		var sourceDocs = userPlanGroup.docs;
+    		var canonicalDoc = null;
+    		var winner = null;
+    		var bestScore = -1;
+    		for (var s0 = 0; s0 < sourceDocs.length; s0++) {
+    			var currentDoc = sourceDocs[s0];
+    			if (currentDoc._id === userPlanGroup.canonicalReserved) {
+    				canonicalDoc = currentDoc;
+    			}
+    			var currentScore = scoreUserDoc(currentDoc, userPlanGroup.canonicalReserved);
+    			if (currentScore > bestScore) {
+    				bestScore = currentScore;
+    				winner = currentDoc;
+    			}
+    		}
+    		if (canonicalDoc != null) {
+    			winner = canonicalDoc;
+    		}
+    		var mergedUserDoc = winner == null ? null : clone(winner);
+    		if (mergedUserDoc != null) {
+    			if (winner._id !== userPlanGroup.canonicalReserved) {
+    				delete mergedUserDoc._rev;
+    			}
+    			for (var s1 = 0; s1 < sourceDocs.length; s1++) {
+    				mergedUserDoc = mergeUserDoc(mergedUserDoc, sourceDocs[s1], userPlanGroup.canonicalRaw, userPlanGroup.canonicalReserved);
+    			}
+    			if (canonicalDoc && canonicalDoc._rev) {
+    				mergedUserDoc._rev = canonicalDoc._rev;
+    			}
+    			else if (mergedUserDoc._id !== userPlanGroup.canonicalReserved) {
+    				delete mergedUserDoc._rev;
+    			}
+    		}
+    		var hasCaseVariant = false;
+    		var rawSourceKeys = Object.keys(userPlanGroup.raws);
+    		for (var s2 = 0; s2 < rawSourceKeys.length; s2++) {
+    			if (rawSourceKeys[s2] !== userPlanGroup.canonicalRaw) {
+    				hasCaseVariant = true;
+    				break;
+    			}
+    		}
+    		var needsMigration = mergedUserDoc != null && (hasCaseVariant || sourceDocs.length > 1 || winner._id !== userPlanGroup.canonicalReserved || mergedUserDoc["~c8oAcl"] !== userPlanGroup.canonicalRaw);
+    		if (needsMigration) {
+    			stats.duplicateUsers += Math.max(0, sourceDocs.length - 1);
+    		}
+    		var blockedForUser = isBlockedCanonical(userPlanGroup.canonicalRaw);
+    		var userEntry = {
+    			canonical: userPlanGroup.canonicalReserved,
+    			acl: userPlanGroup.canonicalRaw,
+    			sources: sourceDocs.map(function(entry) {
+    				return entry._id;
+    			}),
+    			status: blockedForUser ? "blocked" : (needsMigration ? "planned" : "clean"),
+    			conflicts: userConflictCount[userPlanGroup.canonicalRaw] || 0
+    		};
+    		userEntries.push(userEntry);
+    		if (!blockedForUser && needsMigration) {
+    			stats.userPlans++;
+    			planMerge(canonicalUserPlans, "c8oforms_fs", mergedUserDoc, ["~c8oAcl", "favorites", "published_First", "language", "displayName", "provider", "nocode_db_rights", "editing_rights", "formulas", "publication", "admin", "admin_readonly", "mail", "name", "surname", "picture"], "user_upserted", "Canonical lowercase user document prepared from AD aliases.", computeDocChanges(canonicalDoc, mergedUserDoc, ["_id", "~c8oAcl", "favorites", "published_First", "language", "displayName", "provider", "nocode_db_rights", "editing_rights", "formulas", "publication", "admin", "admin_readonly", "mail", "name", "surname", "picture"]), userEntry.sources);
+    			for (var s3 = 0; s3 < sourceDocs.length; s3++) {
+    				if (sourceDocs[s3]._id !== userPlanGroup.canonicalReserved) {
+    					planDelete(c8oformsUserDeletePlans, "c8oforms_fs", {
+    						_id: sourceDocs[s3]._id,
+    						_rev: sourceDocs[s3]._rev,
+    						_deleted: true
+    					}, "Alias user document removed after lowercase merge.", [{
+    						field: "_id",
+    						before: sourceDocs[s3]._id,
+    						after: userPlanGroup.canonicalReserved
+    					}], [userPlanGroup.canonicalReserved]);
+    				}
+    			}
+    		}
+    		var libDocs = userPlanGroup.libDocs || [];
+    		if (!blockedForUser && libDocs.length > 0) {
+    			var canonicalLibDoc = null;
+    			var winnerLibDoc = null;
+    			var bestLibScore = -1;
+    			for (var s4 = 0; s4 < libDocs.length; s4++) {
+    				var currentLibDoc = libDocs[s4];
+    				if (currentLibDoc._id === userPlanGroup.canonicalRaw) {
+    					canonicalLibDoc = currentLibDoc;
+    				}
+    				var currentLibScore = scoreLibDoc(currentLibDoc, userPlanGroup.canonicalRaw);
+    				if (currentLibScore > bestLibScore) {
+    					bestLibScore = currentLibScore;
+    					winnerLibDoc = currentLibDoc;
+    				}
+    			}
+    			if (canonicalLibDoc != null) {
+    				winnerLibDoc = canonicalLibDoc;
+    			}
+    			var mergedLibDoc = winnerLibDoc == null ? null : clone(winnerLibDoc);
+    			if (mergedLibDoc != null) {
+    				if (winnerLibDoc._id !== userPlanGroup.canonicalRaw) {
+    					delete mergedLibDoc._rev;
+    				}
+    				for (var s5 = 0; s5 < libDocs.length; s5++) {
+    					mergedLibDoc = mergeGenericDoc(mergedLibDoc, libDocs[s5]);
+    				}
+    				mergedLibDoc._id = userPlanGroup.canonicalRaw;
+    				delete mergedLibDoc._c8oMeta;
+    				delete mergedLibDoc._deleted;
+    				if (canonicalLibDoc && canonicalLibDoc._rev) {
+    					mergedLibDoc._rev = canonicalLibDoc._rev;
+    				}
+    				else if (winnerLibDoc._id !== userPlanGroup.canonicalRaw) {
+    					delete mergedLibDoc._rev;
+    				}
+    				var needsLibMigration = winnerLibDoc._id !== userPlanGroup.canonicalRaw || libDocs.length > 1;
+    				if (needsLibMigration) {
+    					planMerge(libUserPlans, "lib_usermanager_fullsync", mergedLibDoc, ["account"], "account_upserted", "Canonical lowercase lib user account prepared from AD aliases.", computeDocChanges(canonicalLibDoc, mergedLibDoc, ["_id", "account"]), libDocs.map(function(entry) {
+    						return entry._id;
+    					}));
+    					for (var s6 = 0; s6 < libDocs.length; s6++) {
+    						if (libDocs[s6]._id !== userPlanGroup.canonicalRaw) {
+    							planDelete(libUserDeletePlans, "lib_usermanager_fullsync", {
+    								_id: libDocs[s6]._id,
+    								_rev: libDocs[s6]._rev,
+    								_deleted: true
+    							}, "Alias lib user account removed after lowercase merge.", [{
+    								field: "_id",
+    								before: libDocs[s6]._id,
+    								after: userPlanGroup.canonicalRaw
+    							}], [userPlanGroup.canonicalRaw]);
+    						}
+    					}
+    				}
+    			}
+    		}
+    	}
+    	for (var fp = 0; fp < folderCandidates.length; fp++) {
+    		var analysis = folderAnalysis[folderCandidates[fp].id];
+    		if (!analysis || analysis.conflict || isBlockedCanonical(analysis.renameInfo.canonical)) {
+    			continue;
+    		}
+    		handledFolderIds[analysis.aliasFolderDoc._id] = true;
+    		var rewrittenAliasFolder = rewriteFolderDocReferences(analysis.aliasFolderDoc);
+    		if (!analysis.canonicalExists) {
+    			delete rewrittenAliasFolder._rev;
+    			delete rewrittenAliasFolder._c8oMeta;
+    			delete rewrittenAliasFolder._deleted;
+    			var beforeFolderId = rewrittenAliasFolder._id;
+    			rewrittenAliasFolder._id = analysis.renameInfo.newId;
+    			rewrittenAliasFolder["~c8oAcl"] = analysis.renameInfo.canonical;
+    			var folderChanges = [];
+    			pushChange(folderChanges, "_id", beforeFolderId, rewrittenAliasFolder._id);
+    			pushChange(folderChanges, "~c8oAcl", analysis.aliasFolderDoc["~c8oAcl"], rewrittenAliasFolder["~c8oAcl"]);
+    			pushChange(folderChanges, "c8oGrp", analysis.aliasFolderDoc.c8oGrp, rewrittenAliasFolder.c8oGrp);
+    			pushChange(folderChanges, "shared", analysis.aliasFolderDoc.shared, rewrittenAliasFolder.shared);
+    			pushChange(folderChanges, "collabs", analysis.aliasFolderDoc.collabs, rewrittenAliasFolder.collabs);
+    			pushChange(folderChanges, "collabsResponse", analysis.aliasFolderDoc.collabsResponse, rewrittenAliasFolder.collabsResponse);
+    			planMerge(folderUpsertPlans, "c8oforms_fs", rewrittenAliasFolder, ["tag", "~c8oAcl", "c8oGrp", "shared", "collabs", "collabsResponse", "c8o_view_type_drafts_folder", "c8o_view_type_published_folder"], "folder_renamed", "Folder id rewritten to the lowercase canonical owner.", folderChanges, [analysis.aliasFolderDoc._id, analysis.renameInfo.newId]);
+    		}
+    		planDelete(folderDeletePlans, "c8oforms_fs", {
+    			_id: analysis.aliasFolderDoc._id,
+    			_rev: analysis.aliasFolderDoc._rev,
+    			_deleted: true
+    		}, analysis.canonicalExists ? "Alias folder removed because an equivalent canonical folder already exists." : "Alias folder removed after lowercase folder rename.", [{
+    			field: "_id",
+    			before: analysis.aliasFolderDoc._id,
+    			after: analysis.renameInfo.newId
+    		}], [analysis.renameInfo.newId]);
+    	}
+    	var groupDocs = [];
+    	scanDocsByFind("c8ofullsyncgrp", {
+    		"$and": [{
+    			"_deleted": {
+    				"$exists": false
+    			}
+    		}, {
+    			"type": "c8oGrp"
+    		}]
+    	}, ["_id", "_rev", "type", "user", "group"], function(docs) {
+    		for (var gd = 0; gd < docs.length; gd++) {
+    			groupDocs.push(docs[gd]);
+    		}
+    	});
+    	var groupSignatures = {};
+    	for (var g = 0; g < groupDocs.length; g++) {
+    		var groupDoc = groupDocs[g];
+    		var rewrittenUser = rewriteRawReference(groupDoc.user);
+    		var rewrittenGroup = rewriteGroupedReference(groupDoc.group);
+    		var originalSignature = (groupDoc.user == null ? "" : groupDoc.user) + "|" + (groupDoc.group == null ? "" : groupDoc.group);
+    		var signature = (rewrittenUser == null ? "" : rewrittenUser) + "|" + (rewrittenGroup == null ? "" : rewrittenGroup);
+    		var isCanonicalMembership = rewrittenUser === groupDoc.user && rewrittenGroup === groupDoc.group;
+    		if (hasOwn(groupSignatures, signature)) {
+    			var kept = groupSignatures[signature];
+    			var rewriteCreatesDuplicate = signature !== originalSignature || kept.originalSignature !== signature;
+    			if (!rewriteCreatesDuplicate) {
+    				continue;
+    			}
+    			if (!kept.canonical && isCanonicalMembership) {
+    				planDelete(groupDeletePlans, "c8ofullsyncgrp", {
+    					_id: kept.id,
+    					_rev: kept.rev,
+    					_deleted: true
+    				}, "Duplicate group membership removed after lowercase rewrite.", [], [groupDoc._id]);
+    				groupSignatures[signature] = {
+    					id: groupDoc._id,
+    					rev: groupDoc._rev,
+    					canonical: true,
+    					originalSignature: originalSignature
+    				};
+    			}
+    			else {
+    				planDelete(groupDeletePlans, "c8ofullsyncgrp", {
+    					_id: groupDoc._id,
+    					_rev: groupDoc._rev,
+    					_deleted: true
+    				}, "Duplicate group membership removed after lowercase rewrite.", [], [kept.id]);
+    			}
+    			continue;
+    		}
+    		groupSignatures[signature] = {
+    			id: groupDoc._id,
+    			rev: groupDoc._rev,
+    			canonical: isCanonicalMembership,
+    			originalSignature: originalSignature
+    		};
+    		if (rewrittenUser !== groupDoc.user || rewrittenGroup !== groupDoc.group) {
+    			var groupChanges = [];
+    			pushChange(groupChanges, "user", groupDoc.user, rewrittenUser);
+    			pushChange(groupChanges, "group", groupDoc.group, rewrittenGroup);
+    			planMerge(groupUpdatePlans, "c8ofullsyncgrp", {
+    				_id: groupDoc._id,
+    				_rev: groupDoc._rev,
+    				user: rewrittenUser,
+    				group: rewrittenGroup
+    			}, ["user", "group"], "group_link_updated", "Group membership rewritten to lowercase canonical ids.", groupChanges, [groupDoc._id]);
+    		}
+    	}
+    	scanDocsByFind("c8oforms_fs", {
+    		"$and": [{
+    			"_deleted": {
+    				"$exists": false
+    			}
+    		}, {
+    			"$or": [{
+    				"creator": {
+    					"$exists": true
+    				}
+    			}, {
+    				"~c8oAcl": {
+    					"$exists": true
+    				}
+    			}, {
+    				"c8oGrp": {
+    					"$exists": true
+    				}
+    			}, {
+    				"shared": {
+    					"$exists": true
+    				}
+    			}, {
+    				"collabs": {
+    					"$exists": true
+    				}
+    			}, {
+    				"collabsResponse": {
+    					"$exists": true
+    				}
+    			}]
+    		}]
+    	}, ["_id", "_rev", "c8o_view_type_users", "provider", "creator", "~c8oAcl", "c8oGrp", "shared", "collabs", "collabsResponse"], function(docs) {
+    		for (var d0 = 0; d0 < docs.length; d0++) {
+    			var docToRewrite = docs[d0];
+    			if (hasOwn(handledFolderIds, docToRewrite._id)) {
+    				continue;
+    			}
+    			if (docToRewrite.c8o_view_type_users === true) {
+    				var providerName = docToRewrite.provider != null ? ("" + docToRewrite.provider).toLowerCase() : "";
+    				if (providerName === "ad") {
+    					continue;
+    				}
+    			}
+    			var update = {
+    				_id: docToRewrite._id,
+    				_rev: docToRewrite._rev
+    			};
+    			var changes = [];
+    			var newAcl = rewriteRawReference(docToRewrite["~c8oAcl"]);
+    			if (stableStringify(newAcl) !== stableStringify(docToRewrite["~c8oAcl"])) {
+    				update["~c8oAcl"] = newAcl;
+    				pushChange(changes, "~c8oAcl", docToRewrite["~c8oAcl"], newAcl);
+    			}
+    			var newCreator = rewriteRawReference(docToRewrite.creator);
+    			if (stableStringify(newCreator) !== stableStringify(docToRewrite.creator)) {
+    				update.creator = newCreator;
+    				pushChange(changes, "creator", docToRewrite.creator, newCreator);
+    			}
+    			var rewrittenC8oGrp = rewriteMapField(docToRewrite.c8oGrp, rewriteGroupedReference);
+    			if (rewrittenC8oGrp.changed) {
+    				update.c8oGrp = rewrittenC8oGrp.value;
+    				pushChange(changes, "c8oGrp", docToRewrite.c8oGrp, rewrittenC8oGrp.value);
+    			}
+    			var rewrittenShared = rewriteListField(docToRewrite.shared, rewriteGroupedReference);
+    			if (rewrittenShared.changed) {
+    				update.shared = rewrittenShared.value;
+    				pushChange(changes, "shared", docToRewrite.shared, rewrittenShared.value);
+    			}
+    			var rewrittenCollabs = rewriteListField(docToRewrite.collabs, rewriteGroupedReference);
+    			if (rewrittenCollabs.changed) {
+    				update.collabs = rewrittenCollabs.value;
+    				pushChange(changes, "collabs", docToRewrite.collabs, rewrittenCollabs.value);
+    			}
+    			var rewrittenCollabsResponse = rewriteListField(docToRewrite.collabsResponse, rewriteGroupedReference);
+    			if (rewrittenCollabsResponse.changed) {
+    				update.collabsResponse = rewrittenCollabsResponse.value;
+    				pushChange(changes, "collabsResponse", docToRewrite.collabsResponse, rewrittenCollabsResponse.value);
+    			}
+    			if (changes.length > 0) {
+    				planMerge(c8oformsDocPlans, "c8oforms_fs", update, ["creator", "~c8oAcl", "c8oGrp", "shared", "collabs", "collabsResponse"], "document_updated", "Document references rewritten to lowercase canonical ids.", changes, [docToRewrite._id]);
+    			}
+    		}
+    	});
+    	scanDocsByFind("c8oforms_response_fs", {
+    		"$and": [{
+    			"_deleted": {
+    				"$exists": false
+    			}
+    		}, {
+    			"$or": [{
+    				"~c8oAcl": {
+    					"$exists": true
+    				}
+    			}, {
+    				"c8oGrp": {
+    					"$exists": true
+    				}
+    			}, {
+    				"respondent": {
+    					"$exists": true
+    				}
+    			}]
+    		}]
+    	}, ["_id", "_rev", "~c8oAcl", "c8oGrp", "respondent"], function(docs) {
+    		for (var d1 = 0; d1 < docs.length; d1++) {
+    			var responseDoc = docs[d1];
+    			var responseUpdate = {
+    				_id: responseDoc._id,
+    				_rev: responseDoc._rev
+    			};
+    			var responseChanges = [];
+    			var responseAcl = rewriteRawReference(responseDoc["~c8oAcl"]);
+    			if (stableStringify(responseAcl) !== stableStringify(responseDoc["~c8oAcl"])) {
+    				responseUpdate["~c8oAcl"] = responseAcl;
+    				pushChange(responseChanges, "~c8oAcl", responseDoc["~c8oAcl"], responseAcl);
+    			}
+    			var responseGrp = rewriteMapField(responseDoc.c8oGrp, rewriteGroupedReference);
+    			if (responseGrp.changed) {
+    				responseUpdate.c8oGrp = responseGrp.value;
+    				pushChange(responseChanges, "c8oGrp", responseDoc.c8oGrp, responseGrp.value);
+    			}
+    			var responseRespondent = rewriteMapField(responseDoc.respondent, rewriteGroupedReference);
+    			if (responseRespondent.changed) {
+    				responseUpdate.respondent = responseRespondent.value;
+    				pushChange(responseChanges, "respondent", responseDoc.respondent, responseRespondent.value);
+    			}
+    			if (responseChanges.length > 0) {
+    				planMerge(responsePlans, "c8oforms_response_fs", responseUpdate, ["~c8oAcl", "c8oGrp", "respondent"], "response_updated", "Response references rewritten to lowercase canonical ids.", responseChanges, [responseDoc._id]);
+    			}
+    		}
+    	});
+    	if (shouldExecute && stats.conflicts > 0) {
+    		stats.blocked = true;
+    		stats.mode = "blocked";
+    		log.warn("APIV2_MigrateADUsersToLowercase blocked because " + stats.conflicts + " conflict(s) were detected.");
+    	}
+    	if (shouldExecute && !stats.blocked) {
+    		applyMergePlans(canonicalUserPlans);
+    		applyMergePlans(libUserPlans);
+    		applyMergePlans(groupUpdatePlans);
+    		applyMergePlans(folderUpsertPlans);
+    		applyMergePlans(c8oformsDocPlans);
+    		applyMergePlans(responsePlans);
+    		applyDeletePlans(groupDeletePlans);
+    		applyDeletePlans(folderDeletePlans);
+    		applyDeletePlans(c8oformsUserDeletePlans);
+    		applyDeletePlans(libUserDeletePlans);
+    	}
+    }
+    catch (e) {
+    	log.error("APIV2_MigrateADUsersToLowercase failed: " + e);
+    	recordError("", "", e);
+    }
+    var summaryNode = context.addTextNodeUnderRoot("summary", "");
+    context.addTextNode(summaryNode, "mode", stats.mode);
+    context.addTextNode(summaryNode, "requestedUser", stats.requestedUser);
+    context.addTextNode(summaryNode, "blocked", stats.blocked ? "true" : "false");
+    context.addTextNode(summaryNode, "chunkSize", "" + limit);
+    context.addTextNode(summaryNode, "aliases", "" + stats.aliases);
+    context.addTextNode(summaryNode, "matchedUsers", "" + stats.matchedUsers);
+    context.addTextNode(summaryNode, "userPlans", "" + stats.userPlans);
+    context.addTextNode(summaryNode, "duplicateUsers", "" + stats.duplicateUsers);
+    context.addTextNode(summaryNode, "plannedUpdates", "" + stats.plannedUpdates);
+    context.addTextNode(summaryNode, "plannedDeletes", "" + stats.plannedDeletes);
+    context.addTextNode(summaryNode, "appliedUpdates", "" + stats.appliedUpdates);
+    context.addTextNode(summaryNode, "appliedDeletes", "" + stats.appliedDeletes);
+    context.addTextNode(summaryNode, "conflicts", "" + stats.conflicts);
+    context.addTextNode(summaryNode, "errors", "" + stats.errors);
+    var aliasesNode = context.addTextNodeUnderRoot("aliases", "");
+    for (var a = 0; a < aliasEntries.length; a++) {
+    	var aliasNode = context.addTextNode(aliasesNode, "alias", "");
+    	context.addTextNode(aliasNode, "from", aliasEntries[a].from);
+    	context.addTextNode(aliasNode, "to", aliasEntries[a].to);
+    }
+    var usersNode = context.addTextNodeUnderRoot("users", "");
+    for (var b = 0; b < userEntries.length; b++) {
+    	var userNode = context.addTextNode(usersNode, "user", "");
+    	context.addTextNode(userNode, "canonical", userEntries[b].canonical);
+    	context.addTextNode(userNode, "acl", userEntries[b].acl);
+    	context.addTextNode(userNode, "status", userEntries[b].status);
+    	context.addTextNode(userNode, "conflicts", "" + userEntries[b].conflicts);
+    	context.addTextNode(userNode, "sources", userEntries[b].sources.join(","));
+    }
+    var documentsNode = context.addTextNodeUnderRoot("documents", "");
+    for (var c0 = 0; c0 < documentEntries.length; c0++) {
+    	var documentNode = context.addTextNode(documentsNode, "document", "");
+    	context.addTextNode(documentNode, "db", documentEntries[c0].db);
+    	context.addTextNode(documentNode, "id", documentEntries[c0].id);
+    	context.addTextNode(documentNode, "action", documentEntries[c0].action);
+    	if (!isBlank(documentEntries[c0].detail)) {
+    		context.addTextNode(documentNode, "detail", documentEntries[c0].detail);
+    	}
+    	if (documentEntries[c0].sources && documentEntries[c0].sources.length > 0) {
+    		context.addTextNode(documentNode, "sources", documentEntries[c0].sources.join(","));
+    	}
+    	for (var c1 = 0; c1 < documentEntries[c0].changes.length; c1++) {
+    		var changeNode = context.addTextNode(documentNode, "change", "");
+    		context.addTextNode(changeNode, "field", documentEntries[c0].changes[c1].field);
+    		context.addTextNode(changeNode, "before", displayValue(documentEntries[c0].changes[c1].before));
+    		context.addTextNode(changeNode, "after", displayValue(documentEntries[c0].changes[c1].after));
+    	}
+    }
+    var conflictsNode = context.addTextNodeUnderRoot("conflicts", "");
+    for (var d2 = 0; d2 < conflictEntries.length; d2++) {
+    	var conflictNode = context.addTextNode(conflictsNode, "conflict", "");
+    	context.addTextNode(conflictNode, "scope", conflictEntries[d2].scope);
+    	context.addTextNode(conflictNode, "id", conflictEntries[d2].id);
+    	context.addTextNode(conflictNode, "field", conflictEntries[d2].field);
+    	context.addTextNode(conflictNode, "detail", conflictEntries[d2].detail);
+    	if (conflictEntries[d2].sources && conflictEntries[d2].sources.length > 0) {
+    		context.addTextNode(conflictNode, "sources", conflictEntries[d2].sources.join(","));
+    	}
+    	for (var d3 = 0; d3 < conflictEntries[d2].values.length; d3++) {
+    		context.addTextNode(conflictNode, "value", conflictEntries[d2].values[d3]);
+    	}
+    }
+    var errorsNode = context.addTextNodeUnderRoot("errors", "");
+    for (var e3 = 0; e3 < errorEntries.length; e3++) {
+    	var errorNode = context.addTextNode(errorsNode, "error", "");
+    	if (!isBlank(errorEntries[e3].db)) {
+    		context.addTextNode(errorNode, "db", errorEntries[e3].db);
+    	}
+    	if (!isBlank(errorEntries[e3].id)) {
+    		context.addTextNode(errorNode, "id", errorEntries[e3].id);
+    	}
+    	context.addTextNode(errorNode, "detail", errorEntries[e3].detail);
+    }'
+↓execute [variables.RequestableVariable-1893000000202]: 
+  comment: Set to true to apply the migration instead of only listing impacted identities and documents.
+  value: false
+↓chunkSize [variables.RequestableVariable-1893000000203]: 
+  comment: Number of documents fetched per CouchDB page while iterating through impacted databases.
+  value: 200
+↓user [variables.RequestableVariable-1773682358613]: 
+  comment: Optional canonical user id to audit or migrate. Case is ignored and normalized to lowercase.

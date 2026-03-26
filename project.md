@@ -12,6 +12,7 @@ Convertigo No Code Studio
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") BaserowIntegration
 
 
+see [readme](https://github.com/convertigo/c8oprj-baserowintegration/tree/master#readme)
 </p></blockquote></details>
 
 <details><summary><b>C8Oforms_PWAs</b></summary><blockquote><p>
@@ -38,7 +39,7 @@ see [documentation](http://localhost:18080/convertigo/xsd/couchdb/CouchDb.xsd)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Actions_C8Oforms
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/78170661823ce9699f72d9b6c1ab8f0c16565640#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/master#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_BaseRow</b></summary><blockquote><p>
@@ -47,6 +48,10 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/7817
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_BaseRow
 
 
+<<<<<<< HEAD
+=======
+see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x_legacy#readme)
+>>>>>>> refs/remotes/origin/hotfix/2.1.16
 </p></blockquote></details>
 
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
@@ -4931,6 +4936,37 @@ Group metadata object to update.
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_CleanFormulaireInvalidPages</b> : Clean invalid form page references</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_CleanFormulaireInvalidPages
+
+Clean invalid form page references.
+Removes form elements whose config.page no longer matches an existing pageTechName.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+Form identifier to clean in c8oforms_fs.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_CleanThumbnailsWallpapersB64</b> : Clean thumbnail B64</summary><blockquote><p>
 
 
@@ -5868,6 +5904,53 @@ comment
 </td>
 <td>
 
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_MigrateADUsersToLowercase</b> : Migrate AD users to lowercase</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_MigrateADUsersToLowercase
+
+Migrate AD users to lowercase.
+Canonicalises AD/LDAP user ids in lowercase, exposes dry-run diffs, blocks on conflicts and can target a single canonical user.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;chunkSize
+</td>
+<td>
+Number of documents fetched per CouchDB page while iterating through impacted databases.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;execute
+</td>
+<td>
+Set to true to apply the migration instead of only listing impacted identities and documents.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;user
+</td>
+<td>
+Optional canonical user id to audit or migrate. Case is ignored and normalized to lowercase.
 </td>
 </tr>
 </table>
@@ -7927,6 +8010,14 @@ name
 <th>
 comment
 </th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;casesensitive
+</td>
+<td>
+
+</td>
 </tr>
 <tr>
 <td>
