@@ -66,6 +66,7 @@ For more technical informations : [documentation](./project.md)
     - [admin_users_post_in_groups](#admin_users_post_in_groups)
     - [admin_users_remove_from_groups](#admin_users_remove_from_groups)
     - [APIV2_checkForPendingInvitationNewUsers](#apiv2_checkforpendinginvitationnewusers)
+    - [APIV2_CleanFormulaireInvalidPages](#apiv2_cleanformulaireinvalidpages)
     - [APIV2_CleanThumbnailsWallpapersB64](#apiv2_cleanthumbnailswallpapersb64)
     - [APIV2_createEmptyFolder](#apiv2_createemptyfolder)
     - [APIV2_createIndexes](#apiv2_createindexes)
@@ -88,6 +89,7 @@ For more technical informations : [documentation](./project.md)
     - [APIV2_getSharedInviteesStats](#apiv2_getsharedinviteesstats)
     - [APIV2_getUsersByIds](#apiv2_getusersbyids)
     - [APIV2_mapper_redirect](#apiv2_mapper_redirect)
+    - [APIV2_MigrateADUsersToLowercase](#apiv2_migrateaduserstolowercase)
     - [APIV2_NotifyUsersSharing](#apiv2_notifyuserssharing)
     - [APIV2_OverrideUserSettings](#apiv2_overrideusersettings)
     - [APIV2_postResponse](#apiv2_postresponse)
@@ -571,6 +573,7 @@ C8Oforms.customCarouselImageObjectFit=cover
 1. `C8Oforms.customHeaderLogo` (if non-empty)
 2. `C8Oforms.legacy_logo` behavior
 3. Default project logo behavior
+
 
 
 ## Sequences
@@ -1090,6 +1093,21 @@ Looks for pending invitations created for new users in API v2 flows.
 <td>grp</td><td>Group metadata object to update.</td>
 </tr>
 </table>
+### APIV2_CleanFormulaireInvalidPages
+
+Clean invalid form page references.
+Removes form elements whose config.page no longer matches an existing pageTechName.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>id</td><td>Form identifier to clean in c8oforms_fs.</td>
+</tr>
+</table>
 ### APIV2_CleanThumbnailsWallpapersB64
 
 Clean thumbnail B64.
@@ -1508,6 +1526,27 @@ Rebuilds parameters and returns a 302 redirect to the target sequence.
 </tr>
 <tr>
 <td>targetSequence</td><td></td>
+</tr>
+</table>
+### APIV2_MigrateADUsersToLowercase
+
+Migrate AD users to lowercase.
+Canonicalises AD/LDAP user ids in lowercase, exposes dry-run diffs, blocks on conflicts and can target a single canonical user.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>chunkSize</td><td>Number of documents fetched per CouchDB page while iterating through impacted databases.</td>
+</tr>
+<tr>
+<td>execute</td><td>Set to true to apply the migration instead of only listing impacted identities and documents.</td>
+</tr>
+<tr>
+<td>user</td><td>Optional canonical user id to audit or migrate. Case is ignored and normalized to lowercase.</td>
 </tr>
 </table>
 ### APIV2_NotifyUsersSharing
@@ -2123,6 +2162,15 @@ Lists authentication modes available to the login page.
 <td>cloudBranding</td><td>Branding identifier applied to the cloud deployment.</td>
 </tr>
 <tr>
+<td>customCarouselImage</td><td>JSON stringified array of custom carousel image URLs for login page.</td>
+</tr>
+<tr>
+<td>customCarouselImageObjectFit</td><td>Optional CSS object-fit value applied to login carousel images.</td>
+</tr>
+<tr>
+<td>customHeaderLogo</td><td>URL of a custom header logo shown on login page.</td>
+</tr>
+<tr>
 <td>hideConvertigoLogin</td><td>Flag hiding the Convertigo login page.</td>
 </tr>
 <tr>
@@ -2154,6 +2202,9 @@ Retrieves the Brevo conversations identifier for the user.
 </tr>
 <tr>
 <td>BrevoConversationsID</td><td>Brevo conversations identifier used for chat handoff.</td>
+</tr>
+<tr>
+<td>customHeaderLogo</td><td>URL of a custom header logo used in application branding.</td>
 </tr>
 <tr>
 <td>EnableProductTour</td><td>Flag enabling the product tour for the user.</td>
@@ -2424,6 +2475,9 @@ Performs Active Directory login and mirrors user data.
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>casesensitive</td><td></td>
 </tr>
 <tr>
 <td>email</td><td>Email address targeted by the sequence.</td>
@@ -6999,10 +7053,23 @@ The Chart Widget viewer
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>closeBtn</td><td></td>
+</tr>
+<tr>
 <td>item</td><td></td>
 </tr>
 <tr>
 <td>type</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onClose</td><td></td>
 </tr>
 </table>
 #### itemImgViewer
@@ -8652,6 +8719,32 @@ This component is a modal dialog for resetting the password. It accepts an input
 </table>
 #### stripeBackground
 
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>customCarouselImageObjectFit</td><td></td>
+</tr>
+<tr>
+<td>customCarouselImages</td><td></td>
+</tr>
+<tr>
+<td>hasCustomHeader</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onSlideChange</td><td></td>
+</tr>
+</table>
 #### switchItemEdition
 
 **variables**
@@ -8703,7 +8796,16 @@ This component represents a toolbar UI similar to the provided image. It include
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>appName</td><td></td>
+</tr>
+<tr>
+<td>imgTimeStamp</td><td></td>
+</tr>
+<tr>
 <td>isAdminGuideDisplayed</td><td></td>
+</tr>
+<tr>
+<td>isEditorPage</td><td></td>
 </tr>
 <tr>
 <td>logoAlt</td><td>Alternative text for the logo image</td>
@@ -8722,6 +8824,9 @@ This component represents a toolbar UI similar to the provided image. It include
 </tr>
 <tr>
 <td>searchQuery</td><td>Current value of the search input</td>
+</tr>
+<tr>
+<td>selectedForm</td><td></td>
 </tr>
 <tr>
 <td>subText</td><td>Subtext displayed next to the main logo text</td>
@@ -8749,7 +8854,22 @@ This component represents a toolbar UI similar to the provided image. It include
 <td>notificationsClick</td><td></td>
 </tr>
 <tr>
+<td>onBackgroundActionTriggered</td><td></td>
+</tr>
+<tr>
+<td>onMoreActionsTriggered</td><td></td>
+</tr>
+<tr>
+<td>onPreviewActionTriggered</td><td></td>
+</tr>
+<tr>
+<td>onPublishActionTriggered</td><td></td>
+</tr>
+<tr>
 <td>onSearchValue</td><td></td>
+</tr>
+<tr>
+<td>onThumbnailActionTriggered</td><td></td>
 </tr>
 <tr>
 <td>settingsClick</td><td></td>
@@ -8824,4 +8944,5 @@ if this compenent is renamed it must be also renamed in editorPage (edit page cl
 </tr>
 </table>
 #### updateGroupAccessRights
+
 
