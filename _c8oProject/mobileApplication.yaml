@@ -30,6 +30,7 @@ componentScriptContent:
         		this.monitorPwaUpdates();
         		// set some globals vars
         		this.initializeGlobals();
+        		this.global.isMenuOpen = (window.innerWidth > 1140) ? true : false
         		/*End_c8o_AppSettings*/
         /*Begin_c8o_AppConstructor*/
         		this.getOriginImg();
@@ -47,6 +48,8 @@ componentScriptContent:
         				this.configureLang();
         				// get and set platform informations
         				this.definePlatformInfos(platform);
+        				// reveal scrollbars only while interacting with scrollable areas
+        				this.initScrollbarVisibility();
         				// set GDRP structure
         				this.defineGdrp(translate);
         				/** monitor session changes */
@@ -114,6 +117,73 @@ componentScriptContent:
         			}
         			this.ref.detectChanges();
         		});
+        	}
+        
+        	public initScrollbarVisibility() {
+        		if (window["__c8oScrollbarVisibilityInit"]) {
+        			return;
+        		}
+        		window["__c8oScrollbarVisibilityInit"] = true;
+        		let hoverTarget: any = null;
+        		const getScrollTarget = (target: any) => {
+        			if (target instanceof HTMLElement) {
+        				return target;
+        			}
+        			return document.scrollingElement || document.documentElement;
+        		};
+        		const getScrollableTarget = (target: any) => {
+        			let current = target instanceof HTMLElement ? target : null;
+        			while (current != null) {
+        				if (current.scrollHeight > current.clientHeight + 1 || current.scrollWidth > current.clientWidth + 1) {
+        					return current;
+        				}
+        				current = current.parentElement;
+        			}
+        			const root: any = document.scrollingElement || document.documentElement;
+        			return root?.scrollHeight > root?.clientHeight + 1 ? root : null;
+        		};
+        		const setHoverTarget = (target: any) => {
+        			if (hoverTarget === target) {
+        				return;
+        			}
+        			if (hoverTarget?.classList != undefined) {
+        				hoverTarget.classList.remove("scrollbar-hover");
+        			}
+        			hoverTarget = target;
+        			if (hoverTarget?.classList != undefined) {
+        				hoverTarget.classList.add("scrollbar-hover");
+        			}
+        		};
+        		window.addEventListener("scroll", (event: any) => {
+        			const scrollTarget: any = getScrollTarget(event?.target);
+        			if (scrollTarget?.classList == undefined) {
+        				return;
+        			}
+        			scrollTarget.classList.add("scrollbar-active");
+        			if (scrollTarget.__c8oScrollbarTimer != undefined) {
+        				window.clearTimeout(scrollTarget.__c8oScrollbarTimer);
+        			}
+        			scrollTarget.__c8oScrollbarTimer = window.setTimeout(() => {
+        				scrollTarget.classList.remove("scrollbar-active");
+        			}, 700);
+        		}, true);
+        		window.addEventListener("pointermove", (event: any) => {
+        			const scrollTarget: any = getScrollableTarget(event?.target);
+        			if (scrollTarget == null) {
+        				setHoverTarget(null);
+        				return;
+        			}
+        			const rect = scrollTarget.getBoundingClientRect();
+        			const gutterSize = 12;
+        			const hasVerticalScrollbar = scrollTarget.scrollHeight > scrollTarget.clientHeight + 1;
+        			const hasHorizontalScrollbar = scrollTarget.scrollWidth > scrollTarget.clientWidth + 1;
+        			const isOnVerticalScrollbar = hasVerticalScrollbar && event.clientX >= rect.right - gutterSize && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+        			const isOnHorizontalScrollbar = hasHorizontalScrollbar && event.clientY >= rect.bottom - gutterSize && event.clientY <= rect.bottom && event.clientX >= rect.left && event.clientX <= rect.right;
+        			setHoverTarget(isOnVerticalScrollbar || isOnHorizontalScrollbar ? scrollTarget : null);
+        		}, true);
+        		window.addEventListener("pointerleave", () => {
+        			setHoverTarget(null);
+        		}, true);
         	}
         
         	/** Determine and configure pwa behavior */
@@ -1360,6 +1430,8 @@ componentScriptContent:
         			let res: any = await page.c8o.callJsonObject("C8Oforms.getBrevoChatId", {});
         			if(res.LegacyLogo == "true"){
         				this.global.legacyLogo = true;
+        			} else if(res.LegacyLogo != null && res.LegacyLogo != "true" && res.LegacyLogo != "false" && res.LegacyLogo.length > 0) {
+        				this.global.legacyLogo = res.LegacyLogo;
         			}
         			this.global.customHeaderLogo = null;
         			if(res.customHeaderLogo != null && res.customHeaderLogo != ""){
@@ -3041,24 +3113,39 @@ useClickForTap: true
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          'body { 
+          'body {
           	/* Webkit scrollbar */
           	*::-webkit-scrollbar {
           	  width: 6px;
           	  height: 6px;
           	}
+          	*::-webkit-scrollbar-track {
+          	  background-color: transparent;
+          	}
           	*::-webkit-scrollbar-thumb {
-          	  background-color: var(--ion-color-convertigo);
+          	  background-color: transparent;
           	  border-radius: 20px;
+          	  transition: background-color 0.2s ease;
           	}
           	/* Firefox scrollbar */
           	* {
+          	  scrollbar-gutter: stable;
           	  scrollbar-width: thin;
-          	  scrollbar-color: var(--ion-color-convertigo) #ffffff;
+          	  scrollbar-color: transparent transparent;
+          	}
+          	*.scrollbar-hover,
+          	*.scrollbar-active {
+          	  scrollbar-color: var(--ion-color-light-shade)/*#eaecef*/ transparent;
+          	}
+          	*::-webkit-scrollbar-thumb:hover,
+          	*::-webkit-scrollbar-thumb:active,
+          	*.scrollbar-hover::-webkit-scrollbar-thumb,
+          	*.scrollbar-active::-webkit-scrollbar-thumb {
+          	  background-color: var(--ion-color-light-shade)/*#eaecef*/;
           	}
           	/** Use to remove scroll bar on mobile devices **/
           	@media (pointer:none), (pointer:coarse) {
-          		::-webkit-scrollbar { 
+          		::-webkit-scrollbar {
           			width:0;
           		}
           		overflow: -moz-scrollbars-none;
@@ -3074,7 +3161,10 @@ useClickForTap: true
           			overflow: -moz-scrollbars-none;
           		}
           	}
-           }'
+          	ion-router-outlet#main-content {
+          	  scrollbar-gutter: auto !important;
+          	}
+          }'
 ↓Subscribe_Handler [ngx.components.UIEventSubscriber-1601368537502]: 
   topic: anyInitalSyncFinished
 ↓StyleTabs [ngx.components.UIStyle-1602496360884]: 
@@ -4584,13 +4674,6 @@ useClickForTap: true
             		resolve();
             '
     isEnabled: false
-  ↓SetGlobal [ngx.components.UIDynamicAction-1760367979655]: 
-    beanData: |
-      '{
-       "ionBean": "SetGlobalAction",
-       "Property": "plain:isMenuOpen",
-       "Value": "script:(window.innerWidth > 1140) ? true : false"
-      }'
   ↓setTheme [ngx.components.UICustomAction-1764783002073]: 
     actionValue: 
       - xmlizable: 
