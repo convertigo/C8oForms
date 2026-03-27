@@ -8857,6 +8857,9 @@ This component represents a toolbar UI similar to the provided image. It include
 <td>onBackgroundActionTriggered</td><td></td>
 </tr>
 <tr>
+<td>onEditorBackButtonTriggered</td><td></td>
+</tr>
+<tr>
 <td>onMoreActionsTriggered</td><td></td>
 </tr>
 <tr>
