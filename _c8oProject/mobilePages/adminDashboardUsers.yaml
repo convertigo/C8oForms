@@ -24,6 +24,7 @@ scriptContent:
         	selectedLanguages: string[] = [];
         	selectedProviders: string[] = [];
         	selectedPermissions: string[] = [];
+        	public useGenericLDAP: boolean = false;
         	public filters: any = {
         		language: {
         			all: {checked: true},
@@ -35,6 +36,7 @@ scriptContent:
         		provider: {
         			all: {checked: true},
         			azuread: {checked: false},
+        			ad: {checked: false},
         			google: {checked: false},
         			linkedin: {checked: false},
         			convertigo: {checked: false},
@@ -165,7 +167,53 @@ scriptContent:
         		};
         		this.searchPlaceholder = this.translate.instant("search_placeholder");
         		/*End_c8o_PageConstructor*/
+        /*Begin_c8o_PageInitialization*/
+        		/*End_c8o_PageInitialization*/
+        /*Begin_c8o_PageAfterViewInit*/
+        		/*End_c8o_PageAfterViewInit*/
+        /*Begin_c8o_PageFinalization*/
+        		/*End_c8o_PageFinalization*/
         /*Begin_c8o_PageFunction*/
+        	public getProviderFilterValue(provider: any): string {
+        		const normalizedProvider = (provider == null ? "" : ("" + provider).trim().toLowerCase());
+        		if (normalizedProvider === "" || normalizedProvider === "forms" || normalizedProvider === "convertigo") {
+        			return "no code studio";
+        		}
+        		if (normalizedProvider === "azuread") {
+        			return "microsoft";
+        		}
+        		if (normalizedProvider === "ad") {
+        			return this.useGenericLDAP ? "ldap" : "active directory";
+        		}
+        		return normalizedProvider;
+        	}
+        	
+        	public getProviderDisplayLabel(provider: any): string {
+        		const normalizedProvider = (provider == null ? "" : ("" + provider).trim().toLowerCase());
+        		if (normalizedProvider === "" || normalizedProvider === "forms" || normalizedProvider === "convertigo") {
+        			return "No Code Studio";
+        		}
+        		if (normalizedProvider === "azuread") {
+        			return "Microsoft";
+        		}
+        		if (normalizedProvider === "ad") {
+        			return this.useGenericLDAP ? "LDAP" : "Active Directory";
+        		}
+        		return this.translate.instant(normalizedProvider);
+        	}
+        	
+        	public getProviderBadgeKey(provider: any): string {
+        		const normalizedProvider = (provider == null ? "" : ("" + provider).trim().toLowerCase());
+        		if (normalizedProvider === "" || normalizedProvider === "forms" || normalizedProvider === "convertigo") {
+        			return "forms";
+        		}
+        		return normalizedProvider;
+        	}
+        	
+        	public getAdProviderLabel(): string {
+        		return this.useGenericLDAP ? "LDAP" : "Active Directory";
+        	}
+        	
         	public async loadGridData() {
         			try {
         				this.local.loading = true;
@@ -180,6 +228,7 @@ scriptContent:
         				let editing_apps_default_rights = data.result?.default_rights.editing_apps_default_rights == true;
         				let formulas_default_rights = data.result?.default_rights?.formulas_default_rights == true;
         				let publication = data.result?.default_rights?.publication == true;
+        				this.useGenericLDAP = data.result?.useGenericLDAP === true;
         				if (data.error) {
         					this.local.error = true;
         				}
@@ -247,10 +296,15 @@ scriptContent:
         										}
         	
         									},
-        										x.valueSetter = (params) => {
-        											params.data[x.field] = finKeyByValue(params.newValue);
-        											return true;
-        										}
+        									x.valueSetter = (params) => {
+        										params.data[x.field] = finKeyByValue(params.newValue);
+        										return true;
+        									}
+        								}
+        								if (x?.field == "provider") {
+        									x.valueGetter = (params) => {
+        										return this.getProviderFilterValue(params?.data?.[x.field]);
+        									}
         								}
         							}
         							return x;
@@ -267,7 +321,7 @@ scriptContent:
         						return this.ContactCellRenderer(params);
         					};
         					data.result.labels[2].valueGetter = params =>
-        					  `${params.data.mail} ${params.data.language} ${params.data.provider}`
+        					  `${params.data.mail} ${params.data.language} ${this.getProviderFilterValue(params.data.provider)}`
         					
         					data.result.labels[3].cellRenderer = (params) => {
         						return this.PermissionsCellRenderer(params);
@@ -499,6 +553,7 @@ scriptContent:
         			const colors: Record<string, string> = {
         			  forms: "#3b82f6",
         			  linkedin: "#3b82f6",
+        			  ad: "#3b82f6",
         			  undefined: "#3b82f6", 
         			  google: "#ef4444",      // rouge
         			  azuread: "#8b5cf6",      // violet
@@ -507,24 +562,32 @@ scriptContent:
         			
         			const styleClasses: Record<string, string> = {
         			  forms: "metric-icon-badge--info",
+        			  ad: "metric-icon-badge--info",
         			  undefined: "metric-icon-badge--info",
         			  google: "metric-icon-badge--danger",
         			  openid: "metric-icon-badge--dark",
         			  azuread: "metric-icon-badge--primary",
         			  linkedin: "metric-icon-badge--primary",
         			};
-        
+        			const providerKey = this.getProviderBadgeKey(provider);
+        			const providerLabel = this.getProviderDisplayLabel(provider);
         		  return `
-        		    <div style="height:56px;position:absolute;top:-11.5px">
+        		    <div style="height:56px;position:absolute;top:-11.5px; width: calc(100% - 40px);">
         				<div>				
-        			      <p style="font-size:14px;height:23px;margin:0; color:#111827;width:100%;">${mail}</p>
-        				  <div style="display:flex;align-items:center;">
+        			      <p style="font-size:14px;height:23px;margin:0; color:#111827;width:100%;">${(mail == null || mail === '''') ? ''-'' : mail}</p>
+        				  <div style="display:flex;align-items:center;justify-content: space-between; width: 100%">
+        					  <div>
         					  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe-icon lucide-globe"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-        				      <span style="margin-left:0.25rem;font-size:12px; color:#64748b;">
-        				        ${this.translate.instant(language)} <span class=${styleClasses[provider]} style="
-        				          border-radius:8px; padding:2px 6px; font-size:11px;
-        				        ">${(provider == undefined) ? ''Convertigo'' : this.translate.instant(provider)}</span>
-        				      </span>
+        	  				      <span style="margin-left:0.25rem;font-size:12px; color:#64748b;">
+        	  				        ${(language != null && language !== '''') ? this.translate.instant(language) + '' '' : ''''}
+        	  				      </span>
+        					  </div>
+        					  <div>
+        					  <span class=${styleClasses[providerKey] || styleClasses.undefined} style="
+        					  	  				          border-radius:8px; padding:2px 6px; font-size:11px; color:#fff; background:${colors[providerKey] || colors.undefined};
+        					  	  				        ">${providerLabel}</span>
+        					  </div>
+        					  
         				  </div>
         				</div>
         		    </div>
@@ -709,7 +772,7 @@ scriptContent:
         		    provider: {
         				filterType: ''text'',
         				type: ''contains'',
-        				filter: this.selectedProviders.length ? this.selectedProviders[0] : null
+        				filter: this.selectedProviders.length ? this.getProviderFilterValue(this.selectedProviders[0]) : null
         		    },
         			permissions: {
         				filterType: ''text'',
@@ -753,6 +816,7 @@ scriptContent:
         				provider: {
         					all: {checked: true},
         					azuread: {checked: false},
+        					ad: {checked: false},
         					google: {checked: false},
         					linkedin: {checked: false},
         					convertigo: {checked: false},
@@ -4198,11 +4262,10 @@ title: Title for adminDashboardUsers
                           beanData: '{"ionBean":"Label"}'
                           tagName: ion-label
                           ↓Text [ngx.components.UIText-1758880824523]: 
-                            i18n: true
                             textValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:azuread
+                                - MobileSmartSourceType: plain:Microsoft
                         ↓Event [ngx.components.UIControlEvent-1758880824526]: 
                           ↓addAdminRights [ngx.components.UICustomAsyncAction-1758880824529]: 
                             actionValue: 
@@ -4245,6 +4308,81 @@ title: Title for adminDashboardUsers
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                               - MobileSmartSourceType: plain:azuread
+                      ↓ButtonAd [ngx.components.UIDynamicElement-1774895639001]: 
+                        beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                        tagName: ion-button
+                        ↓Icon [ngx.components.UIDynamicElement-1774895639002]: 
+                          beanData: |
+                            '{
+                             "ionBean": "Icon",
+                             "IconName": "plain",
+                             "IconSource": "script:this.filters[''provider''][''ad''].checked ? ''assets\/images\/svg\/lucide\/check.svg'' : ''''"
+                            }'
+                          tagName: ion-icon
+                          ↓margin [ngx.components.UIStyle-1774895639003]: 
+                            styleContent: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    'margin-right: 7px;
+                                    '
+                          ↓Attr [ngx.components.UIAttribute-1774895639004]: 
+                            attrName: style
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: 'script:(this.filters[''provider''][''ad''].checked) ? '''': ''color: transparent !important;'''
+                        ↓Label [ngx.components.UIDynamicElement-1774895639005]: 
+                          beanData: '{"ionBean":"Label"}'
+                          tagName: ion-label
+                          ↓Text [ngx.components.UIText-1774895639006]: 
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.getAdProviderLabel()
+                        ↓Event [ngx.components.UIControlEvent-1774895639007]: 
+                          ↓addAdminRights [ngx.components.UICustomAsyncAction-1774895639008]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    		page.performBulk("update", "sure_update_rights_admin_rows","update_rights_admin_confirm", "update_rights_rows_error", "cancel_pwamsg", "Update", "admin", true);
+                                    
+                            isEnabled: false
+                          ↓toggleSelection [ngx.components.UICustomAction-1774895639009]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                    page.filterMain(vars)
+                                    		resolve();
+                                    '
+                            ↓value [ngx.components.UIControlVariable-1774895639010]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: plain:ad
+                            ↓type [ngx.components.UIControlVariable-1774895639011]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: plain:provider
+                        ↓Attr [ngx.components.UIAttribute-1774895639012]: 
+                          attrName: class
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:btn text-generic width-fit-content btn-padding-start-0 height-28px
+                        ↓Attr1 [ngx.components.UIAttribute-1774895639013]: 
+                          attrName: value
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:ad
                       ↓ButtonGoogle [ngx.components.UIDynamicElement-1758881750604]: 
                         beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
                         tagName: ion-button
@@ -4466,7 +4604,7 @@ title: Title for adminDashboardUsers
                             textValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:Convertigo
+                                - MobileSmartSourceType: plain:No Code Studio
                         ↓Attr1 [ngx.components.UIAttribute-1758889467696]: 
                           attrName: value
                           attrValue: 
@@ -5797,11 +5935,10 @@ title: Title for adminDashboardUsers
                           beanData: '{"ionBean":"Label"}'
                           tagName: ion-label
                           ↓Text [ngx.components.UIText-1759138305088]: 
-                            i18n: true
                             textValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:azuread
+                                - MobileSmartSourceType: plain:Microsoft
                         ↓Event [ngx.components.UIControlEvent-1759138305091]: 
                           ↓addAdminRights [ngx.components.UICustomAsyncAction-1759138305094]: 
                             actionValue: 
@@ -5844,6 +5981,81 @@ title: Title for adminDashboardUsers
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                               - MobileSmartSourceType: plain:azuread
+                      ↓ButtonAd [ngx.components.UIDynamicElement-1774895639014]: 
+                        beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                        tagName: ion-button
+                        ↓Icon [ngx.components.UIDynamicElement-1774895639015]: 
+                          beanData: |
+                            '{
+                             "ionBean": "Icon",
+                             "IconName": "plain",
+                             "IconSource": "script:this.filters[''provider''][''ad''].checked ? ''assets\/images\/svg\/lucide\/check.svg'' : ''''"
+                            }'
+                          tagName: ion-icon
+                          ↓margin [ngx.components.UIStyle-1774895639016]: 
+                            styleContent: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    'margin-right: 7px;
+                                    '
+                          ↓Attr [ngx.components.UIAttribute-1774895639017]: 
+                            attrName: style
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: 'script:(this.filters[''provider''][''ad''].checked) ? '''': ''color: transparent !important;'''
+                        ↓Label [ngx.components.UIDynamicElement-1774895639018]: 
+                          beanData: '{"ionBean":"Label"}'
+                          tagName: ion-label
+                          ↓Text [ngx.components.UIText-1774895639019]: 
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.getAdProviderLabel()
+                        ↓Event [ngx.components.UIControlEvent-1774895639020]: 
+                          ↓addAdminRights [ngx.components.UICustomAsyncAction-1774895639021]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    		page.performBulk("update", "sure_update_rights_admin_rows","update_rights_admin_confirm", "update_rights_rows_error", "cancel_pwamsg", "Update", "admin", true);
+                                    
+                            isEnabled: false
+                          ↓toggleSelection [ngx.components.UICustomAction-1774895639022]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                    page.filterMain(vars)
+                                    		resolve();
+                                    '
+                            ↓value [ngx.components.UIControlVariable-1774895639023]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: plain:ad
+                            ↓type [ngx.components.UIControlVariable-1774895639024]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: plain:provider
+                        ↓Attr [ngx.components.UIAttribute-1774895639025]: 
+                          attrName: class
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:btn text-generic width-fit-content btn-padding-start-0 height-28px
+                        ↓Attr1 [ngx.components.UIAttribute-1774895639026]: 
+                          attrName: value
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:ad
                       ↓ButtonGoogle [ngx.components.UIDynamicElement-1759138305112]: 
                         beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
                         tagName: ion-button
@@ -6065,7 +6277,7 @@ title: Title for adminDashboardUsers
                             textValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:Convertigo
+                                - MobileSmartSourceType: plain:No Code Studio
                         ↓Attr1 [ngx.components.UIAttribute-1759138305226]: 
                           attrName: value
                           attrValue: 

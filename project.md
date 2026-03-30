@@ -4623,6 +4623,14 @@ Default rights for no-code database elements.
 Publication flag or structure applied to the form.
 </td>
 </tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;useGenericLDAP
+</td>
+<td>
+Flag enabling generic LDAP display instead of Active Directory.
+</td>
+</tr>
 </table>
 
 </p></blockquote></details>
@@ -4701,6 +4709,14 @@ Publication flag or structure applied to the form.
 </td>
 <td>
 Group identifier receiving the user.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;useGenericLDAP
+</td>
+<td>
+Flag enabling generic LDAP display instead of Active Directory.
 </td>
 </tr>
 </table>

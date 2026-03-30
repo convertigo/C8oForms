@@ -952,6 +952,9 @@ Lists users with pagination and filters for admin views.
 <tr>
 <td>publication</td><td>Publication flag or structure applied to the form.</td>
 </tr>
+<tr>
+<td>useGenericLDAP</td><td>Flag enabling generic LDAP display instead of Active Directory.</td>
+</tr>
 </table>
 ### admin_users_get_by_group
 
@@ -986,6 +989,9 @@ Improved list of users for a given group with roles.
 </tr>
 <tr>
 <td>targetGroup</td><td>Group identifier receiving the user.</td>
+</tr>
+<tr>
+<td>useGenericLDAP</td><td>Flag enabling generic LDAP display instead of Active Directory.</td>
 </tr>
 </table>
 ### admin_users_get_by_id
