@@ -21,6 +21,7 @@ scriptContent:
         	public modalController: ModalController;
         	public popoverController: PopoverController;
         	public searchValue: string = '''';
+        	private searchDebounceHandle: any = null;
         	selectedLanguages: string[] = [];
         	selectedProviders: string[] = [];
         	selectedPermissions: string[] = [];
@@ -157,6 +158,7 @@ scriptContent:
         		this.modalController = this.getInstance(ModalController);
         		this.popoverController = this.getInstance(PopoverController);
         		this.local.overlayLoading = ''<span class="ag-overlay-loading-center">''+this.translate.instant(''loading_data'')+''</span>'';
+        		this.local.overlayNoRows = ''<span class="ag-overlay-no-rows-center">No Data Available</span>'';
         		this.permsNames = {
         		  "Publisher": this.translate.instant("publication_perm"),       // bleu
         		  "Admin": this.translate.instant("admin_perm"),      // rouge
@@ -214,167 +216,294 @@ scriptContent:
         		return this.useGenericLDAP ? "LDAP" : "Active Directory";
         	}
         	
-        	public async loadGridData() {
-        			try {
-        				this.local.loading = true;
-        				if(this.myaggrid?.agGrid?.api){
-        					this.myaggrid.agGrid.api.showLoadingOverlay();
+        	public getAdminReadonly(): boolean {
+        		let admin_write = ((!this.global?.settings?.admin) ? true : false);
+        		return ((this.global?.settings?.admin_readonly == undefined || !this.global?.settings?.admin_readonly) ? false : admin_write);
+        	}
+        	
+        	public buildUsersGridRequest(extra: any = {}): any {
+        		return {
+        			admin_readonly: this.getAdminReadonly(),
+        			search: this.searchValue ?? "",
+        			language: this.selectedLanguages.length ? this.selectedLanguages[0] : "",
+        			provider: this.selectedProviders.length ? this.selectedProviders[0] : "",
+        			permission: this.selectedPermissions.length ? this.selectedPermissions[0] : "",
+        			...extra
+        		};
+        	}
+        	
+        	public prepareGridMetadata(data: any) {
+        		let no_code_db_default_rights = data.result?.default_rights.no_code_db_default_rights == true;
+        		let editing_apps_default_rights = data.result?.default_rights.editing_apps_default_rights == true;
+        		let formulas_default_rights = data.result?.default_rights?.formulas_default_rights == true;
+        		let publication = data.result?.default_rights?.publication == true;
+        		this.useGenericLDAP = data.result?.useGenericLDAP === true;
+        		if (data.result.labels) {
+        			let translations = this.translate.translations[this.translate.currentLang];
+        			let finKeyByValue = (value) => {
+        				for (const key in translations) {
+        					if (translations[key] === value) {
+        						return key;
+        					}
         				}
-        				let admin_write = ( (!this.global?.settings?.admin) ? true : false);
-        				let admin_readonly = ( (this.global?.settings?.admin_readonly == undefined || !this.global?.settings?.admin_readonly) ? false : admin_write );
-        //				console.log(admin_readonly);
-        				let data = await this.c8o.callJsonObject("C8Oforms.admin_users_get", {admin_readonly: admin_readonly}).async();
-        				let no_code_db_default_rights = data.result?.default_rights.no_code_db_default_rights == true;
-        				let editing_apps_default_rights = data.result?.default_rights.editing_apps_default_rights == true;
-        				let formulas_default_rights = data.result?.default_rights?.formulas_default_rights == true;
-        				let publication = data.result?.default_rights?.publication == true;
-        				this.useGenericLDAP = data.result?.useGenericLDAP === true;
-        				if (data.error) {
-        					this.local.error = true;
-        				}
-        				else {
-        					if (data.result.labels) {
-        						let translations = this.translate.translations[this.translate.currentLang];
-        						let finKeyByValue = (value) => {
-        							for (const key in translations) {
-        								if (translations[key] === value) {
-        									return key;
+        			}
+        			data.result.labels = data.result.labels.map((x) => {
+        				x.filter = false;
+        				x.floatingFilter = false;
+        				x.suppressHeaderMenuButton = true;
+        				x.suppressHeaderFilterButton = true;
+        				x.menuTabs = [];
+        				if (x.headerName && x.headerName.length > 0) {
+        					x.headerName = this.translate.instant(x.headerName);
+        					if (x?.cellRenderer == "agCheckboxCellRenderer") {
+        						if (x?.c8o_type == "stringboolean") {
+        							x.valueGetter = (params) => {
+        								if(params.colDef.field == "editing_rights"){
+        									return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : editing_apps_default_rights;
         								}
+        								else if(params.colDef.field == "nocode_db_rights"){
+        									return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : no_code_db_default_rights;
+        								}
+        								else if(params.colDef.field == "formulas"){
+        									return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : formulas_default_rights;
+        								}
+        								else if(params.colDef.field == "publication"){
+        									return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : publication;
+        								}
+        								else{
+        									return params.data[x.field] === ''true'' || params.data[x.field] === true;
+        								}
+        							},
+        							x.valueSetter = (params) => {
+        								params.data[x.field] = params.newValue ? ''true'' : ''false'';
+        								return true;
         							}
         						}
-        						data.result.labels = data.result.labels.map((x) => {
-        							if (x.headerName && x.headerName.length > 0) {
-        								x.headerName = this.translate.instant(x.headerName);
-        								// if it''''s a checkbox then add support for non boolean checkbox
-        								if (x?.cellRenderer == "agCheckboxCellRenderer") {
-        									if (x?.c8o_type == "stringboolean") {
-        										x.valueGetter = (params) => {
-        											if(params.colDef.field == "editing_rights"){
-        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : editing_apps_default_rights;
-        											}
-        											else if(params.colDef.field == "nocode_db_rights"){
-        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : no_code_db_default_rights;
-        											}
-        											else if(params.colDef.field == "formulas"){
-        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : formulas_default_rights;
-        											}
-        											else if(params.colDef.field == "publication"){
-        												return params.data[x.field] != undefined ? (params.data[x.field] === ''true'' || params.data[x.field] === true) : publication;
-        											}
-        											else{
-        												return params.data[x.field] === ''true'' || params.data[x.field] === true;
-        											}
-        											
-        										},
-        											x.valueSetter = (params) => {
-        												params.data[x.field] = params.newValue ? ''true'' : ''false'';
-        												return true;
-        											}
-        									}
-        									else {
-        										x.valueGetter = (params) => {
-        											return params.data[x.field] === true;
-        										},
-        										x.valueSetter = (params) => {
-        											params.data[x.field] = params.newValue;
-        											return true;
-        										}
-        									}
-        	
-        								}
-        								if (x?.valueGetter == "lang") {
-        									x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
-        										x = this.translate.instant(x);
-        										return x;
-        									})
-        									x.valueGetter = (params) => {
-        										if (params?.data?.[x.field]) {
-        											return this.translate.instant(params.data[x.field]);
-        										}
-        										else {
-        											return params?.data?.[x.field] ?? "";
-        										}
-        	
-        									},
-        									x.valueSetter = (params) => {
-        										params.data[x.field] = finKeyByValue(params.newValue);
-        										return true;
-        									}
-        								}
-        								if (x?.field == "provider") {
-        									x.valueGetter = (params) => {
-        										return this.getProviderFilterValue(params?.data?.[x.field]);
-        									}
-        								}
+        						else {
+        							x.valueGetter = (params) => {
+        								return params.data[x.field] === true;
+        							},
+        							x.valueSetter = (params) => {
+        								params.data[x.field] = params.newValue;
+        								return true;
         							}
+        						}
+        					}
+        					if (x?.valueGetter == "lang") {
+        						x.cellEditorParams.values = x.cellEditorParams.values.map((x) => {
+        							x = this.translate.instant(x);
         							return x;
         						})
+        						x.valueGetter = (params) => {
+        							if (params?.data?.[x.field]) {
+        								return this.translate.instant(params.data[x.field]);
+        							}
+        							else {
+        								return params?.data?.[x.field] ?? "";
+        							}
+        						},
+        						x.valueSetter = (params) => {
+        							params.data[x.field] = finKeyByValue(params.newValue);
+        							return true;
+        						}
         					}
-        //					console.log(data.result.labels[1])
-        					data.result.labels[1].cellRenderer = (params) => {
-        						return this.UserCellRenderer(params);
-        					};
-        					data.result.labels[1].valueGetter = params =>
-        					  `${params.data.displayName} ${params.data.name} ${params.data.surname}`
-        					
-        					data.result.labels[2].cellRenderer = (params) => {
-        						return this.ContactCellRenderer(params);
-        					};
-        					data.result.labels[2].valueGetter = params =>
-        					  `${params.data.mail} ${params.data.language} ${this.getProviderFilterValue(params.data.provider)}`
-        					
-        					data.result.labels[3].cellRenderer = (params) => {
-        						return this.PermissionsCellRenderer(params);
-        					};
-        					
-        //					data.result.labels[3].headerComponentFramework = C8Oforms_PermissionsHeaderComponent ;
-        					
-        					data.result.labels[3].valueGetter = params => {
-        					  const d = params.data;
-        					  const roles: string[] = [];
-        					  const isTrue = (v: any) => v === true || v === "true";
-        
-        					  if (d.admin === true || d.admin === "true") {
-        					    roles.push("Admin");
-        					  }
-        					  if (d.nocode_db_rights === true || d.nocode_db_rights === "true") {
-        					    roles.push("No Code Editor");
-        					  }
-        					  if (d.admin_readonly === true || d.admin_readonly === "true") {
-        					    roles.push("Admin Read Only");
-        					  }
-        					  if (d.publication === true || d.publication === "true") {
-        					    roles.push("Publisher");
-        					  }
-        					  if (d.editing_rights === true || d.editing_rights === "true") {
-        					    roles.push("Editor");
-        					  }
-        					  if (d.formulas === true || d.formulas === "true") {
-        					    roles.push("Formulas Editor");
-        					  }
-        
-        					  return roles.join(" · "); // ex: "Admin · Publisher · Editor"
-        					};
-        					
-        					data.result.labels[4].cellRenderer = (params) => {
-        						return this.ActionsCellRenderer(params);
-        					};
-        
-        					
-        					this.local.data = data;
+        					if (x?.field == "provider") {
+        						x.valueGetter = (params) => {
+        							return this.getProviderFilterValue(params?.data?.[x.field]);
+        						}
+        					}
         				}
-        			} catch (e) {
-        				this.local.error = true;
-        				this.c8o.log.error("An error occured : \n" + JSON.stringify(e));
-        			}
-        			finally {
-        				this.local.loading = false;
-        				if(this.myaggrid?.agGrid?.api){
-        					this.myaggrid.agGrid.api.hideOverlay();
-        				}
-        				this.ref.markForCheck();
-        			}
+        				return x;
+        			})
         		}
+        		data.result.labels[1].cellRenderer = (params) => {
+        			return this.UserCellRenderer(params);
+        		};
+        		data.result.labels[1].valueGetter = params =>
+        		  `${params.data?.displayName} ${params.data?.name} ${params.data?.surname}`
+        		
+        		data.result.labels[2].cellRenderer = (params) => {
+        			return this.ContactCellRenderer(params);
+        		};
+        		data.result.labels[2].valueGetter = params =>
+        		  `${params.data?.mail} ${params.data?.language} ${this.getProviderFilterValue(params.data?.provider)}`
+        		
+        		data.result.labels[3].cellRenderer = (params) => {
+        			return this.PermissionsCellRenderer(params);
+        		};
+        		
+        		data.result.labels[3].valueGetter = params => {
+        		  const d = params.data;
+        		  const roles: string[] = [];
+        		
+        		  if (d?.admin === true || d?.admin === "true") {
+        		    roles.push("Admin");
+        		  }
+        		  if (d?.nocode_db_rights === true || d?.nocode_db_rights === "true") {
+        		    roles.push("No Code Editor");
+        		  }
+        		  if (d?.admin_readonly === true || d?.admin_readonly === "true") {
+        		    roles.push("Admin Read Only");
+        		  }
+        		  if (d?.publication === true || d?.publication === "true") {
+        		    roles.push("Publisher");
+        		  }
+        		  if (d?.editing_rights === true || d?.editing_rights === "true") {
+        		    roles.push("Editor");
+        		  }
+        		  if (d?.formulas === true || d?.formulas === "true") {
+        		    roles.push("Formulas Editor");
+        		  }
+        		
+        		  return roles.join(" · ");
+        		};
+        		
+        		data.result.labels[4].cellRenderer = (params) => {
+        			return this.ActionsCellRenderer(params);
+        		};
+        		return data;
+        	}
+        	
+        	public resetUsersGrid() {
+        		try {
+        			this.local.loading = true;
+        			this.local.error = false;
+        			this.local.selected = false;
+        			if (this.myaggrid?.agGrid?.api) {
+        				this.deferGridApi(() => this.myaggrid.agGrid.api.showLoadingOverlay());
+        			}
+        			if (this.myaggrid?.agGrid?.api?.deselectAll) {
+        				this.myaggrid.agGrid.api.deselectAll();
+        			}
+        			if (this.myaggrid?.agGrid?.api?.paginationGoToFirstPage) {
+        				this.myaggrid.agGrid.api.paginationGoToFirstPage();
+        			}
+        			if (this.myaggrid?.agGrid?.context) {
+        				this.myaggrid.agGrid.context.bookmark = '''';
+        			}
+        			if (this.myaggrid?.agGrid?.context?.reset) {
+        				this.myaggrid.agGrid.context.reset();
+        			}
+        		} catch (e) {
+        		
+        		} finally {
+        			this.ref.markForCheck();
+        		}
+        	}
+        	
+        	public deferGridApi(action: any, delay: number = 0) {
+        		setTimeout(() => {
+        			try {
+        				action?.();
+        			} catch (e) {
+        			
+        			}
+        		}, delay);
+        	}
+        	
+        	public async getUsersRows(event: any) {
+        		try {
+        			this.local.loading = true;
+        			if (this.myaggrid?.agGrid?.api) {
+        				this.deferGridApi(() => this.myaggrid.agGrid.api.showLoadingOverlay());
+        			}
+        			let data = await this.c8o.callJsonObject("C8Oforms.admin_users_get", this.buildUsersGridRequest({
+        				limit: event?.limit ?? 100,
+        				skip: event?.skip ?? 0,
+        				sortModel: JSON.stringify(event?.sortModel ?? [])
+        			})).async();
+        			if (data?.error) {
+        				throw data.error;
+        			}
+        			let rows = data?.result?.values ?? [];
+        			let totalCount = typeof data?.result?.totalCount === ''number'' ? data.result.totalCount : null;
+        			let hasKnownTotal = typeof totalCount === ''number'' && totalCount >= 0;
+        			if (typeof event?.successCallback === ''function'') {
+        				this.deferGridApi(() => {
+        					if (hasKnownTotal) {
+        						event.successCallback(rows, totalCount);
+        					}
+        					else {
+        						event.successCallback(rows);
+        					}
+        					this.deferGridApi(() => {
+        						this.local.loading = false;
+        						if (this.myaggrid?.agGrid?.api) {
+        							if ((hasKnownTotal && totalCount === 0) || (!hasKnownTotal && rows.length === 0 && (event?.skip ?? 0) === 0)) {
+        								if (typeof this.myaggrid.agGrid.api.hideOverlay === ''function'') {
+        									this.myaggrid.agGrid.api.hideOverlay();
+        								}
+        								if (typeof this.myaggrid.agGrid.api.showNoRowsOverlay === ''function'') {
+        									this.deferGridApi(() => this.myaggrid.agGrid.api.showNoRowsOverlay());
+        								}
+        							}
+        							else {
+        								this.myaggrid.agGrid.api.hideOverlay();
+        							}
+        						}
+        						this.ref.markForCheck();
+        					}, 0);
+        				}, 0);
+        			}
+        		} catch (e) {
+        			this.local.error = true;
+        			this.c8o.log.error("An error occured while loading users rows : \n" + JSON.stringify(e));
+        			if (typeof event?.failCallback === ''function'') {
+        				this.deferGridApi(() => {
+        					event.failCallback();
+        					this.deferGridApi(() => {
+        						this.local.loading = false;
+        						if (this.myaggrid?.agGrid?.api) {
+        							this.myaggrid.agGrid.api.hideOverlay();
+        						}
+        						this.ref.markForCheck();
+        					}, 0);
+        				}, 0);
+        			}
+        		} finally {
+        			this.ref.markForCheck();
+        		}
+        	}
+        	
+        	public async loadGridData(refreshRows: boolean = true) {
+        		try {
+        			this.local.loading = true;
+        			this.local.error = false;
+        			if(this.myaggrid?.agGrid?.api){
+        				this.deferGridApi(() => this.myaggrid.agGrid.api.showLoadingOverlay());
+        			}
+        			let data = await this.c8o.callJsonObject("C8Oforms.admin_users_get", this.buildUsersGridRequest({
+        				metadataOnly: true,
+        				limit: 0,
+        				skip: 0
+        			})).async();
+        			if (data.error) {
+        				this.local.error = true;
+        			}
+        			else {
+        				this.local.data = this.prepareGridMetadata(data);
+        				if (this.myaggrid?.agGrid?.api) {
+        					this.deferGridApi(() => this.myaggrid.agGrid.api.sizeColumnsToFit());
+        				}
+        				if (refreshRows) {
+        					this.resetUsersGrid();
+        				}
+        			}
+        		} catch (e) {
+        			this.local.error = true;
+        			this.c8o.log.error("An error occured : \n" + JSON.stringify(e));
+        		}
+        		finally {
+        			this.local.loading = false;
+        			if(this.myaggrid?.agGrid?.api){
+        				let displayedRowCount = typeof this.myaggrid.agGrid.api.getDisplayedRowCount === ''function'' ? this.myaggrid.agGrid.api.getDisplayedRowCount() : 0;
+        				if (!(displayedRowCount > 0)) {
+        					this.deferGridApi(() => this.myaggrid.agGrid.api.hideOverlay());
+        				}
+        			}
+        			this.ref.markForCheck();
+        		}
+        	}
         
         		public async performBulk(bulkOperation: "delete" | "update", confirmMsg: string, successMsg: string, errorMsg: string, cancelMsgBtn: string, confirmMsgBtn, right?: string, value?: any) {
         			try {
@@ -512,18 +641,22 @@ scriptContent:
         		}
         		
         		public getAdminCount() {
-        			return this.local?.data?.result?.values.filter(
-        				dt => dt?.admin
-        			).length?.toLocaleString(this.translate.getBrowserCultureLang());
+        			return (this.local?.data?.result?.adminUsers ?? 0).toLocaleString(this.translate.getBrowserCultureLang());
         		}
         		
         		public onQuickFilterChanged(value: string) {
-        		  this.myaggrid?.agGrid?.api!.setQuickFilter(value);
+        			this.searchValue = value ?? '''';
+        			if (this.searchDebounceHandle != null) {
+        				clearTimeout(this.searchDebounceHandle);
+        			}
+        			this.searchDebounceHandle = setTimeout(() => {
+        				this.resetUsersGrid();
+        			}, 250);
         		}
         		
         		public UserCellRenderer(params: any) {
         //		  console.log(params.data)
-        		  const { displayName, name } = params.data;
+        		  const { displayName, name } = params.data ?? {displayName: "", name:""};
         		  const initials = (displayName) ? displayName?.slice(0, 2).toUpperCase() : '''';
         
         		  return `
@@ -548,7 +681,7 @@ scriptContent:
         		}
         		
         		public ContactCellRenderer(params: any) {
-        		  const { mail, language, provider } = params.data;
+        		  const { mail, language, provider } = params.data ?? {mail: "", language:"", provider:""};
         //		  console.log(mail, language, provider)
         			const colors: Record<string, string> = {
         			  forms: "#3b82f6",
@@ -596,7 +729,7 @@ scriptContent:
         
         		public PermissionsCellRenderer(params: any, tooltip: boolean = false) {
         //			console.log(params.data)
-        			const { admin,  formulas, nocode_db_rights, publication, editing_rights, admin_readonly} = params.data;	
+        			const { admin,  formulas, nocode_db_rights, publication, editing_rights, admin_readonly} = params.data ?? {};
         			let permissions = [];
         			let permissionsLength = 0;
         			const isTrue = (v: any) => v === true || v === "true";
@@ -762,45 +895,20 @@ scriptContent:
         		}
         		
         		applyExternalFilters() {
-        //			console.log(this.myaggrid.agGrid.api.getFilterModel())
-        		  this.myaggrid.agGrid.api.setFilterModel({
-        		    language: {
-        				filterType: ''text'',
-        				type: ''contains'',
-        				filter: this.selectedLanguages.length ? this.selectedLanguages[0] : null
-        		    },
-        		    provider: {
-        				filterType: ''text'',
-        				type: ''contains'',
-        				filter: this.selectedProviders.length ? this.getProviderFilterValue(this.selectedProviders[0]) : null
-        		    },
-        			permissions: {
-        				filterType: ''text'',
-        				type: this.selectedPermissions.length && this.selectedPermissions[0] === "Admin" ? ''startsWith'' : ''contains'',
-        				filter: this.selectedPermissions.length ? this.selectedPermissions[0] : null
-        			}
-        		  });
-        		  this.myaggrid.agGrid.api.onFilterChanged();
-        //		  console.log(this.myaggrid.agGrid.api.getFilterModel());
+        			this.resetUsersGrid();
         		}
         		
         		countFiltersApplied(): number {
         			let tmp = 0;
-        			if (this?.myaggrid?.agGrid?.api) {				
-        				let filters = this.myaggrid.agGrid.api.getFilterModel();
-        				if(filters?.language && filters?.language?.filter && filters.language.filter.length > 0) {
-        					tmp++;
-        				}
-        				
-        				if(filters?.provider && filters?.provider?.filter && filters.provider.filter.length > 0) {
-        					tmp++;
-        				}
-        				
-        				if(filters?.permissions && filters?.permissions?.filter && filters.permissions.filter.length > 0) {
-        					tmp++;
-        				}
+        			if (this.selectedLanguages.length > 0) {
+        				tmp++;
         			}
-        			
+        			if (this.selectedProviders.length > 0) {
+        				tmp++;
+        			}
+        			if (this.selectedPermissions.length > 0) {
+        				tmp++;
+        			}
         			return tmp;
         		}
         		
@@ -835,7 +943,12 @@ scriptContent:
         			this.selectedLanguages = [];
         			this.selectedProviders = [];
         			this.selectedPermissions = [];
-        			this.myaggrid.agGrid.api.setFilterModel({});
+        			this.searchValue = '''';
+        			if (this.searchDebounceHandle != null) {
+        				clearTimeout(this.searchDebounceHandle);
+        				this.searchDebounceHandle = null;
+        			}
+        			this.resetUsersGrid();
         		}
         
         		toggleSelection(event: Event, type: ''language'' | ''provider''|''permissions'', val: string) {
@@ -1945,7 +2058,7 @@ title: Title for adminDashboardUsers
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:(this.navParams?.data?.['users_count'] ?? this.local.data?.result?.values.length?.toLocaleString(this.translate.getBrowserCultureLang()))  ?? ''
+                            - MobileSmartSourceType: script:(this.navParams?.data?.['users_count'] ?? this.local.data?.result?.totalUsers?.toLocaleString(this.translate.getBrowserCultureLang()))  ?? ''
                   ↓DivMetricLabel [ngx.components.UIDynamicElement-1758286736954]: 
                     beanData: '{"ionBean":"DivTag"}'
                     tagName: div
@@ -8532,19 +8645,19 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:false
+                    - MobileSmartSourceType: script:true
               ↓paginationPageSize [ngx.components.UIUseVariable-1739883964541]: 
                 comment: 'integer: 10 by default'
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:10
+                    - MobileSmartSourceType: script:100
               ↓paginationPageSizeSelector [ngx.components.UIUseVariable-1739883964543]: 
                 comment: 'array | boolean: [20,50,100] by default'
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:true
+                    - MobileSmartSourceType: script:false
               ↓rowSelection [ngx.components.UIUseVariable-1739883964545]: 
                 comment: 'string: ''single'' (default) or ''multiple'''
                 varValue: 
@@ -8562,7 +8675,7 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: 'script:{hide: false, editable: true, sortable: true, resizable: false, filter: true, checkboxSelection: false, singleClickEdit: false}'
+                    - MobileSmartSourceType: 'script:{hide: false, editable: true, sortable: true, resizable: false, filter: false, checkboxSelection: false, singleClickEdit: false, suppressHeaderMenuButton: true, suppressHeaderFilterButton: true}'
               ↓columnDefs [ngx.components.UIUseVariable-1739883964551]: 
                 comment: 'Array of columnDef {headerName: ''headerName'', field: ''fieldName''} objects'
                 varValue: 
@@ -8574,7 +8687,7 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.local.data?.result?.values
+                    - MobileSmartSourceType: script:[]
               ↓width [ngx.components.UIUseVariable-1739883964555]: 
                 comment: width value in % or px
                 varValue: 
@@ -8629,7 +8742,7 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:''
+                    - MobileSmartSourceType: script:this.local.overlayNoRows
               ↓rowHeight [ngx.components.UIUseVariable-1739883964571]: 
                 comment: Height of the row in pixels as a string
                 varValue: 
@@ -8647,13 +8760,13 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:'clientSide'
+                    - MobileSmartSourceType: script:'infinite'
               ↓maxBlocksInCache [ngx.components.UIUseVariable-1739883964577]: 
                 comment: How many blocks to keep in the store. Default is no limit, so every requested block is kept
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:''
+                    - MobileSmartSourceType: script:5
               ↓autoSizeColumns [ngx.components.UIUseVariable-1739883964579]: 
                 varValue: 
                   - xmlizable: 
@@ -8699,7 +8812,7 @@ title: Title for adminDashboardUsers
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:'autoHeight'
+                    - MobileSmartSourceType: script:'normal'
               ↓Event [ngx.components.UIControlEvent-1739883977313]: 
                 attrName: (CellClicked)
                 comment: Fired when a cell is clicked. Data will be the agGrid event
@@ -8815,10 +8928,10 @@ title: Title for adminDashboardUsers
                           		try {
                           			if(page.local.loading){
                           				if(page.myaggrid?.agGrid?.api){
-                          					page.myaggrid.agGrid.api.showLoadingOverlay();
+                          					page.deferGridApi(() => page.myaggrid.agGrid.api.showLoadingOverlay());
                           				}
                           			} else {				
-                          				page.myaggrid.agGrid.api.sizeColumnsToFit()	
+                          				page.deferGridApi(() => page.myaggrid.agGrid.api.sizeColumnsToFit())	
                           			}
                           		} catch (e) {
                           		
@@ -8830,6 +8943,14 @@ title: Title for adminDashboardUsers
                 attrName: (GetRows)
                 comment: Fire when the RowModelType is 'infinite'. Excepts fromatted data into a agGridUpdateRows action
                 eventName: GetRows
+                ↓loadRows [ngx.components.UICustomAsyncAction-1764530000001]: 
+                  actionValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          		return page.getUsersRows(event);
+                          
               ↓datasource [ngx.components.UIUseVariable-1741628089805]: 
                 varValue: 
                   - xmlizable: 
@@ -8928,7 +9049,7 @@ title: Title for adminDashboardUsers
               //--ion-grid-width-xs	//Width of the fixed Grid on xs screens
               position: relative;
               //top: -48px;
-              height: calc(100% - 70px);
+              height: calc(100% - 98.38px);
               '
   ↓UseSharedComponent [ngx.components.UIUseShared-1747841293203]: 
     isEnabled: false
@@ -8976,7 +9097,7 @@ title: Title for adminDashboardUsers
             //		console.log(page.global)
             //		page.global.settings.admin_readonly = true;		
             		// end for test
-            		page.loadGridData();
+            		page.loadGridData(false);
             
 ↓header [ngx.components.UIStyle-1758286555064]: 
   styleContent: 

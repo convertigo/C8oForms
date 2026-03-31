@@ -9,15 +9,1340 @@ comment: |
     include("js/isAdmin.js");
 ↓Sequence_admin_users_get [steps.SimpleStep-1739884182271]: 
   expression: |
-    'query = new java.util.HashMap();
-    query.put(''include_docs'', ''true'');
-    var response = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', query));
-    if(response.error){
-    	
+    'admin_readonly = (admin_readonly == "false") ? false : true;
+    var metadataOnlyFlag = metadataOnly == "true" || metadataOnly === true;
+    var requestedLimit = parseInt(limit, 10);
+    var requestedSkip = parseInt(skip, 10);
+    if (isNaN(requestedLimit) || requestedLimit < 0) {
+    	requestedLimit = 100;
     }
-    else{
-    	var rows = response.rows;
-    	admin_readonly = (admin_readonly == "false") ? false : true;
+    if (requestedLimit > 500) {
+    	requestedLimit = 500;
+    }
+    if (isNaN(requestedSkip) || requestedSkip < 0) {
+    	requestedSkip = 0;
+    }
+    var searchValue = search != null ? ("" + search).trim().toLowerCase() : "";
+    var languageValue = language != null ? ("" + language).trim().toLowerCase() : "";
+    var providerValue = provider != null ? ("" + provider).trim().toLowerCase() : "";
+    var permissionValue = permission != null ? ("" + permission).trim() : "";
+    var parsedSortModel = [];
+    try {
+    	parsedSortModel = JSON.parse(sortModel || "[]");
+    	if (Object.prototype.toString.call(parsedSortModel) !== "[object Array]") {
+    		parsedSortModel = [];
+    	}
+    } catch (e) {
+    	parsedSortModel = [];
+    }
+    var useGenericLDAPFlag = useGenericLDAP == "true";
+    
+    function safeLower(value) {
+    	return value == null ? "" : ("" + value).toLowerCase();
+    }
+    
+    function isTrue(value) {
+    	return value === true || value === "true";
+    }
+    
+    function getProviderGroupKey(provider) {
+    	var normalizedProvider = safeLower(provider).trim();
+    	if (normalizedProvider === "" || normalizedProvider === "forms" || normalizedProvider === "convertigo" || normalizedProvider === "no code studio") {
+    		return "forms";
+    	}
+    	if (normalizedProvider === "azuread" || normalizedProvider === "microsoft") {
+    		return "azuread";
+    	}
+    	if (normalizedProvider === "ad" || normalizedProvider === "ldap" || normalizedProvider === "active directory") {
+    		return "ad";
+    	}
+    	return normalizedProvider;
+    }
+    
+    function getProviderLabel(provider) {
+    	var normalizedProvider = getProviderGroupKey(provider);
+    	if (normalizedProvider === "forms") {
+    		return "no code studio";
+    	}
+    	if (normalizedProvider === "azuread") {
+    		return "microsoft";
+    	}
+    	if (normalizedProvider === "ad") {
+    		return useGenericLDAPFlag ? "ldap" : "active directory";
+    	}
+    	return normalizedProvider;
+    }
+    
+    function matchesProvider(provider) {
+    	var normalizedProvider = getProviderGroupKey(provider);
+    	if (providerValue === "") {
+    		return true;
+    	}
+    	return normalizedProvider === getProviderGroupKey(providerValue);
+    }
+    
+    function matchesPermission(doc) {
+    	switch (permissionValue) {
+    		case "Admin":
+    			return isTrue(doc.admin);
+    		case "Admin Read Only":
+    			return isTrue(doc.admin_readonly);
+    		case "No Code Editor":
+    			return isTrue(doc.nocode_db_rights);
+    		case "Editor":
+    			return isTrue(doc.editing_rights);
+    		case "Formulas Editor":
+    			return isTrue(doc.formulas);
+    		case "Publisher":
+    			return isTrue(doc.publication);
+    		default:
+    			return true;
+    	}
+    }
+    
+    function getPermissionsLabel(doc) {
+    	var roles = [];
+    	if (isTrue(doc.admin)) {
+    		roles.push("Admin");
+    	}
+    	if (isTrue(doc.nocode_db_rights)) {
+    		roles.push("No Code Editor");
+    	}
+    	if (isTrue(doc.admin_readonly)) {
+    		roles.push("Admin Read Only");
+    	}
+    	if (isTrue(doc.publication)) {
+    		roles.push("Publisher");
+    	}
+    	if (isTrue(doc.editing_rights)) {
+    		roles.push("Editor");
+    	}
+    	if (isTrue(doc.formulas)) {
+    		roles.push("Formulas Editor");
+    	}
+    	return roles.join(" · ");
+    }
+    
+    function matchesSearch(doc) {
+    	if (searchValue === "") {
+    		return true;
+    	}
+    	var haystack = [
+    		doc._id,
+    		doc.displayName,
+    		doc.name,
+    		doc.surname,
+    		doc.mail,
+    		doc.language,
+    		getProviderLabel(doc.provider),
+    		getPermissionsLabel(doc)
+    	].join(" ").toLowerCase();
+    	return haystack.indexOf(searchValue) !== -1;
+    }
+    
+    function matchesActiveFilters(doc) {
+    	if (languageValue.length > 0 && safeLower(doc.language).trim() !== languageValue) {
+    		return false;
+    	}
+    	if (!matchesProvider(doc.provider)) {
+    		return false;
+    	}
+    	if (!matchesPermission(doc)) {
+    		return false;
+    	}
+    	return true;
+    }
+    
+    function getSortValue(doc, columnId) {
+    	switch (columnId) {
+    		case "user":
+    			return [doc.displayName, doc.name, doc.surname].join(" ").toLowerCase();
+    		case "contact":
+    			return [doc.mail, doc.language, getProviderLabel(doc.provider)].join(" ").toLowerCase();
+    		case "permissions":
+    			return getPermissionsLabel(doc).toLowerCase();
+    		case "provider":
+    			return getProviderLabel(doc.provider);
+    		case "language":
+    			return safeLower(doc.language);
+    		case "editing_rights":
+    		case "formulas":
+    		case "nocode_db_rights":
+    		case "publication":
+    		case "admin_readonly":
+    		case "admin":
+    			return isTrue(doc[columnId]) ? 1 : 0;
+    		default:
+    			return safeLower(doc[columnId]);
+    	}
+    }
+    
+    function compareValues(leftValue, rightValue) {
+    	var leftIsNumber = typeof leftValue == "number";
+    	var rightIsNumber = typeof rightValue == "number";
+    	if (leftIsNumber || rightIsNumber) {
+    		var normalizedLeft = leftIsNumber ? leftValue : 0;
+    		var normalizedRight = rightIsNumber ? rightValue : 0;
+    		if (normalizedLeft > normalizedRight) {
+    			return 1;
+    		}
+    		if (normalizedLeft < normalizedRight) {
+    			return -1;
+    		}
+    		return 0;
+    	}
+    	var leftText = safeLower(leftValue);
+    	var rightText = safeLower(rightValue);
+    	if (leftText > rightText) {
+    		return 1;
+    	}
+    	if (leftText < rightText) {
+    		return -1;
+    	}
+    	return 0;
+    }
+    
+    function sortDocs(docs) {
+    	if (parsedSortModel.length === 0) {
+    		return docs;
+    	}
+    	docs.sort(function(leftDoc, rightDoc) {
+    		for (var i = 0; i < parsedSortModel.length; i++) {
+    			var sortDef = parsedSortModel[i] || {};
+    			var direction = sortDef.sort === "desc" ? -1 : 1;
+    			var columnId = sortDef.colId || "_id";
+    			var result = compareValues(getSortValue(leftDoc, columnId), getSortValue(rightDoc, columnId));
+    			if (result !== 0) {
+    				return result * direction;
+    			}
+    		}
+    		return compareValues(getSortValue(leftDoc, "_id"), getSortValue(rightDoc, "_id"));
+    	});
+    	return docs;
+    }
+    
+    function getViewSortDefinition() {
+    	if (parsedSortModel.length !== 1) {
+    		return null;
+    	}
+    	var sortDef = parsedSortModel[0] || {};
+    	var columnId = sortDef.colId || "_id";
+    	var descending = sortDef.sort === "desc";
+    	var providerGroupKey = providerValue.length > 0 ? getProviderGroupKey(providerValue) : "";
+    	var languageKey = languageValue.length > 0 ? languageValue : "";
+    	var permissionFieldKey = getPermissionFieldName(permissionValue);
+    	switch (columnId) {
+    		case "contact":
+    			if (providerGroupKey !== "" && languageKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byProviderLanguagePermissionContact",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, languageKey, permissionFieldKey, "\ufff0", "\ufff0"] : [providerGroupKey, languageKey, permissionFieldKey],
+    					endkey: descending ? [providerGroupKey, languageKey, permissionFieldKey] : [providerGroupKey, languageKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "" && languageKey !== "") {
+    				return {
+    					viewName: "byProviderLanguageContact",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, languageKey, "\ufff0", "\ufff0"] : [providerGroupKey, languageKey],
+    					endkey: descending ? [providerGroupKey, languageKey] : [providerGroupKey, languageKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byProviderPermissionContact",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0"] : [providerGroupKey, permissionFieldKey],
+    					endkey: descending ? [providerGroupKey, permissionFieldKey] : [providerGroupKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (languageKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byLanguagePermissionContact",
+    					descending: descending,
+    					startkey: descending ? [languageKey, permissionFieldKey, "\ufff0", "\ufff0"] : [languageKey, permissionFieldKey],
+    					endkey: descending ? [languageKey, permissionFieldKey] : [languageKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "") {
+    				return {
+    					viewName: "byProviderContact",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, "\ufff0", "\ufff0", "\ufff0"] : [providerGroupKey],
+    					endkey: descending ? [providerGroupKey] : [providerGroupKey, "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (languageKey !== "") {
+    				return {
+    					viewName: "byLanguageContact",
+    					descending: descending,
+    					startkey: descending ? [languageKey, "\ufff0", "\ufff0"] : [languageKey],
+    					endkey: descending ? [languageKey] : [languageKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (permissionFieldKey != null) {
+    				return {
+    					viewName: "byPermissionContact",
+    					descending: descending,
+    					startkey: descending ? [permissionFieldKey, "\ufff0", "\ufff0", "\ufff0"] : [permissionFieldKey],
+    					endkey: descending ? [permissionFieldKey] : [permissionFieldKey, "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			return {
+    				viewName: "byContact",
+    				descending: descending
+    			};
+    		case "user":
+    			if (providerGroupKey !== "" && languageKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byProviderLanguagePermissionUser",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, languageKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"] : [providerGroupKey, languageKey, permissionFieldKey],
+    					endkey: descending ? [providerGroupKey, languageKey, permissionFieldKey] : [providerGroupKey, languageKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "" && languageKey !== "") {
+    				return {
+    					viewName: "byProviderLanguageUser",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, languageKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"] : [providerGroupKey, languageKey],
+    					endkey: descending ? [providerGroupKey, languageKey] : [providerGroupKey, languageKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byProviderPermissionUser",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"] : [providerGroupKey, permissionFieldKey],
+    					endkey: descending ? [providerGroupKey, permissionFieldKey] : [providerGroupKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (languageKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byLanguagePermissionUser",
+    					descending: descending,
+    					startkey: descending ? [languageKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"] : [languageKey, permissionFieldKey],
+    					endkey: descending ? [languageKey, permissionFieldKey] : [languageKey, permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "") {
+    				return {
+    					viewName: "byProviderUser",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"] : [providerGroupKey],
+    					endkey: descending ? [providerGroupKey] : [providerGroupKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (languageKey !== "") {
+    				return {
+    					viewName: "byLanguageUser",
+    					descending: descending,
+    					startkey: descending ? [languageKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"] : [languageKey],
+    					endkey: descending ? [languageKey] : [languageKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (permissionFieldKey != null) {
+    				return {
+    					viewName: "byPermissionUser",
+    					descending: descending,
+    					startkey: descending ? [permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"] : [permissionFieldKey],
+    					endkey: descending ? [permissionFieldKey] : [permissionFieldKey, "\ufff0", "\ufff0", "\ufff0", "\ufff0"]
+    				};
+    			}
+    			return {
+    				viewName: "byUser",
+    				descending: descending
+    			};
+    		case "permissions":
+    			if (providerGroupKey !== "" && languageKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byProviderLanguagePermissionPermissions",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, languageKey, permissionFieldKey, "\ufff0", "\ufff0"] : [providerGroupKey, languageKey, permissionFieldKey],
+    					endkey: descending ? [providerGroupKey, languageKey, permissionFieldKey] : [providerGroupKey, languageKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "" && languageKey !== "") {
+    				return {
+    					viewName: "byProviderLanguagePermissions",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, languageKey, "\ufff0", "\ufff0"] : [providerGroupKey, languageKey],
+    					endkey: descending ? [providerGroupKey, languageKey] : [providerGroupKey, languageKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byProviderPermissionPermissions",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, permissionFieldKey, "\ufff0", "\ufff0"] : [providerGroupKey, permissionFieldKey],
+    					endkey: descending ? [providerGroupKey, permissionFieldKey] : [providerGroupKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (languageKey !== "" && permissionFieldKey != null) {
+    				return {
+    					viewName: "byLanguagePermissionPermissions",
+    					descending: descending,
+    					startkey: descending ? [languageKey, permissionFieldKey, "\ufff0", "\ufff0"] : [languageKey, permissionFieldKey],
+    					endkey: descending ? [languageKey, permissionFieldKey] : [languageKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (providerGroupKey !== "") {
+    				return {
+    					viewName: "byProviderPermissions",
+    					descending: descending,
+    					startkey: descending ? [providerGroupKey, "\ufff0", "\ufff0"] : [providerGroupKey],
+    					endkey: descending ? [providerGroupKey] : [providerGroupKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (languageKey !== "") {
+    				return {
+    					viewName: "byLanguagePermissions",
+    					descending: descending,
+    					startkey: descending ? [languageKey, "\ufff0", "\ufff0"] : [languageKey],
+    					endkey: descending ? [languageKey] : [languageKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			if (permissionFieldKey != null) {
+    				return {
+    					viewName: "byPermissionPermissions",
+    					descending: descending,
+    					startkey: descending ? [permissionFieldKey, "\ufff0", "\ufff0"] : [permissionFieldKey],
+    					endkey: descending ? [permissionFieldKey] : [permissionFieldKey, "\ufff0", "\ufff0"]
+    				};
+    			}
+    			return {
+    				viewName: "byPermissions",
+    				descending: descending
+    			};
+    		case "provider":
+    			if (!useGenericLDAPFlag) {
+    				return {
+    					viewName: "byProviderLabel",
+    					descending: descending,
+    					allowFiltered: false
+    				};
+    			}
+    			return null;
+    		case "language":
+    			return {
+    				viewName: "byLanguage",
+    				descending: descending,
+    				allowFiltered: false
+    			};
+    		case "editing_rights":
+    			return {
+    				viewName: "byEditingRights",
+    				descending: descending,
+    				allowFiltered: false
+    			};
+    		case "formulas":
+    			return {
+    				viewName: "byFormulas",
+    				descending: descending,
+    				allowFiltered: false
+    			};
+    		case "nocode_db_rights":
+    			return {
+    				viewName: "byNocodeDbRights",
+    				descending: descending,
+    				allowFiltered: false
+    			};
+    		case "publication":
+    			return {
+    				viewName: "byPublication",
+    				descending: descending,
+    				allowFiltered: false
+    			};
+    		case "admin_readonly":
+    			return {
+    				viewName: "byAdminReadonly",
+    				descending: descending,
+    				allowFiltered: false
+    			};
+    		case "admin":
+    			return {
+    				viewName: "byAdmin",
+    				descending: descending,
+    				allowFiltered: false
+    			};
+    		default:
+    			return null;
+    	}
+    }
+    
+    function getFilterViewDefinition() {
+    	var providerGroupKey = providerValue.length > 0 ? getProviderGroupKey(providerValue) : "";
+    	var languageKey = languageValue.length > 0 ? languageValue : "";
+    	var permissionFieldKey = getPermissionFieldName(permissionValue);
+    	if (providerGroupKey !== "" && languageKey !== "" && permissionFieldKey != null) {
+    		return {
+    			viewName: "byProviderLanguagePermissionPermissions",
+    			startkey: [providerGroupKey, languageKey, permissionFieldKey],
+    			endkey: [providerGroupKey, languageKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    		};
+    	}
+    	if (providerGroupKey !== "" && languageKey !== "") {
+    		return {
+    			viewName: "byProviderLanguagePermissions",
+    			startkey: [providerGroupKey, languageKey],
+    			endkey: [providerGroupKey, languageKey, "\ufff0", "\ufff0"]
+    		};
+    	}
+    	if (providerGroupKey !== "" && permissionFieldKey != null) {
+    		return {
+    			viewName: "byProviderPermissionPermissions",
+    			startkey: [providerGroupKey, permissionFieldKey],
+    			endkey: [providerGroupKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    		};
+    	}
+    	if (languageKey !== "" && permissionFieldKey != null) {
+    		return {
+    			viewName: "byLanguagePermissionPermissions",
+    			startkey: [languageKey, permissionFieldKey],
+    			endkey: [languageKey, permissionFieldKey, "\ufff0", "\ufff0"]
+    		};
+    	}
+    	if (providerGroupKey !== "") {
+    		return {
+    			viewName: "byProviderPermissions",
+    			startkey: [providerGroupKey],
+    			endkey: [providerGroupKey, "\ufff0", "\ufff0"]
+    		};
+    	}
+    	if (languageKey !== "") {
+    		return {
+    			viewName: "byLanguagePermissions",
+    			startkey: [languageKey],
+    			endkey: [languageKey, "\ufff0", "\ufff0"]
+    		};
+    	}
+    	if (permissionFieldKey != null) {
+    		return {
+    			viewName: "byPermissionPermissions",
+    			startkey: [permissionFieldKey],
+    			endkey: [permissionFieldKey, "\ufff0", "\ufff0"]
+    		};
+    	}
+    	return null;
+    }
+    
+    function getSeedSortViewDefinition() {
+    	if (parsedSortModel.length === 0) {
+    		return null;
+    	}
+    	var sortDef = parsedSortModel[0] || {};
+    	var columnId = sortDef.colId || "_id";
+    	var descending = sortDef.sort === "desc";
+    	switch (columnId) {
+    		case "contact":
+    			return {
+    				viewName: "byContact",
+    				descending: descending
+    			};
+    		case "user":
+    			return {
+    				viewName: "byUser",
+    				descending: descending
+    			};
+    		case "permissions":
+    			return {
+    				viewName: "byPermissions",
+    				descending: descending
+    			};
+    		case "provider":
+    			if (!useGenericLDAPFlag) {
+    				return {
+    					viewName: "byProviderLabel",
+    					descending: descending
+    				};
+    			}
+    			return null;
+    		case "language":
+    			return {
+    				viewName: "byLanguage",
+    				descending: descending
+    			};
+    		case "editing_rights":
+    			return {
+    				viewName: "byEditingRights",
+    				descending: descending
+    			};
+    		case "formulas":
+    			return {
+    				viewName: "byFormulas",
+    				descending: descending
+    			};
+    		case "nocode_db_rights":
+    			return {
+    				viewName: "byNocodeDbRights",
+    				descending: descending
+    			};
+    		case "publication":
+    			return {
+    				viewName: "byPublication",
+    				descending: descending
+    			};
+    		case "admin_readonly":
+    			return {
+    				viewName: "byAdminReadonly",
+    				descending: descending
+    			};
+    		case "admin":
+    			return {
+    				viewName: "byAdmin",
+    				descending: descending
+    			};
+    		default:
+    			return null;
+    	}
+    }
+    
+    function getViewTotal(viewName) {
+    	var totalQuery = new java.util.HashMap();
+    	totalQuery.put(''limit'', ''1'');
+    	var totalResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', viewName, totalQuery));
+    	if (totalResponse != null && totalResponse.error == null && totalResponse.total_rows != null) {
+    		return +totalResponse.total_rows;
+    	}
+    	return 0;
+    }
+    
+    function fetchSearchDocsByView(skipUniqueValue, limitValue) {
+    	var collectedDocs = [];
+    	var seenDocIds = {};
+    	var matchedCount = 0;
+    	var rawSkip = 0;
+    	var batchSize = Math.max(200, (skipUniqueValue + limitValue + 1) * 4);
+    	var reachedEnd = false;
+    	while (true) {
+    		var query = new java.util.HashMap();
+    		query.put(''include_docs'', ''true'');
+    		query.put(''startkey'', JSON.stringify([searchValue]));
+    		query.put(''endkey'', JSON.stringify([searchValue + "\ufff0", {}]));
+    		query.put(''skip'', "" + rawSkip);
+    		query.put(''limit'', "" + batchSize);
+    		var searchResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''bySearch'', query));
+    		if (searchResponse.error) {
+    			return searchResponse;
+    		}
+    		var batchRows = searchResponse.rows || [];
+    		if (batchRows.length < batchSize) {
+    			reachedEnd = true;
+    		}
+    		rawSkip += batchRows.length;
+    		for (var rowIndex = 0; rowIndex < batchRows.length; rowIndex++) {
+    			var row = batchRows[rowIndex] || {};
+    			var doc = row.doc;
+    			var docId = safeLower(doc != null ? doc._id : "");
+    			if (doc == null || docId === "" || seenDocIds[docId] === true) {
+    				continue;
+    			}
+    			seenDocIds[docId] = true;
+    			if (!matchesSearch(doc)) {
+    				continue;
+    			}
+    			if (!matchesActiveFilters(doc)) {
+    				continue;
+    			}
+    			if (matchedCount >= skipUniqueValue) {
+    				collectedDocs.push(doc);
+    				if (collectedDocs.length > limitValue) {
+    					break;
+    				}
+    			}
+    			matchedCount++;
+    		}
+    		if (collectedDocs.length > limitValue || reachedEnd || batchRows.length === 0) {
+    			break;
+    		}
+    	}
+    	if (collectedDocs.length > limitValue) {
+    		collectedDocs = collectedDocs.slice(0, limitValue);
+    		return {
+    			docs: collectedDocs,
+    			totalCount: -1
+    		};
+    	}
+    	return {
+    		docs: collectedDocs,
+    		totalCount: reachedEnd ? matchedCount : -1
+    	};
+    }
+    
+    function fetchAllSearchDocsByView() {
+    	var collectedDocs = [];
+    	var seenDocIds = {};
+    	var rawSkip = 0;
+    	var batchSize = 500;
+    	while (true) {
+    		var query = new java.util.HashMap();
+    		query.put(''include_docs'', ''true'');
+    		query.put(''startkey'', JSON.stringify([searchValue]));
+    		query.put(''endkey'', JSON.stringify([searchValue + "\ufff0", {}]));
+    		query.put(''skip'', "" + rawSkip);
+    		query.put(''limit'', "" + batchSize);
+    		var searchResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''bySearch'', query));
+    		if (searchResponse.error) {
+    			return searchResponse;
+    		}
+    		var batchRows = searchResponse.rows || [];
+    		rawSkip += batchRows.length;
+    		for (var rowIndex = 0; rowIndex < batchRows.length; rowIndex++) {
+    			var row = batchRows[rowIndex] || {};
+    			var doc = row.doc;
+    			var docId = safeLower(doc != null ? doc._id : "");
+    			if (doc == null || docId === "" || seenDocIds[docId] === true) {
+    				continue;
+    			}
+    			seenDocIds[docId] = true;
+    			if (!matchesSearch(doc)) {
+    				continue;
+    			}
+    			if (!matchesActiveFilters(doc)) {
+    				continue;
+    			}
+    			collectedDocs.push(doc);
+    		}
+    		if (batchRows.length < batchSize) {
+    			break;
+    		}
+    	}
+    	return {
+    		docs: collectedDocs
+    	};
+    }
+    
+    function fetchAllSearchDocIdsByView() {
+    	var collectedIds = [];
+    	var seenDocIds = {};
+    	var rawSkip = 0;
+    	var batchSize = 1000;
+    	while (true) {
+    		var query = new java.util.HashMap();
+    		query.put(''include_docs'', ''false'');
+    		query.put(''startkey'', JSON.stringify([searchValue]));
+    		query.put(''endkey'', JSON.stringify([searchValue + "\ufff0", {}]));
+    		query.put(''skip'', "" + rawSkip);
+    		query.put(''limit'', "" + batchSize);
+    		var searchResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''bySearch'', query));
+    		if (searchResponse.error) {
+    			return searchResponse;
+    		}
+    		var batchRows = searchResponse.rows || [];
+    		rawSkip += batchRows.length;
+    		for (var rowIndex = 0; rowIndex < batchRows.length; rowIndex++) {
+    			var row = batchRows[rowIndex] || {};
+    			var docId = row.id != null ? ("" + row.id) : "";
+    			var normalizedDocId = safeLower(docId);
+    			if (normalizedDocId === "" || seenDocIds[normalizedDocId] === true) {
+    				continue;
+    			}
+    			seenDocIds[normalizedDocId] = true;
+    			collectedIds.push(docId);
+    		}
+    		if (batchRows.length < batchSize) {
+    			break;
+    		}
+    	}
+    	return {
+    		ids: collectedIds
+    	};
+    }
+    
+    function fetchDocsByIds(docIds) {
+    	var docsById = {};
+    	var batchSize = 500;
+    	for (var batchStart = 0; batchStart < docIds.length; batchStart += batchSize) {
+    		var batchIds = docIds.slice(batchStart, batchStart + batchSize);
+    		if (batchIds.length === 0) {
+    			continue;
+    		}
+    		var query = new java.util.HashMap();
+    		query.put(''include_docs'', ''true'');
+    		query.put(''reduce'', ''false'');
+    		var keys = toJettison(batchIds);
+    		var response = toJSON(fsclient.postView("c8oforms_fs", ''usersV2'', ''all2'', query, keys));
+    		if (response.error) {
+    			return response;
+    		}
+    		var rows = response.rows || [];
+    		for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    			var row = rows[rowIndex] || {};
+    			if (row.doc != null && row.doc._id != null) {
+    				docsById["" + row.doc._id] = row.doc;
+    			}
+    		}
+    	}
+    	var docs = [];
+    	for (var docIndex = 0; docIndex < docIds.length; docIndex++) {
+    		var docId = docIds[docIndex];
+    		var doc = docsById[docId];
+    		if (doc != null) {
+    			docs.push(doc);
+    		}
+    	}
+    	return {
+    		docs: docs
+    	};
+    }
+    
+    function fetchAllDocsByView(viewDefinition) {
+    	var docs = [];
+    	var seenDocIds = {};
+    	var rawSkip = 0;
+    	var batchSize = 500;
+    	while (true) {
+    		var query = new java.util.HashMap();
+    		query.put(''include_docs'', ''true'');
+    		query.put(''skip'', "" + rawSkip);
+    		query.put(''limit'', "" + batchSize);
+    		if (viewDefinition != null && viewDefinition.descending) {
+    			query.put(''descending'', ''true'');
+    		}
+    		if (viewDefinition != null && viewDefinition.startkey != null) {
+    			query.put(''startkey'', JSON.stringify(viewDefinition.startkey));
+    		}
+    		if (viewDefinition != null && viewDefinition.endkey != null) {
+    			query.put(''endkey'', JSON.stringify(viewDefinition.endkey));
+    		}
+    		var response = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', viewDefinition.viewName, query));
+    		if (response.error) {
+    			return response;
+    		}
+    		var rows = response.rows || [];
+    		rawSkip += rows.length;
+    		for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    			var row = rows[rowIndex] || {};
+    			var doc = row.doc;
+    			var docId = safeLower(doc != null ? doc._id : "");
+    			if (doc == null || docId === "" || seenDocIds[docId] === true) {
+    				continue;
+    			}
+    			seenDocIds[docId] = true;
+    			if (!matchesActiveFilters(doc)) {
+    				continue;
+    			}
+    			docs.push(doc);
+    		}
+    		if (rows.length < batchSize) {
+    			break;
+    		}
+    	}
+    	return {
+    		docs: docs
+    	};
+    }
+    
+    function fetchSortedDocsByView(skipMatchedValue, limitValue, viewDefinition) {
+    	var collectedDocs = [];
+    	var matchedCount = 0;
+    	var rawSkip = 0;
+    	var batchSize = Math.max(200, (skipMatchedValue + limitValue + 1) * 4);
+    	var reachedEnd = false;
+    	while (true) {
+    		var query = new java.util.HashMap();
+    		query.put(''include_docs'', ''true'');
+    		query.put(''skip'', "" + rawSkip);
+    		query.put(''limit'', "" + batchSize);
+    		if (viewDefinition != null && viewDefinition.descending) {
+    			query.put(''descending'', ''true'');
+    		}
+    		if (viewDefinition != null && viewDefinition.startkey != null) {
+    			query.put(''startkey'', JSON.stringify(viewDefinition.startkey));
+    		}
+    		if (viewDefinition != null && viewDefinition.endkey != null) {
+    			query.put(''endkey'', JSON.stringify(viewDefinition.endkey));
+    		}
+    		var sortedResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', viewDefinition.viewName, query));
+    		if (sortedResponse.error) {
+    			return sortedResponse;
+    		}
+    		var batchRows = sortedResponse.rows || [];
+    		if (batchRows.length < batchSize) {
+    			reachedEnd = true;
+    		}
+    		rawSkip += batchRows.length;
+    		for (var rowIndex = 0; rowIndex < batchRows.length; rowIndex++) {
+    			var row = batchRows[rowIndex] || {};
+    			var doc = row.doc;
+    			if (doc == null || !matchesActiveFilters(doc)) {
+    				continue;
+    			}
+    			if (matchedCount >= skipMatchedValue) {
+    				collectedDocs.push(doc);
+    				if (collectedDocs.length > limitValue) {
+    					break;
+    				}
+    			}
+    			matchedCount++;
+    		}
+    		if (collectedDocs.length > limitValue || reachedEnd || batchRows.length === 0) {
+    			break;
+    		}
+    	}
+    	if (collectedDocs.length > limitValue) {
+    		collectedDocs = collectedDocs.slice(0, limitValue);
+    		return {
+    			docs: collectedDocs,
+    			totalCount: -1
+    		};
+    	}
+    	return {
+    		docs: collectedDocs,
+    		totalCount: reachedEnd ? matchedCount : -1
+    	};
+    }
+    
+    function getPermissionFieldName(permissionLabel) {
+    	switch (permissionLabel) {
+    		case "Admin":
+    			return "admin";
+    		case "Admin Read Only":
+    			return "admin_readonly";
+    		case "No Code Editor":
+    			return "nocode_db_rights";
+    		case "Editor":
+    			return "editing_rights";
+    		case "Formulas Editor":
+    			return "formulas";
+    		case "Publisher":
+    			return "publication";
+    		default:
+    			return null;
+    	}
+    }
+    
+    function buildFindSelector() {
+    	var selectorParts = [
+    		{
+    			c8o_view_type_users: {
+    				"$eq": true
+    			}
+    		},
+    		{
+    			"_deleted": {
+    				"$exists": false
+    			}
+    		}
+    	];
+    	if (languageValue.length > 0) {
+    		selectorParts.push({
+    			language: {
+    				"$eq": languageValue
+    			}
+    		});
+    	}
+    	if (providerValue.length > 0) {
+    		if (providerValue === "convertigo" || providerValue === "forms" || providerValue === "no code studio") {
+    			selectorParts.push({
+    				"$or": [
+    					{
+    						provider: {
+    							"$exists": false
+    						}
+    					},
+    					{
+    						provider: {
+    							"$eq": ""
+    						}
+    					},
+    					{
+    						provider: {
+    							"$eq": "forms"
+    						}
+    					},
+    					{
+    						provider: {
+    							"$eq": "convertigo"
+    						}
+    					}
+    				]
+    			});
+    		}
+    		else if (providerValue === "azuread" || providerValue === "microsoft") {
+    			selectorParts.push({
+    				provider: {
+    					"$eq": "azuread"
+    				}
+    			});
+    		}
+    		else if (providerValue === "ad" || providerValue === "ldap" || providerValue === "active directory") {
+    			selectorParts.push({
+    				provider: {
+    					"$eq": "ad"
+    				}
+    			});
+    		}
+    		else {
+    			selectorParts.push({
+    				provider: {
+    					"$eq": providerValue
+    				}
+    			});
+    		}
+    	}
+    	var permissionFieldName = getPermissionFieldName(permissionValue);
+    	if (permissionFieldName != null) {
+    		var permissionSelector = {};
+    		permissionSelector[permissionFieldName] = {
+    			"$in": [true, "true"]
+    		};
+    		selectorParts.push(permissionSelector);
+    	}
+    	if (selectorParts.length === 1) {
+    		return selectorParts[0];
+    	}
+    	return {
+    		"$and": selectorParts
+    	};
+    }
+    
+    function getFindUseIndex(permissionFieldName) {
+    	if (permissionFieldName != null) {
+    		return ["mangoIndexes2", "users_filter_" + permissionFieldName];
+    	}
+    	if (providerValue.length > 0 && providerValue !== "convertigo" && providerValue !== "forms" && providerValue !== "no code studio") {
+    		if (languageValue.length > 0) {
+    			return ["mangoIndexes2", "users_provider_language"];
+    		}
+    		return ["mangoIndexes2", "users_provider"];
+    	}
+    	if (languageValue.length > 0) {
+    		return ["mangoIndexes2", "users_language"];
+    	}
+    	return null;
+    }
+    function getFindSort(permissionFieldName) {
+    	if (permissionFieldName != null) {
+    		var permissionSort = [
+    			{
+    				"c8o_view_type_users": "asc"
+    			}
+    		];
+    		var permissionFieldSort = {};
+    		permissionFieldSort[permissionFieldName] = "asc";
+    		permissionSort.push(permissionFieldSort);
+    		permissionSort.push({
+    			"provider": "asc"
+    		});
+    		permissionSort.push({
+    			"language": "asc"
+    		});
+    		permissionSort.push({
+    			"_id": "asc"
+    		});
+    		return permissionSort;
+    	}
+    	if (providerValue.length > 0 && providerValue !== "convertigo" && providerValue !== "forms" && providerValue !== "no code studio") {
+    		if (languageValue.length > 0) {
+    			return [
+    				{
+    					"c8o_view_type_users": "asc"
+    				},
+    				{
+    					"provider": "asc"
+    				},
+    				{
+    					"language": "asc"
+    				},
+    				{
+    					"_id": "asc"
+    				}
+    			];
+    		}
+    		return [
+    			{
+    				"c8o_view_type_users": "asc"
+    			},
+    			{
+    				"provider": "asc"
+    			},
+    			{
+    				"_id": "asc"
+    			}
+    		];
+    	}
+    	if (languageValue.length > 0) {
+    		return [
+    			{
+    				"c8o_view_type_users": "asc"
+    			},
+    			{
+    				"language": "asc"
+    			},
+    			{
+    				"_id": "asc"
+    			}
+    		];
+    	}
+    	return null;
+    }
+    function normalizeUseIndex(useIndex) {
+    	if (useIndex == null || useIndex.length < 2) {
+    		return null;
+    	}
+    	var designName = "" + useIndex[0];
+    	if (designName.indexOf("_design/") === 0) {
+    		designName = designName.substring(8);
+    	}
+    	return [
+    		designName,
+    		useIndex[1]
+    	];
+    }
+    function fetchDocsByFind(selector, limitValue, skipValue, fields, useIndex, sortValue) {
+    	var query = {
+    		selector: selector,
+    		limit: limitValue,
+    		skip: skipValue
+    	};
+    	if (fields != null) {
+    		query.fields = fields;
+    	}
+    	if (sortValue != null) {
+    		query.sort = sortValue;
+    	}
+    	if (useIndex != null) {
+    		query.use_index = normalizeUseIndex(useIndex);
+    	}
+    	var response = toJSON(fsclient.postFind("c8oforms_fs", toJettison(query)));
+    	if (response.error && useIndex != null) {
+    		delete query.use_index;
+    		response = toJSON(fsclient.postFind("c8oforms_fs", toJettison(query)));
+    	}
+    	return response;
+    }
+    function fetchAllDocsByFind(selector, fields, useIndex) {
+    	var docs = [];
+    	var batchLimit = 1000;
+    	var currentSkip = 0;
+    	while (true) {
+    		var query = {
+    			selector: selector,
+    			limit: batchLimit,
+    			skip: currentSkip
+    		};
+    		if (fields != null) {
+    			query.fields = fields;
+    		}
+    		if (useIndex != null) {
+    			query.use_index = normalizeUseIndex(useIndex);
+    		}
+    		var response = toJSON(fsclient.postFind("c8oforms_fs", toJettison(query)));
+    		if (response.error && useIndex != null) {
+    			delete query.use_index;
+    			response = toJSON(fsclient.postFind("c8oforms_fs", toJettison(query)));
+    		}
+    		if (response.error) {
+    			return response;
+    		}
+    		var batchDocs = response.docs || [];
+    		for (var batchIndex = 0; batchIndex < batchDocs.length; batchIndex++) {
+    			docs.push(batchDocs[batchIndex]);
+    		}
+    		if (batchDocs.length < batchLimit) {
+    			break;
+    		}
+    		currentSkip += batchDocs.length;
+    	}
+    	return {
+    		docs: docs
+    	};
+    }
+    
+    	var totalUsers = getViewTotal(''all2'');
+    	var adminUsers = getViewTotal(''allAdmins'');
+    	var hasSearch = searchValue.length > 0;
+    	var hasFilters = languageValue.length > 0 || providerValue.length > 0 || permissionValue.length > 0;
+    	var hasSort = parsedSortModel.length > 0;
+    	var viewSortDefinition = !hasSearch && hasSort ? getViewSortDefinition() : null;
+    	var filterViewDefinition = hasFilters ? getFilterViewDefinition() : null;
+    	var seedSortViewDefinition = !hasSearch && hasSort ? getSeedSortViewDefinition() : null;
+    	var values = [];
+    	var totalCount = totalUsers;
+    
+    if (!metadataOnlyFlag) {
+    	if (hasSearch && !hasSort) {
+    		var searchResponse = fetchSearchDocsByView(requestedSkip, requestedLimit);
+    		if (searchResponse.error) {
+    			response = searchResponse;
+    		}
+    		else {
+    			values = searchResponse.docs || [];
+    			totalCount = typeof searchResponse.totalCount == ''number'' ? searchResponse.totalCount : -1;
+    		}
+    	}
+    	else if (hasSearch) {
+    		var searchIdsResponse = fetchAllSearchDocIdsByView();
+    		if (searchIdsResponse.error) {
+    			response = searchIdsResponse;
+    		}
+    		else {
+    			var searchDocIds = searchIdsResponse.ids || [];
+    			var bulkDocsResponse = fetchDocsByIds(searchDocIds);
+    			if (bulkDocsResponse.error) {
+    				response = bulkDocsResponse;
+    			}
+    			else {
+    				var searchDocs = (bulkDocsResponse.docs || []).filter(function(doc) {
+    					if (!matchesSearch(doc)) {
+    						return false;
+    					}
+    					if (!matchesActiveFilters(doc)) {
+    						return false;
+    					}
+    					return true;
+    				});
+    				sortDocs(searchDocs);
+    				totalCount = searchDocs.length;
+    				values = searchDocs.slice(requestedSkip, requestedSkip + requestedLimit);
+    			}
+    		}
+    	}
+    	else if (!hasSearch && viewSortDefinition != null && (!hasFilters || viewSortDefinition.allowFiltered !== false)) {
+    		if (!hasFilters) {
+    			var sortedQuery = new java.util.HashMap();
+    			sortedQuery.put(''include_docs'', ''true'');
+    			sortedQuery.put(''skip'', "" + requestedSkip);
+    			sortedQuery.put(''limit'', "" + requestedLimit);
+    			if (viewSortDefinition.descending) {
+    				sortedQuery.put(''descending'', ''true'');
+    			}
+    			var sortedResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', viewSortDefinition.viewName, sortedQuery));
+    			if (sortedResponse.error) {
+    				response = sortedResponse;
+    			}
+    			else {
+    				totalCount = sortedResponse.total_rows != null ? +sortedResponse.total_rows : totalUsers;
+    				values = (sortedResponse.rows || []).map(function(row) {
+    					return row.doc;
+    				});
+    			}
+    		}
+    		else {
+    			var filteredSortedResponse = fetchSortedDocsByView(requestedSkip, requestedLimit, viewSortDefinition);
+    			if (filteredSortedResponse.error) {
+    				response = filteredSortedResponse;
+    			}
+    			else {
+    				values = filteredSortedResponse.docs || [];
+    				totalCount = typeof filteredSortedResponse.totalCount == ''number'' ? filteredSortedResponse.totalCount : -1;
+    			}
+    		}
+    	}
+    		else if (!hasSearch && !hasFilters && !hasSort) {
+    			var query = new java.util.HashMap();
+    			query.put(''include_docs'', ''true'');
+    			query.put(''skip'', "" + requestedSkip);
+    		query.put(''limit'', "" + requestedLimit);
+    		var pagedResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', query));
+    		if (pagedResponse.error) {
+    			response = pagedResponse;
+    		}
+    		else {
+    			totalCount = pagedResponse.total_rows != null ? +pagedResponse.total_rows : totalUsers;
+    				values = (pagedResponse.rows || []).map(function(row) {
+    					return row.doc;
+    				});
+    			}
+    		}
+    		else if (!hasSearch && hasFilters && hasSort && filterViewDefinition != null && typeof response === ''undefined'') {
+    			var filteredViewResponse = fetchAllDocsByView(filterViewDefinition);
+    			if (filteredViewResponse.error) {
+    				response = filteredViewResponse;
+    			}
+    			else {
+    				var filteredViewDocs = filteredViewResponse.docs || [];
+    				sortDocs(filteredViewDocs);
+    				totalCount = filteredViewDocs.length;
+    				values = filteredViewDocs.slice(requestedSkip, requestedSkip + requestedLimit);
+    			}
+    		}
+    		else if (hasFilters && typeof response === ''undefined'') {
+    			var findSelector = buildFindSelector();
+    			var permissionFieldName = getPermissionFieldName(permissionValue);
+    		var findUseIndex = getFindUseIndex(permissionFieldName);
+    		var findSort = getFindSort(permissionFieldName);
+    		if (!hasSearch && !hasSort) {
+    			var pagedFindResponse = fetchDocsByFind(findSelector, requestedLimit + 1, requestedSkip, null, findUseIndex, findSort);
+    			if (pagedFindResponse.error) {
+    				response = pagedFindResponse;
+    			}
+    			else {
+    				values = pagedFindResponse.docs || [];
+    				if (values.length > requestedLimit) {
+    					values = values.slice(0, requestedLimit);
+    					totalCount = -1;
+    				}
+    				else {
+    					totalCount = requestedSkip + values.length;
+    				}
+    			}
+    		}
+    		else {
+    			var filteredResponse = fetchAllDocsByFind(findSelector, null, findUseIndex);
+    			if (filteredResponse.error) {
+    				response = filteredResponse;
+    			}
+    			else {
+    				var filteredDocs = (filteredResponse.docs || []).filter(function(doc) {
+    					if (hasSearch && !matchesSearch(doc)) {
+    						return false;
+    					}
+    					return true;
+    				});
+    				sortDocs(filteredDocs);
+    				totalCount = filteredDocs.length;
+    				values = filteredDocs.slice(requestedSkip, requestedSkip + requestedLimit);
+    				}
+    			}
+    		}
+    		else if (!hasSearch && !hasFilters && hasSort && seedSortViewDefinition != null && typeof response === ''undefined'') {
+    			var seededSortResponse = fetchAllDocsByView(seedSortViewDefinition);
+    			if (seededSortResponse.error) {
+    				response = seededSortResponse;
+    			}
+    			else {
+    				var seededDocs = seededSortResponse.docs || [];
+    				sortDocs(seededDocs);
+    				totalCount = seededDocs.length;
+    				values = seededDocs.slice(requestedSkip, requestedSkip + requestedLimit);
+    			}
+    		}
+    		else if (typeof response === ''undefined'') {
+    			var allQuery = new java.util.HashMap();
+    			allQuery.put(''include_docs'', ''true'');
+    		var allResponse = toJSON(fsclient.getView("c8oforms_fs", ''usersV2'', ''all2'', allQuery));
+    		if (allResponse.error) {
+    			response = allResponse;
+    		}
+    		else {
+    			var docs = (allResponse.rows || []).map(function(row) {
+    				return row.doc;
+    			}).filter(function(doc) {
+    				if (languageValue.length > 0 && safeLower(doc.language).trim() !== languageValue) {
+    					return false;
+    				}
+    				if (!matchesProvider(doc.provider)) {
+    					return false;
+    				}
+    				if (!matchesPermission(doc)) {
+    					return false;
+    				}
+    				if (!matchesSearch(doc)) {
+    					return false;
+    				}
+    				return true;
+    			});
+    			sortDocs(docs);
+    			totalCount = docs.length;
+    			values = docs.slice(requestedSkip, requestedSkip + requestedLimit);
+    		}
+    	}
+    }
+    
+    if (typeof response === ''undefined'') {
     	response = {
     		default_rights:{
     			"no_code_db_default_rights": no_code_db_default_rights == "true",
@@ -25,16 +1350,16 @@ comment: |
     			"formulas_default_rights": formulas_default_rights == "true",
     			"publication": publication == "true"
     		},
-    		useGenericLDAP: useGenericLDAP == "true",
+    		useGenericLDAP: useGenericLDAPFlag,
+    		totalUsers: totalUsers,
+    		adminUsers: adminUsers,
+    		totalCount: totalCount,
     		labels: [
     			{
     				headerName: "id",
     				field: "_id",
     				editable: false,
     				hide: true,
-    //				resizable: false,
-    //				minWidth: 200,
-    //				flex: 2,
     			},
     			{
     			  headerName: "Utilisateur",
@@ -71,46 +1396,42 @@ comment: |
     				editable: (admin_readonly) ? false : true,
     				field: "displayName",
     				hide: true,
-    //				flex: 1,
-    //				minWidth: 200,
     			},
     			{
     				headerName: "First_name",
     				editable: (admin_readonly) ? false : true,
     				field: "name",
     				hide: true,
-    //				flex: 1,
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Name",
     				editable: (admin_readonly) ? false : true,
     				field: "surname",
     				hide: true,
-    //				flex: 1,
-    //				minWidth: 200,
     			},
     			{
     				headerName: "email_address",
     				editable: (admin_readonly) ? false : true,
     				field: "mail",
     				hide: true,
-    //				flex: 1,
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Provider",
     				editable: (admin_readonly) ? false : true,
     				field: "provider",
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				hide:true,
-    //				flex: 1,
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Language",
     				field: "language",
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				editable: (admin_readonly) ? false : true,
     				valueGetter: "lang",
     				valueSetter: "lang",
@@ -119,9 +1440,6 @@ comment: |
     			    cellEditorParams: {
     			      values: [''en'', ''es'', ''fr'', "it"]
     				},
-    //				flex: 1,
-    //				minWidth: 200,
-    				
     			},
     			{
     				headerName: "Editing_rights",
@@ -130,6 +1448,9 @@ comment: |
     				cellRenderer: ''agCheckboxCellRenderer'',
     				cellEditor: ''agCheckboxCellEditor'',
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				editable: (admin_readonly) ? false : true,
     				cellRendererParams: {
     					checkbox: true,
@@ -137,9 +1458,7 @@ comment: |
     				cellEditorParams: {
     					values: [''true'', ''false''],
     				},
-    //				flex: 1,
     				hide: true
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Formulas_rights",
@@ -148,6 +1467,9 @@ comment: |
     				cellRenderer: ''agCheckboxCellRenderer'',
     				cellEditor: ''agCheckboxCellEditor'',
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				editable: (admin_readonly) ? false : true,
     				cellRendererParams: {
     					checkbox: true,
@@ -155,9 +1477,7 @@ comment: |
     				cellEditorParams: {
     					values: [''true'', ''false''],
     				},
-    //				flex: 1,
     				hide: true
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Nocode_db_rights",
@@ -166,6 +1486,9 @@ comment: |
     				cellRenderer: ''agCheckboxCellRenderer'',
     				cellEditor: ''agCheckboxCellEditor'',
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				editable: (admin_readonly) ? false : true,
     				cellRendererParams: {
     					checkbox: true,
@@ -173,9 +1496,7 @@ comment: |
     				cellEditorParams: {
     					values: [''true'', ''false''],
     				},
-    //				flex: 1,
     				hide: true
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Publication",
@@ -184,6 +1505,9 @@ comment: |
     				cellRenderer: ''agCheckboxCellRenderer'',
     				cellEditor: ''agCheckboxCellEditor'',
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				editable: (admin_readonly) ? false : true,
     				cellRendererParams: {
     					checkbox: true,
@@ -191,9 +1515,7 @@ comment: |
     				cellEditorParams: {
     					values: [''true'', ''false''],
     				},
-    //				flex: 1,
     				hide: true
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Admin_read_only",
@@ -201,6 +1523,9 @@ comment: |
     				cellRenderer: ''agCheckboxCellRenderer'',
     				cellEditor: ''agCheckboxCellEditor'',
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				editable: (admin_readonly) ? false : true,
     				cellRendererParams: {
     					checkbox: true,
@@ -208,9 +1533,7 @@ comment: |
     				cellEditorParams: {
     					values: [''true'', ''false''],
     				},
-    //				flex: 1,
     				hide: true
-    //				minWidth: 200,
     			},
     			{
     				headerName: "Admin",
@@ -218,6 +1541,9 @@ comment: |
     				cellRenderer: ''agCheckboxCellRenderer'',
     				cellEditor: ''agCheckboxCellEditor'',
     				filter: ''agSetColumnFilter'',
+    				filterParams: {
+    					suppressMiniFilter: true
+    				},
     				editable: (admin_readonly) ? false : true,
     				cellRendererParams: {
     					checkbox: true,
@@ -225,18 +1551,12 @@ comment: |
     				cellEditorParams: {
     					values: [''true'', ''false''],
     				},
-    //				flex: 1,
     				hide: true
-    //				minWidth: 200,
     			}
     		],
-    		values: rows.map((x) => {		
-    			return x.doc;
-    		})
+    		values: values
     	};
     }
-    
-    
     '
 ↓object [steps.JsonToXmlStep-1739884752243]: 
   jsonObject: 
@@ -269,3 +1589,27 @@ comment: |
 ↓useGenericLDAP [variables.RequestableVariable-1774875851001]: 
   comment: Flag enabling generic LDAP display instead of Active Directory.
   value: ${C8Oforms.useGenericLDAP=false}
+↓limit [variables.RequestableVariable-1764530001001]: 
+  comment: Maximum number of users returned for the current page.
+  value: 100
+↓skip [variables.RequestableVariable-1764530001002]: 
+  comment: Zero based offset used by the admin users infinite grid.
+  value: 0
+↓search [variables.RequestableVariable-1764530001003]: 
+  comment: Search string applied to user identity and contact fields.
+  value: 
+↓language [variables.RequestableVariable-1764530001004]: 
+  comment: Optional language filter.
+  value: 
+↓provider [variables.RequestableVariable-1764530001005]: 
+  comment: Optional provider filter.
+  value: 
+↓permission [variables.RequestableVariable-1764530001006]: 
+  comment: Optional permission filter.
+  value: 
+↓sortModel [variables.RequestableVariable-1764530001007]: 
+  comment: AG Grid sort model serialized as JSON.
+  value: '[]'
+↓metadataOnly [variables.RequestableVariable-1764530001008]: 
+  comment: When true only returns grid metadata and counters.
+  value: false
