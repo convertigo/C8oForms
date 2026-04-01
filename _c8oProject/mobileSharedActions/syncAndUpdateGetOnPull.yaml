@@ -385,6 +385,87 @@
           						}
           					}
           				}
+          				
+          			const addDescriptionInPages = (obj: any): void => {
+          			  if (!obj || !Array.isArray(obj.pages) || !Array.isArray(obj.formulaire)) {
+          			    console.error("Invalid object: pages or formulaire missing.");
+          			    return;
+          			  }
+          	
+          			  for (let i = 0; i < obj.pages.length; i++) {
+          			    try {
+          			      const page = obj.pages[i];
+          	
+          			      if (!page || typeof page.pageTechName !== "string") {
+          			        continue;
+          			      }
+          				  
+          				  const isNameDisplayed = typeof page.isNameDisplayed === "boolean" ? page.isNameDisplayed : true;
+          				  
+          				  obj.pages[i]["isNameDisplayed"] = isNameDisplayed;
+          				  
+          				  const enabledTabForAllPages = typeof obj.enabledTabForAllPages === "boolean" ? obj.enabledTabForAllPages : obj.pages.filter(
+          					page => page?.enabledTab == false
+          				  ).length === 0;
+          				  
+          				  const enabledButtonsForAllPages = typeof obj.enabledButtonsForAllPages === "boolean" ? obj.enabledButtonsForAllPages : obj.pages.filter(
+          				  	page => page?.enabledButtons == false
+          				  ).length === 0;
+          				  
+          				  obj["enabledTabForAllPages"] = enabledTabForAllPages;
+          				  obj["enabledButtonsForAllPages"] = enabledButtonsForAllPages;
+          	
+          			      const desc = typeof page.desc === "string" ? page.desc.trim() : "";
+          			      if (!desc) {
+          			        continue;
+          			      }
+          	
+          			      const pageId = page.pageTechName;
+          	
+          			      const alreadyExists = obj.formulaire.some((component: any) => {
+          			        return (
+          			          component?.type === "description" &&
+          			          component?.config?.page === pageId &&
+          			          component?.config?.html === desc
+          			        );
+          			      });
+          	
+          			      if (alreadyExists) {
+          			        continue;
+          			      }
+          	
+          			      const descriptionsCountForPage = obj.formulaire.filter((component: any) => {
+          			        return (
+          			          component?.type === "description" &&
+          			          component?.config?.page === pageId
+          			        );
+          			      }).length;
+          	
+          			      const descriptionComponent = {
+          			        type: "description",
+          			        config: {
+          			          html: desc,
+          			          personalized: true,
+          			          page: pageId
+          			        },
+          			        id: Date.now() + i,
+          			        name: `description${descriptionsCountForPage + 1}`
+          			      };
+          	
+          			      const firstIndexForPage = obj.formulaire.findIndex((component: any) => {
+          			        return component?.config?.page === pageId && component?.parentRef == null;
+          			      });
+          	
+          			      if (firstIndexForPage !== -1) {
+          			        obj.formulaire.splice(firstIndexForPage, 0, descriptionComponent);
+          			      } else {
+          			        obj.formulaire.push(descriptionComponent);
+          			      }
+          			    } catch (e) {
+          			      console.error("error during migration:\n", e);
+          			    }
+          			  }
+          			};
                     // Calling sync continuous
                     page["datetimeconfig"][''fr''] = false;
                     page["datetimeconfig"][''en''] = false;
@@ -495,7 +576,11 @@
             							(page["form"] as any)["technicalVersion"] = "1.0.14";
             							flag = true;
             					  }
-          					 
+          					  if((page["form"] as any)["technicalVersion"] == "1.0.14") {
+          					  		 addDescriptionInPages((page["form"] as any));
+          					  		(page["form"] as any)["technicalVersion"] = "1.0.15";
+          					  		flag = true;
+          					  }
                                 if(flag){
                                     page[''updateState'']();
                                 }
