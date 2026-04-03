@@ -947,10 +947,34 @@ Lists users with pagination and filters for admin views.
 <td>formulas_default_rights</td><td>Default rights for formula based widgets.</td>
 </tr>
 <tr>
+<td>language</td><td>Optional language filter.</td>
+</tr>
+<tr>
+<td>limit</td><td>Maximum number of users returned for the current page.</td>
+</tr>
+<tr>
+<td>metadataOnly</td><td>When true only returns grid metadata and counters.</td>
+</tr>
+<tr>
 <td>no_code_db_default_rights</td><td>Default rights for no-code database elements.</td>
 </tr>
 <tr>
+<td>permission</td><td>Optional permission filter.</td>
+</tr>
+<tr>
+<td>provider</td><td>Optional provider filter.</td>
+</tr>
+<tr>
 <td>publication</td><td>Publication flag or structure applied to the form.</td>
+</tr>
+<tr>
+<td>search</td><td>Search string applied to user identity and contact fields.</td>
+</tr>
+<tr>
+<td>skip</td><td>Zero based offset used by the admin users infinite grid.</td>
+</tr>
+<tr>
+<td>sortModel</td><td>AG Grid sort model serialized as JSON.</td>
 </tr>
 <tr>
 <td>useGenericLDAP</td><td>Flag enabling generic LDAP display instead of Active Directory.</td>
