@@ -514,6 +514,7 @@ For more technical informations : [documentation](./project.md)
         - [stripeBackground](#stripebackground)
         - [switchItemEdition](#switchitemedition)
         - [switchItemViewer](#switchitemviewer)
+        - [ToggleSwitch](#toggleswitch)
         - [ToolbarComponentUi](#toolbarcomponentui)
         - [treeview](#treeview)
         - [treeviewContent](#treeviewcontent)
@@ -8864,6 +8865,34 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>disabled</td><td></td>
+</tr>
+</table>
+#### ToggleSwitch
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
+<td>options</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>modelChanged</td><td></td>
 </tr>
 </table>
 #### ToolbarComponentUi
