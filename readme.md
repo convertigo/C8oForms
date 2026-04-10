@@ -414,6 +414,7 @@ For more technical informations : [documentation](./project.md)
         - [itemConditionEditor_Elem](#itemconditioneditor_elem)
         - [itemConditionEditorViewer](#itemconditioneditorviewer)
         - [itemConditionViewer_Elem](#itemconditionviewer_elem)
+        - [itemCondsNavigation](#itemcondsnavigation)
         - [itemDateSelector](#itemdateselector)
         - [itemDateTimeViewver](#itemdatetimeviewver)
         - [itemDescriptionEditor](#itemdescriptioneditor)
@@ -528,13 +529,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1077
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1077BIS
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1077.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1077BIS.zip
      ```
      </td></tr>
     </table>
@@ -5699,6 +5700,9 @@ Update the state of a field
 <td>path</td><td></td>
 </tr>
 <tr>
+<td>tabselected</td><td></td>
+</tr>
+<tr>
 <td>thingIndex</td><td></td>
 </tr>
 </table>
@@ -6831,6 +6835,27 @@ The Chart Widget viewer
 <td>targetCardChild</td><td></td>
 </tr>
 </table>
+#### itemCondsNavigation
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idChildren</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
+</table>
 #### itemDateSelector
 
 **variables**
@@ -7039,6 +7064,15 @@ The Chart Widget viewer
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idChildren</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
 </tr>
 <tr>
 <td>idselected</td><td></td>
@@ -8791,6 +8825,15 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>currentItem</td><td></td>
+</tr>
+<tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idChildren</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
 </tr>
 <tr>
 <td>idselected</td><td></td>
