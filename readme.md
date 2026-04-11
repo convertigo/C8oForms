@@ -367,6 +367,7 @@ For more technical informations : [documentation](./project.md)
         - [conditionVisibleIf](#conditionvisibleif)
         - [conditionVisibleIfPrev](#conditionvisibleifprev)
         - [datasource](#datasource)
+        - [datasourceButton](#datasourcebutton)
         - [dataSourceEditor](#datasourceeditor)
         - [dataSourceEditor_GridRow_GridColSourcePicker_Group](#datasourceeditor_gridrow_gridcolsourcepicker_group)
         - [dataSourceEditorDescription](#datasourceeditordescription)
@@ -5705,6 +5706,34 @@ Update the state of a field
 </tr>
 <tr>
 <td>thingIndex</td><td></td>
+</tr>
+</table>
+#### datasourceButton
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>current</td><td></td>
+</tr>
+<tr>
+<td>currentMetas</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>clicked</td><td></td>
 </tr>
 </table>
 #### dataSourceEditor
