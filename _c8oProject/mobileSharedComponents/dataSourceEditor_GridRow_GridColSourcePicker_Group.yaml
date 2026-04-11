@@ -27,6 +27,194 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
+        	normalizePaletteFilter(value) {
+        		return (value == null ? "" : ("" + value)).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        	}
+        	
+        	pageMatchesFilter(page, query) {
+        		const q = this.normalizePaletteFilter(query);
+        		if (q === "") {
+        			return true;
+        		}
+        		return this.normalizePaletteFilter(page?.name).indexOf(q) != -1;
+        	}
+        	
+        	itemMatchesFilter(item, query) {
+        		const q = this.normalizePaletteFilter(query);
+        		if (q === "") {
+        			return true;
+        		}
+        		
+        		const values = [
+        			item?.name,
+        			item?.type,
+        			item?.description
+        		];
+        		
+        		for (let i = 0; i < values.length; i++) {
+        			if (this.normalizePaletteFilter(values[i]).indexOf(q) != -1) {
+        				return true;
+        			}
+        		}
+        		
+        		return false;
+        	}
+        	
+        	canDisplayPaletteItem(item, isCardChild = false) {
+        		if (item == null) {
+        			return false;
+        		}
+        		
+        		const excluded = isCardChild ?
+        			["ion-label", "ion-title", "description"] :
+        			["ion-label", "ion-title", "description", "chart", "videoCall", "layout", "button"];
+        		
+        		if (excluded.indexOf(item.type) != -1) {
+        			return false;
+        		}
+        		
+        		if (!isCardChild && item.cat == "action") {
+        			return false;
+        		}
+        		
+        		let targetType = "";
+        		const sources = (this as any)["sources"];
+        		try {
+        			targetType = this.pageOwner.getTypeByActions(sources);
+        		} catch (e) {
+        		}
+        		
+        		if (targetType == "html" && ["img", "file", "signature"].indexOf(item.type) != -1) {
+        			return false;
+        		}
+        		
+        		return true;
+        	}
+        	
+        	getFilteredActionItems(items, query, mode = "actions") {
+        		const sourceItems = Array.isArray(items) ? items : [];
+        		return sourceItems.filter((item) => {
+        			if (item == null) {
+        				return false;
+        			}
+        			
+        			if (mode == "actions" && !(item.cat == "action" && item.type != "submit")) {
+        				return false;
+        			}
+        			
+        			if (mode == "toastless" && !(item.cat == "action" && item.type != "toast")) {
+        				return false;
+        			}
+        			
+        			return this.itemMatchesFilter(item, query);
+        		});
+        	}
+        	
+        	getFilteredApiEntries(source, query) {
+        		const entries = Object.entries(source || {}).map(([key, value]) => ({ key, value: value as any }));
+        		return entries.filter((entry) => {
+        			let matches = false;
+        			try {
+        				matches = this.pageOwner.getIndexOfNormalized2(entry.key, query);
+        			} catch (e) {
+        				matches = this.normalizePaletteFilter(entry.key).indexOf(this.normalizePaletteFilter(query)) != -1;
+        			}
+        			
+        			if (!matches) {
+        				return false;
+        			}
+        			
+        			return this.currentObject?.type == "ts" || entry?.value?.action == false;
+        		});
+        	}
+        	
+        	pageHasMatchingItems(page, items, query) {
+        		const q = this.normalizePaletteFilter(query);
+        		const pageMatch = q !== "" && this.pageMatchesFilter(page, query);
+        		
+        		const sourceItems = Array.isArray(items) ? items : [];
+        		for (let i = 0; i < sourceItems.length; i++) {
+        			const item = sourceItems[i];
+        			if (item?.config?.page != page?.pageTechName) {
+        				continue;
+        			}
+        			
+        			if (item?.type == "ion-card" && Array.isArray(item.children)) {
+        				for (let j = 0; j < item.children.length; j++) {
+        					const child = item.children[j];
+        					if (this.canDisplayPaletteItem(child, true) && (q === "" || pageMatch || this.itemMatchesFilter(child, query))) {
+        						return true;
+        					}
+        				}
+        			} else if (this.canDisplayPaletteItem(item, false) && (q === "" || pageMatch || this.itemMatchesFilter(item, query))) {
+        				return true;
+        			}
+        		}
+        		
+        		return false;
+        	}
+        	
+        	getFilteredPages(pages, items, query) {
+        		const sourcePages = Array.isArray(pages) ? pages : [];
+        		return sourcePages.filter((page) => this.pageHasMatchingItems(page, items, query));
+        	}
+        	
+        	getPaletteSectionKey(section) {
+        		return "__palette_section_" + section;
+        	}
+        	
+        	getPaletteFlowLabel(flow) {
+        		if (flow?.id == "formulas") {
+        			return this.translate.instant(flow.id);
+        		}
+        		if (flow?.id == "submit") {
+        			return this.translate.instant("submit_short");
+        		}
+        		return flow?.name || this.translate.instant(flow?.id || "");
+        	}
+        	
+        	getPalettePageKey(page) {
+        		return "__hidenparams" + (page?.name || "");
+        	}
+        	
+        	isPalettePageExpanded(page) {
+        		const key = this.getPalettePageKey(page);
+        		if (this.local != null && Object.prototype.hasOwnProperty.call(this.local, key)) {
+        			return this.local[key] == null;
+        		}
+        		const local = this.pageOwner?.local || {};
+        		return local[key] == null;
+        	}
+        	
+        	isPaletteSectionExpanded(section) {
+        		const key = this.getPaletteSectionKey(section);
+        		if (this.local != null && Object.prototype.hasOwnProperty.call(this.local, key)) {
+        			return this.local[key] == null;
+        		}
+        		const local = this.pageOwner?.local || {};
+        		return local[key] == null;
+        	}
+        	
+        	getPaletteExpandedStyle(expanded) {
+        		return {
+        			"display": "grid",
+        			"grid-template-rows": expanded ? "1fr" : "0fr",
+        			"opacity": expanded ? "1" : "0",
+        			"overflow": "hidden",
+        			"min-height": "0",
+        			"transition": "grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1), opacity 140ms ease-out",
+        			"pointer-events": expanded ? "auto" : "none",
+        			"will-change": "grid-template-rows, opacity"
+        		};
+        	}
+        	
+        	getPaletteSectionStyle(section) {
+        		return this.getPaletteExpandedStyle(this.isPaletteSectionExpanded(section));
+        	}
+        	
+        	getPalettePageStyle(page) {
+        		return this.getPaletteExpandedStyle(this.isPalettePageExpanded(page));
+        	}
         	/*End_c8o_CompFunction*/
         
 ↓Div [ngx.components.UIDynamicElement-1774285997959]: 
@@ -102,6 +290,8 @@ scriptContent:
             --placeholder-font-style:normal;
             --placeholder-font-weight:400;
             --placeholder-opacity:0.7;
+            margin: 5px;
+            width: calc(100% - 10px);
             '
 ↓ScrollArea [ngx.components.UIDynamicElement-1732284059008]: 
   beanData: '{"ionBean":"DivTag"}'
@@ -118,7 +308,7 @@ scriptContent:
       directiveSource: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:this.pageOwner.form.pages
+          - MobileSmartSourceType: script:this.getFilteredPages(this.pageOwner.form.pages, this.pageOwner.form.formulaire, this.pageOwner.filterActions)
       ↓DivPage [ngx.components.UIDynamicElement-1732284059017]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -131,17 +321,25 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    'font-size: 0.875rem;
-                      font-weight: normal;
-                      font-style: normal;
-                      font-stretch: normal;
-                      line-height: normal;
-                      letter-spacing: normal;
-                      color: #4a4a4a;
-                    }
+                    'color: #6B7280;
+                    text-align: center;
+                    //	font-family: Inter;
+                    font-size: 12px;
+                    font-style: normal;
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
                     
-                    .class1610637187971:hover {
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
                     	cursor: pointer;
+                    }
                     '
           ↓Event [ngx.components.UIControlEvent-1732284059026]: 
             ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059029]: 
@@ -151,31 +349,33 @@ scriptContent:
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams''+stack.root.scope.item1.name] == null ? false : null'
+                    - MobileSmartSourceType: 'script:this.isPalettePageExpanded(stack.root.scope.item1) ? false : null'
               ↓path [ngx.components.UIControlVariable-1732284059035]: 
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:'__hidenparams'+stack.root.scope.item1.name
+                    - MobileSmartSourceType: script:this.getPalettePageKey(stack.root.scope.item1)
               ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059038]: 
                 beanData: '{"ionBean":"InvokeAction"}'
                 stack: C8Oforms.MobileApplication.Application.detectChanges
           ↓Icon [ngx.components.UIDynamicElement-1732284059041]: 
-            beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparams''+item1.name] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+            beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPalettePageExpanded(item1) ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
             comment: arrow-dropright
             tagName: ion-icon
             ↓Style [ngx.components.UIStyle-1732284059044]: 
+              isEnabled: false
               styleContent: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
-                      '
-                      }
-                      
-                      .class1600344265649:hover {
-                      cursor: pointer;
-                      '
+                        '	width: 14px;
+                        	height: 14px;
+                        }
+                        
+                        .class1600344265649:hover {
+                        cursor: pointer;
+                        '
           ↓Paragraph [ngx.components.UIDynamicElement-1732284059047]: 
             beanData: '{"ionBean":"Paragraph"}'
             tagName: p
@@ -198,7 +398,7 @@ scriptContent:
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:item1.name
         ↓Grid [ngx.components.UIDynamicElement-1732284059056]: 
-          beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+          beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
           tagName: ion-grid
           ↓GridRow [ngx.components.UIDynamicElement-1732284059059]: 
             beanData: '{"ionBean":"GridRow"}'
@@ -210,6 +410,9 @@ scriptContent:
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
                       '/*margin-top: 2vh;*/
+                      min-height: 0;
+                      overflow: hidden;
+                      align-content: flex-start;
                       '
             ↓Directive [ngx.components.UIControlDirective-1732284059065]: 
               directiveIndexName: i2
@@ -223,7 +426,7 @@ scriptContent:
                 directiveSource: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:item2.config.page == this.pageOwner.form.pages[i1].pageTechName
+                    - MobileSmartSourceType: script:item2.config.page == item1.pageTechName
                 ↓Directive [ngx.components.UIControlDirective-1732284059071]: 
                   directiveName: If
                   directiveSource: 
@@ -242,7 +445,7 @@ scriptContent:
                       directiveSource: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.pageOwner.getIndexOfNormalized(item3, this.pageOwner.filterActions)
+                          - MobileSmartSourceType: script:this.pageMatchesFilter(item1, this.pageOwner.filterActions) || this.itemMatchesFilter(item3, this.pageOwner.filterActions)
                       ↓Directive [ngx.components.UIControlDirective-1732284059080]: 
                         directiveName: If
                         directiveSource: 
@@ -303,7 +506,7 @@ scriptContent:
                         directiveSource: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.pageOwner.getIndexOfNormalized(item2, this.pageOwner.filterActions)
+                            - MobileSmartSourceType: script:this.pageMatchesFilter(item1, this.pageOwner.filterActions) || this.itemMatchesFilter(item2, this.pageOwner.filterActions)
                         ↓GridColTitle [ngx.components.UIDynamicElement-1732284059113]: 
                           beanData: |
                             '{
@@ -339,11 +542,11 @@ scriptContent:
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:this.c8oforms_monacoeditor
           ↓Attr [ngx.components.UIAttribute-1732284059137]: 
-            attrName: '*ngIf'
+            attrName: '[ngStyle]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparams'+item1.name] == null
+                - MobileSmartSourceType: script:this.getPalettePageStyle(item1)
         ↓Style [ngx.components.UIStyle-1732284059140]: 
           styleContent: 
             - xmlizable: 
@@ -363,8 +566,15 @@ scriptContent:
           →: |
             'height:calc(100% - 57px);
             background: #FFF !important;
-            overflow-x: scroll;
+            overflow-y: auto;
+            overflow-x: hidden;
+            width: 100%;
             padding-bottom: 10px;
+            
+            ion-icon {
+            	width: 14px;
+            	height: 14px;
+            }
             '
   ↓Directive1 [ngx.components.UIControlDirective-1732284059146]: 
     directiveName: If
@@ -376,6 +586,12 @@ scriptContent:
     ↓DivActions [ngx.components.UIDynamicElement-1732284059149]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201001]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredActionItems(this.pageOwner.form.actions, this.pageOwner.filterActions, 'actions').length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059152]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -385,18 +601,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059158]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059161]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -405,26 +629,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''actions'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059167]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''actions'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059170]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059173]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''actions'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059176]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -453,7 +679,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:Actions
       ↓Grid [ngx.components.UIDynamicElement-1732284059188]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059191]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -464,7 +690,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059197]: 
             directiveIndexName: i2
@@ -520,18 +749,18 @@ scriptContent:
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                           - MobileSmartSourceType: script:this.c8oforms_monacoeditor
         ↓Attr [ngx.components.UIAttribute-1732284059224]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''actions'')'
       ↓Style [ngx.components.UIStyle-1732284059227]: 
         styleContent: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
-                '	border-bottom: 1px solid grey;
+                '	border-bottom: 1px solid rgba(0, 0, 0, 0.13) !important;
                 }
                 .class1608568354293:hover {
                 	cursor:pointer;
@@ -546,6 +775,12 @@ scriptContent:
     ↓DivActions [ngx.components.UIDynamicElement-1741689855845]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201004]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredActionItems(this.pageOwner.form.flows?.[0]?.elements, this.pageOwner.filterActions, 'actions').length > 0
       ↓Div [ngx.components.UIDynamicElement-1741689855848]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -555,18 +790,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1741689855854]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1741689855857]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -575,26 +818,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''formulas'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1741689855863]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''formulas'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1741689855866]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1741689855869]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''formulas'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1741689855872]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -623,7 +868,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:formulas
       ↓Grid [ngx.components.UIDynamicElement-1741689855884]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1741689855887]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -634,7 +879,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1741689855893]: 
             directiveIndexName: i2
@@ -690,18 +938,18 @@ scriptContent:
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                           - MobileSmartSourceType: script:this.c8oforms_monacoeditor
         ↓Attr [ngx.components.UIAttribute-1741689855920]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''formulas'')'
       ↓Style [ngx.components.UIStyle-1741689855923]: 
         styleContent: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
-                '	border-bottom: 1px solid grey;
+                '	border-bottom: 1px solid rgba(0, 0, 0, 0.13) !important;
                 }
                 .class1608568354293:hover {
                 	cursor:pointer;
@@ -716,6 +964,12 @@ scriptContent:
     ↓DivActions [ngx.components.UIDynamicElement-1743614285569]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201007]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredActionItems(flow.elements, this.pageOwner.filterActions, 'toastless').length > 0
       ↓Div [ngx.components.UIDynamicElement-1743614285572]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -725,18 +979,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1743614285578]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1743614285581]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -745,26 +1007,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''flow_'' + i) ? false : null'
             ↓path [ngx.components.UIControlVariable-1743614285587]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''flow_'' + i)'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1743614285590]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1743614285593]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''flow_'' + i) ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1743614285596]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -791,9 +1055,9 @@ scriptContent:
             textValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: 'script:(i == 0) ? (flow.id | translate) : (i ==1) ? (''submit_short'' | translate) : flow.name'
+                - MobileSmartSourceType: script:this.getPaletteFlowLabel(flow)
       ↓Grid [ngx.components.UIDynamicElement-1743614285608]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1743614285611]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -804,7 +1068,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1743614285617]: 
             directiveIndexName: i2
@@ -861,11 +1128,11 @@ scriptContent:
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                           - MobileSmartSourceType: script:this.c8oforms_monacoeditor
         ↓Attr [ngx.components.UIAttribute-1743614285644]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''flow_'' + i)'
       ↓Style [ngx.components.UIStyle-1743614285647]: 
         styleContent: 
           - xmlizable: 
@@ -887,6 +1154,12 @@ scriptContent:
     ↓DivActions [ngx.components.UIDynamicElement-1741690108303]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201010]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredActionItems(this.pageOwner.form?.flows[this.pageOwner.local.currentIndex]?.elements, this.pageOwner.filterActions, 'toastless').length > 0
       ↓Div [ngx.components.UIDynamicElement-1741690108306]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -896,18 +1169,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1741690108312]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1741690108315]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -916,26 +1197,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''current_flow_'' + this.pageOwner.local.currentIndex) ? false : null'
             ↓path [ngx.components.UIControlVariable-1741690108321]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''current_flow_'' + this.pageOwner.local.currentIndex)'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1741690108324]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1741690108327]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''current_flow_'' + this.pageOwner.local.currentIndex) ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1741690108330]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -964,7 +1247,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:current_flow
       ↓Grid [ngx.components.UIDynamicElement-1741690108342]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1741690108345]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -975,7 +1258,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1741690108351]: 
             directiveIndexName: i2
@@ -1032,18 +1318,18 @@ scriptContent:
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                           - MobileSmartSourceType: script:this.c8oforms_monacoeditor
         ↓Attr [ngx.components.UIAttribute-1741690108378]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''current_flow_'' + this.pageOwner.local.currentIndex)'
       ↓Style [ngx.components.UIStyle-1741690108381]: 
         styleContent: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
-                '	border-bottom: 1px solid grey;
+                '	border-bottom: 1px solid rgba(0, 0, 0, 0.13) !important;
                 }
                 .class1608568354293:hover {
                 	cursor:pointer;
@@ -1063,6 +1349,12 @@ scriptContent:
       ↓DivCurrentLoop [ngx.components.UIDynamicElement-1743425291024]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
+        ↓AttrVisible [ngx.components.UIAttribute-1775911201013]: 
+          attrName: '*ngIf'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiCurrentFor, this.pageOwner.filterActions).length > 0
         ↓Div [ngx.components.UIDynamicElement-1743425291027]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -1092,20 +1384,21 @@ scriptContent:
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                    - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''for_loop'') ? false : null'
               ↓path [ngx.components.UIControlVariable-1743425291042]: 
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                    - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''for_loop'')'
               ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1743425291045]: 
                 beanData: '{"ionBean":"InvokeAction"}'
                 stack: C8Oforms.MobileApplication.Application.detectChanges
           ↓Icon [ngx.components.UIDynamicElement-1743425291048]: 
-            beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+            beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''for_loop'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
             comment: arrow-dropright
             tagName: ion-icon
             ↓Style [ngx.components.UIStyle-1743425291051]: 
+              isEnabled: false
               styleContent: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -1140,7 +1433,7 @@ scriptContent:
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: plain:for_loop
         ↓Grid [ngx.components.UIDynamicElement-1743425291063]: 
-          beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+          beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
           tagName: ion-grid
           ↓GridRow [ngx.components.UIDynamicElement-1743425291066]: 
             beanData: '{"ionBean":"GridRow"}'
@@ -1207,18 +1500,18 @@ scriptContent:
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                           - MobileSmartSourceType: script:itemRouter.value?.code
           ↓Attr [ngx.components.UIAttribute-1743425291099]: 
-            attrName: '*ngIf'
+            attrName: '[ngStyle]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+                - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''for_loop'')'
         ↓Style [ngx.components.UIStyle-1743425291102]: 
           styleContent: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  '	border-bottom: 1px solid grey;
+                  '	border-bottom: 1px solid rgba(0, 0, 0, 0.13) !important;
                   }
                   .class1608568354293:hover {
                   	cursor:pointer;
@@ -1226,6 +1519,12 @@ scriptContent:
     ↓DivRouter [ngx.components.UIDynamicElement-1732284059233]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201016]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiRouter, this.pageOwner.filterActions).length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059236]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -1235,18 +1534,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059242]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059245]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -1255,26 +1562,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''router'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059251]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''router'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059254]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059257]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''router'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059260]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -1303,7 +1612,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:Router
       ↓Grid [ngx.components.UIDynamicElement-1732284059272]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059275]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -1314,7 +1623,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059281]: 
             directiveIndexName: indexRouter
@@ -1370,11 +1682,11 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:itemRouter.value?.code
         ↓Attr [ngx.components.UIAttribute-1732284059308]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''router'')'
       ↓Style [ngx.components.UIStyle-1732284059311]: 
         styleContent: 
           - xmlizable: 
@@ -1389,6 +1701,12 @@ scriptContent:
     ↓DivApp [ngx.components.UIDynamicElement-1732284059314]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201019]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiApp, this.pageOwner.filterActions).length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059317]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -1398,18 +1716,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059323]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059326]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -1418,26 +1744,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''application'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059332]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''application'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059335]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059338]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''application'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059341]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -1464,9 +1792,9 @@ scriptContent:
             textValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:Application
+                - MobileSmartSourceType: plain:Application API
       ↓Grid [ngx.components.UIDynamicElement-1732284059353]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059356]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -1477,7 +1805,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059362]: 
             directiveIndexName: indexRouter
@@ -1532,11 +1863,11 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:itemRouter.value?.code
         ↓Attr [ngx.components.UIAttribute-1732284059389]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''application'')'
       ↓Style [ngx.components.UIStyle-1732284059392]: 
         styleContent: 
           - xmlizable: 
@@ -1551,6 +1882,12 @@ scriptContent:
     ↓DivForm [ngx.components.UIDynamicElement-1732284059395]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201022]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiForm, this.pageOwner.filterActions).length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059398]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -1560,18 +1897,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059404]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059407]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -1580,26 +1925,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''form'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059413]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''form'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059416]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059419]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''form'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059422]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -1628,7 +1975,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:Form
       ↓Grid [ngx.components.UIDynamicElement-1732284059434]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059437]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -1639,7 +1986,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059443]: 
             directiveIndexName: indexRouter
@@ -1694,11 +2044,11 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:itemRouter.value?.code
         ↓Attr [ngx.components.UIAttribute-1732284059470]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''form'')'
       ↓Style [ngx.components.UIStyle-1732284059473]: 
         styleContent: 
           - xmlizable: 
@@ -1713,6 +2063,12 @@ scriptContent:
     ↓DivUser [ngx.components.UIDynamicElement-1732284059476]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201025]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiUser, this.pageOwner.filterActions).length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059479]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -1722,18 +2078,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059485]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059488]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -1742,26 +2106,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''user'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059494]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''user'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059497]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059500]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''user'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059503]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -1790,7 +2156,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:User
       ↓Grid [ngx.components.UIDynamicElement-1732284059515]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059518]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -1801,7 +2167,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059524]: 
             directiveIndexName: indexRouter
@@ -1856,11 +2225,11 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:itemRouter.value?.code
         ↓Attr [ngx.components.UIAttribute-1732284059551]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''user'')'
       ↓Style [ngx.components.UIStyle-1732284059554]: 
         styleContent: 
           - xmlizable: 
@@ -1875,6 +2244,12 @@ scriptContent:
     ↓DivPage [ngx.components.UIDynamicElement-1732284059557]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201028]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiPage, this.pageOwner.filterActions).length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059560]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -1884,18 +2259,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059566]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059569]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -1904,26 +2287,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''page'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059575]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''page'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059578]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059581]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''page'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059584]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -1952,7 +2337,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:Page
       ↓Grid [ngx.components.UIDynamicElement-1732284059596]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059599]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -1963,7 +2348,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059605]: 
             directiveIndexName: indexRouter
@@ -2018,11 +2406,11 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:itemRouter.value?.code
         ↓Attr [ngx.components.UIAttribute-1732284059632]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''page'')'
       ↓Style [ngx.components.UIStyle-1732284059635]: 
         styleContent: 
           - xmlizable: 
@@ -2037,6 +2425,12 @@ scriptContent:
     ↓DivTranslate [ngx.components.UIDynamicElement-1732284059638]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201031]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiTranslate, this.pageOwner.filterActions).length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059641]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -2046,18 +2440,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059647]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059650]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -2066,26 +2468,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''translate'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059656]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''translate'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059659]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059662]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''translate'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059665]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -2114,7 +2518,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:Translation
       ↓Grid [ngx.components.UIDynamicElement-1732284059677]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059680]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -2125,7 +2529,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059686]: 
             directiveIndexName: indexRouter
@@ -2180,11 +2587,11 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:itemRouter.value?.code
         ↓Attr [ngx.components.UIAttribute-1732284059713]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''translate'')'
       ↓Style [ngx.components.UIStyle-1732284059716]: 
         styleContent: 
           - xmlizable: 
@@ -2199,6 +2606,12 @@ scriptContent:
     ↓DivC8o [ngx.components.UIDynamicElement-1732284059719]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓AttrVisible [ngx.components.UIAttribute-1775911201034]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.getFilteredApiEntries(this.apiC8o, this.pageOwner.filterActions).length > 0
       ↓Div [ngx.components.UIDynamicElement-1732284059722]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -2208,18 +2621,26 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  'font-size: 0.875rem;
-                    font-weight: normal;
+                  'color: #6B7280;
+                    text-align: center;
+                   //	font-family: Inter;
+                    font-size: 12px;
                     font-style: normal;
-                    font-stretch: normal;
-                    line-height: normal;
-                    letter-spacing: normal;
-                    color: #4a4a4a;
-                  }
-                  
-                  .class1610658061387:hover {
-                  	cursor: pointer;
-                  '
+                    font-weight: 500;
+                    line-height: 18px; /* 150% */
+                    
+                    
+                    display: flex;
+                    height: 30px;
+                    padding-left: 8px;
+                    align-items: center;
+                    gap: 8px;
+                    flex-shrink: 0;
+                    align-self: stretch;
+                    &:hover {
+                    	cursor: pointer;
+                    }
+                    '
         ↓Event [ngx.components.UIControlEvent-1732284059728]: 
           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1732284059731]: 
             beanData: '{"ionBean":"InvokeAction"}'
@@ -2228,26 +2649,28 @@ scriptContent:
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.pageOwner.local[''__hidenparams_C8O_actions''] == null ? false : null'
+                  - MobileSmartSourceType: 'script:this.isPaletteSectionExpanded(''c8o'') ? false : null'
             ↓path [ngx.components.UIControlVariable-1732284059737]: 
               varValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'__hidenparamsparams_C8O_actions'
+                  - MobileSmartSourceType: 'script:this.getPaletteSectionKey(''c8o'')'
             ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1732284059740]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.detectChanges
         ↓Icon [ngx.components.UIDynamicElement-1732284059743]: 
-          beanData: '{"ionBean":"Icon","IconName":"script:this.pageOwner.local[''__hidenparamsparams_C8O_actions''] == null ? ''arrow-dropdown'' : ''arrow-dropright''"}'
+          beanData: '{"ionBean":"Icon","IconName":"plain","IconSource":"script:this.isPaletteSectionExpanded(''c8o'') ? ''assets/images/svg/lucide/chevron-down.svg'' : ''assets/images/svg/lucide/chevron-up.svg''"}'
           comment: arrow-dropright
           tagName: ion-icon
           ↓Style [ngx.components.UIStyle-1732284059746]: 
+            isEnabled: false
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '
+                    '	width: 14px;
+                    	height: 14px;
                     }
                     
                     .class1600344265649:hover {
@@ -2276,7 +2699,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:Convertigo SDK
       ↓Grid [ngx.components.UIDynamicElement-1732284059758]: 
-        beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
+        beanData: '{"ionBean":"Grid","Height":"plain:auto"}'
         tagName: ion-grid
         ↓GridRow [ngx.components.UIDynamicElement-1732284059761]: 
           beanData: '{"ionBean":"GridRow"}'
@@ -2287,7 +2710,10 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '/*margin-top: 2vh;*/
+                    '//padding-top: 2vh;
+                    min-height: 0;
+                    overflow: hidden;
+                    align-content: flex-start;
                     '
           ↓Directive [ngx.components.UIControlDirective-1732284059767]: 
             directiveIndexName: indexRouter
@@ -2342,11 +2768,11 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:itemRouter.value?.code
         ↓Attr [ngx.components.UIAttribute-1732284059794]: 
-          attrName: '*ngIf'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.local['__hidenparamsparams_C8O_actions'] == null
+              - MobileSmartSourceType: 'script:this.getPaletteSectionStyle(''c8o'')'
       ↓Style [ngx.components.UIStyle-1732284059797]: 
         styleContent: 
           - xmlizable: 
