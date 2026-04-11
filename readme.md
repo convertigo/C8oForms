@@ -8632,6 +8632,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>editorHeight</td><td></td>
+</tr>
+<tr>
 <td>item</td><td></td>
 </tr>
 </table>
