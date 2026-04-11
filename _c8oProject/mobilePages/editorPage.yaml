@@ -35,6 +35,7 @@ scriptContent:
         	public creating = "";
         	public projectLang = "";
         	public filterActions = "";
+        	public mainEditorTabsFrames = {};
         	public tinyFuncDrop;
         	public tinyFuncDropWithCancel;
         	public tinyFuncDropWithCancelText;
@@ -5922,6 +5923,168 @@ scriptContent:
         	
         	public getMainPaletteTopicStyle(topic) {
         		return this.getMainPaletteExpandedStyle(this.isMainPaletteTopicExpanded(topic));
+        	}
+        	
+        	public getMainEditorTabsState(item) {
+        		const itemId = item?.id;
+        		if (this.local.mainEditorTabsState == null) {
+        			this.local.mainEditorTabsState = {};
+        		}
+        		if (itemId != null && this.local.mainEditorTabsState[itemId] == null) {
+        			this.local.mainEditorTabsState[itemId] = {
+        				compact: false,
+        				compactWrapped: false,
+        				requiredWidth: 0,
+        				compactRequiredWidth: 0
+        			};
+        		}
+        		return itemId != null ? this.local.mainEditorTabsState[itemId] : {compact: false, compactWrapped: false, requiredWidth: 0, compactRequiredWidth: 0};
+        	}
+        	
+        	public getMainEditorTabsDomId(item) {
+        		return "main-editor-tabs-" + (item?.id != null ? item.id : "");
+        	}
+        	
+        	public getMainEditorTabValues(item, group) {
+        		return this.tabs?.[item?.type]?.[group]?.values || [];
+        	}
+        	
+        	public getDefaultMainEditorTab(item, group) {
+        		const defaultValue = this.tabs?.[item?.type]?.[group]?.default;
+        		if (defaultValue != null) {
+        			return defaultValue;
+        		}
+        		const values = this.getMainEditorTabValues(item, group);
+        		return values.length > 0 ? values[0] : null;
+        	}
+        	
+        	public getSelectedMainEditorTab(item) {
+        		return this.local?.propsTabsSelected?.[item?.id] || this.getDefaultMainEditorTab(item, "style");
+        	}
+        	
+        	public getMainEditorTabGroup(item, tab) {
+        		if (this.getMainEditorTabValues(item, "configuration").indexOf(tab) !== -1) {
+        			return "configuration";
+        		}
+        		return "style";
+        	}
+        	
+        	public getSelectedMainEditorTabGroup(item) {
+        		return this.getMainEditorTabGroup(item, this.getSelectedMainEditorTab(item));
+        	}
+        	
+        	public isMainEditorTabsCompact(item) {
+        		return this.getMainEditorTabsState(item).compact === true;
+        	}
+        	
+        	public isMainEditorTabsCompactWrapped(item) {
+        		return this.getMainEditorTabsState(item).compactWrapped === true;
+        	}
+        	
+        	public shouldKeepMainEditorTabsSingleLine(item) {
+        		return this.isMainEditorTabsCompact(item) && !this.isMainEditorTabsCompactWrapped(item);
+        	}
+        	
+        	public shouldShowMainEditorTabButtons(item, group) {
+        		return !this.isMainEditorTabsCompact(item) || this.getSelectedMainEditorTabGroup(item) === group;
+        	}
+        	
+        	public getMainEditorTabGroupClasses(item, group) {
+        		const visible = this.shouldShowMainEditorTabButtons(item, group);
+        		return {
+        			"div-generic-container-buttons-visible": visible,
+        			"div-generic-container-buttons-hidden": !visible
+        		};
+        	}
+        	
+        	public scheduleMainEditorTabsMeasure(item) {
+        		const itemId = item?.id;
+        		if (itemId == null || typeof requestAnimationFrame !== "function") {
+        			return;
+        		}
+        		if (this.mainEditorTabsFrames[itemId] != null) {
+        			return;
+        		}
+        		this.mainEditorTabsFrames[itemId] = requestAnimationFrame(() => {
+        			delete this.mainEditorTabsFrames[itemId];
+        			this.measureMainEditorTabs(item);
+        		});
+        	}
+        	
+        	public measureMainEditorTabs(item) {
+        		try {
+        			const itemId = item?.id;
+        			if (itemId == null || typeof document === "undefined") {
+        				return;
+        			}
+        			const selector = "[data-main-editor-tabs-inner=\"" + this.getMainEditorTabsDomId(item) + "\"]";
+        			const container = document.querySelector(selector);
+        			if (container == null) {
+        				return;
+        			}
+        			const hadCompact = container.classList.contains("div-container-inner-compact");
+        			const hadCompactWrap = container.classList.contains("div-container-inner-compact-wrap");
+        			const selectedGroup = this.getSelectedMainEditorTabGroup(item);
+        			const buttonContainers = Array.from(container.querySelectorAll("[data-main-editor-tabs-buttons]"));
+        			const originalDisplays = buttonContainers.map((buttonContainer: any) => buttonContainer.style.display);
+        			container.classList.remove("div-container-inner-compact");
+        			container.classList.remove("div-container-inner-compact-wrap");
+        			container.classList.add("div-container-inner-measure");
+        			buttonContainers.forEach((buttonContainer: any) => {
+        				buttonContainer.style.display = "flex";
+        			});
+        			const requiredWidth = Math.ceil(container.scrollWidth);
+        			buttonContainers.forEach((buttonContainer: any) => {
+        				buttonContainer.style.display = buttonContainer.getAttribute("data-main-editor-tabs-buttons") === selectedGroup ? "flex" : "none";
+        			});
+        			const compactRequiredWidth = Math.ceil(container.scrollWidth);
+        			buttonContainers.forEach((buttonContainer: any, index) => {
+        				buttonContainer.style.display = originalDisplays[index];
+        			});
+        			container.classList.remove("div-container-inner-measure");
+        			if (hadCompact) {
+        				container.classList.add("div-container-inner-compact");
+        			}
+        			if (hadCompactWrap) {
+        				container.classList.add("div-container-inner-compact-wrap");
+        			}
+        			const compact = (container.clientWidth + 1) < requiredWidth;
+        			const compactWrapped = compact && (container.clientWidth + 1) < compactRequiredWidth;
+        			const state = this.getMainEditorTabsState(item);
+        			if (state.requiredWidth !== requiredWidth || state.compactRequiredWidth !== compactRequiredWidth || state.compact !== compact || state.compactWrapped !== compactWrapped) {
+        				state.requiredWidth = requiredWidth;
+        				state.compactRequiredWidth = compactRequiredWidth;
+        				state.compact = compact;
+        				state.compactWrapped = compactWrapped;
+        				this.ref.detectChanges();
+        			}
+        		}
+        		catch (e) {
+        			console.error(e);
+        		}
+        	}
+        	
+        	public ensureMainEditorTabsResponsive(item) {
+        		this.scheduleMainEditorTabsMeasure(item);
+        		return this.isMainEditorTabsCompact(item);
+        	}
+        	
+        	public selectMainEditorTabGroup(item, group) {
+        		try {
+        			if (!this.isMainEditorTabsCompact(item) || this.getSelectedMainEditorTabGroup(item) === group) {
+        				return;
+        			}
+        			if (this.local.propsTabsSelected == null) {
+        				this.local.propsTabsSelected = {};
+        			}
+        			const defaultValue = this.getDefaultMainEditorTab(item, group);
+        			if (defaultValue != null) {
+        				this.local.propsTabsSelected[item.id] = defaultValue;
+        			}
+        		}
+        		catch (e) {
+        			console.error(e);
+        		}
         	}
         	
         	public isC8oIcon(iconName: string): boolean | null
@@ -34145,6 +34308,78 @@ title: Title for editor
                                                           		align-self: stretch;
                                                           		flex-wrap: wrap;
                                                           	}
+                                                          	
+                                                          	.div-container-inner-compact {
+                                                          		flex-wrap: nowrap;
+                                                          		align-items: stretch;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-compact .div-generic-container {
+                                                          		height: auto !important;
+                                                          		min-height: 54px;
+                                                          		align-self: stretch !important;
+                                                          		box-sizing: border-box;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-compact-wrap {
+                                                          		align-items: stretch;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-compact-wrap .div-generic-container {
+                                                          		flex-wrap: wrap;
+                                                          		height: auto !important;
+                                                          		min-height: 54px;
+                                                          		align-items: flex-start;
+                                                          		align-self: stretch;
+                                                          		box-sizing: border-box;
+                                                          		row-gap: 8px;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-compact-wrap .div-container-btns {
+                                                          		flex: 1 1 100%;
+                                                          		flex-wrap: wrap;
+                                                          		height: auto;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-compact-wrap .div-generic-container-buttons-visible {
+                                                          		flex-wrap: nowrap !important;
+                                                          		flex-direction: column;
+                                                          		align-items: flex-start !important;
+                                                          		width: fit-content;
+                                                          		max-width: 100%;
+                                                          		min-width: 0;
+                                                          		padding-bottom: 6px;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-compact-wrap .div-generic-container-buttons-visible .div-container-btns {
+                                                          		flex: 0 1 auto !important;
+                                                          		width: fit-content !important;
+                                                          		max-width: 100%;
+                                                          		min-width: 0;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-compact-wrap .div-generic-container-buttons-hidden {
+                                                          		justify-content: center;
+                                                          		align-items: center;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-measure {
+                                                          		flex-wrap: nowrap !important;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-measure .div-generic-container {
+                                                          		flex: 0 0 auto;
+                                                          		flex-wrap: nowrap !important;
+                                                          		height: 54px !important;
+                                                          	}
+                                                          	
+                                                          	.div-container-inner-measure .div-container-btns {
+                                                          		display: flex !important;
+                                                          		flex: 0 0 auto;
+                                                          		width: max-content;
+                                                          		flex-wrap: nowrap !important;
+                                                          		height: 36px !important;
+                                                          	}
                                                           
                                                           	.div-generic-container {
                                                           		display: flex;
@@ -34227,12 +34462,40 @@ title: Title for editor
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                         - MobileSmartSourceType: plain:div-container-inner
+                                                  ↓Attr1 [ngx.components.UIAttribute-1775914540001]: 
+                                                    attrName: '[ngClass]'
+                                                    attrValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: 'script:{ ''div-container-inner-compact'': this.ensureMainEditorTabsResponsive(item) && this.shouldKeepMainEditorTabsSingleLine(item), ''div-container-inner-compact-wrap'': this.isMainEditorTabsCompactWrapped(item) }'
+                                                  ↓Attr2 [ngx.components.UIAttribute-1775914540002]: 
+                                                    attrName: '[attr.data-main-editor-tabs-inner]'
+                                                    attrValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                        - MobileSmartSourceType: script:this.getMainEditorTabsDomId(item)
                                                   ↓DivMiseEnForme [ngx.components.UIDynamicElement-1775832194478]: 
                                                     beanData: '{"ionBean":"DivTag"}'
                                                     tagName: div
                                                     ↓Span [ngx.components.UIDynamicElement-1775832215829]: 
                                                       beanData: '{"ionBean":"SpanTag"}'
                                                       tagName: span
+                                                      ↓Event [ngx.components.UIControlEvent-1775914540003]: 
+                                                        ↓selectStyleGroup [ngx.components.UICustomAction-1775914540004]: 
+                                                          actionValue: 
+                                                            - xmlizable: 
+                                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                                →: |
+                                                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                                                  		page.selectMainEditorTabGroup(vars.item, "style");
+                                                                  		resolve();
+                                                                  '
+                                                          ↓item [ngx.components.UIControlVariable-1775914540005]: 
+                                                            varValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: script:item
                                                       ↓Text [ngx.components.UIText-1775832226482]: 
                                                         i18n: true
                                                         textValue: 
@@ -34245,6 +34508,12 @@ title: Title for editor
                                                           - xmlizable: 
                                                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                             - MobileSmartSourceType: plain:span-style
+                                                      ↓Attr1 [ngx.components.UIAttribute-1775914540006]: 
+                                                        attrName: '[style.cursor]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: 'script:this.isMainEditorTabsCompact(item) && this.getSelectedMainEditorTabGroup(item) != ''style'' ? ''pointer'' : null'
                                                     ↓DivContainerBtns [ngx.components.UIDynamicElement-1775832274687]: 
                                                       beanData: '{"ionBean":"DivTag"}'
                                                       tagName: div
@@ -34306,18 +34575,52 @@ title: Title for editor
                                                           - xmlizable: 
                                                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                             - MobileSmartSourceType: plain:div-container-btns
+                                                      ↓Attr2 [ngx.components.UIAttribute-1775914540013]: 
+                                                        attrName: '[attr.data-main-editor-tabs-buttons]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: plain:style
+                                                      ↓Attr1 [ngx.components.UIAttribute-1775914540007]: 
+                                                        attrName: '[style.display]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: 'script:this.shouldShowMainEditorTabButtons(item, ''style'') ? null : ''none'''
                                                     ↓Attr [ngx.components.UIAttribute-1775833689070]: 
                                                       attrName: class
                                                       attrValue: 
                                                         - xmlizable: 
                                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                           - MobileSmartSourceType: plain:div-generic-container div-style-container
+                                                    ↓Attr1 [ngx.components.UIAttribute-1775918800001]: 
+                                                      attrName: '[ngClass]'
+                                                      attrValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                          - MobileSmartSourceType: 'script:this.getMainEditorTabGroupClasses(item, ''style'')'
                                                   ↓DivConfig [ngx.components.UIDynamicElement-1775835275857]: 
                                                     beanData: '{"ionBean":"DivTag"}'
                                                     tagName: div
                                                     ↓Span [ngx.components.UIDynamicElement-1775835275863]: 
                                                       beanData: '{"ionBean":"SpanTag"}'
                                                       tagName: span
+                                                      ↓Event [ngx.components.UIControlEvent-1775914540008]: 
+                                                        ↓selectConfigurationGroup [ngx.components.UICustomAction-1775914540009]: 
+                                                          actionValue: 
+                                                            - xmlizable: 
+                                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                                →: |
+                                                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                                                  		page.selectMainEditorTabGroup(vars.item, "configuration");
+                                                                  		resolve();
+                                                                  '
+                                                          ↓item [ngx.components.UIControlVariable-1775914540010]: 
+                                                            varValue: 
+                                                              - xmlizable: 
+                                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                                - MobileSmartSourceType: script:item
                                                       ↓Text [ngx.components.UIText-1775835275866]: 
                                                         i18n: true
                                                         textValue: 
@@ -34330,6 +34633,12 @@ title: Title for editor
                                                           - xmlizable: 
                                                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                             - MobileSmartSourceType: plain:span-configuration
+                                                      ↓Attr1 [ngx.components.UIAttribute-1775914540011]: 
+                                                        attrName: '[style.cursor]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: 'script:this.isMainEditorTabsCompact(item) && this.getSelectedMainEditorTabGroup(item) != ''configuration'' ? ''pointer'' : null'
                                                     ↓DivContainerBtns [ngx.components.UIDynamicElement-1775835275872]: 
                                                       beanData: '{"ionBean":"DivTag"}'
                                                       tagName: div
@@ -34399,12 +34708,30 @@ title: Title for editor
                                                           - xmlizable: 
                                                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                             - MobileSmartSourceType: plain:div-container-btns
+                                                      ↓Attr2 [ngx.components.UIAttribute-1775914540014]: 
+                                                        attrName: '[attr.data-main-editor-tabs-buttons]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: plain:configuration
+                                                      ↓Attr1 [ngx.components.UIAttribute-1775914540012]: 
+                                                        attrName: '[style.display]'
+                                                        attrValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                            - MobileSmartSourceType: 'script:this.shouldShowMainEditorTabButtons(item, ''configuration'') ? null : ''none'''
                                                     ↓Attr [ngx.components.UIAttribute-1775835275893]: 
                                                       attrName: class
                                                       attrValue: 
                                                         - xmlizable: 
                                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                           - MobileSmartSourceType: plain:div-generic-container div-configuration-container
+                                                    ↓Attr1 [ngx.components.UIAttribute-1775918800002]: 
+                                                      attrName: '[ngClass]'
+                                                      attrValue: 
+                                                        - xmlizable: 
+                                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                          - MobileSmartSourceType: 'script:this.getMainEditorTabGroupClasses(item, ''configuration'')'
                                               ↓UseSharedComponent [ngx.components.UIUseShared-1775747784945]: 
                                                 sharedcomponent: C8Oforms.MobileApplication.Application.switchItemEdition
                                                 ↓AttrHeight [ngx.components.UIAttribute-1775902601101]: 
