@@ -369,6 +369,7 @@ For more technical informations : [documentation](./project.md)
         - [conditionVisibleIfPrev](#conditionvisibleifprev)
         - [datasource](#datasource)
         - [datasourceButton](#datasourcebutton)
+        - [datasourceConfigureButton](#datasourceconfigurebutton)
         - [dataSourceEditor](#datasourceeditor)
         - [dataSourceEditor_GridRow_GridColSourcePicker_Group](#datasourceeditor_gridrow_gridcolsourcepicker_group)
         - [dataSourceEditorDescription](#datasourceeditordescription)
@@ -5758,7 +5759,50 @@ Update the state of a field
 <td>currentMetas</td><td></td>
 </tr>
 <tr>
+<td>emptyText</td><td></td>
+</tr>
+<tr>
 <td>label</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>clicked</td><td></td>
+</tr>
+</table>
+#### datasourceConfigureButton
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>comment</td><td></td>
+</tr>
+<tr>
+<td>current</td><td></td>
+</tr>
+<tr>
+<td>displayComment</td><td></td>
+</tr>
+<tr>
+<td>displayTitle</td><td></td>
+</tr>
+<tr>
+<td>emptyText</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>title</td><td></td>
 </tr>
 </table>
 **events**
