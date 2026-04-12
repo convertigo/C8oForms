@@ -807,7 +807,12 @@ scriptContent:
         		var variables: any = {};
         		if (step.sources.self.vars.selfVar.type == "condition") {
         			let jsString: string = "";
-        			jsString = this.detectSubjectAndComplete(step.sources.self.vars.selfVar.cond, step.sources.self.vars.selfVar.condVisible);
+        			jsString = this.detectSubjectAndComplete(
+        				step.sources.self.vars.selfVar.cond,
+        				step.sources.self.vars.selfVar.condVisible,
+        				null,
+        				step.sources.self.vars.selfVar.groups
+        			);
         			try {
         				variables.selfVar = eval(jsString);
         			}
@@ -5355,21 +5360,86 @@ scriptContent:
         	 * @returns {string} - The generated JavaScript expression string.
         	 */
         	public evaluateConditions(conditions: object, bool: boolean = null): string {
+        		conditions = this.getLegacyAwareConditions(conditions);
+        		if (conditions == null) {
+        			return bool == null ? "true" : "";
+        		}
         		let jsString: string = "";
         		// Iterate over each condition key
         		for (let conds of Object.keys(conditions)) {
         			switch (conds) {
         				case "visibleIf":
-        					jsString += this.detectSubjectAndComplete(conditions[conds]["conds"], conditions[conds]["condVisible"]);
+        					jsString += this.detectSubjectAndComplete(
+        						conditions[conds]["conds"],
+        						conditions[conds]["condVisible"],
+        						null,
+        						conditions[conds]["groups"]
+        					);
         					break;
         				case "goToPageIf":
         					if (bool) {
-        						let abc = this.detectSubjectAndComplete(conditions[conds]["conds"], conditions[conds]["cond"], true);
+        						let abc = this.detectSubjectAndComplete(
+        							conditions[conds]["conds"],
+        							conditions[conds]["condVisible"] != undefined ? conditions[conds]["condVisible"] : conditions[conds]["cond"],
+        							true,
+        							conditions[conds]["groups"]
+        						);
         					}
         					break;
         			}
         		}
         		return jsString;
+        	}
+        
+        	private getLegacyAwareConditions(itemOrConditions: any): any {
+        		if (itemOrConditions == null) {
+        			return null;
+        		}
+        
+        		let conditions: any = itemOrConditions.conditions != undefined ? itemOrConditions.conditions : itemOrConditions;
+        		if (conditions == null) {
+        			return null;
+        		}
+        
+        		if (conditions.visibleIf != undefined || conditions.goToPageIf != undefined) {
+        			return conditions;
+        		}
+        
+        		if (
+        			conditions.type == "visibleIf" ||
+        			conditions.type == "goToPageIf" ||
+        			conditions.conds != undefined ||
+        			conditions.condVisible != undefined ||
+        			conditions.groups != undefined
+        		) {
+        			let wrapped: any = {};
+        			if (conditions.type == "goToPageIf") {
+        				wrapped.goToPageIf = conditions;
+        			}
+        			else {
+        				wrapped.visibleIf = conditions;
+        			}
+        			return wrapped;
+        		}
+        
+        		if (itemOrConditions.visibleIf != undefined || itemOrConditions.goToPageIf != undefined) {
+        			return {
+        				visibleIf: itemOrConditions.visibleIf,
+        				goToPageIf: itemOrConditions.goToPageIf
+        			};
+        		}
+        
+        		return null;
+        	}
+        
+        	public evaluateItemVisibility(item: any): boolean {
+        		let conditions = this.getLegacyAwareConditions(item);
+        		return conditions != null ? this.eval(this.evaluateConditions(conditions)) : true;
+        	}
+        
+        	private getGoToPageIfConditions(item: any): any {
+        		let conditions = this.getLegacyAwareConditions(item);
+        		return conditions != null ? conditions.goToPageIf : null;
         	}
         
         	/**
@@ -5711,48 +5781,49 @@ scriptContent:
         	public detectSubjectAndComplete(
         		conds: Array<any>,
         		operatorStr: string,
-        		goToPage = null
+        		goToPage = null,
+        		groups: Array<any> = []
         	): string {
-        		let jsString = ""; // JavaScript string to be built
-        		const operator = this.getCondVisibleToSign(operatorStr); // Operator between each condition
-        		let cpt = 0;
+        		let expressions: Array<string> = [];
+        		let operator = this.getCondVisibleToSign(operatorStr || "and");
         
-        		// Iterating over conditions
-        		for (let cond of conds) {
-        			let status = "";
+        		for (let cond of (Array.isArray(conds) ? conds : [])) {
+        			let expression = "";
         			try {
-        				// If the subject of the current condition is a field
         				if (this.isAfieldSimpleOrMultiple(cond)) {
-        					status = "field";
-        					jsString += cpt > 0 ? operator + " " + this.compute(cond) : this.compute(cond);
-        					cpt++;
+        					expression = "" + this.compute(cond);
         				}
-        				// If the subject of the current condition is the form
         				else if (this.isAform(cond)) {
-        					status = "form";
-        					// If it''s the first condition, don''t prefix by operator, then call generateJsVisibleIfForm
-        					jsString += cpt > 0 ? operator + " " + this.generateJsVisibleIfForm(cond) : this.generateJsVisibleIfForm(cond);
-        					cpt++;
+        					expression = "" + this.generateJsVisibleIfForm(cond);
         				}
-        				// If the subject of the current condition is a file
         				else if (this.isAFile(cond)) {
-        					status = "field";
-        					jsString += cpt > 0 ? operator + " " + this.compute(cond) : this.compute(cond);
-        					cpt++;
+        					expression = "" + this.compute(cond);
         				}
-        				// If the subject of the current condition is a CamSign
         				else if (this.isACamSign(cond)) {
-        					status = "field";
-        					jsString += cpt > 0 ? operator + " " + this.compute(cond) : this.compute(cond);
-        					cpt++;
+        					expression = "" + this.compute(cond);
         				}
-        				// If the condition is never visible
         				else if (this.isANeverVisible(cond)) {
-        					status = "never_visible";
-        					jsString += cpt > 0 ? operator + " false" : "false";
+        					expression = "false";
         				}
-        				else {
-        					status = "error";
+        			}
+        			catch (e) {
+        				// Handle any exceptions or errors
+        			}
+        			if (expression != "") {
+        				expressions.push(expression);
+        			}
+        		}
+        
+        		for (let group of (Array.isArray(groups) ? groups : [])) {
+        			try {
+        				let groupExpression = this.detectSubjectAndComplete(
+        					group != undefined ? group.conds : [],
+        					group != undefined && group.condVisible != undefined ? group.condVisible : "and",
+        					goToPage,
+        					group != undefined && Array.isArray(group.groups) ? group.groups : []
+        				);
+        				if (groupExpression != "") {
+        					expressions.push("(" + groupExpression + ")");
         				}
         			}
         			catch (e) {
@@ -5760,11 +5831,11 @@ scriptContent:
         			}
         		}
         
-        		if (jsString == "" && goToPage == null) {
-        			jsString = "true";
+        		if (expressions.length == 0) {
+        			return goToPage == null ? "true" : "";
         		}
         
-        		return jsString;
+        		return expressions.join(" " + operator + " ");
         	}
         
         
@@ -5777,6 +5848,16 @@ scriptContent:
         		return ''val1'' in object; // Check if the ''val1'' property exists in the object
         	}
         
+        	private hasConditionValue(val: any): boolean {
+        		return (
+        			val != undefined &&
+        			(
+        				(val.str != undefined && val.str !== "") ||
+        				(Array.isArray(val.arr) && val.arr.length > 0)
+        			)
+        		);
+        	}
+        
         	/**
         	 * Check if the provided condition is a valid field (simple or multiple).
         	 * @param {FieldObject} cond - The condition object to be checked.
@@ -5787,10 +5868,8 @@ scriptContent:
         			return (
         				cond.subject != undefined &&
         				cond.subject == "field" &&
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
-        				cond.val2 != undefined &&
-        				(cond.val2.str != "" || cond.val2.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
+        				this.hasConditionValue(cond.val2) &&
         				cond.operator != undefined &&
         				cond.operator != ""
         			);
@@ -5798,8 +5877,7 @@ scriptContent:
         			return (
         				cond.subject != undefined &&
         				cond.subject == "field" &&
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
         				(cond.operator == "is_filled" || cond.operator == "is_empty")
@@ -5815,18 +5893,15 @@ scriptContent:
         	private isAfieldSimpleOrMultipleGo(cond: FieldObject): boolean {
         		try {
         			return (
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
-        				cond.val2 != undefined &&
-        				(cond.val2.str != "" || cond.val2.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
+        				this.hasConditionValue(cond.val2) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
         				cond.type == "goToPageIf"
         			);
         		} catch (e) {
         			return (
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
         				(cond.operator == "is_filled" || cond.operator == "is_empty") &&
@@ -6620,12 +6695,16 @@ scriptContent:
         				}
         			}
         		} else {
+        			let lookupId: any = val.str;
+        			if (typeof lookupId === ''string'' && /^\d+$/.test(lookupId)) {
+        				lookupId = +lookupId;
+        			}
         			for (let elem of searchArray) {
-        				if (elem.id === val.str) {
+        				if (elem.id == lookupId) {
         					return elem.name;
         				} else if (elem.type === "ion-card" && elem["children"] != undefined) {
         					for (let child of elem["children"]) {
-        						if (child.id === val.str) {
+        						if (child.id == lookupId) {
         							return child.name;
         						}
         					}
@@ -6805,13 +6884,10 @@ scriptContent:
         			let elem: any = e;
         
         			try {
-        				if (
-        					elem.conditions !== undefined &&
-        					elem.conditions.goToPageIf !== undefined &&
-        					elem.conditions.goToPageIf.conds !== undefined
-        				) {
+        				let goToPageIf = this.getGoToPageIfConditions(elem);
+        				if (goToPageIf !== undefined && goToPageIf !== null && goToPageIf.conds !== undefined) {
         					if (this.local.initDone[elem.id] == null) {
-        						this.detectTypeAndComplete(elem.conditions.goToPageIf.conds, elem);
+        						this.detectTypeAndComplete(goToPageIf.conds, elem);
         						this.local.initDone[elem.id] = true;
         					}
         				}
@@ -9297,7 +9373,7 @@ title: Visualisateur
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:(item.conditions != undefined && (this.eval(this.evaluateConditions(item.conditions)) != true)) ? {'display':'none'}:{}
+                            - MobileSmartSourceType: script:this.evaluateItemVisibility(item) != true ? {'display':'none'}:{}
                     ↓Directive [ngx.components.UIControlDirective-1588846710912]: 
                       directiveExpression: '''ion-card'''
                       directiveName: SwitchCase
@@ -9329,14 +9405,14 @@ title: Visualisateur
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: 'plain:item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                              - MobileSmartSourceType: plain:this.evaluateItemVisibility(item)
                           isEnabled: false
                         ↓Attr1 [ngx.components.UIAttribute-1670941607108]: 
                           attrName: '[ngStyle]'
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:(item.conditions != undefined && (this.eval(this.evaluateConditions(item.conditions)) != true)) ? {'display':'none'}:{}
+                              - MobileSmartSourceType: script:this.evaluateItemVisibility(item) != true ? {'display':'none'}:{}
                     ↓Directive1 [ngx.components.UIControlDirective-1730985061047]: 
                       directiveExpression: '''layout'''
                       directiveName: SwitchCase
@@ -9368,14 +9444,14 @@ title: Visualisateur
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: 'plain:item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                              - MobileSmartSourceType: plain:this.evaluateItemVisibility(item)
                           isEnabled: false
                         ↓Attr1 [ngx.components.UIAttribute-1730985061068]: 
                           attrName: '[ngStyle]'
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:(item.conditions != undefined && (this.eval(this.evaluateConditions(item.conditions)) != true)) ? {'display':'none'}:{}
+                              - MobileSmartSourceType: script:this.evaluateItemVisibility(item) != true ? {'display':'none'}:{}
             ↓Attr [ngx.components.UIAttribute-1666285549834]: 
               attrName: role
               attrValue: 
@@ -10500,12 +10576,12 @@ title: Visualisateur
                 directiveExpression: '''ion-card'''
                 directiveName: SwitchCase
                 ↓Directive [ngx.components.UIControlDirective-1620739808751]: 
-                  comment: 'item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                  comment: this.evaluateItemVisibility(item)
                   directiveName: If
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: 'script:item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                      - MobileSmartSourceType: script:this.evaluateItemVisibility(item)
                   ↓Directive [ngx.components.UIControlDirective-1620739808754]: 
                     directiveExpression: let j = index
                     directiveSource: 
@@ -10522,12 +10598,12 @@ title: Visualisateur
                         directiveExpression: '''videoCall'''
                         directiveName: SwitchCase
                         ↓Directive [ngx.components.UIControlDirective-1620739808763]: 
-                          comment: 'child.conditions != undefined ? (this.eval(this.evaluateConditions(child.conditions))) : true'
+                          comment: this.evaluateItemVisibility(child)
                           directiveName: If
                           directiveSource: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: 'script:child.conditions != undefined ? (this.eval(this.evaluateConditions(child.conditions))) : true'
+                              - MobileSmartSourceType: script:this.evaluateItemVisibility(child)
                           ↓UseSharedComponent81121 [ngx.components.UIUseShared-1620739808766]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemVideoCallViewer
                             ↓ix [ngx.components.UIUseVariable-1620739808769]: 
@@ -10553,7 +10629,7 @@ title: Visualisateur
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: 'script:item.conditions != undefined ? (this.eval(this.evaluateConditions(item.conditions))) : true'
+                      - MobileSmartSourceType: script:this.evaluateItemVisibility(item)
                   ↓UseSharedComponent [ngx.components.UIUseShared-1620739808781]: 
                     sharedcomponent: C8Oforms.MobileApplication.Application.itemVideoCallViewer
     ↓Attr [ngx.components.UIAttribute-1620741945699]: 
@@ -10690,7 +10766,7 @@ title: Visualisateur
               directiveExpression: '''ion-card'''
               directiveName: SwitchCase
               ↓Directive [ngx.components.UIControlDirective-1620398083043]: 
-                comment: 'item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                comment: this.evaluateItemVisibility(item)
                 directiveName: If
                 directiveSource: 
                   - xmlizable: 
@@ -10712,7 +10788,7 @@ title: Visualisateur
                       directiveExpression: '''videoCall'''
                       directiveName: SwitchCase
                       ↓Directive [ngx.components.UIControlDirective-1620398157972]: 
-                        comment: 'child.conditions != undefined ? (this.eval(this.evaluateConditions(child.conditions))) : true'
+                        comment: this.evaluateItemVisibility(child)
                         directiveName: If
                         directiveSource: 
                           - xmlizable: 
@@ -10812,7 +10888,7 @@ title: Visualisateur
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined 
+                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined
             ↓Event [ngx.components.UIControlEvent-1664280994120]: 
               ↓goBackward [ngx.components.UICustomAction-1664281347683]: 
                 actionValue: 
@@ -10991,7 +11067,7 @@ title: Visualisateur
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined 
+                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined
             ↓Event [ngx.components.UIControlEvent-1664274551560]: 
               ↓IfElse [ngx.components.UIDynamicIf-1664274738931]: 
                 beanData: '{"ionBean":"IfElseAction","condition":"script:this.isThereANextPage()"}'
@@ -11076,7 +11152,7 @@ title: Visualisateur
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: plain:this.local.pages != undefined && (this.local.pages[this.local.currentIndex].enabledTab || (this.local.pages[this.local.currentIndex].enabledButtons && this.local.pages[this.local.currentIndex].positionButtons == 'tab') ) 
+            - MobileSmartSourceType: plain:this.local.pages != undefined && (this.local.pages[this.local.currentIndex].enabledTab || (this.local.pages[this.local.currentIndex].enabledButtons && this.local.pages[this.local.currentIndex].positionButtons == 'tab') )
       ↓Style [ngx.components.UIStyle-1664209966109]: 
         isEnabled: false
         styleContent: 

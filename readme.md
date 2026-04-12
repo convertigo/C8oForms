@@ -6209,6 +6209,9 @@ Display an apex chart comp. or an ag-grid comp.
 <td>currentObject</td><td></td>
 </tr>
 <tr>
+<td>enablePalette</td><td></td>
+</tr>
+<tr>
 <td>item1680251775490</td><td></td>
 </tr>
 <tr>
