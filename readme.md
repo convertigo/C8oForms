@@ -359,6 +359,7 @@ For more technical informations : [documentation](./project.md)
         - [addUserForm](#adduserform)
         - [addUserToGroupForm](#addusertogroupform)
         - [adminHelpCenter](#adminhelpcenter)
+        - [button_variable](#button_variable)
         - [cardSelector](#cardselector)
         - [chooseIcon](#chooseicon)
         - [colorPicker](#colorpicker)
@@ -5546,6 +5547,37 @@ Update the state of a field
 
 #### adminHelpCenter
 
+#### button_variable
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>desc</td><td></td>
+</tr>
+<tr>
+<td>icon</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>selected</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>clicked</td><td></td>
+</tr>
+</table>
 #### cardSelector
 
 **variables**
@@ -5687,6 +5719,9 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>editorHeight</td><td></td>
+</tr>
+<tr>
 <td>explicitTarget</td><td></td>
 </tr>
 <tr>
@@ -5794,6 +5829,9 @@ Update the state of a field
 </tr>
 <tr>
 <td>path</td><td></td>
+</tr>
+<tr>
+<td>showSourcePicker</td><td></td>
 </tr>
 <tr>
 <td>sources</td><td></td>
