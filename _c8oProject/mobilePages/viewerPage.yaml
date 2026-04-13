@@ -5434,7 +5434,45 @@ scriptContent:
         
         	public evaluateItemVisibility(item: any): boolean {
         		let conditions = this.getLegacyAwareConditions(item);
-        		return conditions != null ? this.eval(this.evaluateConditions(conditions)) : true;
+        		if (conditions == null || conditions.visibleIf == null) {
+        			return true;
+        		}
+        		const evaluateVisibleGroup = (group: any): boolean => {
+        			if (group == null || typeof group != "object") {
+        				return true;
+        			}
+        			let operator = (group.condVisible != null ? "" + group.condVisible : "and").toLowerCase();
+        			let results: Array<boolean> = [];
+        			for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
+        				try {
+        					if (this.isAfieldSimpleOrMultiple(cond) || this.isAFile(cond) || this.isACamSign(cond)) {
+        						results.push(!!this.compute(cond));
+        					}
+        					else if (this.isAform(cond)) {
+        						results.push(!!this.eval("" + this.generateJsVisibleIfForm(cond)));
+        					}
+        					else if (this.isANeverVisible(cond)) {
+        						results.push(false);
+        					}
+        				}
+        				catch (e) {
+        					// Ignore malformed conditions and continue evaluation
+        				}
+        			}
+        			for (let childGroup of (Array.isArray(group.groups) ? group.groups : [])) {
+        				try {
+        					results.push(evaluateVisibleGroup(childGroup));
+        				}
+        				catch (e) {
+        					// Ignore malformed nested groups and continue evaluation
+        				}
+        			}
+        			if (results.length == 0) {
+        				return true;
+        			}
+        			return operator == "or" ? results.some((value) => value === true) : results.every((value) => value === true);
+        		};
+        		return evaluateVisibleGroup(conditions.visibleIf);
         	}
         
         	private getGoToPageIfConditions(item: any): any {
@@ -6006,7 +6044,26 @@ scriptContent:
         	 * @returns The value of the simple field
         	 */
         	private getValSimple(val: ValFieldObject): any {
-        		return val.source ? this.getSimple(val) : val.str;
+        		if (val == null) {
+        			return "";
+        		}
+        		if (val.source) {
+        			return this.getSimple(val);
+        		}
+        		if (typeof val.str === "string" && val.str.indexOf("$$") !== -1) {
+        			try {
+        				let page = this;
+        				const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        				const expression = this.stringOf$$ToCode(val.str, "ts", [], regex, false, false);
+        				if (expression != null && expression !== "") {
+        					return eval(expression);
+        				}
+        			}
+        			catch (e) {
+        				// Fallback to raw string when token resolution fails
+        			}
+        		}
+        		return val.str;
         	}
         
         	/**

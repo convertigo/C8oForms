@@ -6243,7 +6243,13 @@ Display an apex chart comp. or an ag-grid comp.
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>addGroupLabel</td><td></td>
+</tr>
+<tr>
 <td>addGroups</td><td></td>
+</tr>
+<tr>
+<td>addLineLabel</td><td></td>
 </tr>
 <tr>
 <td>currentObject</td><td></td>

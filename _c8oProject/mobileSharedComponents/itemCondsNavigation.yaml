@@ -26,13 +26,16 @@ scriptContent:
         		this.local.condVisible = "and";
         		this.local.showGoToPage = false;
         		if (this.local.visiblePaletteCollapsed === undefined) {
-        			this.local.visiblePaletteCollapsed = true;
+        			this.local.visiblePaletteCollapsed = false;
         		}
         		if (this.local.visiblePaletteType == null || this.local.visiblePaletteType === "") {
         			this.local.visiblePaletteType = "text";
         		}
         		if (this.local.visiblePaletteMonaco === undefined) {
         			this.local.visiblePaletteMonaco = false;
+        		}
+        		if (this.local.visiblePaletteTarget === undefined) {
+        			this.local.visiblePaletteTarget = null;
         		}
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
@@ -64,14 +67,49 @@ scriptContent:
         		this.local.cptTotalyFilled = cpt;
         	}
         
-        	public setVisiblePaletteContext(type: string = "text", monacoEditor: any = false){
+        	public setVisiblePaletteContext(type: string = "text", monacoEditor: any = false, currentObject: any = null, index: any = null){
         		this.local.visiblePaletteType = type === "ts" ? "ts" : "text";
         		this.local.visiblePaletteMonaco = type === "ts" ? (monacoEditor || false) : false;
+        		this.local.visiblePaletteTarget = null;
+        		try{
+        			if(currentObject != null && Array.isArray(currentObject.conds) && currentObject.conds[index] != null){
+        				this.local.visiblePaletteTarget = {
+        					currentObject: currentObject,
+        					index: +index
+        				};
+        			}
+        		}
+        		catch(e){
+        		}
         		this.ref.markForCheck();
         	}
         
         	public getVisiblePaletteEditorType(){
         		return this.local != null && this.local.visiblePaletteType === "ts" ? "code" : "html";
+        	}
+        
+        	public getVisiblePaletteTargetCondition(ref: string = ""): any{
+        		try{
+        			let target = this.local != null ? this.local.visiblePaletteTarget : null;
+        			if(target != null && target.currentObject != null && Array.isArray(target.currentObject.conds) && target.currentObject.conds[target.index] != null){
+        				return target.currentObject.conds[target.index];
+        			}
+        		}
+        		catch(e){
+        		}
+        		try{
+        			const visible = "cond_visible_";
+        			const goToPage = "cond_goToPage_";
+        			if(typeof(ref) == "string" && ref.indexOf(visible) != -1 && this.local != null && Array.isArray(this.local.visible)){
+        				return this.local.visible[+(ref.substring(visible.length))];
+        			}
+        			if(typeof(ref) == "string" && ref.indexOf(goToPage) != -1 && this.local != null && Array.isArray(this.local.goToPage)){
+        				return this.local.goToPage[+(ref.substring(goToPage.length))];
+        			}
+        		}
+        		catch(e){
+        		}
+        		return null;
         	}
         
         	/**
@@ -288,7 +326,114 @@ scriptContent:
         		}
         		return item.conditions;
         	}
-        
+        	public createEmptyVisibleIfGroup(){
+        		return {
+        			type: "visibleIf",
+        			condVisible: "and",
+        			conds: [],
+        			groups: [],
+        			__legacyConds: []
+        		};
+        	}
+        	public getVisibleWhenMode(group: any){
+        		try{
+        			let current: any = group != null && typeof(group) == "object" ? group : this.createEmptyVisibleIfGroup();
+        			if(current.__uiMode == "visible_when_condition"){
+        				return "visible_when_condition";
+        			}
+        			let conds = Array.isArray(current.conds) ? current.conds : [];
+        			let groups = Array.isArray(current.groups) ? current.groups : [];
+        			let legacyConds = Array.isArray(current.__legacyConds) ? current.__legacyConds.concat([]) : [];
+        			for(let cond of conds){
+        				if(cond != null && cond.subject != null && cond.subject != "" && cond.subject != "field"){
+        					legacyConds.push(cond);
+        				}
+        			}
+        			if(conds.length == 0 && groups.length == 0){
+        				if(legacyConds.length == 0){
+        					return "visible_when_always";
+        				}
+        				if(legacyConds.length == 1){
+        					let cond = legacyConds[0];
+        					if(cond != null && cond.subject == "never_visible"){
+        						return "visible_when_never";
+        					}
+        					if(cond != null && cond.subject == "form" && cond.attribute == "anonymous" && cond.operator == "different"){
+        						return "visible_when_auth_required";
+        					}
+        					if(cond != null && cond.subject == "form" && cond.attribute == "anonymous" && cond.operator == "equals"){
+        						return "visible_when_no_auth_required";
+        					}
+        				}
+        			}
+        		}
+        		catch(e){
+        		}
+        		return "visible_when_condition";
+        	}
+        	public applyVisibleWhenMode(mode: string){
+        		let visibleIf: any = this.createEmptyVisibleIfGroup();
+        		switch(mode){
+        			case "visible_when_never":
+        				visibleIf.__legacyConds = [{
+        					type: "visibleIf",
+        					subject: "never_visible",
+        					attribute: "",
+        					operator: ""
+        				}];
+        				break;
+        			case "visible_when_auth_required":
+        				visibleIf.__legacyConds = [{
+        					type: "visibleIf",
+        					subject: "form",
+        					attribute: "anonymous",
+        					operator: "different"
+        				}];
+        				break;
+        			case "visible_when_no_auth_required":
+        				visibleIf.__legacyConds = [{
+        					type: "visibleIf",
+        					subject: "form",
+        					attribute: "anonymous",
+        					operator: "equals"
+        				}];
+        				break;
+        			case "visible_when_condition":
+        				visibleIf.__uiMode = "visible_when_condition";
+        				break;
+        			case "visible_when_always":
+        			default:
+        				break;
+        		}
+        		this.local.visibleIf = visibleIf;
+        		this.local.visible = visibleIf.conds;
+        		this.local.condVisible = visibleIf.condVisible;
+        		this.local.cptTotalyFilled = 0;
+        		this.local.visiblePaletteCollapsed = mode == "visible_when_condition" ? false : true;
+        		this.local.visiblePaletteTarget = null;
+        		this.local.visiblePaletteMonaco = false;
+        		this.local.visiblePaletteType = "text";
+        		if(this.local != null && this.local.commitVisibleIf != null){
+        			this.local.commitVisibleIf();
+        		}
+        	}
+        	public hasVisibleWhenConditions(group: any){
+        		try{
+        			let current: any = group != null && typeof(group) == "object" ? group : null;
+        			if(current == null){
+        				return false;
+        			}
+        			let conds = Array.isArray(current.conds) ? current.conds : [];
+        			let groups = Array.isArray(current.groups) ? current.groups : [];
+        			let legacyConds = Array.isArray(current.__legacyConds) ? current.__legacyConds : [];
+        			if(conds.length > 0 || groups.length > 0 || legacyConds.length > 0){
+        				return true;
+        			}
+        		}
+        		catch(e){
+        		}
+        		return false;
+        	}
         	isTotalyFilled(cond){
         	    try{
         	        if(cond.subject != undefined && cond.subject == "field" && cond.val1 != undefined && (cond.val1.str != "" || (cond.val1.arr != undefined && cond.val1.arr.length > 0)) && cond.val2 != undefined && (cond.val2.str != "" || (cond.val2.arr != undefined && cond.val2.arr.length > 0)) && cond.operator != undefined && cond.operator != ""){
@@ -351,8 +496,9 @@ scriptContent:
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            		    const visible = "cond_visible_";
+            '		    const visible = "cond_visible_";
                         const goToPage = "cond_goToPage_";
+                        let target = page.getVisiblePaletteTargetCondition != null ? page.getVisiblePaletteTargetCondition(event.ref) : null;
                         if(event.ref.indexOf(visible) != -1){
                             let arrTmp = [];
                             for(let elem of event["event"]){
@@ -363,7 +509,26 @@ scriptContent:
                                     arrTmp.push(elem);
                                 }
                             }
-                            page.local.visible[+(event.ref.substring(visible.length))].val2.arr = arrTmp;
+                            target = target != null ? target : page.local.visible[+(event.ref.substring(visible.length))];
+                            if(target != null){
+                            	if(target.val2 == null || typeof(target.val2) != "object"){
+                            		target.val2 = {str: "", source: false, type: "text", arr: []};
+                            	}
+                            	if(Array.isArray(target.val2.arr) == false){
+                            		target.val2.arr = [];
+                            	}
+                            	target.val2.arr = arrTmp;
+                            	target.val2.source = false;
+                            	if(target.val2.type == null || target.val2.type === ""){
+                            		target.val2.type = "text";
+                            	}
+                            }
+                            if(page.local != null && page.local.commitVisibleIf != null){
+                            	page.local.commitVisibleIf();
+                            }
+                            if(page.pageOwner != null && page.pageOwner.updateState != null){
+                            	page.pageOwner.updateState();
+                            }
                         }
                         else if(event.ref.indexOf(goToPage) != -1){
                             let arrTmp = [];
@@ -375,10 +540,26 @@ scriptContent:
                                     arrTmp.push(elem);
                                 }
                             }
-                            page.local.goToPage[+(event.ref.substring(goToPage.length))].val2.arr = arrTmp;
+                            target = target != null ? target : page.local.goToPage[+(event.ref.substring(goToPage.length))];
+                            if(target != null){
+                            	if(target.val2 == null || typeof(target.val2) != "object"){
+                            		target.val2 = {str: "", source: false, type: "text", arr: []};
+                            	}
+                            	if(Array.isArray(target.val2.arr) == false){
+                            		target.val2.arr = [];
+                            	}
+                            	target.val2.arr = arrTmp;
+                            	target.val2.source = false;
+                            	if(target.val2.type == null || target.val2.type === ""){
+                            		target.val2.type = "text";
+                            	}
+                            }
+                            if(page.pageOwner != null && page.pageOwner.updateState != null){
+                            	page.pageOwner.updateState();
+                            }
                         }
                         resolve();		    
-            
+            '
 ↓Subscribe_Handler21 [ngx.components.UIEventSubscriber-1775822109762]: 
   topic: ngxTagInputRemoved
   ↓setTags [ngx.components.UICustomAction-1775822109765]: 
@@ -387,16 +568,38 @@ scriptContent:
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            		    const visible = "cond_visible_";
+            '		    const visible = "cond_visible_";
                         const goToPage = "cond_goToPage_";
+                        let target = page.getVisiblePaletteTargetCondition != null ? page.getVisiblePaletteTargetCondition(event.ref) : null;
                         if(event.ref.indexOf(visible) != -1){
-                            page.local.visible[+(event.ref.substring(visible.length))].val2.source = false;
+                        	target = target != null ? target : page.local.visible[+(event.ref.substring(visible.length))];
+                        	if(target != null){
+                        		if(target.val2 == null || typeof(target.val2) != "object"){
+                        			target.val2 = {str: "", source: false, type: "text", arr: []};
+                        		}
+                            	target.val2.source = false;
+                        	}
+                        	if(page.local != null && page.local.commitVisibleIf != null){
+                        		page.local.commitVisibleIf();
+                        	}
+                        	if(page.pageOwner != null && page.pageOwner.updateState != null){
+                        		page.pageOwner.updateState();
+                        	}
                         }
                         else if(event.ref.indexOf(goToPage) != -1){
-                            page.local.goToPage[+(event.ref.substring(goToPage.length))].val2.source = false;
+                        	target = target != null ? target : page.local.goToPage[+(event.ref.substring(goToPage.length))];
+                        	if(target != null){
+                        		if(target.val2 == null || typeof(target.val2) != "object"){
+                        			target.val2 = {str: "", source: false, type: "text", arr: []};
+                        		}
+                            	target.val2.source = false;
+                        	}
+                        	if(page.pageOwner != null && page.pageOwner.updateState != null){
+                        		page.pageOwner.updateState();
+                        	}
                         }
                         resolve();		    
-            
+            '
 ↓Subscribe_Handler211 [ngx.components.UIEventSubscriber-1775822109768]: 
   topic: ngxTagInputAdded
   ↓setTags [ngx.components.UICustomAction-1775822109771]: 
@@ -405,16 +608,38 @@ scriptContent:
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            	        const visible = "cond_visible_";
+            '	        const visible = "cond_visible_";
             	        const goToPage = "cond_goToPage_";
+            	        let target = page.getVisiblePaletteTargetCondition != null ? page.getVisiblePaletteTargetCondition(event.ref) : null;
             	        if(event.ref.indexOf(visible) != -1){
-            	            page.local.visible[+(event.ref.substring(visible.length))].val2.source = false;
+            	        	target = target != null ? target : page.local.visible[+(event.ref.substring(visible.length))];
+            	        	if(target != null){
+            	        		if(target.val2 == null || typeof(target.val2) != "object"){
+            	        			target.val2 = {str: "", source: false, type: "text", arr: []};
+            	        		}
+            	            	target.val2.source = false;
+            	        	}
+            	        	if(page.local != null && page.local.commitVisibleIf != null){
+            	        		page.local.commitVisibleIf();
+            	        	}
+            	        	if(page.pageOwner != null && page.pageOwner.updateState != null){
+            	        		page.pageOwner.updateState();
+            	        	}
             	        }
             	        else if(event.ref.indexOf(goToPage) != -1){
-            	            page.local.goToPage[+(event.ref.substring(goToPage.length))].val2.source = false;
+            	        	target = target != null ? target : page.local.goToPage[+(event.ref.substring(goToPage.length))];
+            	        	if(target != null){
+            	        		if(target.val2 == null || typeof(target.val2) != "object"){
+            	        			target.val2 = {str: "", source: false, type: "text", arr: []};
+            	        		}
+            	            	target.val2.source = false;
+            	        	}
+            	        	if(page.pageOwner != null && page.pageOwner.updateState != null){
+            	        		page.pageOwner.updateState();
+            	        	}
             	        }
             		    resolve();		    
-            
+            '
 ↓Grid [ngx.components.UIDynamicElement-1775822465750]: 
   beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
   tagName: ion-grid
@@ -726,6 +951,7 @@ scriptContent:
                 '
       ↓DivVisibleIf [ngx.components.UIDynamicElement-1775822465852]: 
         beanData: '{"ionBean":"DivTag"}'
+        isEnabled: false
         tagName: div
         ↓FormatLayout [ngx.components.UIDynamicAttr-1775822465855]: 
           beanData: '{"ionBean":"FormatLayout","TextTransformation":"plain:ion-text-uppercase"}'
@@ -765,9 +991,86 @@ scriptContent:
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: plain:this.local.visible != undefined && this.tabselected === 'visibility_tab_selector'
+      ↓UseSharedComponentVisibleWhen [ngx.components.UIUseShared-1776039301001]: 
+        sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+        ↓AttrHostStyle [ngx.components.UIAttribute-1776039301002]: 
+          attrName: '[style]'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: 'script:''width: 100%; --c8o-toggle-label-width: 120px;'''
+        ↓label [ngx.components.UIUseVariable-1776039301003]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.translate.instant('visible_when')
+        ↓options [ngx.components.UIUseVariable-1776039301004]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:['visible_when_always', 'visible_when_never', 'visible_when_auth_required', 'visible_when_no_auth_required', 'visible_when_condition']
+        ↓model [ngx.components.UIUseVariable-1776039301005]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.getVisibleWhenMode(this.local.visibleIf)
+        ↓Event [ngx.components.UIControlEvent-1776039301006]: 
+          attrName: (modelChanged)
+          eventName: modelChanged
+          ↓setVal [ngx.components.UICustomAsyncAction-1776039301007]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '		try {
+                    			let currentMode = page.getVisibleWhenMode(page.local.visibleIf);
+                    			let nextMode = event.out;
+                    			if(currentMode == "visible_when_condition" && nextMode != "visible_when_condition" && currentMode != nextMode && page.hasVisibleWhenConditions(page.local.visibleIf)){
+                    				let alertController = page.getInstance(AlertController);
+                    				const alert = await alertController.create({
+                    					header: page.translate.instant("header_pwamsg"),
+                    					message: page.translate.instant("visible_when_switch_confirm"),
+                    					buttons: [
+                    						{
+                    							text: page.translate.instant("cancel_pwamsg"),
+                    							role: "cancel"
+                    						},
+                    						{
+                    							text: page.translate.instant("continue_pwamsg"),
+                    							role: "confirm"
+                    						}
+                    					]
+                    				});
+                    				await alert.present();
+                    				let res = await alert.onDidDismiss();
+                    				if(res.role !== "confirm"){
+                    					page.ref.detectChanges();
+                    					return false;
+                    				}
+                    			}
+                    			page.applyVisibleWhenMode(nextMode);
+                    		}
+                    		catch (e) {
+                    			console.error(e);
+                    		}
+                    		finally {
+                    			return;
+                    			}
+                    '
+            ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1776039301008]: 
+              beanData: '{"ionBean":"InvokeAction"}'
+              stack: C8Oforms.MobileApplication.Application.updateState
       ↓DivDesc [ngx.components.UIDynamicElement-1775822465870]: 
         beanData: '{"ionBean":"DivTag"}'
+        isEnabled: false
         tagName: div
+        ↓Attr [ngx.components.UIAttribute-1776039301009]: 
+          attrName: '*ngIf'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:this.getVisibleWhenMode(this.local.visibleIf) == 'visible_when_condition'
         ↓Style [ngx.components.UIStyle-1775822465873]: 
           styleContent: 
             - xmlizable: 
@@ -806,6 +1109,12 @@ scriptContent:
       ↓Div [ngx.components.UIDynamicElement-1775822465888]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
+        ↓Attr [ngx.components.UIAttribute-1776039301010]: 
+          attrName: '*ngIf'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:this.getVisibleWhenMode(this.local.visibleIf) == 'visible_when_condition'
         ↓Style [ngx.components.UIStyle-1776036400001]: 
           styleContent: 
             - xmlizable: 
@@ -1071,9 +1380,9 @@ scriptContent:
                               		}
                               		resolve();
                               
-                    ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776023001292]: 
-                      beanData: '{"ionBean":"InvokeAction"}'
-                      stack: C8Oforms.MobileApplication.Application.updateState
+                      ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776023001292]: 
+                        beanData: '{"ionBean":"InvokeAction"}'
+                        stack: C8Oforms.MobileApplication.Application.updateState
                   ↓enablePalette [ngx.components.UIUseVariable-1776026344042]: 
                     varValue: 
                       - xmlizable: 
@@ -1202,9 +1511,9 @@ scriptContent:
                             		}
                             		resolve();
                             
-                  ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776018543122]: 
-                    beanData: '{"ionBean":"InvokeAction"}'
-                    stack: C8Oforms.MobileApplication.Application.updateState
+                    ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776018543122]: 
+                      beanData: '{"ionBean":"InvokeAction"}'
+                      stack: C8Oforms.MobileApplication.Application.updateState
             ↓DirectiveGroups [ngx.components.UIControlDirective-1776023235891]: 
               directiveName: If
               directiveSource: 
@@ -1335,9 +1644,9 @@ scriptContent:
                                       		}
                                       		resolve();
                                       
-                            ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776023242121]: 
-                              beanData: '{"ionBean":"InvokeAction"}'
-                              stack: C8Oforms.MobileApplication.Application.updateState
+                              ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776023242121]: 
+                                beanData: '{"ionBean":"InvokeAction"}'
+                                stack: C8Oforms.MobileApplication.Application.updateState
                       ↓FormatLayout [ngx.components.UIDynamicAttr-1776023242123]: 
                         beanData: '{"ionBean":"FormatLayout","FlexContainerAlignment":"plain:ion-justify-content-start"}'
                         selfClose: false
@@ -1458,10 +1767,6 @@ scriptContent:
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
                                       		try {
-                                      			let currentGroup = page.local?.visibleIf?.groups?.[props.stack.root.scope.idGroup];
-                                      			if (currentGroup != null && currentGroup.conds?.length == 0 && currentGroup.groups?.length == 0) {
-                                      				page.local.visibleIf.groups.splice(props.stack.root.scope.idGroup, 1);
-                                      			}
                                       			if (this.local != null && this.local.commitVisibleIf != null) {
                                       				this.local.commitVisibleIf();
                                       			}
@@ -1471,9 +1776,9 @@ scriptContent:
                                       		}
                                       		resolve();
                                       
-                            ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776023246721]: 
-                              beanData: '{"ionBean":"InvokeAction"}'
-                              stack: C8Oforms.MobileApplication.Application.updateState
+                              ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776023246721]: 
+                                beanData: '{"ionBean":"InvokeAction"}'
+                                stack: C8Oforms.MobileApplication.Application.updateState
                           ↓enablePalette [ngx.components.UIUseVariable-1776026348604]: 
                             varValue: 
                               - xmlizable: 
@@ -1535,10 +1840,6 @@ scriptContent:
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
                                       		try {
-                                      			let currentGroup = page.local?.visibleIf?.groups?.[props.stack.root.scope.idGroup];
-                                      			if (currentGroup != null && currentGroup.conds?.length == 0 && currentGroup.groups?.length == 0) {
-                                      				page.local.visibleIf.groups.splice(props.stack.root.scope.idGroup, 1);
-                                      			}
                                       			if (this.local != null && this.local.commitVisibleIf != null) {
                                       				this.local.commitVisibleIf();
                                       			}
@@ -1548,15 +1849,65 @@ scriptContent:
                                       		}
                                       		resolve();
                                       
-                            ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776024644433]: 
+                              ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776024644433]: 
+                                beanData: '{"ionBean":"InvokeAction"}'
+                                stack: C8Oforms.MobileApplication.Application.updateState
+                    ↓DivFilterAdd [ngx.components.UIDynamicElement-1776042014011]: 
+                      beanData: '{"ionBean":"DivTag"}'
+                      tagName: div
+                      ↓Style [ngx.components.UIStyle-1776042014013]: 
+                        styleContent: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                'margin-top: 10px;
+                                '
+                      ↓UseSharedComponent [ngx.components.UIUseShared-1776042014015]: 
+                        sharedcomponent: C8Oforms.MobileApplication.Application.FilterBRADD
+                        ↓currentObject [ngx.components.UIUseVariable-1776042018577]: 
+                          binding: twoWayBinding
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:group
+                        ↓addGroups [ngx.components.UIUseVariable-1776042010089]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:true
+                        ↓addLineLabel [ngx.components.UIUseVariable-1776039911001]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:Add_condition
+                        ↓addGroupLabel [ngx.components.UIUseVariable-1776039911003]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:Add_condition_group
+                        ↓Event [ngx.components.UIControlEvent-1776042018579]: 
+                          attrName: (save)
+                          eventName: save
+                          ↓EmitSave [ngx.components.UICustomAction-1776042010273]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    		try {
+                                    			if (this.local != null && this.local.commitVisibleIf != null) {
+                                    				this.local.commitVisibleIf();
+                                    			}
+                                    		}
+                                    		catch (e) {
+                                    			console.error(e);
+                                    	}
+                                    		resolve();
+                                    
+                            ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776042010275]: 
                               beanData: '{"ionBean":"InvokeAction"}'
                               stack: C8Oforms.MobileApplication.Application.updateState
-                ↓Directive1 [ngx.components.UIControlDirective-1776023246831]: 
-                  directiveName: If
-                  directiveSource: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:false
               ↓Style [ngx.components.UIStyle-1776023246833]: 
                 styleContent: 
                   - xmlizable: 
@@ -1584,6 +1935,16 @@ scriptContent:
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                       - MobileSmartSourceType: script:this.local.visibleIf
+                ↓addLineLabel [ngx.components.UIUseVariable-1776039911005]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Add_condition
+                ↓addGroupLabel [ngx.components.UIUseVariable-1776039911007]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:Add_condition_group
                 ↓Event [ngx.components.UIControlEvent-1776024202666]: 
                   attrName: (save)
                   eventName: save
@@ -1593,19 +1954,19 @@ scriptContent:
                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
-                            		try {
-                            			if (this.local != null && this.local.commitVisibleIf != null) {
-                            				this.local.commitVisibleIf();
-                            			}
-                            		}
-                            		catch (e) {
-                            			console.error(e);
-                            		}
-                            		resolve();
-                            
-                  ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776024204362]: 
-                    beanData: '{"ionBean":"InvokeAction"}'
-                    stack: C8Oforms.MobileApplication.Application.updateState
+                            'try {
+                            	if (this.local != null && this.local.commitVisibleIf != null) {
+                            		this.local.commitVisibleIf();
+                            	}
+                            }
+                            catch (e) {
+                            	console.error(e);
+                            }
+                            resolve();
+                            '
+                    ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1776024204362]: 
+                      beanData: '{"ionBean":"InvokeAction"}'
+                      stack: C8Oforms.MobileApplication.Application.updateState
       ↓DividerItem [ngx.components.UIDynamicElement-1775822466116]: 
         beanData: '{"ionBean":"Listdivider"}'
         isEnabled: false
@@ -1823,9 +2184,9 @@ scriptContent:
                         		}
                         		resolve();
                         '
-              ↓saveNavigationConditions [ngx.components.UIDynamicInvoke-1775840100002]: 
-                beanData: '{"ionBean":"InvokeAction"}'
-                stack: C8Oforms.MobileApplication.Application.updateState
+                ↓saveNavigationConditions [ngx.components.UIDynamicInvoke-1775840100002]: 
+                  beanData: '{"ionBean":"InvokeAction"}'
+                  stack: C8Oforms.MobileApplication.Application.updateState
           ↓Style [ngx.components.UIStyle-1775822466218]: 
             styleContent: 
               - xmlizable: 
