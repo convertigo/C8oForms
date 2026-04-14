@@ -6,47 +6,55 @@ comment: Update the state of a field
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
           '		try {
-          			if(page["pageOwner"] !=undefined){
+          			if(page["pageOwner"] != undefined){
           				page = page["pageOwner"];
           			}
-          		    try{
-                          let exists_submit = false;
-                          for(let item of page[''formsList'']){
-                              if(item["type"] == "submit"){
-                                  exists_submit = true;
+          			if(page["__updateStateQueue"] == null){
+          				page["__updateStateQueue"] = Promise.resolve();
+          				page["__updateStatePending"] = null;
+          				page["__updateStateRunning"] = false;
+          			}
+          			page["__updateStatePending"] = {
+          				meta: vars.meta ?? null,
+          				file: vars.file ?? null
+          			};
+          			const executeUpdate = async (_vars) => {
+          			    try{
+                              let exists_submit = false;
+                              for(let item of page[''formsList'']){
+                                  if(item["type"] == "submit"){
+                                      exists_submit = true;
+                                  }
                               }
+                              page.local[''exists_submit''] = exists_submit;
                           }
-                          page.local[''exists_submit''] = exists_submit;
-                      }
-                      catch(e){
-                          
-                      }
-          	        let params: any = {meta: vars.meta ?? {}};
-          	       	if(vars.file){
-          				params.file = vars.file;
-          			}
-          			//silently remove b64 attr from wallpaper or thumbanial if exists
-          			try{
-          				if(page["form"]["wallpaper"]?.b64){
-          					delete page["form"]["wallpaper"]?.b64;
+                          catch(e){
+                              
+                          }
+          		        let params: any = {meta: _vars.meta ?? {}};
+          		        if(_vars.file){
+          					params.file = _vars.file;
           				}
-          				if(page["form"]["thumbnail"]?.b64){
-          					delete page["form"]["thumbnail"]?.b64;
+          				try{
+          					if(page["form"]["wallpaper"]?.b64){
+          						delete page["form"]["wallpaper"]?.b64;
+          					}
+          					if(page["form"]["thumbnail"]?.b64){
+          						delete page["form"]["thumbnail"]?.b64;
+          					}
           				}
-          			}
-          			catch(e){
-          				
-          			}
-          			//params["__c8o_unique_empty"] = new Blob();
-          	        params["meta"]["formulaire"] = page["formsList"];
-          			params["meta"]["flows"] = page["form"]["flows"];
-          	        params["meta"]["technicalVersion"] = page["form"]["technicalVersion"];
-          			params["meta"]["config"] = page["form"]["config"];
-          	        params["meta"]["loopToForm"] = page["form"]["loopToForm"];
-          			params["meta"]["progressIndicator"] = page["form"]["progressIndicator"] == true;
-          	        params["meta"]["actions"] = page["form"]["actions"];
-          	        params["meta"]["pages"] = page["form"]["pages"];
-                      params["meta"]["_id"] = page["form"]["_id"] // removed because was causing trouble when going to published form and typing visualise then going back to edition we werre editing published form page["global"]["formSelected"] != undefined ? page["global"]["formSelected"]["_id"]: page["local"]["formId"];
+          				catch(e){
+          					
+          				}
+          		        params["meta"]["formulaire"] = page["formsList"];
+          				params["meta"]["flows"] = page["form"]["flows"];
+          		        params["meta"]["technicalVersion"] = page["form"]["technicalVersion"];
+          				params["meta"]["config"] = page["form"]["config"];
+          		        params["meta"]["loopToForm"] = page["form"]["loopToForm"];
+          				params["meta"]["progressIndicator"] = page["form"]["progressIndicator"] == true;
+          		        params["meta"]["actions"] = page["form"]["actions"];
+          		        params["meta"]["pages"] = page["form"]["pages"];
+                      params["meta"]["_id"] = page["form"]["_id"]
                       params["meta"]["wallpaper"] = page["form"]["wallpaper"];
                       params["meta"]["thumbnail"] = page["form"]["thumbnail"];
                       params["meta"]["name"] = page["form"]["name"]; 
@@ -311,17 +319,33 @@ comment: Update the state of a field
                       
                       params.meta = JSON.stringify(params.meta);
                       
-          	        let res = (await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async()).res;
-          	        // insert rev to ensure that we dont recall sequence to have update that we already have
-          //	        console.log(res)
-          			if(res.rev){
-          				page["form"]["_rev"] = res.rev;
+          		        let res = (await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async()).res;
+          				if(res.rev){
+          					page["form"]["_rev"] = res.rev;
+          				}
+          		        page.ref.detectChanges();
+          		        page.c8o.log.debug("[updateStateHttp] doc updated on server");
+          			};
+          			if(page["__updateStateRunning"] === true){
+          				await page["__updateStateQueue"];
+          				return;
           			}
-          	        page.ref.detectChanges();
-          	        page.c8o.log.debug("[updateStateHttp] doc updated on server");
+          			page["__updateStateRunning"] = true;
+          			page["__updateStateQueue"] = (async () => {
+          				try {
+          					while(page["__updateStatePending"] != null){
+          						const nextVars = page["__updateStatePending"];
+          						page["__updateStatePending"] = null;
+          						await executeUpdate(nextVars);
+          					}
+          				}
+          				finally {
+          					page["__updateStateRunning"] = false;
+          				}
+          			})();
+          			await page["__updateStateQueue"];
           		} catch (e) {
           			console.error("[updateStateHttp] an error occured", e);
-          		
           		} finally {
           			return;
           		}
