@@ -4,6 +4,38 @@ scriptContent:
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
         '/*Begin_c8o_PageImport*/
+        type TableItem = {
+          id: number;
+          name: string;
+          order: number;
+          database_id: number;
+          data_sync: any;
+        };
+        
+        type WorkspaceItem = {
+          id: number;
+          name: string;
+          generative_ai_models_enabled: Record<string, unknown>;
+        };
+        
+        type DatabaseItem = {
+          id: number;
+          name: string;
+          order: number;
+          type: string;
+          workspace: WorkspaceItem;
+          created_on: string;
+          tables: TableItem[];
+        };
+        
+        type Selection = {
+          workspaceId?: number;
+          workspaceName?: string;
+          databaseId?: number;
+          databaseName?: string;
+          tableId?: number;
+          tableName?: string;
+        };
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
         	/*End_c8o_PageDeclaration*/
@@ -80,6 +112,149 @@ scriptContent:
         //			}
         //		});
         		return (window[call]) ? await (window as any)[call](args) : await new Promise((resolve, reject) =>{reject("not found");});
+        	}
+        	
+        	filterDatabasesTree(
+        	  data: DatabaseItem[],
+        	  selection: Selection
+        	): DatabaseItem[] {
+        	  if (!this.local?.originalData) {
+        		this.local.originalData = data;
+        	  }
+        	  return (data ?? [])
+        	    .filter((db) => {
+        	      const matchWorkspaceId =
+        	        selection.workspaceId === undefined ||
+        	        db.workspace.id === selection.workspaceId;
+        
+        	      const matchWorkspaceName =
+        	        selection.workspaceName === undefined ||
+        	        db.workspace.name === selection.workspaceName;
+        
+        	      const matchDatabaseId =
+        	        selection.databaseId === undefined ||
+        	        db.id === selection.databaseId;
+        
+        	      const matchDatabaseName =
+        	        selection.databaseName === undefined ||
+        	        db.name === selection.databaseName;
+        
+        	      return (
+        	        matchWorkspaceId &&
+        	        matchWorkspaceName &&
+        	        matchDatabaseId &&
+        	        matchDatabaseName
+        	      );
+        	    })
+        	    .map((db) => {
+        	      const filteredTables = db.tables.filter((table) => {
+        	        const matchTableId =
+        	          selection.tableId === undefined || table.id === selection.tableId;
+        
+        	        const matchTableName =
+        	          selection.tableName === undefined ||
+        	          table.name === selection.tableName;
+        
+        	        return matchTableId && matchTableName;
+        	      });
+        
+        	      return {
+        	        ...db,
+        	        tables:
+        	          selection.tableId !== undefined || selection.tableName !== undefined
+        	            ? filteredTables
+        	            : db.tables,
+        	      };
+        	    })
+        	    .filter((db) => {
+        	      if (
+        	        selection.tableId !== undefined ||
+        	        selection.tableName !== undefined
+        	      ) {
+        	        return db.tables.length > 0;
+        	      }
+        	      return true;
+        	    });
+        	}
+        	
+        	getWorkspaces(data: DatabaseItem[]): WorkspaceItem[] {
+        	  const map = new Map<number, WorkspaceItem>();
+        
+        	  for (const db of data  ?? []) {
+        	    if (!map.has(db.workspace.id)) {
+        	      map.set(db.workspace.id, db.workspace);
+        	    }
+        	  }
+        
+        	  return Array.from(map.values());
+        	}
+        	
+        	getDatabasesByWorkspace(
+        	  data: DatabaseItem[],
+        	  workspaceId?: number
+        	): DatabaseItem[] {
+        	  if (workspaceId === undefined) {
+        	    return data;
+        	  }
+        
+        	  return data.filter((db) => db.workspace.id === workspaceId);
+        	}
+        	
+        	getTablesByDatabase(
+        	  data: DatabaseItem[],
+        	  databaseId?: number
+        	): TableItem[] {
+        	  if (databaseId === undefined) {
+        	    return [];
+        	  }
+        
+        	  const database = data.find((db) => db.id === databaseId);
+        	  return database?.tables ?? [];
+        	}
+        	
+        	getSelectionState(
+        	  data: DatabaseItem[],
+        	  selection: Selection
+        	) {
+        	  const workspaces = this.getWorkspaces(data);
+        
+        	  const databases = this.getDatabasesByWorkspace(data, selection.workspaceId);
+        
+        	  const tables = this.getTablesByDatabase(
+        	    databases,
+        	    selection.databaseId
+        	  );
+        
+        	  const selectedTable =
+        	    selection.tableId !== undefined
+        	      ? tables.find((table) => table.id === selection.tableId)
+        	      : undefined;
+        
+        	  return {
+        	    workspaces,
+        	    databases,
+        	    tables,
+        	    selectedTable,
+        	    filteredTree: this.filterDatabasesTree(data, selection),
+        	  };
+        	}
+        	
+        	getWorkspaceAndDatabaseIdsFromTableId(
+        	  data: DatabaseItem[],
+        	  tableId: number
+        	): { workspaceId: number; databaseId: number } | null {
+        	  for (const db of data) {
+        	    const tableFound = db.tables.find((table) => table.id === tableId);
+        
+        	    if (tableFound) {
+        	      return {
+        	        workspaceId: db.workspace.id,
+        	        databaseId: db.id,
+        	      };
+        	    }
+        	  }
+        
+        	  return null;
         	}
         	/*End_c8o_PageFunction*/
         '
@@ -311,6 +486,7 @@ title: Title for modalConfigure
             tagName: ion-card-content
             ↓AccordionGroup [ngx.components.UIDynamicElement-1776161384537]: 
               beanData: '{"ionBean":"AccordionGroup","Value":"plain:"}'
+              isEnabled: false
               tagName: ion-accordion-group
               ↓Directive [ngx.components.UIControlDirective-1776161384540]: 
                 directiveIndexName: dbIdx
@@ -319,8 +495,18 @@ title: Title for modalConfigure
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: source:{"filter":"Sequence","project":"lib_BaseRow","input":"","model":{"data":[{"sequence":"lib_BaseRow.formscommon_ApplicationsList","marker":""}],"path":"","prefix":"","suffix":"?.array","custom":"","useCustom":false}}
+                ↓TextItem [ngx.components.UIDynamicElement-1776168813145]: 
+                  beanData: '{"ionBean":"TextItem"}'
+                  tagName: ion-text
+                  ↓Text [ngx.components.UIText-1776168813144]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:JSON.stringify(database)
+                  ↓Style [ngx.components.UIStyle-1776168825523]: 
                 ↓Accordion [ngx.components.UIDynamicElement-1776161384543]: 
                   beanData: '{"ionBean":"Accordion","Value":"source:{\"filter\":\"Iteration\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1776161384540}],\"path\":\"?.id\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"}'
+                  isEnabled: false
                   tagName: ion-accordion
                   ↓GenericItem [ngx.components.UIDynamicElement-1776161384546]: 
                     beanData: '{"ionBean":"GenericItem","IonSlot":"plain:header"}'
@@ -412,11 +598,11 @@ title: Title for modalConfigure
                                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                           →: |
-                                            '		console.log(await page.callParentFunction("getAuthenticatedUser"));
-                                            		console.log(		JSON.stringify({
-                                            					table_id: `${page.local.groupName}~>${page.local.baseName}~>${page.local.tableName}`,
-                                            					editor: await page.callParentFunction("getAuthenticatedUser"),
-                                            				}))
+                                            '//		console.log(await page.callParentFunction("getAuthenticatedUser"));
+                                            //		console.log(		JSON.stringify({
+                                            //					table_id: `${page.local.groupName}~>${page.local.baseName}~>${page.local.tableName}`,
+                                            //					editor: await page.callParentFunction("getAuthenticatedUser"),
+                                            //				}))
                                             		return JSON.stringify({
                                             			table_id: `${page.local.groupName}~>${page.local.baseName}~>${page.local.tableName}`,
                                             			editor: await page.callParentFunction("getAuthenticatedUser"),
@@ -436,6 +622,185 @@ title: Title for modalConfigure
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: source:{"filter":"Local","project":"lib_BaseRow","input":"","model":{"data":[{"localObject":"local"}],"path":"?.table_id_int","prefix":"getApplicationIDFromTableId(","suffix":")","custom":"","useCustom":false}}
+            ↓Directive [ngx.components.UIControlDirective-1776169047619]: 
+              directiveIndexName: dbIdx
+              directiveItemName: database
+              directiveSource: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: |
+                      'script:this.getSelectionState(this.local.data, {
+                        workspaceId: this.local.workspace_id_int,
+                        databaseId: this.local.database_id_int,
+                        tableId: this.local.table_id_int
+                      })[this.local.step]'
+              ↓TextItem [ngx.components.UIDynamicElement-1776169047622]: 
+                beanData: '{"ionBean":"TextItem"}'
+                isEnabled: false
+                tagName: ion-text
+                ↓Text [ngx.components.UIText-1776169047625]: 
+                  textValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:JSON.stringify(database)
+                ↓Style [ngx.components.UIStyle-1776169047628]: 
+              ↓Accordion [ngx.components.UIDynamicElement-1776169047631]: 
+                beanData: '{"ionBean":"Accordion","Value":"source:{\"filter\":\"Iteration\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1776169047619}],\"path\":\"?.id\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"}'
+                isEnabled: false
+                tagName: ion-accordion
+                ↓GenericItem [ngx.components.UIDynamicElement-1776169047634]: 
+                  beanData: '{"ionBean":"GenericItem","IonSlot":"plain:header"}'
+                  tagName: ion-item
+                  ↓Icon [ngx.components.UIDynamicElement-1776169047637]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Icon",
+                       "IconName": "source:{\"filter\":\"Icon\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''server''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                       "IconSlot": "plain:start"
+                      }'
+                    tagName: ion-icon
+                  ↓Label [ngx.components.UIDynamicElement-1776169047640]: 
+                    beanData: '{"ionBean":"Label"}'
+                    tagName: ion-label
+                    ↓Text [ngx.components.UIText-1776169047643]: 
+                      textValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"lib_BaseRow","input":"","model":{"data":[{"priority":1776169047619}],"path":"?.name","prefix":"","suffix":"","custom":"","useCustom":false}}
+                ↓ListContainer [ngx.components.UIDynamicElement-1776169047646]: 
+                  beanData: '{"ionBean":"List","IonSlot":"plain:content"}'
+                  tagName: ion-list
+                  ↓Directive [ngx.components.UIControlDirective-1776169047649]: 
+                    directiveItemName: table
+                    directiveSource: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"lib_BaseRow","input":"","model":{"data":[{"priority":1776169047619}],"path":"?.tables","prefix":"","suffix":"","custom":"","useCustom":false}}
+                    ↓ListItem [ngx.components.UIDynamicElement-1776169047652]: 
+                      beanData: '{"ionBean":"ListItem"}'
+                      tagName: ion-item
+                      ↓Icon [ngx.components.UIDynamicElement-1776169047655]: 
+                        beanData: |
+                          '{
+                           "ionBean": "Icon",
+                           "IconName": "source:{\"filter\":\"Icon\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"icon\":\"''menu-outline''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
+                           "IconSlot": "plain:start"
+                          }'
+                        tagName: ion-icon
+                      ↓Label [ngx.components.UIDynamicElement-1776169047658]: 
+                        beanData: '{"ionBean":"Label"}'
+                        tagName: ion-label
+                        ↓Text [ngx.components.UIText-1776169047661]: 
+                          textValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: source:{"filter":"Iteration","project":"lib_BaseRow","input":"","model":{"data":[{"priority":1776169047649},{"priority":1776169047619}],"path":"?.name","prefix":"","suffix":"","custom":"","useCustom":false}}
+                      ↓Button [ngx.components.UIDynamicElement-1776169047664]: 
+                        beanData: '{"ionBean":"Button"}'
+                        tagName: ion-button
+                        ↓Label [ngx.components.UIDynamicElement-1776169047667]: 
+                          beanData: '{"ionBean":"Label"}'
+                          tagName: ion-label
+                          ↓Text [ngx.components.UIText-1776169047670]: 
+                            i18n: true
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:Select
+                        ↓Event [ngx.components.UIControlEvent-1776169047673]: 
+                          ↓SetLocal2 [ngx.components.UIDynamicAction-1776169047676]: 
+                            beanData: |
+                              '{
+                               "ionBean": "SetLocalAction",
+                               "Property": "plain:groupName",
+                               "Value": "source:{\"filter\":\"Iteration\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1776169047619}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"?.workspace?.name\",\"custom\":\"\",\"useCustom\":false}}"
+                              }'
+                            tagName: SetLocal
+                            ↓SetLocal1 [ngx.components.UIDynamicAction-1776169047679]: 
+                              beanData: |
+                                '{
+                                 "ionBean": "SetLocalAction",
+                                 "Property": "plain:baseName",
+                                 "Value": "source:{\"filter\":\"Iteration\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1776169047619}],\"path\":\"?.name\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                                }'
+                              tagName: SetLocal
+                              ↓SetLocal [ngx.components.UIDynamicAction-1776169047682]: 
+                                beanData: |
+                                  '{
+                                   "ionBean": "SetLocalAction",
+                                   "Property": "plain:tableName",
+                                   "Value": "source:{\"filter\":\"Iteration\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1776169047649},{\"priority\":1776169047619}],\"path\":\"?.name\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                                  }'
+                                tagName: SetLocal
+                                ↓PrepareFormsConfig [ngx.components.UICustomAsyncAction-1776169047685]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          '//		console.log(await page.callParentFunction("getAuthenticatedUser"));
+                                          //		console.log(		JSON.stringify({
+                                          //					table_id: `${page.local.groupName}~>${page.local.baseName}~>${page.local.tableName}`,
+                                          //					editor: await page.callParentFunction("getAuthenticatedUser"),
+                                          //				}))
+                                          		return JSON.stringify({
+                                          			table_id: `${page.local.groupName}~>${page.local.baseName}~>${page.local.tableName}`,
+                                          			editor: await page.callParentFunction("getAuthenticatedUser"),
+                                          		});
+                                          '
+                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1776169047688]: 
+                                    beanData: '{"ionBean":"InvokeAction"}'
+                                    stack: lib_BaseRow.Application.NgxApp.DisplayTableColumns
+                                    ↓forms_config [ngx.components.UIControlVariable-1776169047691]: 
+                                      varValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: source:{"filter":"Action","project":"lib_BaseRow","input":"","model":{"data":[{"priority":1776169047685,"rootEvent":false,"pageLocals":false},{"priority":1667635831789,"rootEvent":true,"pageLocals":false},{"priority":1776169047676,"rootEvent":false,"pageLocals":false},{"priority":1776169047679,"rootEvent":false,"pageLocals":false},{"priority":1776169047682,"rootEvent":false,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"","custom":"","useCustom":false}}
+              ↓Directive [ngx.components.UIControlDirective-1776170602526]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.step == 'workspaces'
+                ↓TextItem [ngx.components.UIDynamicElement-1776174015171]: 
+                  beanData: '{"ionBean":"TextItem"}'
+                  tagName: ion-text
+                  ↓Text [ngx.components.UIText-1776174015174]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:JSON.stringify(database)
+                  ↓Style [ngx.components.UIStyle-1776174015180]: 
+              ↓Directive1 [ngx.components.UIControlDirective-1776170674351]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.step == 'databases'
+                ↓TextItem [ngx.components.UIDynamicElement-1776174018129]: 
+                  beanData: '{"ionBean":"TextItem"}'
+                  tagName: ion-text
+                  ↓Text [ngx.components.UIText-1776174018132]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:JSON.stringify(database)
+                  ↓Style [ngx.components.UIStyle-1776174018135]: 
+              ↓Directive2 [ngx.components.UIControlDirective-1776170676585]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.step == 'tables'
+                ↓TextItem [ngx.components.UIDynamicElement-1776174025812]: 
+                  beanData: '{"ionBean":"TextItem"}'
+                  tagName: ion-text
+                  ↓Text [ngx.components.UIText-1776174025815]: 
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:JSON.stringify(database)
+                  ↓Style [ngx.components.UIStyle-1776174025818]: 
       ↓tag [ngx.components.UIControlDirective-1776161384609]: 
         directiveName: If
         directiveSource: 
@@ -3202,8 +3567,8 @@ title: Title for modalConfigure
             		//let url = this.router.sanitizer.bypassSecurityTrustResourceUrl(page.navParams.data.url == undefined ? ''https://www.convertigo.com/startprivatecloud'' : page.navParams.data.url)
             		ifr.src = page.navParams.data.url == undefined ? ''https://www.convertigo.com/startprivatecloud'' : page.navParams.data.url;
             		page.myContent.el.appendChild(ifr);*/
-            		console.log(page.navParams.data.url);
-            		(document.getElementById("ifr") as any).src = page.navParams.data.url == undefined ? ''https://www.convertigo.com/startprivatecloud'' : page.navParams.data.url;
+            //		console.log(page.navParams.data.url);
+            //		(document.getElementById("ifr") as any).src = page.navParams.data.url == undefined ? ''https://www.convertigo.com/startprivatecloud'' : page.navParams.data.url;
             		resolve();
             '
 ↓PageEvent1 [ngx.components.UIPageEvent-1776161360468]: 
@@ -3218,9 +3583,11 @@ title: Title for modalConfigure
             →: |
               '		try {
               			page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-              
+              //			console.log(props);
+              			page.local.data = props.out.array;
               			let result: any = await page.callParentFunction("getConfigurationData");
-              			page.c8o.log.debug(''[MB] getConfigurationData: '' + result);
+              			page.c8o.log.debug(''[MB] getConfigurationData: '' + result);			
+              //			console.log(page.local.data);
               			let output = JSON.parse(result);
               			output.forms_config = result;
               			const authentifiedUser = await page.callParentFunction("getAuthenticatedUser");
@@ -3233,13 +3600,21 @@ title: Title for modalConfigure
               				}
               			}
               			catch (e) {
-              
+              //				console.error(e);
               			}
+              //			console.log(output);
               			return output;
               		} catch (e) {
-              		
+              //			console.error(e);
               		}
               '
+      ↓SetLocal5 [ngx.components.UIDynamicAction-1776170233076]: 
+        beanData: |
+          '{
+           "ionBean": "SetLocalAction",
+           "Property": "plain:step",
+           "Value": "script:''workspaces''"
+          }'
       ↓SetLocal [ngx.components.UIDynamicAction-1776161360477]: 
         beanData: |
           '{
@@ -3291,14 +3666,6 @@ title: Title for modalConfigure
           }'
       ↓If [ngx.components.UIDynamicAction-1776161360498]: 
         beanData: '{"ionBean":"IfAction","condition":"source:{\"filter\":\"Action\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1776161360474,\"rootEvent\":false,\"pageLocals\":false},{\"priority\":1667634909158,\"rootEvent\":true,\"pageLocals\":false},{\"priority\":1776161360471,\"rootEvent\":false,\"pageLocals\":false}],\"path\":\"?.out\",\"prefix\":\"\",\"suffix\":\"?.table_id\",\"custom\":\"\",\"useCustom\":false}}"}'
-        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1776161360501]: 
-          beanData: '{"ionBean":"InvokeAction"}'
-          stack: lib_BaseRow.Application.NgxApp.DisplayTableColumns
-          ↓forms_config [ngx.components.UIControlVariable-1776161360504]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: source:{"filter":"Action","project":"lib_BaseRow","input":"","model":{"data":[{"priority":1776161360474,"rootEvent":false,"pageLocals":false},{"priority":1667634909158,"rootEvent":true,"pageLocals":false},{"priority":1776161360471,"rootEvent":false,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"?.forms_config","custom":"","useCustom":false}}
         ↓SetLocal [ngx.components.UIDynamicAction-1776161360507]: 
           beanData: |
             '{
@@ -3323,6 +3690,52 @@ title: Title for modalConfigure
              "Value": "source:{\"filter\":\"Action\",\"project\":\"lib_BaseRow\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1776161360474,\"rootEvent\":false,\"pageLocals\":false},{\"priority\":1667634909158,\"rootEvent\":true,\"pageLocals\":false},{\"priority\":1776161360471,\"rootEvent\":false,\"pageLocals\":false}],\"path\":\"?.out\",\"prefix\":\"\",\"suffix\":\"?.table_id.split(''~>'')[0]\",\"custom\":\"\",\"useCustom\":false}}"
             }'
           tagName: SetLocal
+        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1776161360501]: 
+          beanData: '{"ionBean":"InvokeAction"}'
+          isEnabled: false
+          stack: lib_BaseRow.Application.NgxApp.DisplayTableColumns
+          ↓forms_config [ngx.components.UIControlVariable-1776161360504]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: source:{"filter":"Action","project":"lib_BaseRow","input":"","model":{"data":[{"priority":1776161360474,"rootEvent":false,"pageLocals":false},{"priority":1667634909158,"rootEvent":true,"pageLocals":false},{"priority":1776161360471,"rootEvent":false,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"?.forms_config","custom":"","useCustom":false}}
+        ↓PrepareFormsConfig [ngx.components.UICustomAsyncAction-1776165710660]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '//		console.log(await page.callParentFunction("getAuthenticatedUser"));
+                  //		console.log(		JSON.stringify({
+                  //					table_id: `${page.local.groupName}~>${page.local.baseName}~>${page.local.tableName}`,
+                  //					editor: await page.callParentFunction("getAuthenticatedUser"),
+                  //				}))
+                  //		console.log(page.local);
+                  		const ids = page.getWorkspaceAndDatabaseIdsFromTableId(page.local.data, page.local.table_id_int);
+                  		if (ids != null) {
+                  			page.local.workspace_id_int = ids.workspaceId;
+                  			page.local.database_id_int = ids.databaseId;
+                  		}
+                  		return JSON.stringify({
+                  			table_id: `${page.local.groupName}~>${page.local.baseName}~>${page.local.tableName}`,
+                  			editor: await page.callParentFunction("getAuthenticatedUser"),
+                  		});
+                  '
+          ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1776165710663]: 
+            beanData: '{"ionBean":"InvokeAction"}'
+            stack: lib_BaseRow.Application.NgxApp.DisplayTableColumns
+            ↓forms_config [ngx.components.UIControlVariable-1776165710666]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: source:{"filter":"Action","project":"lib_BaseRow","input":"","model":{"data":[{"priority":1776165710660,"rootEvent":false,"pageLocals":false},{"priority":1667635831789,"rootEvent":true,"pageLocals":false},{"priority":1776161384588,"rootEvent":false,"pageLocals":false},{"priority":1776161384591,"rootEvent":false,"pageLocals":false},{"priority":1776161384594,"rootEvent":false,"pageLocals":false}],"path":"?.out","prefix":"","suffix":"","custom":"","useCustom":false}}
+        ↓SetLocal5 [ngx.components.UIDynamicAction-1776170258826]: 
+          beanData: |
+            '{
+             "ionBean": "SetLocalAction",
+             "Property": "plain:step",
+             "Value": "script:''tables''"
+            }'
   ↓defineTarget [ngx.components.UICustomAsyncAction-1776161360516]: 
     actionValue: 
       - xmlizable: 
@@ -3489,3 +3902,13 @@ title: Title for modalConfigure
                 }'
             ↓CloseModal [ngx.components.UIDynamicAction-1776163094013]: 
               beanData: '{"ionBean":"CloseModalAction"}'
+↓global [ngx.components.UIStyle-1776174517794]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '* {
+          	font-family: var(--font-sans)!important;
+          	font-optical-sizing: auto;
+          }'
