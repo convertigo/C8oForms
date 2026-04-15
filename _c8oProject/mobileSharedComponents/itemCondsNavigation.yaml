@@ -5,6 +5,7 @@ scriptContent:
       →: |
         '/*Begin_c8o_CompImport*/
         import { NavParams }																	from ''../../patch/nav-params'';
+        import { C8Oforms_TreeviewContent } from ''../c8oforms.treeviewcontent/c8oforms-treeviewcontent'';
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	public navParams: NavParams;
@@ -112,6 +113,240 @@ scriptContent:
         		return null;
         	}
         
+        	public getConditionEditorHost(): any{
+        		let host: any = this.pageOwner;
+        		try{
+        			while(host != null && host.getElementById == undefined && host.pageOwner != null){
+        				host = host.pageOwner;
+        			}
+        		}
+        		catch(e){
+        		}
+        		return host;
+        	}
+        
+        	public getConditionFieldDisplayName(field: any): string{
+        		if(field == null){
+        			return "";
+        		}
+        		let path = field.c8opath != null ? "" + field.c8opath : "";
+        		if(path == ""){
+        			return field.displayName != null && field.displayName !== "" ? "" + field.displayName : (field.name != null && field.name !== "" ? "" + field.name : "");
+        		}
+        		let base = field.name != null && field.name !== "" ? "" + field.name : "";
+        		try{
+        			if((base == null || base === "") && field.str != null && field.str !== ""){
+        				base = this.getItemNameById(field) || ("" + field.str);
+        			}
+        		}
+        		catch(e){
+        		}
+        		let parts = path.split(".");
+        		if(base == "" && parts.length > 0){
+        			base = parts[0];
+        		}
+        		if(parts.length > 0 && base != "" && (parts[0] == base || parts[0] == field.name)){
+        			parts = parts.slice(1);
+        		}
+        		if(parts.length == 0){
+        			return base;
+        		}
+        		return base + "." + parts.join(".");
+        	}
+        
+        	public enrichConditionFieldReference(field: any): any{
+        		let enriched: any = field != null && typeof(field) == "object" ? JSON.parse(JSON.stringify(field)) : {};
+        		if((enriched.name == null || enriched.name === "") && enriched.str != null && enriched.str !== ""){
+        			enriched.name = this.getItemNameById(enriched);
+        		}
+        		if(enriched.source == null){
+        			enriched.source = true;
+        		}
+        		if(!Array.isArray(enriched.arr)){
+        			enriched.arr = [];
+        		}
+        		enriched.displayName = this.getConditionFieldDisplayName(enriched);
+        		return enriched;
+        	}
+        	public buildCurrentConditionField(item: any, existing: any = null): any{
+        		let field: any = {
+        			name: item != null && item.name != null ? item.name : "",
+        			displayName: item != null && item.name != null ? item.name : "",
+        			str: item != null && item.id != null ? item.id : "",
+        			source: true,
+        			type: item != null && item.type != null ? item.type : "",
+        			arr: []
+        		};
+        		if(existing != null && typeof(existing) == "object"){
+        			if(existing.c8opath != null){
+        				field.c8opath = existing.c8opath;
+        			}
+        			if(existing.c8oPrettyPath != null){
+        				field.c8oPrettyPath = existing.c8oPrettyPath;
+        			}
+        			if(existing.c8obuiltin != null){
+        				field.c8obuiltin = existing.c8obuiltin;
+        			}
+        			if(existing.c8oisobject != null){
+        				field.c8oisobject = existing.c8oisobject;
+        			}
+        		}
+        		return this.enrichConditionFieldReference(field);
+        	}
+        	
+        	public async browseConditionField(field: any): Promise<any>{
+        		let enriched: any = this.enrichConditionFieldReference(field);
+        		try{
+        			let host: any = this.getConditionEditorHost();
+        			let id: any = enriched != null ? enriched.str : null;
+        			if(typeof(id) == "string" && /^\d+$/.test(id)){
+        				id = +id;
+        			}
+        			if(host == null || host.getElementById == undefined || typeof(id) != "number"){
+        				return enriched;
+        			}
+        			let currentElement: any = host.getElementById(id);
+        			if(currentElement == null){
+        				return enriched;
+        			}
+        			let hasBrowse = false;
+        			try{
+        				if(host.searchCompletionWithElem != undefined){
+        					let struct: any = await host.searchCompletionWithElem(currentElement, true, false);
+        					hasBrowse = (struct != null && typeof(struct) == "object" &&
+        						((struct.compl != null && Object.keys(struct.compl).length > 0) ||
+        						 (struct.builtin != null && Object.keys(struct.builtin).length > 0)));
+        				}
+        				else if(host.searchCompletionWithId != undefined){
+        					let struct: any = await host.searchCompletionWithId(id, currentElement);
+        					if(Array.isArray(struct)){
+        						hasBrowse = struct.length > 0;
+        					}
+        					else if(struct != null && typeof(struct) == "object"){
+        						hasBrowse = Object.keys(struct).length > 0;
+        					}
+        				}
+        			}
+        			catch(e){
+        			}
+        			if(!hasBrowse && currentElement.type != "grid"){
+        				return enriched;
+        			}
+        			let selection: any = null;
+        			let modalController = this.getInstance(ModalController);
+        			let modal = await modalController.create({
+        				component: C8Oforms_TreeviewContent,
+        				componentProps: {
+        					tree: null,
+        					name: enriched.displayName || currentElement.name,
+        					path: currentElement.name,
+        					handler: (res, builtin, isObject = false) => {
+        						selection = {
+        							res: res,
+        							builtin: builtin,
+        							isObject: isObject
+        						};
+        					},
+        					currentElement: currentElement,
+        					graphic: true,
+        					showHeader: true
+        				},
+        				cssClass: "modalCSV"
+        			});
+        			this.ref.detectChanges();
+        			await modal.present();
+        			await modal.onDidDismiss();
+        			if(selection != null){
+        				enriched.c8opath = selection.res != null ? selection.res : "";
+        				enriched.c8oPrettyPath = "";
+        				enriched.c8obuiltin = selection.builtin != null ? selection.builtin : false;
+        				enriched.c8oisobject = selection.isObject === true;
+        			}
+        		}
+        		catch(e){
+        		}
+        		return this.enrichConditionFieldReference(enriched);
+        	}
+        	
+        	public async browseConditionFieldPopover(field: any, event: any): Promise<any>{
+        		let enriched: any = this.enrichConditionFieldReference(field);
+        		try{
+        			let host: any = this.getConditionEditorHost();
+        			let id: any = enriched != null ? enriched.str : null;
+        			if(typeof(id) == "string" && /^\d+$/.test(id)){
+        				id = +id;
+        			}
+        			if(host == null || host.getElementById == undefined || typeof(id) != "number"){
+        				return enriched;
+        			}
+        			let currentElement: any = host.getElementById(id);
+        			if(currentElement == null){
+        				return enriched;
+        			}
+        			let hasBrowse = false;
+        			try{
+        				if(host.searchCompletionWithElem != undefined){
+        					let struct: any = await host.searchCompletionWithElem(currentElement, true, false);
+        					hasBrowse = (struct != null && typeof(struct) == "object" &&
+        						((struct.compl != null && Object.keys(struct.compl).length > 0) ||
+        						 (struct.builtin != null && Object.keys(struct.builtin).length > 0)));
+        				}
+        				else if(host.searchCompletionWithId != undefined){
+        					let struct: any = await host.searchCompletionWithId(id, currentElement);
+        					if(Array.isArray(struct)){
+        						hasBrowse = struct.length > 0;
+        					}
+        					else if(struct != null && typeof(struct) == "object"){
+        						hasBrowse = Object.keys(struct).length > 0;
+        					}
+        				}
+        			}
+        			catch(e){
+        			}
+        			if(!hasBrowse && currentElement.type != "grid"){
+        				return enriched;
+        			}
+        			let selection: any = null;
+        			let popoverController = this.getInstance(PopoverController);
+        			let popover = await popoverController.create({
+        				component: C8Oforms_TreeviewContent,
+        				event: event,
+        				componentProps: {
+        					tree: null,
+        					name: enriched.displayName || currentElement.name,
+        					path: currentElement.name,
+        					handler: (res, builtin, isObject = false) => {
+        						selection = {
+        							res: res,
+        							builtin: builtin,
+        							isObject: isObject
+        						};
+        						try{
+        							popoverController.dismiss();
+        						}
+        						catch(e){
+        						}
+        					},
+        					currentElement: currentElement,
+        					graphic: true,
+        					showHeader: true
+        				},
+        				cssClass: "modalCSV"
+        			});
+        			this.ref.detectChanges();
+        			await popover.present();
+        			await popover.onDidDismiss();
+        			if(selection != null){
+        				enriched.c8opath = selection.res != null ? selection.res : "";
+        				enriched.c8oPrettyPath = "";
+        				enriched.c8obuiltin = selection.builtin != null ? selection.builtin : false;
+        				enriched.c8oisobject = selection.isObject === true;
+        			}
+        		}
+        		catch(e){
+        		}
+        		return this.enrichConditionFieldReference(enriched);
+        	}
         	/**
         	 * returns type of field (simple, multiple, file, or camSign)
         	 * @param type
@@ -308,23 +543,73 @@ scriptContent:
         		}
         		if(item.conditions.goToPageIf == null){
         			item.conditions.goToPageIf = legacyGoToPageIf != null ? legacyGoToPageIf : {
-        				conds:[{
-        					type:"goToPageIf",
-        					val1:{
-        						str: item.id,
-        						source: true,
-        						type: item.type
-        					},
-        					val2:{
-        						str: "",
-        						source: false,
-        						type: ""
-        					}
-        				}],
-        				condVisible:"and"
+        				type:"goToPageIf",
+        				conds:[],
+        				condVisible:"or",
+        				groups:[]
         			};
         		}
         		return item.conditions;
+        	}
+        	public createEmptyGoToPageCondition(item: any = null){
+        		return {
+        			type: "goToPageIf",
+        			subject: "field",
+        			val1: {
+        				name: item != null && item.name != null ? item.name : "",
+        				displayName: item != null && item.name != null ? item.name : "",
+        				str: item != null && item.id != null ? item.id : "",
+        				source: true,
+        				type: item != null && item.type != null ? item.type : "",
+        				arr: []
+        			},
+        			val2: {
+        				str: "",
+        				source: false,
+        				type: "text",
+        				arr: [],
+        				html: false
+        			},
+        			operator: "",
+        			verb: "authorize",
+        			page: ""
+        		};
+        	}
+        	public createEmptyGoToPageNestedCondition(item: any = null){
+        		let condition: any = this.createEmptyGoToPageCondition(item);
+        		delete condition.verb;
+        		delete condition.page;
+        		return condition;
+        	}
+        	public createEmptyGoToPageGroup(){
+        		return {
+        			type: "goToPageIf",
+        			condVisible: "and",
+        			conds: [],
+        			groups: []
+        		};
+        	}
+        	public createEmptyGoToPageRule(item: any = null){
+        		return {
+        			type: "goToPageIf",
+        			verb: "authorize",
+        			page: "",
+        			condVisible: "and",
+        			conds: [this.createEmptyGoToPageNestedCondition(item)],
+        			groups: []
+        		};
+        	}
+        	public canEditNavigationConditions(item: any = null){
+        		let current = item != null ? item : (this.local != null ? this.local.item : null);
+        		if(current == null){
+        			return false;
+        		}
+        		return this.getGoToPageType(current.type) != "" && this.getGoToPageType(current.type) != "file"
+        			&& !(current.type == "checkbox_group" && current.config?.sourceEnabled == true)
+        			&& !(current.type == "radio_group" && current.config?.sourceEnabled == true)
+        			&& !(current.type == "checkbox" && current.config?.sourceEnabled == true)
+        			&& !(current.type == "radio" && current.config?.sourceEnabled == true)
+        			&& !(current.type == "select" && current.config?.sourceEnabled == true);
         	}
         	public createEmptyVisibleIfGroup(){
         		return {
@@ -342,14 +627,17 @@ scriptContent:
         				return "visible_when_condition";
         			}
         			let conds = Array.isArray(current.conds) ? current.conds : [];
+        			let fieldConds: any[] = [];
         			let groups = Array.isArray(current.groups) ? current.groups : [];
         			let legacyConds = Array.isArray(current.__legacyConds) ? current.__legacyConds.concat([]) : [];
         			for(let cond of conds){
         				if(cond != null && cond.subject != null && cond.subject != "" && cond.subject != "field"){
         					legacyConds.push(cond);
+        					continue;
         				}
+        				fieldConds.push(cond);
         			}
-        			if(conds.length == 0 && groups.length == 0){
+        			if(fieldConds.length == 0 && groups.length == 0){
         				if(legacyConds.length == 0){
         					return "visible_when_always";
         				}
@@ -554,6 +842,9 @@ scriptContent:
                             		target.val2.type = "text";
                             	}
                             }
+                            if(page.local != null && page.local.commitGoToPageIf != null){
+                            	page.local.commitGoToPageIf();
+                            }
                             if(page.pageOwner != null && page.pageOwner.updateState != null){
                             	page.pageOwner.updateState();
                             }
@@ -594,6 +885,9 @@ scriptContent:
                         		}
                             	target.val2.source = false;
                         	}
+                        	if(page.local != null && page.local.commitGoToPageIf != null){
+                        		page.local.commitGoToPageIf();
+                        	}
                         	if(page.pageOwner != null && page.pageOwner.updateState != null){
                         		page.pageOwner.updateState();
                         	}
@@ -633,6 +927,9 @@ scriptContent:
             	        			target.val2 = {str: "", source: false, type: "text", arr: []};
             	        		}
             	            	target.val2.source = false;
+            	        	}
+            	        	if(page.local != null && page.local.commitGoToPageIf != null){
+            	        		page.local.commitGoToPageIf();
             	        	}
             	        	if(page.pageOwner != null && page.pageOwner.updateState != null){
             	        		page.pageOwner.updateState();
@@ -1050,6 +1347,9 @@ scriptContent:
                     				}
                     			}
                     			page.applyVisibleWhenMode(nextMode);
+                    			if (page.local != null && page.local.commitVisibleIf != null) {
+                    				page.local.commitVisibleIf();
+                    			}
                     		}
                     		catch (e) {
                     			console.error(e);
@@ -1336,12 +1636,12 @@ scriptContent:
                     varValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item
+                        - MobileSmartSourceType: script:this.local.item
                   ↓item [ngx.components.UIUseVariable-1776022999586]: 
                     varValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:item
+                        - MobileSmartSourceType: script:this.local.item
                   ↓l [ngx.components.UIUseVariable-1776022999588]: 
                     varValue: 
                       - xmlizable: 
@@ -1363,6 +1663,11 @@ scriptContent:
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:this.local.keyNameVisible
+                  ↓lockCurrentField [ngx.components.UIUseVariable-1776132000002]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:false
                   ↓EventSave [ngx.components.UIControlEvent-1776022999596]: 
                     attrName: (save)
                     eventName: save
@@ -1732,12 +2037,12 @@ scriptContent:
                             varValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:itemPP
+                                - MobileSmartSourceType: script:this.local.item
                           ↓item [ngx.components.UIUseVariable-1776023246707]: 
                             varValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:itemPP
+                                - MobileSmartSourceType: script:this.local.item
                           ↓l [ngx.components.UIUseVariable-1776023246709]: 
                             varValue: 
                               - xmlizable: 
@@ -1759,6 +2064,11 @@ scriptContent:
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:this.local.keyNameVisible
+                          ↓lockCurrentField [ngx.components.UIUseVariable-1776132000003]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:false
                           ↓Event [ngx.components.UIControlEvent-1776023246717]: 
                             attrName: (save)
                             eventName: save
@@ -1832,6 +2142,11 @@ scriptContent:
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:this.local.keyNameVisible
+                          ↓item [ngx.components.UIUseVariable-1776130000003]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.local.item
                           ↓Event [ngx.components.UIControlEvent-1776024642737]: 
                             attrName: (save)
                             eventName: save
@@ -2051,7 +2366,464 @@ scriptContent:
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: plain:this.getGoToPageType(this.local.goToPageSelf?.type) != '' && this.getGoToPageType(this.local.goToPageSelf?.type) != 'file' && !(this.local.item.type == 'checkbox_group' && this.local.item.config?.sourceEnabled == true) && !(this.local.item.type == 'radio_group' && this.local.item.config?.sourceEnabled == true) && !(this.local.item.type == 'checkbox' && this.local.item.config?.sourceEnabled == true) && !(this.local.item.type == 'radio' && this.local.item.config?.sourceEnabled == true) && !(this.local.item.type == 'select' && this.local.item.config?.sourceEnabled == true) && this.tabselected === 'navigation_tab_selector'
+            - MobileSmartSourceType: plain:this.canEditNavigationConditions() && this.tabselected === 'navigation_tab_selector'
+      ↓DivNavigationEditor [ngx.components.UIDynamicElement-1776113400001]: 
+        beanData: '{"ionBean":"DivTag"}'
+        tagName: div
+        ↓Attr [ngx.components.UIAttribute-1776113400002]: 
+          attrName: '*ngIf'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:this.canEditNavigationConditions() && this.tabselected === 'navigation_tab_selector'
+        ↓Style [ngx.components.UIStyle-1776113400003]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  'position: relative;
+                  display: flex;
+                  flex-direction: row;
+                  flex: 1 1 auto;
+                  min-width: 0;
+                  min-height: 0;
+                  max-height: 100%;
+                  transition: padding-left 220ms ease;
+                  '
+        ↓DivPaletteRail [ngx.components.UIDynamicElement-1776113400004]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓Style [ngx.components.UIStyle-1776113400005]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    'display: flex;
+                    flex-direction: column;
+                    align-items: stretch;
+                    justify-content: flex-start;
+                    position: absolute;
+                    left: -24px;
+                    top: 6px;
+                    z-index: 3;
+                    width: 32px;
+                    max-width: 32px;
+                    min-width: 32px;
+                    background: #FFF;
+                    border-right: 1px solid #E5E7EB;
+                    border-top: 1px solid #E5E7EB;
+                    border-top-right-radius: 10px;
+                    overflow: hidden;
+                    height: 100%;
+                    '
+          ↓ButtonPalette [ngx.components.UIDynamicElement-1776113400006]: 
+            beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+            tagName: ion-button
+            ↓Event [ngx.components.UIControlEvent-1776113400007]: 
+              ↓SetLocal [ngx.components.UIDynamicAction-1776113400008]: 
+                beanData: |
+                  '{
+                   "ionBean": "SetLocalAction",
+                   "Property": "plain:visiblePaletteCollapsed",
+                   "Value": "script:!this.local.visiblePaletteCollapsed"
+                  }'
+            ↓Icon [ngx.components.UIDynamicElement-1776113400009]: 
+              beanData: |
+                '{
+                 "ionBean": "Icon",
+                 "IconSlot": "plain:icon-only",
+                 "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/plus.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                }'
+              tagName: ion-icon
+              ↓Attr [ngx.components.UIAttribute-1776113400010]: 
+                attrName: '[style]'
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: 'script:this.local.visiblePaletteCollapsed === true ? ''color: #1A1A1A;'' : ''color: #FFF;'''
+            ↓Style [ngx.components.UIStyle-1776113400011]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      'min-width: unset;
+                      width: fit-content;
+                      margin: 0;
+                      &::part(native) {
+                      	width: 32px !important;
+                      	height: 32px !important;
+                      	color: #6B7280 !important;
+                      	background: rgba(255, 255, 255, 0.4) !important;
+                      	border-bottom: 1px solid #E5E7EB !important;
+                      	border-radius: 0 !important;
+                      	box-shadow: none !important;
+                      }
+                      '
+            ↓Attr1 [ngx.components.UIAttribute-1776113400012]: 
+              attrName: '[style]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: 'script:this.local.visiblePaletteCollapsed === true ? ''background: rgba(255, 255, 255, 0.4) !important;'' : ''background: var(--ion-color-primary) !important;color: #FFF;'''
+            ↓Attr2 [ngx.components.UIAttribute-1776113400013]: 
+              attrName: '[attr.title]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: 'script:this.translate != null && this.translate.instant != null ? this.translate.instant(''datasource_palette'') : ''Palette'''
+        ↓DivPalettePanel [ngx.components.UIDynamicElement-1776113400014]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓Style [ngx.components.UIStyle-1776113400015]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    'display: flex;
+                    flex-direction: column;
+                    align-items: stretch;
+                    min-height: 0;
+                    min-width: 0;
+                    overflow: hidden;
+                    background: #FFF;
+                    z-index: 2;
+                    transition: width 220ms ease, max-width 220ms ease, opacity 180ms ease, margin 220ms ease, border-width 180ms ease;
+                    margin-left: 8px;
+                    margin-top:6px;
+                    '
+          ↓Attr [ngx.components.UIAttribute-1776113400016]: 
+            attrName: '[style]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: 'script:this.local.visiblePaletteCollapsed === true ? ''width: 0px !important;max-width: 0px !important;opacity: 0;pointer-events: none;border-width: 0 !important;'' : ''width: 256px !important;max-width: 256px !important;opacity: 1;pointer-events: auto;'''
+          ↓UseSharedComponent [ngx.components.UIUseShared-1776113400017]: 
+            sharedcomponent: C8Oforms.MobileApplication.Application.dataSourceEditor_GridRow_GridColSourcePicker_Group
+            ↓sources [ngx.components.UIUseVariable-1776113400018]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:
+            ↓c8oforms_monacoeditor [ngx.components.UIUseVariable-1776113400019]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: 'script:this.local.visiblePaletteMonaco != null ? this.local.visiblePaletteMonaco : false'
+            ↓type [ngx.components.UIUseVariable-1776113400020]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.local.visiblePaletteType
+            ↓currentObject [ngx.components.UIUseVariable-1776113400021]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:{}
+            ↓loop [ngx.components.UIUseVariable-1776113400022]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:false
+            ↓AttrHostStyle [ngx.components.UIAttribute-1776113400023]: 
+              attrName: '[style]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: 'script:''display: block;flex: 1 1 auto;min-height: 0;min-width: 0;overflow: hidden;'''
+        ↓DivConditionsScroll [ngx.components.UIDynamicElement-1776113400024]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓Style [ngx.components.UIStyle-1776113400025]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    'display: flex;
+                    flex-direction: column;
+                    flex: 1 1 auto;
+                    min-height: 0;
+                    min-width: 0;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                    padding-right: 15px;
+                    padding-bottom: 15px;
+                    padding-left: 5px;
+                    padding-top: 6px;
+                    '
+          ↓DirectiveRootCond [ngx.components.UIControlDirective-1776113400026]: 
+            directiveIndexName: lGoto
+            directiveItemName: itemGoto
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.goToPageIf?.conds
+            isEnabled: false
+            ↓Div [ngx.components.UIDynamicElement-1776113400027]: 
+              beanData: '{"ionBean":"DivTag"}'
+              tagName: div
+              ↓Style [ngx.components.UIStyle-1776113400028]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        margin-top:10px;
+                        margin-bottom:10px;
+                        display:flex;
+                        align-items:stretch;
+                        gap:8px;
+                        min-width:0;
+                        
+              ↓UseSharedComponent [ngx.components.UIUseShared-1776113400029]: 
+                sharedcomponent: C8Oforms.MobileApplication.Application.FilterBR
+                ↓AttrHostStyle [ngx.components.UIAttribute-1776113400030]: 
+                  attrName: '[style]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: 'script:''order: 3;flex: 1 1 auto;min-width: 0;min-height: 0;'''
+                ↓item1680251775490 [ngx.components.UIUseVariable-1776113400031]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.item
+                ↓item [ngx.components.UIUseVariable-1776113400032]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.item
+                ↓l [ngx.components.UIUseVariable-1776113400033]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:lGoto
+                ↓currentObject [ngx.components.UIUseVariable-1776113400034]: 
+                  binding: twoWayBinding
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.goToPageIf
+                ↓complByName [ngx.components.UIUseVariable-1776113400035]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.complByNameGoTo
+                ↓keyName [ngx.components.UIUseVariable-1776113400036]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.keyNameGoTo
+                ↓lockCurrentField [ngx.components.UIUseVariable-1776132000004]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:false
+                ↓useCompletionPopover [ngx.components.UIUseVariable-1776256500001]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+                ↓conditionKind [ngx.components.UIUseVariable-1776113400037]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:goToPageIf
+                ↓navigationPages [ngx.components.UIUseVariable-1776113400038]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.form.pages
+                ↓EventSave [ngx.components.UIControlEvent-1776113400039]: 
+                  attrName: (save)
+                  eventName: save
+                  ↓CustomAction [ngx.components.UICustomAction-1776113400040]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		try {
+                            			if (this.local != null && this.local.commitGoToPageIf != null) {
+                            				this.local.commitGoToPageIf();
+                            			}
+                            		}
+                            		catch (e) {
+                            			console.error(e);
+                            		}
+                            		resolve();
+                            
+                    ↓saveNavigationConditionsAuto [ngx.components.UIDynamicInvoke-1776113400041]: 
+                      beanData: '{"ionBean":"InvokeAction"}'
+                      stack: C8Oforms.MobileApplication.Application.updateState
+          ↓DirectiveGroups [ngx.components.UIControlDirective-1776113400042]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.goToPageIf != null && this.local.goToPageIf.groups != null && this.local.goToPageIf.groups.length > 0
+            ↓DirectiveGroup [ngx.components.UIControlDirective-1776113400043]: 
+              directiveIndexName: idGroupGoto
+              directiveItemName: groupGoto
+              directiveSource: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.local.goToPageIf.groups
+              ↓UseSharedComponent [ngx.components.UIUseShared-1776113400044]: 
+                sharedcomponent: C8Oforms.MobileApplication.Application.visibleIfGroupEditor
+                ↓parentGroup [ngx.components.UIUseVariable-1776113400045]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.goToPageIf
+                ↓group [ngx.components.UIUseVariable-1776113400046]: 
+                  binding: twoWayBinding
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:groupGoto
+                ↓groupIndex [ngx.components.UIUseVariable-1776113400047]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:idGroupGoto
+                ↓previousCount [ngx.components.UIUseVariable-1776113400048]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: 'script:this.local.goToPageIf.conds != null ? this.local.goToPageIf.conds.length : 0'
+                ↓complByName [ngx.components.UIUseVariable-1776113400049]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.complByNameGoTo
+                ↓keyName [ngx.components.UIUseVariable-1776113400050]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.keyNameGoTo
+                ↓conditionKind [ngx.components.UIUseVariable-1776113400051]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:goToPageIf
+                ↓navigationPages [ngx.components.UIUseVariable-1776113400052]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.form.pages
+                ↓item [ngx.components.UIUseVariable-1776130000004]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.local.item
+                ↓showNavigationAction [ngx.components.UIUseVariable-1776120400001]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:true
+                ↓useCompletionPopover [ngx.components.UIUseVariable-1776256500002]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:true
+                ↓Event [ngx.components.UIControlEvent-1776113400053]: 
+                  attrName: (save)
+                  eventName: save
+                  ↓CustomAction [ngx.components.UICustomAction-1776113400054]: 
+                    actionValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            		try {
+                            			if (this.local != null && this.local.commitGoToPageIf != null) {
+                            				this.local.commitGoToPageIf();
+                            			}
+                            		}
+                            		catch (e) {
+                            			console.error(e);
+                            		}
+                            		resolve();
+                            
+                    ↓saveNavigationConditionsAuto [ngx.components.UIDynamicInvoke-1776113400055]: 
+                      beanData: '{"ionBean":"InvokeAction"}'
+                      stack: C8Oforms.MobileApplication.Application.updateState
+          ↓DivAdd [ngx.components.UIDynamicElement-1776113400056]: 
+            beanData: '{"ionBean":"DivTag"}'
+            tagName: div
+            ↓Style [ngx.components.UIStyle-1776113400057]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      'margin-top: 10px;
+                      '
+            ↓UseSharedComponent [ngx.components.UIUseShared-1776113400058]: 
+              sharedcomponent: C8Oforms.MobileApplication.Application.FilterBRADD
+              ↓currentObject [ngx.components.UIUseVariable-1776113400059]: 
+                binding: twoWayBinding
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.local.goToPageIf
+              ↓addGroups [ngx.components.UIUseVariable-1776113400060]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:true
+              ↓addLineLabel [ngx.components.UIUseVariable-1776113400061]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:Add_condition
+              ↓addGroupLabel [ngx.components.UIUseVariable-1776113400062]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:Add_navigation_rule
+              ↓lineTemplate [ngx.components.UIUseVariable-1776113400063]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.createEmptyGoToPageCondition(this.local.item)
+              ↓groupTemplate [ngx.components.UIUseVariable-1776113400064]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.createEmptyGoToPageRule(this.local.item)
+              ↓showLineButton [ngx.components.UIUseVariable-1776120400002]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:false
+              ↓Event [ngx.components.UIControlEvent-1776113400065]: 
+                attrName: (save)
+                eventName: save
+                ↓CustomAction [ngx.components.UICustomAction-1776113400066]: 
+                  actionValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'try {
+                          	if (this.local != null && this.local.commitGoToPageIf != null) {
+                          		this.local.commitGoToPageIf();
+                          	}
+                          }
+                          catch (e) {
+                          	console.error(e);
+                          }
+                          resolve();
+                          '
+                  ↓saveNavigationConditionsAuto [ngx.components.UIDynamicInvoke-1776113400067]: 
+                    beanData: '{"ionBean":"InvokeAction"}'
+                    stack: C8Oforms.MobileApplication.Application.updateState
       ↓Directive2 [ngx.components.UIControlDirective-1775822466155]: 
         comment: edition mode for goto
         directiveName: If
@@ -2059,6 +2831,7 @@ scriptContent:
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: script:(this.local.showGoToPage || (this.local.goToPageSelf?.type && this.getGoToPageType(this.local.goToPageSelf.type) == 'multiple')) else ElseBlock_1595862191603
+        isEnabled: false
         ↓Directive [ngx.components.UIControlDirective-1775822466158]: 
           directiveIndexName: k
           directiveItemName: item
@@ -2460,6 +3233,35 @@ scriptContent:
       ↓DividerItem [ngx.components.UIDynamicElement-1775822466329]: 
         beanData: '{"ionBean":"Listdivider"}'
         tagName: ion-item-divider
+      ↓Style [ngx.components.UIStyle-1776260955304]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                '/**
+                 * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                 * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                 * They are set using custom property notation, e.g.: --main-color: black;
+                 * and are accessed using the var() function, e.g.: color: var(--main-color);
+                 * You can find below your component''s properties you can customize within the page.
+                 * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                 * For more information see https://ionicframework.com/docs/theming.
+                **/
+                //--ion-grid-column-padding	//Padding for the Column
+                //--ion-grid-column-padding-lg	//Padding for the Column on lg screens and up
+                //--ion-grid-column-padding-md	//Padding for the Column on md screens and up
+                //--ion-grid-column-padding-sm	//Padding for the Column on sm screens and up
+                //--ion-grid-column-padding-xl	//Padding for the Column on xl screens and up
+                //--ion-grid-column-padding-xs	//Padding for the Column on xs screens and up
+                //--ion-grid-columns	//The number of total Columns in the Grid
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+                min-height: 0;
+                max-height: 100%;
+                overflow: visible;
+                '
 ↓SharedComponent_Event [ngx.components.UISharedComponentEvent-1775823729922]: 
   componentEvent: onInit
   ↓setDefs [ngx.components.UICustomAction-1775822109747]: 
@@ -2591,6 +3393,31 @@ scriptContent:
             		            page.local.complByNameVisible[field.name] = getVisibleCompletionByType(field.type);
             		        }
             		    };
+            		    const getGoToCompletionByType = (type) => {
+            		        const normalized = page.getGoToPageType(type);
+            		        if (normalized == ''multiple'') {
+            		            return [''equals'', ''different'', ''among_following'', ''out_following'', ''is_empty'', ''is_filled''];
+            		        }
+            		        if (normalized == ''file'') {
+            		            return [''does_not_contain_file'', ''contains_a_file'', ''contains_multiple_files''];
+            		        }
+            		        if (normalized == ''camSign'') {
+            		            return [''is_empty'', ''is_filled''];
+            		        }
+            		        return [''equals'', ''different'', ''minus'', ''minusequals'', ''greater'', ''greaterequals'', ''among_following'', ''out_following'', ''contains'', ''not_contains'', ''is_empty'', ''is_filled''];
+            		    };
+            		    const buildGoToEditorConfig = () => {
+            		        const fields = getAllVisibleFieldCandidates();
+            		        page.local.keyNameGoTo = fields;
+            		        page.local.goToFieldsById = {};
+            		        page.local.goToFieldsByName = {};
+            		        page.local.complByNameGoTo = {};
+            		        for (let field of fields) {
+            		            page.local.goToFieldsById['''' + field.str] = field;
+            		            page.local.goToFieldsByName['''' + field.name] = field;
+            		            page.local.complByNameGoTo[field.name] = getGoToCompletionByType(field.type);
+            		        }
+            		    };
             		    const enrichVisibleFieldReference = (ref) => {
             		        let enriched: any = {
             		            name: '''',
@@ -2615,17 +3442,20 @@ scriptContent:
             		                }
             		            }
             		        }
-            		        if ((enriched.displayName == null || enriched.displayName == '''') && enriched.name != null) {
+            		        if ((enriched.displayName == null || enriched.displayName == "") && enriched.name != null) {
             		            enriched.displayName = enriched.name;
             		        }
-            		        if ((enriched.name == null || enriched.name == '''') && enriched.str != null) {
-            		            enriched.name = enriched.displayName != null && enriched.displayName != '''' ? enriched.displayName : '''' + enriched.str;
+            		        if ((enriched.name == null || enriched.name == "") && enriched.str != null) {
+            		            enriched.name = enriched.displayName != null && enriched.displayName != "" ? enriched.displayName : "" + enriched.str;
             		        }
             		        if (enriched.source == null) {
             		            enriched.source = true;
             		        }
             		        if (!Array.isArray(enriched.arr)) {
             		            enriched.arr = [];
+            		        }
+            		        if (page.getConditionFieldDisplayName != null) {
+            		            enriched.displayName = page.getConditionFieldDisplayName(enriched);
             		        }
             		        return enriched;
             		    };
@@ -2705,6 +3535,181 @@ scriptContent:
             		            normalized.operator = '''';
             		        }
             		        return normalized;
+            		    };
+            		    const normalizeGoToPageCondition = (cond) => {
+            		        let normalized: any = page.createEmptyGoToPageCondition(item);
+            		        if (cond != null && typeof cond == ''object'') {
+            		        	for (let key of Object.keys(cond)) {
+            		        		normalized[key] = cond[key];
+            		        	}
+            		        }
+            		        normalized.type = ''goToPageIf'';
+            		        normalized.subject = ''field'';
+            		        normalized.val1 = enrichVisibleFieldReference(normalized.val1);
+            		        normalized.val2 = normalizeVisibleVal2(normalized.val2);
+            		        if (normalized.operator == null) {
+            		        	normalized.operator = '''';
+            		        }
+            		        if (normalized.verb == null || normalized.verb == '''') {
+            		        	normalized.verb = ''authorize'';
+            		        }
+            		        if (normalized.page == null) {
+            		        	normalized.page = '''';
+            		        }
+            		        return normalized;
+            		    };
+            		    const stripGoToPageConditionAction = (cond) => {
+            		        if (cond != null && typeof cond == ''object'') {
+            		        	delete cond.verb;
+            		        	delete cond.page;
+            		        }
+            		        return cond;
+            		    };
+            		    const normalizeGoToPageGroup = (group) => {
+            		        const current: any = group != null && typeof group == ''object'' ? group : {};
+            		        const normalized: any = {
+            		        	type: ''goToPageIf'',
+            		        	condVisible: current.condVisible != null && current.condVisible != '''' ? current.condVisible : ''and'',
+            		        	conds: [],
+            		        	groups: []
+            		        };
+            		        if (current.verb != null) {
+            		        	normalized.verb = current.verb != '''' ? current.verb : ''authorize'';
+            		        }
+            		        if (current.page != null) {
+            		        	normalized.page = current.page;
+            		        }
+            		        for (let cond of (Array.isArray(current.conds) ? current.conds : [])) {
+            		        	if (cond != null) {
+            		        		normalized.conds.push(normalizeGoToPageCondition(cond));
+            		        	}
+            		        }
+            		        normalized.groups = (Array.isArray(current.groups) ? current.groups : []).map((child) => normalizeGoToPageGroup(child));
+            		        return normalized;
+            		    };
+            		    const normalizeGoToPageRuleGroup = (group) => {
+            		        const normalized: any = normalizeGoToPageGroup(group);
+            		        let actionSource: any = null;
+            		        if (normalized.page != null || normalized.verb != null) {
+            		        	actionSource = normalized;
+            		        }
+            		        else {
+            		        	for (let cond of (Array.isArray(normalized.conds) ? normalized.conds : [])) {
+            		        		if (cond != null && (cond.page != null || cond.verb != null)) {
+            		        			actionSource = cond;
+            		        			break;
+            		        		}
+            		        	}
+            		        }
+            		        normalized.verb = actionSource != null && actionSource.verb != null && actionSource.verb != '''' ? actionSource.verb : ''authorize'';
+            		        normalized.page = actionSource != null && actionSource.page != null ? actionSource.page : '''';
+            		        normalized.conds = (Array.isArray(normalized.conds) ? normalized.conds : []).map((cond) => stripGoToPageConditionAction(normalizeGoToPageCondition(cond)));
+            		        normalized.groups = (Array.isArray(normalized.groups) ? normalized.groups : []).map((child) => normalizeGoToPageGroup(child));
+            		        return normalized;
+            		    };
+            		    const createGoToPageRuleFromCondition = (cond) => {
+            		        const rule: any = page.createEmptyGoToPageRule(item);
+            		        const normalizedCond: any = normalizeGoToPageCondition(cond);
+            		        rule.verb = normalizedCond.verb != null && normalizedCond.verb != '''' ? normalizedCond.verb : ''authorize'';
+            		        rule.page = normalizedCond.page != null ? normalizedCond.page : '''';
+            		        rule.conds = [stripGoToPageConditionAction(normalizedCond)];
+            		        return normalizeGoToPageRuleGroup(rule);
+            		    };
+            		    const cleanupGoToPageGroup = (group) => {
+            		        if (group == null || typeof group != ''object'') {
+            		        	return normalizeGoToPageGroup(page.createEmptyGoToPageGroup());
+            		        }
+            		        group.conds = (Array.isArray(group.conds) ? group.conds : []).filter((cond) => cond != null);
+            		        group.groups = (Array.isArray(group.groups) ? group.groups : []).map((child) => cleanupGoToPageGroup(child)).filter((child) => {
+            		        	return child != null && (
+            		        		child.page != null ||
+            		        		child.verb != null ||
+            		        		(Array.isArray(child.conds) && child.conds.length > 0) ||
+            		        		(Array.isArray(child.groups) && child.groups.length > 0)
+            		        	);
+            		        });
+            		        return group;
+            		    };
+            		    const serializeGoToPageCondition = (cond, inheritedAction: any = null) => {
+            		        if (cond == null || typeof cond != ''object'') {
+            		        	return null;
+            		        }
+            		        let serialized: any = {};
+            		        for (let key of Object.keys(cond)) {
+            		        	serialized[key] = cond[key];
+            		        }
+            		        serialized.type = ''goToPageIf'';
+            		        serialized.subject = ''field'';
+            		        serialized.val1 = enrichVisibleFieldReference(cond.val1);
+            		        serialized.val2 = normalizeVisibleVal2(cond.val2);
+            		        const inheritedHasAction = inheritedAction != null && ((inheritedAction.verb != null && inheritedAction.verb != '''') || (inheritedAction.page != null && inheritedAction.page != ''''));
+            		        if (inheritedHasAction) {
+            		        	delete serialized.verb;
+            		        	delete serialized.page;
+            		        }
+            		        else {
+            		        	if (serialized.verb == null || serialized.verb == '''') {
+            		        		delete serialized.verb;
+            		        	}
+            		        	if (serialized.page == null || serialized.page == '''') {
+            		        		delete serialized.page;
+            		        	}
+            		        }
+            		        return serialized;
+            		    };
+            		    const serializeGoToPageGroup = (group, inheritedAction: any = null) => {
+            		        const cleaned: any = cleanupGoToPageGroup(group);
+            		        const groupAction: any = {
+            		        	verb: cleaned.verb != null && cleaned.verb != '''' ? cleaned.verb : (inheritedAction != null ? inheritedAction.verb : null),
+            		        	page: cleaned.page != null ? cleaned.page : (inheritedAction != null ? inheritedAction.page : null)
+            		        };
+            		        let serialized: any = {
+            		        	type: ''goToPageIf'',
+            		        	condVisible: cleaned.condVisible != null && cleaned.condVisible != '''' ? cleaned.condVisible : ''and'',
+            		        	conds: (Array.isArray(cleaned.conds) ? cleaned.conds.map((cond) => serializeGoToPageCondition(cond, groupAction)).filter((cond) => cond != null) : []),
+            		        	groups: (Array.isArray(cleaned.groups) ? cleaned.groups.map((child) => serializeGoToPageGroup(child, groupAction)) : [])
+            		        };
+            		        if (cleaned.verb != null) {
+            		        	serialized.verb = cleaned.verb != '''' ? cleaned.verb : ''authorize'';
+            		        }
+            		        if (cleaned.page != null) {
+            		        	serialized.page = cleaned.page;
+            		        }
+            		        return serialized;
+            		    };
+            		    const ensureGoToPageIfStructure = (item) => {
+            		        if (item.conditions == null) {
+            		        	item.conditions = {};
+            		        }
+            		        if (item.conditions.goToPageIf == null) {
+            		        	item.conditions.goToPageIf = page.createEmptyGoToPageGroup();
+            		        }
+            		        const normalizedRoot: any = normalizeGoToPageGroup(item.conditions.goToPageIf);
+            		        const root: any = page.createEmptyGoToPageGroup();
+            		        root.condVisible = ''or'';
+            		        for (let cond of (Array.isArray(normalizedRoot.conds) ? normalizedRoot.conds : [])) {
+            		        	root.groups.push(createGoToPageRuleFromCondition(cond));
+            		        }
+            		        for (let child of (Array.isArray(normalizedRoot.groups) ? normalizedRoot.groups : [])) {
+            		        	root.groups.push(normalizeGoToPageRuleGroup(child));
+            		        }
+            		        return root;
+            		    };
+            		    const recountGoToPage = () => {
+            		        let cpt = 0;
+            		        const walk = (group) => {
+            		        	if (group == null) {
+            		        		return;
+            		        	}
+            		        	for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
+            		        		page.isTotalyFilled(cond) == true ? cpt++ : null;
+            		        	}
+            		        	for (let child of (Array.isArray(group.groups) ? group.groups : [])) {
+            		        		walk(child);
+            		        	}
+            		        };
+            		        walk(page.local.goToPageIf);
+            		        page.local.cptGoToPageFilled = cpt;
             		    };
             		    const normalizeVisibleGroup = (group) => {
             		        const current: any = group != null && typeof group == ''object'' ? group : {};
@@ -2821,8 +3826,33 @@ scriptContent:
             		        page.local.condVisible = targetItem.conditions.visibleIf.condVisible;
             		        recountVisible();
             		    };
+            		    page.local.commitGoToPageIf = function() {
+            		        if (page.local.item == null) {
+            		        	return;
+            		        }
+            		        page.local.goToPageIf = cleanupGoToPageGroup(page.local.goToPageIf);
+            		        const serialized = serializeGoToPageGroup(page.local.goToPageIf);
+            		        let targetItem: any = page.local.item;
+            		        if (page.pageOwner != null && page.pageOwner.getElementById != null && page.local.item != null && page.local.item.id != null) {
+            		        	let runtimeItem = page.pageOwner.getElementById(page.local.item.id);
+            		        	if (runtimeItem != null) {
+            		        		targetItem = runtimeItem;
+            		        		page.local.item = runtimeItem;
+            		        	}
+            		        }
+            		        page.ensureLegacyAwareConditionContainers(targetItem);
+            		        targetItem.conditions.goToPageIf = serialized;
+            		        if (targetItem.goToPageIf != null) {
+            		        	targetItem.goToPageIf = serialized;
+            		        }
+            		        page.local.goToPageIf = targetItem.conditions.goToPageIf;
+            		        page.local.goToPage = targetItem.conditions.goToPageIf.conds;
+            		        page.local.condGoToPage = targetItem.conditions.goToPageIf.condVisible;
+            		        recountGoToPage();
+            		    };
             		    page.ensureLegacyAwareConditionContainers(item);
             		    buildVisibleEditorConfig();
+            		    buildGoToEditorConfig();
             		    page.local.visibleIf = ensureVisibleIfStructure(item);
             		    page.local.condVisible = page.local.visibleIf.condVisible;
             		    page.local.visible = page.local.visibleIf.conds;
@@ -2848,12 +3878,12 @@ scriptContent:
             		        source: true,
             		        type: item.type
             		    };
-            		    page.local.goToPage = item.conditions.goToPageIf.conds;
-            		    if (page.local.goToPage[0] != null && page.local.goToPage[0].val2 != null) {
-            		        page.local.goToPage[0].val2.vals = returnTemplate(item);
-            		    }
+            		    page.local.goToPageIf = ensureGoToPageIfStructure(item);
+            		    page.local.condGoToPage = page.local.goToPageIf.condVisible;
+            		    page.local.goToPage = page.local.goToPageIf.conds;
             		    syncDisplay(page.local.visibleIf);
             		    recountVisible();
+            		    recountGoToPage();
             		    page.local.item = item;
             		} catch (e) {
             		    console.error(e);

@@ -28,6 +28,19 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
+        	public getConditionFieldType(): string {
+        		try {
+        			let cond = this.currentObject != null && this.currentObject.conds != null ? this.currentObject.conds[this.l] : null;
+        			let type = cond != null && cond.val1 != null ? cond.val1.type : "";
+        			if (this.conditionKind == "goToPageIf") {
+        				return this.pageOwner.getGoToPageType(type);
+        			}
+        			return this.pageOwner.getType(type);
+        		}
+        		catch (e) {
+        			return "";
+        		}
+        	}
         	public async __convertTsToText(sourceStr) {
         		try {
         			if (sourceStr == null) {
@@ -113,6 +126,15 @@ scriptContent:
   value: null
 ↓complByName [ngx.components.UICompVariable-1758189527442]: 
 ↓keyName [ngx.components.UICompVariable-1758189849445]: 
+↓conditionKind [ngx.components.UICompVariable-1776113200001]: 
+  value: '''visibleIf'''
+↓navigationPages [ngx.components.UICompVariable-1776113200002]: 
+  value: null
+↓showNavigationAction [ngx.components.UICompVariable-1776120600001]: 
+  value: true
+↓lockCurrentField [ngx.components.UICompVariable-1776132000001]: 
+  value: false
+↓useCompletionPopover [ngx.components.UICompVariable-1776098015658]: 
 ↓save [ngx.components.UICompEvent-1758190795090]: 
   attrName: save
 ↓DivFilter [ngx.components.UIDynamicElement-1758189195619]: 
@@ -358,12 +380,29 @@ scriptContent:
               	}
               
               	display:flex;
+              	align-items: center;
+              	cursor:pointer;
               '
     ↓Div [ngx.components.UIDynamicElement-1758189195700]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓Style [ngx.components.UIStyle-1776134000001]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                'flex: 1 1 auto;
+                min-width: 0;
+                display: flex;
+                '
       ↓GenericItem1 [ngx.components.UIDynamicElement-1758189195703]: 
-        beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+        beanData: |
+          '{
+           "ionBean": "GenericItem",
+           "Lines": "plain:none",
+           "ButtonFormType": "plain"
+          }'
         tagName: ion-item
         ↓TextInput [ngx.components.UIDynamicElement-1758189195706]: 
           beanData: |
@@ -395,6 +434,12 @@ scriptContent:
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:no-lines
+          ↓Attr1 [ngx.components.UIAttribute-1776261077917]: 
+            attrName: '[title]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:currentObject.conds[this.l].val1.displayName
         ↓Style [ngx.components.UIStyle-1758197364158]: 
           styleContent: 
             - xmlizable: 
@@ -446,9 +491,18 @@ scriptContent:
                   //--ripple-color	//Color of the item ripple effect
                   //--transition	//Transition of the item
                   '
-    ↓Div1 [ngx.components.UIDynamicElement-1758189195715]: 
-      beanData: '{"ionBean":"DivTag"}'
-      tagName: div
+      ↓Div1 [ngx.components.UIDynamicElement-1758189195715]: 
+        beanData: '{"ionBean":"DivTag"}'
+        tagName: div
+        ↓Style [ngx.components.UIStyle-1776133000001]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  'flex: 1 1 auto;
+                  min-width: 0;
+                  '
       ↓Button [ngx.components.UIDynamicElement-1758189195718]: 
         beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
         tagName: ion-button
@@ -463,10 +517,51 @@ scriptContent:
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
                     '		try {
+                    			event?.stopPropagation?.();
+                    			if (page.lockCurrentField == true) {
+                    				let owner = page.pageOwner;
+                    				while (owner != null && owner.browseConditionField == undefined && owner.pageOwner != null) {
+                    					owner = owner.pageOwner;
+                    				}
+                    				let existingField = page.currentObject?.conds?.[vars.l]?.val1;
+                    				let currentField = owner.buildCurrentConditionField != undefined ? owner.buildCurrentConditionField(page.item, existingField) : existingField;
+                    				if(owner == null || owner.browseConditionField == undefined || currentField == null){
+                    					return false;
+                    				}
+                    				let browsed = await owner.browseConditionField(currentField);
+                    				page.currentObject.conds[vars.l].val1 = browsed;
+                    				page.save.emit(page.currentObject);
+                    				page.ref.detectChanges();
+                    				return true;
+                    			}
+                    			if (page.useCompletionPopover == true || page.useCompletionPopover == "true") {
+                    				let owner = page.owner != null ? page.owner : page.pageOwner;
+                    				let guard = 0;
+                    				while (owner != null && owner.browseConditionFieldPopover == undefined && guard < 20) {
+                    					let nextOwner = owner.owner != null ? owner.owner : owner.pageOwner;
+                    					if(nextOwner == owner){
+                    						break;
+                    					}
+                    					owner = nextOwner;
+                    					guard++;
+                    				}
+                    				let existingField = page.currentObject?.conds?.[vars.l]?.val1;
+                    				if(owner == null || owner.browseConditionFieldPopover == undefined || existingField == null){
+                    					return false;
+                    				}
+                    				let browsed = await owner.browseConditionFieldPopover(existingField, event);
+                    				if (browsed != null) {
+                    					page.currentObject.conds[vars.l].val1 = browsed;
+                    					page.save.emit(page.currentObject);
+                    					page.ref.detectChanges();
+                    					return true;
+                    				}
+                    				return false;
+                    			}
                     			let popoverController = page.getInstance(PopoverController);
                     			let popover = await popoverController.create({
                     		      component: C8Oforms_PopOverSourceCompletion,
-                    		      componentProps:{currentItem:page.item, keyName: page.keyName},
+                    		      componentProps:{currentItem:page.currentObject?.conds?.[vars.l]?.val1, currentObject: page.currentObject, keyName: page.keyName},
                     		      size: "auto",
                     		      cssClass: "C8Oforms_PopOverSourceCompletionCSS",
                     		      reference: "event"
@@ -475,7 +570,15 @@ scriptContent:
                     		    page.ref.detectChanges();
                     		    let res: any = await popover.onDidDismiss();
                     		    if(res.data.result != undefined){
-                    				page.currentObject.conds[vars.l].val1 = res.data.result;
+                    				let selected = res.data.result;
+                    				let owner = page.pageOwner;
+                    				while (owner != null && owner.browseConditionField == undefined && owner.pageOwner != null) {
+                    					owner = owner.pageOwner;
+                    				}
+                    				if (owner != null && owner.browseConditionField != undefined) {
+                    					selected = await owner.browseConditionField(selected);
+                    				}
+                    				page.currentObject.conds[vars.l].val1 = selected;
                     				page.save.emit(page.currentObject);
                     				page.ref.detectChanges();
                     				return true;
@@ -660,7 +763,7 @@ scriptContent:
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.pageOwner.getType(this.current.val1.type) == 'simple'
+              - MobileSmartSourceType: script:this.getConditionFieldType() == 'simple'
           isEnabled: false
         ↓Event [ngx.components.UIControlEvent-1758189195769]: 
           attrName: (ngModelChange)
@@ -1430,6 +1533,176 @@ scriptContent:
               	position: relative;
               	overflow: visible;
               '
+  ↓DivNavigationAction [ngx.components.UIDynamicElement-1776113200003]: 
+    beanData: '{"ionBean":"DivTag"}'
+    tagName: div
+    ↓Attr [ngx.components.UIAttribute-1776113200004]: 
+      attrName: '*ngIf'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: plain:this.conditionKind == 'goToPageIf' && this.showNavigationAction != false
+    ↓Style [ngx.components.UIStyle-1776113200005]: 
+      styleContent: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              display:flex;
+              align-items:stretch;
+              gap:8px;
+              min-width:0;
+              flex:0 0 auto;
+              
+    ↓DivVerb [ngx.components.UIDynamicElement-1776113200006]: 
+      beanData: '{"ionBean":"DivTag"}'
+      tagName: div
+      ↓Style [ngx.components.UIStyle-1776113200007]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                'width: 154px;
+                border: 1px solid rgba(0, 0, 0, .15) !important;
+                border-radius: .25rem !important;
+                .item-inner {
+                	border-bottom-color: transparent !important;
+                	box-shadow: none !important;
+                }
+                display:flex;
+                '
+      ↓GenericItem [ngx.components.UIDynamicElement-1776113200008]: 
+        beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+        tagName: ion-item
+        ↓SelectContainer [ngx.components.UIDynamicElement-1776113200009]: 
+          beanData: |
+            '{
+             "ionBean": "Select",
+             "Interface": "plain:popover",
+             "Placeholder": "script:this.translate.instant(''Action'')"
+            }'
+          tagName: ion-select
+          ↓Attr [ngx.components.UIAttribute-1776113200010]: 
+            attrName: '[(ngModel)]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:currentObject.conds[this.l].verb
+          ↓Event [ngx.components.UIControlEvent-1776113200011]: 
+            attrName: (ngModelChange)
+            eventName: (ngModelChange)
+            ↓SaveVerb [ngx.components.UICustomAction-1776113200012]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '		if(page.currentObject != null && page.currentObject.conds != null && page.currentObject.conds[page.l] != null){
+                      			page.currentObject.conds[page.l].verb = event != null && event != "" ? event : "authorize";
+                      		}
+                      		page.save.emit(page.currentObject);
+                      		resolve();
+                      '
+              ↓EmitEvent [ngx.components.UIDynamicEmit-1776113200013]: 
+                beanData: |
+                  '{
+                   "ionBean": "EmitEventAction",
+                   "event": "plain:C8Oforms.MobileApplication.Application.FilterBR.save",
+                   "data": "script:this.currentObject"
+                  }'
+                tagName: EmitEvent
+          ↓SelectOptionGoTo [ngx.components.UIDynamicElement-1776113200014]: 
+            beanData: '{"ionBean":"SelectOption","Value":"plain:goTo"}'
+            tagName: ion-select-option
+            ↓Text [ngx.components.UIText-1776113200015]: 
+              i18n: true
+              textValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:goToPage
+          ↓SelectOptionAuthorize [ngx.components.UIDynamicElement-1776113200016]: 
+            beanData: '{"ionBean":"SelectOption","Value":"plain:authorize"}'
+            tagName: ion-select-option
+            ↓Text [ngx.components.UIText-1776113200017]: 
+              i18n: true
+              textValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:authorizePage
+    ↓DivPage [ngx.components.UIDynamicElement-1776113200018]: 
+      beanData: '{"ionBean":"DivTag"}'
+      tagName: div
+      ↓Style [ngx.components.UIStyle-1776113200019]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                'width: 170px;
+                border: 1px solid rgba(0, 0, 0, .15) !important;
+                border-radius: .25rem !important;
+                .item-inner {
+                	border-bottom-color: transparent !important;
+                	box-shadow: none !important;
+                }
+                display:flex;
+                '
+      ↓GenericItem [ngx.components.UIDynamicElement-1776113200020]: 
+        beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+        tagName: ion-item
+        ↓SelectContainer [ngx.components.UIDynamicElement-1776113200021]: 
+          beanData: |
+            '{
+             "ionBean": "Select",
+             "Interface": "plain:popover",
+             "Placeholder": "script:this.translate.instant(''Element'')"
+            }'
+          tagName: ion-select
+          ↓Attr [ngx.components.UIAttribute-1776113200022]: 
+            attrName: '[(ngModel)]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:currentObject.conds[this.l].page
+          ↓Event [ngx.components.UIControlEvent-1776113200023]: 
+            attrName: (ngModelChange)
+            eventName: (ngModelChange)
+            ↓SavePage [ngx.components.UICustomAction-1776113200024]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '		if(page.currentObject != null && page.currentObject.conds != null && page.currentObject.conds[page.l] != null){
+                      			page.currentObject.conds[page.l].page = event != null ? event : "";
+                      		}
+                      		page.save.emit(page.currentObject);
+                      		resolve();
+                      '
+              ↓EmitEvent [ngx.components.UIDynamicEmit-1776113200025]: 
+                beanData: |
+                  '{
+                   "ionBean": "EmitEventAction",
+                   "event": "plain:C8Oforms.MobileApplication.Application.FilterBR.save",
+                   "data": "script:this.currentObject"
+                  }'
+                tagName: EmitEvent
+          ↓Directive [ngx.components.UIControlDirective-1776113200026]: 
+            directiveIndexName: navPageIndex
+            directiveItemName: navPage
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.navigationPages
+            ↓SelectOption [ngx.components.UIDynamicElement-1776113200027]: 
+              beanData: '{"ionBean":"SelectOption","Value":"script:navPage.pageTechName"}'
+              tagName: ion-select-option
+              ↓Text [ngx.components.UIText-1776113200028]: 
+                textValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:navPage.name
   ↓DivDelete [ngx.components.UIDynamicElement-1758189196132]: 
     beanData: '{"ionBean":"DivTag"}'
     tagName: div
@@ -1521,7 +1794,8 @@ scriptContent:
                 &::part(native){
                 	padding-left: 0;
                 	padding-right: 0;
-                }'
+                }
+                '
     ↓Style [ngx.components.UIStyle-1758189196153]: 
       styleContent: 
         - xmlizable: 
