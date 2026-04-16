@@ -517,6 +517,7 @@ For more technical informations : [documentation](./project.md)
         - [stripeBackground](#stripebackground)
         - [switchItemEdition](#switchitemedition)
         - [switchItemViewer](#switchitemviewer)
+        - [TextInputSetting](#textinputsetting)
         - [ToggleSwitch](#toggleswitch)
         - [ToolbarComponentUi](#toolbarcomponentui)
         - [treeview](#treeview)
@@ -5762,7 +5763,25 @@ Update the state of a field
 <td>emptyText</td><td></td>
 </tr>
 <tr>
+<td>icnUrl</td><td></td>
+</tr>
+<tr>
+<td>imgUrl</td><td></td>
+</tr>
+<tr>
+<td>index</td><td></td>
+</tr>
+<tr>
 <td>label</td><td></td>
+</tr>
+<tr>
+<td>multiple</td><td></td>
+</tr>
+<tr>
+<td>selected</td><td></td>
+</tr>
+<tr>
+<td>style</td><td></td>
 </tr>
 </table>
 **events**
@@ -6206,6 +6225,9 @@ Display an apex chart comp. or an ag-grid comp.
 <td>complByName</td><td></td>
 </tr>
 <tr>
+<td>conditionKind</td><td></td>
+</tr>
+<tr>
 <td>currentObject</td><td></td>
 </tr>
 <tr>
@@ -6222,6 +6244,18 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>l</td><td></td>
+</tr>
+<tr>
+<td>lockCurrentField</td><td></td>
+</tr>
+<tr>
+<td>navigationPages</td><td></td>
+</tr>
+<tr>
+<td>showNavigationAction</td><td></td>
+</tr>
+<tr>
+<td>useCompletionPopover</td><td></td>
 </tr>
 </table>
 **events**
@@ -6253,6 +6287,15 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>groupTemplate</td><td></td>
+</tr>
+<tr>
+<td>lineTemplate</td><td></td>
+</tr>
+<tr>
+<td>showLineButton</td><td></td>
 </tr>
 </table>
 **events**
@@ -7915,6 +7958,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemTextViewer
 
@@ -8990,7 +9036,7 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>disabled</td><td></td>
 </tr>
 </table>
-#### ToggleSwitch
+#### TextInputSetting
 
 **variables**
 
@@ -9005,7 +9051,47 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>model</td><td></td>
 </tr>
 <tr>
+<td>placeholder</td><td></td>
+</tr>
+<tr>
+<td>style</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>modelChanged</td><td></td>
+</tr>
+</table>
+#### ToggleSwitch
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>i18nCallback</td><td></td>
+</tr>
+<tr>
+<td>keyName</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
 <td>options</td><td></td>
+</tr>
+<tr>
+<td>style</td><td></td>
 </tr>
 </table>
 **events**

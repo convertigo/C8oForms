@@ -15,10 +15,16 @@ scriptContent:
         import traverse from "@babel/traverse";
         //Used by conditional
         interface ValFieldObject {
-        	str: string;
+        	str: any;
         	source: boolean;
         	type: string;
         	arr: Array<any>;
+        	name?: string;
+        	displayName?: string;
+        	c8opath?: string;
+        	c8oPrettyPath?: string;
+        	c8obuiltin?: any;
+        	c8oisobject?: any;
         }
         interface FieldObject {
         	type: string;
@@ -3923,7 +3929,7 @@ scriptContent:
         				if (false && meta.c8otype == "path" && !html) {
         					try {
         						let sp;
-        						if (meta.c8obuiltin == "true") {
+        						if (meta.c8obuiltin == "true" || meta.c8obuiltin == true) {
         							sp = meta.c8opath.split(".");
         							if ([''selected_data_c8o_separated_by_coma'', ''not_selected_data_c8o_separated_by_coma'', ''selected_data'', ''not_selected_data''].indexOf(sp[3]) != -1) {
         								sp = meta.c8opath.split(".").slice(4);
@@ -4073,7 +4079,12 @@ scriptContent:
         								}
         								if (firstSegment == "cell_selected" || firstSegment == "cellSelected") {
         									let basePath = "page.formsSubmit?.[''" + gridName + "'']?.[''value'']";
-        									for (let value of splitted.slice(2)) {
+        									let suffix = splitted.slice(2);
+        									if (suffix[0] == "value") {
+        										basePath = "(((" + basePath + ") != null && typeof (" + basePath + ") == ''object'' && (" + basePath + ")?.[''value''] != undefined) ? (" + basePath + ")?.[''value''] : (" + basePath + "))";
+        										suffix = suffix.slice(1);
+        									}
+        									for (let value of suffix) {
         										basePath += "?.[''" + value + "'']";
         									}
         									if (ts) {
@@ -4207,7 +4218,7 @@ scriptContent:
         							}
         						}
         						// if it''s a builtin expression
-        						else if (meta.c8obuiltin == "true") {
+        						else if (meta.c8obuiltin == "true" || meta.c8obuiltin == true) {
         							let displayValue = false;
         							let typeTargeted = splitted[1];
         							let verb = splitted[2];
@@ -5789,6 +5800,171 @@ scriptContent:
         		}
         	}
         
+        	private hasLegacyGoToMatrixCondition(group: any): boolean {
+        		try {
+        			for (let cond of (Array.isArray(group != null ? group.conds : null) ? group.conds : [])) {
+        				if (
+        					cond != null &&
+        					cond.val2 != null &&
+        					cond.val2.vals != undefined &&
+        					typeof cond.val2.vals == "object" &&
+        					Object.keys(cond.val2.vals).length > 0
+        				) {
+        					return true;
+        				}
+        			}
+        			for (let child of (Array.isArray(group != null ? group.groups : null) ? group.groups : [])) {
+        				if (this.hasLegacyGoToMatrixCondition(child)) {
+        					return true;
+        				}
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return false;
+        	}
+        
+        	private evaluateGoToConditionMatch(cond: any): boolean {
+        		try {
+        			if (this.isAfieldSimpleOrMultipleGo(cond) || this.isAFile(cond) || this.isACamSign(cond)) {
+        				return !!this.compute(cond);
+        			}
+        			if (this.isAform(cond)) {
+        				return !!this.eval("" + this.generateJsVisibleIfForm(cond));
+        			}
+        			if (this.isANeverVisible(cond)) {
+        				return false;
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return false;
+        	}
+        
+        	private resetGoToPageTargets(group: any, item: any): void {
+        		try {
+        			if (group == null || item == null) {
+        				return;
+        			}
+        			let groupAction = group != null ? group.page : null;
+        			if (groupAction != null && groupAction !== "") {
+        				let groupIndexToGo = this.findIndexOfPageByPageTechName(groupAction);
+        				if (groupIndexToGo > -1) {
+        					if (this.local.pages[groupIndexToGo].enabled == undefined || typeof this.local.pages[groupIndexToGo].enabled == "boolean") {
+        						this.local.pages[groupIndexToGo].enabled = {};
+        					}
+        					this.local.pages[groupIndexToGo].enabled[item.id] = false;
+        				}
+        			}
+        			for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
+        				let action = cond != null ? cond.page : null;
+        				if (action == null || action === "") {
+        					continue;
+        				}
+        				let indexToGo = this.findIndexOfPageByPageTechName(action);
+        				if (indexToGo < 0) {
+        					continue;
+        				}
+        				if (this.local.pages[indexToGo].enabled == undefined || typeof this.local.pages[indexToGo].enabled == "boolean") {
+        					this.local.pages[indexToGo].enabled = {};
+        				}
+        				this.local.pages[indexToGo].enabled[item.id] = false;
+        			}
+        			for (let child of (Array.isArray(group.groups) ? group.groups : [])) {
+        				this.resetGoToPageTargets(child, item);
+        			}
+        		}
+        		catch (e) {
+        		}
+        	}
+        
+        	private applyGoToCondition(cond: any, item: any): void {
+        		try {
+        			let action = cond != null ? cond.page : null;
+        			if (action == null || action === "") {
+        				return;
+        			}
+        			let indexToGo = this.findIndexOfPageByPageTechName(action);
+        			if (indexToGo < 0) {
+        				return;
+        			}
+        			if (cond.verb == undefined || cond.verb == "authorize") {
+        				if (this.local.pages[indexToGo].enabled == undefined || typeof this.local.pages[indexToGo].enabled == "boolean") {
+        					this.local.pages[indexToGo].enabled = {};
+        				}
+        				this.local.pages[indexToGo].enabled[item.id] = true;
+        				return;
+        			}
+        			if (cond.verb == "goTo") {
+        				this.local.currentIndex = indexToGo;
+        				let i = this["navParams"].get("i") != undefined ? this["navParams"].get("i") : ":i";
+        				let edit = this["navParams"].get("edit") != undefined ? this["navParams"].get("edit") : ":edit";
+        				let formId = this["navParams"].get("formId") != undefined ? this["navParams"].get("formId") : ":formId";
+        				history.pushState({ page: this["local"]["currentIndex"], formId: formId, edit: edit, i: i }, "", window.location.pathname.substring(0, window.location.pathname.indexOf("viewer")) + "viewer/" + formId + "/" + edit + "/" + i);
+        				this.moveFocus();
+        				this.setTitleRGAA();
+        				this.ref.detectChanges();
+        			}
+        		}
+        		catch (e) {
+        			this.c8o.log.error("An error occurred while applying goToPageIf condition", e);
+        		}
+        	}
+        
+        	private evaluateGoToPageIfGroup(group: any, item: any, inheritedAction: any = null): any {
+        		let operator = ((group != null && group.condVisible != null ? "" + group.condVisible : "and")).toLowerCase();
+        		let groupAction: any = {
+        			verb: group != null && group.verb != null && group.verb !== "" ? group.verb : (inheritedAction != null ? inheritedAction.verb : null),
+        			page: group != null && group.page != null && group.page !== "" ? group.page : (inheritedAction != null ? inheritedAction.page : null)
+        		};
+        		let results: Array<boolean> = [];
+        		let actions: Array<any> = [];
+        		for (let cond of (Array.isArray(group != null ? group.conds : null) ? group.conds : [])) {
+        			let matched = this.evaluateGoToConditionMatch(cond);
+        			results.push(matched);
+        			if (matched && cond != null && cond.page != null && cond.page !== "") {
+        				actions.push({
+        					verb: cond.verb != null && cond.verb !== "" ? cond.verb : (groupAction.verb != null && groupAction.verb !== "" ? groupAction.verb : "authorize"),
+        					page: cond.page
+        				});
+        			}
+        		}
+        		for (let child of (Array.isArray(group != null ? group.groups : null) ? group.groups : [])) {
+        			let childResult = this.evaluateGoToPageIfGroup(child, item, groupAction);
+        			results.push(childResult.matched === true);
+        			if (childResult.matched === true) {
+        				actions = actions.concat(Array.isArray(childResult.actions) ? childResult.actions : []);
+        			}
+        		}
+        		if (results.length == 0) {
+        			return { matched: false, actions: [] };
+        		}
+        		if (operator == "or") {
+        			let matched = results.some((value) => value === true);
+        			return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [] };
+        		}
+        		let matched = results.every((value) => value === true);
+        		return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [] };
+        	}
+        
+        	private detectGoToPageIfAndComplete(group: any, item: any): void {
+        		if (group == null || item == null) {
+        			return;
+        		}
+        		if (this.hasLegacyGoToMatrixCondition(group)) {
+        			this.detectTypeAndComplete(Array.isArray(group.conds) ? group.conds : [], item);
+        			return;
+        		}
+        		this.resetGoToPageTargets(group, item);
+        		let result = this.evaluateGoToPageIfGroup(group, item);
+        		if (result.matched !== true) {
+        			return;
+        		}
+        		for (let cond of (Array.isArray(result.actions) ? result.actions : [])) {
+        			this.applyGoToCondition(cond, item);
+        		}
+        	}
+        
         
         	/**
         	 * Find the index of a page in the local pages array based on the page''s technical name.
@@ -6031,7 +6207,7 @@ scriptContent:
         		let result = true;
         		if (this.instanceOfField(cond)) {
         			const field = <FieldObject>cond;
-        			const type1: string = this.getType(field.val1.type);
+        			const type1: string = field.type == "goToPageIf" ? this.getGoToPageType(field.val1.type) : this.getType(field.val1.type);
         			const operator: string = field.operator;
         			result = this[operator](field, type1);
         		}
@@ -6718,6 +6894,34 @@ scriptContent:
         	* @returns The value of the field.
         	*/
         	private getSimple(val: ValFieldObject): string {
+        		try {
+        			if (val != null && val.c8opath != null && val.c8opath != "") {
+        				let id: any = val.str;
+        				if (typeof id == "string" && /^\d+$/.test(id)) {
+        					id = +id;
+        				}
+        				if (typeof id == "number") {
+        					const meta: any = {
+        						c8otype: "path",
+        						c8opath: val.c8opath,
+        						c8oPrettyPath: val.c8oPrettyPath != null ? val.c8oPrettyPath : null,
+        						c8obuiltin: val.c8obuiltin != null ? val.c8obuiltin : null,
+        						c8oisobject: val.c8oisobject != null ? val.c8oisobject : null,
+        						fakeId: "${uniqueId}",
+        						c8oName: val.name != null ? val.name : this.getNameById(val)
+        					};
+        					const token = "$$START" + id + JSON.stringify(meta) + "END" + id + "$$";
+        					const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        					const expression = this.stringOf$$ToCode(token, "ts", [], regex, false, false);
+        					if (expression != null && expression !== "") {
+        						let page = this;
+        						return eval(expression);
+        					}
+        				}
+        			}
+        		}
+        		catch (e) {
+        		}
         		const name = this.getNameById(val);
         		return this.getFormElementValueByName(name);
         	}
@@ -6794,6 +6998,20 @@ scriptContent:
         		} else if (this.local.fileField[type]) {
         			return "file";
         		} else if (this.local.camSignField[type]) {
+        			return "camSign";
+        		} else {
+        			return "";
+        		}
+        	}
+        
+        	public getGoToPageType(type: string): string {
+        		if (this.local.multipleFieldGoToPage[type]) {
+        			return "multiple";
+        		} else if (this.local.simpleFieldGoToPage[type]) {
+        			return "simple";
+        		} else if (this.local.fileFieldGoToPage[type]) {
+        			return "file";
+        		} else if (this.local.camSignFieldGoToPage[type]) {
         			return "camSign";
         		} else {
         			return "";
@@ -6932,7 +7150,7 @@ scriptContent:
         	 * Checks for any existing condition and initializes the value of some objects.
         	 * @param formList - The form list to check for conditions and initialize values. Default is formsList.
         	 */
-        	public checkForAnyCondition(formList = this.formsList): void {
+        	public checkForAnyCondition(formList = this.formsList, preserveCurrentPage: boolean = false): void {
         		if (this.local.initDone === undefined) {
         			this.local.initDone = {};
         		}
@@ -6943,20 +7161,18 @@ scriptContent:
         			try {
         				let goToPageIf = this.getGoToPageIfConditions(elem);
         				if (goToPageIf !== undefined && goToPageIf !== null && goToPageIf.conds !== undefined) {
-        					if (this.local.initDone[elem.id] == null) {
-        						this.detectTypeAndComplete(goToPageIf.conds, elem);
-        						this.local.initDone[elem.id] = true;
-        					}
+        					this.detectGoToPageIfAndComplete(goToPageIf, elem);
+        					this.local.initDone[elem.id] = true;
         				}
         
         				if (elem.type === "ion-card" && elem.children !== undefined) {
-        					this.checkForAnyCondition(elem.children);
+        					this.checkForAnyCondition(elem.children, preserveCurrentPage);
         				}
         			} catch (e) {
         				console.error("an error occured", e);
         			}
         		}
-        		if (!this.checkcurrentPageIndex()) {
+        		if (!preserveCurrentPage && !this.checkcurrentPageIndex()) {
         			this.local.currentIndex = this.getNextPageIndex();
         		}
         	}
