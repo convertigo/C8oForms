@@ -361,8 +361,12 @@ For more technical informations : [documentation](./project.md)
         - [adminHelpCenter](#adminhelpcenter)
         - [BarcodeDataInteractionsEditor](#barcodedatainteractionseditor)
         - [button_variable](#button_variable)
+        - [CameraAppearanceEditor](#cameraappearanceeditor)
         - [CameraDataInteractionsEditor](#cameradatainteractionseditor)
         - [cardSelector](#cardselector)
+        - [ChartConfigurationEditor](#chartconfigurationeditor)
+        - [ChoiceDataInteractionsEditor](#choicedatainteractionseditor)
+        - [ChoiceGroupDataInteractionsEditor](#choicegroupdatainteractionseditor)
         - [chooseIcon](#chooseicon)
         - [colorPicker](#colorpicker)
         - [conditiongoToPageIf](#conditiongotopageif)
@@ -378,6 +382,7 @@ For more technical informations : [documentation](./project.md)
         - [dataviz](#dataviz)
         - [datavizHolder](#datavizholder)
         - [DateDataInteractionsEditor](#datedatainteractionseditor)
+        - [DateStyleEditor](#datestyleeditor)
         - [DefaultValueEditorWithPalette](#defaultvalueeditorwithpalette)
         - [documentationPanel](#documentationpanel)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
@@ -386,6 +391,7 @@ For more technical informations : [documentation](./project.md)
         - [editPermsModal](#editpermsmodal)
         - [editUserModal](#editusermodal)
         - [FileDataInteractionsEditor](#filedatainteractionseditor)
+        - [FileSubmissionEditor](#filesubmissioneditor)
         - [FilterBR](#filterbr)
         - [FilterBRADD](#filterbradd)
         - [getApplicationDetail](#getapplicationdetail)
@@ -480,6 +486,7 @@ For more technical informations : [documentation](./project.md)
         - [labelFieldMustBeFilled](#labelfieldmustbefilled)
         - [listSelector](#listselector)
         - [LocationDataInteractionsEditor](#locationdatainteractionseditor)
+        - [LocationReturnedValueEditor](#locationreturnedvalueeditor)
         - [LoginComponent](#logincomponent)
         - [mdReader](#mdreader)
         - [MenuComponentUi](#menucomponentui)
@@ -501,6 +508,7 @@ For more technical informations : [documentation](./project.md)
         - [searchableSelect](#searchableselect)
         - [searchApp](#searchapp)
         - [seeProfilModal](#seeprofilmodal)
+        - [SelectDataInteractionsEditor](#selectdatainteractionseditor)
         - [sharedDropIndicator](#shareddropindicator)
         - [sharedDropIndicatorSelector](#shareddropindicatorselector)
         - [SharedGrabHeader](#sharedgrabheader)
@@ -521,12 +529,14 @@ For more technical informations : [documentation](./project.md)
         - [SharedVersion](#sharedversion)
         - [SignatureDataInteractionsEditor](#signaturedatainteractionseditor)
         - [SliderDataInteractionsEditor](#sliderdatainteractionseditor)
+        - [SliderStyleEditor](#sliderstyleeditor)
         - [SortBR](#sortbr)
         - [stripeBackground](#stripebackground)
         - [switchItemEdition](#switchitemedition)
         - [switchItemViewer](#switchitemviewer)
         - [TextInputSetting](#textinputsetting)
         - [TimeDataInteractionsEditor](#timedatainteractionseditor)
+        - [TimeStyleEditor](#timestyleeditor)
         - [ToggleSwitch](#toggleswitch)
         - [ToolbarComponentUi](#toolbarcomponentui)
         - [treeview](#treeview)
@@ -5601,6 +5611,18 @@ Update the state of a field
 <td>clicked</td><td></td>
 </tr>
 </table>
+#### CameraAppearanceEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### CameraDataInteractionsEditor
 
 **variables**
@@ -5632,6 +5654,42 @@ Update the state of a field
 </tr>
 <tr>
 <td>offsetObject</td><td></td>
+</tr>
+</table>
+#### ChartConfigurationEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### ChoiceDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### ChoiceGroupDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### chooseIcon
@@ -6163,6 +6221,18 @@ Display an apex chart comp. or an ag-grid comp.
 <td>item</td><td></td>
 </tr>
 </table>
+#### DateStyleEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### DefaultValueEditorWithPalette
 
 **variables**
@@ -6277,6 +6347,18 @@ Display an apex chart comp. or an ag-grid comp.
 #### editUserModal
 
 #### FileDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### FileSubmissionEditor
 
 **variables**
 
@@ -6824,6 +6906,9 @@ The Chart Widget configuration panel
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemChartViewer
 
@@ -6868,6 +6953,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemCheckboxGroupEditor
 
@@ -6885,6 +6973,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemCheckboxGroupViewer
@@ -7644,6 +7735,9 @@ The Chart Widget configuration panel
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemMapViewer
 
@@ -7781,6 +7875,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemRadioListGroupEditor
 
@@ -7798,6 +7895,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemRadioViewver
@@ -7924,6 +8024,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemSelectViewver
@@ -8189,6 +8292,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemVideoCallViewer
 
@@ -8272,6 +8378,18 @@ The Chart Widget viewer
 </tr>
 </table>
 #### LocationDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### LocationReturnedValueEditor
 
 **variables**
 
@@ -8756,6 +8874,18 @@ This component is a modal dialog for resetting the password. It accepts an input
 
 #### seeProfilModal
 
+#### SelectDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### sharedDropIndicator
 
 **variables**
@@ -9052,6 +9182,18 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>item</td><td></td>
 </tr>
 </table>
+#### SliderStyleEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### SortBR
 
 **variables**
@@ -9192,6 +9334,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>style</td><td></td>
 </tr>
 <tr>
+<td>suffix</td><td></td>
+</tr>
+<tr>
 <td>type</td><td></td>
 </tr>
 </table>
@@ -9206,6 +9351,18 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 </table>
 #### TimeDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### TimeStyleEditor
 
 **variables**
 
