@@ -362,14 +362,14 @@ scriptContent:
         	}
         	
         	refreshFilteredColumns(): void {
-        	  const source = this.local.selectedColumns;
-        
+        	  let source = this.local.selectedColumns;
+        //		console.log(source);
         	  let array = this.isColumnsObjectMap(source)
         	    ? this.toColumnsArray(source)
         	    : Array.isArray(source)
         	      ? [...source]
         	      : [];
-        
+        //		console.log(array);
         	  const filter = this.local.filterSelected;
         	  const search = typeof this.local.searchRightPanel === ''string''
         	    ? this.local.searchRightPanel.trim().toLowerCase()
@@ -529,6 +529,73 @@ scriptContent:
         	
         	saveSelectedColumns(): void {
         	  this.local.selectedColumns = this.toSelectedColumnsMap(this.local.filteredColumns);
+        	}
+        	
+        	syncFilteredToSelectedColumns(): void {
+        	  const current = this.normalizeSelectedColumnsMap(this.local.selectedColumns);
+        
+        	  for (const item of this.local.filteredColumns ?? []) {
+        	    if (!item?.name) {
+        	      continue;
+        	    }
+        
+        	    const { name, ...config } = item;
+        
+        	    current[name] = {
+        	      ...(current[name] || {}),
+        	      selected: !!config.selected,
+        	      hidden: !!config.hidden,
+        	      displayValue: !!config.displayValue,
+        	      value: !!config.value,
+        	      order: config.order,
+        	      id: config?.id,
+        	      type: config?.type,
+        		  table_id: config?.table_id,
+        		  link_row_table_id: config?.link_row_table_id
+        	    };
+        
+        //		current[name] = {...(current[name] || {}),...config};
+        	  }
+        
+        	  this.local.selectedColumns = current;
+        	}
+        	
+        	normalizeSelectedColumnsMap(source: any): Record<string, any> {
+        	  if (!source) {
+        	    return {};
+        	  }
+        
+        	  // Si c''est déjà un objet map propre
+        	  if (
+        	    typeof source === ''object'' &&
+        	    !Array.isArray(source)
+        	  ) {
+        	    const result: Record<string, any> = {};
+        
+        	    for (const [key, value] of Object.entries(source)) {
+        	      // On ignore les clés numériques polluées
+        	      if (/^\d+$/.test(key)) {
+        	        continue;
+        	      }
+        
+        	      result[key] = value;
+        	    }
+        
+        	    return result;
+        	  }
+        
+        	  // Si c''est un array, on le convertit en objet map par name
+        	  if (Array.isArray(source)) {
+        	    return source.reduce((acc, item) => {
+        	      if (item?.name) {
+        	        const { name, ...config } = item;
+        	        acc[name] = config;
+        	      }
+        	      return acc;
+        	    }, {} as Record<string, any>);
+        	  }
+        
+        	  return {};
         	}
          	/*End_c8o_PageFunction*/
         '
@@ -2210,94 +2277,87 @@ title: Title for modalConfigure
                             gap: 8px;
                             flex-wrap: wrap;
                             '
-                  ↓UseSharedComponent [ngx.components.UIUseShared-1776263488653]: 
-                    sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
-                    ↓Event [ngx.components.UIControlEvent-1776263495582]: 
-                      attrName: (modelChanged)
-                      eventName: modelChanged
-                      ↓CustomAction [ngx.components.UICustomAction-1776265354614]: 
-                        actionValue: 
+                  ↓Directive [ngx.components.UIControlDirective-1776418209825]: 
+                    directiveName: If
+                    directiveSource: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.local?.type == 'table' || this.local?.type == 'select'
+                    ↓UseSharedComponent [ngx.components.UIUseShared-1776263488653]: 
+                      sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                      ↓Event [ngx.components.UIControlEvent-1776263495582]: 
+                        attrName: (modelChanged)
+                        eventName: modelChanged
+                        ↓CustomAction [ngx.components.UICustomAction-1776265354614]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                  		switch(event.out.index) {
+                                  			case 0:
+                                  				page.local.filterSelected = ''all'';
+                                  				break;
+                                  			case 1:
+                                  				page.local.filterSelected = ''included'';
+                                  				break;
+                                  			case 2:
+                                  				page.local.filterSelected = ''displayed'';
+                                  				break;
+                                  			case 3:
+                                  				page.local.filterSelected = ''hidden'';
+                                  				break;
+                                  		}
+                                  		
+                                  		page.refreshFilteredColumns();
+                                  		resolve();
+                                  '
+                      ↓label [ngx.components.UIUseVariable-1776263497219]: 
+                        varValue: 
                           - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                                		switch(event.out.index) {
-                                			case 0:
-                                				page.local.filterSelected = ''all'';
-                                				break;
-                                			case 1:
-                                				page.local.filterSelected = ''included'';
-                                				break;
-                                			case 2:
-                                				page.local.filterSelected = ''displayed'';
-                                				break;
-                                			case 3:
-                                				page.local.filterSelected = ''hidden'';
-                                				break;
-                                		}
-                                		
-                                		page.refreshFilteredColumns();
-                                		resolve();
-                                '
-                    ↓label [ngx.components.UIUseVariable-1776263497219]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:''
-                    ↓options [ngx.components.UIUseVariable-1776263497221]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: |
-                              'script:[
-                              {value: ''all'', displayValue: ''modal_configure_configuration_filter_all_label''},
-                              {value: ''included'', displayValue: ''modal_configure_configuration_filter_included_label''},
-                              {value: ''displayed'', displayValue: ''modal_configure_configuration_filter_displayed_label''},
-                              {value: ''hidden'', displayValue: ''modal_configure_configuration_filter_hidden_label''},
-                              ]
-                              
-                              (this.local?.type == ''table'') ? 
-                              [
-                              {value: ''all'', displayValue: ''modal_configure_configuration_filter_all_label''},
-                              {value: ''included'', displayValue: ''modal_configure_configuration_filter_included_label''},
-                              {value: ''displayed'', displayValue: ''modal_configure_configuration_filter_displayed_label''},
-                              {value: ''hidden'', displayValue: ''modal_configure_configuration_filter_hidden_label''},
-                              ] : ((this.local?.type == ''select'') ? [
-                              {value: ''all'', displayValue: ''modal_configure_configuration_filter_all_label''},
-                              {value: ''included'', displayValue: ''modal_configure_configuration_filter_included_label''}
-                              ]: [])'
-                    ↓model [ngx.components.UIUseVariable-1776263497223]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:'modal_configure_configuration_filter_all_label'
-                    ↓keyName [ngx.components.UIUseVariable-1776263497225]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:'displayValue'
-                    ↓i18nCallback [ngx.components.UIUseVariable-1776263497227]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:null
-                    ↓style [ngx.components.UIUseVariable-1776263497229]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:{}
-                    ↓hasSeparators [ngx.components.UIUseVariable-1776263497231]: 
-                      varValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:false
-                    ↓Attr2 [ngx.components.UIAttribute-1776417411704]: 
-                      attrName: '*ngIf'
-                      attrValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:this.local?.type == 'table' || this.local?.type == 'select'
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:''
+                      ↓options [ngx.components.UIUseVariable-1776263497221]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: |
+                                'script:(this.local?.type == ''table'') ? 
+                                [
+                                {value: ''all'', displayValue: ''modal_configure_configuration_filter_all_label''},
+                                {value: ''included'', displayValue: ''modal_configure_configuration_filter_included_label''},
+                                {value: ''displayed'', displayValue: ''modal_configure_configuration_filter_displayed_label''},
+                                {value: ''hidden'', displayValue: ''modal_configure_configuration_filter_hidden_label''},
+                                ] : ((this.local?.type == ''select'') ? [
+                                {value: ''all'', displayValue: ''modal_configure_configuration_filter_all_label''},
+                                {value: ''included'', displayValue: ''modal_configure_configuration_filter_included_label''}
+                                ]: [])'
+                      ↓model [ngx.components.UIUseVariable-1776263497223]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'modal_configure_configuration_filter_all_label'
+                      ↓keyName [ngx.components.UIUseVariable-1776263497225]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'displayValue'
+                      ↓i18nCallback [ngx.components.UIUseVariable-1776263497227]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:null
+                      ↓style [ngx.components.UIUseVariable-1776263497229]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:{}
+                      ↓hasSeparators [ngx.components.UIUseVariable-1776263497231]: 
+                        varValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:false
                   ↓Button [ngx.components.UIDynamicElement-1776340517221]: 
                     beanData: '{"ionBean":"Button"}'
                     tagName: ion-button
@@ -2321,9 +2381,20 @@ title: Title for modalConfigure
                                 		if (!page.areAllIncluded(page.local.filteredColumns)) {
                                 			page.updateAllItems(''selected'', true);
                                 		}
-                                		page.refreshFilteredColumns();
+                                //		page.refreshFilteredColumns();
                                 		resolve();
                                 '
+                        ↓Sync [ngx.components.UICustomAction-1776419571790]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                  		page.syncFilteredToSelectedColumns();
+                                  		page.refreshFilteredColumns();
+                                  		resolve();
+                                  '
                     ↓Attr [ngx.components.UIAttribute-1776340560162]: 
                       attrName: '[ngClass]'
                       attrValue: 
@@ -2332,8 +2403,8 @@ title: Title for modalConfigure
                           - MobileSmartSourceType: |
                               'script:{
                               ''initial btn btn-filter'': true,
-                              ''btn-filter--selected'': this.areAllIncluded(this.local.selectedColumns),
-                              ''btn-filter--unselected'': !this.areAllIncluded(this.local.selectedColumns)
+                              ''btn-filter--selected'': this.areAllIncluded(this.local.filteredColumns),
+                              ''btn-filter--unselected'': !this.areAllIncluded(this.local.filteredColumns)
                               }'
                     ↓Style [ngx.components.UIStyle-1776340564646]: 
                       styleContent: 
@@ -2408,9 +2479,19 @@ title: Title for modalConfigure
                                 		if (!page.areAllDisplayed(page.local.filteredColumns)) {
                                 			page.updateAllItems(''hidden'', false);
                                 		}
-                                		page.refreshFilteredColumns();
                                 		resolve();
                                 '
+                        ↓Sync [ngx.components.UICustomAction-1776419565970]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                  		page.syncFilteredToSelectedColumns();
+                                  		page.refreshFilteredColumns();
+                                  		resolve();
+                                  '
                     ↓Attr [ngx.components.UIAttribute-1776342479000]: 
                       attrName: '[ngClass]'
                       attrValue: 
@@ -2419,8 +2500,8 @@ title: Title for modalConfigure
                           - MobileSmartSourceType: |
                               'script:{
                               ''initial btn btn-filter'': true,
-                              ''btn-filter--selected'': this.areAllDisplayed(this.local.selectedColumns),
-                              ''btn-filter--unselected'': !this.areAllDisplayed(this.local.selectedColumns)
+                              ''btn-filter--selected'': this.areAllDisplayed(this.local.filteredColumns),
+                              ''btn-filter--unselected'': !this.areAllDisplayed(this.local.filteredColumns)
                               }'
                     ↓Style [ngx.components.UIStyle-1776342479003]: 
                       styleContent: 
@@ -2495,9 +2576,19 @@ title: Title for modalConfigure
                                 		if (page.areAllDisplayed(page.local.filteredColumns)) {
                                 			page.updateAllItems(''hidden'', true);
                                 		}
-                                		page.refreshFilteredColumns();
                                 		resolve();
                                 '
+                        ↓Sync [ngx.components.UICustomAction-1776419560564]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                  		page.syncFilteredToSelectedColumns();
+                                  		page.refreshFilteredColumns();
+                                  		resolve();
+                                  '
                     ↓Attr [ngx.components.UIAttribute-1776342574615]: 
                       attrName: '[ngClass]'
                       attrValue: 
@@ -2506,8 +2597,8 @@ title: Title for modalConfigure
                           - MobileSmartSourceType: |
                               'script:{
                               ''initial btn btn-filter'': true,
-                              ''btn-filter--selected'': !this.areAllDisplayed(this.local.selectedColumns),
-                              ''btn-filter--unselected'': this.areAllDisplayed(this.local.selectedColumns)
+                              ''btn-filter--selected'': !this.areAllDisplayed(this.local.filteredColumns),
+                              ''btn-filter--unselected'': this.areAllDisplayed(this.local.filteredColumns)
                               }'
                     ↓Style [ngx.components.UIStyle-1776342574618]: 
                       styleContent: 
@@ -4478,7 +4569,7 @@ title: Title for modalConfigure
                           '{
                            "ionBean": "CheckBox",
                            "ControlName": "plain:name1667636420064",
-                           "DoubleBinding": "script:column.selected",
+                           "DoubleBinding": "script:this.local.filteredColumns[idx].selected",
                            "Justify": "plain:end",
                            "LabelPlacement": "plain:stacked",
                            "Legacy": "plain:true"
@@ -4523,6 +4614,20 @@ title: Title for modalConfigure
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                               - MobileSmartSourceType: plain:form-checkbox--small
+                        ↓Event [ngx.components.UIControlEvent-1776419335024]: 
+                          attrName: (ionChange)
+                          eventName: ionChange
+                          ↓Sync [ngx.components.UICustomAction-1776419363507]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                    		page.syncFilteredToSelectedColumns();
+                                    		page.refreshFilteredColumns();
+                                    		resolve();
+                                    '
                       ↓Attr2 [ngx.components.UIAttribute-1776356205692]: 
                         attrName: '*ngIf'
                         attrValue: 
@@ -4645,7 +4750,7 @@ title: Title for modalConfigure
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                               - MobileSmartSourceType: plain:form-checkbox--small
                       ↓Button [ngx.components.UIDynamicElement-1776332952453]: 
-                        beanData: '{"ionBean":"Button","Disabled":"script:! local?.selectedColumns[idx]?.selected"}'
+                        beanData: '{"ionBean":"Button","Disabled":"script:! this.local.filteredColumns[idx]?.selected"}'
                         tagName: ion-button
                         ↓Div [ngx.components.UIDynamicElement-1776334327047]: 
                           beanData: '{"ionBean":"DivTag"}'
@@ -4668,7 +4773,7 @@ title: Title for modalConfigure
                               '{
                                "ionBean": "Icon",
                                "IconName": "plain",
-                               "IconSource": "script:(local.selectedColumns[idx].hidden) ? ''assets\/images\/svg\/lucide\/eye-off.svg'' : ''assets\/images\/svg\/lucide\/eye.svg''"
+                               "IconSource": "script:(this.local.filteredColumns[idx].hidden) ? ''assets\/images\/svg\/lucide\/eye-off.svg'' : ''assets\/images\/svg\/lucide\/eye.svg''"
                               }'
                             tagName: ion-icon
                             ↓Style [ngx.components.UIStyle-1776333514990]: 
@@ -4684,7 +4789,7 @@ title: Title for modalConfigure
                               attrValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: 'script:(local.selectedColumns[idx].hidden) ? {''color'': ''#9F9FA9''} : {''color'': ''var(--ion-color-primary)''}'
+                                  - MobileSmartSourceType: 'script:(local.filteredColumns[idx].hidden) ? {''color'': ''#9F9FA9''} : {''color'': ''var(--ion-color-primary)''}'
                           ↓TextItem [ngx.components.UIDynamicElement-1776333763625]: 
                             beanData: '{"ionBean":"TextItem"}'
                             tagName: ion-text
@@ -4693,7 +4798,7 @@ title: Title for modalConfigure
                               attrValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: 'script:(local.selectedColumns[idx].hidden) ? {''color'': ''#71717B''} : {''color'': ''var(--ion-color-primary)''}'
+                                  - MobileSmartSourceType: 'script:(local.filteredColumns[idx].hidden) ? {''color'': ''#71717B''} : {''color'': ''var(--ion-color-primary)''}'
                             ↓Style [ngx.components.UIStyle-1776333789689]: 
                               styleContent: 
                                 - xmlizable: 
@@ -4720,7 +4825,7 @@ title: Title for modalConfigure
                               textValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: 'script:(local.selectedColumns[idx].hidden) ? (''modal_configure_configuration_filter_hidden_label'' | translate) : (''modal_configure_configuration_filter_displayed_label'' | translate)'
+                                  - MobileSmartSourceType: 'script:(local.filteredColumns[idx].hidden) ? (''modal_configure_configuration_filter_hidden_label'' | translate) : (''modal_configure_configuration_filter_displayed_label'' | translate)'
                         ↓Event [ngx.components.UIControlEvent-1776332952450]: 
                           ↓CustomAction [ngx.components.UICustomAction-1776333166530]: 
                             actionValue: 
@@ -4729,7 +4834,7 @@ title: Title for modalConfigure
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                   →: |
                                     '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                                    		page.local.selectedColumns[vars.idx].hidden = !page.local.selectedColumns[vars.idx].hidden;
+                                    		page.local.filteredColumns[vars.idx].hidden = !page.local.filteredColumns[vars.idx].hidden;
                                     		resolve();
                                     '
                             ↓idx [ngx.components.UIControlVariable-1776333172840]: 
@@ -4737,6 +4842,17 @@ title: Title for modalConfigure
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:idx
+                            ↓Sync [ngx.components.UICustomAction-1776419405549]: 
+                              actionValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                      		page.syncFilteredToSelectedColumns();
+                                      		page.refreshFilteredColumns();
+                                      		resolve();
+                                      '
                         ↓Attr [ngx.components.UIAttribute-1776332968130]: 
                           attrName: class
                           attrValue: 
@@ -4829,7 +4945,7 @@ title: Title for modalConfigure
                           '{
                            "ionBean": "CheckBox",
                            "ControlName": "plain:name1667636420064",
-                           "DoubleBinding": "script:column.displayValue",
+                           "DoubleBinding": "script:this.local.filteredColumns[idx].displayValue",
                            "Disabled": "script:(! this.local.selectedColumns[column.name]?.selected )",
                            "IonMode": "plain:ios"
                           }'
@@ -4902,6 +5018,17 @@ title: Title for modalConfigure
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:idx
+                            ↓Sync [ngx.components.UICustomAction-1776419414522]: 
+                              actionValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                      		page.syncFilteredToSelectedColumns();
+                                      		page.refreshFilteredColumns();
+                                      		resolve();
+                                      '
                       ↓Attr2 [ngx.components.UIAttribute-1776353767454]: 
                         attrName: '*ngIf'
                         attrValue: 
@@ -4929,7 +5056,7 @@ title: Title for modalConfigure
                           '{
                            "ionBean": "CheckBox",
                            "ControlName": "plain:name1667636420064",
-                           "DoubleBinding": "script:column.value",
+                           "DoubleBinding": "script:this.local.filteredColumns[idx].value",
                            "Disabled": "script:! local?.selectedColumns[column.name]?.selected",
                            "IonMode": "plain:ios"
                           }'
@@ -5003,6 +5130,17 @@ title: Title for modalConfigure
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:column.name
+                            ↓Sync [ngx.components.UICustomAction-1776419419084]: 
+                              actionValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                      		page.syncFilteredToSelectedColumns();
+                                      		page.refreshFilteredColumns();
+                                      		resolve();
+                                      '
                       ↓Attr2 [ngx.components.UIAttribute-1776353727831]: 
                         attrName: '*ngIf'
                         attrValue: 
@@ -5263,6 +5401,17 @@ title: Title for modalConfigure
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:idx
+                              ↓Sync [ngx.components.UICustomAction-1776419429115]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                        		page.syncFilteredToSelectedColumns();
+                                        		page.refreshFilteredColumns();
+                                        		resolve();
+                                        '
                             ↓ClosePopover [ngx.components.UIDynamicAction-1776335063801]: 
                               beanData: '{"ionBean":"ClosePopoverAction"}'
                           ↓Attr1 [ngx.components.UIAttribute-1776335063804]: 
@@ -5342,6 +5491,17 @@ title: Title for modalConfigure
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:idx
+                              ↓Sync [ngx.components.UICustomAction-1776419439392]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                        		page.syncFilteredToSelectedColumns();
+                                        		page.refreshFilteredColumns();
+                                        		resolve();
+                                        '
                             ↓ClosePopover [ngx.components.UIDynamicAction-1776335063825]: 
                               beanData: '{"ionBean":"ClosePopoverAction"}'
                           ↓Attr11 [ngx.components.UIAttribute-1776335063831]: 
@@ -5421,6 +5581,17 @@ title: Title for modalConfigure
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:idx
+                              ↓Sync [ngx.components.UICustomAction-1776419446561]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                        		page.syncFilteredToSelectedColumns();
+                                        		page.refreshFilteredColumns();
+                                        		resolve();
+                                        '
                             ↓ClosePopover [ngx.components.UIDynamicAction-1776335063852]: 
                               beanData: '{"ionBean":"ClosePopoverAction"}'
                           ↓Attr1 [ngx.components.UIAttribute-1776335063855]: 
@@ -5500,6 +5671,17 @@ title: Title for modalConfigure
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:idx
+                              ↓Sync [ngx.components.UICustomAction-1776419455753]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                        		page.syncFilteredToSelectedColumns();
+                                        		page.refreshFilteredColumns();
+                                        		resolve();
+                                        '
                             ↓ClosePopover [ngx.components.UIDynamicAction-1776335063903]: 
                               beanData: '{"ionBean":"ClosePopoverAction"}'
                           ↓Attr1 [ngx.components.UIAttribute-1776335063906]: 
@@ -5636,6 +5818,17 @@ title: Title for modalConfigure
                                           //		console.log(page.local.selectedColumns);
                                           		resolve();
                                           '
+                                  ↓Sync [ngx.components.UICustomAction-1776419478004]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                            		page.syncFilteredToSelectedColumns();
+                                            		page.refreshFilteredColumns();
+                                            		resolve();
+                                            '
                                   ↓ClosePopover [ngx.components.UIDynamicAction-1776337859726]: 
                                     beanData: '{"ionBean":"ClosePopoverAction"}'
                                   ↓idx [ngx.components.UIControlVariable-1776337980871]: 
@@ -15513,7 +15706,7 @@ title: Title for modalConfigure
             //			}
             
             			// for dev
-            //			page.local.type = "checkbox_group";
+            //			page.local.type = "select";
             //			page.local.target = "select";
             //			console.log(page.local.selectedColumns)
             			// end for dev
@@ -15841,6 +16034,7 @@ title: Title for modalConfigure
                     '		try {
                     			page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                     			page.saveSelectedColumns();
+                    			console.log(page.local.selectedColumns);
                     			if (
                     				!(page.local?.groupName && page.local.groupName.length > 0 && page.local.groupName != "undefined")
                     				||
@@ -15863,12 +16057,15 @@ title: Title for modalConfigure
                     					
                     			if (page.local.target == "table") {
                     				Object.keys(page.local.selectedColumns).forEach(item => {
+                    					console.log(page.local.selectedColumns[item]);
                     					conf.table_id_int = page.local.selectedColumns[item]["table_id"]
                     					if (page.local.selectedColumns[item]["selected"]) {
-                    						conf.columns.push(page.local.selectedColumns[item]["name"])
+                    //						conf.columns.push(page.local.selectedColumns[item]["name"])
+                    						conf.columns.push(item)
                     					}
                     					if (page.local.selectedColumns[item]["hidden"]) {
-                    						conf.hidden.push(page.local.selectedColumns[item]["name"])
+                    //						conf.hidden.push(page.local.selectedColumns[item]["name"])
+                    						conf.hidden.push(item)
                     					}
                     					if (page.local.selectedColumns[item]["link_row_table_id"] != undefined) {
                     						if(!conf.link_row_table_id.includes(page.local.selectedColumns[item]["link_row_table_id"])){
@@ -15925,6 +16122,7 @@ title: Title for modalConfigure
                     			conf = await page.callParentFunction("setConfigurationData", JSON.stringify(conf));
                     			return conf;
                     		} catch (e) {
+                    			console.error(e);
                     			return e;
                     		}
                     '
