@@ -359,7 +359,9 @@ For more technical informations : [documentation](./project.md)
         - [addUserForm](#adduserform)
         - [addUserToGroupForm](#addusertogroupform)
         - [adminHelpCenter](#adminhelpcenter)
+        - [BarcodeDataInteractionsEditor](#barcodedatainteractionseditor)
         - [button_variable](#button_variable)
+        - [CameraDataInteractionsEditor](#cameradatainteractionseditor)
         - [cardSelector](#cardselector)
         - [chooseIcon](#chooseicon)
         - [colorPicker](#colorpicker)
@@ -375,12 +377,15 @@ For more technical informations : [documentation](./project.md)
         - [dataSourceEditorDescription](#datasourceeditordescription)
         - [dataviz](#dataviz)
         - [datavizHolder](#datavizholder)
+        - [DateDataInteractionsEditor](#datedatainteractionseditor)
+        - [DefaultValueEditorWithPalette](#defaultvalueeditorwithpalette)
         - [documentationPanel](#documentationpanel)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
         - [DraggableElementApiPalette](#draggableelementapipalette)
         - [editorToolbarButton](#editortoolbarbutton)
         - [editPermsModal](#editpermsmodal)
         - [editUserModal](#editusermodal)
+        - [FileDataInteractionsEditor](#filedatainteractionseditor)
         - [FilterBR](#filterbr)
         - [FilterBRADD](#filterbradd)
         - [getApplicationDetail](#getapplicationdetail)
@@ -474,6 +479,7 @@ For more technical informations : [documentation](./project.md)
         - [itemVideoCallViewerInEditionPage](#itemvideocallviewerineditionpage)
         - [labelFieldMustBeFilled](#labelfieldmustbefilled)
         - [listSelector](#listselector)
+        - [LocationDataInteractionsEditor](#locationdatainteractionseditor)
         - [LoginComponent](#logincomponent)
         - [mdReader](#mdreader)
         - [MenuComponentUi](#menucomponentui)
@@ -513,11 +519,14 @@ For more technical informations : [documentation](./project.md)
         - [SharedStyleMarginEditor](#sharedstylemargineditor)
         - [SharedTabs](#sharedtabs)
         - [SharedVersion](#sharedversion)
+        - [SignatureDataInteractionsEditor](#signaturedatainteractionseditor)
+        - [SliderDataInteractionsEditor](#sliderdatainteractionseditor)
         - [SortBR](#sortbr)
         - [stripeBackground](#stripebackground)
         - [switchItemEdition](#switchitemedition)
         - [switchItemViewer](#switchitemviewer)
         - [TextInputSetting](#textinputsetting)
+        - [TimeDataInteractionsEditor](#timedatainteractionseditor)
         - [ToggleSwitch](#toggleswitch)
         - [ToolbarComponentUi](#toolbarcomponentui)
         - [treeview](#treeview)
@@ -5549,6 +5558,18 @@ Update the state of a field
 
 #### adminHelpCenter
 
+#### BarcodeDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### button_variable
 
 **variables**
@@ -5578,6 +5599,18 @@ Update the state of a field
 </tr>
 <tr>
 <td>clicked</td><td></td>
+</tr>
+</table>
+#### CameraDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### cardSelector
@@ -6118,6 +6151,36 @@ Display an apex chart comp. or an ag-grid comp.
 <td>onMetricsValues</td><td>When data is fetched, we got send to parent the data for metrics</td>
 </tr>
 </table>
+#### DateDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### DefaultValueEditorWithPalette
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>height</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>loop</td><td></td>
+</tr>
+</table>
 #### documentationPanel
 
 **variables**
@@ -6213,6 +6276,18 @@ Display an apex chart comp. or an ag-grid comp.
 
 #### editUserModal
 
+#### FileDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### FilterBR
 
 **variables**
@@ -6513,6 +6588,9 @@ Display an apex chart comp. or an ag-grid comp.
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemBarcodeViewver
 
@@ -6590,6 +6668,9 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemCardEditor
@@ -7037,6 +7118,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemDateTimeViewver
 
@@ -7108,6 +7192,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemFileViewver
@@ -7513,6 +7600,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemLocationViewer
 
@@ -7874,6 +7964,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemSignatureViewver
 
@@ -7918,6 +8011,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemSliderViewver
@@ -7999,6 +8095,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemTimeViewver
@@ -8170,6 +8269,18 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>offsetObject</td><td></td>
+</tr>
+</table>
+#### LocationDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### LoginComponent
@@ -8917,6 +9028,30 @@ This component is a modal dialog for resetting the password. It accepts an input
 
 #### SharedVersion
 
+#### SignatureDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### SliderDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### SortBR
 
 **variables**
@@ -9056,6 +9191,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <tr>
 <td>style</td><td></td>
 </tr>
+<tr>
+<td>type</td><td></td>
+</tr>
 </table>
 **events**
 
@@ -9065,6 +9203,18 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>modelChanged</td><td></td>
+</tr>
+</table>
+#### TimeDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### ToggleSwitch
