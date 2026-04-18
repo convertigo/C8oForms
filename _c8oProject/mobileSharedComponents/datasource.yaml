@@ -42,17 +42,56 @@ scriptContent:
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
         	public getCurrents(){
-        		this.currentName = this.pageOwner.getEnabled(this.item[this.path]);
-        		this.current = this.item[this.path][this.currentName];
+        		let sources = this.item != null ? this.item[this.path] : null;
+        		this.currentName = sources != null ? this.pageOwner.getEnabled(sources) : null;
+        		this.current = this.currentName != null && sources != null ? sources[this.currentName] : undefined;
         			
+        	}
+        	public buildFallbackCurrentMetas(projectName, sequenceName){
+        		try{
+        			let variableNames = this.current != null && this.current.vars != null ? Object.keys(this.current.vars) : [];
+        			return {
+        				name: sequenceName != null && sequenceName != "" ? sequenceName : (this.currentName != null ? "" + this.currentName : ""),
+        				comment: projectName != null && projectName != "" ? projectName : (this.currentName != null ? "" + this.currentName : ""),
+        				variables: {
+        					name: variableNames,
+        					type: variableNames.map((variableName)=>{
+        						let variable = this.current != null && this.current.vars != null ? this.current.vars[variableName] : null;
+        						if(variable != null && typeof variable == "object" && variable.type != null && variable.type != ""){
+        							return variable.type;
+        						}
+        						return "text";
+        					}),
+        					comment: variableNames.map((variableName)=>{
+        						let variable = this.current != null && this.current.vars != null ? this.current.vars[variableName] : null;
+        						if(variable != null && typeof variable == "object" && variable.comment != null){
+        							return variable.comment;
+        						}
+        						return "";
+        					})
+        				},
+        				url: null
+        			};
+        		}
+        		catch(e){
+        			return null;
+        		}
         	}
         	public async getCurentMetas(){
         		let c = this.isSource ? this.pageOwner.local.treeSource : this.pageOwner.local.tree;
+        		if(this.currentName == null || this.currentName == undefined || this.currentName === ""){
+        			this.currentMetas = null;
+        			this.local.addAllowed = false;
+        			this.ref.detectChanges();
+        			return;
+        		}
+        		let split = ("" + this.currentName).split(".");
+        		let projectName = split[0];
+        		let sequenceName = split[1];
+        		let meta = null;
+        		this.local.addAllowed = false;
+        		this.local.addName = null;
         		if(c != undefined){
-        			let split = this.currentName.split(".");
-        			let projectName = split[0];
-        			let sequenceName = split[1];
-        			let meta = null;
         			for(let p of c){
         				if(p.name == projectName){
         					for(let s of p.sequences){
@@ -70,31 +109,32 @@ scriptContent:
         							if(s.variables != undefined && s.variables.type != undefined){
         								s.variables.type.forEach((entry, index)=>{
         									// if this component has builtin support form forms_filter remove it from ui
-        									if(entry == "__c8o_multi"){
+        								if(entry == "__c8o_multi"){
         //										s.variables.type?.splice(index, 1);
         //										s.variables.name.splice(index, 1);
         //										s.variables.comment.splice(index, 1);
-        										this.local.addAllowed = true;
-        										this.local.addName = s.variables.name[index];
-        										if(!Array.isArray(this.current.vars[s.variables.name[index]])){
-        											this.current.vars[s.variables.name[index]] = [];
-        										}
+        									this.local.addAllowed = true;
+        									this.local.addName = s.variables.name[index];
+        									if(this.current != null && this.current.vars != null && !Array.isArray(this.current.vars[s.variables.name[index]])){
+        										this.current.vars[s.variables.name[index]] = [];
         									}
-        								})
-        							}
-        							meta = s;
-        							meta.url = this.c8o.endpointConvertigo + ''/projects/'' + p.name + ''/logos/'' +  s.name + ''.svg'';
+        								}
+        							})
         						}
-        						
+        						meta = s;
+        						meta.url = this.c8o.endpointConvertigo + ''/projects/'' + p.name + ''/logos/'' +  s.name + ''.svg'';
+        					}
+        					
         					}
         				}
         			}
+        		}
+        		if(meta == null && this.current != null){
+        			meta = this.buildFallbackCurrentMetas(projectName, sequenceName);
+        		}
         //		console.log("META : ", meta)
-        			
         		this.currentMetas = meta;
         		this.ref.detectChanges();
-        		}
-        		
         	}
         public getCurrentVarTypeFromMetas(){
         	let raw_type = this.currentMetas.variables.type?.[this.pageOwner.local.index];
@@ -3375,7 +3415,7 @@ scriptContent:
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             		try {
-            			if(props.stack.root.scope.changes.item){
+            			if(props.stack.root.scope.changes.item || props.stack.root.scope.changes.tabselected || props.stack.root.scope.changes.path || props.stack.root.scope.changes.isSource || props.stack.root.scope.changes.explicitTarget){
             				page.getCurrents();
             				page.getCurentMetas();
             			}
