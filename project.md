@@ -47,7 +47,6 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/7817
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_BaseRow
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x_optims#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
@@ -56,7 +55,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x_optims#
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/5d4cf49d49b1f60af8e2fe111fb81dd3f3dc2b44#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -83,7 +82,11 @@ see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/a
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Geocoding_ui_ngx
 
 
+<<<<<<< HEAD
 see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/390cab78135158123afee330fc48421414aa804a#readme)
+=======
+see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/4355d11a50996fc782564ed45ba2a12e44ff8375#readme)
+>>>>>>> refs/remotes/origin/feature/#1077
 </p></blockquote></details>
 
 <details><summary><b>lib_Leaflet</b></summary><blockquote><p>
@@ -92,7 +95,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/390c
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Leaflet
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/c5b6ad2ce020f64a2901ca9952390319b7cb76c6#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
@@ -136,7 +139,11 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/5c69ff41
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") libApexCharts
 
 
+<<<<<<< HEAD
 see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/af72e7f53c845a70e050b60b708f76b1480eced2#readme)
+=======
+see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/6a1f5165bce06f256fb13ee4dbe96173cafb041d#readme)
+>>>>>>> refs/remotes/origin/feature/#1077
 </p></blockquote></details>
 </p></blockquote></details>
 
@@ -9826,6 +9833,36 @@ comment
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") detectChangesDoble
 
+
+</p></blockquote></details>
+
+<details><summary><b>DisplayTableColumns</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") DisplayTableColumns
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;forms_config
+</td>
+<td>
+
+</td>
+</tr>
+</table>
 
 </p></blockquote></details>
 
@@ -21385,6 +21422,14 @@ name
 <th>
 comment
 </th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;hasSeparators
+</td>
+<td>
+
+</td>
 </tr>
 <tr>
 <td>
