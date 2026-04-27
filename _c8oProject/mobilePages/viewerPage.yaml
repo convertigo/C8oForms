@@ -15,10 +15,16 @@ scriptContent:
         import traverse from "@babel/traverse";
         //Used by conditional
         interface ValFieldObject {
-        	str: string;
+        	str: any;
         	source: boolean;
         	type: string;
         	arr: Array<any>;
+        	name?: string;
+        	displayName?: string;
+        	c8opath?: string;
+        	c8oPrettyPath?: string;
+        	c8obuiltin?: any;
+        	c8oisobject?: any;
         }
         interface FieldObject {
         	type: string;
@@ -807,7 +813,12 @@ scriptContent:
         		var variables: any = {};
         		if (step.sources.self.vars.selfVar.type == "condition") {
         			let jsString: string = "";
-        			jsString = this.detectSubjectAndComplete(step.sources.self.vars.selfVar.cond, step.sources.self.vars.selfVar.condVisible);
+        			jsString = this.detectSubjectAndComplete(
+        				step.sources.self.vars.selfVar.cond,
+        				step.sources.self.vars.selfVar.condVisible,
+        				null,
+        				step.sources.self.vars.selfVar.groups
+        			);
         			try {
         				variables.selfVar = eval(jsString);
         			}
@@ -3918,7 +3929,7 @@ scriptContent:
         				if (false && meta.c8otype == "path" && !html) {
         					try {
         						let sp;
-        						if (meta.c8obuiltin == "true") {
+        						if (meta.c8obuiltin == "true" || meta.c8obuiltin == true) {
         							sp = meta.c8opath.split(".");
         							if ([''selected_data_c8o_separated_by_coma'', ''not_selected_data_c8o_separated_by_coma'', ''selected_data'', ''not_selected_data''].indexOf(sp[3]) != -1) {
         								sp = meta.c8opath.split(".").slice(4);
@@ -4068,7 +4079,12 @@ scriptContent:
         								}
         								if (firstSegment == "cell_selected" || firstSegment == "cellSelected") {
         									let basePath = "page.formsSubmit?.[''" + gridName + "'']?.[''value'']";
-        									for (let value of splitted.slice(2)) {
+        									let suffix = splitted.slice(2);
+        									if (suffix[0] == "value") {
+        										basePath = "(((" + basePath + ") != null && typeof (" + basePath + ") == ''object'' && (" + basePath + ")?.[''value''] != undefined) ? (" + basePath + ")?.[''value''] : (" + basePath + "))";
+        										suffix = suffix.slice(1);
+        									}
+        									for (let value of suffix) {
         										basePath += "?.[''" + value + "'']";
         									}
         									if (ts) {
@@ -4202,7 +4218,7 @@ scriptContent:
         							}
         						}
         						// if it''s a builtin expression
-        						else if (meta.c8obuiltin == "true") {
+        						else if (meta.c8obuiltin == "true" || meta.c8obuiltin == true) {
         							let displayValue = false;
         							let typeTargeted = splitted[1];
         							let verb = splitted[2];
@@ -5355,21 +5371,124 @@ scriptContent:
         	 * @returns {string} - The generated JavaScript expression string.
         	 */
         	public evaluateConditions(conditions: object, bool: boolean = null): string {
+        		conditions = this.getLegacyAwareConditions(conditions);
+        		if (conditions == null) {
+        			return bool == null ? "true" : "";
+        		}
         		let jsString: string = "";
         		// Iterate over each condition key
         		for (let conds of Object.keys(conditions)) {
         			switch (conds) {
         				case "visibleIf":
-        					jsString += this.detectSubjectAndComplete(conditions[conds]["conds"], conditions[conds]["condVisible"]);
+        					jsString += this.detectSubjectAndComplete(
+        						conditions[conds]["conds"],
+        						conditions[conds]["condVisible"],
+        						null,
+        						conditions[conds]["groups"]
+        					);
         					break;
         				case "goToPageIf":
         					if (bool) {
-        						let abc = this.detectSubjectAndComplete(conditions[conds]["conds"], conditions[conds]["cond"], true);
+        						let abc = this.detectSubjectAndComplete(
+        							conditions[conds]["conds"],
+        							conditions[conds]["condVisible"] != undefined ? conditions[conds]["condVisible"] : conditions[conds]["cond"],
+        							true,
+        							conditions[conds]["groups"]
+        						);
         					}
         					break;
         			}
         		}
         		return jsString;
+        	}
+        
+        	private getLegacyAwareConditions(itemOrConditions: any): any {
+        		if (itemOrConditions == null) {
+        			return null;
+        		}
+        
+        		let conditions: any = itemOrConditions.conditions != undefined ? itemOrConditions.conditions : itemOrConditions;
+        		if (conditions == null) {
+        			return null;
+        		}
+        
+        		if (conditions.visibleIf != undefined || conditions.goToPageIf != undefined) {
+        			return conditions;
+        		}
+        
+        		if (
+        			conditions.type == "visibleIf" ||
+        			conditions.type == "goToPageIf" ||
+        			conditions.conds != undefined ||
+        			conditions.condVisible != undefined ||
+        			conditions.groups != undefined
+        		) {
+        			let wrapped: any = {};
+        			if (conditions.type == "goToPageIf") {
+        				wrapped.goToPageIf = conditions;
+        			}
+        			else {
+        				wrapped.visibleIf = conditions;
+        			}
+        			return wrapped;
+        		}
+        
+        		if (itemOrConditions.visibleIf != undefined || itemOrConditions.goToPageIf != undefined) {
+        			return {
+        				visibleIf: itemOrConditions.visibleIf,
+        				goToPageIf: itemOrConditions.goToPageIf
+        			};
+        		}
+        
+        		return null;
+        	}
+        
+        	public evaluateItemVisibility(item: any): boolean {
+        		let conditions = this.getLegacyAwareConditions(item);
+        		if (conditions == null || conditions.visibleIf == null) {
+        			return true;
+        		}
+        		const evaluateVisibleGroup = (group: any): boolean => {
+        			if (group == null || typeof group != "object") {
+        				return true;
+        			}
+        			let operator = (group.condVisible != null ? "" + group.condVisible : "and").toLowerCase();
+        			let results: Array<boolean> = [];
+        			for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
+        				try {
+        					if (this.isAfieldSimpleOrMultiple(cond) || this.isAFile(cond) || this.isACamSign(cond)) {
+        						results.push(!!this.compute(cond));
+        					}
+        					else if (this.isAform(cond)) {
+        						results.push(!!this.eval("" + this.generateJsVisibleIfForm(cond)));
+        					}
+        					else if (this.isANeverVisible(cond)) {
+        						results.push(false);
+        					}
+        				}
+        				catch (e) {
+        					// Ignore malformed conditions and continue evaluation
+        				}
+        			}
+        			for (let childGroup of (Array.isArray(group.groups) ? group.groups : [])) {
+        				try {
+        					results.push(evaluateVisibleGroup(childGroup));
+        				}
+        				catch (e) {
+        					// Ignore malformed nested groups and continue evaluation
+        				}
+        			}
+        			if (results.length == 0) {
+        				return true;
+        			}
+        			return operator == "or" ? results.some((value) => value === true) : results.every((value) => value === true);
+        		};
+        		return evaluateVisibleGroup(conditions.visibleIf);
+        	}
+        
+        	private getGoToPageIfConditions(item: any): any {
+        		let conditions = this.getLegacyAwareConditions(item);
+        		return conditions != null ? conditions.goToPageIf : null;
         	}
         
         	/**
@@ -5681,6 +5800,171 @@ scriptContent:
         		}
         	}
         
+        	private hasLegacyGoToMatrixCondition(group: any): boolean {
+        		try {
+        			for (let cond of (Array.isArray(group != null ? group.conds : null) ? group.conds : [])) {
+        				if (
+        					cond != null &&
+        					cond.val2 != null &&
+        					cond.val2.vals != undefined &&
+        					typeof cond.val2.vals == "object" &&
+        					Object.keys(cond.val2.vals).length > 0
+        				) {
+        					return true;
+        				}
+        			}
+        			for (let child of (Array.isArray(group != null ? group.groups : null) ? group.groups : [])) {
+        				if (this.hasLegacyGoToMatrixCondition(child)) {
+        					return true;
+        				}
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return false;
+        	}
+        
+        	private evaluateGoToConditionMatch(cond: any): boolean {
+        		try {
+        			if (this.isAfieldSimpleOrMultipleGo(cond) || this.isAFile(cond) || this.isACamSign(cond)) {
+        				return !!this.compute(cond);
+        			}
+        			if (this.isAform(cond)) {
+        				return !!this.eval("" + this.generateJsVisibleIfForm(cond));
+        			}
+        			if (this.isANeverVisible(cond)) {
+        				return false;
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return false;
+        	}
+        
+        	private resetGoToPageTargets(group: any, item: any): void {
+        		try {
+        			if (group == null || item == null) {
+        				return;
+        			}
+        			let groupAction = group != null ? group.page : null;
+        			if (groupAction != null && groupAction !== "") {
+        				let groupIndexToGo = this.findIndexOfPageByPageTechName(groupAction);
+        				if (groupIndexToGo > -1) {
+        					if (this.local.pages[groupIndexToGo].enabled == undefined || typeof this.local.pages[groupIndexToGo].enabled == "boolean") {
+        						this.local.pages[groupIndexToGo].enabled = {};
+        					}
+        					this.local.pages[groupIndexToGo].enabled[item.id] = false;
+        				}
+        			}
+        			for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
+        				let action = cond != null ? cond.page : null;
+        				if (action == null || action === "") {
+        					continue;
+        				}
+        				let indexToGo = this.findIndexOfPageByPageTechName(action);
+        				if (indexToGo < 0) {
+        					continue;
+        				}
+        				if (this.local.pages[indexToGo].enabled == undefined || typeof this.local.pages[indexToGo].enabled == "boolean") {
+        					this.local.pages[indexToGo].enabled = {};
+        				}
+        				this.local.pages[indexToGo].enabled[item.id] = false;
+        			}
+        			for (let child of (Array.isArray(group.groups) ? group.groups : [])) {
+        				this.resetGoToPageTargets(child, item);
+        			}
+        		}
+        		catch (e) {
+        		}
+        	}
+        
+        	private applyGoToCondition(cond: any, item: any): void {
+        		try {
+        			let action = cond != null ? cond.page : null;
+        			if (action == null || action === "") {
+        				return;
+        			}
+        			let indexToGo = this.findIndexOfPageByPageTechName(action);
+        			if (indexToGo < 0) {
+        				return;
+        			}
+        			if (cond.verb == undefined || cond.verb == "authorize") {
+        				if (this.local.pages[indexToGo].enabled == undefined || typeof this.local.pages[indexToGo].enabled == "boolean") {
+        					this.local.pages[indexToGo].enabled = {};
+        				}
+        				this.local.pages[indexToGo].enabled[item.id] = true;
+        				return;
+        			}
+        			if (cond.verb == "goTo") {
+        				this.local.currentIndex = indexToGo;
+        				let i = this["navParams"].get("i") != undefined ? this["navParams"].get("i") : ":i";
+        				let edit = this["navParams"].get("edit") != undefined ? this["navParams"].get("edit") : ":edit";
+        				let formId = this["navParams"].get("formId") != undefined ? this["navParams"].get("formId") : ":formId";
+        				history.pushState({ page: this["local"]["currentIndex"], formId: formId, edit: edit, i: i }, "", window.location.pathname.substring(0, window.location.pathname.indexOf("viewer")) + "viewer/" + formId + "/" + edit + "/" + i);
+        				this.moveFocus();
+        				this.setTitleRGAA();
+        				this.ref.detectChanges();
+        			}
+        		}
+        		catch (e) {
+        			this.c8o.log.error("An error occurred while applying goToPageIf condition", e);
+        		}
+        	}
+        
+        	private evaluateGoToPageIfGroup(group: any, item: any, inheritedAction: any = null): any {
+        		let operator = ((group != null && group.condVisible != null ? "" + group.condVisible : "and")).toLowerCase();
+        		let groupAction: any = {
+        			verb: group != null && group.verb != null && group.verb !== "" ? group.verb : (inheritedAction != null ? inheritedAction.verb : null),
+        			page: group != null && group.page != null && group.page !== "" ? group.page : (inheritedAction != null ? inheritedAction.page : null)
+        		};
+        		let results: Array<boolean> = [];
+        		let actions: Array<any> = [];
+        		for (let cond of (Array.isArray(group != null ? group.conds : null) ? group.conds : [])) {
+        			let matched = this.evaluateGoToConditionMatch(cond);
+        			results.push(matched);
+        			if (matched && cond != null && cond.page != null && cond.page !== "") {
+        				actions.push({
+        					verb: cond.verb != null && cond.verb !== "" ? cond.verb : (groupAction.verb != null && groupAction.verb !== "" ? groupAction.verb : "authorize"),
+        					page: cond.page
+        				});
+        			}
+        		}
+        		for (let child of (Array.isArray(group != null ? group.groups : null) ? group.groups : [])) {
+        			let childResult = this.evaluateGoToPageIfGroup(child, item, groupAction);
+        			results.push(childResult.matched === true);
+        			if (childResult.matched === true) {
+        				actions = actions.concat(Array.isArray(childResult.actions) ? childResult.actions : []);
+        			}
+        		}
+        		if (results.length == 0) {
+        			return { matched: false, actions: [] };
+        		}
+        		if (operator == "or") {
+        			let matched = results.some((value) => value === true);
+        			return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [] };
+        		}
+        		let matched = results.every((value) => value === true);
+        		return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [] };
+        	}
+        
+        	private detectGoToPageIfAndComplete(group: any, item: any): void {
+        		if (group == null || item == null) {
+        			return;
+        		}
+        		if (this.hasLegacyGoToMatrixCondition(group)) {
+        			this.detectTypeAndComplete(Array.isArray(group.conds) ? group.conds : [], item);
+        			return;
+        		}
+        		this.resetGoToPageTargets(group, item);
+        		let result = this.evaluateGoToPageIfGroup(group, item);
+        		if (result.matched !== true) {
+        			return;
+        		}
+        		for (let cond of (Array.isArray(result.actions) ? result.actions : [])) {
+        			this.applyGoToCondition(cond, item);
+        		}
+        	}
+        
         
         	/**
         	 * Find the index of a page in the local pages array based on the page''s technical name.
@@ -5711,48 +5995,49 @@ scriptContent:
         	public detectSubjectAndComplete(
         		conds: Array<any>,
         		operatorStr: string,
-        		goToPage = null
+        		goToPage = null,
+        		groups: Array<any> = []
         	): string {
-        		let jsString = ""; // JavaScript string to be built
-        		const operator = this.getCondVisibleToSign(operatorStr); // Operator between each condition
-        		let cpt = 0;
+        		let expressions: Array<string> = [];
+        		let operator = this.getCondVisibleToSign(operatorStr || "and");
         
-        		// Iterating over conditions
-        		for (let cond of conds) {
-        			let status = "";
+        		for (let cond of (Array.isArray(conds) ? conds : [])) {
+        			let expression = "";
         			try {
-        				// If the subject of the current condition is a field
         				if (this.isAfieldSimpleOrMultiple(cond)) {
-        					status = "field";
-        					jsString += cpt > 0 ? operator + " " + this.compute(cond) : this.compute(cond);
-        					cpt++;
+        					expression = "" + this.compute(cond);
         				}
-        				// If the subject of the current condition is the form
         				else if (this.isAform(cond)) {
-        					status = "form";
-        					// If it''s the first condition, don''t prefix by operator, then call generateJsVisibleIfForm
-        					jsString += cpt > 0 ? operator + " " + this.generateJsVisibleIfForm(cond) : this.generateJsVisibleIfForm(cond);
-        					cpt++;
+        					expression = "" + this.generateJsVisibleIfForm(cond);
         				}
-        				// If the subject of the current condition is a file
         				else if (this.isAFile(cond)) {
-        					status = "field";
-        					jsString += cpt > 0 ? operator + " " + this.compute(cond) : this.compute(cond);
-        					cpt++;
+        					expression = "" + this.compute(cond);
         				}
-        				// If the subject of the current condition is a CamSign
         				else if (this.isACamSign(cond)) {
-        					status = "field";
-        					jsString += cpt > 0 ? operator + " " + this.compute(cond) : this.compute(cond);
-        					cpt++;
+        					expression = "" + this.compute(cond);
         				}
-        				// If the condition is never visible
         				else if (this.isANeverVisible(cond)) {
-        					status = "never_visible";
-        					jsString += cpt > 0 ? operator + " false" : "false";
+        					expression = "false";
         				}
-        				else {
-        					status = "error";
+        			}
+        			catch (e) {
+        				// Handle any exceptions or errors
+        			}
+        			if (expression != "") {
+        				expressions.push(expression);
+        			}
+        		}
+        
+        		for (let group of (Array.isArray(groups) ? groups : [])) {
+        			try {
+        				let groupExpression = this.detectSubjectAndComplete(
+        					group != undefined ? group.conds : [],
+        					group != undefined && group.condVisible != undefined ? group.condVisible : "and",
+        					goToPage,
+        					group != undefined && Array.isArray(group.groups) ? group.groups : []
+        				);
+        				if (groupExpression != "") {
+        					expressions.push("(" + groupExpression + ")");
         				}
         			}
         			catch (e) {
@@ -5760,11 +6045,11 @@ scriptContent:
         			}
         		}
         
-        		if (jsString == "" && goToPage == null) {
-        			jsString = "true";
+        		if (expressions.length == 0) {
+        			return goToPage == null ? "true" : "";
         		}
         
-        		return jsString;
+        		return expressions.join(" " + operator + " ");
         	}
         
         
@@ -5777,6 +6062,16 @@ scriptContent:
         		return ''val1'' in object; // Check if the ''val1'' property exists in the object
         	}
         
+        	private hasConditionValue(val: any): boolean {
+        		return (
+        			val != undefined &&
+        			(
+        				(val.str != undefined && val.str !== "") ||
+        				(Array.isArray(val.arr) && val.arr.length > 0)
+        			)
+        		);
+        	}
+        
         	/**
         	 * Check if the provided condition is a valid field (simple or multiple).
         	 * @param {FieldObject} cond - The condition object to be checked.
@@ -5787,10 +6082,8 @@ scriptContent:
         			return (
         				cond.subject != undefined &&
         				cond.subject == "field" &&
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
-        				cond.val2 != undefined &&
-        				(cond.val2.str != "" || cond.val2.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
+        				this.hasConditionValue(cond.val2) &&
         				cond.operator != undefined &&
         				cond.operator != ""
         			);
@@ -5798,8 +6091,7 @@ scriptContent:
         			return (
         				cond.subject != undefined &&
         				cond.subject == "field" &&
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
         				(cond.operator == "is_filled" || cond.operator == "is_empty")
@@ -5815,18 +6107,15 @@ scriptContent:
         	private isAfieldSimpleOrMultipleGo(cond: FieldObject): boolean {
         		try {
         			return (
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
-        				cond.val2 != undefined &&
-        				(cond.val2.str != "" || cond.val2.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
+        				this.hasConditionValue(cond.val2) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
         				cond.type == "goToPageIf"
         			);
         		} catch (e) {
         			return (
-        				cond.val1 != undefined &&
-        				(cond.val1.str != "" || cond.val1.arr.length > 0) &&
+        				this.hasConditionValue(cond.val1) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
         				(cond.operator == "is_filled" || cond.operator == "is_empty") &&
@@ -5918,7 +6207,7 @@ scriptContent:
         		let result = true;
         		if (this.instanceOfField(cond)) {
         			const field = <FieldObject>cond;
-        			const type1: string = this.getType(field.val1.type);
+        			const type1: string = field.type == "goToPageIf" ? this.getGoToPageType(field.val1.type) : this.getType(field.val1.type);
         			const operator: string = field.operator;
         			result = this[operator](field, type1);
         		}
@@ -5931,7 +6220,26 @@ scriptContent:
         	 * @returns The value of the simple field
         	 */
         	private getValSimple(val: ValFieldObject): any {
-        		return val.source ? this.getSimple(val) : val.str;
+        		if (val == null) {
+        			return "";
+        		}
+        		if (val.source) {
+        			return this.getSimple(val);
+        		}
+        		if (typeof val.str === "string" && val.str.indexOf("$$") !== -1) {
+        			try {
+        				let page = this;
+        				const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        				const expression = this.stringOf$$ToCode(val.str, "ts", [], regex, false, false);
+        				if (expression != null && expression !== "") {
+        					return eval(expression);
+        				}
+        			}
+        			catch (e) {
+        				// Fallback to raw string when token resolution fails
+        			}
+        		}
+        		return val.str;
         	}
         
         	/**
@@ -6586,6 +6894,34 @@ scriptContent:
         	* @returns The value of the field.
         	*/
         	private getSimple(val: ValFieldObject): string {
+        		try {
+        			if (val != null && val.c8opath != null && val.c8opath != "") {
+        				let id: any = val.str;
+        				if (typeof id == "string" && /^\d+$/.test(id)) {
+        					id = +id;
+        				}
+        				if (typeof id == "number") {
+        					const meta: any = {
+        						c8otype: "path",
+        						c8opath: val.c8opath,
+        						c8oPrettyPath: val.c8oPrettyPath != null ? val.c8oPrettyPath : null,
+        						c8obuiltin: val.c8obuiltin != null ? val.c8obuiltin : null,
+        						c8oisobject: val.c8oisobject != null ? val.c8oisobject : null,
+        						fakeId: "${uniqueId}",
+        						c8oName: val.name != null ? val.name : this.getNameById(val)
+        					};
+        					const token = "$$START" + id + JSON.stringify(meta) + "END" + id + "$$";
+        					const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        					const expression = this.stringOf$$ToCode(token, "ts", [], regex, false, false);
+        					if (expression != null && expression !== "") {
+        						let page = this;
+        						return eval(expression);
+        					}
+        				}
+        			}
+        		}
+        		catch (e) {
+        		}
         		const name = this.getNameById(val);
         		return this.getFormElementValueByName(name);
         	}
@@ -6620,12 +6956,16 @@ scriptContent:
         				}
         			}
         		} else {
+        			let lookupId: any = val.str;
+        			if (typeof lookupId === ''string'' && /^\d+$/.test(lookupId)) {
+        				lookupId = +lookupId;
+        			}
         			for (let elem of searchArray) {
-        				if (elem.id === val.str) {
+        				if (elem.id == lookupId) {
         					return elem.name;
         				} else if (elem.type === "ion-card" && elem["children"] != undefined) {
         					for (let child of elem["children"]) {
-        						if (child.id === val.str) {
+        						if (child.id == lookupId) {
         							return child.name;
         						}
         					}
@@ -6658,6 +6998,20 @@ scriptContent:
         		} else if (this.local.fileField[type]) {
         			return "file";
         		} else if (this.local.camSignField[type]) {
+        			return "camSign";
+        		} else {
+        			return "";
+        		}
+        	}
+        
+        	public getGoToPageType(type: string): string {
+        		if (this.local.multipleFieldGoToPage[type]) {
+        			return "multiple";
+        		} else if (this.local.simpleFieldGoToPage[type]) {
+        			return "simple";
+        		} else if (this.local.fileFieldGoToPage[type]) {
+        			return "file";
+        		} else if (this.local.camSignFieldGoToPage[type]) {
         			return "camSign";
         		} else {
         			return "";
@@ -6796,7 +7150,7 @@ scriptContent:
         	 * Checks for any existing condition and initializes the value of some objects.
         	 * @param formList - The form list to check for conditions and initialize values. Default is formsList.
         	 */
-        	public checkForAnyCondition(formList = this.formsList): void {
+        	public checkForAnyCondition(formList = this.formsList, preserveCurrentPage: boolean = false): void {
         		if (this.local.initDone === undefined) {
         			this.local.initDone = {};
         		}
@@ -6805,25 +7159,20 @@ scriptContent:
         			let elem: any = e;
         
         			try {
-        				if (
-        					elem.conditions !== undefined &&
-        					elem.conditions.goToPageIf !== undefined &&
-        					elem.conditions.goToPageIf.conds !== undefined
-        				) {
-        					if (this.local.initDone[elem.id] == null) {
-        						this.detectTypeAndComplete(elem.conditions.goToPageIf.conds, elem);
-        						this.local.initDone[elem.id] = true;
-        					}
+        				let goToPageIf = this.getGoToPageIfConditions(elem);
+        				if (goToPageIf !== undefined && goToPageIf !== null && goToPageIf.conds !== undefined) {
+        					this.detectGoToPageIfAndComplete(goToPageIf, elem);
+        					this.local.initDone[elem.id] = true;
         				}
         
         				if (elem.type === "ion-card" && elem.children !== undefined) {
-        					this.checkForAnyCondition(elem.children);
+        					this.checkForAnyCondition(elem.children, preserveCurrentPage);
         				}
         			} catch (e) {
         				console.error("an error occured", e);
         			}
         		}
-        		if (!this.checkcurrentPageIndex()) {
+        		if (!preserveCurrentPage && !this.checkcurrentPageIndex()) {
         			this.local.currentIndex = this.getNextPageIndex();
         		}
         	}
@@ -8571,6 +8920,12 @@ title: Visualisateur
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: plain:1
+              ↓Attr2 [ngx.components.UIAttribute-1776794552670]: 
+                attrName: class
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:ion-text-wrap
           ↓Directive1 [ngx.components.UIControlDirective-1584610404239]: 
             directiveName: If
             directiveSource: 
@@ -8727,8 +9082,11 @@ title: Visualisateur
                                   padding-top:10px;
                                   
                         ↓Directive1 [ngx.components.UIControlDirective-1588846642198]: 
-                          directiveExpression: '''text'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'text'
                           ↓UseSharedComponent [ngx.components.UIUseShared-1588846642201]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemTextViewer
                             ↓item [ngx.components.UIUseVariable-1588846642204]: 
@@ -8756,8 +9114,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive3 [ngx.components.UIControlDirective-1588846642240]: 
-                          directiveExpression: '''checkbox'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'checkbox'
                           ↓UseSharedComponent2 [ngx.components.UIUseShared-1588846642243]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemCheckboxViewer
                             ↓item [ngx.components.UIUseVariable-1588846642246]: 
@@ -8785,8 +9146,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive4 [ngx.components.UIControlDirective-1588846642255]: 
-                          directiveExpression: '''radio'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'radio'
                           ↓UseSharedComponent811 [ngx.components.UIUseShared-1588846642258]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemRadioViewver
                             ↓item [ngx.components.UIUseVariable-1588846642261]: 
@@ -8814,8 +9178,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive5 [ngx.components.UIControlDirective-1588846642270]: 
-                          directiveExpression: '''slider'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'slider'
                           ↓UseSharedComponent8 [ngx.components.UIUseShared-1588846642273]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemSliderViewver
                             ↓item [ngx.components.UIUseVariable-1588846642276]: 
@@ -8843,8 +9210,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive51 [ngx.components.UIControlDirective-1588846642285]: 
-                          directiveExpression: '''select'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'select'
                           ↓UseSharedComponent81 [ngx.components.UIUseShared-1588846642288]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemSelectViewver
                             ↓item [ngx.components.UIUseVariable-1588846642291]: 
@@ -8872,8 +9242,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive52 [ngx.components.UIControlDirective-1588846642300]: 
-                          directiveExpression: '''datetime'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'datetime'
                           ↓UseSharedComponent5 [ngx.components.UIUseShared-1588846642303]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemDateTimeViewver
                             ↓item [ngx.components.UIUseVariable-1588846642306]: 
@@ -8901,8 +9274,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive53 [ngx.components.UIControlDirective-1588846642315]: 
-                          directiveExpression: '''time'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'time'
                           ↓UseSharedComponent51 [ngx.components.UIUseShared-1588846642318]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemTimeViewver
                             ↓item [ngx.components.UIUseVariable-1588846642321]: 
@@ -8930,8 +9306,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive54 [ngx.components.UIControlDirective-1588846642330]: 
-                          directiveExpression: '''img'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'img'
                           ↓UseSharedComponent1 [ngx.components.UIUseShared-1588846642333]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemImgViewer
                             ↓item [ngx.components.UIUseVariable-1588846642336]: 
@@ -8959,8 +9338,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive55 [ngx.components.UIControlDirective-1588846642345]: 
-                          directiveExpression: '''barcode'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'barcode'
                           ↓UseSharedComponent7 [ngx.components.UIUseShared-1588846642348]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemBarcodeViewver
                             ↓item [ngx.components.UIUseVariable-1588846642351]: 
@@ -8988,8 +9370,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive56 [ngx.components.UIControlDirective-1588846642360]: 
-                          directiveExpression: '''file'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'file'
                           ↓UseSharedComponent8111 [ngx.components.UIUseShared-1588846642363]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemFileViewver
                             ↓item [ngx.components.UIUseVariable-1588846642366]: 
@@ -9022,8 +9407,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive561 [ngx.components.UIControlDirective-1588846642378]: 
-                          directiveExpression: '''signature'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'signature'
                           ↓UseSharedComponent6 [ngx.components.UIUseShared-1588846642381]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemSignatureViewver
                             ↓item [ngx.components.UIUseVariable-1588846642384]: 
@@ -9061,8 +9449,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:'black'
                         ↓Directive562 [ngx.components.UIControlDirective-1588846642393]: 
-                          directiveExpression: '''radio_group'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'radio_group'
                           ↓UseSharedComponent8112 [ngx.components.UIUseShared-1588846642396]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemRadioGroupViewver
                             ↓item [ngx.components.UIUseVariable-1588846642399]: 
@@ -9090,8 +9481,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive563 [ngx.components.UIControlDirective-1588846642411]: 
-                          directiveExpression: '''checkbox_group'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'checkbox_group'
                           ↓UseSharedComponent21 [ngx.components.UIUseShared-1588846642414]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemCheckboxGroupViewer
                             ↓item [ngx.components.UIUseVariable-1588846642417]: 
@@ -9119,8 +9513,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive21 [ngx.components.UIControlDirective-1604675615710]: 
-                          directiveExpression: '''description'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'description'
                           ↓UseSharedComponent4 [ngx.components.UIUseShared-1604675615713]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemDescriptionViewer
                             ↓item [ngx.components.UIUseVariable-1604675615716]: 
@@ -9130,8 +9527,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:this.formsList[index]
                         ↓Directive12 [ngx.components.UIControlDirective-1608817811015]: 
-                          directiveExpression: '''grid'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'grid'
                           ↓UseSharedComponent [ngx.components.UIUseShared-1608817811018]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemGridViewer
                             ↓item [ngx.components.UIUseVariable-1608817811021]: 
@@ -9165,8 +9565,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:this.formsSubmit[item['name']]
                         ↓Directive121 [ngx.components.UIControlDirective-1609947134377]: 
-                          directiveExpression: '''location'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'location'
                           ↓UseSharedComponent [ngx.components.UIUseShared-1609947134380]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemLocationViewer
                             ↓item [ngx.components.UIUseVariable-1609947134383]: 
@@ -9194,8 +9597,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:false
                         ↓Directive13 [ngx.components.UIControlDirective-1728975248251]: 
-                          directiveExpression: '''chart'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'chart'
                           ↓UseSharedComponent [ngx.components.UIUseShared-1728975248254]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemChartViewer
                             ↓item [ngx.components.UIUseVariable-1728975248257]: 
@@ -9229,8 +9635,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:this.redList
                         ↓Directive14 [ngx.components.UIControlDirective-1734454386142]: 
-                          directiveExpression: '''map'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'map'
                           ↓UseSharedComponent [ngx.components.UIUseShared-1734454386145]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemMapViewer
                             ↓item [ngx.components.UIUseVariable-1734454386148]: 
@@ -9264,8 +9673,11 @@ title: Visualisateur
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:this.redList
                         ↓Directive2 [ngx.components.UIControlDirective-1741872385451]: 
-                          directiveExpression: '''button'''
                           directiveName: SwitchCase
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'button'
                           ↓UseSharedComponent [ngx.components.UIUseShared-1741872385454]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemButtonViewer
                             ↓item [ngx.components.UIUseVariable-1741872385457]: 
@@ -9297,10 +9709,13 @@ title: Visualisateur
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:(item.conditions != undefined && (this.eval(this.evaluateConditions(item.conditions)) != true)) ? {'display':'none'}:{}
+                            - MobileSmartSourceType: script:this.evaluateItemVisibility(item) != true ? {'display':'none'}:{}
                     ↓Directive [ngx.components.UIControlDirective-1588846710912]: 
-                      directiveExpression: '''ion-card'''
                       directiveName: SwitchCase
+                      directiveSource: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:'ion-card'
                       ↓Div [ngx.components.UIDynamicElement-1580402859499]: 
                         beanData: '{"ionBean":"DivTag"}'
                         tagName: div
@@ -9329,17 +9744,20 @@ title: Visualisateur
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: 'plain:item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                              - MobileSmartSourceType: plain:this.evaluateItemVisibility(item)
                           isEnabled: false
                         ↓Attr1 [ngx.components.UIAttribute-1670941607108]: 
                           attrName: '[ngStyle]'
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:(item.conditions != undefined && (this.eval(this.evaluateConditions(item.conditions)) != true)) ? {'display':'none'}:{}
+                              - MobileSmartSourceType: script:this.evaluateItemVisibility(item) != true ? {'display':'none'}:{}
                     ↓Directive1 [ngx.components.UIControlDirective-1730985061047]: 
-                      directiveExpression: '''layout'''
                       directiveName: SwitchCase
+                      directiveSource: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:'layout'
                       ↓Div [ngx.components.UIDynamicElement-1730985061050]: 
                         beanData: '{"ionBean":"DivTag"}'
                         tagName: div
@@ -9368,14 +9786,14 @@ title: Visualisateur
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: 'plain:item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                              - MobileSmartSourceType: plain:this.evaluateItemVisibility(item)
                           isEnabled: false
                         ↓Attr1 [ngx.components.UIAttribute-1730985061068]: 
                           attrName: '[ngStyle]'
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:(item.conditions != undefined && (this.eval(this.evaluateConditions(item.conditions)) != true)) ? {'display':'none'}:{}
+                              - MobileSmartSourceType: script:this.evaluateItemVisibility(item) != true ? {'display':'none'}:{}
             ↓Attr [ngx.components.UIAttribute-1666285549834]: 
               attrName: role
               attrValue: 
@@ -9805,8 +10223,39 @@ title: Visualisateur
           ↓Div [ngx.components.UIDynamicElement-1576600108262]: 
             beanData: '{"ionBean":"DivTag"}'
             tagName: div
-            ↓FragmentSpinner [ngx.components.UICustom-1576600108265]: 
-              htmlTemplate: <div  class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+            ↓Div [ngx.components.UIDynamicElement-1776796771129]: 
+              beanData: '{"ionBean":"DivTag"}'
+              tagName: div
+              ↓Attr [ngx.components.UIAttribute-1776796771131]: 
+                attrName: class
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:lds-roller
+              ↓Div [ngx.components.UIDynamicElement-1776796771135]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+              ↓Div1 [ngx.components.UIDynamicElement-1776796771139]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+              ↓Div2 [ngx.components.UIDynamicElement-1776796771143]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+              ↓Div3 [ngx.components.UIDynamicElement-1776796771147]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+              ↓Div4 [ngx.components.UIDynamicElement-1776796771151]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+              ↓Div5 [ngx.components.UIDynamicElement-1776796771155]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+              ↓Div6 [ngx.components.UIDynamicElement-1776796771159]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+              ↓Div7 [ngx.components.UIDynamicElement-1776796771163]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
             ↓Style [ngx.components.UIStyle-1576600108268]: 
               styleContent: 
                 - xmlizable: 
@@ -9815,6 +10264,18 @@ title: Visualisateur
                     →: |
                       text-align:center;
                       
+          ↓Attr [ngx.components.UIAttribute-1776794552760]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:ion-align-self-center
+        ↓Attr [ngx.components.UIAttribute-1776794552758]: 
+          attrName: class
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:ion-justify-content-center ion-align-items-center
       ↓Attr [ngx.components.UIAttribute-1576600108271]: 
         attrName: '*ngIf'
         attrValue: 
@@ -9924,16 +10385,17 @@ title: Visualisateur
                       →: |
                         	--color:var(--ion-color-primary-contrast)
                         
-              ↓Event [ngx.components.UIControlEvent-1604486086517]: 
-                isEnabled: false
-                ↓RootPage [ngx.components.UIDynamicAction-1604486086520]: 
+              ↓Event1 [ngx.components.UIControlEvent-1604486146246]: 
+                ↓CallSequence [ngx.components.UIDynamicAction-1604486146249]: 
                   beanData: |
                     '{
-                     "ionBean": "RootPageAction",
-                     "page": "plain:C8Oforms.MobileApplication.Application.viewerPage",
-                     "data": "script:{i: this[''navParams''][''get''](''i'')}"
+                     "ionBean": "CallSequenceAction",
+                     "requestable": "plain:C8Oforms.Logout",
+                     "noAutoLogin": "plain:true"
                     }'
-              ↓Event1 [ngx.components.UIControlEvent-1604486146246]: 
+                  ↓RootPage [ngx.components.UIDynamicAction-1604486146252]: 
+                    beanData: '{"ionBean":"RootPageAction","page":"plain:C8Oforms.MobileApplication.Application.loginPage"}'
+              ↓Event2 [ngx.components.UIControlEvent-1604486146246]: 
                 ↓CallSequence [ngx.components.UIDynamicAction-1604486146249]: 
                   beanData: |
                     '{
@@ -9977,6 +10439,18 @@ title: Visualisateur
                     →: |
                       text-align:center;
                       
+          ↓Attr [ngx.components.UIAttribute-1776794552804]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:ion-align-self-center
+        ↓Attr [ngx.components.UIAttribute-1776794552802]: 
+          attrName: class
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:ion-justify-content-center ion-align-items-center
   ↓Directive1 [ngx.components.UIControlDirective-1576510583186]: 
     directiveName: If
     directiveSource: 
@@ -10048,6 +10522,12 @@ title: Visualisateur
                           'font-size: 2.125rem;
                           padding-bottom: 10px;
                           '
+                ↓Attr1 [ngx.components.UIAttribute-1776794552818]: 
+                  attrName: class
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:ion-text-center
               ↓Div1 [ngx.components.UIDynamicElement-1576511328850]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -10078,6 +10558,12 @@ title: Visualisateur
                         →: |
                           'padding-bottom: 10px;
                           '
+                ↓Attr1 [ngx.components.UIAttribute-1776794552824]: 
+                  attrName: class
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:ion-text-center
               ↓Div2 [ngx.components.UIDynamicElement-1576511345379]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -10127,16 +10613,16 @@ title: Visualisateur
                             	--background-focused-opacity:1;
                             	--background-focused: var(--ion-color-primary-shade);
                             '
-                  ↓Event [ngx.components.UIControlEvent-1576512340956]: 
-                    isEnabled: false
-                    ↓RootPage [ngx.components.UIDynamicAction-1576512357796]: 
+                  ↓Event1 [ngx.components.UIControlEvent-1604349604451]: 
+                    ↓RootPage [ngx.components.UIDynamicAction-1604349604454]: 
                       beanData: |
                         '{
                          "ionBean": "RootPageAction",
                          "page": "plain:C8Oforms.MobileApplication.Application.viewerPage",
-                         "data": "script:{i: this[''navParams''][''get''](''i'')}"
+                         "data": "script:{i: this.local.i != undefined ? this.local.i : '':i''}"
                         }'
-                  ↓Event1 [ngx.components.UIControlEvent-1604349604451]: 
+                      comment: '{i: this[''navParams''][''get''](''i'') != undefined ? this[''navParams''][''get''](''i''): '':i'', formId: this[''navParams''][''get''](''formId'') != undefined ? this[''navParams''][''get''](''formId''): '':formId''}'
+                  ↓Event2 [ngx.components.UIControlEvent-1604349604451]: 
                     ↓RootPage [ngx.components.UIDynamicAction-1604349604454]: 
                       beanData: |
                         '{
@@ -10170,6 +10656,12 @@ title: Visualisateur
                   beanData: '{"ionBean":"FormatLayout","TextAlignment":"plain:ion-text-center"}'
                   comment: FormatLayout
                   tagName: div
+                ↓Attr1 [ngx.components.UIAttribute-1776794552830]: 
+                  attrName: class
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:ion-text-center
             ↓Style [ngx.components.UIStyle-1604349487183]: 
         ↓GridCol2 [ngx.components.UIDynamicElement-1576510675780]: 
           beanData: |
@@ -10180,6 +10672,12 @@ title: Visualisateur
              "SizeXl": "plain:4"
             }'
           tagName: ion-col
+        ↓Attr [ngx.components.UIAttribute-1776794552816]: 
+          attrName: class
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:ion-justify-content-center ion-align-items-center
   ↓Directive2 [ngx.components.UIControlDirective-1770041542474]: 
     directiveName: If
     directiveSource: 
@@ -10394,6 +10892,12 @@ title: Visualisateur
                       'font-size: 2.125rem;
                       padding-bottom: 10px;
                       '
+            ↓Attr1 [ngx.components.UIAttribute-1776794552840]: 
+              attrName: class
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:ion-text-center
         ↓GridCol2 [ngx.components.UIDynamicElement-1770041542585]: 
           beanData: |
             '{
@@ -10403,6 +10907,12 @@ title: Visualisateur
              "SizeXl": "plain:4"
             }'
           tagName: ion-col
+        ↓Attr [ngx.components.UIAttribute-1776794552838]: 
+          attrName: class
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:ion-justify-content-center ion-align-items-center
   ↓Attr2 [ngx.components.UIAttribute-1586248761698]: 
     attrName: id
     attrValue: 
@@ -10433,7 +10943,7 @@ title: Visualisateur
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: plain:animate__animated animate__backInDown
+          - MobileSmartSourceType: plain:animate__animated animate__backInDown ion-text-center
     ↓FormatLayout [ngx.components.UIDynamicAttr-1645090139652]: 
       beanData: '{"ionBean":"FormatLayout","TextAlignment":"plain:ion-text-center"}'
       comment: FormatLayout
@@ -10500,12 +11010,12 @@ title: Visualisateur
                 directiveExpression: '''ion-card'''
                 directiveName: SwitchCase
                 ↓Directive [ngx.components.UIControlDirective-1620739808751]: 
-                  comment: 'item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                  comment: this.evaluateItemVisibility(item)
                   directiveName: If
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: 'script:item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                      - MobileSmartSourceType: script:this.evaluateItemVisibility(item)
                   ↓Directive [ngx.components.UIControlDirective-1620739808754]: 
                     directiveExpression: let j = index
                     directiveSource: 
@@ -10522,12 +11032,12 @@ title: Visualisateur
                         directiveExpression: '''videoCall'''
                         directiveName: SwitchCase
                         ↓Directive [ngx.components.UIControlDirective-1620739808763]: 
-                          comment: 'child.conditions != undefined ? (this.eval(this.evaluateConditions(child.conditions))) : true'
+                          comment: this.evaluateItemVisibility(child)
                           directiveName: If
                           directiveSource: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: 'script:child.conditions != undefined ? (this.eval(this.evaluateConditions(child.conditions))) : true'
+                              - MobileSmartSourceType: script:this.evaluateItemVisibility(child)
                           ↓UseSharedComponent81121 [ngx.components.UIUseShared-1620739808766]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.itemVideoCallViewer
                             ↓ix [ngx.components.UIUseVariable-1620739808769]: 
@@ -10553,7 +11063,7 @@ title: Visualisateur
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: 'script:item.conditions != undefined ? (this.eval(this.evaluateConditions(item.conditions))) : true'
+                      - MobileSmartSourceType: script:this.evaluateItemVisibility(item)
                   ↓UseSharedComponent [ngx.components.UIUseShared-1620739808781]: 
                     sharedcomponent: C8Oforms.MobileApplication.Application.itemVideoCallViewer
     ↓Attr [ngx.components.UIAttribute-1620741945699]: 
@@ -10574,6 +11084,12 @@ title: Visualisateur
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
         - MobileSmartSourceType: 'script:(this.enabled == true ? (this.form.wallpaper[''type''] != undefined ? (this.form.wallpaper[''type''] != ''color'' ? ''url(''+this.local.url+'')'' : ''none'') : ''url('' + this.link+ '')'') : ''none'') + ''cover no-repeat 100% 100%'''
+  ↓Attr5 [ngx.components.UIAttribute-1776794552662]: 
+    attrName: class
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: plain:ion-padding-vertical
 ↓PageEvent2 [ngx.components.UIPageEvent-1611327642638]: 
   viewEvent: onWillLeave
   ↓cancelViewLive [ngx.components.UICustomAction-1611327662306]: 
@@ -10663,11 +11179,13 @@ title: Visualisateur
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
         - MobileSmartSourceType: script:!this.local.finished && this.local.spinner == false &&  this.local.errorViewer != true && this.local.canRespond
     ↓Directive [ngx.components.UIControlDirective-1620398021976]: 
-      directiveExpression: 'let i = index; trackBy: trackById;'
+      directiveExpression: 'trackBy: trackById'
+      directiveIndexName: i
+      directiveItemName: item
       directiveSource: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:let item of this.formsList
+          - MobileSmartSourceType: script:this.formsList
       ↓Directive [ngx.components.UIControlDirective-1620398021979]: 
         directiveName: If
         directiveSource: 
@@ -10687,21 +11205,25 @@ title: Visualisateur
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:item.type
             ↓Directive [ngx.components.UIControlDirective-1620398022288]: 
-              directiveExpression: '''ion-card'''
               directiveName: SwitchCase
+              directiveSource: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:'ion-card'
               ↓Directive [ngx.components.UIControlDirective-1620398083043]: 
-                comment: 'item.conditions != undefined  ? this.eval(this.evaluateConditions(item.conditions)) : true '
+                comment: this.evaluateItemVisibility(item)
                 directiveName: If
                 directiveSource: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: script:true
                 ↓Directive [ngx.components.UIControlDirective-1620398117160]: 
-                  directiveExpression: let j = index
+                  directiveIndexName: j
+                  directiveItemName: child
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:let child of item.children
+                      - MobileSmartSourceType: script:item.children
                   ↓Directive6 [ngx.components.UIControlDirective-1620398117163]: 
                     directiveName: Switch
                     directiveSource: 
@@ -10709,10 +11231,13 @@ title: Visualisateur
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:child.type
                     ↓Directive5631111 [ngx.components.UIControlDirective-1620398117523]: 
-                      directiveExpression: '''videoCall'''
                       directiveName: SwitchCase
+                      directiveSource: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:'videoCall'
                       ↓Directive [ngx.components.UIControlDirective-1620398157972]: 
-                        comment: 'child.conditions != undefined ? (this.eval(this.evaluateConditions(child.conditions))) : true'
+                        comment: this.evaluateItemVisibility(child)
                         directiveName: If
                         directiveSource: 
                           - xmlizable: 
@@ -10736,8 +11261,11 @@ title: Visualisateur
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:this.redList[child['name']]
             ↓Directive1 [ngx.components.UIControlDirective-1620398022312]: 
-              directiveExpression: '''videoCall'''
               directiveName: SwitchCase
+              directiveSource: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:'videoCall'
               ↓UseSharedComponent [ngx.components.UIUseShared-1620398022315]: 
                 sharedcomponent: C8Oforms.MobileApplication.Application.itemVideoCallViewer
   ↓Attr [ngx.components.UIAttribute-1620742930267]: 
@@ -10812,7 +11340,7 @@ title: Visualisateur
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined 
+                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined
             ↓Event [ngx.components.UIControlEvent-1664280994120]: 
               ↓goBackward [ngx.components.UICustomAction-1664281347683]: 
                 actionValue: 
@@ -10991,7 +11519,7 @@ title: Visualisateur
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined 
+                    - MobileSmartSourceType: plain:this.isThereANextPage != undefined
             ↓Event [ngx.components.UIControlEvent-1664274551560]: 
               ↓IfElse [ngx.components.UIDynamicIf-1664274738931]: 
                 beanData: '{"ionBean":"IfElseAction","condition":"script:this.isThereANextPage()"}'
@@ -11076,7 +11604,7 @@ title: Visualisateur
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: plain:this.local.pages != undefined && (this.local.pages[this.local.currentIndex].enabledTab || (this.local.pages[this.local.currentIndex].enabledButtons && this.local.pages[this.local.currentIndex].positionButtons == 'tab') ) 
+            - MobileSmartSourceType: plain:this.local.pages != undefined && (this.local.pages[this.local.currentIndex].enabledTab || (this.local.pages[this.local.currentIndex].enabledButtons && this.local.pages[this.local.currentIndex].positionButtons == 'tab') )
       ↓Style [ngx.components.UIStyle-1664209966109]: 
         isEnabled: false
         styleContent: 

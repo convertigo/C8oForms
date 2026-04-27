@@ -359,7 +359,14 @@ For more technical informations : [documentation](./project.md)
         - [addUserForm](#adduserform)
         - [addUserToGroupForm](#addusertogroupform)
         - [adminHelpCenter](#adminhelpcenter)
+        - [BarcodeDataInteractionsEditor](#barcodedatainteractionseditor)
+        - [button_variable](#button_variable)
+        - [CameraAppearanceEditor](#cameraappearanceeditor)
+        - [CameraDataInteractionsEditor](#cameradatainteractionseditor)
         - [cardSelector](#cardselector)
+        - [ChartConfigurationEditor](#chartconfigurationeditor)
+        - [ChoiceDataInteractionsEditor](#choicedatainteractionseditor)
+        - [ChoiceGroupDataInteractionsEditor](#choicegroupdatainteractionseditor)
         - [chooseIcon](#chooseicon)
         - [colorPicker](#colorpicker)
         - [conditiongoToPageIf](#conditiongotopageif)
@@ -367,17 +374,24 @@ For more technical informations : [documentation](./project.md)
         - [conditionVisibleIf](#conditionvisibleif)
         - [conditionVisibleIfPrev](#conditionvisibleifprev)
         - [datasource](#datasource)
+        - [datasourceButton](#datasourcebutton)
+        - [datasourceConfigureButton](#datasourceconfigurebutton)
         - [dataSourceEditor](#datasourceeditor)
         - [dataSourceEditor_GridRow_GridColSourcePicker_Group](#datasourceeditor_gridrow_gridcolsourcepicker_group)
         - [dataSourceEditorDescription](#datasourceeditordescription)
         - [dataviz](#dataviz)
         - [datavizHolder](#datavizholder)
+        - [DateDataInteractionsEditor](#datedatainteractionseditor)
+        - [DateStyleEditor](#datestyleeditor)
+        - [DefaultValueEditorWithPalette](#defaultvalueeditorwithpalette)
         - [documentationPanel](#documentationpanel)
         - [DraggableElementActionPalette](#draggableelementactionpalette)
         - [DraggableElementApiPalette](#draggableelementapipalette)
         - [editorToolbarButton](#editortoolbarbutton)
         - [editPermsModal](#editpermsmodal)
         - [editUserModal](#editusermodal)
+        - [FileDataInteractionsEditor](#filedatainteractionseditor)
+        - [FileSubmissionEditor](#filesubmissioneditor)
         - [FilterBR](#filterbr)
         - [FilterBRADD](#filterbradd)
         - [getApplicationDetail](#getapplicationdetail)
@@ -414,6 +428,7 @@ For more technical informations : [documentation](./project.md)
         - [itemConditionEditor_Elem](#itemconditioneditor_elem)
         - [itemConditionEditorViewer](#itemconditioneditorviewer)
         - [itemConditionViewer_Elem](#itemconditionviewer_elem)
+        - [itemCondsNavigation](#itemcondsnavigation)
         - [itemDateSelector](#itemdateselector)
         - [itemDateTimeViewver](#itemdatetimeviewver)
         - [itemDescriptionEditor](#itemdescriptioneditor)
@@ -470,6 +485,8 @@ For more technical informations : [documentation](./project.md)
         - [itemVideoCallViewerInEditionPage](#itemvideocallviewerineditionpage)
         - [labelFieldMustBeFilled](#labelfieldmustbefilled)
         - [listSelector](#listselector)
+        - [LocationDataInteractionsEditor](#locationdatainteractionseditor)
+        - [LocationReturnedValueEditor](#locationreturnedvalueeditor)
         - [LoginComponent](#logincomponent)
         - [mdReader](#mdreader)
         - [MenuComponentUi](#menucomponentui)
@@ -491,6 +508,7 @@ For more technical informations : [documentation](./project.md)
         - [searchableSelect](#searchableselect)
         - [searchApp](#searchapp)
         - [seeProfilModal](#seeprofilmodal)
+        - [SelectDataInteractionsEditor](#selectdatainteractionseditor)
         - [sharedDropIndicator](#shareddropindicator)
         - [sharedDropIndicatorSelector](#shareddropindicatorselector)
         - [SharedGrabHeader](#sharedgrabheader)
@@ -509,10 +527,17 @@ For more technical informations : [documentation](./project.md)
         - [SharedStyleMarginEditor](#sharedstylemargineditor)
         - [SharedTabs](#sharedtabs)
         - [SharedVersion](#sharedversion)
+        - [SignatureDataInteractionsEditor](#signaturedatainteractionseditor)
+        - [SliderDataInteractionsEditor](#sliderdatainteractionseditor)
+        - [SliderStyleEditor](#sliderstyleeditor)
         - [SortBR](#sortbr)
         - [stripeBackground](#stripebackground)
         - [switchItemEdition](#switchitemedition)
         - [switchItemViewer](#switchitemviewer)
+        - [TextInputSetting](#textinputsetting)
+        - [TimeDataInteractionsEditor](#timedatainteractionseditor)
+        - [TimeStyleEditor](#timestyleeditor)
+        - [ToggleSwitch](#toggleswitch)
         - [ToolbarComponentUi](#toolbarcomponentui)
         - [treeview](#treeview)
         - [treeviewContent](#treeviewcontent)
@@ -528,13 +553,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1077BIS
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1077BIS.zip
      ```
      </td></tr>
     </table>
@@ -5543,6 +5568,73 @@ Update the state of a field
 
 #### adminHelpCenter
 
+#### BarcodeDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### button_variable
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>desc</td><td></td>
+</tr>
+<tr>
+<td>icon</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>selected</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>clicked</td><td></td>
+</tr>
+</table>
+#### CameraAppearanceEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### CameraDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### cardSelector
 
 **variables**
@@ -5562,6 +5654,42 @@ Update the state of a field
 </tr>
 <tr>
 <td>offsetObject</td><td></td>
+</tr>
+</table>
+#### ChartConfigurationEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### ChoiceDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### ChoiceGroupDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### chooseIcon
@@ -5684,6 +5812,9 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>editorHeight</td><td></td>
+</tr>
+<tr>
 <td>explicitTarget</td><td></td>
 </tr>
 <tr>
@@ -5699,7 +5830,99 @@ Update the state of a field
 <td>path</td><td></td>
 </tr>
 <tr>
+<td>tabselected</td><td></td>
+</tr>
+<tr>
 <td>thingIndex</td><td></td>
+</tr>
+</table>
+#### datasourceButton
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>current</td><td></td>
+</tr>
+<tr>
+<td>currentMetas</td><td></td>
+</tr>
+<tr>
+<td>emptyText</td><td></td>
+</tr>
+<tr>
+<td>icnUrl</td><td></td>
+</tr>
+<tr>
+<td>imgUrl</td><td></td>
+</tr>
+<tr>
+<td>index</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>multiple</td><td></td>
+</tr>
+<tr>
+<td>selected</td><td></td>
+</tr>
+<tr>
+<td>style</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>clicked</td><td></td>
+</tr>
+</table>
+#### datasourceConfigureButton
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>comment</td><td></td>
+</tr>
+<tr>
+<td>current</td><td></td>
+</tr>
+<tr>
+<td>displayComment</td><td></td>
+</tr>
+<tr>
+<td>displayTitle</td><td></td>
+</tr>
+<tr>
+<td>emptyText</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>title</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>clicked</td><td></td>
 </tr>
 </table>
 #### dataSourceEditor
@@ -5760,6 +5983,9 @@ Update the state of a field
 </tr>
 <tr>
 <td>path</td><td></td>
+</tr>
+<tr>
+<td>showSourcePicker</td><td></td>
 </tr>
 <tr>
 <td>sources</td><td></td>
@@ -5983,6 +6209,48 @@ Display an apex chart comp. or an ag-grid comp.
 <td>onMetricsValues</td><td>When data is fetched, we got send to parent the data for metrics</td>
 </tr>
 </table>
+#### DateDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### DateStyleEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### DefaultValueEditorWithPalette
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>height</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>loop</td><td></td>
+</tr>
+</table>
 #### documentationPanel
 
 **variables**
@@ -6078,6 +6346,30 @@ Display an apex chart comp. or an ag-grid comp.
 
 #### editUserModal
 
+#### FileDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### FileSubmissionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### FilterBR
 
 **variables**
@@ -6090,7 +6382,13 @@ Display an apex chart comp. or an ag-grid comp.
 <td>complByName</td><td></td>
 </tr>
 <tr>
+<td>conditionKind</td><td></td>
+</tr>
+<tr>
 <td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>enablePalette</td><td></td>
 </tr>
 <tr>
 <td>item1680251775490</td><td></td>
@@ -6103,6 +6401,18 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>l</td><td></td>
+</tr>
+<tr>
+<td>lockCurrentField</td><td></td>
+</tr>
+<tr>
+<td>navigationPages</td><td></td>
+</tr>
+<tr>
+<td>showNavigationAction</td><td></td>
+</tr>
+<tr>
+<td>useCompletionPopover</td><td></td>
 </tr>
 </table>
 **events**
@@ -6124,10 +6434,25 @@ Display an apex chart comp. or an ag-grid comp.
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>addGroupLabel</td><td></td>
+</tr>
+<tr>
 <td>addGroups</td><td></td>
 </tr>
 <tr>
+<td>addLineLabel</td><td></td>
+</tr>
+<tr>
 <td>currentObject</td><td></td>
+</tr>
+<tr>
+<td>groupTemplate</td><td></td>
+</tr>
+<tr>
+<td>lineTemplate</td><td></td>
+</tr>
+<tr>
+<td>showLineButton</td><td></td>
 </tr>
 </table>
 **events**
@@ -6345,6 +6670,9 @@ Display an apex chart comp. or an ag-grid comp.
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemBarcodeViewver
 
@@ -6422,6 +6750,9 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemCardEditor
@@ -6575,6 +6906,9 @@ The Chart Widget configuration panel
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemChartViewer
 
@@ -6619,6 +6953,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemCheckboxGroupEditor
 
@@ -6636,6 +6973,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemCheckboxGroupViewer
@@ -6831,6 +7171,27 @@ The Chart Widget viewer
 <td>targetCardChild</td><td></td>
 </tr>
 </table>
+#### itemCondsNavigation
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idChildren</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
+</table>
 #### itemDateSelector
 
 **variables**
@@ -6847,6 +7208,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemDateTimeViewver
@@ -6919,6 +7283,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemFileViewver
@@ -7041,6 +7408,15 @@ The Chart Widget viewer
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idChildren</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
+</tr>
+<tr>
 <td>idselected</td><td></td>
 </tr>
 <tr>
@@ -7048,6 +7424,12 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>sectionSelected</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemGridViewer
@@ -7309,6 +7691,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemLocationViewer
 
@@ -7349,6 +7734,9 @@ The Chart Widget configuration panel
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemMapViewer
@@ -7487,6 +7875,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemRadioListGroupEditor
 
@@ -7504,6 +7895,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemRadioViewver
@@ -7631,6 +8025,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemSelectViewver
 
@@ -7669,6 +8066,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemSignatureViewver
@@ -7715,6 +8115,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemSliderViewver
 
@@ -7754,6 +8157,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemTextViewer
 
@@ -7792,6 +8198,9 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### itemTimeViewver
@@ -7883,6 +8292,9 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
 </table>
 #### itemVideoCallViewer
 
@@ -7963,6 +8375,30 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>offsetObject</td><td></td>
+</tr>
+</table>
+#### LocationDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### LocationReturnedValueEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### LoginComponent
@@ -8438,6 +8874,18 @@ This component is a modal dialog for resetting the password. It accepts an input
 
 #### seeProfilModal
 
+#### SelectDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### sharedDropIndicator
 
 **variables**
@@ -8560,6 +9008,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>editorHeight</td><td></td>
 </tr>
 <tr>
 <td>item</td><td></td>
@@ -8707,6 +9158,42 @@ This component is a modal dialog for resetting the password. It accepts an input
 
 #### SharedVersion
 
+#### SignatureDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### SliderDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### SliderStyleEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
 #### SortBR
 
 **variables**
@@ -8787,10 +9274,22 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>currentItem</td><td></td>
 </tr>
 <tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idChildren</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
+</tr>
+<tr>
 <td>idselected</td><td></td>
 </tr>
 <tr>
 <td>isChild</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
 </tr>
 </table>
 #### switchItemViewer
@@ -8812,6 +9311,104 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>disabled</td><td></td>
+</tr>
+</table>
+#### TextInputSetting
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
+<td>placeholder</td><td></td>
+</tr>
+<tr>
+<td>style</td><td></td>
+</tr>
+<tr>
+<td>suffix</td><td></td>
+</tr>
+<tr>
+<td>type</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>modelChanged</td><td></td>
+</tr>
+</table>
+#### TimeDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### TimeStyleEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+</table>
+#### ToggleSwitch
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>i18nCallback</td><td></td>
+</tr>
+<tr>
+<td>keyName</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
+<td>options</td><td></td>
+</tr>
+<tr>
+<td>style</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>modelChanged</td><td></td>
 </tr>
 </table>
 #### ToolbarComponentUi

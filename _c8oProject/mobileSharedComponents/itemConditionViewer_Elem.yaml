@@ -1,3 +1,296 @@
+scriptContent: 
+  - xmlizable: 
+    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+      →: |
+        '/*Begin_c8o_CompImport*/
+        /*End_c8o_CompImport*/
+        /*Begin_c8o_CompDeclaration*/
+        	public _idselectedC: any = "";
+        	public childDragInProgress: boolean = false;
+        	public childDragEndedAt: number = 0;
+        	public childDragClickBlocker: ((event: MouseEvent) => void) | undefined;
+        	@Input() public get idselectedC() {
+        		return this._idselectedC;
+        	}
+        	public set idselectedC(val: any) {
+        		if (val !== undefined && this._idselectedC !== val) {
+        			this._idselectedC = val;
+        			this.idselectedCChange.emit(val);
+        		}
+        	}
+        	@Output() idselectedCChange = new EventEmitter<any>();
+        
+        	public onChildCardClick(event?: Event): boolean {
+        		const page: any = this.pageOwner || this.findPageOwner();
+        		if (this.childDragInProgress || Date.now() - this.childDragEndedAt < 350 || page?.local?.dragging == true) {
+        			event?.preventDefault();
+        			event?.stopPropagation();
+        			return true;
+        		}
+        		if (this.isChildSelectedFromViewer()) {
+        			event?.stopPropagation();
+        			return true;
+        		}
+        		return this.selectChildFromViewer(event);
+        	}
+        
+        	public onChildCardDragStart(event: DragEvent): boolean {
+        		if (this.isDropIndicatorEvent(event) || !this.isCardDragEvent(event) || !this.canDragChildFromViewer()) {
+        			event?.preventDefault();
+        			event?.stopPropagation();
+        			return false;
+        		}
+        		const page: any = this.pageOwner || this.findPageOwner();
+        		const child: any = this.child;
+        		if (event?.dataTransfer == null || page == null || child == null) {
+        			return true;
+        		}
+        		const dragOrigin = this.getChildDragOrigin(page, this.targetCardChild || "childrenRefs");
+        		const index = dragOrigin.index;
+        		const originCardChild = dragOrigin.originCardChild;
+        		const originFlowIndex = dragOrigin.originFlowIndex;
+        		event.stopPropagation();
+        		this.childDragInProgress = true;
+        		this.installChildDragClickBlocker();
+        		this.setChildDragImage(event);
+        		page.local.flow = true;
+        		page.local.draggingName = child.name || "";
+        		page.local.draggingType = child.type;
+        		page.local.draggingOrigin = "moved";
+        		page.local.draggingOriginIndex = index;
+        		page.local.draggingActions = true;
+        		page.local.draggingFlows = false;
+        		event.dataTransfer.effectAllowed = "copyMove";
+        		event.dataTransfer.setData("__c8oformsdragactions", "true");
+        		event.dataTransfer.setData(child.type, "true");
+        		event.dataTransfer.setData("type", child.type);
+        		event.dataTransfer.setData("origin", "moved");
+        		event.dataTransfer.setData("index", index.toString());
+        		event.dataTransfer.setData("dropEffect", "copy");
+        		event.dataTransfer.setData("indexOriginFlow", String(originFlowIndex));
+        		event.dataTransfer.setData("indexoriginflow", String(originFlowIndex));
+        		event.dataTransfer.setData("originCardChildOrigin", originCardChild);
+        		event.dataTransfer.setData("text/plain", child.name || child.type || "c8oforms-flow-child");
+        		event.dataTransfer.dropEffect = "copy";
+        		const id = "@prefixc8oitem" + child.name + "@prefixc8otype" + child.type + "c8o_child1";
+        		window["draggingELEMC8O"] = document.getElementById(id) || this.elementRef?.nativeElement;
+        		if (window["draggingELEMC8O"] != null) {
+        			window["draggingELEMC8O"].ondragend = () => this.endChildDrag();
+        		}
+        		page.ref?.detectChanges?.();
+        		return true;
+        	}
+        
+        	public onChildCardDragEnd(event?: DragEvent): boolean {
+        		event?.stopPropagation();
+        		this.endChildDrag();
+        		return true;
+        	}
+        
+        	public endChildDrag(): void {
+        		if (this.childDragInProgress) {
+        			this.childDragEndedAt = Date.now();
+        		}
+        		this.childDragInProgress = false;
+        		const page: any = this.pageOwner || this.findPageOwner();
+        		if (page?.local != null) {
+        			page.local.dragging = false;
+        			page.local.draggingActions = false;
+        			page.local.draggingFlows = false;
+        			page.local.draggingName = "";
+        			delete page.local.draggingOrigin;
+        			delete page.local.draggingOriginIndex;
+        			page.ref?.detectChanges?.();
+        		}
+        		document.getElementById("c8o-flow-child-drag-image")?.remove();
+        		delete window["draggingELEMC8O"];
+        		setTimeout(() => this.removeChildDragClickBlocker(), 15000);
+        	}
+        
+        	public installChildDragClickBlocker(): void {
+        		this.removeChildDragClickBlocker();
+        		this.childDragClickBlocker = (clickEvent: MouseEvent) => {
+        			clickEvent.preventDefault();
+        			clickEvent.stopPropagation();
+        			clickEvent.stopImmediatePropagation();
+        			this.removeChildDragClickBlocker();
+        		};
+        		document.addEventListener("click", this.childDragClickBlocker, true);
+        	}
+        
+        	public removeChildDragClickBlocker(): void {
+        		if (this.childDragClickBlocker != null) {
+        			document.removeEventListener("click", this.childDragClickBlocker, true);
+        			this.childDragClickBlocker = undefined;
+        		}
+        	}
+        
+        	public selectChildFromViewer(event?: Event): boolean {
+        		event?.stopPropagation();
+        		const page: any = this.pageOwner || this.findPageOwner();
+        		this.pageOwner = page;
+        		if (this.child != null) {
+        			this.idselectedC = "";
+        			if (this.owner != null) {
+        				this.owner["idselected"] = this.child.id;
+        				this.owner["idselectedC"] = "";
+        			}
+        			if (page != null) {
+        				page["idselected"] = this.child.id;
+        				page["idselectedC"] = "";
+        			}
+        		}
+        		page?.ref?.detectChanges?.();
+        		this.ref?.detectChanges?.();
+        		return true;
+        	}
+        
+        	public selectParentFlowBranch(page: any, parentItem: any): void {
+        		const branch = this.targetCardChild === "childrenRefsElse" ? "else" : "if";
+        		const tab = branch === "else" ? "Else" : "Then";
+        		if (page?.local != null && parentItem?.id != null) {
+        			if (page.local.propsTabsSelected == null) {
+        				page.local.propsTabsSelected = {};
+        			}
+        			page.local.propsTabsSelected[parentItem.id] = tab;
+        		}
+        		if (this.owner?.["local"] != null) {
+        			this.owner["local"].sel = branch;
+        		}
+        	}
+        
+        	public canDragChildFromViewer(): boolean {
+        		const page: any = this.pageOwner || this.owner?.["pageOwner"];
+        		return this.child != null && !this.isChildSelectedFromViewer() && (this.childDragInProgress || page?.local?.draggingActions != true);
+        	}
+        
+        	public getChildDragOrigin(page: any, defaultOriginCardChild: string = "childrenRefs"): { index: Array<number>, originCardChild: string, originFlowIndex: number } {
+        		const originFlowIndex = this.getOriginFlowIndex(page);
+        		const elements = page?.form?.flows?.[originFlowIndex]?.elements;
+        		const childId = this.child?.id;
+        		const ownerItem = this.owner?.["item"];
+        		const parentId = ownerItem?.id ?? this.child?.parentRef;
+        		let originCardChild = defaultOriginCardChild || "childrenRefs";
+        		let parentIndex = Number(this.indexItem);
+        		let childIndex = Number(this.j);
+        
+        		if (Array.isArray(elements)) {
+        			const foundParentIndex = elements.findIndex((element: any) => element?.id == parentId);
+        			if (foundParentIndex > -1) {
+        				parentIndex = foundParentIndex;
+        			}
+        			const parent = parentIndex > -1 ? elements[parentIndex] : ownerItem;
+        			const refKeys = [originCardChild, "childrenRefs", "childrenRefsElse"].filter((key, index, keys) => key != null && key !== "" && keys.indexOf(key) === index);
+        			for (let key of refKeys) {
+        				if (Array.isArray(parent?.[key])) {
+        					const foundChildIndex = parent[key].findIndex((ref: any) => this.getChildRefId(ref) == childId);
+        					if (foundChildIndex > -1) {
+        						originCardChild = key;
+        						childIndex = foundChildIndex;
+        						break;
+        					}
+        				}
+        			}
+        		}
+        
+        		return {
+        			index: [
+        				Number.isFinite(parentIndex) ? parentIndex : 0,
+        				Number.isFinite(childIndex) ? childIndex : 0
+        			],
+        			originCardChild,
+        			originFlowIndex
+        		};
+        	}
+        
+        	public getChildRefId(ref: any): any {
+        		return typeof ref === "object" ? ref?.id : ref;
+        	}
+        
+        	public getOriginFlowIndex(page: any): number {
+        		const currentIndex = Number(page?.local?.currentIndex);
+        		const parentId = this.owner?.["item"]?.id ?? this.child?.parentRef;
+        		const childId = this.child?.id;
+        		const flows = page?.form?.flows;
+        		if (Array.isArray(flows)) {
+        			const foundIndex = flows.findIndex((flow: any) => {
+        				return Array.isArray(flow?.elements) && flow.elements.some((element: any) => element?.id == parentId || element?.id == childId);
+        			});
+        			if (foundIndex > -1) {
+        				return foundIndex;
+        			}
+        		}
+        		return Number.isFinite(currentIndex) ? currentIndex : 0;
+        	}
+        
+        	public isDropIndicatorEvent(event?: Event): boolean {
+        		const target = event?.target as HTMLElement;
+        		return target?.closest?.("c8oforms-shareddropindicator") != null;
+        	}
+        
+        	public isCardDragEvent(event?: Event): boolean {
+        		const target = event?.target as HTMLElement;
+        		const selector = ".class1743528871231, .class1743528871159, .class1743528871162, .class1743528871165, .c8o-child-hover-overlay, .c8o-child-hover-overlay__icon, .c8o-child-hover-overlay__label";
+        		const card = target?.closest?.(selector);
+        		if (card != null && this.elementRef?.nativeElement?.contains(card)) {
+        			return true;
+        		}
+        		return event?.composedPath?.().some((entry: any) => {
+        			return entry?.matches?.(selector) && this.elementRef?.nativeElement?.contains(entry);
+        		}) == true;
+        	}
+        
+        	public setChildDragImage(event: DragEvent): void {
+        		const card = this.elementRef?.nativeElement?.querySelector?.(".class1743528871231") as HTMLElement;
+        		if (card == null || event.dataTransfer?.setDragImage == null) {
+        			return;
+        		}
+        		document.getElementById("c8o-flow-child-drag-image")?.remove();
+        		const clone = card.cloneNode(true) as HTMLElement;
+        		const rect = card.getBoundingClientRect();
+        		clone.id = "c8o-flow-child-drag-image";
+        		clone.style.position = "fixed";
+        		clone.style.top = "-10000px";
+        		clone.style.left = "-10000px";
+        		clone.style.width = rect.width + "px";
+        		clone.style.pointerEvents = "none";
+        		clone.style.opacity = "0.96";
+        		document.body.appendChild(clone);
+        		event.dataTransfer.setDragImage(clone, Math.max(0, event.clientX - rect.left), Math.max(0, event.clientY - rect.top));
+        	}
+        
+        	public isChildSelectedFromViewer(): boolean {
+        		const page: any = this.pageOwner || this.owner?.["pageOwner"];
+        		return this.child != null && (this.idselectedC == this.child.id || this.owner?.["idselectedC"] == this.child.id || page?.["idselectedC"] == this.child.id || page?.["idselected"] == this.child.id);
+        	}
+        
+        	public getSelectedChildFromViewer(): any {
+        		const page: any = this.pageOwner || this.owner?.["pageOwner"];
+        		return page?.["idselectedC"] || this.owner?.["idselectedC"] || this.idselectedC || "";
+        	}
+        
+        	/*End_c8o_CompDeclaration*/
+        /*Begin_c8o_CompConstructor*/
+        		/*End_c8o_CompConstructor*/
+        /*Begin_c8o_CompInitialization*/
+        		/*End_c8o_CompInitialization*/
+        /*Begin_c8o_CompFinalization*/
+        		/*End_c8o_CompFinalization*/
+        /*Begin_c8o_CompChanges*/
+        		/*End_c8o_CompChanges*/
+        /*Begin_c8o_CompDoCheck*/
+        		/*End_c8o_CompDoCheck*/
+        /*Begin_c8o_CompAfterContentInit*/
+        		/*End_c8o_CompAfterContentInit*/
+        /*Begin_c8o_CompAfterContentChecked*/
+        		/*End_c8o_CompAfterContentChecked*/
+        /*Begin_c8o_CompAfterViewInit*/
+        		/*End_c8o_CompAfterViewInit*/
+        /*Begin_c8o_CompAfterViewChecked*/
+        		/*End_c8o_CompAfterViewChecked*/
+        /*Begin_c8o_CompFunction*/
+        	/*End_c8o_CompFunction*/'
 ↓Div2 [ngx.components.UIDynamicElement-1743528871156]: 
   beanData: '{"ionBean":"DivTag"}'
   tagName: div
@@ -82,12 +375,66 @@
                 →: |
                   min-height:25px;
                   
+        ↓Attr [ngx.components.UIAttribute-1776869762763]: 
+          attrName: '[attr.draggable]'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+        ↓Attr1 [ngx.components.UIAttribute-1776869762765]: 
+          attrName: (dragstart)
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.onChildCardDragStart($event)
+        ↓Attr2 [ngx.components.UIAttribute-1776869762767]: 
+          attrName: (dragend)
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.onChildCardDragEnd($event)
+      ↓Attr [ngx.components.UIAttribute-1776869762757]: 
+        attrName: '[attr.draggable]'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+      ↓Attr1 [ngx.components.UIAttribute-1776869762759]: 
+        attrName: (dragstart)
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:this.onChildCardDragStart($event)
+      ↓Attr2 [ngx.components.UIAttribute-1776869762761]: 
+        attrName: (dragend)
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:this.onChildCardDragEnd($event)
     ↓Attr [ngx.components.UIAttribute-1743528871204]: 
       attrName: id
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
           - MobileSmartSourceType: script:'@prefixc8oitem'+this.child.name+'@prefixc8otype'+this.child.type
+    ↓Attr1 [ngx.components.UIAttribute-1776869762751]: 
+      attrName: '[attr.draggable]'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+    ↓Attr2 [ngx.components.UIAttribute-1776869762753]: 
+      attrName: (dragstart)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.onChildCardDragStart($event)
+    ↓Attr3 [ngx.components.UIAttribute-1776869762755]: 
+      attrName: (dragend)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.onChildCardDragEnd($event)
   ↓Div1 [ngx.components.UIDynamicElement-1743528871207]: 
     beanData: '{"ionBean":"DivTag"}'
     tagName: div
@@ -133,6 +480,99 @@
           ↓DivCard [ngx.components.UIDynamicElement-1743528871231]: 
             beanData: '{"ionBean":"DivTag"}'
             tagName: div
+            ↓Directive [ngx.components.UIControlDirective-1776872218017]: 
+              directiveName: If
+              directiveSource: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:!this.isChildSelectedFromViewer() && (this.childDragInProgress || this.pageOwner.local.draggingActions != true)
+              ↓Div [ngx.components.UIDynamicElement-1776872218023]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Attr [ngx.components.UIAttribute-1776872218025]: 
+                  attrName: class
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:c8o-child-hover-overlay
+                ↓Attr2 [ngx.components.UIAttribute-1776872218029]: 
+                  attrName: '[attr.draggable]'
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+                ↓Attr3 [ngx.components.UIAttribute-1776872218031]: 
+                  attrName: (dragstart)
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.onChildCardDragStart($event)
+                ↓Attr4 [ngx.components.UIAttribute-1776872218033]: 
+                  attrName: (dragend)
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.onChildCardDragEnd($event)
+                ↓Icon [ngx.components.UIDynamicElement-1776872218037]: 
+                  beanData: '{"ionBean":"Icon"}'
+                  tagName: ion-icon
+                  ↓Attr [ngx.components.UIAttribute-1776872218039]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:c8o-child-hover-overlay__icon
+                  ↓Attr2 [ngx.components.UIAttribute-1776872218043]: 
+                    attrName: '[attr.draggable]'
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+                  ↓Attr3 [ngx.components.UIAttribute-1776872218045]: 
+                    attrName: (dragstart)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildCardDragStart($event)
+                  ↓Attr4 [ngx.components.UIAttribute-1776872218047]: 
+                    attrName: (dragend)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildCardDragEnd($event)
+                ↓Span [ngx.components.UIDynamicElement-1776872218051]: 
+                  beanData: '{"ionBean":"SpanTag"}'
+                  tagName: span
+                  ↓Attr [ngx.components.UIAttribute-1776872218053]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:c8o-child-hover-overlay__label
+                  ↓Attr2 [ngx.components.UIAttribute-1776872218057]: 
+                    attrName: '[attr.draggable]'
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+                  ↓Attr3 [ngx.components.UIAttribute-1776872218059]: 
+                    attrName: (dragstart)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildCardDragStart($event)
+                  ↓Attr4 [ngx.components.UIAttribute-1776872218061]: 
+                    attrName: (dragend)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildCardDragEnd($event)
+                  ↓Text [ngx.components.UIText-1776872218063]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:desc_editor_hover_comp
             ↓Attr2 [ngx.components.UIAttribute-1743528871234]: 
               attrName: '[ngClass]'
               attrValue: 
@@ -154,7 +594,6 @@
                       margin-bottom: 10px;
                       '
             ↓Directive6 [ngx.components.UIControlDirective-1743528871240]: 
-              directiveItemName: thing
               directiveName: Switch
               directiveSource: 
                 - xmlizable: 
@@ -189,8 +628,11 @@
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: 'script:this.child.type == ''grid'' ? [] : [''styledivnormal'']'
                       ↓Directive5631 [ngx.components.UIControlDirective-1743528871261]: 
-                        directiveExpression: '''submit'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'submit'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743528871264]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemActionSubmitViewer
                           ↓item [ngx.components.UIUseVariable-1743528871267]: 
@@ -204,8 +646,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:false
                       ↓Directive56311 [ngx.components.UIControlDirective-1743528871273]: 
-                        directiveExpression: '''business_logic'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'business_logic'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743528871276]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemActionBusinessLogicViewer
                           ↓item [ngx.components.UIUseVariable-1743528871279]: 
@@ -214,8 +659,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:this.child
                       ↓Directive5632 [ngx.components.UIControlDirective-1743528871282]: 
-                        directiveExpression: '''toast'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'toast'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743528871285]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemToastActionViewer
                           ↓item [ngx.components.UIUseVariable-1743528871288]: 
@@ -229,8 +677,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:false
                       ↓Directive5633 [ngx.components.UIControlDirective-1743528871294]: 
-                        directiveExpression: '''push_page'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'push_page'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743528871297]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemNavigatePageActionViewer
                           ↓item [ngx.components.UIUseVariable-1743528871300]: 
@@ -244,8 +695,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:false
                       ↓Directive5634 [ngx.components.UIControlDirective-1743528871306]: 
-                        directiveExpression: '''push_app'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'push_app'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743528871309]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemNavigateAppActionViewer
                           ↓item [ngx.components.UIUseVariable-1743528871312]: 
@@ -259,8 +713,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:false
                       ↓Directive5635 [ngx.components.UIControlDirective-1743528871318]: 
-                        directiveExpression: '''add_row_to_local_grid'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'add_row_to_local_grid'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743528871321]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemAddRowToLocalGridActionViewer
                           ↓item [ngx.components.UIUseVariable-1743528871324]: 
@@ -274,8 +731,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:false
                       ↓Directive5636 [ngx.components.UIControlDirective-1743528871330]: 
-                        directiveExpression: '''remove_row_from_local_grid'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'remove_row_from_local_grid'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743528871333]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemRemoveRowFromLocalGridActionViewer
                           ↓item [ngx.components.UIUseVariable-1743528871336]: 
@@ -289,8 +749,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:false
                       ↓Directive5637 [ngx.components.UIControlDirective-1743588811153]: 
-                        directiveExpression: '''for_loop'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'for_loop'
                         ↓UseSharedComponent5 [ngx.components.UIUseShared-1743588811156]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemForLoopEditorViewer1
                           ↓item [ngx.components.UIUseVariable-1743588811159]: 
@@ -309,8 +772,11 @@
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: source:{"filter":"Shared","project":"C8Oforms","input":"","model":{"data":[{"priority":1743528871153,"regular":true}],"path":"?.indexItem","prefix":"","suffix":"","custom":"","useCustom":false}}
                       ↓DirectiveRefreshGrid [ngx.components.UIControlDirective-1762941107375]: 
-                        directiveExpression: '''refresh_grid'''
                         directiveName: SwitchCase
+                        directiveSource: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'refresh_grid'
                         ↓UseSharedComponentRefreshGrid [ngx.components.UIUseShared-1762941124012]: 
                           sharedcomponent: C8Oforms.MobileApplication.Application.itemRefreshGridActionViewer
                           ↓item [ngx.components.UIUseVariable-1762941139692]: 
@@ -346,6 +812,34 @@
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                       - MobileSmartSourceType: 'plain:child.conditions != undefined  ? this.pageOwner.eval(this.pageOwner.evaluateConditions(child.conditions)): true'
+            ↓Attr1 [ngx.components.UIAttribute-1776869444650]: 
+              attrName: (dragstart)
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.onChildCardDragStart($event)
+            ↓Attr3 [ngx.components.UIAttribute-1776869444652]: 
+              attrName: (dragend)
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.onChildCardDragEnd($event)
+            ↓Attr4 [ngx.components.UIAttribute-1776869762826]: 
+              attrName: '[attr.draggable]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+            ↓Event [ngx.components.UIControlEvent-1776872218087]: 
+              ↓onChildCardClick [ngx.components.UICustomAction-1776872624383]: 
+                actionValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        		page.onChildCardClick(event);
+                        		resolve();
+                        
 ↓item1730734017789 [ngx.components.UICompVariable-1743528871351]: 
   value: '[]'
 ↓child [ngx.components.UICompVariable-1743528871354]: 
@@ -356,3 +850,125 @@
   value: 
 ↓targetCardChild [ngx.components.UICompVariable-1743533325200]: 
   value: '''childrenRefs'''
+↓C8oIonicStyle [ngx.components.UIStyle-1776869444676]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.class1743528871192 {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          ;
+          }
+          .class1743528871165 {
+          min-height:25px;
+          ;
+          }
+          .class1743528871243 {
+          margin-top: 0px;
+          ;
+          }
+          .class1743528871231 {
+          background-color: rgba(255,255,255,0.95);
+          border-radius: 8px;
+          border: solid 1px #f6f6f6;
+          box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+          box-shadow: 0 2px 2px 0 rgb(0 0 0 / 14%), 0 3px 1px -2px rgb(0 0 0 / 20%), 0 1px 5px 0 rgb(0 0 0 / 12%);
+          margin-bottom: 10px;
+          ;
+          }
+          .class1743528871222 {
+          margin-top:0px !important;
+          margin-bottom:0px !important;
+          ;
+          }
+          .class1743528871213 {
+          margin-top:0px !important;
+          margin-bottom:0px !important;
+          ;
+          }
+          .class1743528871192 {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          ;
+          }
+          .class1743528871165 {
+          min-height:25px;
+          ;
+          }
+          .class1743528871243 {
+          margin-top: 0px;
+          ;
+          }
+          .class1743528871231 {
+          background-color: rgba(255,255,255,0.95);
+          border-radius: 8px;
+          border: solid 1px #f6f6f6;
+          box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+          box-shadow: 0 2px 2px 0 rgb(0 0 0 / 14%), 0 3px 1px -2px rgb(0 0 0 / 20%), 0 1px 5px 0 rgb(0 0 0 / 12%);
+          margin-bottom: 10px;
+          cursor: grab;
+          position: relative;
+          ;
+          &:active {
+          cursor: grabbing;
+          }
+          ;
+          }
+          .c8o-child-hover-overlay {
+          position: absolute;
+          inset: 0px;
+          z-index: 1000 !important;
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+          gap: 6px;
+          padding: 5px;
+          background: rgba(var(--ion-color-primary-rgb), 0.14);
+          color: var(--ion-color-primary);
+          cursor: grab;
+          opacity: 0;
+          transition: opacity 180ms linear;
+          pointer-events: none;
+          ;
+          }
+          .class1743528871231:hover > .c8o-child-hover-overlay,
+          .c8o-child-hover-overlay:hover {
+          opacity: 1;
+          pointer-events: none;
+          ;
+          }
+          .c8o-child-hover-overlay:active {
+          cursor: grabbing;
+          ;
+          }
+          .c8o-child-hover-overlay__label {
+          font-size: 12px;
+          font-style: normal;
+          font-weight: 400;
+          line-height: 21px;
+          white-space: normal;
+          ;
+          }
+          .c8o-child-hover-overlay__icon {
+          width: 18px;
+          height: 18px;
+          min-width: 18px;
+          margin-top: 1px;
+          ;
+          }
+          .class1743528871222 {
+          margin-top:0px !important;
+          margin-bottom:0px !important;
+          ;
+          }
+          .class1743528871213 {
+          margin-top:0px !important;
+          margin-bottom:0px !important;
+          ;
+          }'

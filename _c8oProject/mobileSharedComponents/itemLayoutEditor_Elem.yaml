@@ -3,9 +3,12 @@ scriptContent:
     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
-        /*Begin_c8o_CompImport*/
+        '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
+        	public childDragInProgress: boolean = false;
+        	public childDragEndedAt: number = 0;
+        	public childDragClickBlocker: ((event: MouseEvent) => void) | undefined;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		window["topp"] = this
@@ -27,196 +30,232 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
-        	/*End_c8o_CompFunction*/
-        
+        	public onChildLayoutClick(event?: Event) {
+        		if (this.childDragInProgress || Date.now() - this.childDragEndedAt < 350 || this.pageOwner?.local?.dragging == true || this.pageOwner?.local?.draggingActions == true) {
+        			event?.preventDefault();
+        			event?.stopPropagation();
+        			return true;
+        		}
+        		if (this.isChildSelectedFromViewer()) {
+        			event?.stopPropagation();
+        			return true;
+        		}
+        		return this.selectChildFromViewer(event);
+        	}
+        	public onChildLayoutDragStart(event: DragEvent) {
+        		if (this.isDropIndicatorEvent(event) || !this.isLayoutDragEvent(event) || !this.canDragChildFromViewer()) {
+        			event?.preventDefault();
+        			event?.stopPropagation();
+        			return false;
+        		}
+        		if (this.child == null || this.pageOwner == null || event?.dataTransfer == null) {
+        			return true;
+        		}
+        		event.stopPropagation();
+        		this.childDragInProgress = true;
+        		this.installChildDragClickBlocker();
+        		this.setChildDragImage(event);
+        		this.pageOwner.local.draggingActions = false;
+        		this.pageOwner.local.draggingName = this.child.name || "";
+        		this.pageOwner.local.draggingType = this.child.type;
+        		event.dataTransfer.effectAllowed = "copyMove";
+        		event.dataTransfer.setData("__c8oformsdrag", "true");
+        		event.dataTransfer.setData(this.child.type, "true");
+        		event.dataTransfer.setData("type", this.child.type);
+        		event.dataTransfer.setData("origin", "moved");
+        		event.dataTransfer.setData("index", [this.indexItem, this.j].toString());
+        		this.pageOwner.local.draggingOrigin = "moved";
+        		this.pageOwner.local.draggingOriginIndex = [this.indexItem, this.j];
+        		this.pageOwner.local.dragging = true;
+        		this.pageOwner.ref.detectChanges();
+        		event.dataTransfer.setData("dropEffect", "copy");
+        		event.dataTransfer.setData("text/plain", this.child.name || this.child.type || "c8oforms-child");
+        		event.dataTransfer.dropEffect = "copy";
+        		const id = "@prefixc8oitem" + this.child.name + "@prefixc8otype" + this.child.type;
+        		window["draggingELEMC8O"] = document.getElementById(id) || this.elementRef?.nativeElement;
+        		if (window["draggingELEMC8O"] != null) {
+        			window["draggingELEMC8O"].ondragend = () => this.endChildDrag();
+        		}
+        		return true;
+        	}
+        	public onChildLayoutDragEnd(event?: DragEvent) {
+        		event?.stopPropagation();
+        		this.endChildDrag();
+        		return true;
+        	}
+        	public endChildDrag() {
+        		if (this.childDragInProgress) {
+        			this.childDragEndedAt = Date.now();
+        		}
+        		this.childDragInProgress = false;
+        		if (this.pageOwner?.local != null) {
+        			this.pageOwner.local.dragging = false;
+        			this.pageOwner.local.draggingActions = false;
+        			this.pageOwner.local.draggingName = "";
+        			delete this.pageOwner.local.draggingOrigin;
+        			delete this.pageOwner.local.draggingOriginIndex;
+        			this.pageOwner.ref.detectChanges();
+        		}
+        		document.getElementById("c8o-child-drag-image")?.remove();
+        		delete window["draggingELEMC8O"];
+        		setTimeout(() => this.removeChildDragClickBlocker(), 15000);
+        	}
+        	public installChildDragClickBlocker() {
+        		this.removeChildDragClickBlocker();
+        		this.childDragClickBlocker = (clickEvent: MouseEvent) => {
+        			clickEvent.preventDefault();
+        			clickEvent.stopPropagation();
+        			clickEvent.stopImmediatePropagation();
+        			this.removeChildDragClickBlocker();
+        		};
+        		document.addEventListener("click", this.childDragClickBlocker, true);
+        	}
+        	public removeChildDragClickBlocker() {
+        		if (this.childDragClickBlocker != null) {
+        			document.removeEventListener("click", this.childDragClickBlocker, true);
+        			this.childDragClickBlocker = undefined;
+        		}
+        	}
+        	public selectChildFromViewer(event?: Event) {
+        		event?.stopPropagation();
+        		if (this.owner != null && this.child != null) {
+        			this.idselectedC = this.child.id;
+        			this.owner["idselectedC"] = this.child.id;
+        		}
+        		if (this.pageOwner != null && this.child != null && this.item != null) {
+        			this.pageOwner["idselected"] = this.item.id;
+        			this.pageOwner["idselectedC"] = this.child.id;
+        			this.pageOwner.local["showItemid"] = this.child.id;
+        		}
+        		this.pageOwner?.ref?.detectChanges();
+        		this.ref.detectChanges();
+        		return true;
+        	}
+        	public canDragLayoutChild(): boolean {
+        		return this.renderSelectedEditor ? this.canDragChildFromViewer() : (this.pageOwner?.local?.canDrag || this.global?.isDraggable);
+        	}
+        	public canDragChildFromViewer(): boolean {
+        		return this.child != null && !this.isChildSelectedFromViewer() && this.pageOwner?.local?.draggingActions != true;
+        	}
+        	public isDropIndicatorEvent(event?: Event): boolean {
+        		const target = event?.target as HTMLElement;
+        		return target?.closest?.("c8oforms-shareddropindicator") != null;
+        	}
+        	public isLayoutDragEvent(event?: Event): boolean {
+        		const target = event?.target as HTMLElement;
+        		const card = target?.closest?.(".layout-child-drag-root, .layout-child-drop-zone, .layout-child-drop-row, .layout-child-drop-col, .class1776776353779, .c8o-child-hover-overlay, .c8o-child-hover-overlay__label");
+        		return card != null && this.elementRef?.nativeElement?.contains(card);
+        	}
+        	public isLayoutClickEvent(event?: Event): boolean {
+        		const target = event?.target as HTMLElement;
+        		const card = target?.closest?.(".layout-child-drag-root, .class1776776353779");
+        		return card != null && this.elementRef?.nativeElement?.contains(card);
+        	}
+        	public setChildDragImage(event: DragEvent) {
+        		const card = this.elementRef?.nativeElement?.querySelector?.(".class1776776353779") as HTMLElement;
+        		if (card == null || event.dataTransfer?.setDragImage == null) {
+        			return;
+        		}
+        		document.getElementById("c8o-child-drag-image")?.remove();
+        		const clone = card.cloneNode(true) as HTMLElement;
+        		const rect = card.getBoundingClientRect();
+        		clone.id = "c8o-child-drag-image";
+        		clone.style.position = "fixed";
+        		clone.style.top = "-10000px";
+        		clone.style.left = "-10000px";
+        		clone.style.width = rect.width + "px";
+        		clone.style.pointerEvents = "none";
+        		clone.style.opacity = "0.96";
+        		document.body.appendChild(clone);
+        		event.dataTransfer.setDragImage(clone, Math.max(0, event.clientX - rect.left), Math.max(0, event.clientY - rect.top));
+        	}
+        	public isChildSelectedFromViewer(): boolean {
+        		return this.child != null && (this.idselectedC == this.child.id || this.owner?.["idselectedC"] == this.child.id || this.pageOwner?.["idselectedC"] == this.child.id);
+        	}
+        	public getSelectedChildFromViewer(): any {
+        		return this.pageOwner?.["idselectedC"] || this.owner?.["idselectedC"] || this.idselectedC || "";
+        	}
+        	/*End_c8o_CompFunction*/'
 ↓Grid [ngx.components.UIDynamicElement-1730813313412]: 
   beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
   tagName: ion-grid
   ↓GridRow [ngx.components.UIDynamicElement-1730813313442]: 
     beanData: '{"ionBean":"GridRow"}'
     tagName: ion-row
-    ↓Directive [ngx.components.UIControlDirective-1730817529920]: 
-      directiveName: If
-      directiveSource: 
+    ↓AttrDragRowDraggable [ngx.components.UIAttribute-1776799830011]: 
+      attrName: '[attr.draggable]'
+      attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:this.pageOwner.local.dragging
-      ↓GridCol [ngx.components.UIDynamicElement-1730817552643]: 
-        beanData: '{"ionBean":"GridCol","Size":"plain:1"}'
-        tagName: ion-col
-        ↓UseSharedComponent [ngx.components.UIUseShared-1730817570871]: 
-          sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
-          ↓id [ngx.components.UIUseVariable-1730817570874]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:'@prefixc8oafterItem'
-          ↓i [ngx.components.UIUseVariable-1730817570877]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:[this.indexItem, this.j]
-          ↓card [ngx.components.UIUseVariable-1730817570880]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:true
-          ↓action [ngx.components.UIUseVariable-1730817583615]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:false
-          ↓hideText [ngx.components.UIUseVariable-1730817583617]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:true
+          - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+    ↓AttrDragRowStart [ngx.components.UIAttribute-1776799830013]: 
+      attrName: (dragstart)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.onChildLayoutDragStart($event)
+    ↓AttrDragRowEnd [ngx.components.UIAttribute-1776799830015]: 
+      attrName: (dragend)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.onChildLayoutDragEnd($event)
     ↓GridCol [ngx.components.UIDynamicElement-1730813313445]: 
-      beanData: '{"ionBean":"GridCol","Size":"script:this.pageOwner.local.dragging ? (((this.j + 1) == this.item.childrenRefs?.length) ? ''10'' : ''11'') : ''12"}'
+      beanData: '{"ionBean":"GridCol","Size":"plain:12"}'
       tagName: ion-col
+      ↓AttrDragColDraggable [ngx.components.UIAttribute-1776799830021]: 
+        attrName: '[attr.draggable]'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+      ↓AttrDragColStart [ngx.components.UIAttribute-1776799830023]: 
+        attrName: (dragstart)
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:this.onChildLayoutDragStart($event)
+      ↓AttrDragColEnd [ngx.components.UIAttribute-1776799830025]: 
+        attrName: (dragend)
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:this.onChildLayoutDragEnd($event)
       ↓DivContainerFlex [ngx.components.UIDynamicElement-1730813313448]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
-        ↓CardContainer [ngx.components.UIDynamicElement-1730813313451]: 
+        ↓Style [ngx.components.UIStyle-1730813313907]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '	display: flex;
+                  	align-items: flex-start;
+                  	height: 100%;
+                  '
+        ↓CardContainer [ngx.components.UIDynamicElement-1776776353779]: 
           beanData: '{"ionBean":"Card"}'
           tagName: ion-card
-          ↓Attr [ngx.components.UIAttribute-1730813313454]: 
+          ↓Attr1 [ngx.components.UIAttribute-1776776353783]: 
             attrName: padding
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:false
-          ↓Style [ngx.components.UIStyle-1730813313457]: 
-            styleContent: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                  →: |
-                    'margin-top:0px !important;
-                    margin-bottom:0px !important;
-                    border: solid 1px #f6f6f6;
-                    box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
-                    flex-grow: 1;
-                    height: 100%;
-                    '
-          ↓Event [ngx.components.UIControlEvent-1730813313460]: 
-            ↓setIndexTo0 [ngx.components.UICustomAction-1730813313463]: 
-              actionValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      		//disabled in groups and done into submit shared action (this causes a bug)
-                      		//page.local.index = 0;
-                      		resolve();
-                      
-              ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1730813313466]: 
-                beanData: '{"ionBean":"InvokeAction"}'
-                stack: C8Oforms.MobileApplication.Application.sublim
-                ↓item [ngx.components.UIControlVariable-1730813313469]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.child
-                ↓child [ngx.components.UIControlVariable-1730813313472]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:true
-              ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1730813313475]: 
-                beanData: '{"ionBean":"InvokeAction"}'
-                stack: C8Oforms.MobileApplication.Application.sharedTapOnActionSubmit
-                ↓item [ngx.components.UIControlVariable-1730813313478]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.child
-              ↓InvokeSharedAction2 [ngx.components.UIDynamicInvoke-1730813313481]: 
-                beanData: '{"ionBean":"InvokeAction"}'
-                stack: C8Oforms.MobileApplication.Application.detectChangesDoble
-          ↓Grid [ngx.components.UIDynamicElement-1730813313484]: 
-            beanData: '{"ionBean":"Grid"}'
-            tagName: ion-grid
-            ↓Attr [ngx.components.UIAttribute-1730813313487]: 
-              attrName: '*ngIf'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:this.idselectedC == child.id
-            ↓UseSharedComponent [ngx.components.UIUseShared-1730813313490]: 
-              sharedcomponent: C8Oforms.MobileApplication.Application.itemHeaderEdit
-              ↓item [ngx.components.UIUseVariable-1730813313493]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.child
-              ↓type [ngx.components.UIUseVariable-1730813313496]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:'visual'
-          ↓Attr1 [ngx.components.UIAttribute-1730813313499]: 
+          ↓Attr2 [ngx.components.UIAttribute-1776776353785]: 
             attrName: '[style.border]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: 'plain:this.idselectedC == this.child.id ? ''2px solid #326DF7'': '''''
-          ↓Event11 [ngx.components.UIControlEvent-1730813313502]: 
-            attrName: (dragstart)
-            eventName: (dragstart)
-            ↓addElementToList [ngx.components.UICustomAction-1730813313505]: 
-              actionValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      		if(event.srcElement.id.indexOf("c8o_child2") != -1){
-                      			 page.c8o.log.debug("dargstart concerns child2");
-                      		}
-                      		else{
-                      			page.c8o.log.debug("dragstart at level1, index of target to move is "+vars.index);
-                      			event.dataTransfer.setData("__c8oformsdrag", true);
-                      			event.dataTransfer.setData(vars.item.type, true);
-                      			event.dataTransfer.setData("origin", "moved");
-                      			event.dataTransfer.setData("index", vars.index);
-                      			event.dataTransfer.setData("dropEffect", "copy");
-                      			// get a copy of dom element to be able to listen dragend event 
-                      			// in case of destruction into the dom (due to ngIf) of the element and cancel dragging animations
-                      			// see https://github.com/convertigo/C8oForms/issues/575
-                      			window["draggingELEMC8O"] = document.getElementById(vars.id);
-                      			window["draggingELEMC8O"].ondragend = ()=>{
-                      				page.local.dragging = false;
-                      				page.local.draggingActions = false;
-                      				page.local.draggingName = "";
-                      				page.ref.detectChanges();
-                      				delete window["draggingELEMC8O"];
-                      			}
-                      			resolve();
-                      		}
-                      
-                      
-              ↓index [ngx.components.UIControlVariable-1730813313508]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:[this.indexItem, this.j]
-              ↓item [ngx.components.UIControlVariable-1730813313511]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.child
-              ↓id [ngx.components.UIControlVariable-1730813313514]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:'@prefixc8oitem'+this.child.name+'@prefixc8otype'+this.child.type+'c8o_child1'
-          ↓Attr2 [ngx.components.UIAttribute-1730813313517]: 
+                - MobileSmartSourceType: 'script:this.idselectedC == this.child.id ? ''2px solid #326DF7'': '''''
+          ↓Attr3 [ngx.components.UIAttribute-1776776353787]: 
             attrName: '[attr.draggable]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.pageOwner.local.canDrag || this.global.isDraggable
-          ↓Attr3 [ngx.components.UIAttribute-1730813313520]: 
+                - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+          ↓Attr4 [ngx.components.UIAttribute-1776776353789]: 
             attrName: id
             attrValue: 
               - xmlizable: 
@@ -248,31 +287,141 @@ scriptContent:
                               page.pageOwner.ref.detectChanges();
                       		resolve();
                       
-          ↓Grid1 [ngx.components.UIDynamicElement-1730813313535]: 
-            beanData: '{"ionBean":"Grid","Height":"script:this.idselectedC == '''' ? ''100%'' : ''''"}'
-            tagName: ion-grid
-            ↓GridRowText [ngx.components.UIDynamicElement-1730813313538]: 
-              beanData: '{"ionBean":"GridRow"}'
-              tagName: ion-row
-              ↓GridCol [ngx.components.UIDynamicElement-1730813313541]: 
-                beanData: '{"ionBean":"GridCol","Size":"plain:12"}'
-                tagName: ion-col
-                ↓Attr [ngx.components.UIAttribute-1730813313544]: 
-                  attrName: padding
-                  attrValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: plain:false
-                ↓Style [ngx.components.UIStyle-1730813313547]: 
+          ↓Directive [ngx.components.UIControlDirective-1776776353791]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:!this.isChildSelectedFromViewer() && this.pageOwner.local.draggingActions != true
+            ↓Div [ngx.components.UIDynamicElement-1776776353795]: 
+              beanData: '{"ionBean":"DivTag"}'
+              tagName: div
+              ↓Attr [ngx.components.UIAttribute-1776776353797]: 
+                attrName: class
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:c8o-child-hover-overlay
+              ↓Attr1 [ngx.components.UIAttribute-1776794075354]: 
+                attrName: '[attr.draggable]'
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+              ↓Attr2 [ngx.components.UIAttribute-1776794075356]: 
+                attrName: (dragstart)
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.onChildLayoutDragStart($event)
+              ↓Attr3 [ngx.components.UIAttribute-1776794075358]: 
+                attrName: (dragend)
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.onChildLayoutDragEnd($event)
+              ↓Div [ngx.components.UIDynamicElement-1777290311969]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1777290319968]: 
                   styleContent: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                         →: |
-                          margin-top:0px !important;
-                          margin-bottom:0px !important;
-                          width:100% !important;
-                          
+                          '	display: flex;
+                          	align-items: center;
+                          	gap: 7px;
+                          	background-color: #FFF !important;
+                          	border-bottom: 1px solid var(--ion-color-primary);
+                          	position: absolute;
+                          	top: 0px;
+                          	left: 0px;
+                          	width: 100%;
+                          	border-bottom: 1px solid var(--ion-color-primary);
+                          	padding: 5px;
+                          '
+                ↓Icon [ngx.components.UIDynamicElement-1776796710599]: 
+                  beanData: '{"ionBean":"Icon"}'
+                  tagName: ion-icon
+                  ↓Attr [ngx.components.UIAttribute-1776796710601]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:c8o-child-hover-overlay__icon
+                  ↓Attr1 [ngx.components.UIAttribute-1776796710603]: 
+                    attrName: '[attr.draggable]'
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+                  ↓Attr3 [ngx.components.UIAttribute-1776796710607]: 
+                    attrName: (dragstart)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildLayoutDragStart($event)
+                  ↓Attr4 [ngx.components.UIAttribute-1776796710609]: 
+                    attrName: (dragend)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildLayoutDragEnd($event)
+                ↓Span [ngx.components.UIDynamicElement-1776776353801]: 
+                  beanData: '{"ionBean":"SpanTag"}'
+                  tagName: span
+                  ↓Attr [ngx.components.UIAttribute-1776776353803]: 
+                    attrName: class
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:c8o-child-hover-overlay__label
+                  ↓Text [ngx.components.UIText-1776776353805]: 
+                    i18n: true
+                    textValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: plain:desc_editor_hover_comp
+                  ↓Attr1 [ngx.components.UIAttribute-1776794075360]: 
+                    attrName: '[attr.draggable]'
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+                  ↓Attr2 [ngx.components.UIAttribute-1776794075362]: 
+                    attrName: (dragstart)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildLayoutDragStart($event)
+                  ↓Attr3 [ngx.components.UIAttribute-1776794075364]: 
+                    attrName: (dragend)
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.onChildLayoutDragEnd($event)
+          ↓Grid [ngx.components.UIDynamicElement-1776776353819]: 
+            beanData: '{"ionBean":"Grid"}'
+            tagName: ion-grid
+            ↓GridRow [ngx.components.UIDynamicElement-1776776353825]: 
+              beanData: '{"ionBean":"GridRow"}'
+              tagName: ion-row
+              ↓Attr [ngx.components.UIAttribute-1776776353827]: 
+                attrName: padding
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:false
+              ↓GridCol [ngx.components.UIDynamicElement-1776776353831]: 
+                beanData: '{"ionBean":"GridCol"}'
+                tagName: ion-col
+                ↓Attr [ngx.components.UIAttribute-1776776353833]: 
+                  attrName: padding
+                  attrValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: plain:false
                 ↓Event1 [ngx.components.UIControlEvent-1730813313550]: 
                   attrName: (mouseenter)
                   eventName: (mouseenter)
@@ -299,843 +448,112 @@ scriptContent:
                                     page.pageOwner.ref.detectChanges();
                             		resolve();
                             
-                ↓Grid [ngx.components.UIDynamicElement-1730813313562]: 
-                  beanData: '{"ionBean":"Grid","Height":"script:this.idselectedC == '''' ? ''100%'' : ''''"}'
+                ↓Grid [ngx.components.UIDynamicElement-1776776353837]: 
+                  beanData: '{"ionBean":"Grid"}'
                   tagName: ion-grid
-                  ↓GridRow [ngx.components.UIDynamicElement-1747151706608]: 
+                  ↓GridRow [ngx.components.UIDynamicElement-1776776353843]: 
                     beanData: '{"ionBean":"GridRow"}'
                     tagName: ion-row
-                    ↓GridCol [ngx.components.UIDynamicElement-1747151706597]: 
-                      beanData: '{"ionBean":"GridCol","Size":"plain:12"}'
+                    ↓GridCol [ngx.components.UIDynamicElement-1776776353847]: 
+                      beanData: '{"ionBean":"GridCol"}'
                       tagName: ion-col
-                      ↓Div [ngx.components.UIDynamicElement-1747151759901]: 
+                      ↓Div [ngx.components.UIDynamicElement-1776776353851]: 
                         beanData: '{"ionBean":"DivTag"}'
                         tagName: div
-                        ↓Directive [ngx.components.UIControlDirective-1730813313565]: 
+                        ↓Directive [ngx.components.UIControlDirective-1776775802138]: 
                           directiveName: If
                           directiveSource: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:this.idselectedC == this.child.id else ElseBlock_1588838776418
-                          ↓UseSharedComponent1 [ngx.components.UIUseShared-1730813313568]: 
+                              - MobileSmartSourceType: script:this.showGrab
+                          ↓UseSharedComponent [ngx.components.UIUseShared-1776775802140]: 
+                            sharedcomponent: C8Oforms.MobileApplication.Application.SharedGrabHeader
+                            ↓childIntoGrabHeader [ngx.components.UIUseVariable-1776775802142]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.child
+                            ↓fromGrp [ngx.components.UIUseVariable-1776775802144]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:true
+                        ↓Directive1 [ngx.components.UIControlDirective-1776796710621]: 
+                          directiveName: If
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this.renderSelectedEditor && this.isChildSelectedFromViewer() else ElseBlock_direct_layout_child_viewer
+                          ↓UseSharedComponent [ngx.components.UIUseShared-1776796710623]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.switchItemEdition
-                            ↓currentItem [ngx.components.UIUseVariable-1730813313571]: 
+                            ↓currentItem [ngx.components.UIUseVariable-1776796710625]: 
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: script:child
-                            ↓idselected [ngx.components.UIUseVariable-1730813313574]: 
+                                  - MobileSmartSourceType: script:this.child
+                            ↓idselected [ngx.components.UIUseVariable-1776796710627]: 
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: script:this.idselectedC
-                            ↓isChild [ngx.components.UIUseVariable-1730813313577]: 
+                                  - MobileSmartSourceType: script:this.getSelectedChildFromViewer()
+                            ↓isChild [ngx.components.UIUseVariable-1776796710629]: 
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:true
-                        ↓Tag [ngx.components.UIElement-1730813313580]: 
-                          identifier: ElseBlock_1588838776418
+                        ↓Tag [ngx.components.UIElement-1776796710633]: 
+                          identifier: ElseBlock_direct_layout_child_viewer
                           tagName: ng-template
-                          ↓Directive [ngx.components.UIControlDirective-1730990430804]: 
-                            directiveName: If
-                            directiveSource: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this.showGrab
-                            ↓UseSharedComponent1 [ngx.components.UIUseShared-1730813313583]: 
-                              sharedcomponent: C8Oforms.MobileApplication.Application.SharedGrabHeader
-                              ↓childIntoGrabHeader [ngx.components.UIUseVariable-1730813313586]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:this.child
-                              ↓fromGrp [ngx.components.UIUseVariable-1730973563961]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:true
-                          ↓UseSharedComponent11 [ngx.components.UIUseShared-1730813313589]: 
+                          ↓UseSharedComponent [ngx.components.UIUseShared-1776775802146]: 
                             sharedcomponent: C8Oforms.MobileApplication.Application.switchItemViewer
-                            ↓currentItem [ngx.components.UIUseVariable-1730813313592]: 
+                            ↓currentItem [ngx.components.UIUseVariable-1776775802148]: 
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:child
-                            ↓disabled [ngx.components.UIUseVariable-1730813313595]: 
+                            ↓disabled [ngx.components.UIUseVariable-1776775802150]: 
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:true
-                            ↓currentRedList [ngx.components.UIUseVariable-1730813313598]: 
+                            ↓currentRedList [ngx.components.UIUseVariable-1776775802152]: 
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:null
-                            ↓currentModel [ngx.components.UIUseVariable-1730813313601]: 
+                            ↓currentModel [ngx.components.UIUseVariable-1776775802154]: 
                               varValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                   - MobileSmartSourceType: script:{}
-              ↓Attr [ngx.components.UIAttribute-1730813313604]: 
-                attrName: padding
-                attrValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: plain:false
-              ↓Style [ngx.components.UIStyle-1730813313607]: 
-                styleContent: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                      →: |
-                        margin-top:0px !important;
-                        margin-bottom:0px !important;
-                        
-          ↓Directive2 [ngx.components.UIControlDirective-1730813313610]: 
-            directiveName: If
-            directiveSource: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.idselectedC == this.child.id
-            ↓Directive3 [ngx.components.UIControlDirective-1730813313613]: 
-              directiveName: If
-              directiveSource: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.pageOwner.local.advancedEditing else ElseBlock_1623760623703
-              ↓GenericItem [ngx.components.UIDynamicElement-1730813313616]: 
-                beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
-                isEnabled: false
-                tagName: ion-item
-                ↓FormatLayout [ngx.components.UIDynamicAttr-1730813313619]: 
-                  beanData: '{"ionBean":"FormatLayout","TextTransformation":"plain:ion-text-uppercase"}'
-                  comment: FormatLayout
-                  tagName: div
-                ↓Style [ngx.components.UIStyle-1730813313622]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          'color: #ff8206;
-                            font-size: 0.875rem;
-                            font-weight: 600;
-                            font-style: normal;
-                            font-stretch: normal;
-                            line-height: normal;
-                            letter-spacing: normal;
-                          '
-                ↓Text [ngx.components.UIText-1730813313625]: 
-                  i18n: true
-                  textValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:'advanced'| translate
-                ↓Style1 [ngx.components.UIStyle-1730813313628]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          '	.label{
-                          		margin-top: 0px !important;	
-                          		margin-bottom: 0px !important;	
-                          	}
-                          '
-              ↓Grid [ngx.components.UIDynamicElement-1730813313631]: 
-                beanData: '{"ionBean":"Grid","Height":"plain:100%"}'
-                tagName: ion-grid
-                ↓GridRow [ngx.components.UIDynamicElement-1730813313634]: 
-                  beanData: '{"ionBean":"GridRow"}'
-                  tagName: ion-row
-                  ↓GridCol [ngx.components.UIDynamicElement-1730813313637]: 
-                    beanData: |
-                      '{
-                       "ionBean": "GridCol",
-                       "SizeLg": "plain:6",
-                       "SizeMd": "plain:12",
-                       "SizeSm": "plain:12",
-                       "SizeXl": "plain:6",
-                       "SizeXs": "plain:12"
-                      }'
-                    tagName: ion-col
-                    ↓ToolBar [ngx.components.UIDynamicElement-1730813313640]: 
-                      beanData: '{"ionBean":"ToolBar","IonColor":"plain:white"}'
-                      tagName: ion-toolbar
-                      ↓Style [ngx.components.UIStyle-1730813313643]: 
-                        styleContent: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                padding-left:0px;
-                                
-                      ↓Label [ngx.components.UIDynamicElement-1730813313649]: 
-                        beanData: '{"ionBean":"Label","Position":"plain:stacked"}'
-                        tagName: ion-label
-                        ↓FormatLayout [ngx.components.UIDynamicAttr-1730813313652]: 
-                          beanData: '{"ionBean":"FormatLayout","TextTransformation":"plain:ion-text-capitalize"}'
-                          comment: FormatLayout
-                          tagName: div
-                        ↓Text [ngx.components.UIText-1730813313655]: 
-                          i18n: true
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:id
-                        ↓Style [ngx.components.UIStyle-1730813313658]: 
-                          styleContent: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  'color: var(--ion-color-primary);
-                                  '
-                      ↓GenericItem1 [ngx.components.UIDynamicElement-1730813313646]: 
-                        beanData: '{"ionBean":"GenericItem"}'
-                        tagName: ion-item
-                        ↓TextInput [ngx.components.UIDynamicElement-1730813313661]: 
-                          beanData: |
-                            '{
-                             "ionBean": "Input",
-                             "ControlName": "plain:name1730737782468",
-                             "Debounce": "plain:0"
-                            }'
-                          tagName: ion-input
-                          ↓Attr [ngx.components.UIAttribute-1730813313664]: 
-                            attrName: '[ngModel]'
-                            attrValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this.child.name
-                          ↓Attr2 [ngx.components.UIAttribute-1730813313667]: 
-                            attrName: ondragstart
-                            attrValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:event.preventDefault();event.stopPropagation();
-                          ↓Attr3 [ngx.components.UIAttribute-1730813313670]: 
-                            attrName: ondragover
-                            attrValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:event.preventDefault()
-                          ↓Attr31 [ngx.components.UIAttribute-1730813313673]: 
-                            attrName: ondrop
-                            attrValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:event.preventDefault()
-                          ↓Event [ngx.components.UIControlEvent-1730813313676]: 
-                            attrName: (change)
-                            eventName: onChange
-                            ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1749656832861]: 
-                              beanData: '{"ionBean":"InvokeAction"}'
-                              stack: C8Oforms.MobileApplication.Application.checkAndRegister
-                              ↓item [ngx.components.UIControlVariable-1749656842342]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:this.child
-                          ↓Event1 [ngx.components.UIControlEvent-1749135229932]: 
-                            attrName: (ionFocus)
-                            eventName: (ionFocus)
-                            ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1749135229935]: 
-                              actionValue: 
-                                - xmlizable: 
-                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                    →: |
-                                      		try {
-                                      			page.global.isDraggable = false;
-                                      		} catch (e) {
-                                      			console.error("an error occured here toto");
-                                      		} finally {
-                                      			return;
-                                      		}
-                                      
-                          ↓Event2 [ngx.components.UIControlEvent-1749135229938]: 
-                            attrName: (ionBlur)
-                            eventName: (ionBlur)
-                            ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1749135229941]: 
-                              actionValue: 
-                                - xmlizable: 
-                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                    →: |
-                                      		try {
-                                      			page.global.isDraggable = true;
-                                      		} catch (e) {
-                                      			console.error("an error occured here toto");
-                                      		} finally {
-                                      			return;
-                                      		}
-                                      
-                          ↓Attr4 [ngx.components.UIAttribute-1775148170474]: 
-                            attrName: '[ngClass]'
-                            attrValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:'form-input--small'
-                        ↓Style [ngx.components.UIStyle-1730813313703]: 
-                          styleContent: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  'width: 90%;
-                                  .label{
-                                  		margin-top: 0px !important;	
-                                  		margin-bottom: 0px !important;	
-                                  	}
-                                  '
-                        ↓Attr2 [ngx.components.UIAttribute-1730813313706]: 
-                          attrName: '[ngClass]'
-                          attrValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:'form-item--small'
-                  ↓GridCol1 [ngx.components.UIDynamicElement-1730813313709]: 
-                    beanData: |
-                      '{
-                       "ionBean": "GridCol",
-                       "SizeLg": "plain:6",
-                       "SizeXl": "plain:6"
-                      }'
-                    tagName: ion-col
-                ↓Style [ngx.components.UIStyle-1730813313712]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          margin-bottom:10px;
-                          
-            ↓Tag [ngx.components.UIElement-1730813313715]: 
-              identifier: ElseBlock_1623760623703
-              tagName: ng-template
-              ↓Div [ngx.components.UIDynamicElement-1730813313718]: 
-                beanData: '{"ionBean":"DivTag"}'
-                tagName: div
-                ↓Style [ngx.components.UIStyle-1730813313721]: 
-                  styleContent: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                        →: |
-                          	height:5px !important;
-                          
-        ↓Div [ngx.components.UIDynamicElement-1730813313724]: 
-          beanData: '{"ionBean":"DivTag"}'
-          tagName: div
-          ↓Style [ngx.components.UIStyle-1730813313727]: 
-            styleContent: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                  →: |
-                    'position: -webkit-sticky;
-                    position: sticky;
-                    top: 15px;
-                    
-                    '
-          ↓FabButtonSimplified [ngx.components.UIDynamicElement-1730813313730]: 
-            beanData: |
-              '{
-               "ionBean": "FabButton",
-               "IonColor": "plain:btLight",
-               "Size": "plain:small"
-              }'
-            tagName: ion-fab-button
-            ↓Event [ngx.components.UIControlEvent-1730813313733]: 
-              ↓changeDisplay [ngx.components.UICustomAction-1730813313736]: 
-                actionValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                      →: |
-                        		page.pageOwner.local.advancedEditing = !page.pageOwner.local.advancedEditing;
-                        		resolve();
-                        
-                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1730813313739]: 
-                  beanData: '{"ionBean":"InvokeAction"}'
-                  stack: C8Oforms.MobileApplication.Application.detectChangesDoble
-                ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1730813313742]: 
-                  beanData: '{"ionBean":"InvokeAction"}'
-                  stack: C8Oforms.MobileApplication.Application.updateState
-                ↓elm [ngx.components.UIControlVariable-1730813313745]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1730737782207}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
-                ↓PostData [ngx.components.UIDynamicAction-1730813313748]: 
-                  beanData: |
-                    '{
-                     "ionBean": "FullSyncPostAction",
-                     "requestable": "plain:C8Oforms.c8oforms_fs",
-                     "_id": "script:''C8Oreserved_'' +c8oPage.local.user",
-                     "_use_policy": "plain:merge"
-                    }'
-                  ↓advancedEditing [ngx.components.UIControlVariable-1730813313751]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:c8oPage.local.advancedEditing
-            ↓Attr [ngx.components.UIAttribute-1730813313754]: 
-              attrName: '[title]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('copy_here')
-              isEnabled: false
-            ↓Image [ngx.components.UIDynamicElement-1730813313757]: 
-              beanData: '{"ionBean":"Image","url":"script:this.pageOwner.local.advancedEditing ? ''assets\/images\/svg\/component\/icn_s.svg'' : ''assets\/images\/svg\/component\/icn_a.svg''"}'
-              selfClose: true
-              tagName: img
-              ↓Style [ngx.components.UIStyle-1730813313760]: 
-                styleContent: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                      →: |
-                        'display: block;
-                          margin-left: auto;
-                          margin-right: auto;
-                        '
-            ↓Attr1 [ngx.components.UIAttribute-1730813313763]: 
-              attrName: '[matTooltip]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:this.translate.instant((this.pageOwner.local.advancedEditing ? ''simple_display_mode'': ''advanced_display_mode''))'
-            ↓Attr11 [ngx.components.UIAttribute-1730813313766]: 
-              attrName: 
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:arrow
-            ↓Attr2 [ngx.components.UIAttribute-1730813313769]: 
-              attrName: positionV
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:top
-          ↓FabButtonCopy [ngx.components.UIDynamicElement-1730813313772]: 
-            beanData: |
-              '{
-               "ionBean": "FabButton",
-               "IonColor": "plain:btLight",
-               "Size": "plain:small"
-              }'
-            tagName: ion-fab-button
-            ↓Event [ngx.components.UIControlEvent-1730813313775]: 
-              ↓cloneElement [ngx.components.UICustomAction-1730813313778]: 
-                actionValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                      →: |
-                        '		let clone =  JSON.parse(JSON.stringify(page.child));
-                        		let oldId = clone.id;
-                        		let ionType = clone.type;
-                        		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "inputText": "text", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                        		let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
-                        		clone.name = page.pageOwner.getNameDispo(typeToClone, null);
-                        		clone.id = new Date().getTime();
-                        		//insert right after the current element
-                        		let indexCurrent = page.pageOwner.form.formulaire.findIndex((obj)=>{ return obj.id == oldId});
-                        		page.pageOwner.form.formulaire.splice(indexCurrent+1, 0, clone);
-                        		page.item.childrenRefs.splice(page.j+1, 0, clone.id);
-                        		resolve();
-                        '
-                ↓elm [ngx.components.UIControlVariable-1730813313781]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.child
-                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1730813313784]: 
-                  beanData: '{"ionBean":"InvokeAction"}'
-                  stack: C8Oforms.MobileApplication.Application.updateState
-            ↓Attr [ngx.components.UIAttribute-1730813313787]: 
-              attrName: '[title]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('copy_here')
-              isEnabled: false
-            ↓Attr1 [ngx.components.UIAttribute-1730813313790]: 
-              attrName: '[matTooltip]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('copy_here')
-            ↓Attr11 [ngx.components.UIAttribute-1730813313793]: 
-              attrName: 
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:arrow
-            ↓Attr2 [ngx.components.UIAttribute-1730813313796]: 
-              attrName: positionV
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:top
-            ↓Style [ngx.components.UIStyle-1730813313799]: 
-              styleContent: 
+          ↓Event [ngx.components.UIControlEvent-1776848461943]: 
+            ↓onChildLayoutClick [ngx.components.UICustomAction-1776848705668]: 
+              actionValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
-                      '	ion-icon{
-                      		color: var(--ion-color-white);
-                      	}
-                      '
-            ↓Icon [ngx.components.UIDynamicElement-1730813313802]: 
-              beanData: '{"ionBean":"Icon","IconName":"plain:copy-outline"}'
-              tagName: ion-icon
-          ↓FabButtonConditional [ngx.components.UIDynamicElement-1730813313841]: 
-            beanData: |
-              '{
-               "ionBean": "FabButton",
-               "IonColor": "plain:btLight",
-               "Size": "plain:small"
-              }'
-            tagName: ion-fab-button
-            ↓Event [ngx.components.UIControlEvent-1730813313844]: 
-              ↓ModalPage [ngx.components.UIDynamicAction-1730813313847]: 
-                beanData: |
-                  '{
-                   "ionBean": "ModalAction",
-                   "page": "plain:C8Oforms.MobileApplication.Application.ConditionalPage",
-                   "data": "script:{form: c8oPage.pageOwner.form, self: this.child.name, i:this.indexItem, j: this.j}",
-                   "blockWhileDisplayed": "plain:true",
-                   "cssClass": "plain:alwaysFullScreen"
-                  }'
-                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1730813313850]: 
-                  beanData: '{"ionBean":"InvokeAction"}'
-                  stack: C8Oforms.MobileApplication.Application.updateState
-            ↓Attr [ngx.components.UIAttribute-1730813313853]: 
-              attrName: '[title]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('conditional')
-              isEnabled: false
-            ↓Attr12 [ngx.components.UIAttribute-1730813313856]: 
-              attrName: '[matTooltip]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:'desc_conditional' | translate
-            ↓Attr111 [ngx.components.UIAttribute-1730813313859]: 
-              attrName: 
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:arrow
-            ↓Attr21 [ngx.components.UIAttribute-1730813313862]: 
-              attrName: positionV
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:top
-            ↓Style [ngx.components.UIStyle-1730813313865]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      '	ion-icon{
-                      		color: var(--ion-color-white);
-                      	}
-                      '
-            ↓Icon [ngx.components.UIDynamicElement-1730813313868]: 
-              beanData: '{"ionBean":"Icon","IconName":"plain:settings-outline"}'
-              tagName: ion-icon
-            ↓Style1 [ngx.components.UIStyle-1774345172526]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      '	--background: rgba(var(--ion-color-primary-rgb), 0.9) !important;
-                      	--border-radius: 10px !important;
-                      	img, ion-icon {
-                      		filter: invert(0);
-                      	}
+                      		page.onChildLayoutClick(event);
+                      		resolve();
                       
-                      	ion-icon{
-                      		color: #FFF;
-                      	}
-                      
-                      	&::part(native) {
-                      		background: rgba(var(--ion-color-primary-rgb), 0.9) !important;
-                      		color: #1A1A1A !important;
-                      	}
-                      '
-          ↓FabButtonDelete [ngx.components.UIDynamicElement-1730813313805]: 
-            beanData: |
-              '{
-               "ionBean": "FabButton",
-               "IonColor": "plain:btLight",
-               "Size": "plain:small"
-              }'
-            tagName: ion-fab-button
-            ↓Event [ngx.components.UIControlEvent-1730813313808]: 
-              ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1730813313811]: 
-                actionValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                      →: |
-                        		try {
-                        			let trans = page.getInstance(TranslateService);
-                        			page.local.deletetranslation = await trans.get('deletetranslation').toPromise();
-                        			page.local.delete_item = await trans.get('delete_item').toPromise();
-                                	page.local.oui = await trans.get('oui').toPromise();
-                                	page.local.non = await trans.get('non').toPromise();
-                        		} catch (e) {
-                        		
-                        		} finally {
-                        			return;
-                        		}
-                        
-                ↓Alert [ngx.components.UIDynamicAction-1730813313814]: 
-                  beanData: |
-                    '{
-                     "ionBean": "AlertAction",
-                     "header": "script:this.local.delete_item",
-                     "subHeader": "script:this.local.deletetranslation",
-                     "message": "plain:",
-                     "cssClass": "plain:alert-custom text-generic",
-                     "button1": "script:this.local.non",
-                     "button2": "script:this.local.oui",
-                     "value1": "plain:0",
-                     "value2": "plain:1",
-                     "cancel1": "plain:cancel",
-                     "css1": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info",
-                     "css2": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--danger"
-                    }'
-                  ↓If [ngx.components.UIDynamicAction-1730813313817]: 
-                    beanData: '{"ionBean":"IfAction","condition":"script:parent.out.data == 1"}'
-                    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1730910437269]: 
-                      beanData: '{"ionBean":"InvokeAction"}'
-                      stack: C8Oforms.MobileApplication.Application.closeOptions
-                      ↓item [ngx.components.UIControlVariable-1730910437272]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.child
-                      ↓child [ngx.components.UIControlVariable-1730910437275]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:true
-                      ↓deleteItem [ngx.components.UICustomAction-1730813313820]: 
-                        actionValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                		    //page["delElementIndex"](props.stack.root.scope["i"], props.stack.root.scope["j"]);
-                                		    let item = page.pageOwner.form.formulaire.find((obj)=>{ return obj.id == page.child.id});
-                                		    page.item.childrenRefs.splice(page.j, 1);
-                                		    page.pageOwner.delElementIndex(item);
-                                		    resolve();
-                                
-            ↓Attr [ngx.components.UIAttribute-1730813313823]: 
-              attrName: '[title]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('Supprimer')
-              isEnabled: false
-            ↓Attr1 [ngx.components.UIAttribute-1730813313826]: 
-              attrName: '[matTooltip]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('Supprimer')
-            ↓Attr11 [ngx.components.UIAttribute-1730813313829]: 
-              attrName: 
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:arrow
-            ↓Attr2 [ngx.components.UIAttribute-1730813313832]: 
-              attrName: positionV
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:top
-            ↓Style [ngx.components.UIStyle-1730813313835]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      '	ion-icon{
-                      		color: var(--ion-color-white);
-                      	}
-                      '
-            ↓Icon [ngx.components.UIDynamicElement-1730813313838]: 
-              beanData: '{"ionBean":"Icon","IconName":"plain:trash-outline"}'
-              tagName: ion-icon
-            ↓Style1 [ngx.components.UIStyle-1774345132784]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      '	--background: rgba(var(--ion-color-danger-rgb), 0.9) !important;
-                      	--border-radius: 10px !important;
-                      	img, ion-icon {
-                      		filter: invert(0);
-                      	}
-                      
-                      	ion-icon{
-                      		color: #FFF;
-                      	}
-                      
-                      	&::part(native) {
-                      		background: rgba(var(--ion-color-danger-rgb), 0.9) !important;
-                      		color: #1A1A1A !important;
-                      	}
-                      '
-          ↓FabButton [ngx.components.UIDynamicElement-1730813313871]: 
-            beanData: |
-              '{
-               "ionBean": "FabButton",
-               "IonColor": "plain:btLight",
-               "Size": "plain:small"
-              }'
-            tagName: ion-fab-button
-            ↓Event [ngx.components.UIControlEvent-1730813313874]: 
-              ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1730813313877]: 
-                beanData: '{"ionBean":"InvokeAction"}'
-                stack: C8Oforms.MobileApplication.Application.closeOptions
-                ↓item [ngx.components.UIControlVariable-1730813313880]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.child
-                ↓child [ngx.components.UIControlVariable-1730813313883]: 
-                  varValue: 
-                    - xmlizable: 
-                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:true
-            ↓Attr [ngx.components.UIAttribute-1730813313886]: 
-              attrName: '[title]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('close')
-              isEnabled: false
-            ↓Attr1 [ngx.components.UIAttribute-1730813313889]: 
-              attrName: '[matTooltip]'
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.translate.instant('close')
-            ↓Attr11 [ngx.components.UIAttribute-1730813313892]: 
-              attrName: 
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:arrow
-            ↓Attr2 [ngx.components.UIAttribute-1730813313895]: 
-              attrName: positionV
-              attrValue: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:top
-            ↓Style [ngx.components.UIStyle-1730813313898]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      '	ion-icon{
-                      		color: var(--ion-color-white);
-                      	}
-                      '
-            ↓Icon [ngx.components.UIDynamicElement-1730813313901]: 
-              beanData: '{"ionBean":"Icon","IconName":"plain:checkmark"}'
-              tagName: ion-icon
-            ↓Style1 [ngx.components.UIStyle-1774345070116]: 
-              styleContent: 
-                - xmlizable: 
-                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                    →: |
-                      '/**
-                       * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                       * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                       * They are set using custom property notation, e.g.: --main-color: black;
-                       * and are accessed using the var() function, e.g.: color: var(--main-color);
-                       * You can find below your component''s properties you can customize within the page.
-                       * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                       * For more information see https://ionicframework.com/docs/theming.
-                      **/
-                      //--background	//Background of the button
-                      //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                      //--background-activated-opacity	//Opacity of the button when pressed
-                      //--background-focused	//Background of the button when focused with the tab key
-                      //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                      //--background-hover	//Background of the button on hover
-                      //--background-hover-opacity	//Opacity of the background on hover
-                      //--border-color	//Border color of the button
-                      //--border-radius	//Border radius of the button
-                      //--border-style	//Border style of the button
-                      //--border-width	//Border width of the button
-                      //--box-shadow	//Box shadow of the button
-                      //--color	//Text color of the button
-                      //--color-activated	//Text color of the button when pressed
-                      //--color-focused	//Text color of the button when focused with the tab key
-                      //--color-hover	//Text color of the button when hover
-                      //--icon-padding-bottom	//Bottom padding of the button icon
-                      //--icon-padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button icon
-                      //--icon-padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button icon
-                      //--icon-padding-top	//Top padding of the button icon
-                      //--padding-bottom	//Bottom padding of the button
-                      //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                      //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                      //--padding-top	//Top padding of the button
-                      //--ripple-color	//Color of the button ripple effect
-                      //--transition	//Transition of the button
-                      --background: rgba(var(--ion-color-success-rgb), 0.9) !important;
-                      --border-radius: 10px !important;
-                      img, ion-icon {
-                      	filter: invert(0);
-                      }
-                      
-                      ion-icon{
-                      	color: #FFF;
-                      }
-                      
-                      &::part(native) {
-                      	background: rgba(var(--ion-color-success-rgb), 0.9) !important;
-                      	color: #1A1A1A !important;
-                      }
-                      '
-          ↓Attr [ngx.components.UIAttribute-1730813313904]: 
-            attrName: '*ngIf'
+          ↓Attr5 [ngx.components.UIAttribute-1776848461945]: 
+            attrName: (dragstart)
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:this.idselectedC == child.id
-        ↓Style [ngx.components.UIStyle-1730813313907]: 
-          styleContent: 
-            - xmlizable: 
-              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                →: |
-                  '	display: flex;
-                  	align-items: flex-start;
-                  	height: 100%;
-                  '
+                - MobileSmartSourceType: script:this.onChildLayoutDragStart($event)
+          ↓Attr6 [ngx.components.UIAttribute-1776848461947]: 
+            attrName: (dragend)
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.onChildLayoutDragEnd($event)
+          ↓Attr [ngx.components.UIAttribute-1777290407451]: 
+            attrName: '[style.padding]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'20px'
       ↓Style [ngx.components.UIStyle-1730906369084]: 
         isEnabled: false
         styleContent: 
@@ -1161,48 +579,36 @@ scriptContent:
                 //--ion-grid-columns	//The number of total Columns in the Grid
                 overflow: hidden;
                 '
-      ↓_ngStyle_ [ngx.components.UIAttribute-1730907489130]: 
-        attrName: '[ngStyle]'
-        attrValue: 
-          - xmlizable: 
-            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: 'script:{''overflow'': this.pageOwner.local.dragging ? ''hidden'' : ''visible''}'
-    ↓Directive1 [ngx.components.UIControlDirective-1730905589125]: 
-      directiveName: If
-      directiveSource: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:this.pageOwner.local.dragging && ((this.j + 1) == this.item.childrenRefs?.length)
-      ↓GridCol [ngx.components.UIDynamicElement-1730905589128]: 
-        beanData: '{"ionBean":"GridCol","Size":"plain:1"}'
-        tagName: ion-col
-        ↓UseSharedComponent [ngx.components.UIUseShared-1730905589131]: 
-          sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
-          ↓id [ngx.components.UIUseVariable-1730905589134]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:'@prefixc8oafterItem'
-          ↓card [ngx.components.UIUseVariable-1730905589140]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:true
-          ↓action [ngx.components.UIUseVariable-1730905589143]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:false
-          ↓hideText [ngx.components.UIUseVariable-1730905589146]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:true
-          ↓i [ngx.components.UIUseVariable-1730905896173]: 
-            varValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:[this.indexItem, this.j + 1]
+  ↓Attr [ngx.components.UIAttribute-1776799805433]: 
+    attrName: class
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: plain:layout-child-drag-root
+  ↓AttrDragRootId [ngx.components.UIAttribute-1776799830001]: 
+    attrName: id
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:'@prefixc8oitem'+this.child.name+'@prefixc8otype'+this.child.type
+  ↓AttrDragRootDraggable [ngx.components.UIAttribute-1776799830003]: 
+    attrName: '[attr.draggable]'
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: 'script:this.canDragChildFromViewer() ? ''true'' : null'
+  ↓AttrDragRootStart [ngx.components.UIAttribute-1776799830005]: 
+    attrName: (dragstart)
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:this.onChildLayoutDragStart($event)
+  ↓AttrDragRootEnd [ngx.components.UIAttribute-1776799830007]: 
+    attrName: (dragend)
+    attrValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:this.onChildLayoutDragEnd($event)
 ↓item1730737782207 [ngx.components.UICompVariable-1730813313916]: 
   value: '[]'
 ↓child [ngx.components.UICompVariable-1730813313919]: 
@@ -1218,3 +624,292 @@ scriptContent:
 ↓showGrab [ngx.components.UICompVariable-1730990333701]: 
   autoEmit: true
   value: true
+↓renderSelectedEditor [ngx.components.UICompVariable-1776797103001]: 
+  value: false
+↓C8oIonicStyle [ngx.components.UIStyle-1776775802328]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }
+          :host {
+          display: block;
+          position: relative;
+          ;
+          }
+          :host(:hover) {
+          position: relative;
+          z-index: 1101;
+          ;
+          }
+          .class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }
+          .class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }
+          .class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }
+          .class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }
+          .class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }
+          .layout-child-drag-root {
+          display: block;
+          height: 100%;
+          ;
+          }
+          .layout-child-drop-col {
+          min-height: 25px;
+          ;
+          }
+          .layout-child-card-zone {
+          height: 100%;
+          ;
+          }
+          .class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }
+          .class1730813313541 {
+          margin-top:0px !important;
+          margin-bottom:0px !important;
+          width:100% !important;
+          ;
+          }
+          .class1730813313538 {
+          margin-top:0px !important;
+          margin-bottom:0px !important;
+          ;
+          }
+          .class1730813313616 {
+          color: #ff8206;
+          font-size: 0.875rem;
+          font-weight: 600;
+          font-style: normal;
+          font-stretch: normal;
+          line-height: normal;
+          letter-spacing: normal;
+          ;
+          .label{
+          margin-top: 0px !important;
+          margin-bottom: 0px !important;
+          }
+          ;
+          }
+          .class1730813313649 {
+          color: var(--ion-color-primary);
+          ;
+          }
+          .class1730813313646 {
+          width: 90%;
+          .label{
+          margin-top: 0px !important;
+          margin-bottom: 0px !important;
+          }
+          ;
+          }
+          .class1730813313640 {
+          padding-left:0px;
+          ;
+          }
+          .class1730813313631 {
+          margin-bottom:10px;
+          ;
+          }
+          .class1730813313718 {
+          height:5px !important;
+          ;
+          }
+          .class1776776353779 {
+          margin-top:0px !important;
+          margin-bottom:0px !important;
+          border: solid 1px #f6f6f6;
+          box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+          flex-grow: 1;
+          width: 100%;
+          height: 100%;
+          position: relative;
+          ;
+          }
+          .c8o-child-hover-overlay {
+          position: absolute;
+          inset: 0px;
+          z-index: 1000 !important;
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+          gap: 6px;
+          padding: 5px;
+          background: rgba(var(--ion-color-primary-rgb), 0.14);
+          color: var(--ion-color-primary);
+          cursor: pointer;
+          opacity: 0;
+          transition: opacity 180ms linear;
+          pointer-events: auto;
+          ;
+          }
+          .layout-child-drag-root:hover .c8o-child-hover-overlay,
+          .class1730813313448:hover .c8o-child-hover-overlay,
+          .class1776776353779:hover > .c8o-child-hover-overlay,
+          .c8o-child-hover-overlay:hover {
+          opacity: 1;
+          pointer-events: auto;
+          ;
+          }
+          .c8o-child-hover-overlay__label {
+          font-size: 12px;
+          font-style: normal;
+          font-weight: 400;
+          line-height: 21px;
+          white-space: normal;
+          }
+          .c8o-child-hover-overlay__icon {
+          width: 18px;
+          height: 18px;
+          min-width: 18px;
+          margin-top: 1px;
+          ;
+          }
+          .class1730813313757 {
+          display: block;
+          margin-left: auto;
+          margin-right: auto;
+          ;
+          }
+          .class1730813313772 {
+          ion-icon{
+          color: var(--ion-color-white);
+          }
+          ;
+          }
+          .class1730813313841 {
+          ion-icon{
+          color: var(--ion-color-white);
+          }
+          ;
+          --background: rgba(var(--ion-color-primary-rgb), 0.9) !important;
+          --border-radius: 10px !important;
+          img, ion-icon {
+          filter: invert(0);
+          }
+          ion-icon{
+          color: #FFF;
+          }
+          &::part(native) {
+          background: rgba(var(--ion-color-primary-rgb), 0.9) !important;
+          color: #1A1A1A !important;
+          }
+          ;
+          }
+          .class1730813313805 {
+          ion-icon{
+          color: var(--ion-color-white);
+          }
+          ;
+          --background: rgba(var(--ion-color-danger-rgb), 0.9) !important;
+          --border-radius: 10px !important;
+          img, ion-icon {
+          filter: invert(0);
+          }
+          ion-icon{
+          color: #FFF;
+          }
+          &::part(native) {
+          background: rgba(var(--ion-color-danger-rgb), 0.9) !important;
+          color: #1A1A1A !important;
+          }
+          ;
+          }
+          .class1730813313871 {
+          ion-icon{
+          color: var(--ion-color-white);
+          }
+          ;
+          /**
+          * Custom properties (sometimes referred to as CSS variables or cascading variables)
+          * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+          * They are set using custom property notation, e.g.: --main-color: black;
+          * and are accessed using the var() function, e.g.: color: var(--main-color);
+          * You can find below your component''s properties you can customize within the page.
+          * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+          * For more information see https://ionicframework.com/docs/theming.
+          **/
+          //--background	//Background of the button
+          //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
+          //--background-activated-opacity	//Opacity of the button when pressed
+          //--background-focused	//Background of the button when focused with the tab key
+          //--background-focused-opacity	//Opacity of the button when focused with the tab key
+          //--background-hover	//Background of the button on hover
+          //--background-hover-opacity	//Opacity of the background on hover
+          //--border-color	//Border color of the button
+          //--border-radius	//Border radius of the button
+          //--border-style	//Border style of the button
+          //--border-width	//Border width of the button
+          //--box-shadow	//Box shadow of the button
+          //--color	//Text color of the button
+          //--color-activated	//Text color of the button when pressed
+          //--color-focused	//Text color of the button when focused with the tab key
+          //--color-hover	//Text color of the button when hover
+          //--icon-padding-bottom	//Bottom padding of the button icon
+          //--icon-padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button icon
+          //--icon-padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button icon
+          //--icon-padding-top	//Top padding of the button icon
+          //--padding-bottom	//Bottom padding of the button
+          //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
+          //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
+          //--padding-top	//Top padding of the button
+          //--ripple-color	//Color of the button ripple effect
+          //--transition	//Transition of the button
+          --background: rgba(var(--ion-color-success-rgb), 0.9) !important;
+          --border-radius: 10px !important;
+          img, ion-icon {
+          filter: invert(0);
+          }
+          ion-icon{
+          color: #FFF;
+          }
+          &::part(native) {
+          background: rgba(var(--ion-color-success-rgb), 0.9) !important;
+          color: #1A1A1A !important;
+          }
+          ;
+          }
+          .class1730813313724 {
+          position: -webkit-sticky;
+          position: sticky;
+          top: 15px;
+          ;
+          }
+          .class1730813313448 {
+          display: flex;
+          align-items: flex-start;
+          height: 100%;
+          ;
+          }'
