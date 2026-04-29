@@ -654,13 +654,97 @@ scriptContent:
         
         	public async onMonacoInit(editor) {
         		this.monacoEditorInstance = editor;
+        		const monacoDomNode = editor.getDomNode();
+        		const nativeDragOverHandler = (event: any) => {
+        			const internalDrag = event?.dataTransfer?.getData?.("__c8oformsdrag_source") === "true";
+        			if (!internalDrag) {
+        				return;
+        			}
+        			event.preventDefault();
+        			event.stopPropagation();
+        			if (event.dataTransfer) {
+        				event.dataTransfer.dropEffect = "copy";
+        			}
+        		};
+        		const nativeDropHandler = (event: any) => {
+        			try {
+        				const internalDrag = event?.dataTransfer?.getData?.("__c8oformsdrag_source") === "true";
+        				const droppedText = event?.dataTransfer?.getData?.("text/plain") || "";
+        				this.pageOwner?.c8o?.log?.debug?.("[MonacoNativeDrop] internal=" + internalDrag);
+        				this.pageOwner?.c8o?.log?.debug?.("[MonacoNativeDrop] types=" + JSON.stringify(Array.from(event?.dataTransfer?.types || [])));
+        				this.pageOwner?.c8o?.log?.debug?.("[MonacoNativeDrop] text=" + droppedText);
+        				if (!internalDrag || droppedText === "") {
+        					return;
+        				}
+        				event.preventDefault();
+        				event.stopPropagation();
+        				editor.focus();
+        				let position = editor.getPosition();
+        				try {
+        					const target = editor.getTargetAtClientPoint?.(event.clientX, event.clientY);
+        					if (target?.position) {
+        						position = target.position;
+        					}
+        				}
+        				catch (e) {
+        				}
+        				const selection = editor.getSelection();
+        				const range = position
+        					? new monaco.Range(
+        						position.lineNumber,
+        						position.column,
+        						position.lineNumber,
+        						position.column
+        					)
+        					: selection;
+        				if (!range) {
+        					editor.trigger("keyboard", "type", { text: droppedText });
+        				}
+        				else {
+        					editor.executeEdits("c8oforms-native-formula-drop", [{
+        						range,
+        						text: droppedText,
+        						forceMoveMarkers: true
+        					}]);
+        				}
+        				const model = editor.getModel?.();
+        				if (model && position) {
+        					try {
+        						const endPosition = model.modifyPosition(position, droppedText.length);
+        						editor.setPosition(endPosition);
+        					}
+        					catch (e) {
+        					}
+        				}
+        				setTimeout(() => {
+        					editor.trigger('''', ''editor.action.triggerSuggest'');
+        				}, 0);
+        			}
+        			catch (e) {
+        				this.pageOwner?.c8o?.log?.error?.("[MonacoNativeDrop] drop failed " + (e?.message || JSON.stringify(e)));
+        			}
+        		};
+        		monacoDomNode?.addEventListener("dragover", nativeDragOverHandler, true);
+        		monacoDomNode?.addEventListener("drop", nativeDropHandler, true);
+        		editor.onDidDispose(() => {
+        			monacoDomNode?.removeEventListener("dragover", nativeDragOverHandler, true);
+        			monacoDomNode?.removeEventListener("drop", nativeDropHandler, true);
+        		});
         		editor.onDidBlurEditorText(async () => {
-        			let val = editor.getValue();
-        			this.code = await this.parse(val);
+        			const rawValue = editor.getValue();
+        			try {
+        				this.code = await this.parse(rawValue);
+        			}
+        			catch (e) {
+        				this.pageOwner?.c8o?.log?.error?.("[MonacoDrop] onBlur parse failed " + (e?.message || JSON.stringify(e)));
+        				this.code = rawValue;
+        			}
         			let evt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
         			this.onBlur.emit(evt);
         		});
-        		editor.onDropIntoEditor((event) => { setTimeout(() => { editor.trigger('''', ''editor.action.triggerSuggest''); }) });
+        		editor.onDropIntoEditor(() => {
+        			setTimeout(() => { editor.trigger('''', ''editor.action.triggerSuggest''); });
+        		});
         		/*const layoutEditor = () => {
         			try {
         				const domNode = editor.getDomNode();

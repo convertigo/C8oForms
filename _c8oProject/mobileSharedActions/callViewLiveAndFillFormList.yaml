@@ -9,7 +9,35 @@ comment: Process a tick (Refresh define in caf)
           			if(page["pageOwner"] != undefined){
           				page = page["pageOwner"];
           			}
-          			new Promise(async (resolveAsync) => {
+          			const stringifyActionError = (error) => {
+          				try{
+          					if(typeof error === ''string''){
+          						return error;
+          					}
+          					if(error?.message != undefined){
+          						return String(error.message);
+          					}
+          					return JSON.stringify(error);
+          				}
+          				catch(e){
+          					return String(error);
+          				}
+          			};
+          			const handleExecuteViewError = (scope, error) => {
+          				page.local.alreadyFinished = true;
+          				page.local.loadingError = true;
+          				page.local.spinner = false;
+          				page.local.count = 0;
+          				page.ref.detectChanges();
+          				page.c8o.log.error("[DoCallViewLiveAndFillFormList] " + scope + " failed " + stringifyActionError(error));
+          				return null;
+          			};
+          			const logLiveChangesError = (scope, error) => {
+          				page.local.live = null;
+          				page.c8o.log.error("[DoCallViewLiveAndFillFormList] live changes " + scope + " error (non blocking) " + stringifyActionError(error));
+          			};
+          			return new Promise(async (resolveAsync) => {
+          				try{
           				if(page.local._searchUser?.[0]?.value != null){
           					page.local._searchUser = null;
           				}
@@ -51,6 +79,7 @@ comment: Process a tick (Refresh define in caf)
           								else{
           									page.local.count = response.res.docs.length;
           									page.local.alreadyFinished = true;
+          									page.local.loadingError = false;
           									page.local.spinner = false;
           									page.ref.detectChanges();
           									setTimeout(() => {
@@ -69,7 +98,10 @@ comment: Process a tick (Refresh define in caf)
           								
           							})
           							.fail((error) => {
-          								page.c8o.log.error("[DoCallViewLiveAndFillFormList] an error occured " + JSON.stringify(error));
+          								if (currentRequestId !== page.local.requestCounter) {
+          									return null;
+          								}
+          								return handleExecuteViewError("APIV2_ExecuteView in_folders", error);
           							})
           					}
           					// if we are not into a folder
@@ -96,6 +128,7 @@ comment: Process a tick (Refresh define in caf)
           								else{
           									page.local.count = response.res.docs.length;
           									page.local.alreadyFinished = true;
+          									page.local.loadingError = false;
           									page.local.spinner = false;
           									page.ref.detectChanges();
           									setTimeout(() => {
@@ -112,7 +145,10 @@ comment: Process a tick (Refresh define in caf)
           								return null;
           							})
           							.fail((error) => {
-          								page.c8o.log.error("[DoCallViewLiveAndFillFormList] an error occured " + JSON.stringify(error));
+          								if (currentRequestId !== page.local.requestCounter) {
+          									return null;
+          								}
+          								return handleExecuteViewError("APIV2_ExecuteView out_folder", error);
           							})
           					}
           				}
@@ -176,28 +212,47 @@ comment: Process a tick (Refresh define in caf)
           				
           				console.log(p);
           				
-          				let dbChanges = new p(page.c8o.endpointConvertigo+"/fullsync/c8oforms_fs", remotePouchHeader);
-          				if(page.local.live && page.local.live.cancel != undefined){
-          					await page.local.live.cancel();
+          				try{
+          					let dbChanges = new p(page.c8o.endpointConvertigo+"/fullsync/c8oforms_fs", remotePouchHeader);
+          					console.log(dbChanges);
+          					if(page.local.live && page.local.live.cancel != undefined){
+          						try{
+          							await page.local.live.cancel();
+          						}
+          						catch(cancelError){
+          							logLiveChangesError("cancel", cancelError);
+          						}
+          					}
+          					page.local.live = dbChanges.changes({
+          						live: true, since: ''now''
+          					})
+          					.on(''change'', function (change) {
+          						console.log(change);
+          						// handle change
+          						if(page.local["ddoc"] == "formsV2" && (isValidTimestamp(change.id) || change.id.indexOf("folder_") == 0)){
+          							execQuery();
+          						}
+          						else if(page.local["ddoc"] == "published_formsV2" && (isValidPublishTimestamp(change.id)  || change.id.indexOf("folder_") == 0)){
+          							execQuery();
+          						}
+          					}).on(''complete'', function (info) {
+          						console.log(info);
+          					}).on(''error'', function (err) {
+          						logLiveChangesError("stream", err);
+          					});
           				}
-          				page.local.live = dbChanges.changes({
-          					live: true, since: ''now''
-          				})
-          				.on(''change'', function (change) {
-          					console.log(change);
-          					// handle change
-          					if(page.local["ddoc"] == "formsV2" && (isValidTimestamp(change.id) || change.id.indexOf("folder_") == 0)){
-          						execQuery();
-          					}
-          					else if(page.local["ddoc"] == "published_formsV2" && (isValidPublishTimestamp(change.id)  || change.id.indexOf("folder_") == 0)){
-          						execQuery();
-          					}
-          				}).on(''complete'', function (info) {
-          					console.log(info);
-          				}).on(''error'', function (err) {
-          					console.error("an error occured", err);
-          				});
+          				catch(liveError){
+          					logLiveChangesError("init", liveError);
+          				}
           				// end lives changes
+          				}
+          				catch(error){
+          					handleExecuteViewError("setup", error);
+          				}
+          				finally{
+          					resolveAsync();
+          					resolve();
+          				}
           			});
           '
   app_ts_imports: 

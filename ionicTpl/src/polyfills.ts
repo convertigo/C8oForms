@@ -1,3 +1,5 @@
+import { Buffer } from 'buffer';
+
 /**
  * This file includes polyfills needed by Angular and is loaded before the app.
  * You can add your own extra polyfills to this file.
@@ -99,13 +101,12 @@ window["browser"] = true;
     };
 })();
 
-try {
-  //@ts-ignore
-  const bufferModule = require('buffer/');
-  if (bufferModule && bufferModule.Buffer) {
-    window["Buffer"] = bufferModule.Buffer;
-  }
-} catch (e) {
-  // Si une erreur est levée, on l'ignore simplement
-  console.warn('Module buffer introuvable, Buffer non défini');
+if (!(globalThis as any).Buffer) {
+  (globalThis as any).Buffer = Buffer;
+}
+if (!(window as any).Buffer) {
+  window["Buffer"] = Buffer;
+}
+if ((window as any).global && !(window as any).global.Buffer) {
+  (window as any).global.Buffer = Buffer;
 }
