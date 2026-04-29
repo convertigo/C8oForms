@@ -16,6 +16,8 @@ componentScriptContent:
         	// --- helpers persistance du flag "pending update" ---
         	public PENDING_KEY = ''pwa.pendingUpdateVersion'';
         	public PENDING_AT = ''pwa.pendingAt'';
+        	public pwaControllerRefreshing = false;
+        	public pwaControllerChangeListenerBound = false;
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
         		// get preference log level from local storage
@@ -391,9 +393,31 @@ componentScriptContent:
         
         		// flag runtime + persistant
         		let pendingUpdateVersion: string | null = this.getPending().v;
-        
+        	
+        		const logPwaDiagnostics = async (label: string, currentV?: string | null, latestV?: string | null) => {
+        			this.c8o.log.debug(`[PWA] ${label}`);
+        			this.c8o.log.debug(`[PWA] href=${location.href}`);
+        			this.c8o.log.debug(`[PWA] baseURI=${document.baseURI}`);
+        			if (currentV != null || latestV != null) {
+        				this.c8o.log.debug(`[PWA] current=${currentV ?? ''unknown''} latest=${latestV ?? ''unknown''}`);
+        			}
+        			this.c8o.log.debug(`[PWA] controller=${navigator?.serviceWorker?.controller?.scriptURL}`);
+        			try {
+        				const reg = await navigator?.serviceWorker?.getRegistration?.();
+        				this.c8o.log.debug(`[PWA] scope=${reg?.scope}`);
+        				this.c8o.log.debug(`[PWA] waiting=${!!reg?.waiting}`);
+        				this.c8o.log.debug(`[PWA] installing=${!!reg?.installing}`);
+        				this.c8o.log.debug(`[PWA] active=${!!reg?.active}`);
+        			} catch (e) {
+        				this.c8o.log.debug(''[PWA] registration=unavailable'');
+        			}
+        		};
+        	
         		// petite utilité: vérifier proprement les updates
-        		const checkNow = () => updates.checkForUpdate().catch(() => { });
+        		const checkNow = async () => {
+        			await logPwaDiagnostics(''checkForUpdate()'', this.global.app?.currentVersion ?? null, this.global.app?.latestVersion ?? null);
+        			return updates.checkForUpdate().catch(() => { });
+        		};
         
         		if (updates.isEnabled) {
         			// --- FAST-PATH démarrage : cas "rechargement forcé" + SW en attente ---
@@ -496,7 +520,8 @@ componentScriptContent:
         						this.c8o.log.debug(
         							`VERSION_READY for ${(event as any).currentVersion?.appData?.[''name'']} current=${currentV} new=${latestV}`
         						);
-        
+        						await logPwaDiagnostics(''VERSION_READY'', currentV, latestV);
+        				
         						if (currentV === latestV) {
         							this.c8o.log.debug(''VERSION_READY but same version → will update at next reload'');
         							_res();
@@ -525,33 +550,42 @@ componentScriptContent:
         						this.ref.detectChanges();
         						break;
         					}
-        
+        				
         					case ''VERSION_INSTALLATION_FAILED'':
-        						this.global.app.currentVersion = event.version.appData[''version''];
+        						const failedCurrentV = event.version.appData[''version''];
+        						const failedLatestV = pendingUpdateVersion;
+        						this.global.app.currentVersion = failedCurrentV;
         						this.global.app.state = 4;
         						pendingUpdateVersion = null; this.setPending(null);
         						this.c8o.log.debug(
-        							`VERSION_INSTALLATION_FAILED for ${event.version.appData[''name'']} current=${event.version.appData[''version'']} error=${(event as any).error}`
+        							`VERSION_INSTALLATION_FAILED for ${event.version.appData[''name'']} current=${failedCurrentV} error=${(event as any).error}`
         						);
+        						await logPwaDiagnostics(''VERSION_INSTALLATION_FAILED'', failedCurrentV, failedLatestV);
         						this.ref.detectChanges();
         						_res();
         						break;
         				}
         			});
-        
+        	
         			// --- Cas irrécouvrable → reload propre ---
-        			updates.unrecoverable.subscribe((e) => {
+        			updates.unrecoverable.subscribe(async (e) => {
         				this.c8o.log.debug(`SW unrecoverable: ${e.reason || ''''}`);
+        				await logPwaDiagnostics(''UNRECOVERABLE'', this.global.app?.currentVersion ?? null, this.global.app?.latestVersion ?? null);
         				document.location.reload();
         			});
-        
+        	
         			// --- Si un nouveau contrôleur SW prend la main, on nettoie (et on peut recharger) ---
-        			if (navigator?.serviceWorker) {
-        				navigator.serviceWorker.addEventListener(''controllerchange'', () => {
+        			if (navigator?.serviceWorker && !this.pwaControllerChangeListenerBound) {
+        				this.pwaControllerChangeListenerBound = true;
+        				navigator.serviceWorker.addEventListener(''controllerchange'', async () => {
         					this.c8o.log.debug(''controllerchange → new SW active'');
+        					await logPwaDiagnostics(''controllerchange'', this.global.app?.currentVersion ?? null, this.global.app?.latestVersion ?? null);
         					pendingUpdateVersion = null; this.setPending(null);
-        					// Recharge immédiat pour basculer sur la nouvelle version (dé-commente si tu veux auto)
-        					// document.location.reload();
+        					if (this.pwaControllerRefreshing) {
+        						return;
+        					}
+        					this.pwaControllerRefreshing = true;
+        					document.location.reload();
         				});
         			}
         		} else {

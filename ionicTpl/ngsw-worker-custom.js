@@ -581,7 +581,7 @@ ${error.stack}`;
           if (response.ok) {
             const cacheBustedHash = sha1Binary(await response.clone().arrayBuffer());
             if (canonicalHash !== cacheBustedHash) {
-              //throw new SwCriticalError(`Hash mismatch (cacheBustedFetchFromNetwork): ${req.url}: expected ${canonicalHash}, got ${cacheBustedHash} (after cache busting)`);
+              throw new SwCriticalError(`Hash mismatch (cacheBustedFetchFromNetwork): ${req.url}: expected ${canonicalHash}, got ${cacheBustedHash} (after cache busting)`);
             }
           }
         }
