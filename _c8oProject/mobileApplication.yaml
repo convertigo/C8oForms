@@ -16,6 +16,8 @@ componentScriptContent:
         	// --- helpers persistance du flag "pending update" ---
         	public PENDING_KEY = ''pwa.pendingUpdateVersion'';
         	public PENDING_AT = ''pwa.pendingAt'';
+        	public CHUNK_RECOVERY_KEY = ''pwa.chunkRecoveryReloaded'';
+        	public chunkRecoveryListenerBound = false;
         	public pwaControllerRefreshing = false;
         	public pwaControllerChangeListenerBound = false;
         	/*End_c8o_AppDeclaration*/
@@ -35,6 +37,7 @@ componentScriptContent:
         		this.global.isMenuOpen = (window.innerWidth > 1140) ? true : false
         		/*End_c8o_AppSettings*/
         /*Begin_c8o_AppConstructor*/
+        		this.bindChunkRecoveryHandlers();
         		this.getOriginImg();
         		/*End_c8o_AppConstructor*/
         /*Begin_c8o_AppInitialization*/
@@ -60,6 +63,73 @@ componentScriptContent:
         				this.monitorDEVPwaUpdates();
         				/*End_c8o_AppInitialization*/
         /*Begin_c8o_AppFunction*/
+        	public bindChunkRecoveryHandlers(): void {
+        		if (this.chunkRecoveryListenerBound) {
+        			return;
+        		}
+        		this.chunkRecoveryListenerBound = true;
+        
+        		window.addEventListener(''error'', (event: any) => {
+        			this.recoverFromChunkLoadError(''window.error'', event);
+        		}, true);
+        
+        		window.addEventListener(''unhandledrejection'', (event: any) => {
+        			this.recoverFromChunkLoadError(''window.unhandledrejection'', event?.reason ?? event);
+        		});
+        	}
+        
+        	public isChunkLoadError(error: any): boolean {
+        		const message = String(
+        			error?.message ||
+        			error?.reason?.message ||
+        			error?.error?.message ||
+        			error?.target?.src ||
+        			error?.filename ||
+        			error ||
+        			''''
+        		);
+        
+        		return (
+        			message.includes(''ChunkLoadError'') ||
+        			message.includes(''Loading chunk failed'') ||
+        			message.includes(''Loading chunk'') ||
+        			message.includes(''Failed to fetch dynamically imported module'') ||
+        			message.includes(''Importing a module script failed'') ||
+        			message.includes(''Failed to load module script'') ||
+        			/\/scripts\/(chunk|main|polyfills|scripts)-[A-Z0-9]+\.js/i.test(message) ||
+        			/(?:^|\/)(chunk|main|polyfills|scripts)-[A-Z0-9]+\.js/i.test(message)
+        		);
+        	}
+        
+        	public recoverFromChunkLoadError(source: string, error: any): void {
+        		if (!this.isChunkLoadError(error)) {
+        			return;
+        		}
+        
+        		const message = String(
+        			error?.message ||
+        			error?.reason?.message ||
+        			error?.error?.message ||
+        			error?.target?.src ||
+        			error?.filename ||
+        			error ||
+        			''''
+        		);
+        
+        		this.c8o.log.debug(`[PWA] Chunk load error detected from ${source}`);
+        		this.c8o.log.debug(`[PWA] error=${message}`);
+        		this.c8o.log.debug(`[PWA] href=${location.href}`);
+        		this.c8o.log.debug(`[PWA] baseURI=${document.baseURI}`);
+        		this.c8o.log.debug(`[PWA] controller=${navigator?.serviceWorker?.controller?.scriptURL}`);
+        
+        		if (sessionStorage.getItem(this.CHUNK_RECOVERY_KEY) === ''true'') {
+        			this.c8o.log.debug(''[PWA] Chunk recovery already attempted in this session, skip reload'');
+        			return;
+        		}
+        		sessionStorage.setItem(this.CHUNK_RECOVERY_KEY, ''true'');
+        		document.location.reload();
+        	}
+        
         	public getOriginImg() {
         		//compute origin for imgs
         		if (!environment.production) {
