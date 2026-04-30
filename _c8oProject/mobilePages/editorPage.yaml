@@ -2063,32 +2063,108 @@ scriptContent:
         
         
         	moveActionElement(indexDest, indexOrigin, indexFlowDest, indexFlowOrigin, targetCardChild = ''childrenRefs'', originCardChildOrigin = ''childrenRefs'') {
-        		console.log(indexDest, indexOrigin, indexFlowDest, indexFlowOrigin, targetCardChild,originCardChildOrigin)
-        		console.log(this.form.flows);
-        		if (originCardChildOrigin == null) {
+        		const normalizeRefId = (ref: any) => typeof ref === "object" ? ref?.id : ref;
+        		indexDest = Array.isArray(indexDest) ? indexDest.map(Number) : String(indexDest).split(",").map(Number);
+        		indexOrigin = Array.isArray(indexOrigin) ? indexOrigin.map(Number) : String(indexOrigin).split(",").map(Number);
+        		indexFlowDest = Number(indexFlowDest);
+        		indexFlowOrigin = Number(indexFlowOrigin);
+        		console.log("[moveActionElement] args", {
+        			indexDest,
+        			indexOrigin,
+        			indexFlowDest,
+        			indexFlowOrigin,
+        			targetCardChild,
+        			originCardChildOrigin
+        		});
+        		if (originCardChildOrigin == null || originCardChildOrigin === "") {
         			originCardChildOrigin = ''childrenRefs'';
         		}
-        
-        		let toCard = indexDest[1] != null;
-        		let fromCard = indexOrigin[1] != null;
-        
-        		const elemToMoveId = fromCard
-        			? this.form.flows[indexFlowOrigin].elements[indexOrigin[0]][originCardChildOrigin]?.[indexOrigin[1]]
-        			: this.form.flows[indexFlowOrigin].elements[indexOrigin[0]]["id"];
-        		const elemToMove = this.form.flows[indexFlowOrigin].elements.find(item => item["id"] === elemToMoveId);
-        		if (!elemToMove) {
-        			console.error("Élément à déplacer introuvable.");
+        		if (targetCardChild == null || targetCardChild === "") {
+        			targetCardChild = ''childrenRefs'';
+        		}
+        		if (
+        			!Number.isFinite(indexFlowDest) ||
+        			!Number.isFinite(indexFlowOrigin) ||
+        			!this.form?.flows?.[indexFlowDest]?.elements ||
+        			!this.form?.flows?.[indexFlowOrigin]?.elements ||
+        			!Number.isFinite(indexDest[0]) ||
+        			!Number.isFinite(indexOrigin[0])
+        		) {
+        			console.error("[moveActionElement] invalid indexes", {
+        				indexDest,
+        				indexOrigin,
+        				indexFlowDest,
+        				indexFlowOrigin,
+        				flowsLength: this.form?.flows?.length
+        			});
         			return;
         		}
         
-        		const destinationParentId = toCard ? this.form.flows[indexFlowDest].elements[indexDest[0]]["id"] : null;
+        		const originElements = this.form.flows[indexFlowOrigin].elements;
+        		const destinationElements = this.form.flows[indexFlowDest].elements;
+        		const originRoot = originElements[indexOrigin[0]];
+        		if (!originRoot) {
+        			console.error("[moveActionElement] origin root undefined", {
+        				indexFlowOrigin,
+        				indexOrigin,
+        				elementsLength: originElements?.length
+        			});
+        			return;
+        		}
         
+        		let toCard = indexDest[1] != null && Number.isFinite(indexDest[1]);
+        		let fromCard = indexOrigin[1] != null && Number.isFinite(indexOrigin[1]);
+        		const destinationRoot = toCard ? destinationElements[indexDest[0]] : null;
+        		if (toCard && !destinationRoot) {
+        			console.error("[moveActionElement] destination root undefined", {
+        				indexFlowDest,
+        				indexDest,
+        				elementsLength: destinationElements?.length
+        			});
+        			return;
+        		}
         
+        		const rawElemToMoveId = fromCard
+        			? originRoot?.[originCardChildOrigin]?.[indexOrigin[1]]
+        			: originRoot?.id;
+        		const elemToMoveId = normalizeRefId(rawElemToMoveId);
+        		if (elemToMoveId == null) {
+        			console.error("[moveActionElement] element id to move is missing", {
+        				fromCard,
+        				originCardChildOrigin,
+        				indexOrigin,
+        				originRoot
+        			});
+        			return;
+        		}
+        		const elemToMove = originElements.find(item => "" + item["id"] === "" + elemToMoveId);
+        		if (!elemToMove) {
+        			console.error("[moveActionElement] element to move not found", {
+        				elemToMoveId,
+        				indexFlowOrigin,
+        				indexOrigin
+        			});
+        			return;
+        		}
+        
+        		const destinationParentId = toCard ? normalizeRefId(destinationRoot?.id) : null;
         		const destinationList = toCard
-        			? (this.form.flows[indexFlowDest].elements[indexDest[0]][targetCardChild] || []).map(refId => this.form.flows[indexFlowDest].elements.find(item => item["id"] === refId))
-        			: this.form.flows[indexFlowDest].elements;
+        			? (Array.isArray(destinationRoot?.[targetCardChild]) ? destinationRoot[targetCardChild] : []).map((ref: any) => {
+        				const refId = normalizeRefId(ref);
+        				return destinationElements.find(item => "" + item["id"] === "" + refId);
+        			})
+        			: destinationElements;
         
-        		const nameExists = destinationList.some(item => item && item.name === elemToMove["name"] && item.id !== elemToMoveId);
+        		console.log("[moveActionElement] resolved context", {
+        			elemToMoveId,
+        			destinationParentId,
+        			fromCard,
+        			toCard,
+        			originFlowId: this.form.flows[indexFlowOrigin]?.name || indexFlowOrigin,
+        			destinationFlowId: this.form.flows[indexFlowDest]?.name || indexFlowDest
+        		});
+        
+        		const nameExists = destinationList.some(item => item && item.name === elemToMove["name"] && "" + item.id !== "" + elemToMoveId);
         		if (nameExists) {
         			this.getTranslate("nameAlreadyexitsTarget").then((res: any) => {
         				this.showToast(res);
@@ -2108,38 +2184,43 @@ scriptContent:
         					continue;
         				}
         				for (let childRef of element[key]) {
-        					const childId = typeof childRef == "object" ? childRef.id : childRef;
+        					const childId = normalizeRefId(childRef);
         					if (childId == null || childIds.has("" + childId)) {
         						continue;
         					}
         					childIds.add("" + childId);
-        					const childElement = this.form.flows[indexFlowOrigin].elements.find(item => "" + item["id"] === "" + childId);
+        					const childElement = originElements.find(item => "" + item["id"] === "" + childId);
         					collectChildIds(childElement);
         				}
         			}
         		};
+        		const oldParentRef = normalizeRefId(elemToMove[''parentRef'']);
+        		const oldParent = (fromCard || oldParentRef != null)
+        			? originElements.find(item => "" + item[''id''] === "" + oldParentRef)
+        			: null;
+        		console.log("[moveActionElement] parent context", {
+        			oldParentRef,
+        			oldParentId: oldParent?.id
+        		});
         		collectChildIds(elemToMove);
-        		const elementsToMove = [elemToMove, ...this.form.flows[indexFlowOrigin].elements.filter(item => childIds.has("" + item[''id'']))];
+        		const elementsToMove = [elemToMove, ...originElements.filter(item => childIds.has("" + item[''id'']))];
         		const originalParentRefs = new Map(elementsToMove.map(element => ["" + element["id"], element["parentRef"]]));
-        		const mainIndexRemoved = this.form.flows[indexFlowOrigin].elements.findIndex(item => item[''id''] === elemToMoveId);
+        		const mainIndexRemoved = originElements.findIndex(item => "" + item[''id''] === "" + elemToMoveId);
         
         		let indexRemoved = mainIndexRemoved;
         		elementsToMove.forEach(element => {
-        			const indexToRemove = this.form.flows[indexFlowOrigin].elements.findIndex(item => item[''id''] === element[''id'']);
+        			const indexToRemove = originElements.findIndex(item => "" + item[''id''] === "" + element[''id'']);
         			if (indexToRemove > -1) {
-        				this.form.flows[indexFlowOrigin].elements.splice(indexToRemove, 1);
+        				originElements.splice(indexToRemove, 1);
         			}
         		});
         
-        
-        		const oldParentRef = elemToMove[''parentRef''];
         		if (fromCard || oldParentRef != null) {
-        			const oldParent = this.form.flows[indexFlowOrigin].elements.find(item => item[''id''] == oldParentRef);
         			const refKeysToDetach = [originCardChildOrigin, ...refKeys].filter((key, index, keys) => key != null && key !== "" && keys.indexOf(key) === index);
         			for (let key of refKeysToDetach) {
         				if (oldParent && Array.isArray(oldParent[key])) {
         					const oldIndex = oldParent[key].findIndex((ref: any) => {
-        						const refId = typeof ref == "object" ? ref?.id : ref;
+        						const refId = normalizeRefId(ref);
         						return "" + refId === "" + elemToMoveId;
         					});
         					if (oldIndex > -1) {
@@ -2150,22 +2231,20 @@ scriptContent:
         			}
         		}
         
-        
         		elementsToMove.forEach(element => {
-        			if (element[''id''] === elemToMoveId) {
+        			if ("" + element[''id''] === "" + elemToMoveId) {
         				element["parentRef"] = destinationParentId;
         			} else {
         				element["parentRef"] = originalParentRefs.get("" + element["id"]) ?? elemToMoveId;
         			}
         		});
         
-        
         		if (toCard) {
         			const sameCardList = fromCard && indexFlowDest == indexFlowOrigin && indexDest[0] == indexOrigin[0] && targetCardChild == originCardChildOrigin;
         			if (sameCardList && indexDest[1] > indexOrigin[1]) {
         				indexDest[1]--;
         			}
-        			const newParent = this.form.flows[indexFlowDest].elements.find(item => item[''id''] === destinationParentId);
+        			const newParent = destinationElements.find(item => "" + item[''id''] === "" + destinationParentId);
         			if (!newParent) {
         				console.error("Nouveau parent introuvable.");
         				return;
@@ -2175,15 +2254,17 @@ scriptContent:
         			}
         			newParent[targetCardChild].splice(indexDest[1], 0, elemToMoveId);
         
-        			const parentIndex = this.form.flows[indexFlowDest].elements.findIndex(item => item[''id''] === newParent[''id'']);
+        			const parentIndex = destinationElements.findIndex(item => "" + item[''id''] === "" + newParent[''id'']);
         			if (parentIndex > -1) {
         				let insertIndex = parentIndex + 1;
         				if (indexDest[1] > 0) {
-        					const prevChildId = newParent[targetCardChild][indexDest[1] - 1];
-        					const prevChildIndex = this.form.flows[indexFlowDest].elements.findIndex(item => item[''id''] === prevChildId);
-        					insertIndex = prevChildIndex + 1;
+        					const prevChildId = normalizeRefId(newParent[targetCardChild][indexDest[1] - 1]);
+        					const prevChildIndex = destinationElements.findIndex(item => "" + item[''id''] === "" + prevChildId);
+        					if (prevChildIndex > -1) {
+        						insertIndex = prevChildIndex + 1;
+        					}
         				}
-        				this.form.flows[indexFlowDest].elements.splice(insertIndex, 0, ...elementsToMove);
+        				destinationElements.splice(insertIndex, 0, ...elementsToMove);
         			} else {
         				console.error("Nouveau parent introuvable dans formsList.");
         				return;
@@ -2193,7 +2274,7 @@ scriptContent:
         			if (indexFlowDest == indexFlowOrigin && indexRemoved < indexDest[0]) {
         				insertIndex--;
         			}
-        			this.form.flows[indexFlowDest].elements.splice(insertIndex, 0, ...elementsToMove);
+        			destinationElements.splice(insertIndex, 0, ...elementsToMove);
         		}
         
         		//elemToMove["config"].page = this.local.currentPage;
@@ -41228,16 +41309,45 @@ title: Title for editor
                                           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                             →: |
-                                              '	    this.c8o.log.debug("dragstart at level0, index of target to move is "+vars.index);
+                                              '	    const originFlowIndex = Number(page.local.currentIndex);
+                                                      const originElements = page.form?.flows?.[originFlowIndex]?.elements ?? [];
+                                                      const originElementId = String(vars.item?.id ?? "");
+                                                      const realOriginIndex = originElements.findIndex((element: any) => {
+                                                      	return String(element?.id) === originElementId;
+                                                      });
+                                                      if (realOriginIndex === -1) {
+                                                      	console.error("[dragstart] origin element index not found", {
+                                                      		originFlowIndex,
+                                                      		originElementId,
+                                                      		item: vars.item
+                                                      	});
+                                                      	event.preventDefault();
+                                                      	event.stopPropagation();
+                                                      	resolve();
+                                                      	return;
+                                                      }
+                                                      console.log("[dragstart] moved flow element", {
+                                                      	originFlowIndex,
+                                                      	originElementId,
+                                                      	realOriginIndex,
+                                                      	itemType: vars.item?.type,
+                                                      	itemName: vars.item?.name
+                                                      });
+                                                      this.c8o.log.debug("dragstart at level0, index of target to move is "+realOriginIndex);
                                                       event.dataTransfer.setData("__c8oformsdragactions", true);
                                               		event.dataTransfer.setData(vars.item.type, true);
                                                       event.dataTransfer.setData("origin", "moved");
-                                                      event.dataTransfer.setData("index", vars.index);
+                                                      event.dataTransfer.setData("index", String(realOriginIndex));
                                                       page.local.draggingOrigin = "moved";
-                                                      page.local.draggingOriginIndex = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((entry) => Number(entry));
+                                                      page.local.draggingOriginIndex = [realOriginIndex];
+                                                      page.local.flow = true;
                                                       page.local.draggingActions = true;
                                                       page.ref.detectChanges();
                                                       event.dataTransfer.setData("dropEffect", "copy");
+                                                      event.dataTransfer.setData("originFlowIndex", String(originFlowIndex));
+                                                      event.dataTransfer.setData("indexOriginFlow", String(originFlowIndex));
+                                                      event.dataTransfer.setData("indexoriginflow", String(originFlowIndex));
+                                                      event.dataTransfer.setData("originElementId", originElementId);
                                                       resolve();
                                               '
                                       ↓index [ngx.components.UIControlVariable-1650357061919]: 
@@ -44945,36 +45055,23 @@ title: Title for editor
                                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                               →: |
-                                                '		if (vars.item?.parentRef == null) {
-                                                			page.local.draggingType = vars.item.type;
-                                                		    this.c8o.log.debug("dragstart at level0, index of target to move is "+vars.index);
-                                                	        event.dataTransfer.setData("__c8oformsdragactions", true);
-                                                			event.dataTransfer.setData(vars.item.type, true);
-                                                	        event.dataTransfer.setData("origin", "moved");
-                                                	        event.dataTransfer.setData("index", vars.index);
-                                                	        page.local.draggingOrigin = "moved";
-                                                	        page.local.draggingOriginIndex = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((entry) => Number(entry));
-                                                	        page.local.draggingActions = true;
-                                                	        page.ref.detectChanges();
-                                                	        event.dataTransfer.setData("dropEffect", "copy");
-                                                			event.dataTransfer.setData("indexOriginFlow", page.local.currentIndex);
-                                                	        resolve();
-                                                			return;
-                                                		}
-                                                		const normalizeDragIndex = (index: any): Array<number> => {
-                                                			if (Array.isArray(index)) {
-                                                				return index.map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
-                                                			}
-                                                			return String(index).split(",").map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
-                                                		};
-                                                		let dragIndex = normalizeDragIndex(vars.index);
+                                                '		const originFlowIndex = Number(page.local.currentIndex);
+                                                		const originElements = page.form?.flows?.[originFlowIndex]?.elements ?? [];
+                                                		const originElementId = String(vars.item?.id ?? "");
+                                                		let realOriginIndex: Array<number> = [];
                                                 		let originCardChildOrigin = "childrenRefs";
-                                                		const flowIndex = Number(page.local.currentIndex);
-                                                		const flowElements = page.form?.flows?.[flowIndex]?.elements;
-                                                		if (vars.item?.parentRef != null && Array.isArray(flowElements)) {
-                                                			const parentIndex = flowElements.findIndex((element: any) => element?.id == vars.item.parentRef);
+                                                		const rootIndex = originElements.findIndex((element: any) => {
+                                                			return String(element?.id) === originElementId;
+                                                		});
+                                                		if (rootIndex > -1) {
+                                                			realOriginIndex = [rootIndex];
+                                                		}
+                                                		else if (vars.item?.parentRef != null && Array.isArray(originElements)) {
+                                                			const parentIndex = originElements.findIndex((element: any) => {
+                                                				return "" + element?.id === "" + vars.item.parentRef;
+                                                			});
                                                 			if (parentIndex > -1) {
-                                                				const parent = flowElements[parentIndex];
+                                                				const parent = originElements[parentIndex];
                                                 				for (let refKey of ["childrenRefs", "childrenRefsElse"]) {
                                                 					const refs = parent?.[refKey];
                                                 					if (!Array.isArray(refs)) {
@@ -44982,34 +45079,54 @@ title: Title for editor
                                                 					}
                                                 					const childIndex = refs.findIndex((ref: any) => {
                                                 						const refId = typeof ref == "object" ? ref?.id : ref;
-                                                						return "" + refId === "" + vars.item.id;
+                                                						return "" + refId === originElementId;
                                                 					});
                                                 					if (childIndex > -1) {
-                                                						dragIndex = [parentIndex, childIndex];
+                                                						realOriginIndex = [parentIndex, childIndex];
                                                 						originCardChildOrigin = refKey;
                                                 						break;
                                                 					}
                                                 				}
                                                 			}
                                                 		}
+                                                		if (realOriginIndex.length === 0) {
+                                                			console.error("[dragstart] origin element index not found", {
+                                                				originFlowIndex,
+                                                				originElementId,
+                                                				item: vars.item
+                                                			});
+                                                			event.preventDefault();
+                                                			event.stopPropagation();
+                                                			resolve();
+                                                			return;
+                                                		}
+                                                		console.log("[dragstart] moved flow element", {
+                                                			originFlowIndex,
+                                                			originElementId,
+                                                			realOriginIndex,
+                                                			itemType: vars.item?.type,
+                                                			itemName: vars.item?.name
+                                                		});
                                                 		page.local.draggingType = vars.item.type;
                                                 		page.local.flow = true;
-                                                	    this.c8o.log.debug("dragstart at level0, index of target to move is "+dragIndex);
+                                                		page.local.draggingOrigin = "moved";
+                                                		page.local.draggingOriginIndex = realOriginIndex;
+                                                		page.local.draggingActions = true;
+                                                		page.ref.detectChanges();
+                                                		this.c8o.log.debug("dragstart at level0, index of target to move is "+realOriginIndex);
                                                 		event.stopPropagation();
                                                 		event.dataTransfer.effectAllowed = "copyMove";
                                                         event.dataTransfer.setData("__c8oformsdragactions", true);
                                                 		event.dataTransfer.setData(vars.item.type, true);
                                                 		event.dataTransfer.setData("type", vars.item.type);
                                                         event.dataTransfer.setData("origin", "moved");
-                                                        event.dataTransfer.setData("index", dragIndex.toString());
-                                                		event.dataTransfer.setData("originCardChildOrigin", originCardChildOrigin);
-                                                        page.local.draggingOrigin = "moved";
-                                                        page.local.draggingOriginIndex = dragIndex;
-                                                        page.local.draggingActions = true;
-                                                        page.ref.detectChanges();
+                                                        event.dataTransfer.setData("index", realOriginIndex.toString());
+                                                        event.dataTransfer.setData("originCardChildOrigin", originCardChildOrigin);
+                                                        event.dataTransfer.setData("originElementId", originElementId);
+                                                        event.dataTransfer.setData("originFlowIndex", String(originFlowIndex));
+                                                        event.dataTransfer.setData("indexOriginFlow", String(originFlowIndex));
+                                                        event.dataTransfer.setData("indexoriginflow", String(originFlowIndex));
                                                         event.dataTransfer.setData("dropEffect", "copy");
-                                                		event.dataTransfer.setData("indexOriginFlow", page.local.currentIndex);
-                                                		event.dataTransfer.setData("indexoriginflow", page.local.currentIndex);
                                                 		event.dataTransfer.setData("text/plain", vars.item.name || vars.item.type || "c8oforms-flow-action");
                                                 		event.dataTransfer.dropEffect = "copy";
                                                         resolve();
@@ -45485,240 +45602,249 @@ title: Title for editor
                                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                               →: |
-                                                '		if (vars.item?.parentRef == null) {
-                                                			page.local.draggingType = vars.item.type;
-                                                		    this.c8o.log.debug("dragstart at level0, index of target to move is "+vars.index);
-                                                	        event.dataTransfer.setData("__c8oformsdragactions", "true");
-                                                			event.dataTransfer.setData(vars.item.type, "true");
-                                                	        event.dataTransfer.setData("origin", "moved");
-                                                	        event.dataTransfer.setData("index", vars.index);
-                                                	        page.local.draggingOrigin = "moved";
-                                                	        page.local.draggingOriginIndex = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((entry) => Number(entry));
-                                                	        page.local.draggingActions = true;
-                                                //	        page.ref.detectChanges();
-                                                	        event.dataTransfer.setData("dropEffect", "copy");
-                                                			event.dataTransfer.setData("indexOriginFlow", page.local.currentIndex);
-                                                	        resolve();
-                                                			return;
-                                                		}
-                                                //		const normalizeDragIndex = (index: any): Array<number> => {
-                                                //			if (Array.isArray(index)) {
-                                                //				return index.map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
-                                                //			}
-                                                //			return String(index).split(",").map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
-                                                //		};
-                                                //		let dragIndex = normalizeDragIndex(vars.index);
-                                                //		let originCardChildOrigin = "childrenRefs";
-                                                //		const flowIndex = Number(page.local.currentIndex);
-                                                //		const flowElements = page.form?.flows?.[flowIndex]?.elements;
-                                                //		if (vars.item?.parentRef != null && Array.isArray(flowElements)) {
-                                                //			const parentIndex = flowElements.findIndex((element: any) => element?.id == vars.item.parentRef);
-                                                //			if (parentIndex > -1) {
-                                                //				const parent = flowElements[parentIndex];
-                                                //				for (let refKey of ["childrenRefs", "childrenRefsElse"]) {
-                                                //					const refs = parent?.[refKey];
-                                                //					if (!Array.isArray(refs)) {
-                                                //						continue;
-                                                //					}
-                                                //					const childIndex = refs.findIndex((ref: any) => {
-                                                //						const refId = typeof ref == "object" ? ref?.id : ref;
-                                                //						return "" + refId === "" + vars.item.id;
-                                                //					});
-                                                //					if (childIndex > -1) {
-                                                //						dragIndex = [parentIndex, childIndex];
-                                                //						originCardChildOrigin = refKey;
-                                                //						break;
-                                                //					}
-                                                //				}
-                                                //			}
-                                                //		}
-                                                //		page.local.draggingType = vars.item.type;
-                                                //		page.local.flow = true;
-                                                //	    this.c8o.log.debug("dragstart at level0, index of target to move is "+dragIndex);
-                                                //		event.stopPropagation();
-                                                //		event.dataTransfer.effectAllowed = "copyMove";
-                                                //        event.dataTransfer.setData("__c8oformsdragactions", true);
-                                                //		event.dataTransfer.setData(vars.item.type, true);
-                                                //		event.dataTransfer.setData("type", vars.item.type);
-                                                //        event.dataTransfer.setData("origin", "moved");
-                                                //        event.dataTransfer.setData("index", dragIndex.toString());
-                                                //		event.dataTransfer.setData("originCardChildOrigin", originCardChildOrigin);
-                                                //        page.local.draggingOrigin = "moved";
-                                                //        page.local.draggingOriginIndex = dragIndex;
-                                                //        page.local.draggingActions = true;
-                                                //        page.ref.detectChanges();
-                                                //        event.dataTransfer.setData("dropEffect", "copy");
-                                                //		event.dataTransfer.setData("indexOriginFlow", page.local.currentIndex);
-                                                //		event.dataTransfer.setData("indexoriginflow", page.local.currentIndex);
-                                                //		event.dataTransfer.setData("text/plain", vars.item.name || vars.item.type || "c8oforms-flow-action");
-                                                //		event.dataTransfer.dropEffect = "copy";
-                                                //        resolve();
-                                                
-                                                const normalizeDragIndex = (index: any): Array<number> => {
-                                                	if (Array.isArray(index)) {
-                                                		return index
-                                                			.map((entry) => Number(entry))
-                                                			.filter((entry) => Number.isFinite(entry));
-                                                	}
-                                                
-                                                	return String(index)
-                                                		.split(",")
-                                                		.map((entry) => Number(entry))
-                                                		.filter((entry) => Number.isFinite(entry));
-                                                };
-                                                
-                                                const originFlowIndex = Number.isFinite(Number(vars.flowIndex))
-                                                	? Number(vars.flowIndex)
-                                                	: Number(page.local.currentIndex);
-                                                
-                                                const flowElements = page.form?.flows?.[originFlowIndex]?.elements;
-                                                
-                                                if (!Array.isArray(flowElements)) {
-                                                	console.warn("[DnD flow dragstart] invalid origin flow", {
-                                                		varsFlowIndex: vars.flowIndex,
-                                                		currentIndex: page.local.currentIndex,
-                                                		originFlowIndex,
-                                                		item: vars.item
-                                                	});
-                                                
-                                                	event.preventDefault();
-                                                	resolve();
-                                                	return;
-                                                }
-                                                
-                                                const getRealActionIndexInFlow = (item: any): Array<number> => {
-                                                	if (item == null) {
-                                                		return [];
-                                                	}
-                                                
-                                                	const rootIndex = flowElements.findIndex((element: any) => {
-                                                		return "" + element?.id === "" + item?.id;
-                                                	});
-                                                
-                                                	if (rootIndex > -1) {
-                                                		return [rootIndex];
-                                                	}
-                                                
-                                                	if (item?.parentRef != null) {
-                                                		const parentIndex = flowElements.findIndex((element: any) => {
-                                                			return "" + element?.id === "" + item.parentRef;
+                                                '		console.log(vars)
+                                                		const originFlowIndex = Number(page.local.currentIndex);
+                                                		const originElements = page.form?.flows?.[originFlowIndex]?.elements ?? [];
+                                                		const originElementId = String(vars.item?.id ?? "");
+                                                		let realOriginIndex: Array<number> = [];
+                                                		let originCardChildOrigin = "childrenRefs";
+                                                		const rootIndex = originElements.findIndex((element: any) => {
+                                                			return String(element?.id) === originElementId;
                                                 		});
-                                                
-                                                		if (parentIndex > -1) {
-                                                			const parent = flowElements[parentIndex];
-                                                
-                                                			for (const refKey of ["childrenRefs", "childrenRefsElse"]) {
-                                                				const refs = parent?.[refKey];
-                                                
-                                                				if (!Array.isArray(refs)) {
-                                                					continue;
-                                                				}
-                                                
-                                                				const childIndex = refs.findIndex((ref: any) => {
-                                                					const refId = typeof ref === "object" ? ref?.id : ref;
-                                                					return "" + refId === "" + item.id;
-                                                				});
-                                                
-                                                				if (childIndex > -1) {
-                                                					return [parentIndex, childIndex];
+                                                		if (rootIndex > -1) {
+                                                			realOriginIndex = [rootIndex];
+                                                		}
+                                                		else if (vars.item?.parentRef != null && Array.isArray(originElements)) {
+                                                			const parentIndex = originElements.findIndex((element: any) => {
+                                                				return "" + element?.id === "" + vars.item.parentRef;
+                                                			});
+                                                			if (parentIndex > -1) {
+                                                				const parent = originElements[parentIndex];
+                                                				for (let refKey of ["childrenRefs", "childrenRefsElse"]) {
+                                                					const refs = parent?.[refKey];
+                                                					if (!Array.isArray(refs)) {
+                                                						continue;
+                                                					}
+                                                					const childIndex = refs.findIndex((ref: any) => {
+                                                						const refId = typeof ref == "object" ? ref?.id : ref;
+                                                						return "" + refId === originElementId;
+                                                					});
+                                                					if (childIndex > -1) {
+                                                						realOriginIndex = [parentIndex, childIndex];
+                                                						originCardChildOrigin = refKey;
+                                                						break;
+                                                					}
                                                 				}
                                                 			}
                                                 		}
-                                                	}
-                                                
-                                                	return [];
-                                                };
-                                                
-                                                const getOriginCardChildOrigin = (item: any): string => {
-                                                	if (item?.parentRef == null) {
-                                                		return "childrenRefs";
-                                                	}
-                                                
-                                                	const parentIndex = flowElements.findIndex((element: any) => {
-                                                		return "" + element?.id === "" + item.parentRef;
-                                                	});
-                                                
-                                                	if (parentIndex < 0) {
-                                                		return "childrenRefs";
-                                                	}
-                                                
-                                                	const parent = flowElements[parentIndex];
-                                                
-                                                	for (const refKey of ["childrenRefs", "childrenRefsElse"]) {
-                                                		const refs = parent?.[refKey];
-                                                
-                                                		if (!Array.isArray(refs)) {
-                                                			continue;
+                                                		if (realOriginIndex.length === 0) {
+                                                			console.error("[dragstart] origin element index not found", {
+                                                				originFlowIndex,
+                                                				originElementId,
+                                                				item: vars.item
+                                                			});
+                                                			event.preventDefault();
+                                                			event.stopPropagation();
+                                                			resolve();
+                                                			return;
                                                 		}
-                                                
-                                                		const childIndex = refs.findIndex((ref: any) => {
-                                                			const refId = typeof ref === "object" ? ref?.id : ref;
-                                                			return "" + refId === "" + item.id;
+                                                		console.log("[dragstart] moved flow element", {
+                                                			originFlowIndex,
+                                                			originElementId,
+                                                			realOriginIndex,
+                                                			itemType: vars.item?.type,
+                                                			itemName: vars.item?.name
                                                 		});
-                                                
-                                                		if (childIndex > -1) {
-                                                			return refKey;
-                                                		}
-                                                	}
-                                                
-                                                	return "childrenRefs";
-                                                };
-                                                
-                                                const realIndex = getRealActionIndexInFlow(vars.item);
-                                                const fallbackIndex = normalizeDragIndex(vars.index);
-                                                const finalDragIndex = realIndex.length > 0 ? realIndex : fallbackIndex;
-                                                
-                                                if (finalDragIndex.length === 0) {
-                                                	console.warn("[DnD flow dragstart] unable to resolve source index", {
-                                                		item: vars.item,
-                                                		varsIndex: vars.index,
-                                                		originFlowIndex
-                                                	});
-                                                
-                                                	event.preventDefault();
-                                                	resolve();
-                                                	return;
-                                                }
-                                                
-                                                const originCardChildOrigin = getOriginCardChildOrigin(vars.item);
-                                                
-                                                page.local.draggingType = vars.item?.type;
-                                                page.local.flow = true;
-                                                page.local.draggingOrigin = "moved";
-                                                page.local.draggingOriginIndex = finalDragIndex;
-                                                page.local.draggingActions = true;
-                                                
-                                                event.stopPropagation();
-                                                
-                                                event.dataTransfer.effectAllowed = "copyMove";
-                                                event.dataTransfer.dropEffect = "copy";
-                                                
-                                                event.dataTransfer.setData("__c8oformsdragactions", "true");
-                                                event.dataTransfer.setData(vars.item.type, "true");
-                                                event.dataTransfer.setData("type", vars.item.type || "");
-                                                event.dataTransfer.setData("origin", "moved");
-                                                event.dataTransfer.setData("index", finalDragIndex.toString());
-                                                event.dataTransfer.setData("originFlowIndex", String(originFlowIndex));
-                                                event.dataTransfer.setData("indexOriginFlow", String(originFlowIndex));
-                                                event.dataTransfer.setData("indexoriginflow", String(originFlowIndex));
-                                                event.dataTransfer.setData("originCardChildOrigin", originCardChildOrigin);
-                                                event.dataTransfer.setData("dropEffect", "copy");
-                                                event.dataTransfer.setData("text/plain", vars.item.name || vars.item.type || "c8oforms-flow-action");
-                                                
-                                                console.log("[DnD flow dragstart]", {
-                                                	itemId: vars.item?.id,
-                                                	itemName: vars.item?.name,
-                                                	itemType: vars.item?.type,
-                                                	varsIndex: vars.index,
-                                                	originFlowIndex,
-                                                	finalDragIndex,
-                                                	originCardChildOrigin,
-                                                	currentIndexAtDragStart: page.local.currentIndex
-                                                });
-                                                
-                                                page.ref.detectChanges();
-                                                
-                                                resolve();
+                                                		page.local.draggingType = vars.item.type;
+                                                		page.local.flow = true;
+                                                		page.local.draggingOrigin = "moved";
+                                                		page.local.draggingOriginIndex = realOriginIndex;
+                                                		page.local.draggingActions = true;
+                                                		page.ref.detectChanges();
+                                                		this.c8o.log.debug("dragstart at level0, index of target to move is "+realOriginIndex);
+                                                		event.stopPropagation();
+                                                		event.dataTransfer.effectAllowed = "copyMove";
+                                                        event.dataTransfer.setData("__c8oformsdragactions", true);
+                                                		event.dataTransfer.setData(vars.item.type, true);
+                                                		event.dataTransfer.setData("type", vars.item.type);
+                                                        event.dataTransfer.setData("origin", "moved");
+                                                        event.dataTransfer.setData("index", realOriginIndex.toString());
+                                                        event.dataTransfer.setData("originCardChildOrigin", originCardChildOrigin);
+                                                        event.dataTransfer.setData("originElementId", originElementId);
+                                                        event.dataTransfer.setData("originFlowIndex", String(originFlowIndex));
+                                                        event.dataTransfer.setData("indexOriginFlow", String(originFlowIndex));
+                                                        event.dataTransfer.setData("indexoriginflow", String(originFlowIndex));
+                                                        event.dataTransfer.setData("dropEffect", "copy");
+                                                		event.dataTransfer.setData("text/plain", vars.item.name || vars.item.type || "c8oforms-flow-action");
+                                                		event.dataTransfer.dropEffect = "copy";
+                                                        resolve();
+                                                //
+                                                //const normalizeDragIndex = (index: any): Array<number> => {
+                                                //	if (Array.isArray(index)) {
+                                                //		return index
+                                                //			.map((entry) => Number(entry))
+                                                //			.filter((entry) => Number.isFinite(entry));
+                                                //	}
+                                                //
+                                                //	return String(index)
+                                                //		.split(",")
+                                                //		.map((entry) => Number(entry))
+                                                //		.filter((entry) => Number.isFinite(entry));
+                                                //};
+                                                //
+                                                //const originFlowIndex = Number.isFinite(Number(vars.flowIndex))
+                                                //	? Number(vars.flowIndex)
+                                                //	: Number(page.local.currentIndex);
+                                                //
+                                                //const flowElements = page.form?.flows?.[originFlowIndex]?.elements;
+                                                //
+                                                //if (!Array.isArray(flowElements)) {
+                                                //	console.warn("[DnD flow dragstart] invalid origin flow", {
+                                                //		varsFlowIndex: vars.flowIndex,
+                                                //		currentIndex: page.local.currentIndex,
+                                                //		originFlowIndex,
+                                                //		item: vars.item
+                                                //	});
+                                                //
+                                                //	event.preventDefault();
+                                                //	resolve();
+                                                //	return;
+                                                //}
+                                                //
+                                                //const getRealActionIndexInFlow = (item: any): Array<number> => {
+                                                //	if (item == null) {
+                                                //		return [];
+                                                //	}
+                                                //
+                                                //	const rootIndex = flowElements.findIndex((element: any) => {
+                                                //		return "" + element?.id === "" + item?.id;
+                                                //	});
+                                                //
+                                                //	if (rootIndex > -1) {
+                                                //		return [rootIndex];
+                                                //	}
+                                                //
+                                                //	if (item?.parentRef != null) {
+                                                //		const parentIndex = flowElements.findIndex((element: any) => {
+                                                //			return "" + element?.id === "" + item.parentRef;
+                                                //		});
+                                                //
+                                                //		if (parentIndex > -1) {
+                                                //			const parent = flowElements[parentIndex];
+                                                //
+                                                //			for (const refKey of ["childrenRefs", "childrenRefsElse"]) {
+                                                //				const refs = parent?.[refKey];
+                                                //
+                                                //				if (!Array.isArray(refs)) {
+                                                //					continue;
+                                                //				}
+                                                //
+                                                //				const childIndex = refs.findIndex((ref: any) => {
+                                                //					const refId = typeof ref === "object" ? ref?.id : ref;
+                                                //					return "" + refId === "" + item.id;
+                                                //				});
+                                                //
+                                                //				if (childIndex > -1) {
+                                                //					return [parentIndex, childIndex];
+                                                //				}
+                                                //			}
+                                                //		}
+                                                //	}
+                                                //
+                                                //	return [];
+                                                //};
+                                                //
+                                                //const getOriginCardChildOrigin = (item: any): string => {
+                                                //	if (item?.parentRef == null) {
+                                                //		return "childrenRefs";
+                                                //	}
+                                                //
+                                                //	const parentIndex = flowElements.findIndex((element: any) => {
+                                                //		return "" + element?.id === "" + item.parentRef;
+                                                //	});
+                                                //
+                                                //	if (parentIndex < 0) {
+                                                //		return "childrenRefs";
+                                                //	}
+                                                //
+                                                //	const parent = flowElements[parentIndex];
+                                                //
+                                                //	for (const refKey of ["childrenRefs", "childrenRefsElse"]) {
+                                                //		const refs = parent?.[refKey];
+                                                //
+                                                //		if (!Array.isArray(refs)) {
+                                                //			continue;
+                                                //		}
+                                                //
+                                                //		const childIndex = refs.findIndex((ref: any) => {
+                                                //			const refId = typeof ref === "object" ? ref?.id : ref;
+                                                //			return "" + refId === "" + item.id;
+                                                //		});
+                                                //
+                                                //		if (childIndex > -1) {
+                                                //			return refKey;
+                                                //		}
+                                                //	}
+                                                //
+                                                //	return "childrenRefs";
+                                                //};
+                                                //
+                                                //const realIndex = getRealActionIndexInFlow(vars.item);
+                                                //const fallbackIndex = normalizeDragIndex(vars.index);
+                                                //const finalDragIndex = realIndex.length > 0 ? realIndex : fallbackIndex;
+                                                //
+                                                //if (finalDragIndex.length === 0) {
+                                                //	console.warn("[DnD flow dragstart] unable to resolve source index", {
+                                                //		item: vars.item,
+                                                //		varsIndex: vars.index,
+                                                //		originFlowIndex
+                                                //	});
+                                                //
+                                                //	event.preventDefault();
+                                                //	resolve();
+                                                //	return;
+                                                //}
+                                                //
+                                                //const originCardChildOrigin = getOriginCardChildOrigin(vars.item);
+                                                //
+                                                //page.local.draggingType = vars.item?.type;
+                                                //page.local.flow = true;
+                                                //page.local.draggingOrigin = "moved";
+                                                //page.local.draggingOriginIndex = finalDragIndex;
+                                                //page.local.draggingActions = true;
+                                                //
+                                                //event.stopPropagation();
+                                                //
+                                                //event.dataTransfer.effectAllowed = "copyMove";
+                                                //event.dataTransfer.dropEffect = "copy";
+                                                //
+                                                //event.dataTransfer.setData("__c8oformsdragactions", "true");
+                                                //event.dataTransfer.setData(vars.item.type, "true");
+                                                //event.dataTransfer.setData("type", vars.item.type || "");
+                                                //event.dataTransfer.setData("origin", "moved");
+                                                //event.dataTransfer.setData("index", finalDragIndex.toString());
+                                                //event.dataTransfer.setData("originFlowIndex", String(originFlowIndex));
+                                                //event.dataTransfer.setData("indexOriginFlow", String(originFlowIndex));
+                                                //event.dataTransfer.setData("indexoriginflow", String(originFlowIndex));
+                                                //event.dataTransfer.setData("originElementId", String(vars.item?.id ?? ""));
+                                                //event.dataTransfer.setData("originCardChildOrigin", originCardChildOrigin);
+                                                //event.dataTransfer.setData("dropEffect", "copy");
+                                                //event.dataTransfer.setData("text/plain", vars.item.name || vars.item.type || "c8oforms-flow-action");
+                                                //
+                                                //console.log("[DnD flow dragstart]", {
+                                                //	itemId: vars.item?.id,
+                                                //	itemName: vars.item?.name,
+                                                //	itemType: vars.item?.type,
+                                                //	varsIndex: vars.index,
+                                                //	originFlowIndex,
+                                                //	finalDragIndex,
+                                                //	originCardChildOrigin,
+                                                //	currentIndexAtDragStart: page.local.currentIndex
+                                                //});
+                                                //
+                                                //page.ref.detectChanges();
+                                                //
+                                                //resolve();
                                                 '
                                         ↓index [ngx.components.UIControlVariable-1741109899018]: 
                                           varValue: 

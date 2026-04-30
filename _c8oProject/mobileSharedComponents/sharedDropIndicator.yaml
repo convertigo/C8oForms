@@ -322,11 +322,89 @@ scriptContent:
                 				catch(e){
                 					console.log("error datatransfert", e);
                 				}
+                				const normalizeRefId = (ref: any) => typeof ref === "object" ? ref?.id : ref;
+                				const resolveFlowOriginContext = () => {
+                					const rawOriginFlowIndex =
+                						event.dataTransfer.getData("indexoriginflow") ||
+                						event.dataTransfer.getData("indexOriginFlow") ||
+                						event.dataTransfer.getData("originFlowIndex");
+                					const originFlowIndex = Number(rawOriginFlowIndex);
+                					const originElementId = String(event.dataTransfer.getData("originElementId") || "");
+                					const rawIndex = event.dataTransfer.getData("index");
+                					let arrayOrigin: Array<number> = rawIndex != null && rawIndex !== "" ? rawIndex.split(",").map((e)=>{return +e}) : [];
+                					let resolvedOriginCardChildOrigin = event.dataTransfer.getData("originCardChildOrigin") != null && event.dataTransfer.getData("originCardChildOrigin") != '''' ? event.dataTransfer.getData("originCardChildOrigin") : "childrenRefs";
+                					if (!Number.isFinite(originFlowIndex)) {
+                						console.error("[drop] invalid origin flow index", {
+                							rawOriginFlowIndex,
+                							currentIndex: page.local.currentIndex,
+                							index: rawIndex,
+                							origin: event.dataTransfer.getData("origin"),
+                							type: event.dataTransfer.getData("type"),
+                							types: Array.from(event.dataTransfer.types || [])
+                						});
+                						return null;
+                					}
+                					if ((!Array.isArray(arrayOrigin) || !Number.isFinite(arrayOrigin[0])) && originElementId !== "") {
+                						const sourceElements = (page.form as any)?.flows?.[originFlowIndex]?.elements;
+                						if (Array.isArray(sourceElements)) {
+                							const rootIndex = sourceElements.findIndex((element: any) => {
+                								return "" + element?.id === originElementId;
+                							});
+                							if (rootIndex > -1) {
+                								arrayOrigin = [rootIndex];
+                								console.warn("[drop] recovered origin index from originElementId", {
+                									originElementId,
+                									sourceFlowIndex: originFlowIndex,
+                									arrayOrigin
+                								});
+                							}
+                							else {
+                								outerLoop:
+                								for (let parentIndex = 0; parentIndex < sourceElements.length; parentIndex++) {
+                									const parent = sourceElements[parentIndex];
+                									for (let refKey of ["childrenRefs", "childrenRefsElse"]) {
+                										const refs = parent?.[refKey];
+                										if (!Array.isArray(refs)) {
+                											continue;
+                										}
+                										const childIndex = refs.findIndex((ref: any) => {
+                											const refId = normalizeRefId(ref);
+                											return "" + refId === originElementId;
+                										});
+                										if (childIndex > -1) {
+                											arrayOrigin = [parentIndex, childIndex];
+                											resolvedOriginCardChildOrigin = refKey;
+                											console.warn("[drop] recovered origin index from originElementId", {
+                												originElementId,
+                												sourceFlowIndex: originFlowIndex,
+                												arrayOrigin
+                											});
+                											break outerLoop;
+                										}
+                									}
+                								}
+                							}
+                						}
+                					}
+                					if (!Array.isArray(arrayOrigin) || !Number.isFinite(arrayOrigin[0])) {
+                						console.error("[drop] invalid origin index", {
+                							rawIndex,
+                							originElementId,
+                							originFlowIndex,
+                							currentIndex: page.local.currentIndex
+                						});
+                						return null;
+                					}
+                					return {
+                						arrayOrigin,
+                						originElementId,
+                						originFlowIndex,
+                						originCardChildOrigin: resolvedOriginCardChildOrigin
+                					};
+                				};
                 				// within a foor_loop or if_else
                 				if(vars.card){
                 					event.preventDefault();
-                					// get origin coordinates
-                					var arrayOrigin: Array<number> = event.dataTransfer.getData("index").split(",").map((e)=>{return +e});
                 					// get destination coordinates
                 					var arrayDestination: Array<number> = vars.index;
                 					const TypeOrigin = event.dataTransfer.getData("origin");
@@ -344,15 +422,29 @@ scriptContent:
                 							page["addElement"](event.dataTransfer.getData("type"), arrayDestination, false, false, true, vars.targetCardChild, elems);
                 						break;
                 						case "moved":
-                							vars.originFlowIndex = +event.dataTransfer.getData("indexoriginflow");
-                							page["moveActionElement"](arrayDestination, arrayOrigin, page.local.currentIndex, Number.isFinite(vars.originFlowIndex) ? vars.originFlowIndex : page.local.currentIndex, vars.targetCardChild, vars.originCardChildOrigin);
+                							const originContext = resolveFlowOriginContext();
+                							if (originContext == null) {
+                								resolve();
+                								return;
+                							}
+                							var arrayOrigin: Array<number> = originContext.arrayOrigin;
+                							vars.originFlowIndex = originContext.originFlowIndex;
+                							vars.originCardChildOrigin = originContext.originCardChildOrigin;
+                							console.log("[drop] moveActionElement", {
+                								arrayOrigin,
+                								arrayDestination,
+                								destinationFlowIndex: page.local.currentIndex,
+                								originFlowIndex: vars.originFlowIndex,
+                								originElementId: originContext.originElementId,
+                								targetCardChild: vars.targetCardChild,
+                								originCardChildOrigin: vars.originCardChildOrigin
+                							});
+                							page["moveActionElement"](arrayDestination, arrayOrigin, page.local.currentIndex, vars.originFlowIndex, vars.targetCardChild, vars.originCardChildOrigin);
                 						break;
                 					}
                 				}
                 				else{
                 					event.preventDefault();
-                					// get origin coordinates
-                					var arrayOrigin: Array<number> = event.dataTransfer.getData("index").split(",").map((e)=>{return +e});
                 					// get destination coordinates
                 					var arrayDestination: Array<number> = vars.index;
                 					const TypeOrigin = event.dataTransfer.getData("origin");
@@ -362,8 +454,24 @@ scriptContent:
                 							page["addElement"](event.dataTransfer.getData("type"), arrayDestination, false, false, true, ''childrenRefs'', elems);
                 						break;
                 						case "moved":
-                							vars.originFlowIndex = +event.dataTransfer.getData("indexoriginflow");
-                							page["moveActionElement"](arrayDestination, arrayOrigin, page.local.currentIndex, Number.isFinite(vars.originFlowIndex) ? vars.originFlowIndex : page.local.currentIndex, ''childrenRefs'', vars.originCardChildOrigin);
+                							const originContext = resolveFlowOriginContext();
+                							if (originContext == null) {
+                								resolve();
+                								return;
+                							}
+                							var arrayOrigin: Array<number> = originContext.arrayOrigin;
+                							vars.originFlowIndex = originContext.originFlowIndex;
+                							vars.originCardChildOrigin = originContext.originCardChildOrigin;
+                							console.log("[drop] moveActionElement", {
+                								arrayOrigin,
+                								arrayDestination,
+                								destinationFlowIndex: page.local.currentIndex,
+                								originFlowIndex: vars.originFlowIndex,
+                								originElementId: originContext.originElementId,
+                								targetCardChild: ''childrenRefs'',
+                								originCardChildOrigin: vars.originCardChildOrigin
+                							});
+                							page["moveActionElement"](arrayDestination, arrayOrigin, page.local.currentIndex, vars.originFlowIndex, ''childrenRefs'', vars.originCardChildOrigin);
                 						break;
                 					}
                 				}
