@@ -38,6 +38,7 @@ scriptContent:
         /*Begin_c8o_CompInitialization*/
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
+        		console.log(''init Monaco'')
         		if (this.monacoRenderTimer) {
         			clearTimeout(this.monacoRenderTimer);
         			this.monacoRenderTimer = null;
@@ -159,68 +160,74 @@ scriptContent:
         
         	private scheduleMonacoRender() {
         	
-        		if (this.monacoRenderTimer) {
-        			clearTimeout(this.monacoRenderTimer);
-        			this.monacoRenderTimer = null;
-        		}
-        	
-        		this.monacoRenderTries = 0;
-        		this.monacoRenderStableCount = 0;
-        		this.monacoRenderLastSize = null;
-        	
-        		const check = () => {
-        	
-        			this.monacoRenderTries++;
-        	
-        			const size = this.getMonacoHostSize();
-        	
-        			if (size != null && size.width > 0 && size.height > 0) {
-        	
-        				if (
-        					this.monacoRenderLastSize != null &&
-        					size.width === this.monacoRenderLastSize.width &&
-        					size.height === this.monacoRenderLastSize.height
-        				) {
-        					this.monacoRenderStableCount++;
-        				} else {
-        					this.monacoRenderStableCount = 0;
-        					this.monacoRenderLastSize = size;
+        		try {
+        			if (this.monacoRenderTimer) {
+        				clearTimeout(this.monacoRenderTimer);
+        				this.monacoRenderTimer = null;
+        			}
+        		
+        			this.monacoRenderTries = 0;
+        			this.monacoRenderStableCount = 0;
+        			this.monacoRenderLastSize = null;
+        		
+        			const check = () => {
+        		
+        				this.monacoRenderTries++;
+        		
+        				const size = this.getMonacoHostSize();
+        		
+        				if (size != null && size.width > 0 && size.height > 0) {
+        		
+        					if (
+        						this.monacoRenderLastSize != null &&
+        						size.width === this.monacoRenderLastSize.width &&
+        						size.height === this.monacoRenderLastSize.height
+        					) {
+        						this.monacoRenderStableCount++;
+        					} else {
+        						this.monacoRenderStableCount = 0;
+        						this.monacoRenderLastSize = size;
+        					}
+        		
+        					if (this.monacoRenderStableCount >= 2) {
+        		
+        						this.monacoRenderTimer = null;
+        		
+        						this.local.show = true;
+        						this.ref.detectChanges();
+        		
+        						// ⚡ attendre que Angular rende le DOM
+        						if (!this.monacoEditorInstance) {
+        							this.configureMonacoEnvironment();
+        							this.initMonaco();
+        						}
+        		
+        						return;
+        					}
         				}
-        	
-        				if (this.monacoRenderStableCount >= 2) {
-        	
+        		
+        				if (this.monacoRenderTries < 60) {
+        					this.monacoRenderTimer = setTimeout(check, 50);
+        				} else {
+        		
         					this.monacoRenderTimer = null;
-        	
+        		
         					this.local.show = true;
         					this.ref.detectChanges();
-        	
-        					// ⚡ attendre que Angular rende le DOM
+        		
         					if (!this.monacoEditorInstance) {
         						this.configureMonacoEnvironment();
         						this.initMonaco();
         					}
-        	
-        					return;
         				}
-        			}
-        	
-        			if (this.monacoRenderTries < 60) {
-        				this.monacoRenderTimer = setTimeout(check, 50);
-        			} else {
-        	
-        				this.monacoRenderTimer = null;
-        	
-        				this.local.show = true;
-        				this.ref.detectChanges();
-        	
-        				if (!this.monacoEditorInstance) {
-        					this.configureMonacoEnvironment();
-        					this.initMonaco();
-        				}
-        			}
-        		};
-        	
-        		this.monacoRenderTimer = setTimeout(check, 0);
+        			};
+        		
+        			this.monacoRenderTimer = setTimeout(check, 0);
+        			
+        		} catch(e) {
+        			console.error(e);
+        			return;
+        		}
         	}
         	
         	/**
@@ -687,6 +694,7 @@ scriptContent:
         					}
         				}
         				catch (e) {
+        					console.error(e);
         				}
         				const selection = editor.getSelection();
         				const range = position
@@ -714,6 +722,7 @@ scriptContent:
         						editor.setPosition(endPosition);
         					}
         					catch (e) {
+        						console.error(e);
         					}
         				}
         				setTimeout(() => {
@@ -721,7 +730,7 @@ scriptContent:
         				}, 0);
         			}
         			catch (e) {
-        				this.pageOwner?.c8o?.log?.error?.("[MonacoNativeDrop] drop failed " + (e?.message || JSON.stringify(e)));
+        				this.pageOwner?.c8o?.log?.error?.("[MonacoNativeDrop] drop failed " + (e || e?.message || JSON.stringify(e)));
         			}
         		};
         		monacoDomNode?.addEventListener("dragover", nativeDragOverHandler, true);
@@ -742,7 +751,8 @@ scriptContent:
         			let evt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
         			this.onBlur.emit(evt);
         		});
-        		editor.onDropIntoEditor(() => {
+        		editor.onDropIntoEditor((e) => {
+        			console.log("drop", e)
         			setTimeout(() => { editor.trigger('''', ''editor.action.triggerSuggest''); });
         		});
         		/*const layoutEditor = () => {
