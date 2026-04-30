@@ -538,7 +538,7 @@ ${error.stack}`;
         try {
           const finalRes = await this.maybeRewriteIndexHtml(req, res);
           const cache = await this.cache;
-          await cache.put(req, finalRes.clone());
+          await cache.put(req, res.clone());
           if (!this.hashes.has(this.adapter.normalizeUrl(req.url))) {
             const meta = { ts: this.adapter.time, used };
             const metaTable = await this.metadata;

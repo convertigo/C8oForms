@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 const baseHrefRe = /^\/convertigo.*?\/mobile\/?/;
 
 function setBaseHref(html) {
@@ -48,6 +49,69 @@ function replaceBaseHrefInJson(value, state) {
   return value;
 }
 
+function toScopeRelativeManifestPath(value) {
+  if (typeof value !== "string") return value;
+  if (!value.startsWith("/") || value.startsWith("//")) return value;
+  return value.slice(1);
+}
+
+function makeManifestUrlsScopeRelative(manifest) {
+  let changed = 0;
+
+  if (typeof manifest.index === "string") {
+    const next = toScopeRelativeManifestPath(manifest.index);
+    if (next !== manifest.index) {
+      manifest.index = next;
+      changed++;
+    }
+  }
+
+  if (manifest.hashTable && typeof manifest.hashTable === "object" && !Array.isArray(manifest.hashTable)) {
+    const nextHashTable = {};
+    for (const [key, value] of Object.entries(manifest.hashTable)) {
+      const nextKey = toScopeRelativeManifestPath(key);
+      if (nextKey !== key) changed++;
+      nextHashTable[nextKey] = value;
+    }
+    manifest.hashTable = nextHashTable;
+  }
+
+  if (Array.isArray(manifest.assetGroups)) {
+    for (const group of manifest.assetGroups) {
+      if (!Array.isArray(group.urls)) continue;
+      group.urls = group.urls.map((url) => {
+        const next = toScopeRelativeManifestPath(url);
+        if (next !== url) changed++;
+        return next;
+      });
+    }
+  }
+
+  return changed;
+}
+
+function sha1(value) {
+  return crypto.createHash("sha1").update(value).digest("hex");
+}
+
+function updateIndexHash(manifest, indexContent) {
+  const hashTable = manifest.hashTable;
+  if (!hashTable || typeof hashTable !== "object" || Array.isArray(hashTable)) {
+    throw new Error("ngsw.json has no hashTable object");
+  }
+
+  const indexHash = sha1(indexContent);
+  const indexKeys = Object.keys(hashTable).filter((key) => key === "index.html" || key.endsWith("/index.html"));
+  if (indexKeys.length === 0) {
+    throw new Error("ngsw.json hashTable has no index.html entry");
+  }
+
+  for (const key of indexKeys) {
+    hashTable[key] = indexHash;
+  }
+  return { indexHash, indexKeys };
+}
+
 function main() {
   // Le script est exécuté depuis _private/ionic normalement
   const root = process.cwd();
@@ -86,11 +150,19 @@ function main() {
   const ngswBefore = JSON.parse(fs.readFileSync(ngswFile, "utf8"));
   const state = { changed: false };
   const ngswAfter = replaceBaseHrefInJson(ngswBefore, state);
+  const scopeRelativeCount = makeManifestUrlsScopeRelative(ngswAfter);
+  const { indexHash, indexKeys } = updateIndexHash(ngswAfter, fs.readFileSync(indexFile));
   if (state.changed) {
     console.log("OK replaced /convertigo.../mobile base href values in ngsw.json");
   } else {
     console.log("OK no /convertigo.../mobile base href values found in ngsw.json");
   }
+  if (scopeRelativeCount > 0) {
+    console.log(`OK converted ${scopeRelativeCount} ngsw.json resource paths to scope-relative URLs`);
+  } else {
+    console.log("OK ngsw.json resource paths already scope-relative");
+  }
+  console.log(`OK updated ngsw.json index hash (${indexKeys.join(", ")}) to ${indexHash}`);
   fs.writeFileSync(ngswFile, JSON.stringify(ngswAfter, null, 2) + "\n", "utf8");
 }
 
