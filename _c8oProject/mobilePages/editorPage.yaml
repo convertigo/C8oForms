@@ -406,6 +406,8 @@ scriptContent:
         			configuration: this.flowConditionMainEditorConfigurationTabs
         		}
         	}
+        	public dragCleanupListenersBound = false;
+        	public dragCleanupHandlers: any = null;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         		//		console.log(this.global.settings);
@@ -419,6 +421,7 @@ scriptContent:
         		this.global.isDraggable = true;
         		this.local.imgTimeStamp = "";
         		this.subscriber_tree = new Subject<any>();
+        		this.bindGlobalDragCleanupListeners();
         		let _this = this;
         		this.tinyPostInit = function(editor) {
         			editor.getBody().style.backgroundColor = "red";
@@ -1055,8 +1058,9 @@ scriptContent:
         /*Begin_c8o_PageInitialization*/
         		/*End_c8o_PageInitialization*/
         /*Begin_c8o_PageAfterViewInit*/
-        		/*End_c8o_PageAfterViewInit*/
+        		/*End_c8o_PageAfterViewInit*/		
         /*Begin_c8o_PageFinalization*/
+        		this.unbindGlobalDragCleanupListeners();
         		/*End_c8o_PageFinalization*/
         /*Begin_c8o_PageFunction*/
         	public registerTinySpacingControls(editor) {
@@ -1867,6 +1871,71 @@ scriptContent:
         		else {
         			return true;
         		}
+        	}
+        
+        	public cleanupDragState(reason: string): void {
+        		if (!this.local?.dragging && !this.local?.draggingActions && !this.local?.draggingFlows) {
+        			return;
+        		}
+        		this.c8o.log.debug("[DnD] cleanupDragState reason=" + reason);
+        		try {
+        			const oldElem = document.getElementById(this.local["currentHighlight"]);
+        			if (oldElem != null) {
+        				oldElem.style["border-color"] = null;
+        				oldElem.style["border-style"] = null;
+        			}
+        			this.local["currentHighlight"] = "";
+        			this.local["showItemid"] = "";
+        			this.local.styleDragOverPAge = null;
+        			this.local.dragging = false;
+        			this.local.draggingActions = false;
+        			this.local.draggingFlows = false;
+        			this.local.draggingName = "";
+        			this.local.draggingType = null;
+        			delete this.local.draggingOrigin;
+        			delete this.local.draggingOriginIndex;
+        			try {
+        				this.ref.detectChanges();
+        			}
+        			catch (e) {
+        			}
+        		}
+        		catch (e) {
+        			this.c8o.log.error("[DnD] cleanupDragState failed " + (e?.message || JSON.stringify(e)));
+        		}
+        	}
+        
+        	public bindGlobalDragCleanupListeners(): void {
+        		if (this.dragCleanupListenersBound) {
+        			return;
+        		}
+        		this.dragCleanupListenersBound = true;
+        		this.dragCleanupHandlers = {
+        			dragend: () => this.cleanupDragState("window.dragend"),
+        			drop: () => setTimeout(() => this.cleanupDragState("window.drop")),
+        			mouseup: () => setTimeout(() => this.cleanupDragState("window.mouseup")),
+        			keyup: (event: any) => {
+        				if (event?.key === "Escape") {
+        					this.cleanupDragState("window.escape");
+        				}
+        			}
+        		};
+        		window.addEventListener("dragend", this.dragCleanupHandlers.dragend, true);
+        		window.addEventListener("drop", this.dragCleanupHandlers.drop, true);
+        		window.addEventListener("mouseup", this.dragCleanupHandlers.mouseup, true);
+        		window.addEventListener("keyup", this.dragCleanupHandlers.keyup, true);
+        	}
+        
+        	public unbindGlobalDragCleanupListeners(): void {
+        		if (!this.dragCleanupListenersBound || !this.dragCleanupHandlers) {
+        			return;
+        		}
+        		window.removeEventListener("dragend", this.dragCleanupHandlers.dragend, true);
+        		window.removeEventListener("drop", this.dragCleanupHandlers.drop, true);
+        		window.removeEventListener("mouseup", this.dragCleanupHandlers.mouseup, true);
+        		window.removeEventListener("keyup", this.dragCleanupHandlers.keyup, true);
+        		this.dragCleanupListenersBound = false;
+        		this.dragCleanupHandlers = null;
         	}
         
         	/* Allow to switch highlight container position*/
@@ -11002,6 +11071,15 @@ title: Title for editor
                                               			page.local.currentPage = props.stack.root.scope.item.id;
                                               			page.local.currentIndex = props.stack.root.scope.i;
                                               			page.local.flow = true;
+                                              			console.log("[DnD] tab drag state", {
+                                              				flowId: vars.flow?.id,
+                                              				itemId: props.stack.root.scope.item?.id,
+                                              				currentPage: page.local.currentPage,
+                                              				currentIndex: page.local.currentIndex,
+                                              				draggingActions: this.local.draggingActions,
+                                              				draggingType: this.local.draggingType,
+                                              				flow: page.local.flow
+                                              			});
                                               			let flowId = vars.flow.id;
                                               			if(flowId == "formulas"){
                                               				page.local.currentFlowNoticeUsedBy = page.translate.instant("flow_formulas");
@@ -12184,6 +12262,15 @@ title: Title for editor
                                               			page.local.currentPage = props.stack.root.scope.item.id;
                                               			page.local.currentIndex = props.stack.root.scope.i;
                                               			page.local.flow = true;
+                                              			console.log("[DnD] tab drag state", {
+                                              				flowId: vars.flow?.id,
+                                              				itemId: props.stack.root.scope.item?.id,
+                                              				currentPage: page.local.currentPage,
+                                              				currentIndex: page.local.currentIndex,
+                                              				draggingActions: this.local.draggingActions,
+                                              				draggingType: this.local.draggingType,
+                                              				flow: page.local.flow
+                                              			});
                                               			let flowId = vars.flow.id;
                                               			if(flowId == "formulas"){
                                               				page.local.currentFlowNoticeUsedBy = page.translate.instant("flow_formulas");
