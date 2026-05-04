@@ -1058,7 +1058,7 @@ scriptContent:
         /*Begin_c8o_PageInitialization*/
         		/*End_c8o_PageInitialization*/
         /*Begin_c8o_PageAfterViewInit*/
-        		/*End_c8o_PageAfterViewInit*/		
+        		/*End_c8o_PageAfterViewInit*/
         /*Begin_c8o_PageFinalization*/
         		this.unbindGlobalDragCleanupListeners();
         		/*End_c8o_PageFinalization*/
@@ -4910,7 +4910,7 @@ scriptContent:
         									res = await this.c8o.callJsonObject(source, { model: true, ...defaultVars }).async();
         								}
         
-        								switch (currentElem.type) {
+        								switch (currentElem?.type) {
         									case "grid":
         										if (currentElem.config.returned_value == "cell_selected") {
         											let sanitizedRow = this.sanitizeCompletionValue(res?.data?.[0], ["hidden", "filterCompletion", "ctype", "filterHide", "type"]);
@@ -4954,7 +4954,7 @@ scriptContent:
         					}
         				}
         			}
-        			switch (currentElem.type) {
+        			switch (currentElem?.type) {
         				case "checkbox":
         					if (structure.compl["displayValue"] != undefined) {
         						structure.compl = {};
@@ -6239,6 +6239,37 @@ scriptContent:
         		return null;
         	}
         
+        	private _isReturnContextBefore(str: string, pos: number): boolean {
+        		let i = pos - 1;
+        		let quote: string | null = null;
+        		let esc = false;
+        		let paren = 0, brace = 0, bracket = 0;
+        
+        		for (; i >= 0; i--) {
+        			const c = str[i];
+        			if (quote) {
+        				if (esc) { esc = false; continue; }
+        				if (c === ''\\'') { esc = true; continue; }
+        				if (c === quote) { quote = null; }
+        				continue;
+        			}
+        			if (c === ''"'' || c === "''" || c === ''`'') { quote = c; continue; }
+        			if ((c === '';'' || c === ''\n'') && paren === 0 && brace === 0 && bracket === 0) break;
+        			if (c === '')'') paren++;
+        			else if (c === ''('') paren--;
+        			else if (c === ''}'') brace++;
+        			else if (c === ''{'') brace--;
+        			else if (c === '']'') bracket++;
+        			else if (c === ''['') bracket--;
+        		}
+        
+        		let segment = str.substring(i + 1, pos);
+        		segment = segment
+        			.replace(/\/\*[\s\S]*?\*\//g, " ")
+        			.replace(/\/\/[^\n\r]*/g, " ");
+        		return /^\s*return(?:\s|$)/.test(segment);
+        	}
+        
         	public transform$toTsMonaco(str): string {
         		try {
         			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
@@ -6250,11 +6281,16 @@ scriptContent:
         				const replaceWithCommentOrNull = (comment: string) => {
         					// Y avait-il une assignation simple juste avant ?
         					const eqIndex = this._findSimpleAssignmentBefore(str, iStart);
+        					const isReturnContext = this._isReturnContextBefore(str, iStart);
         					const endAfterCall = this._consumeFollowingCall(str, iEnd);
         
         					if (eqIndex != null) {
         						// Remplacer le token (+ appel) par "null /* ... */"
         						const repl = `null /* ${comment} */`;
+        						str = str.substring(0, iStart) + repl + str.substring(endAfterCall);
+        					} else if (isReturnContext) {
+        						// Dans un return, générer une expression JS valide explicite
+        						const repl = `undefined /* ${comment} */`;
         						str = str.substring(0, iStart) + repl + str.substring(endAfterCall);
         					} else {
         						// Pas en RHS d’une assignation simple → juste un commentaire
@@ -6280,6 +6316,14 @@ scriptContent:
         				else {
         					const id = match[1];
         					const meta = JSON.parse(match[2]);
+        					const isSystemApiRef =
+        						id == "1" ||
+        						meta?.pathPrefix === "api" ||
+        						(typeof meta?.c8opath === "string" && meta.c8opath.startsWith("api."));
+        					if (isSystemApiRef && typeof meta?.c8opath === "string" && meta.c8opath.length > 0) {
+        						str = str.substring(0, iStart) + meta.c8opath + str.substring(iEnd);
+        						continue;
+        					}
         					const elm = this.getElementById(id);
         					const nameFromStore = this.getElementNameById(id);
         
