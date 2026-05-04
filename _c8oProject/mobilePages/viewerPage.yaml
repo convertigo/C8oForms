@@ -5150,7 +5150,25 @@ scriptContent:
         	  }
         	  return result;
         	}
+        	
+        	public 	async evalValueIfNeeded(
+        		obj: any,
+        		childKey: string,
+        		evaluator: (code: string) => Promise<any>
+        	): Promise<any> {
+        		if (obj[childKey] != null && Array.isArray(obj[childKey])) {
+        			obj[childKey] = await Promise.all(
+        				obj[childKey].map((child: any) =>
+        					this.evalValueIfNeeded(child, childKey, evaluator)
+        				)
+        			);
+        		} else if (obj.value != null) {
+        			obj.value = await evaluator(obj.value);
+        		}
         
+        		return obj;
+        	}
+        	
         	/**
         	 * computes variables ...
         	 * @param findVars the computed variables found
@@ -5207,48 +5225,21 @@ scriptContent:
         
         				else {
         					let res = JSON.parse(JSON.stringify(findVars[va]));
+        					const evalInCurrentScope = async (code: string): Promise<any> => {
+        						return await eval(code);
+        					};
         					// assume its filter
         //					console.log(res)
         					if (res.filters != null && Array.isArray(res.filters)) {
-        						res.filters = res.filters.map((x) => {
-        							if (x.filters != null && Array.isArray(x.filters)) {
-        								x.filters = x.filters.map((y) => {
-        									if (y.filters != null && Array.isArray(y.filters)) {
-        										y.filters = y.filters.map((z) => {
-        											z.value = eval(z.value);
-        											return z;
-        										})
-        									} else {
-        										y.value = eval(y.value);
-        									}
-        									return y;
-        								})
-        							} else {								
-        								x.value = eval(x.value);
-        							}
-        							return x;
-        						})
+        						res.filters = await Promise.all(
+        							res.filters.map((x) => this.evalValueIfNeeded(x, "filters", evalInCurrentScope))
+        						);
         						variables[va] = JSON.stringify(res);
         					}
         					else if (res.sorts != null && Array.isArray(res.sorts)) {
-        						res.sorts = res.sorts.map((x) => {
-        							if (x.sorts != null && Array.isArray(x.sorts)) {
-        								x.sorts = x.sorts.map((y) => {
-        									if (y.sorts != null && Array.isArray(y.sorts)) {
-        										y.sorts = y.sorts.map((z) => {
-        											z.value = eval(z.value);
-        											return z;
-        										})
-        									} else {
-        										y.value = eval(y.value);
-        									}
-        									return y;
-        								})
-        							} else {								
-        								x.value = eval(x.value);
-        							}
-        							return x;
-        						})
+        						res.sorts = await Promise.all(
+        							res.sorts.map((x) => this.evalValueIfNeeded(x, "sorts", evalInCurrentScope))
+        						);
         						variables[va] = JSON.stringify(res);
         					}
         					else {
