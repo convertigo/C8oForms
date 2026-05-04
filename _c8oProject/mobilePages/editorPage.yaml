@@ -4634,8 +4634,14 @@ scriptContent:
         	}
         	public async tsMonacoto$$(memberExpressions, splitted, prefixAndSuffix = true) {
         		let pathPrefix = splitted[0];
+        		if (pathPrefix == null || pathPrefix === "" || pathPrefix === "undefined" || splitted[1] == null || splitted[1] === "") {
+        			return null;
+        		}
         		if (pathPrefix == "api") {
         			const apiPath = splitted.join(".");
+        			if (apiPath == null || apiPath === "" || apiPath === "api") {
+        				return null;
+        			}
         			let apiName = splitted[splitted.length - 1] || null;
         			if (apiName != null && apiName.indexOf("(") != -1) {
         				apiName = apiName.split("(")[0];
@@ -4657,6 +4663,9 @@ scriptContent:
         		}
         		let c8obuiltin = false;
         		let id = this.getElementIdByName(splitted[1]);
+        		if (id == null || ("" + id) === "") {
+        			return null;
+        		}
         		let splittedSliced = splitted.slice(1);
         		let elem = this.getElementById(id);
         		let struct = await this.searchCompletionWithElem(elem, false, false);
@@ -4723,13 +4732,13 @@ scriptContent:
         			walk.simple(ast, {
         				MemberExpression(node: any) {
         					const start = node.start;
-        				if (
-        					node.object.type === ''Identifier'' &&
-        					(node.object.name === ''fields'' || node.object.name === ''actions'' || node.object.name === ''api'')
-        				) {
-        						memberExpressions[start] = node;
-        					}
-        					else if (memberExpressions[start] !== undefined) {
+        					const isAllowedRoot =
+        						node.object.type === ''Identifier'' &&
+        						(node.object.name === ''fields'' || node.object.name === ''actions'' || node.object.name === ''api'');
+        					const canExtendExisting =
+        						memberExpressions[start] !== undefined &&
+        						node.object.type === ''MemberExpression'';
+        					if (isAllowedRoot || canExtendExisting) {
         						memberExpressions[start] = node;
         					}
         				},
@@ -4768,11 +4777,20 @@ scriptContent:
         					for (const rand in current.nestedByRandom) {
         						const curr = current.nestedByRandom[rand];
         						const splitted = curr.computedValue.split(/(?<!\\)\./);
-        						current.nestedByRandom[rand] = await this.tsMonacoto$$(curr, splitted, false);
+        						const nestedToken = await this.tsMonacoto$$(curr, splitted, false);
+        						if (nestedToken != null) {
+        							current.nestedByRandom[rand] = nestedToken;
+        						}
+        						else {
+        							delete current.nestedByRandom[rand];
+        						}
         					}
         				}
         				const splitted = current.computedValue.split(/(?<!\\)\./);
         				const st = await this.tsMonacoto$$(current, splitted);
+        				if (st == null) {
+        					continue;
+        				}
         				workingB = workingB.substring(0, range[0]) + st + workingB.substring(range[1]);
         			}
         			this.transform$toTsMonaco(workingB);
