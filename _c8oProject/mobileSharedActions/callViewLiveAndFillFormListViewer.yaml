@@ -413,43 +413,59 @@
           			let exec = async () => {
           				let response: any = await page.c8o.callJsonObject("C8Oforms"+verb, args).async();
           				let cond: boolean;
+          				let normalizedRows: any[] = [];
           				if (vars.fs) {
           					cond = !page.local.submitting;
           					if (response.res) {
           						//by formating as it, emulating view old view structure
           						response = { rows: [{ id: response.res._id, key: response.res._id, value: { doc: response.res } }] };
           					}
+          					normalizedRows = Array.isArray(response?.rows) ? response.rows : [];
           				}
           				else {
-          					cond = response.transaction != undefined && response.transaction.document != undefined && response.transaction.document.couchdb_output != undefined;
-          					response = response.transaction.document.couchdb_output;
-          					var myIdP = response.rows[0].doc._id;
-          					response.rows[0].value = {doc: response.rows[0].doc};
-          					const key = "_C8O_HIDDEN_" + myIdP.substring(0, myIdP.indexOf("_anonymous"));
-          					page.local.grp[key] = true;
-          					page.local.formId = response.rows[0].doc._id;
-          					if(!page.local.fromResponse){
-          						const array = new Uint32Array(2);
-          						const cryptoApi = globalThis?.crypto ?? (window as any)?.crypto ?? (window as any)?.msCrypto;
-          						if (cryptoApi?.getRandomValues != undefined) {
-          							cryptoApi.getRandomValues(array);
+          					cond = response?.transaction != undefined && response?.transaction?.document != undefined && response?.transaction?.document?.couchdb_output != undefined;
+          					response = response?.transaction?.document?.couchdb_output;
+          					normalizedRows = Array.isArray(response?.rows) ? response.rows : [];
+          					if (normalizedRows[0]?.doc != null) {
+          						var myIdP = normalizedRows[0].doc._id;
+          						normalizedRows[0].value = {doc: normalizedRows[0].doc};
+          						if (page.local.grp == undefined) {
+          							page.local.grp = {};
           						}
-          						else {
-          							array[0] = Math.floor(Math.random() * 0xffffffff);
-          							array[1] = Math.floor(Math.random() * 0xffffffff);
+          						const anonymousIndex = typeof myIdP === "string" ? myIdP.indexOf("_anonymous") : -1;
+          						if (anonymousIndex > -1) {
+          							const key = "_C8O_HIDDEN_" + myIdP.substring(0, anonymousIndex);
+          							page.local.grp[key] = true;
           						}
-          		                let random = array[0] * array[1];
-          		                let formId = page.local.formId.substring(0, page.local.formId.length -10);
-          		                page.local.myId = ''anonymous-''+ random +''_''+ page.local.formId + ''_'' + page["epoch"];
-          		                page.local.myFormId = page.local.myId;
+          						page.local.formId = normalizedRows[0].doc._id;
+          						if(!page.local.fromResponse){
+          							const array = new Uint32Array(2);
+          							const cryptoApi = globalThis?.crypto ?? (window as any)?.crypto ?? (window as any)?.msCrypto;
+          							if (cryptoApi?.getRandomValues != undefined) {
+          								cryptoApi.getRandomValues(array);
+          							}
+          							else {
+          								array[0] = Math.floor(Math.random() * 0xffffffff);
+          								array[1] = Math.floor(Math.random() * 0xffffffff);
+          							}
+          			                let random = array[0] * array[1];
+          			                let formId = page.local.formId.substring(0, page.local.formId.length -10);
+          			                page.local.myId = ''anonymous-''+ random +''_''+ page.local.formId + ''_'' + page["epoch"];
+          			                page.local.myFormId = page.local.myId;
+          						}
           					}
-          					
+          					else {
+          						cond = false;
+          					}
           				}
+          				let newHash: any = undefined;
           				try {
-          					var newHash = sha256(JSON.stringify(response.rows[0]));
+          					if (normalizedRows[0] != undefined) {
+          						newHash = sha256(JSON.stringify(normalizedRows[0]));
+          					}
           				}
           				catch (e) { }
-          				if (cond && response.rows != undefined && response.rows[0] != undefined && newHash != page.local.hash && response.rows.length > 0) {
+          				if (cond && normalizedRows[0] != undefined && newHash != page.local.hash && normalizedRows.length > 0) {
           
           
           					let res = await checkOffline(response)
@@ -460,17 +476,28 @@
           						await page.local.callEndInitC8o(response, newHash);
           					}
           				}
-          				else if (response.rows.length == 0) {
+          				else if (normalizedRows.length == 0) {
           					page.local.spinner = false
           					page.local.errorMsgViewer = ''error_not_found'';
           					page.local.errorViewer = true;
           					page[''events''].publish("anyInitalSyncFinished");
           				}
-          				else if (response.document != undefined && response.document.error != undefined) {
+          				else if (response?.document != undefined && response?.document?.error != undefined) {
           					if (response.document.error.message == "Max number of sessions exceeded for Standard Edition") {
           						page.c8o.log.fatal("Max number of sessions exceeded for Standard Edition")
           					}
           
+          				}
+          				else {
+          					page.c8o.log.error("[CallViewLiveAndFillFormListViewer] invalid response shape " + JSON.stringify({
+          						hasResponse: response != null,
+          						hasRows: Array.isArray(response?.rows),
+          						keys: response ? Object.keys(response) : null
+          					}));
+          					page.local.spinner = false
+          					page.local.errorMsgViewer = ''error_not_found'';
+          					page.local.errorViewer = true;
+          					page[''events''].publish("anyInitalSyncFinished");
           				}
           			}
           			//initial
@@ -591,7 +618,7 @@
               - ↑value: 0.9.0
   ↓Failure_Handler [ngx.components.UIActionFailureEvent-1693478878149]: 
     ↓IfElse [ngx.components.UIDynamicIf-1693478878152]: 
-      beanData: '{"ionBean":"IfElseAction","condition":"script:page.global.pwa == true"}'
+      beanData: '{"ionBean":"IfElseAction","condition":"script:page.global.pwa == true || page.local.anonymous == true"}'
       ↓CustomAction [ngx.components.UICustomAction-1693478878155]: 
         actionValue: 
           - xmlizable: 
