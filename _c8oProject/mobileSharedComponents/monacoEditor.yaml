@@ -72,11 +72,18 @@ scriptContent:
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
         
-        	async presentToast(message: string, cssClass: string = '''') {
+        	async presentToast(message: string, cssClass: string = '''', id: any = null) {
         		if (this.pageOwner && typeof this.pageOwner.presentToast === "function") {
-        			return await this.pageOwner.presentToast(message, cssClass);
+        			return await this.pageOwner.presentToast(message, cssClass, id);
+        		}
+        		if (id != null) {
+        			try {
+        				await this.toastController.dismiss(undefined, undefined, id);
+        			}
+        			catch (e) { }
         		}
         		const toast = await this.toastController.create({
+        			...(id != null ? { id: id } : {}),
         			message: message,
         			position: ''bottom'',
         			cssClass: cssClass,
@@ -94,7 +101,6 @@ scriptContent:
         
         		await toast.present();
         	}
-        
         	private getMonacoHostElement() {
         		const host = this["elRef"] != null ? this["elRef"].nativeElement : null;
         		if (host == null) {
@@ -649,11 +655,15 @@ scriptContent:
         			}
         
         			const ts = this.transform$toTsMonaco(workingB);
+        			try {
+        				await this.toastController.dismiss(undefined, undefined, "c8oforms-monaco-parse-error-toast");
+        			}
+        			catch (e) { }
         			return workingB;
         		}
         		catch (e) {
         			console.error("an error occured while pasing", e);
-        			await this.presentToast(this.translate.instant("error_computing", { err: e.name + " : " + e.message }), ''toastError'');
+        			this.presentToast(this.translate.instant("error_computing", { err: e.name + " : " + e.message }), ''toastError'', "c8oforms-monaco-parse-error-toast").catch((toastError) => console.error(toastError));
         			throw e;
         		}
         
@@ -770,15 +780,20 @@ scriptContent:
         		});
         		editor.onDidBlurEditorText(async () => {
         			const rawValue = editor.getValue();
+        			this.code = rawValue;
+        			let evt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
+        			this.onBlur.emit(evt);
         			try {
-        				this.code = await this.parse(rawValue);
+        				const parsedValue = await this.parse(rawValue);
+        				if (parsedValue !== rawValue) {
+        					this.code = parsedValue;
+        					let parsedEvt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
+        					this.onBlur.emit(parsedEvt);
+        				}
         			}
         			catch (e) {
         				this.pageOwner?.c8o?.log?.error?.("[MonacoDrop] onBlur parse failed " + (e?.message || JSON.stringify(e)));
-        				this.code = rawValue;
         			}
-        			let evt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
-        			this.onBlur.emit(evt);
         		});
         		editor.onDropIntoEditor((e) => {
         			console.log("drop", e)
