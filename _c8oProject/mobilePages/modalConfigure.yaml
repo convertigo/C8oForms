@@ -324,8 +324,8 @@ scriptContent:
         				return col_included_cols + col_value + col_displayvalue;
         				break;
         			case ''checkbox_group'':
-        				let line = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.value).length + '' '' + this.translate.instant(''modal_configure_footer_label_select_value'');
-        				let column = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.displayValue).length + '' '' + this.translate.instant(''modal_configure_footer_label_select_display_value'') ;
+        				let line = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.displayValue).length + '' '' + this.translate.instant(''modal_configure_rows_label'');
+        				let column = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.value).length + '' '' + this.translate.instant(''modal_configure_columns_label'') ;
         				return line + column;
         				break;
         		}
@@ -592,10 +592,18 @@ scriptContent:
         	    return;
         	  }
         
-        	  this.local.filteredColumns = items.map((item) => ({
-        	    ...item,
-        	    [key]: value
-        	  }));
+        	  let firstSelected = true;
+        	  this.local.filteredColumns = items.map((item) => {
+        		let nextValue = value;
+        		if (this.local?.singleColumn == true && key == ''selected'' && value == true) {
+        		  nextValue = firstSelected;
+        		  firstSelected = false;
+        		}
+        		return {
+        		  ...item,
+        		  [key]: nextValue
+        		};
+        	  });
         	}
         	
         	toSelectedColumnsMap(items: any[]): Record<string, any> {
@@ -612,12 +620,57 @@ scriptContent:
         	  }, {} as Record<string, any>);
         	}
         	
+        	enforceSingleSelectedColumn(index: any = null, name: any = null): void {
+        	  if (this.local?.singleColumn != true) {
+        		return;
+        	  }
+        	
+        	  const selectedName = name != null ? String(name) : null;
+        	
+        	  const enforce = (items: any[]) => {
+        		if (!Array.isArray(items)) {
+        		  return;
+        		}
+        	
+        		let selectedIndex = selectedName != null ? items.findIndex((item) => item?.name == selectedName) : -1;
+        		if (selectedIndex < 0 && index != null) {
+        		  selectedIndex = Number(index);
+        		}
+        		if (selectedIndex < 0 || items[selectedIndex]?.selected !== true) {
+        		  selectedIndex = items.findIndex((item) => item?.selected === true);
+        		}
+        		if (!Number.isFinite(selectedIndex) || selectedIndex < 0) {
+        		  return;
+        		}
+        	
+        		items.forEach((item, itemIndex) => {
+        		  if (item) {
+        			item.selected = itemIndex === selectedIndex && item.selected === true;
+        		  }
+        		});
+        	  };
+        	
+        	  enforce(this.local.selectedColumns);
+        	  enforce(this.local.filteredColumns);
+        	}
+        	
         	saveSelectedColumns(): void {
+        	  this.enforceSingleSelectedColumn();
         	  this.local.selectedColumns = (this.local?.type == ''table'') ? this.local.filteredColumns : this.toSelectedColumnsMap(this.local.filteredColumns);
+        	  this.enforceSingleSelectedColumn();
         	}
         	
         	syncFilteredToSelectedColumns(): void {
         	  const current = this.normalizeSelectedColumnsMap(this.local.selectedColumns);
+        	  let selectedName = null;
+        	
+        	  if (this.local?.singleColumn == true) {
+        		const filtered = this.local.filteredColumns ?? [];
+        		const newlySelected = filtered.find((item) => item?.selected === true && current[item.name]?.selected !== true);
+        		const selected = newlySelected ?? filtered.find((item) => item?.selected === true);
+        		selectedName = selected?.name ?? null;
+        		this.enforceSingleSelectedColumn(null, selectedName);
+        	  }
         
         	  for (const item of this.local.filteredColumns ?? []) {
         	    if (!item?.name) {
@@ -643,6 +696,7 @@ scriptContent:
         	  }
         
         	  this.local.selectedColumns = current;
+        	  this.enforceSingleSelectedColumn(null, selectedName);
         	}
         	
         	normalizeSelectedColumnsMap(source: any): Record<string, any> {
@@ -2991,7 +3045,7 @@ title: Title for modalConfigure
                           	height: 20px;
                           	align-items: center;
                           	gap: 10px;
-                          	margin-left: 45px;
+                          	margin-left: 0px;
                           '
                 ↓Icon [ngx.components.UIDynamicElement-1776272382000]: 
                   beanData: |
@@ -3122,7 +3176,7 @@ title: Title for modalConfigure
                   attrValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: plain:this.local?.type == 'table' || this.local?.target == 'actions'
+                      - MobileSmartSourceType: plain:true
               ↓Grid [ngx.components.UIDynamicElement-1776161384717]: 
                 beanData: '{"ionBean":"Grid"}'
                 isEnabled: false
@@ -3521,7 +3575,7 @@ title: Title for modalConfigure
                     textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:'modal_configure_configuration_select_display_value_label' | translate
+                        - MobileSmartSourceType: 'script:(this.local?.type == ''checkbox_group'' ? ''modal_configure_row_label'' : ''modal_configure_configuration_select_display_value_label'') | translate'
                   ↓Style [ngx.components.UIStyle-1776352045248]: 
                     styleContent: 
                       - xmlizable: 
@@ -3586,7 +3640,7 @@ title: Title for modalConfigure
                     textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:'modal_configure_configuration_select_value_label' | translate
+                        - MobileSmartSourceType: 'script:(this.local?.type == ''checkbox_group'' ? ''modal_configure_column_label'' : ''modal_configure_configuration_select_value_label'') | translate'
                   ↓Style [ngx.components.UIStyle-1776352131171]: 
                     styleContent: 
                       - xmlizable: 
@@ -3788,13 +3842,13 @@ title: Title for modalConfigure
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: 'script:(this.local?.type != ''table'' || this.local?.target == ''actions'') ? {''margin-left'': ''45px''} : {}'
+                            - MobileSmartSourceType: script:{}
                     ↓Directive1 [ngx.components.UIControlDirective-1776416434104]: 
                       directiveName: If
                       directiveSource: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: script:this.local?.type == 'table' || this.local?.target == 'actions'
+                          - MobileSmartSourceType: script:true
                       ↓Directive [ngx.components.UIControlDirective-1776161384801]: 
                         directiveName: Switch
                         directiveSource: 
@@ -15920,20 +15974,21 @@ title: Title for modalConfigure
             			window["t"] = page;
             			page.local.type = "table";
             			page.local.target = "table";
-            			if(page.navParams.data.target == "table" || page.navParams.data.target == "actions"){
+            			page.local.singleColumn = page.navParams.data.singleColumn == true;
+            			if(page.local.singleColumn != true && (page.navParams.data.type == "select" || page.navParams.data.type == "checkbox" || page.navParams.data.type == "radio")){
+            				page.local.type = "select";
+            				page.local.target = "select";
+            			}
+            			else if(page.local.singleColumn != true && (page.navParams.data.type == "radio_group" ||  page.navParams.data.type == "checkbox_group")){
+            				page.local.type = "checkbox_group";
+            				page.local.target = "select";
+            			}
+            			else if(page.navParams.data.target == "table" || page.navParams.data.target == "actions"){
             				page.local.type = "table";
             				if(page.navParams.data.type == "maps_markers" || page.navParams.data.type == "maps_circles" || page.navParams.data.type == "maps_polygons"){
             					page.local.txt_i18n = page.navParams.data.type;
             				}
             				page.local.target = page.navParams.data.target;
-            			}
-            			else if(page.navParams.data.type == "select" || page.navParams.data.type == "checkbox" || page.navParams.data.type == "radio"){
-            				page.local.type = "select";
-            				page.local.target = "select";
-            			}
-            			else if(page.navParams.data.type == "radio_group" ||  page.navParams.data.type == "checkbox_group"){
-            				page.local.type = "checkbox_group";
-            				page.local.target = "select";
             			}
             //			else if (page.navParams.data.type == "chart") {
             //				page.local.type = "chart";
