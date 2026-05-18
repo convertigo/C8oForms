@@ -2237,6 +2237,9 @@ Lists authentication modes available to the login page.
 <td>Identifier</td><td>Identifier of the target record or user.</td>
 </tr>
 <tr>
+<td>IdentifierPlaceHolder</td><td>Optional placeholder shown in the identifier input.</td>
+</tr>
+<tr>
 <td>loginAdLabel</td><td>Active Directory label shown on login page.</td>
 </tr>
 <tr>
