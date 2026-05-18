@@ -302,6 +302,7 @@ For more technical informations : [documentation](./project.md)
         - [createNewForm](#createnewform)
         - [detectChanges](#detectchanges)
         - [detectChangesDoble](#detectchangesdoble)
+        - [DisplayTableColumns](#displaytablecolumns)
         - [dragElementTolist](#dragelementtolist)
         - [dragEnd](#dragend)
         - [dragFormIntoFolder](#dragformintofolder)
@@ -488,6 +489,7 @@ For more technical informations : [documentation](./project.md)
         - [LocationDataInteractionsEditor](#locationdatainteractionseditor)
         - [LocationReturnedValueEditor](#locationreturnedvalueeditor)
         - [LoginComponent](#logincomponent)
+        - [MapDataInteractionsEditor](#mapdatainteractionseditor)
         - [mdReader](#mdreader)
         - [MenuComponentUi](#menucomponentui)
         - [menuVersion](#menuversion)
@@ -553,13 +555,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1077BIS
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1077BIS.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
      ```
      </td></tr>
     </table>
@@ -4868,6 +4870,18 @@ This functions is used to close an element selected on editor page
 
 #### detectChangesDoble
 
+#### DisplayTableColumns
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>forms_config</td><td></td>
+</tr>
+</table>
 #### dragElementTolist
 
 **variables**
@@ -5656,6 +5670,19 @@ Update the state of a field
 <td>offsetObject</td><td></td>
 </tr>
 </table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onDragEnd</td><td></td>
+</tr>
+<tr>
+<td>onRefresh</td><td></td>
+</tr>
+</table>
 #### ChartConfigurationEditor
 
 **variables**
@@ -5973,6 +6000,9 @@ Update the state of a field
 <td>height</td><td></td>
 </tr>
 <tr>
+<td>isActionsMode</td><td></td>
+</tr>
+<tr>
 <td>isSource</td><td></td>
 </tr>
 <tr>
@@ -6240,6 +6270,27 @@ Display an apex chart comp. or an ag-grid comp.
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>apiApp</td><td></td>
+</tr>
+<tr>
+<td>apiC8o</td><td></td>
+</tr>
+<tr>
+<td>apiForm</td><td></td>
+</tr>
+<tr>
+<td>apiPage</td><td></td>
+</tr>
+<tr>
+<td>apiRouter</td><td></td>
+</tr>
+<tr>
+<td>apiTranslate</td><td></td>
+</tr>
+<tr>
+<td>apiUser</td><td></td>
 </tr>
 <tr>
 <td>height</td><td></td>
@@ -7568,6 +7619,9 @@ The Chart Widget viewer
 <td>j</td><td></td>
 </tr>
 <tr>
+<td>renderSelectedEditor</td><td></td>
+</tr>
+<tr>
 <td>showGrab</td><td></td>
 </tr>
 </table>
@@ -8257,6 +8311,9 @@ The Chart Widget viewer
 <td>item</td><td></td>
 </tr>
 <tr>
+<td>tabselected</td><td></td>
+</tr>
+<tr>
 <td>thingIndex</td><td></td>
 </tr>
 </table>
@@ -8377,6 +8434,19 @@ The Chart Widget viewer
 <td>offsetObject</td><td></td>
 </tr>
 </table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onDragEnd</td><td></td>
+</tr>
+<tr>
+<td>onRefresh</td><td></td>
+</tr>
+</table>
 #### LocationDataInteractionsEditor
 
 **variables**
@@ -8463,6 +8533,18 @@ LoginComponent is a reusable login form component with inputs for username/email
 </tr>
 <tr>
 <td>socialLogin</td><td></td>
+</tr>
+</table>
+#### MapDataInteractionsEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### mdReader
@@ -9383,6 +9465,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>hasSeparators</td><td></td>
+</tr>
+<tr>
 <td>i18nCallback</td><td></td>
 </tr>
 <tr>
@@ -9435,6 +9520,9 @@ This component represents a toolbar UI similar to the provided image. It include
 <td>isEditorPage</td><td></td>
 </tr>
 <tr>
+<td>isViewerPage</td><td></td>
+</tr>
+<tr>
 <td>logoAlt</td><td>Alternative text for the logo image</td>
 </tr>
 <tr>
@@ -9442,6 +9530,9 @@ This component represents a toolbar UI similar to the provided image. It include
 </tr>
 <tr>
 <td>logoText</td><td>Main text displayed next to the logo</td>
+</tr>
+<tr>
+<td>parentLocal</td><td></td>
 </tr>
 <tr>
 <td>searchBarType</td><td></td>
@@ -9500,6 +9591,15 @@ This component represents a toolbar UI similar to the provided image. It include
 </tr>
 <tr>
 <td>onThumbnailActionTriggered</td><td></td>
+</tr>
+<tr>
+<td>onViewerEditButtonTriggered</td><td></td>
+</tr>
+<tr>
+<td>onViewerRefreshButtonTriggered</td><td></td>
+</tr>
+<tr>
+<td>onViewerSyncPwaButtonTriggered</td><td></td>
 </tr>
 <tr>
 <td>settingsClick</td><td></td>
