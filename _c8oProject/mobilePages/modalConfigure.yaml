@@ -149,7 +149,8 @@ scriptContent:
         	      );
         	    })
         	    .map((db) => {
-        	      const filteredTables = db.tables.filter((table) => {
+        	      const tables = Array.isArray(db.tables) ? db.tables : [];
+        	      const filteredTables = tables.filter((table) => {
         	        const matchTableId =
         	          selection.tableId === undefined || table.id === selection.tableId;
         
@@ -165,7 +166,7 @@ scriptContent:
         	        tables:
         	          selection.tableId !== undefined || selection.tableName !== undefined
         	            ? filteredTables
-        	            : db.tables,
+        	            : tables,
         	      };
         	    })
         	    .filter((db) => {
@@ -183,6 +184,9 @@ scriptContent:
         	  const map = new Map<number, WorkspaceItem>();
         
         	  for (const db of data  ?? []) {
+        		if (db?.type !== "database" || db?.workspace == null) {
+        		  continue;
+        		}
         	    if (!map.has(db.workspace.id)) {
         	      map.set(db.workspace.id, db.workspace);
         	    }
@@ -196,10 +200,10 @@ scriptContent:
         	  workspaceId?: number
         	): DatabaseItem[] {
         	  if (workspaceId === undefined) {
-        	    return data;
+        	    return (data ?? []).filter((db) => db?.type === "database");
         	  }
         
-        	  return data.filter((db) => db.workspace.id === workspaceId);
+        	  return (data ?? []).filter((db) => db?.type === "database" && db?.workspace?.id === workspaceId);
         	}
         	
         	getTablesByDatabase(
@@ -210,8 +214,8 @@ scriptContent:
         	    return [];
         	  }
         
-        	  const database = data.find((db) => db.id === databaseId);
-        	  return database?.tables ?? [];
+        	  const database = (data ?? []).find((db) => db?.type === "database" && db.id === databaseId);
+        	  return Array.isArray(database?.tables) ? database.tables : [];
         	}
         	
         	getSelectionState(
@@ -245,7 +249,10 @@ scriptContent:
         	  data: DatabaseItem[],
         	  tableId: number
         	): { workspaceId: number; databaseId: number } | null {
-        	  for (const db of data) {
+        	  for (const db of data ?? []) {
+        		if (db?.type !== "database" || !Array.isArray(db.tables)) {
+        		  continue;
+        		}
         	    const tableFound = db.tables.find((table) => table.id === tableId);
         
         	    if (tableFound) {
@@ -337,8 +344,8 @@ scriptContent:
         	}
         	
         	findByName<T extends { name: string }>(items: T[], search: string, filter: string = ''all''): T[] | undefined {
-        		const normalized = search.trim().toLowerCase();
-        		let array = items;
+        		const normalized = typeof search === ''string'' ? search.trim().toLowerCase() : '''';
+        		let array = Array.isArray(items) ? items : [];
         //		console.log(this.toColumnsArray(array))
         		if (this.isColumnsObjectMap(array)) {
         //			console.log(''in'')
@@ -361,7 +368,7 @@ scriptContent:
         //		console.log("array");
         //		console.log(array);
         //		console.log(search, filter)
-        		if (search == "" || typeof search != ''string'') {
+        		if (normalized == "") {
         				return array;
         		}
         //		console.log("filter");
@@ -1190,6 +1197,12 @@ title: Title for modalConfigure
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: plain:autofocus
                     isEnabled: false
+                  ↓Attr1 [ngx.components.UIAttribute-1779120000001]: 
+                    attrName: '[(ngModel)]'
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.local.searchLeftPanel
                 ↓Style [ngx.components.UIStyle-1776256596578]: 
                   styleContent: 
                     - xmlizable: 
@@ -1377,6 +1390,16 @@ title: Title for modalConfigure
           ↓CardContent [ngx.components.UIDynamicElement-1776161384534]: 
             beanData: '{"ionBean":"CardContent"}'
             tagName: ion-card-content
+            ↓Style [ngx.components.UIStyle-1779120000003]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '	max-height: calc(100vh - 300px);
+                      	overflow-y: auto;
+                      	overflow-x: hidden;
+                      '
             ↓AccordionGroup [ngx.components.UIDynamicElement-1776161384537]: 
               beanData: '{"ionBean":"AccordionGroup","Value":"plain:"}'
               isEnabled: false
@@ -1669,10 +1692,9 @@ title: Title for modalConfigure
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
                             '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                            		
+                            		page.local.searchLeftPanel = "";
                             		resolve();
                             '
-                    isEnabled: false
                   ↓SwitchAction [ngx.components.UIDynamicSwitch-1776182276108]: 
                     beanData: '{"ionBean":"SwitchAction","expression":"script:this.local.step"}'
                     ↓SwitchCase_Handler [ngx.components.UIActionCaseEvent-1776182757170]: 
@@ -1774,6 +1796,7 @@ title: Title for modalConfigure
                                     →: |
                                       '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                                       //		console.log(page.local.selectedColumns)
+                                      		page.local.searchRightPanel = "";
                                       		page.refreshFilteredColumns();
                                       		resolve();
                                       '
@@ -1951,8 +1974,7 @@ title: Title for modalConfigure
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:JSON.stringify(database)
-                  ↓Style [ngx.components.UIStyle-1776174025818]: 
-            ↓Style [ngx.components.UIStyle-1776179972888]: 
+            ↓Style1 [ngx.components.UIStyle-1776179972888]: 
               styleContent: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -2332,6 +2354,12 @@ title: Title for modalConfigure
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                           - MobileSmartSourceType: plain:autofocus
                       isEnabled: false
+                    ↓Attr1 [ngx.components.UIAttribute-1779120000002]: 
+                      attrName: '[(ngModel)]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.local.searchRightPanel
                   ↓Style [ngx.components.UIStyle-1776260626667]: 
                     styleContent: 
                       - xmlizable: 
@@ -2566,6 +2594,7 @@ title: Title for modalConfigure
                                 →: |
                                   '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                                   		page.syncFilteredToSelectedColumns();
+                                  		page.local.searchRightPanel = "";
                                   		page.refreshFilteredColumns();
                                   		resolve();
                                   '
@@ -2662,12 +2691,7 @@ title: Title for modalConfigure
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                                  		page.syncFilteredToSelectedColumns();
-                                  		page.refreshFilteredColumns();
-                                  		resolve();
-                                  '
+                                →: ''
                     ↓Attr [ngx.components.UIAttribute-1777996666799]: 
                       attrName: '[ngClass]'
                       attrValue: 
@@ -2762,6 +2786,7 @@ title: Title for modalConfigure
                                 →: |
                                   '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                                   		page.syncFilteredToSelectedColumns();
+                                  		page.local.searchRightPanel = "";
                                   		page.refreshFilteredColumns();
                                   		resolve();
                                   '
@@ -2859,6 +2884,7 @@ title: Title for modalConfigure
                                 →: |
                                   '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                                   		page.syncFilteredToSelectedColumns();
+                                  		page.local.searchRightPanel = "";
                                   		page.refreshFilteredColumns();
                                   		resolve();
                                   '
@@ -3249,17 +3275,7 @@ title: Title for modalConfigure
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    		try {
-                                    			for(let i in page.local.selectedColumns){
-                                    				page.local.selectedColumns[i].selected = event.detail.checked;
-                                    			}
-                                    		} catch (e) {
-                                    		
-                                    		} finally {
-                                    			return;
-                                    		}
-                                    
+                                  →: ''
                       ↓Label [ngx.components.UIDynamicElement-1776161384747]: 
                         beanData: '{"ionBean":"Label"}'
                         tagName: ion-label
@@ -3273,13 +3289,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: plain:Include
                           ↓Style [ngx.components.UIStyle-1776161384756]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    	color:black;
-                                    
                   ↓GridCol1 [ngx.components.UIDynamicElement-1776161384759]: 
                     beanData: '{"ionBean":"GridCol"}'
                     tagName: ion-col
@@ -3299,13 +3308,6 @@ title: Title for modalConfigure
                           beanData: '{"ionBean":"Paragraph"}'
                           tagName: p
                           ↓Style [ngx.components.UIStyle-1776161384774]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    	color:black;
-                                    
                           ↓some_text [ngx.components.UIText-1776161384777]: 
                             i18n: true
                             textValue: 
@@ -4906,6 +4908,7 @@ title: Title for modalConfigure
                                   →: |
                                     '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                                     		page.syncFilteredToSelectedColumns();
+                                    		page.local.searchRightPanel = "";
                                     		page.refreshFilteredColumns();
                                     		resolve();
                                     '
@@ -5037,18 +5040,6 @@ title: Title for modalConfigure
                           beanData: '{"ionBean":"DivTag"}'
                           tagName: div
                           ↓Style [ngx.components.UIStyle-1776334345029]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	display: flex;
-                                    	width: 100%;
-                                    	height: 100%;
-                                    	flex-direction: column;
-                                    	align-items: center;
-                                    	gap: 4px;
-                                    '
                           ↓Icon [ngx.components.UIDynamicElement-1776333383910]: 
                             beanData: |
                               '{
@@ -5113,13 +5104,7 @@ title: Title for modalConfigure
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                                    //		setTimeout(()=>{			
-                                    			page.local.filteredColumns[vars.idx].hidden = !page.local.filteredColumns[vars.idx].hidden;
-                                    //		},0)
-                                    		resolve();
-                                    '
+                                  →: ''
                             ↓idx [ngx.components.UIControlVariable-1776333172840]: 
                               varValue: 
                                 - xmlizable: 
@@ -5133,6 +5118,7 @@ title: Title for modalConfigure
                                     →: |
                                       '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                                       		page.syncFilteredToSelectedColumns();
+                                      		page.local.searchRightPanel = "";
                                       		page.refreshFilteredColumns();
                                       		resolve();
                                       '
@@ -5277,25 +5263,7 @@ title: Title for modalConfigure
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    		try {
-                                    //				for(let i in page.local.selectedColumns){
-                                    //					if(i == vars.id){
-                                    //						//page.local.selectedColumns[i].displayValue = true;
-                                    //					}
-                                    //					else{
-                                    //						page.local.selectedColumns[i].displayValue = false;
-                                    //					}
-                                    //				}
-                                    			let temp = page.local.filteredColumns[vars.id].displayValue;
-                                    			page.updateAllItems('displayValue', false);
-                                    			page.local.filteredColumns[vars.id].displayValue = temp;
-                                    		} catch (e) {
-                                    		
-                                    		} finally {
-                                    			return;
-                                    		}
-                                    
+                                  →: ''
                             ↓id [ngx.components.UIControlVariable-1776352302838]: 
                               varValue: 
                                 - xmlizable: 
@@ -5309,6 +5277,7 @@ title: Title for modalConfigure
                                     →: |
                                       '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                                       		page.syncFilteredToSelectedColumns();
+                                      		page.local.searchRightPanel = "";
                                       		page.refreshFilteredColumns();
                                       		resolve();
                                       '
@@ -5388,26 +5357,7 @@ title: Title for modalConfigure
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    		try {
-                                    //			for(let i in page.local.selectedColumns){
-                                    //				if(i == vars.id){
-                                    //					
-                                    //				}
-                                    //				else{
-                                    //					page.local.selectedColumns[i].value = false;
-                                    //				}
-                                    //			}
-                                    
-                                    			let temp = page.local.filteredColumns[vars.id].value;
-                                    			page.updateAllItems('value', false);
-                                    			page.local.filteredColumns[vars.id].value = temp;
-                                    		} catch (e) {
-                                    		
-                                    		} finally {
-                                    			return;
-                                    		}
-                                    
+                                  →: ''
                             ↓id [ngx.components.UIControlVariable-1776352314683]: 
                               varValue: 
                                 - xmlizable: 
@@ -5579,25 +5529,6 @@ title: Title for modalConfigure
                           isEnabled: false
                           tagName: ion-item
                           ↓Style [ngx.components.UIStyle-1776335063762]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/* Mot de passe oublié: */
-                                    color: #4a4a4a;
-                                    font-size: 0.75rem;
-                                    .item-inner{
-                                    		margin-left:0px !important;
-                                    }
-                                    }
-                                    
-                                    .class1578663445209:hover{
-                                    font-size: 0.75rem;
-                                    color: #048EAE;
-                                    text-decoration: underline;
-                                    cursor: pointer;
-                                    '
                           ↓Attr [ngx.components.UIAttribute-1776335063765]: 
                             attrName: '*ngIf'
                             attrValue: 
@@ -5643,25 +5574,6 @@ title: Title for modalConfigure
                           beanData: '{"ionBean":"ListItem"}'
                           tagName: ion-item
                           ↓Style [ngx.components.UIStyle-1776335063789]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/* Mot de passe oublié: */
-                                    color: #4a4a4a;
-                                    font-size: 0.75rem;
-                                    .item-inner{
-                                    		margin-left:0px !important;
-                                    }
-                                    }
-                                    
-                                    .class1594313281739:hover{
-                                    font-size: 0.75rem;
-                                    color: #048EAE;
-                                    text-decoration: underline;
-                                    cursor: pointer;
-                                    '
                           ↓Text [ngx.components.UIText-1776335063795]: 
                             i18n: true
                             textValue: 
@@ -5733,25 +5645,6 @@ title: Title for modalConfigure
                           beanData: '{"ionBean":"ListItem"}'
                           tagName: ion-item
                           ↓Style [ngx.components.UIStyle-1776335063816]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/* Mot de passe oublié: */
-                                    color: #4a4a4a;
-                                    font-size: 0.75rem;
-                                    .item-inner{
-                                    		margin-left:0px !important;
-                                    }
-                                    }
-                                    
-                                    .class1578920252046:hover{
-                                    font-size: 0.75rem;
-                                    color: #048EAE;
-                                    text-decoration: underline;
-                                    cursor: pointer;
-                                    '
                           ↓Text [ngx.components.UIText-1776335063819]: 
                             i18n: true
                             textValue: 
@@ -5829,25 +5722,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:'modal_configure_popover_action_move_to_first_label' | translate
                           ↓Style [ngx.components.UIStyle-1776335063846]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/* Mot de passe oublié: */
-                                    color: #4a4a4a;
-                                    font-size: 0.75rem;
-                                    .item-inner{
-                                    		margin-left:0px !important;
-                                    }
-                                    
-                                    }
-                                    .class1569858735855:hover{
-                                    font-size: 0.75rem;
-                                    color: #048EAE;
-                                    text-decoration: underline;
-                                    cursor: pointer;
-                                    '
                           ↓Event [ngx.components.UIControlEvent-1776335063849]: 
                             ↓CustomAction [ngx.components.UICustomAction-1776338627915]: 
                               actionValue: 
@@ -5919,25 +5793,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:'modal_configure_popover_action_move_to_last_label' | translate
                           ↓Style [ngx.components.UIStyle-1776335063870]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/* Mot de passe oublié: */
-                                    color: #4a4a4a;
-                                    font-size: 0.75rem;
-                                    .item-inner{
-                                    		margin-left:0px !important;
-                                    }
-                                    
-                                    }
-                                    .class1566923689496:hover{
-                                    font-size: 0.75rem;
-                                    color: #048EAE;
-                                    text-decoration: underline;
-                                    cursor: pointer;
-                                    '
                           ↓Event [ngx.components.UIControlEvent-1776335063873]: 
                             ↓CustomAction [ngx.components.UICustomAction-1776338486268]: 
                               actionValue: 
@@ -6009,25 +5864,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:'modal_configure_popover_action_move_to_position_label' | translate
                           ↓Style [ngx.components.UIStyle-1776335827619]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/* Mot de passe oublié: */
-                                    color: #4a4a4a;
-                                    font-size: 0.75rem;
-                                    .item-inner{
-                                    		margin-left:0px !important;
-                                    }
-                                    
-                                    }
-                                    .class1566923689496:hover{
-                                    font-size: 0.75rem;
-                                    color: #048EAE;
-                                    text-decoration: underline;
-                                    cursor: pointer;
-                                    '
                           ↓Event [ngx.components.UIControlEvent-1776335827622]: 
                             ↓ClosePopover [ngx.components.UIDynamicAction-1776335827625]: 
                               beanData: '{"ionBean":"ClosePopoverAction"}'
@@ -12976,35 +12812,6 @@ title: Title for modalConfigure
                           isEnabled: false
                           tagName: ion-checkbox
                           ↓Style [ngx.components.UIStyle-1776347132151]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/**
-                                     * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                     * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                     * They are set using custom property notation, e.g.: --main-color: black;
-                                     * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                     * You can find below your component''s properties you can customize within the page.
-                                     * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                     * For more informations see https://ionicframework.com/docs/theming.
-                                    **/
-                                    //--background	//Background of the checkbox icon
-                                    //--background-checked	//Background of the checkbox icon when checked
-                                    //--border-color	//Border color of the checkbox icon
-                                    //--border-color-checked	//Border color of the checkbox icon when checked
-                                    //--border-radius	//Border radius of the checkbox icon
-                                    //--border-style	//Border style of the checkbox icon
-                                    //--border-width	//Border width of the checkbox icon
-                                    //--checkmark-color	//Color of the checkbox checkmark when checked
-                                    //--checkmark-width	//Stroke width of the checkbox checkmark
-                                    //--size	//Size of the checkbox icon
-                                    //--transition	//Transition of the checkbox icon
-                                    	margin-top: 2px;
-                                    	margin-bottom: 2px;
-                                    
-                                    '
                           ↓slot [ngx.components.UIAttribute-1776347132154]: 
                             attrName: slot
                             attrValue: 
@@ -13402,17 +13209,6 @@ title: Title for modalConfigure
                           isEnabled: false
                           tagName: ion-icon
                           ↓Style [ngx.components.UIStyle-1776347132289]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	width: 16px;
-                                    	height: 16px;
-                                    	flex-shrink: 0;
-                                    	
-                                    	color: #9F9FA9;
-                                    '
                         ↓TextItem1 [ngx.components.UIDynamicElement-1776347132292]: 
                           beanData: '{"ionBean":"TextItem"}'
                           tagName: ion-text
@@ -13422,20 +13218,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:''+(idx+1)
                           ↓Style [ngx.components.UIStyle-1776347132298]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	color: #9F9FA9;
-                                    	text-align: center;
-                                    	font-size: 14px;
-                                    	font-style: normal;
-                                    	font-weight: 400;
-                                    	line-height: 20px; /* 142.857% */
-                                    	letter-spacing: -0.15px;
-                                    	margin-right: 10px;
-                                    '
                         ↓TextItem [ngx.components.UIDynamicElement-1776347132301]: 
                           beanData: '{"ionBean":"TextItem"}'
                           tagName: ion-text
@@ -13445,18 +13227,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:column?.name
                           ↓Style [ngx.components.UIStyle-1776347132307]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	color: #18181B;
-                                    	font-size: 14px;
-                                    	font-style: normal;
-                                    	font-weight: 400;
-                                    	line-height: 20px; /* 142.857% */
-                                    	letter-spacing: -0.15px;
-                                    '
                       ↓Directive [ngx.components.UIControlDirective-1776347132310]: 
                         directiveName: Switch
                         directiveSource: 
@@ -14317,15 +14087,6 @@ title: Title for modalConfigure
                                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                       - MobileSmartSourceType: plain:start
                           ↓Style [ngx.components.UIStyle-1776347132643]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	display: flex;
-                                    	align-items: center;
-                                    	flex-wrap: nowrap;
-                                    '
                       ↓Style [ngx.components.UIStyle-1776347132646]: 
                         styleContent: 
                           - xmlizable: 
@@ -14420,17 +14181,6 @@ title: Title for modalConfigure
                           isEnabled: false
                           tagName: ion-icon
                           ↓Style [ngx.components.UIStyle-1776347132661]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	width: 16px;
-                                    	height: 16px;
-                                    	flex-shrink: 0;
-                                    	
-                                    	color: #9F9FA9;
-                                    '
                         ↓TextItem [ngx.components.UIDynamicElement-1776347132664]: 
                           beanData: '{"ionBean":"TextItem"}'
                           isEnabled: false
@@ -14441,18 +14191,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:column?.name
                           ↓Style [ngx.components.UIStyle-1776347132670]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	color: #18181B;
-                                    	font-size: 14px;
-                                    	font-style: normal;
-                                    	font-weight: 400;
-                                    	line-height: 20px; /* 142.857% */
-                                    	letter-spacing: -0.15px;
-                                    '
                         ↓CheckBox [ngx.components.UIDynamicElement-1776347132673]: 
                           beanData: |
                             '{
@@ -14465,38 +14203,6 @@ title: Title for modalConfigure
                             }'
                           tagName: ion-checkbox
                           ↓Style [ngx.components.UIStyle-1776347132676]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/**
-                                     * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                     * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                     * They are set using custom property notation, e.g.: --main-color: black;
-                                     * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                     * You can find below your component''s properties you can customize within the page.
-                                     * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                     * For more informations see https://ionicframework.com/docs/theming.
-                                    **/
-                                    //--background	//Background of the checkbox icon
-                                    //--background-checked	//Background of the checkbox icon when checked
-                                    //--border-color	//Border color of the checkbox icon
-                                    //--border-color-checked	//Border color of the checkbox icon when checked
-                                    //--border-radius	//Border radius of the checkbox icon
-                                    //--border-style	//Border style of the checkbox icon
-                                    //--border-width	//Border width of the checkbox icon
-                                    //--checkmark-color	//Color of the checkbox checkmark when checked
-                                    //--checkmark-width	//Stroke width of the checkbox checkmark
-                                    //--size	//Size of the checkbox icon
-                                    //--transition	//Transition of the checkbox icon
-                                    	margin-top: 2px;
-                                    	margin-bottom: 2px;
-                                    	--border-color: #1A1A1A;
-                                    	&::part(container) {
-                                    		justify-content: center !important;
-                                    	}
-                                    '
                           ↓slot [ngx.components.UIAttribute-1776347132679]: 
                             attrName: class
                             attrValue: 
@@ -14528,17 +14234,6 @@ title: Title for modalConfigure
                           isEnabled: false
                           tagName: ion-icon
                           ↓Style [ngx.components.UIStyle-1776347132691]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	width: 16px;
-                                    	height: 16px;
-                                    	flex-shrink: 0;
-                                    	
-                                    	color: #9F9FA9;
-                                    '
                         ↓TextItem [ngx.components.UIDynamicElement-1776347132694]: 
                           beanData: '{"ionBean":"TextItem"}'
                           isEnabled: false
@@ -14549,18 +14244,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:column?.name
                           ↓Style [ngx.components.UIStyle-1776347132700]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	color: #18181B;
-                                    	font-size: 14px;
-                                    	font-style: normal;
-                                    	font-weight: 400;
-                                    	line-height: 20px; /* 142.857% */
-                                    	letter-spacing: -0.15px;
-                                    '
                         ↓CheckBox1 [ngx.components.UIDynamicElement-1776347132703]: 
                           beanData: |
                             '{
@@ -14576,35 +14259,6 @@ title: Title for modalConfigure
                           isEnabled: false
                           tagName: ion-checkbox
                           ↓Style [ngx.components.UIStyle-1776347132706]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/**
-                                     * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                     * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                     * They are set using custom property notation, e.g.: --main-color: black;
-                                     * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                     * You can find below your component''s properties you can customize within the page.
-                                     * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                     * For more informations see https://ionicframework.com/docs/theming.
-                                    **/
-                                    //--background	//Background of the checkbox icon
-                                    //--background-checked	//Background of the checkbox icon when checked
-                                    --border-color: #1A1A1A;	//Border color of the checkbox icon
-                                    //--border-color-checked	//Border color of the checkbox icon when checked
-                                    //--border-radius	//Border radius of the checkbox icon
-                                    //--border-style	//Border style of the checkbox icon
-                                    //--border-width	//Border width of the checkbox icon
-                                    //--checkmark-color	//Color of the checkbox checkmark when checked
-                                    //--checkmark-width	//Stroke width of the checkbox checkmark
-                                    //--size	//Size of the checkbox icon
-                                    //--transition	//Transition of the checkbox icon
-                                    	margin-top: 2px;
-                                    	margin-bottom: 2px;
-                                    
-                                    '
                           ↓slot [ngx.components.UIAttribute-1776347132709]: 
                             attrName: slot
                             attrValue: 
@@ -14718,55 +14372,6 @@ title: Title for modalConfigure
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: plain:initial btn
                           ↓Style [ngx.components.UIStyle-1776347132757]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '/**
-                                     * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                     * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                     * They are set using custom property notation, e.g.: --main-color: black;
-                                     * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                     * You can find below your component''s properties you can customize within the page.
-                                     * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                     * For more information see https://ionicframework.com/docs/theming.
-                                    **/
-                                    //--background	//Background of the button
-                                    //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
-                                    //--background-activated-opacity	//Opacity of the button when pressed
-                                    //--background-focused	//Background of the button when focused with the tab key
-                                    //--background-focused-opacity	//Opacity of the button when focused with the tab key
-                                    //--background-hover	//Background of the button on hover
-                                    //--background-hover-opacity	//Opacity of the background on hover
-                                    //--border-color	//Border color of the button
-                                    //--border-radius	//Border radius of the button
-                                    //--border-style	//Border style of the button
-                                    //--border-width	//Border width of the button
-                                    //--box-shadow	//Box shadow of the button
-                                    //--color	//Text color of the button
-                                    //--color-activated	//Text color of the button when pressed
-                                    //--color-focused	//Text color of the button when focused with the tab key
-                                    //--color-hover	//Text color of the button when hover
-                                    //--opacity	//Opacity of the button
-                                    //--padding-bottom	//Bottom padding of the button
-                                    //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
-                                    //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
-                                    //--padding-top	//Top padding of the button
-                                    //--ripple-color	//Color of the button ripple effect
-                                    //--transition	//Transition of the button
-                                    width: 100%;
-                                    height: 100%;
-                                    margin: 0px;
-                                    &::part(native) {
-                                    	display: flex;
-                                    	width: 100%;
-                                    	height: 100%;
-                                    	flex-direction: column;
-                                    	align-items: center;
-                                    	gap: 4px;
-                                    }
-                                    '
                       ↓Button [ngx.components.UIDynamicElement-1776347132760]: 
                         beanData: '{"ionBean":"Button"}'
                         tagName: ion-button
@@ -14860,51 +14465,6 @@ title: Title for modalConfigure
                           beanData: '{"ionBean":"List","Lines":"plain:none"}'
                           tagName: ion-list
                           ↓Style [ngx.components.UIStyle-1776347132793]: 
-                            styleContent: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                  →: |
-                                    '	ion-item {
-                                    		color: #1A1A1A !important;
-                                    		//font-family: Inter;
-                                    		font-size: 12.25px !important;
-                                    		font-style: normal !important;
-                                    		font-weight: 400 !important;
-                                    		line-height: 17.5px !important; /* 142.857% */
-                                    		letter-spacing: -0.018px !important;
-                                    		--background: transparent !important;
-                                    		min-height: unset !important;
-                                    		border-radius: 14px !important;
-                                    		height: 32px !important;
-                                    		
-                                    		&::part(native) {
-                                    			height: 32px !important;
-                                    			min-height: unset !important;
-                                    //			padding: 0 !important;
-                                    			display: flex;
-                                    			align-items: center;	
-                                    		}
-                                    	
-                                    		.item-inner{
-                                    			margin-left:0px !important;
-                                    		}
-                                    	}
-                                    	ion-item:hover{
-                                    		//font-size: 0.75rem;
-                                    		font-size: 12.25px !important;
-                                    		color: #1A1A1A !important;
-                                    		--background: rgba(26, 26, 26, 0.1) !important;
-                                    		text-decoration: none !important;
-                                    		cursor: pointer !important;
-                                    	}
-                                    	
-                                    	ion-icon {
-                                    		margin-top: 0.35rem !important;
-                                    		margin-bottom: 0.35rem !important;
-                                    		margin-right: 14px !important;
-                                    	}
-                                    '
                           ↓ShareForm [ngx.components.UIDynamicElement-1776347132796]: 
                             beanData: '{"ionBean":"ListItem"}'
                             isEnabled: false
@@ -15945,6 +15505,7 @@ title: Title for modalConfigure
                     →: |
                       '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                       //		console.log(page.local?.selectedColumns)
+                      		page.local.searchRightPanel = "";
                       		page.refreshFilteredColumns();
                       		resolve();
                       '
