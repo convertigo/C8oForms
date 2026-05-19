@@ -570,7 +570,7 @@ scriptContent:
         		
         			
         			// end handle attachments
-        			let args = { doc: [JSON.stringify(doc)], attachments: attachments, attachments_meta: JSON.stringify(attachments_meta), execute_Async: "false" };
+        			let args = { doc: [JSON.stringify(doc)], attachments: attachments, attachments_meta: JSON.stringify(attachments_meta), execute_Async: "false", __context: "*", __removeContext: true };
         			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
         			this.actions[step.name]["value"] = resp?.response;
         			try {
@@ -928,7 +928,7 @@ scriptContent:
         		}
         		finally{
         			if(submit && executeSubmit){
-        				this.c8o.callJsonObject("C8Oforms.APIV2_deleteDocument", {id:__id, fromResponse: true});
+        				this.c8o.callJsonObject("C8Oforms.APIV2_deleteDocument", {id:__id, fromResponse: true, __context: "*", __removeContext: true});
         				// perform deletion of temp docs
         			}
         		}
@@ -2339,7 +2339,7 @@ scriptContent:
         									// if this is a fullsync / hybrid source
         									if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
         										// set default params
-        										let defaults = {};
+        										let defaults = {__context: "*", __removeContext: true};
         										defaults["ddoc"] = sources.fullSyncArgs.ddoc;
         										defaults["view"] = sources.fullSyncArgs.view;
         										defaults["__live"] = sources.fullSyncArgs.__live;
@@ -2378,7 +2378,7 @@ scriptContent:
         											}
         											if (this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName] != undefined && this.global.waitFSBaseStatus[sources.fullSyncArgs.connectorName].indexed[Osha] != true && this.local.alreadyDoing[Osha] != true) {
         												this.local.alreadyDoing[Osha] = true;
-        												var params2 = { ...defaults, ...params["__prepare"]["__params"] };
+        												var params2 = { ...defaults, ...params["__prepare"]["__params"], __context: "*", __removeContext: "true" };
         												// we wont launch this request as live since its only for indexing
         												delete params2["__live"];
         												// if requestable is set use it if not use default one
@@ -2420,6 +2420,7 @@ scriptContent:
         									else {
         										params = variables;
         									}
+        									params = { ...params, __context: "*", __removeContext: "true" };
         									try {
         										let followingCode = async () => {
         											//if fullsync
@@ -2534,7 +2535,7 @@ scriptContent:
         												return;
         											}
         											try {
-        												res = await page.c8o.callJsonObject(requestable, params).async();
+        												res = await page.c8o.callJsonObject(requestable, {__context: "*", __removeContext: true, ...params}).async();
         												await followingCode();
         											}
         											catch (e) {
@@ -5089,6 +5090,136 @@ scriptContent:
         			page["actions"][elem["name"]] = { "name": elem["name"], "type": elem["type"], "value": "" };
         
         			//			}
+        		}
+        	}
+        	
+        	public getCurrentPageTechName(): string | null {
+        		try {
+        			if (this.local?.pages != undefined && this.local?.pages?.[this.local?.currentIndex] != undefined) {
+        				return this.local.pages[this.local.currentIndex].pageTechName;
+        			}
+        		}
+        		catch (e) {
+        			
+        		}
+        		return null;
+        	}
+        	
+        	public getCurrentPageFormsList(list = this.formsList): any[] {
+        		let currentPageTechName = this.getCurrentPageTechName();
+        		let currentPageFormsList: any[] = list != null ? list : [];
+        		if (currentPageTechName == null) {
+        			return currentPageFormsList;
+        		}
+        		return currentPageFormsList.filter((item) => {
+        			return item?.config?.page == undefined || item?.config?.page == currentPageTechName;
+        		});
+        	}
+        	
+        	public triggerSourceIds(idsToCall): void {
+        		let page = this;
+        		if (page.local.techGrid == undefined) {
+        			page.local.techGrid = {};
+        		}
+        		let execIdToCall = async () => {
+        			for (let id of idsToCall) {
+        				try {
+        					page["functionsById"][id](true)
+        					.finally(() => {
+        						if (page.local.fromResponse) {
+        							for (let _id in (page as any).shaById) {
+        								if ((page as any).shaById[_id] == id) {
+        									let elem = (page as any).getItemById(_id);
+        									if (elem.type == "grid" && (page as any).formsSubmit[elem.name].value != null) {
+        										let targetGrid = (page as any).all_c8oforms_itemgridviewer._results.find((x) => x.item.name == elem.name);
+        										if (targetGrid == undefined) {
+        											return;
+        										}
+        										if (elem.config.returned_value === "row_selected") {
+        											targetGrid.myGrid.agGrid.api.forEachNode((node, rowIndex) => {
+        												if (node?.data?.id?.value == (page as any).formsSubmit?.[elem.name]?.value?.id) {
+        													targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+        													node.setSelected(true, true);
+        												}
+        											});
+        										}
+        										else if (elem.config.returned_value === "multiple_row_selected") {
+        											targetGrid.myGrid.agGrid.api.forEachNode((node, rowIndex) => {
+        												if ((page as any).formsSubmit?.[elem.name]?.value.map((x) => { return x.id }).includes(node?.data?.id?.value)) {
+        													targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+        													node.setSelected(true, false);
+        												}
+        											});
+        										}
+        										else if (elem.config.returned_value === "cell_selected") {
+        											targetGrid.myGrid.agGrid.api.forEachNode((node, rowIndex) => {
+        												if (node?.data?.id?.value == (page as any).formsSubmit?.[elem.name]?.parentNodeId) {
+        													for (let i in node.data) {
+        														let currentCell = node.data[i];
+        														if (typeof currentCell == "string") {
+        															if (currentCell == (page as any).formsSubmit?.[elem.name]?.value) {
+        																targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+        																targetGrid.myGrid.agGrid.api.setFocusedCell(rowIndex, i);
+        																targetGrid.myGrid.elementRef.nativeElement.querySelector(`[row-id="${node.id}"]`).querySelector(`[col-id="${currentCell}"]`).classList.add(''ag-row-selected'');
+        															}
+        														}
+        														else {
+        															if (currentCell?.technicalName == (page as any).formsSubmit?.[elem.name]?.value.technicalName) {
+        																targetGrid.myGrid.agGrid.api.ensureNodeVisible(node);
+        																targetGrid.myGrid.agGrid.api.setFocusedCell(rowIndex, i);
+        																targetGrid.myGrid.elementRef.nativeElement.querySelector(`[row-id="${node.id}"]`).querySelector(`[col-id="${currentCell?.technicalName}"]`).classList.add(''ag-row-selected'');
+        															}
+        														}
+        													}
+        												}
+        											});
+        										}
+        									}
+        								}
+        							}
+        						}
+        					});
+        				}
+        				catch (e) {
+        					console.error("an error occured idsToCall", e);
+        				}
+        			}
+        		}
+        		execIdToCall();
+        	}
+        	
+        	public async initCurrentPageSources(force = false): Promise<Array<string>> {
+        		if (this.formsList == undefined || this.redList == undefined || this.formsSubmit == undefined) {
+        			return [];
+        		}
+        		let currentPageTechName = this.getCurrentPageTechName();
+        		if (this.local.initializedSourcePages == undefined) {
+        			this.local.initializedSourcePages = {};
+        		}
+        		if (this.local.initializingSourcePages == undefined) {
+        			this.local.initializingSourcePages = {};
+        		}
+        		if (currentPageTechName != null && !force && this.local.initializedSourcePages[currentPageTechName] == true) {
+        			return [];
+        		}
+        		if (currentPageTechName != null && this.local.initializingSourcePages[currentPageTechName] == true) {
+        			return [];
+        		}
+        		if (currentPageTechName != null) {
+        			this.local.initializingSourcePages[currentPageTechName] = true;
+        		}
+        		try {
+        			let idsToCall = await this.fillSources(this.getCurrentPageFormsList(), this.redList, this.formsSubmit);
+        			if (currentPageTechName != null) {
+        				this.local.initializedSourcePages[currentPageTechName] = true;
+        			}
+        			this.triggerSourceIds(idsToCall);
+        			return idsToCall;
+        		}
+        		finally {
+        			if (currentPageTechName != null) {
+        				delete this.local.initializingSourcePages[currentPageTechName];
+        			}
         		}
         	}
         	
