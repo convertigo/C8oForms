@@ -708,6 +708,7 @@ scriptContent:
         			}
         			event.preventDefault();
         			event.stopPropagation();
+        			event.stopImmediatePropagation?.();
         			if (event.dataTransfer) {
         				event.dataTransfer.dropEffect = "copy";
         			}
@@ -715,7 +716,8 @@ scriptContent:
         		const nativeDropHandler = (event: any) => {
         			try {
         				const internalDrag = event?.dataTransfer?.getData?.("__c8oformsdrag_source") === "true";
-        				const droppedText = event?.dataTransfer?.getData?.("text/plain") || "";
+        				let droppedText = event?.dataTransfer?.getData?.("text/plain") || "";
+        				droppedText = droppedText.replace(/[\r\n]+$/g, "");
         				this.pageOwner?.c8o?.log?.debug?.("[MonacoNativeDrop] internal=" + internalDrag);
         				this.pageOwner?.c8o?.log?.debug?.("[MonacoNativeDrop] types=" + JSON.stringify(Array.from(event?.dataTransfer?.types || [])));
         				this.pageOwner?.c8o?.log?.debug?.("[MonacoNativeDrop] text=" + droppedText);
@@ -724,6 +726,8 @@ scriptContent:
         				}
         				event.preventDefault();
         				event.stopPropagation();
+        				event.stopImmediatePropagation?.();
+        				this.clearMonacoDropTarget(editor);
         				editor.focus();
         				let position = editor.getPosition();
         				try {
@@ -765,18 +769,25 @@ scriptContent:
         					}
         				}
         				setTimeout(() => {
+        					this.clearMonacoDropTarget(editor);
         					editor.trigger('''', ''editor.action.triggerSuggest'');
         				}, 0);
+        				setTimeout(() => this.clearMonacoDropTarget(editor), 50);
         			}
         			catch (e) {
         				this.pageOwner?.c8o?.log?.error?.("[MonacoNativeDrop] drop failed " + (e || e?.message || JSON.stringify(e)));
         			}
         		};
+        		const nativeDragEndHandler = () => this.clearMonacoDropTarget(editor);
         		monacoDomNode?.addEventListener("dragover", nativeDragOverHandler, true);
         		monacoDomNode?.addEventListener("drop", nativeDropHandler, true);
+        		monacoDomNode?.addEventListener("dragend", nativeDragEndHandler, true);
+        		monacoDomNode?.addEventListener("dragleave", nativeDragEndHandler, true);
         		editor.onDidDispose(() => {
         			monacoDomNode?.removeEventListener("dragover", nativeDragOverHandler, true);
         			monacoDomNode?.removeEventListener("drop", nativeDropHandler, true);
+        			monacoDomNode?.removeEventListener("dragend", nativeDragEndHandler, true);
+        			monacoDomNode?.removeEventListener("dragleave", nativeDragEndHandler, true);
         		});
         		editor.onDidBlurEditorText(async () => {
         			const rawValue = editor.getValue();
@@ -2720,6 +2731,30 @@ scriptContent:
         	           const dragAndDropContribution = editor.getContribution ? editor.getContribution("editor.contrib.dragAndDrop") : null;
         	           if (dragAndDropContribution && typeof dragAndDropContribution._removeDecoration === "function") {
         	            dragAndDropContribution._removeDecoration();
+        	           }
+        	          }
+        	          catch (e) { }
+        	          try {
+        	           if (typeof editor.removeDropIndicator === "function") {
+        	            editor.removeDropIndicator();
+        	           }
+        	          }
+        	          catch (e) { }
+        	          try {
+        	           const model = editor.getModel ? editor.getModel() : null;
+        	           const decorations = model && typeof model.getAllDecorations === "function"
+        	            ? model.getAllDecorations()
+        	            : [];
+        	           const ids = decorations
+        	            .filter((decoration: any) => {
+        	             const options = decoration?.options ?? {};
+        	             return options.className === "dnd-target" ||
+        	              options.description === "dnd-target" ||
+        	              options.description === "workbench-dnd-target";
+        	            })
+        	            .map((decoration: any) => decoration.id);
+        	           if (ids.length > 0 && typeof model.deltaDecorations === "function") {
+        	            model.deltaDecorations(ids, []);
         	           }
         	          }
         	          catch (e) { }
