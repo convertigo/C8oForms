@@ -6,16 +6,43 @@
         →: |
           '		event.stopPropagation();
           		
-          		if(vars["code"] != null && vars.isTs == true){
-          			let dataI = vars["code"];
-          			const transformToTsMonaco = page["transform_toTsMonaco"] ?? vars["transform_toTsMonaco"] ?? page["pageOwner"];
-          			if (typeof dataI === "string" && typeof transformToTsMonaco?.transform$toTsMonaco === "function") {
-          				dataI = transformToTsMonaco.transform$toTsMonaco(dataI);
+          		const getTransformToTsMonaco = () => {
+          			const candidates = [vars["transform_toTsMonaco"], page["transform_toTsMonaco"], page["pageOwner"]];
+          			for (const candidate of candidates) {
+          				if (typeof candidate?.transform$toTsMonaco === "function") {
+          					return candidate;
+          				}
           			}
+          			return null;
+          		};
+          		const getOwner = () => page["pageOwner"] != undefined ? page["pageOwner"] : page;
+          		const toTsMonaco = (value) => {
+          			const transformToTsMonaco = getTransformToTsMonaco();
+          			if (typeof value === "string" && transformToTsMonaco != null) {
+          				return transformToTsMonaco.transform$toTsMonaco(value);
+          			}
+          			return value;
+          		};
+          		const isTsTarget = vars.targetType == "ts";
+          		const isFilterTarget = vars.targetType == "filter";
+          		
+          		if(vars["code"] != null && (isTsTarget || isFilterTarget)){
+          			let dataI = vars["code"];
+          			dataI = toTsMonaco(dataI);
           			event.dataTransfer.setData("__c8oformsdrag_source", "true");
           			event.dataTransfer.setData("dropEffect", "copy");
           			event.dataTransfer.setData("text/plain", dataI);
-          			page["pageOwner"].local.draggingSource = true;
+          			if (isFilterTarget) {
+          				const owner = getOwner();
+          				const htmlData = owner["getBadge"](1, vars.item.name, {c8opath: vars.code}, true, vars.targetType);
+          				event.dataTransfer.setData(''code'', "true");
+          				event.dataTransfer.setData("type", ''code'');
+          				event.dataTransfer.setData("text/html", htmlData);
+          				owner.local.draggingSource = true;
+          			}
+          			else {
+          				page["pageOwner"].local.draggingSource = true;
+          			}
           		}
           		else if(vars["code"] != null){
           			try{
@@ -35,15 +62,18 @@
           			}
           			
           		}
-          		else if(page["isTs"]){
+          		else if(isTsTarget || isFilterTarget){
           			event.dataTransfer.setData("__c8oformsdrag_source", "true");
                       event.dataTransfer.setData(vars.item.type, "true");
                       event.dataTransfer.setData("type", vars.item.type);
                       event.dataTransfer.setData("dropEffect", "copy");
                       let dataI = page["pageOwner"]["getBadge"](vars.item.id, vars.item.name, null, true, vars.targetType);
+                      if (isFilterTarget) {
+                      	event.dataTransfer.setData("text/html", dataI);
+                      }
                       dataI = page["pageOwner"]["transformHtmlto$"](dataI);
                       // dataI = page["transform$toTsMonaco"](dataI);
-                      dataI = page["transform_toTsMonaco"].transform$toTsMonaco(dataI);
+                      dataI = toTsMonaco(dataI);
                       dataI = dataI.substring(2+page["pageOwner"].local.tagName.length, dataI.length - (3+page["pageOwner"].local.tagName.length) )
                       event.dataTransfer.setData("text/plain", dataI);
                       page["pageOwner"].local.draggingSource = true;
