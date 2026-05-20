@@ -9432,6 +9432,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>modelBlurred</td><td></td>
+</tr>
+<tr>
 <td>modelChanged</td><td></td>
 </tr>
 </table>
