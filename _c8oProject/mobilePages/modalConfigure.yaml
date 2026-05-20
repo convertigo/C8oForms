@@ -331,7 +331,7 @@ scriptContent:
         				return col_included + col_selected + col_actions;
         				break;
         			case ''select'':
-        				let col_included_cols = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.selected).length + '' '' + this.translate.instant(''modal_configure_footer_label_table_included'') ;
+        				let col_included_cols = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.displayValue || this.local.selectedColumns[col]?.value).length + '' '' + this.translate.instant(''modal_configure_footer_label_table_included'') ;
         				let col_value = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.value).length + '' '' + this.translate.instant(''modal_configure_footer_label_select_value'') ;
         				let col_displayvalue = '' · '' + Object.keys(this.local.selectedColumns).filter(col => this.local.selectedColumns[col]?.displayValue).length + '' '' + this.translate.instant(''modal_configure_footer_label_select_display_value'') ;
         				return col_included_cols + col_value + col_displayvalue;
@@ -720,8 +720,97 @@ scriptContent:
         	  enforce(this.local.filteredColumns);
         	}
         	
+        	enforceSingleCheckboxGroupAxis(
+        	  key: ''displayValue'' | ''value'',
+        	  index: any = null,
+        	  name: any = null,
+        	  checked: any = null
+        	): void {
+        	  if ((this.local?.type != ''checkbox_group'' && this.local?.type != ''select'') || (key != ''displayValue'' && key != ''value'')) {
+        		return;
+        	  }
+        	
+        	  const filtered = Array.isArray(this.local?.filteredColumns) ? this.local.filteredColumns : [];
+        	  let selectedName = name != null ? String(name) : filtered[Number(index)]?.name;
+        	  if (selectedName == null) {
+        		selectedName = filtered.find((item) => item?.[key] === true)?.name;
+        	  }
+        	
+        	  if (selectedName == null) {
+        		return;
+        	  }
+        	
+        	  let requestedValue = checked;
+        	  if (requestedValue != null && typeof requestedValue == ''object'' && requestedValue.detail != null) {
+        		requestedValue = requestedValue.detail.checked;
+        	  }
+        	  if (requestedValue != null && typeof requestedValue == ''object'' && requestedValue.target != null) {
+        		requestedValue = requestedValue.target.checked;
+        	  }
+        	  const hasRequestedValue = requestedValue === true || requestedValue === false;
+        	  const selectedItem = filtered.find((item) => item?.name == selectedName);
+        	  const selectedColumns = this.local?.selectedColumns;
+        	  const selectedMapItem = selectedColumns && typeof selectedColumns == ''object'' && !Array.isArray(selectedColumns)
+        		? selectedColumns[selectedName]
+        		: null;
+        	  if (hasRequestedValue) {
+        		if (selectedItem) {
+        		  selectedItem[key] = requestedValue;
+        		}
+        		if (selectedMapItem) {
+        		  selectedMapItem[key] = requestedValue;
+        		}
+        	  }
+        	  const isSelected = hasRequestedValue ? requestedValue === true : selectedItem?.[key] === true || selectedMapItem?.[key] === true;
+        	
+        	  const applyToArray = (items: any[]) => {
+        		if (!Array.isArray(items)) {
+        		  return;
+        		}
+        	
+        		items.forEach((item) => {
+        		  if (!item?.name) {
+        			return;
+        		  }
+        		  if (isSelected) {
+        			const isCurrent = item.name == selectedName;
+        			item[key] = isCurrent;
+        			if (isCurrent) {
+        			  item.selected = true;
+        			}
+        		  } else if (item.name == selectedName) {
+        			item[key] = false;
+        		  }
+        		});
+        	  };
+        	
+        	  const applyToMap = (items: Record<string, any>) => {
+        		if (!items || typeof items !== ''object'' || Array.isArray(items)) {
+        		  return;
+        		}
+        	
+        		Object.keys(items).forEach((itemName) => {
+        		  if (isSelected) {
+        			const isCurrent = itemName == selectedName;
+        			items[itemName][key] = isCurrent;
+        			if (isCurrent) {
+        			  items[itemName].selected = true;
+        			}
+        		  } else if (itemName == selectedName) {
+        			items[itemName][key] = false;
+        		  }
+        		});
+        	  };
+        	
+        	  applyToArray(this.local.filteredColumns);
+        	  applyToArray(this.local.selectedColumns);
+        	  applyToMap(this.local.selectedColumns);
+        	}
+        	
         	saveSelectedColumns(): void {
         	  this.enforceSingleSelectedColumn();
+        	  this.enforceSingleCheckboxGroupAxis(''displayValue'');
+        	  this.enforceSingleCheckboxGroupAxis(''value'');
         	  this.local.selectedColumns = (this.local?.type == ''table'') ? this.local.filteredColumns : this.toSelectedColumnsMap(this.local.filteredColumns);
         	  this.enforceSingleSelectedColumn();
         	}
@@ -2182,8 +2271,7 @@ title: Title for modalConfigure
                                 {value: ''displayed'', displayValue: ''modal_configure_configuration_filter_displayed_label''},
                                 {value: ''hidden'', displayValue: ''modal_configure_configuration_filter_hidden_label''},
                                 ] : ((this.local?.type == ''select'') ? [
-                                {value: ''all'', displayValue: ''modal_configure_configuration_filter_all_label''},
-                                {value: ''included'', displayValue: ''modal_configure_configuration_filter_included_label''}
+                                {value: ''all'', displayValue: ''modal_configure_configuration_filter_all_label''}
                                 ]: [])'
                       ↓model [ngx.components.UIUseVariable-1776263497223]: 
                         varValue: 
@@ -2243,6 +2331,7 @@ title: Title for modalConfigure
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                 →: |
                                   '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                  		page.enforceSingleCheckboxGroupAxis(''displayValue'', props.stack?.root?.scope?.idx, null, event);
                                   		page.syncFilteredToSelectedColumns();
                                   		page.local.searchRightPanel = "";
                                   		page.refreshFilteredColumns();
@@ -2309,7 +2398,7 @@ title: Title for modalConfigure
                       attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:this.local?.type == 'table' || this.local?.type == 'select'
+                          - MobileSmartSourceType: plain:this.local?.type == 'table'
                   ↓Button3 [ngx.components.UIDynamicElement-1777996666781]: 
                     beanData: '{"ionBean":"Button"}'
                     tagName: ion-button
@@ -2403,7 +2492,7 @@ title: Title for modalConfigure
                       attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:this.local?.type == 'table' || this.local?.type == 'select'
+                          - MobileSmartSourceType: plain:this.local?.type == 'table'
                   ↓Button1 [ngx.components.UIDynamicElement-1776342478985]: 
                     beanData: '{"ionBean":"Button"}'
                     tagName: ion-button
@@ -3180,7 +3269,7 @@ title: Title for modalConfigure
                   attrValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: plain:(this.local?.type == 'table' || this.local?.type == 'select') && this.local?.target != 'actions'
+                      - MobileSmartSourceType: plain:this.local?.type == 'table' && this.local?.target != 'actions'
               ↓Div3 [ngx.components.UIDynamicElement-1776330480162]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -4668,7 +4757,7 @@ title: Title for modalConfigure
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:(this.local?.type == 'table' || this.local?.type == 'select')  && this.local?.target != 'actions'
+                            - MobileSmartSourceType: plain:this.local?.type == 'table' && this.local?.target != 'actions'
                     ↓Div3 [ngx.components.UIDynamicElement-1776331018464]: 
                       beanData: '{"ionBean":"DivTag"}'
                       tagName: div
@@ -4974,7 +5063,7 @@ title: Title for modalConfigure
                            "ionBean": "CheckBox",
                            "ControlName": "plain:name1667636420064",
                            "DoubleBinding": "script:this.local.filteredColumns[idx].displayValue",
-                           "Disabled": "script:(! this.local.selectedColumns[column.name]?.selected )",
+                           "Disabled": "script:false",
                            "IonMode": "plain:ios"
                           }'
                         tagName: ion-checkbox
@@ -5035,6 +5124,7 @@ title: Title for modalConfigure
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
                                       '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                      		page.enforceSingleCheckboxGroupAxis(''displayValue'', props.stack?.root?.scope?.idx, null, event);
                                       		page.syncFilteredToSelectedColumns();
                                       		page.local.searchRightPanel = "";
                                       		page.refreshFilteredColumns();
@@ -5070,7 +5160,7 @@ title: Title for modalConfigure
                            "ionBean": "CheckBox",
                            "ControlName": "plain:name1667636420064",
                            "DoubleBinding": "script:this.local.filteredColumns[idx].value",
-                           "Disabled": "script:! local?.selectedColumns[column.name]?.selected",
+                           "Disabled": "script:false",
                            "IonMode": "plain:ios"
                           }'
                         tagName: ion-checkbox
@@ -5131,6 +5221,7 @@ title: Title for modalConfigure
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
                                       '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                      		page.enforceSingleCheckboxGroupAxis(''value'', props.stack?.root?.scope?.idx, null, event);
                                       		page.syncFilteredToSelectedColumns();
                                       		page.refreshFilteredColumns();
                                       		resolve();
@@ -7216,7 +7307,7 @@ title: Title for modalConfigure
                                        "ionBean": "CheckBox",
                                        "ControlName": "plain:name1667636420064",
                                        "DoubleBinding": "script:local.selectedColumns[column.name].displayValue",
-                                       "Disabled": "script:(! local?.selectedColumns[column.name]?.selected )",
+                                       "Disabled": "script:false",
                                        "IonMode": "plain:ios"
                                       }'
                                     tagName: ion-checkbox
@@ -7303,7 +7394,7 @@ title: Title for modalConfigure
                                        "ionBean": "CheckBox",
                                        "ControlName": "plain:name1667636420064",
                                        "DoubleBinding": "script:local.selectedColumns[column.name].value",
-                                       "Disabled": "script:! local?.selectedColumns[column.name]?.selected",
+                                       "Disabled": "script:false",
                                        "IonMode": "plain:ios"
                                       }'
                                     tagName: ion-checkbox
@@ -10090,7 +10181,7 @@ title: Title for modalConfigure
                                        "ionBean": "CheckBox",
                                        "ControlName": "plain:name1667636420064",
                                        "DoubleBinding": "script:local.selectedColumns[column.name].displayValue",
-                                       "Disabled": "script:(! local?.selectedColumns[column.name]?.selected )",
+                                       "Disabled": "script:false",
                                        "IonMode": "plain:ios"
                                       }'
                                     tagName: ion-checkbox
@@ -10177,7 +10268,7 @@ title: Title for modalConfigure
                                        "ionBean": "CheckBox",
                                        "ControlName": "plain:name1667636420064",
                                        "DoubleBinding": "script:local.selectedColumns[column.name].value",
-                                       "Disabled": "script:! local?.selectedColumns[column.name]?.selected",
+                                       "Disabled": "script:false",
                                        "IonMode": "plain:ios"
                                       }'
                                     tagName: ion-checkbox
@@ -15506,11 +15597,15 @@ title: Title for modalConfigure
                     					conf.table_id_int = page.local.selectedColumns[item]["table_id"];
                     					if (page.local.selectedColumns[item]["displayValue"]) {
                     						conf.line = item;
-                    						conf.columns.push(item);
+                    						if (!conf.columns.includes(item)) {
+                    							conf.columns.push(item);
+                    						}
                     					}
                     					if (page.local.selectedColumns[item]["value"]) {
                     						conf.column = item;
-                    						conf.columns.push(item);
+                    						if (!conf.columns.includes(item)) {
+                    							conf.columns.push(item);
+                    						}
                     					}
                     					if (page.local.selectedColumns[item]["link_row_table_id"] != undefined) {
                     						if(!conf.link_row_table_id.includes(page.local.selectedColumns[item]["link_row_table_id"])){
@@ -15522,8 +15617,10 @@ title: Title for modalConfigure
                     			else {
                     				Object.keys(page.local.selectedColumns).forEach(item => {
                     					conf.table_id_int = page.local.selectedColumns[item]["table_id"]
-                    					if (page.local.selectedColumns[item]["selected"]) {
-                    						conf.columns.push(item)
+                    					if (page.local.selectedColumns[item]["displayValue"] || page.local.selectedColumns[item]["value"]) {
+                    						if (!conf.columns.includes(item)) {
+                    							conf.columns.push(item)
+                    						}
                     					}
                     					if (page.local.selectedColumns[item]["displayValue"]) {
                     						conf.displayValue = item;
@@ -15713,11 +15810,15 @@ title: Title for modalConfigure
                     					conf.table_id_int = page.local.selectedColumns[item]["table_id"];
                     					if (page.local.selectedColumns[item]["displayValue"]) {
                     						conf.line = item;
-                    						conf.columns.push(item);
+                    						if (!conf.columns.includes(item)) {
+                    							conf.columns.push(item);
+                    						}
                     					}
                     					if (page.local.selectedColumns[item]["value"]) {
                     						conf.column = item;
-                    						conf.columns.push(item);
+                    						if (!conf.columns.includes(item)) {
+                    							conf.columns.push(item);
+                    						}
                     					}
                     					if (page.local.selectedColumns[item]["link_row_table_id"] != undefined) {
                     						if(!conf.link_row_table_id.includes(page.local.selectedColumns[item]["link_row_table_id"])){
@@ -15729,8 +15830,10 @@ title: Title for modalConfigure
                     			else {
                     				Object.keys(page.local.selectedColumns).forEach(item => {
                     					conf.table_id_int = page.local.selectedColumns[item]["table_id"]
-                    					if (page.local.selectedColumns[item]["selected"]) {
-                    						conf.columns.push(item)
+                    					if (page.local.selectedColumns[item]["displayValue"] || page.local.selectedColumns[item]["value"]) {
+                    						if (!conf.columns.includes(item)) {
+                    							conf.columns.push(item)
+                    						}
                     					}
                     					if (page.local.selectedColumns[item]["displayValue"]) {
                     						conf.displayValue = item;
