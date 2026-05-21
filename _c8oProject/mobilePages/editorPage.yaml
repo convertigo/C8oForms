@@ -4012,6 +4012,54 @@ scriptContent:
         		}
         	}
         
+        	reorderFormPagesForEditor(origin, dest) {
+        		if (this.form == null || !Array.isArray(this.form.pages)) {
+        			return;
+        		}
+        		const originIndex = +origin;
+        		const destinationIndex = +dest;
+        		if (!Number.isFinite(originIndex) || !Number.isFinite(destinationIndex) || this.form.pages[originIndex] == null) {
+        			return;
+        		}
+        		const currentPageBeforeMove = this.local != null && this.local.currentPage != null ? this.local.currentPage : this.form.pages[originIndex].pageTechName;
+        		const diff = ((originIndex + 1) - (destinationIndex + 1)) > 0 ? 1 : 0;
+        		this.form.pages.splice(destinationIndex, 0, this.form.pages[originIndex]);
+        		this.form.pages.splice(originIndex + diff, 1);
+        		const pageOrderMap: any = this.form.pages.reduce((acc: any, page: any, index: number) => {
+        			if (page != null && page.pageTechName != null) {
+        				acc[page.pageTechName] = index;
+        			}
+        			return acc;
+        		}, {});
+        		const forms: Array<any> = Array.isArray(this.formsList) ? this.formsList : [];
+        		const groupedForms: any = forms.reduce((acc: any, form: any) => {
+        			const pageKey = form != null && form.config != null ? form.config.page : "";
+        			if (!acc[pageKey]) {
+        				acc[pageKey] = [];
+        			}
+        			acc[pageKey].push(form);
+        			return acc;
+        		}, {});
+        		this.formsList = Object.keys(groupedForms)
+        			.sort((a: any, b: any) => {
+        				const orderA = pageOrderMap[a] != null ? pageOrderMap[a] : Number.MAX_SAFE_INTEGER;
+        				const orderB = pageOrderMap[b] != null ? pageOrderMap[b] : Number.MAX_SAFE_INTEGER;
+        				return orderA - orderB;
+        			})
+        			.flatMap(pageKey => groupedForms[pageKey]);
+        		this.syncFormsListWithForm();
+        		const nextCurrentIndex = this.form.pages.findIndex((pageDef) => pageDef != null && pageDef.pageTechName == currentPageBeforeMove);
+        		if (nextCurrentIndex != -1) {
+        			this.local.currentIndex = nextCurrentIndex;
+        			this.local.currentPage = currentPageBeforeMove;
+        		}
+        		else if (this.form.pages.length > 0) {
+        			this.local.currentIndex = 0;
+        			this.local.currentPage = this.form.pages[0].pageTechName;
+        		}
+        		this.local.pages = this.form.pages;
+        	}
+        
         	getElementByIdFromList(list, id) {
         		if (!Array.isArray(list)) {
         			return null;
@@ -10255,30 +10303,7 @@ title: Title for editor
                                               		const dest = props.stack.root.scope.i;
                                               		page.local.styleDragOverPAge = null;
                                               		
-                                              		let diff = ((+origin+1) - (+dest + 1)) > 0 ? 1 : 0;
-                                              		page.form.pages.splice(+dest, 0, this[''form''][''pages''][origin]);
-                                              		page.form.pages.splice(+origin + diff, 1);
-                                              		let reorderForms = (forms, pages) => {
-                                              		    const pageOrderMap = pages.reduce((acc, page, index) => {
-                                              		        acc[page.pageTechName] = index;
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const groupedForms = forms.reduce((acc, form) => {
-                                              		        const pageKey = form.config.page;
-                                              		        if (!acc[pageKey]) {
-                                              		            acc[pageKey] = [];
-                                              		        }
-                                              		        acc[pageKey].push(form);
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const reorderedForms = Object.keys(groupedForms)
-                                              		        .sort((a, b) => pageOrderMap[a] - pageOrderMap[b])
-                                              		        .flatMap(pageKey => groupedForms[pageKey]);
-                                              
-                                              		    return reorderedForms;
-                                              		}
-                                              		page.formsList = reorderForms(page.formsList, page.form.pages);
-                                              		page.syncFormsListWithForm();
+                                              		page.reorderFormPagesForEditor(origin, dest);
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357059531]: 
@@ -10439,30 +10464,7 @@ title: Title for editor
                                               		const dest = props.stack.root.scope.i;
                                               		page.local.styleDragOverPAge = null;
                                               		
-                                              		let diff = ((+origin+1) - (+dest + 1)) > 0 ? 1 : 0;
-                                              		page.form.pages.splice(+dest, 0, this[''form''][''pages''][origin]);
-                                              		page.form.pages.splice(+origin + diff, 1);
-                                              		let reorderForms = (forms, pages) => {
-                                              		    const pageOrderMap = pages.reduce((acc, page, index) => {
-                                              		        acc[page.pageTechName] = index;
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const groupedForms = forms.reduce((acc, form) => {
-                                              		        const pageKey = form.config.page;
-                                              		        if (!acc[pageKey]) {
-                                              		            acc[pageKey] = [];
-                                              		        }
-                                              		        acc[pageKey].push(form);
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const reorderedForms = Object.keys(groupedForms)
-                                              		        .sort((a, b) => pageOrderMap[a] - pageOrderMap[b])
-                                              		        .flatMap(pageKey => groupedForms[pageKey]);
-                                              
-                                              		    return reorderedForms;
-                                              		}
-                                              		page.formsList = reorderForms(page.formsList, page.form.pages);
-                                              		page.syncFormsListWithForm();
+                                              		page.reorderFormPagesForEditor(origin, dest);
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357059597]: 
@@ -11230,30 +11232,7 @@ title: Title for editor
                                               		const dest = props.stack.root.scope.i;
                                               		page.local.styleDragOverPAge = null;
                                               		
-                                              		let diff = ((+origin+1) - (+dest + 1)) > 0 ? 1 : 0;
-                                              		page.form.pages.splice(+dest, 0, this[''form''][''pages''][origin]);
-                                              		page.form.pages.splice(+origin + diff, 1);
-                                              		let reorderForms = (forms, pages) => {
-                                              		    const pageOrderMap = pages.reduce((acc, page, index) => {
-                                              		        acc[page.pageTechName] = index;
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const groupedForms = forms.reduce((acc, form) => {
-                                              		        const pageKey = form.config.page;
-                                              		        if (!acc[pageKey]) {
-                                              		            acc[pageKey] = [];
-                                              		        }
-                                              		        acc[pageKey].push(form);
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const reorderedForms = Object.keys(groupedForms)
-                                              		        .sort((a, b) => pageOrderMap[a] - pageOrderMap[b])
-                                              		        .flatMap(pageKey => groupedForms[pageKey]);
-                                              
-                                              		    return reorderedForms;
-                                              		}
-                                              		page.formsList = reorderForms(page.formsList, page.form.pages);
-                                              		page.syncFormsListWithForm();
+                                              		page.reorderFormPagesForEditor(origin, dest);
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1741108743684]: 
@@ -12315,30 +12294,7 @@ title: Title for editor
                                               		const dest = props.stack.root.scope.i;
                                               		page.local.styleDragOverPAge = null;
                                               		
-                                              		let diff = ((+origin+1) - (+dest + 1)) > 0 ? 1 : 0;
-                                              		page.form.pages.splice(+dest, 0, this[''form''][''pages''][origin]);
-                                              		page.form.pages.splice(+origin + diff, 1);
-                                              		let reorderForms = (forms, pages) => {
-                                              		    const pageOrderMap = pages.reduce((acc, page, index) => {
-                                              		        acc[page.pageTechName] = index;
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const groupedForms = forms.reduce((acc, form) => {
-                                              		        const pageKey = form.config.page;
-                                              		        if (!acc[pageKey]) {
-                                              		            acc[pageKey] = [];
-                                              		        }
-                                              		        acc[pageKey].push(form);
-                                              		        return acc;
-                                              		    }, {});
-                                              		    const reorderedForms = Object.keys(groupedForms)
-                                              		        .sort((a, b) => pageOrderMap[a] - pageOrderMap[b])
-                                              		        .flatMap(pageKey => groupedForms[pageKey]);
-                                              
-                                              		    return reorderedForms;
-                                              		}
-                                              		page.formsList = reorderForms(page.formsList, page.form.pages);
-                                              		page.syncFormsListWithForm();
+                                              		page.reorderFormPagesForEditor(origin, dest);
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1773251124045]: 
