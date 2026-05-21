@@ -439,6 +439,203 @@
           			    }
           			  }
           			};
+          			const repairGhostComponents = (obj: any): void => {
+          				if (!obj || !Array.isArray(obj.pages) || !Array.isArray(obj.formulaire)) {
+          					console.error("Invalid object: pages or formulaire missing.");
+          					return;
+          				}
+          				let validPages = {};
+          				let hasValidPage = false;
+          				for (let p = 0; p < obj.pages.length; p++) {
+          					let currentPage = obj.pages[p];
+          					if (currentPage != null && currentPage.pageTechName != null && currentPage.pageTechName !== "") {
+          						validPages["" + currentPage.pageTechName] = true;
+          						hasValidPage = true;
+          					}
+          				}
+          				if (!hasValidPage) {
+          					return;
+          				}
+          				let refKeys = ["childrenRefs", "childrenRefsElse"];
+          				let idsToRemove = {};
+          				let seenIds = {};
+          				let markDescendants = (ids) => {
+          					let changed = true;
+          					while (changed) {
+          						changed = false;
+          						for (let i = 0; i < obj.formulaire.length; i++) {
+          							let item = obj.formulaire[i];
+          							if (item == null || item.id == null) {
+          								continue;
+          							}
+          							if (ids["" + item.id]) {
+          								for (let r = 0; r < refKeys.length; r++) {
+          									let refs = item[refKeys[r]];
+          									if (!Array.isArray(refs)) {
+          										continue;
+          									}
+          									for (let j = 0; j < refs.length; j++) {
+          										let refId = refs[j] != null && refs[j].id != null ? refs[j].id : refs[j];
+          										if (refId != null && !ids["" + refId]) {
+          											ids["" + refId] = true;
+          											changed = true;
+          										}
+          									}
+          								}
+          								continue;
+          							}
+          							let parentId = item.parentRef != null ? "" + item.parentRef : null;
+          							if (parentId != null && ids[parentId]) {
+          								ids["" + item.id] = true;
+          								changed = true;
+          							}
+          						}
+          					}
+          				};
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					let item = obj.formulaire[i];
+          					if (item != null && item.id != null) {
+          						seenIds["" + item.id] = true;
+          					}
+          				}
+          				let usedIds = seenIds;
+          				let getNextMigrationId = () => {
+          					let nextId = new Date().getTime();
+          					while (usedIds["" + nextId]) {
+          						nextId = nextId + 1;
+          					}
+          					usedIds["" + nextId] = true;
+          					return nextId;
+          				};
+          				seenIds = {};
+          				let duplicateIdMap = {};
+          				let duplicateItems = {};
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					let item = obj.formulaire[i];
+          					if (item == null || item.id == null) {
+          						continue;
+          					}
+          					let id = "" + item.id;
+          					if (seenIds[id]) {
+          						let itemPage = item.config != null ? item.config.page : "";
+          						let newId = getNextMigrationId();
+          						duplicateIdMap[id + "|" + itemPage] = newId;
+          						item.id = newId;
+          						duplicateItems["" + newId] = true;
+          						id = "" + item.id;
+          					}
+          					seenIds[id] = true;
+          					let itemPage = item.config != null ? item.config.page : null;
+          					if (itemPage != null && itemPage !== "" && !validPages["" + itemPage]) {
+          						idsToRemove[id] = true;
+          					}
+          				}
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					let item = obj.formulaire[i];
+          					if (item == null || item.id == null || !duplicateItems["" + item.id]) {
+          						continue;
+          					}
+          					let itemPage = item.config != null ? item.config.page : "";
+          					if (item.parentRef != null && duplicateIdMap["" + item.parentRef + "|" + itemPage] != null) {
+          						item.parentRef = duplicateIdMap["" + item.parentRef + "|" + itemPage];
+          					}
+          					for (let r = 0; r < refKeys.length; r++) {
+          						let refs = item[refKeys[r]];
+          						if (!Array.isArray(refs)) {
+          							continue;
+          						}
+          						for (let j = 0; j < refs.length; j++) {
+          							let refId = refs[j] != null && refs[j].id != null ? refs[j].id : refs[j];
+          							if (refId != null && duplicateIdMap["" + refId + "|" + itemPage] != null) {
+          								refs[j] = duplicateIdMap["" + refId + "|" + itemPage];
+          							}
+          						}
+          					}
+          				}
+          				markDescendants(idsToRemove);
+          				obj.formulaire = obj.formulaire.filter((item) => item != null && item.id != null && !idsToRemove["" + item.id]);
+          				let byId = {};
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					byId["" + obj.formulaire[i].id] = obj.formulaire[i];
+          				}
+          				idsToRemove = {};
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					let item = obj.formulaire[i];
+          					if (item.parentRef != null && byId["" + item.parentRef] == null) {
+          						idsToRemove["" + item.id] = true;
+          					}
+          				}
+          				markDescendants(idsToRemove);
+          				obj.formulaire = obj.formulaire.filter((item) => item != null && item.id != null && !idsToRemove["" + item.id]);
+          				byId = {};
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					byId["" + obj.formulaire[i].id] = obj.formulaire[i];
+          				}
+          				let ownerByChildId = {};
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					let item = obj.formulaire[i];
+          					for (let r = 0; r < refKeys.length; r++) {
+          						let refs = item[refKeys[r]];
+          						if (!Array.isArray(refs)) {
+          							continue;
+          						}
+          						let cleanedRefs = [];
+          						let localRefs = {};
+          						for (let j = 0; j < refs.length; j++) {
+          							let refId = refs[j] != null && refs[j].id != null ? refs[j].id : refs[j];
+          							if (refId == null || byId["" + refId] == null || "" + refId == "" + item.id || localRefs["" + refId] || ownerByChildId["" + refId]) {
+          								continue;
+          							}
+          							localRefs["" + refId] = true;
+          							ownerByChildId["" + refId] = item.id;
+          							cleanedRefs.push(refId);
+          						}
+          						item[refKeys[r]] = cleanedRefs;
+          					}
+          				}
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					let item = obj.formulaire[i];
+          					if (item.parentRef != null && byId["" + item.parentRef] != null && ownerByChildId["" + item.id] == null) {
+          						let parent = byId["" + item.parentRef];
+          						if (!Array.isArray(parent.childrenRefs)) {
+          							parent.childrenRefs = [];
+          						}
+          						parent.childrenRefs.push(item.id);
+          						ownerByChildId["" + item.id] = parent.id;
+          					}
+          				}
+          				for (let i = 0; i < obj.formulaire.length; i++) {
+          					let item = obj.formulaire[i];
+          					let ownerId = ownerByChildId["" + item.id];
+          					if (ownerId != null && byId["" + ownerId] != null) {
+          						item.parentRef = ownerId;
+          						let parentPage = byId["" + ownerId].config != null ? byId["" + ownerId].config.page : null;
+          						if (parentPage != null && parentPage !== "") {
+          							item.config = item.config || {};
+          							item.config.page = parentPage;
+          						}
+          					}
+          					else if (item.parentRef != null) {
+          						delete item.parentRef;
+          					}
+          					if (item.sources != null && item.id != null) {
+          						for (let sourceKey of Object.keys(item.sources)) {
+          							let source = item.sources[sourceKey];
+          							let formsConfig = source != null && source.vars != null ? source.vars.forms_config : null;
+          							if (formsConfig != null && formsConfig.str != null && formsConfig.str !== "") {
+          								try {
+          									let conf = JSON.parse(formsConfig.str);
+          									conf.source_id = item.id;
+          									formsConfig.str = JSON.stringify(conf);
+          								}
+          								catch (e) {
+          									console.error(e);
+          								}
+          							}
+          						}
+          					}
+          				}
+          			};
                     // Calling sync continuous
                     page["datetimeconfig"][''fr''] = false;
                     page["datetimeconfig"][''en''] = false;
@@ -552,6 +749,11 @@
           					  if((page["form"] as any)["technicalVersion"] == "1.0.14") {
           					  		 addDescriptionInPages((page["form"] as any));
           					  		(page["form"] as any)["technicalVersion"] = "1.0.15";
+          					  		flag = true;
+          					  }
+          					  if((page["form"] as any)["technicalVersion"] == "1.0.15") {
+          					  		 repairGhostComponents((page["form"] as any));
+          					  		(page["form"] as any)["technicalVersion"] = "1.0.16";
           					  		flag = true;
           					  }
                                 if(flag){
