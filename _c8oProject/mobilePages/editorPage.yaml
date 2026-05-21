@@ -3999,7 +3999,374 @@ scriptContent:
         		return "";
         	}
         
+        	getFormsListForEdition() {
+        		if (!Array.isArray(this.formsList)) {
+        			this.formsList = (this.form != null && Array.isArray(this.form.formulaire)) ? this.form.formulaire : [];
+        		}
+        		return this.formsList;
+        	}
+        
+        	syncFormsListWithForm() {
+        		if (this.form != null && Array.isArray(this.formsList)) {
+        			this.form.formulaire = this.formsList;
+        		}
+        	}
+        
+        	getElementByIdFromList(list, id) {
+        		if (!Array.isArray(list)) {
+        			return null;
+        		}
+        		for (let elem of list) {
+        			if (elem != null && ("" + id) == ("" + elem.id)) {
+        				return elem;
+        			}
+        			if (elem != null && Array.isArray(elem.children)) {
+        				for (let child of elem.children) {
+        					if (child != null && ("" + id) == ("" + child.id)) {
+        						return child;
+        					}
+        				}
+        			}
+        		}
+        		return null;
+        	}
+        
+        	collectUsedCloneIdsFromList(list, usedIds) {
+        		if (!Array.isArray(list)) {
+        			return;
+        		}
+        		for (let elem of list) {
+        			if (elem != null && elem.id != null) {
+        				usedIds["" + elem.id] = true;
+        			}
+        			if (elem != null && Array.isArray(elem.children)) {
+        				this.collectUsedCloneIdsFromList(elem.children, usedIds);
+        			}
+        		}
+        	}
+        
+        	createFormCloneState(newnames = []) {
+        		let usedIds = {};
+        		this.collectUsedCloneIdsFromList(this.formsList, usedIds);
+        		if (this.form != null) {
+        			this.collectUsedCloneIdsFromList(this.form.formulaire, usedIds);
+        			this.collectUsedCloneIdsFromList(this.form.actions, usedIds);
+        			if (Array.isArray(this.form.flows)) {
+        				for (let flowGroup of this.form.flows) {
+        					this.collectUsedCloneIdsFromList(flowGroup != null ? flowGroup.elements : null, usedIds);
+        				}
+        			}
+        		}
+        		return {newnames: Array.isArray(newnames) ? newnames : [], usedIds: usedIds, nextId: new Date().getTime()};
+        	}
+        
+        	getNextCloneId(state) {
+        		if (state == null) {
+        			state = this.createFormCloneState([]);
+        		}
+        		let nextId = state.nextId != null ? state.nextId : new Date().getTime();
+        		while (state.usedIds["" + nextId]) {
+        			nextId = nextId + 1;
+        		}
+        		state.usedIds["" + nextId] = true;
+        		state.nextId = nextId + 1;
+        		return nextId;
+        	}
+        
+        	getCloneFriendlyType(type) {
+        		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" };
+        		return typesfreindly[type] != undefined ? typesfreindly[type] : type;
+        	}
+        
+        	rewriteCloneDataSourceReferences(item) {
+        		if (item == null || item.id == null || item.sources == null) {
+        			return;
+        		}
+        		for (let sourceKey of Object.keys(item.sources)) {
+        			let source = item.sources[sourceKey];
+        			let formsConfig = source != null && source.vars != null ? source.vars.forms_config : null;
+        			if (formsConfig != null && formsConfig.str != null && formsConfig.str !== "") {
+        				try {
+        					let conf = JSON.parse(formsConfig.str);
+        					conf.source_id = item.id;
+        					formsConfig.str = JSON.stringify(conf);
+        				}
+        				catch (e) {
+        					console.error(e);
+        				}
+        			}
+        		}
+        	}
+        
+        	refreshNestedCloneChildren(children, targetPage, state) {
+        		if (!Array.isArray(children)) {
+        			return;
+        		}
+        		for (let child of children) {
+        			if (child == null) {
+        				continue;
+        			}
+        			child.id = this.getNextCloneId(state);
+        			if (child.config != null && targetPage != null) {
+        				child.config.page = targetPage;
+        			}
+        			this.rewriteCloneDataSourceReferences(child);
+        			if (Array.isArray(child.children)) {
+        				this.refreshNestedCloneChildren(child.children, targetPage, state);
+        			}
+        		}
+        	}
+        
+        	cloneFormElementForTargetPage(original, targetPage, state = null, parentId = null) {
+        		if (original == null) {
+        			return {root: null, elements: []};
+        		}
+        		if (state == null) {
+        			state = this.createFormCloneState([]);
+        		}
+        		let clone = JSON.parse(JSON.stringify(original));
+        		clone.name = this.getNameDispo(this.getCloneFriendlyType(clone.type), state.newnames);
+        		state.newnames.push(clone.name);
+        		clone.id = this.getNextCloneId(state);
+        		clone.config = clone.config || {};
+        		if (targetPage != null) {
+        			clone.config.page = targetPage;
+        		}
+        		if (parentId != null) {
+        			clone.parentRef = parentId;
+        		}
+        		else {
+        			delete clone.parentRef;
+        		}
+        		this.rewriteCloneDataSourceReferences(clone);
+        
+        		let elements = [clone];
+        		if ((clone.type == "ion-card" || clone.type == "layout") && Array.isArray(clone.childrenRefs) && clone.childrenRefs.length > 0) {
+        			let childRefs = clone.childrenRefs.concat([]);
+        			clone.childrenRefs = [];
+        			for (let childRef of childRefs) {
+        				let childId = typeof childRef === "object" ? childRef.id : childRef;
+        				let originalChild = this.getElementById(childId);
+        				if (originalChild == null && typeof childRef === "object") {
+        					originalChild = childRef;
+        				}
+        				if (originalChild == null) {
+        					continue;
+        				}
+        				let childClone = this.cloneFormElementForTargetPage(originalChild, targetPage, state, clone.id);
+        				if (childClone.root != null) {
+        					clone.childrenRefs.push(childClone.root.id);
+        					elements = elements.concat(childClone.elements);
+        				}
+        			}
+        		}
+        		else if (Array.isArray(clone.children)) {
+        			this.refreshNestedCloneChildren(clone.children, targetPage, state);
+        		}
+        		return {root: clone, elements: elements};
+        	}
+        
+        	getCloneInsertIndexForTargetPage(targetPage) {
+        		let forms = this.getFormsListForEdition();
+        		let lastIndexOfTargetPage = -1;
+        		let previousPageIndex = 0;
+        		let el = targetPage;
+        		let limit = 0;
+        		while (lastIndexOfTargetPage < 0 && previousPageIndex >= 0 && limit < 100) {
+        			for (let i = 0; i < forms.length; i++) {
+        				let formItem = forms[i] as any;
+        				if (formItem != null && formItem.config != null && formItem.config.page == el) {
+        					lastIndexOfTargetPage = i;
+        				}
+        			}
+        			if (lastIndexOfTargetPage < 0 && this.form != null && Array.isArray(this.form.pages)) {
+        				previousPageIndex = this.form.pages.findIndex((x) => x.pageTechName == el) - 1;
+        				el = this.form.pages[previousPageIndex] != null ? this.form.pages[previousPageIndex].pageTechName : null;
+        			}
+        			else {
+        				previousPageIndex = -1;
+        			}
+        			limit++;
+        		}
+        		return lastIndexOfTargetPage >= 0 ? lastIndexOfTargetPage + 1 : forms.length;
+        	}
+        
+        	insertClonedFormElements(index, elements) {
+        		let forms = this.getFormsListForEdition();
+        		if (!Array.isArray(elements) || elements.length == 0) {
+        			return;
+        		}
+        		let insertIndex = (typeof index == "number" && index >= 0 && index <= forms.length) ? index : forms.length;
+        		for (let i = 0; i < elements.length; i++) {
+        			forms.splice(insertIndex + i, 0, elements[i]);
+        		}
+        		this.syncFormsListWithForm();
+        	}
+        
+        	getFormRefId(ref) {
+        		if (ref != null && typeof ref == "object") {
+        			return ref["id"];
+        		}
+        		return ref;
+        	}
+        
+        	collectElementIdsFromList(list, idsToRemove) {
+        		if (!Array.isArray(list)) {
+        			return;
+        		}
+        		for (let item of list as any[]) {
+        			if (item == null) {
+        				continue;
+        			}
+        			if (item["id"] != null) {
+        				idsToRemove["" + item["id"]] = true;
+        			}
+        			if (Array.isArray(item["children"])) {
+        				this.collectElementIdsFromList(item["children"], idsToRemove);
+        			}
+        		}
+        	}
+        
+        	collectPageElementIds(list, pageTechName, idsToRemove) {
+        		if (!Array.isArray(list)) {
+        			return;
+        		}
+        		for (let item of list as any[]) {
+        			if (item == null) {
+        				continue;
+        			}
+        			if (item["id"] != null && item["config"] != null && item["config"]["page"] == pageTechName) {
+        				idsToRemove["" + item["id"]] = true;
+        			}
+        			if (Array.isArray(item["children"])) {
+        				this.collectPageElementIds(item["children"], pageTechName, idsToRemove);
+        			}
+        		}
+        	}
+        
+        	collectDescendantElementIds(forms, idsToRemove) {
+        		if (!Array.isArray(forms)) {
+        			return;
+        		}
+        		let refKeys = ["childrenRefs", "childrenRefsElse"];
+        		let changed = true;
+        		while (changed) {
+        			changed = false;
+        			for (let item of forms as any[]) {
+        				if (item == null || item["id"] == null) {
+        					continue;
+        				}
+        				let itemId = "" + item["id"];
+        				if (idsToRemove[itemId]) {
+        					for (let refKey of refKeys) {
+        						if (Array.isArray(item[refKey])) {
+        							for (let ref of item[refKey]) {
+        								let refId = this.getFormRefId(ref);
+        								if (refId != null && !idsToRemove["" + refId]) {
+        									idsToRemove["" + refId] = true;
+        									changed = true;
+        								}
+        							}
+        						}
+        					}
+        					if (Array.isArray(item["children"])) {
+        						this.collectElementIdsFromList(item["children"], idsToRemove);
+        					}
+        				}
+        				else if (item["parentRef"] != null && idsToRemove["" + item["parentRef"]]) {
+        					idsToRemove[itemId] = true;
+        					changed = true;
+        				}
+        			}
+        		}
+        	}
+        
+        	cleanupRemovedElementReferences(item, pageTechName, idsToRemove) {
+        		if (item == null) {
+        			return;
+        		}
+        		for (let refKey of ["childrenRefs", "childrenRefsElse"]) {
+        			if (Array.isArray(item[refKey])) {
+        				item[refKey] = item[refKey].filter((ref) => {
+        					let refId = this.getFormRefId(ref);
+        					return refId == null || !idsToRemove["" + refId];
+        				});
+        			}
+        		}
+        		if (Array.isArray(item["children"])) {
+        			item["children"] = item["children"].filter((child) => {
+        				if (child == null) {
+        					return false;
+        				}
+        				if (child["config"] != null && child["config"]["page"] == pageTechName) {
+        					return false;
+        				}
+        				return child["id"] == null || !idsToRemove["" + child["id"]];
+        			});
+        			for (let child of item["children"]) {
+        				this.cleanupRemovedElementReferences(child, pageTechName, idsToRemove);
+        			}
+        		}
+        	}
+        
+        	removePageElements(pageTechName) {
+        		let forms = this.getFormsListForEdition() as any[];
+        		let idsToRemove = {};
+        		this.collectPageElementIds(forms, pageTechName, idsToRemove);
+        		this.collectDescendantElementIds(forms, idsToRemove);
+        		this.formsList = forms.filter((item) => {
+        			if (item == null) {
+        				return false;
+        			}
+        			if (item["config"] != null && item["config"]["page"] == pageTechName) {
+        				return false;
+        			}
+        			return item["id"] == null || !idsToRemove["" + item["id"]];
+        		});
+        		for (let item of this.formsList as any[]) {
+        			this.cleanupRemovedElementReferences(item, pageTechName, idsToRemove);
+        		}
+        		this.syncFormsListWithForm();
+        	}
+        
+        	removeCurrentPage() {
+        		if (this.form == null || !Array.isArray(this.form.pages) || this.local == null) {
+        			return;
+        		}
+        		let pageTechName = this.local["currentPage"];
+        		if (pageTechName == null) {
+        			return;
+        		}
+        		this.removePageElements(pageTechName);
+        		let pageIndex = this.form.pages.findIndex((pageDef) => pageDef != null && pageDef.pageTechName == pageTechName);
+        		if (pageIndex < 0) {
+        			return;
+        		}
+        		this.form.pages.splice(pageIndex, 1);
+        		if (this.form.pages.length == 0) {
+        			this.form.pages.push({"name":"Page 1", "pageTechName": "Page" + new Date().getTime(), desc: ""});
+        		}
+        		let nextIndex = pageIndex == 0 ? 0 : pageIndex - 1;
+        		if (nextIndex >= this.form.pages.length) {
+        			nextIndex = this.form.pages.length - 1;
+        		}
+        		this.local["currentIndex"] = nextIndex;
+        		this.local["currentPage"] = this.form.pages[nextIndex]["pageTechName"];
+        		this.local["pages"] = this.form.pages;
+        	}
+        
         	getElementById(id) {
+        		let elemFromFormsList = this.getElementByIdFromList(this.formsList, id);
+        		if (elemFromFormsList != null) {
+        			return elemFromFormsList;
+        		}
+        		let formList = this.form != null ? this.form.formulaire : null;
+        		if (formList !== this.formsList) {
+        			let elemFromForm = this.getElementByIdFromList(formList, id);
+        			if (elemFromForm != null) {
+        				return elemFromForm;
+        			}
+        		}
         		for (let elem of this.form.formulaire) {
         			if (elem.type == "ion-card" && elem.children != undefined) {
         				for (let child of elem.children) {
@@ -9704,31 +10071,7 @@ title: Title for editor
                                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                       →: |
                                                         '		if(props.out.data == "yes"){
-                                                        		    for(let i in page["formsList"]){
-                                                        		        if(page["formsList"][i]["config"]["page"] == page.local["currentPage"]){
-                                                        		            page["formsList"].splice(+i, 1);
-                                                        		        }
-                                                        		    }
-                                                        		    let countPage = Object.keys(page["form"]["pages"]).length -1;
-                                                        		    for(let i in page["form"]["pages"]){
-                                                        		        if(page["form"]["pages"][i]["pageTechName"] == page.local["currentPage"]){
-                                                        		            page["form"]["pages"].splice(i, 1);
-                                                        		            if(page["form"]["pages"].length == 0){
-                                                        		                page["form"]["pages"].push({"name":"Page 1", "pageTechName": "Page"+new Date().getTime(), desc:''''})
-                                                        		            }
-                                                        		            if(+i == 0){
-                                                        		                page.local["currentPage"] = page["form"]["pages"][i]["pageTechName"];
-                                                        		            }
-                                                        		            else{
-                                                        		                if(+i == countPage){
-                                                        	                        page.local.currentIndex = +i -1;
-                                                        	                    }
-                                                        		                page.local["currentPage"] = page["form"]["pages"][(+i -1)+""]["pageTechName"];
-                                                        		            }
-                                                        		        }
-                                                        		        
-                                                        		    }
-                                                        		    
+                                                        			page.removeCurrentPage();
                                                         		}
                                                         		resolve();
                                                         '
@@ -9831,31 +10174,7 @@ title: Title for editor
                                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                       →: |
                                                         '		if(props.out.data == "yes"){
-                                                        		    for(let i in page["formsList"]){
-                                                        		        if(page["formsList"][i]["config"]["page"] == page.local["currentPage"]){
-                                                        		            page["formsList"].splice(+i, 1);
-                                                        		        }
-                                                        		    }
-                                                        		    let countPage = Object.keys(page["form"]["pages"]).length -1;
-                                                        		    for(let i in page["form"]["pages"]){
-                                                        		        if(page["form"]["pages"][i]["pageTechName"] == page.local["currentPage"]){
-                                                        		            page["form"]["pages"].splice(i, 1);
-                                                        		            if(page["form"]["pages"].length == 0){
-                                                        		                page["form"]["pages"].push({"name":"Page 1", "pageTechName": "Page"+new Date().getTime(), desc:''''})
-                                                        		            }
-                                                        		            if(+i == 0){
-                                                        		                page.local["currentPage"] = page["form"]["pages"][i]["pageTechName"];
-                                                        		            }
-                                                        		            else{
-                                                        		                if(+i == countPage){
-                                                        	                        page.local.currentIndex = +i -1;
-                                                        	                    }
-                                                        		                page.local["currentPage"] = page["form"]["pages"][(+i -1)+""]["pageTechName"];
-                                                        		            }
-                                                        		        }
-                                                        		        
-                                                        		    }
-                                                        		    
+                                                        			page.removeCurrentPage();
                                                         		}
                                                         		resolve();
                                                         '
@@ -9966,6 +10285,7 @@ title: Title for editor
                                               		    return reorderedForms;
                                               		}
                                               		page.formsList = reorderForms(page.formsList, page.form.pages);
+                                              		page.syncFormsListWithForm();
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357059531]: 
@@ -10149,6 +10469,7 @@ title: Title for editor
                                               		    return reorderedForms;
                                               		}
                                               		page.formsList = reorderForms(page.formsList, page.form.pages);
+                                              		page.syncFormsListWithForm();
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357059597]: 
@@ -10331,31 +10652,7 @@ title: Title for editor
                                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                       →: |
                                                         '		if(props.out.data == "yes"){
-                                                        		    for(let i in page["formsList"]){
-                                                        		        if(page["formsList"][i]["config"]["page"] == page.local["currentPage"]){
-                                                        		            page["formsList"].splice(+i, 1);
-                                                        		        }
-                                                        		    }
-                                                        		    let countPage = Object.keys(page["form"]["pages"]).length -1;
-                                                        		    for(let i in page["form"]["pages"]){
-                                                        		        if(page["form"]["pages"][i]["pageTechName"] == page.local["currentPage"]){
-                                                        		            page["form"]["pages"].splice(i, 1);
-                                                        		            if(page["form"]["pages"].length == 0){
-                                                        		                page["form"]["pages"].push({"name":"Page 1", "pageTechName": "Page"+new Date().getTime(), desc:''''})
-                                                        		            }
-                                                        		            if(+i == 0){
-                                                        		                page.local["currentPage"] = page["form"]["pages"][i]["pageTechName"];
-                                                        		            }
-                                                        		            else{
-                                                        		                if(+i == countPage){
-                                                        	                        page.local.currentIndex = +i -1;
-                                                        	                    }
-                                                        		                page.local["currentPage"] = page["form"]["pages"][(+i -1)+""]["pageTechName"];
-                                                        		            }
-                                                        		        }
-                                                        		        
-                                                        		    }
-                                                        		    
+                                                        			page.removeCurrentPage();
                                                         		}
                                                         		resolve();
                                                         '
@@ -10465,31 +10762,7 @@ title: Title for editor
                                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                       →: |
                                                         '		if(props.out.data == "yes"){
-                                                        		    for(let i in page["formsList"]){
-                                                        		        if(page["formsList"][i]["config"]["page"] == page.local["currentPage"]){
-                                                        		            page["formsList"].splice(+i, 1);
-                                                        		        }
-                                                        		    }
-                                                        		    let countPage = Object.keys(page["form"]["pages"]).length -1;
-                                                        		    for(let i in page["form"]["pages"]){
-                                                        		        if(page["form"]["pages"][i]["pageTechName"] == page.local["currentPage"]){
-                                                        		            page["form"]["pages"].splice(i, 1);
-                                                        		            if(page["form"]["pages"].length == 0){
-                                                        		                page["form"]["pages"].push({"name":"Page 1", "pageTechName": "Page"+new Date().getTime(), desc:''''})
-                                                        		            }
-                                                        		            if(+i == 0){
-                                                        		                page.local["currentPage"] = page["form"]["pages"][i]["pageTechName"];
-                                                        		            }
-                                                        		            else{
-                                                        		                if(+i == countPage){
-                                                        	                        page.local.currentIndex = +i -1;
-                                                        	                    }
-                                                        		                page.local["currentPage"] = page["form"]["pages"][(+i -1)+""]["pageTechName"];
-                                                        		            }
-                                                        		        }
-                                                        		        
-                                                        		    }
-                                                        		    
+                                                        			page.removeCurrentPage();
                                                         		}
                                                         		resolve();
                                                         '
@@ -10987,6 +11260,7 @@ title: Title for editor
                                               		    return reorderedForms;
                                               		}
                                               		page.formsList = reorderForms(page.formsList, page.form.pages);
+                                              		page.syncFormsListWithForm();
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1741108743684]: 
@@ -12071,6 +12345,7 @@ title: Title for editor
                                               		    return reorderedForms;
                                               		}
                                               		page.formsList = reorderForms(page.formsList, page.form.pages);
+                                              		page.syncFormsListWithForm();
                                               		resolve();
                                               '
                                       ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1773251124045]: 
@@ -36804,50 +37079,11 @@ title: Title for editor
                                                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                           →: |
-                                                            '		let newnames = [];
-                                                            		let clone =  JSON.parse(JSON.stringify(vars.elm));
-                                                            		let oldId = clone.id;
-                                                            		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                            		let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
-                                                            		const indexToInsert = page["getElementIndexById"](oldId) + 1;
-                                                            		clone.name = page["getNameDispo"](typeToClone, null);
-                                                            		newnames.push(clone.name);
-                                                            		clone.id = new Date().getTime();
-                                                            		let lastGeneratedId = clone.id;
-                                                            		
-                                                            		if((clone.type == "ion-card" || clone.type == "layout") && Array.isArray(clone.childrenRefs) && clone.childrenRefs.length > 0){
-                                                            			for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
-                                                            				let childRef = clone.childrenRefs[i];
-                                                            				let childId = typeof childRef === "object" ? childRef.id : childRef;
-                                                            				let originalChild = page.getElementById(+childId);
-                                                            				if(originalChild == null && typeof childRef === "object"){
-                                                            					originalChild = childRef;
-                                                            				}
-                                                            				if(originalChild == null){
-                                                            					clone.childrenRefs.splice(i, 1);
-                                                            					continue;
-                                                            				}
-                                                            				let child = JSON.parse(JSON.stringify(originalChild));
-                                                            				let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
-                                                            				child.name = page["getNameDispo"](typeComputed, newnames);
-                                                            				newnames.push(child.name);
-                                                            				lastGeneratedId = lastGeneratedId + 1;
-                                                            				child.id = lastGeneratedId;
-                                                            				child.parentRef = clone.id;
-                                                            				child.config = child.config || {};
-                                                            				child.config.page = clone.config.page;
-                                                            				clone.childrenRefs[i] = child.id;
-                                                            				page["formsList"].splice(indexToInsert + i, 0, child);
-                                                            			}
-                                                            		}
-                                                            		else {
-                                                            			if(clone.children != undefined){
-                                                            				for(let elem of clone.children){
-                                                            					elem.id = (Math.random() + "").substring(2);
-                                                            				}
-                                                            			}
-                                                            		}
-                                                            		page["formsList"].splice(indexToInsert, 0, clone);
+                                                            '		let state = page.createFormCloneState([]);
+                                                            		let targetPage = vars.elm && vars.elm.config ? vars.elm.config.page : null;
+                                                            		let cloneResult = page.cloneFormElementForTargetPage(vars.elm, targetPage, state);
+                                                            		let indexToInsert = page["getElementIndexById"](vars.elm.id) + 1;
+                                                            		page.insertClonedFormElements(indexToInsert, cloneResult.elements);
                                                             		resolve();
                                                             '
                                                     ↓elm [ngx.components.UIControlVariable-1774533464521]: 
@@ -36919,64 +37155,11 @@ title: Title for editor
                                                             					{
                                                             						text: page.translate.instant(''validate''),
                                                             						handler: data => {
-                                                            							let newnames = [];
-                                                            							var lastId = new Date().getTime();
-                                                            							// foreach page to clone elem
-                                                            							let oldId = vars.elm.id;
-                                                            							let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                            					        let typeToClone = typesfreindly[vars.elm.type] != undefined ? typesfreindly[vars.elm.type]: vars.elm.type;
+                                                            							let state = page.createFormCloneState([]);
                                                             							for(let element of data){
-                                                            								let clone =  JSON.parse(JSON.stringify(vars.elm));
-                                                            								clone.name = page["getNameDispo"](typeToClone, newnames);
-                                                            								newnames.push(clone.name);
-                                                            								
-                                                            								clone.id = lastId + 1;
-                                                            								lastId = clone.id;
-                                                            								if(clone.type == "ion-card" || clone.type == "layout"){
-                                                            									// find last index of target page
-                                                            									let lastIndexOfTargetPage = 0;
-                                                            									let previousPageIndex = 0;
-                                                            									let el = element;
-                                                            									let limit = 0;
-                                                            									while(lastIndexOfTargetPage == 0 && previousPageIndex >= 0 && limit < 100){
-                                                            										for (let i = 0; i < page["formsList"].length; i++) {
-                                                            											if ((page["formsList"][i] as any)?.config?.page == el) {
-                                                            												lastIndexOfTargetPage = i;
-                                                            											}
-                                                            										}
-                                                            										if(lastIndexOfTargetPage == 0){
-                                                            											previousPageIndex = (page.form.pages.findIndex((x)=> x.pageTechName == el)) -1;
-                                                            											el = page.form.pages[previousPageIndex]?.pageTechName;
-                                                            										}
-                                                            										limit ++;
-                                                            									}
-                                                            									if(lastIndexOfTargetPage != 0){
-                                                            										lastIndexOfTargetPage ++;
-                                                            									}
-                                                            									
-                                                            									clone.config.page = element;
-                                                            									//insert clone after lastIndexOfTargetPage
-                                                            									for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
-                                                            										let child = JSON.parse(JSON.stringify(page.getElementById(+clone.childrenRefs[i])));
-                                                            										let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
-                                                            										child.name = page["getNameDispo"](typeComputed, newnames);
-                                                            										newnames.push(child.name);
-                                                            										child.id = child.id + i + 1;
-                                                            										clone.childrenRefs[i] = child.id;
-                                                            										child.config.page = element;
-                                                            										page["formsList"].splice(lastIndexOfTargetPage + i, 0, child);
-                                                            									}
-                                                            									
-                                                            									page["formsList"].splice(lastIndexOfTargetPage, 0, clone);
-                                                            									
-                                                            									
-                                                            								}
-                                                            								else{
-                                                            									clone.config.page = element;
-                                                            									page["formsList"].push(clone);
-                                                            								}
-                                                            								
-                                                            							}       
+                                                            								let cloneResult = page.cloneFormElementForTargetPage(vars.elm, element, state);
+                                                            								page.insertClonedFormElements(page.getCloneInsertIndexForTargetPage(element), cloneResult.elements);
+                                                            							}
                                                             					        resolve({"length":data.length});
                                                             						}
                                                             					}
@@ -38331,50 +38514,11 @@ title: Title for editor
                                                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                         →: |
-                                                          '		let newnames = [];
-                                                          		let clone =  JSON.parse(JSON.stringify(vars.elm));
-                                                          		let oldId = clone.id;
-                                                          		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                          		let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
-                                                          		const indexToInsert = page["getElementIndexById"](oldId) + 1;
-                                                          		clone.name = page["getNameDispo"](typeToClone, null);
-                                                          		newnames.push(clone.name);
-                                                          		clone.id = new Date().getTime();
-                                                          		let lastGeneratedId = clone.id;
-                                                          		
-                                                          		if((clone.type == "ion-card" || clone.type == "layout") && Array.isArray(clone.childrenRefs) && clone.childrenRefs.length > 0){
-                                                          			for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
-                                                          				let childRef = clone.childrenRefs[i];
-                                                          				let childId = typeof childRef === "object" ? childRef.id : childRef;
-                                                          				let originalChild = page.getElementById(+childId);
-                                                          				if(originalChild == null && typeof childRef === "object"){
-                                                          					originalChild = childRef;
-                                                          				}
-                                                          				if(originalChild == null){
-                                                          					clone.childrenRefs.splice(i, 1);
-                                                          					continue;
-                                                          				}
-                                                          				let child = JSON.parse(JSON.stringify(originalChild));
-                                                          				let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
-                                                          				child.name = page["getNameDispo"](typeComputed, newnames);
-                                                          				newnames.push(child.name);
-                                                          				lastGeneratedId = lastGeneratedId + 1;
-                                                          				child.id = lastGeneratedId;
-                                                          				child.parentRef = clone.id;
-                                                          				child.config = child.config || {};
-                                                          				child.config.page = clone.config.page;
-                                                          				clone.childrenRefs[i] = child.id;
-                                                          				page["formsList"].splice(indexToInsert + i, 0, child);
-                                                          			}
-                                                          		}
-                                                          		else {
-                                                          			if(clone.children != undefined){
-                                                          				for(let elem of clone.children){
-                                                          					elem.id = (Math.random() + "").substring(2);
-                                                          				}
-                                                          			}
-                                                          		}
-                                                          		page["formsList"].splice(indexToInsert, 0, clone);
+                                                          '		let state = page.createFormCloneState([]);
+                                                          		let targetPage = vars.elm && vars.elm.config ? vars.elm.config.page : null;
+                                                          		let cloneResult = page.cloneFormElementForTargetPage(vars.elm, targetPage, state);
+                                                          		let indexToInsert = page["getElementIndexById"](vars.elm.id) + 1;
+                                                          		page.insertClonedFormElements(indexToInsert, cloneResult.elements);
                                                           		resolve();
                                                           '
                                                   ↓elm [ngx.components.UIControlVariable-1775825260281]: 
@@ -38447,64 +38591,11 @@ title: Title for editor
                                                           					{
                                                           						text: page.translate.instant(''validate''),
                                                           						handler: data => {
-                                                          							let newnames = [];
-                                                          							var lastId = new Date().getTime();
-                                                          							// foreach page to clone elem
-                                                          							let oldId = vars.elm.id;
-                                                          							let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                          					        let typeToClone = typesfreindly[vars.elm.type] != undefined ? typesfreindly[vars.elm.type]: vars.elm.type;
+                                                          							let state = page.createFormCloneState([]);
                                                           							for(let element of data){
-                                                          								let clone =  JSON.parse(JSON.stringify(vars.elm));
-                                                          								clone.name = page["getNameDispo"](typeToClone, newnames);
-                                                          								newnames.push(clone.name);
-                                                          								
-                                                          								clone.id = lastId + 1;
-                                                          								lastId = clone.id;
-                                                          								if(clone.type == "ion-card" || clone.type == "layout"){
-                                                          									// find last index of target page
-                                                          									let lastIndexOfTargetPage = 0;
-                                                          									let previousPageIndex = 0;
-                                                          									let el = element;
-                                                          									let limit = 0;
-                                                          									while(lastIndexOfTargetPage == 0 && previousPageIndex >= 0 && limit < 100){
-                                                          										for (let i = 0; i < page["formsList"].length; i++) {
-                                                          											if ((page["formsList"][i] as any)?.config?.page == el) {
-                                                          												lastIndexOfTargetPage = i;
-                                                          											}
-                                                          										}
-                                                          										if(lastIndexOfTargetPage == 0){
-                                                          											previousPageIndex = (page.form.pages.findIndex((x)=> x.pageTechName == el)) -1;
-                                                          											el = page.form.pages[previousPageIndex]?.pageTechName;
-                                                          										}
-                                                          										limit ++;
-                                                          									}
-                                                          									if(lastIndexOfTargetPage != 0){
-                                                          										lastIndexOfTargetPage ++;
-                                                          									}
-                                                          									
-                                                          									clone.config.page = element;
-                                                          									//insert clone after lastIndexOfTargetPage
-                                                          									for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
-                                                          										let child = JSON.parse(JSON.stringify(page.getElementById(+clone.childrenRefs[i])));
-                                                          										let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
-                                                          										child.name = page["getNameDispo"](typeComputed, newnames);
-                                                          										newnames.push(child.name);
-                                                          										child.id = child.id + i + 1;
-                                                          										clone.childrenRefs[i] = child.id;
-                                                          										child.config.page = element;
-                                                          										page["formsList"].splice(lastIndexOfTargetPage + i, 0, child);
-                                                          									}
-                                                          									
-                                                          									page["formsList"].splice(lastIndexOfTargetPage, 0, clone);
-                                                          									
-                                                          									
-                                                          								}
-                                                          								else{
-                                                          									clone.config.page = element;
-                                                          									page["formsList"].push(clone);
-                                                          								}
-                                                          								
-                                                          							}       
+                                                          								let cloneResult = page.cloneFormElementForTargetPage(vars.elm, element, state);
+                                                          								page.insertClonedFormElements(page.getCloneInsertIndexForTargetPage(element), cloneResult.elements);
+                                                          							}
                                                           					        resolve({"length":data.length});
                                                           						}
                                                           					}
@@ -44560,50 +44651,11 @@ title: Title for editor
                                                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                     →: |
-                                                      '		let newnames = [];
-                                                      		let clone =  JSON.parse(JSON.stringify(vars.elm));
-                                                      		let oldId = clone.id;
-                                                      		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                      		let typeToClone = typesfreindly[clone.type] != undefined ? typesfreindly[clone.type]: clone.type;
-                                                      		const indexToInsert = page["getElementIndexById"](oldId) + 1;
-                                                      		clone.name = page["getNameDispo"](typeToClone, null);
-                                                      		newnames.push(clone.name);
-                                                      		clone.id = new Date().getTime();
-                                                      		let lastGeneratedId = clone.id;
-                                                      		
-                                                      		if((clone.type == "ion-card" || clone.type == "layout") && Array.isArray(clone.childrenRefs) && clone.childrenRefs.length > 0){
-                                                      			for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
-                                                      				let childRef = clone.childrenRefs[i];
-                                                      				let childId = typeof childRef === "object" ? childRef.id : childRef;
-                                                      				let originalChild = page.getElementById(+childId);
-                                                      				if(originalChild == null && typeof childRef === "object"){
-                                                      					originalChild = childRef;
-                                                      				}
-                                                      				if(originalChild == null){
-                                                      					clone.childrenRefs.splice(i, 1);
-                                                      					continue;
-                                                      				}
-                                                      				let child = JSON.parse(JSON.stringify(originalChild));
-                                                      				let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
-                                                      				child.name = page["getNameDispo"](typeComputed, newnames);
-                                                      				newnames.push(child.name);
-                                                      				lastGeneratedId = lastGeneratedId + 1;
-                                                      				child.id = lastGeneratedId;
-                                                      				child.parentRef = clone.id;
-                                                      				child.config = child.config || {};
-                                                      				child.config.page = clone.config.page;
-                                                      				clone.childrenRefs[i] = child.id;
-                                                      				page["formsList"].splice(indexToInsert + i, 0, child);
-                                                      			}
-                                                      		}
-                                                      		else {
-                                                      			if(clone.children != undefined){
-                                                      				for(let elem of clone.children){
-                                                      					elem.id = (Math.random() + "").substring(2);
-                                                      				}
-                                                      			}
-                                                      		}
-                                                      		page["formsList"].splice(indexToInsert, 0, clone);
+                                                      '		let state = page.createFormCloneState([]);
+                                                      		let targetPage = vars.elm && vars.elm.config ? vars.elm.config.page : null;
+                                                      		let cloneResult = page.cloneFormElementForTargetPage(vars.elm, targetPage, state);
+                                                      		let indexToInsert = page["getElementIndexById"](vars.elm.id) + 1;
+                                                      		page.insertClonedFormElements(indexToInsert, cloneResult.elements);
                                                       		resolve();
                                                       '
                                               ↓elm [ngx.components.UIControlVariable-1774344228594]: 
@@ -44675,64 +44727,11 @@ title: Title for editor
                                                       					{
                                                       						text: page.translate.instant(''validate''),
                                                       						handler: data => {
-                                                      							let newnames = [];
-                                                      							var lastId = new Date().getTime();
-                                                      							// foreach page to clone elem
-                                                      							let oldId = vars.elm.id;
-                                                      							let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" }
-                                                      					        let typeToClone = typesfreindly[vars.elm.type] != undefined ? typesfreindly[vars.elm.type]: vars.elm.type;
+                                                      							let state = page.createFormCloneState([]);
                                                       							for(let element of data){
-                                                      								let clone =  JSON.parse(JSON.stringify(vars.elm));
-                                                      								clone.name = page["getNameDispo"](typeToClone, newnames);
-                                                      								newnames.push(clone.name);
-                                                      								
-                                                      								clone.id = lastId + 1;
-                                                      								lastId = clone.id;
-                                                      								if(clone.type == "ion-card" || clone.type == "layout"){
-                                                      									// find last index of target page
-                                                      									let lastIndexOfTargetPage = 0;
-                                                      									let previousPageIndex = 0;
-                                                      									let el = element;
-                                                      									let limit = 0;
-                                                      									while(lastIndexOfTargetPage == 0 && previousPageIndex >= 0 && limit < 100){
-                                                      										for (let i = 0; i < page["formsList"].length; i++) {
-                                                      											if ((page["formsList"][i] as any)?.config?.page == el) {
-                                                      												lastIndexOfTargetPage = i;
-                                                      											}
-                                                      										}
-                                                      										if(lastIndexOfTargetPage == 0){
-                                                      											previousPageIndex = (page.form.pages.findIndex((x)=> x.pageTechName == el)) -1;
-                                                      											el = page.form.pages[previousPageIndex]?.pageTechName;
-                                                      										}
-                                                      										limit ++;
-                                                      									}
-                                                      									if(lastIndexOfTargetPage != 0){
-                                                      										lastIndexOfTargetPage ++;
-                                                      									}
-                                                      									
-                                                      									clone.config.page = element;
-                                                      									//insert clone after lastIndexOfTargetPage
-                                                      									for (let i = clone.childrenRefs.length - 1; i >= 0; i--) {
-                                                      										let child = JSON.parse(JSON.stringify(page.getElementById(+clone.childrenRefs[i])));
-                                                      										let typeComputed = typesfreindly[child.type] != undefined ? typesfreindly[child.type]: child.type;
-                                                      										child.name = page["getNameDispo"](typeComputed, newnames);
-                                                      										newnames.push(child.name);
-                                                      										child.id = child.id + i + 1;
-                                                      										clone.childrenRefs[i] = child.id;
-                                                      										child.config.page = element;
-                                                      										page["formsList"].splice(lastIndexOfTargetPage + i, 0, child);
-                                                      									}
-                                                      									
-                                                      									page["formsList"].splice(lastIndexOfTargetPage, 0, clone);
-                                                      									
-                                                      									
-                                                      								}
-                                                      								else{
-                                                      									clone.config.page = element;
-                                                      									page["formsList"].push(clone);
-                                                      								}
-                                                      								
-                                                      							}       
+                                                      								let cloneResult = page.cloneFormElementForTargetPage(vars.elm, element, state);
+                                                      								page.insertClonedFormElements(page.getCloneInsertIndexForTargetPage(element), cloneResult.elements);
+                                                      							}
                                                       					        resolve({"length":data.length});
                                                       						}
                                                       					}
