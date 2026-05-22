@@ -7234,6 +7234,9 @@ The Chart Widget viewer
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>currentItem</td><td></td>
+</tr>
+<tr>
 <td>form</td><td></td>
 </tr>
 <tr>
