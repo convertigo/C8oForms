@@ -41,6 +41,40 @@ scriptContent:
         			return "";
         		}
         	}
+        	public operatorHasNoRightValue(operator: string): boolean {
+        		return ["is_filled", "is_empty", "contains_a_file", "does_not_contain_file", "contains_multiple_files"].indexOf(operator) != -1;
+        	}
+        	public operatorUsesMultipleValues(operator: string): boolean {
+        		return this.getConditionFieldType() == "multiple";
+        	}
+        	public translateOperator(operator: string): string {
+        		if (operator == null || operator === "") {
+        			return "";
+        		}
+        		switch (operator) {
+        			case "equal":
+        			case "equals":
+        				return "=";
+        			case "not_equal":
+        			case "different":
+        				return String.fromCharCode(8800);
+        			case "minus":
+        				return "<";
+        			case "minusequals":
+        				return String.fromCharCode(8804);
+        			case "greater":
+        				return ">";
+        			case "greaterequals":
+        				return String.fromCharCode(8805);
+        		}
+        		let brKey = "br_" + operator;
+        		let brTranslated = this.translate.instant(brKey);
+        		if (brTranslated != brKey) {
+        			return brTranslated;
+        		}
+        		let translated = this.translate.instant(operator);
+        		return translated != operator ? translated : operator;
+        	}
         	public async __convertTsToText(sourceStr) {
         		try {
         			if (sourceStr == null) {
@@ -127,7 +161,7 @@ scriptContent:
 ↓complByName [ngx.components.UICompVariable-1758189527442]: 
 ↓keyName [ngx.components.UICompVariable-1758189849445]: 
 ↓conditionKind [ngx.components.UICompVariable-1776113200001]: 
-  value: '''visibleIf'''
+  value: '''filter'''
 ↓navigationPages [ngx.components.UICompVariable-1776113200002]: 
   value: null
 ↓showNavigationAction [ngx.components.UICompVariable-1776120600001]: 
@@ -412,7 +446,7 @@ scriptContent:
              "DoubleBinding": "script:currentObject.conds[this.l].val1.displayName",
              "Disabled": "plain:true",
              "Debounce": "plain:0",
-             "Placeholder": "script:this.translate.instant(''the_col'')",
+             "Placeholder": "script:this.translate.instant(this.conditionKind == ''visibleIf'' ? ''the_element'' : ''the_col'')",
              "Value": "script:currentObject.conds[this.l].val1?.displayName"
             }'
           tagName: ion-input
@@ -738,7 +772,8 @@ scriptContent:
            "ionBean": "Select",
            "ControlName": "plain:name1680267248539",
            "Interface": "plain:popover",
-           "Placeholder": "script:this.translate.instant(''operator'')"
+           "Placeholder": "script:this.translate.instant(''operator'')",
+           "SelectedText": "script:this.translateOperator(currentObject.conds[this.l].operator)"
           }'
         tagName: ion-select
         ↓Style [ngx.components.UIStyle-1758189195760]: 
@@ -787,13 +822,17 @@ scriptContent:
                     				condition.val2.arr = [];
                     			}
                     			const operatorsWithoutRightValue = ["is_filled", "is_empty", "contains_a_file", "does_not_contain_file", "contains_multiple_files"];
-                    			const multipleOperators = ["among_following", "out_following", "contains", "not_contains"];
+                    			const usesMultipleValues = page.getConditionFieldType() == "multiple";
                     			if(operatorsWithoutRightValue.indexOf(event) != -1){
                     				condition.val2.str = "";
                     				condition.val2.arr = [];
                     				condition.val2.source = false;
                     			}
-                    			else if(multipleOperators.indexOf(event) == -1){
+                    			else if(usesMultipleValues){
+                    				condition.val2.str = "";
+                    				condition.val2.source = false;
+                    			}
+                    			else{
                     				condition.val2.arr = [];
                     			}
                     		}
@@ -818,13 +857,13 @@ scriptContent:
           directiveSource: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.complByName[currentObject.conds[this.l].val1.name] != undefined else ElseBlock_1680625935432
+              - MobileSmartSourceType: script:this.complByName != null && currentObject?.conds?.[this.l]?.val1?.name != null && currentObject.conds[this.l].val1.name != '' && this.complByName[currentObject.conds[this.l].val1.name] != undefined else ElseBlock_1680625935432
           ↓tag [ngx.components.UIControlDirective-1758189195784]: 
             directiveItemName: item
             directiveSource: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.complByName[currentObject.conds[this.l].val1.name]
+                - MobileSmartSourceType: script:this.complByName?.[currentObject?.conds?.[this.l]?.val1?.name] || []
             ↓SelectOption [ngx.components.UIDynamicElement-1758189195787]: 
               beanData: '{"ionBean":"SelectOption","Value":"script:item"}'
               tagName: ion-select-option
@@ -945,12 +984,82 @@ scriptContent:
   ↓DivFlexContainer1 [ngx.components.UIDynamicElement-1768907106387]: 
     beanData: '{"ionBean":"DivTag"}'
     tagName: div
+    ↓Attr [ngx.components.UIAttribute-1779446200001]: 
+      attrName: '*ngIf'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: plain:!this.operatorHasNoRightValue(this.currentObject?.conds?.[this.l]?.operator)
+    ↓DivMultipleValues [ngx.components.UIDynamicElement-1779353000001]: 
+      beanData: '{"ionBean":"DivTag"}'
+      tagName: div
+      ↓Attr [ngx.components.UIAttribute-1779353000002]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.operatorUsesMultipleValues(this.currentObject?.conds?.[this.l]?.operator)
+      ↓Style [ngx.components.UIStyle-1779353000003]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                'display: flex;
+                flex: 1 1 auto;
+                min-width: 0;
+                width: 100%;
+                '
+      ↓InputTextAndField [ngx.components.UIUseShared-1779353000004]: 
+        sharedcomponent: C8Oforms.MobileApplication.Application.inputTextAndField
+        ↓current [ngx.components.UIUseVariable-1779353000005]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.currentObject?.conds?.[this.l]
+        ↓i [ngx.components.UIUseVariable-1779353000006]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.l
+        ↓type [ngx.components.UIUseVariable-1779353000007]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:'simple'
+        ↓inputngx [ngx.components.UIUseVariable-1779353000008]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:true
+        ↓prefixEvent [ngx.components.UIUseVariable-1779353000009]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: 'script:this.conditionKind == ''goToPageIf'' ? ''cond_goToPage_'' : ''cond_visible_'''
+        ↓form [ngx.components.UIUseVariable-1779353000010]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.pageOwner?.form
+        ↓EventSave [ngx.components.UIControlEvent-1779353000011]: 
+          attrName: (save)
+          eventName: save
+          ↓CustomAction [ngx.components.UICustomAction-1779353000012]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    		page.save.emit(page.currentObject);
+                    		resolve();
+                    
     ↓tag [ngx.components.UIControlDirective-1768907106399]: 
       directiveName: If
       directiveSource: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:this.currentObject?.conds?.[l]?.val2?.type != 'ts' else ElseBlock_1764672710325
+          - MobileSmartSourceType: script:!this.operatorUsesMultipleValues(this.currentObject?.conds?.[this.l]?.operator) && this.currentObject?.conds?.[l]?.val2?.type != 'ts' else ElseBlock_1764672710325
       ↓Div1 [ngx.components.UIDynamicElement-1768907106402]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
@@ -1099,6 +1208,12 @@ scriptContent:
       ↓Div1 [ngx.components.UIDynamicElement-1768907106456]: 
         beanData: '{"ionBean":"DivTag"}'
         tagName: div
+        ↓Attr [ngx.components.UIAttribute-1779353000014]: 
+          attrName: '*ngIf'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:this.currentObject?.conds?.[this.l]?.val2?.type == 'ts'
         ↓Attr2 [ngx.components.UIAttribute-1768907106462]: 
           attrName: class
           attrValue: 
@@ -1188,6 +1303,12 @@ scriptContent:
     ↓DivSwitchToJS [ngx.components.UIDynamicElement-1768907106510]: 
       beanData: '{"ionBean":"DivTag"}'
       tagName: div
+      ↓Attr [ngx.components.UIAttribute-1779353000013]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:!this.operatorHasNoRightValue(this.currentObject?.conds?.[this.l]?.operator)
       ↓Style [ngx.components.UIStyle-1768907106513]: 
         styleContent: 
           - xmlizable: 
@@ -1414,6 +1535,38 @@ scriptContent:
                     			    let str = "";
                     			    if(res.role === ''confirm''){
                     					//val2.type = "ts";
+                    					let isMultipleValues = page.operatorUsesMultipleValues(page.currentObject.conds[vars.l].operator);
+                    					if(isMultipleValues){
+                    						let arr = Array.isArray(page.currentObject.conds[vars.l].val2.arr) ? page.currentObject.conds[vars.l].val2.arr : [];
+                    						let parts = [];
+                    						for(let entry of arr){
+                    							let raw = entry != null && typeof entry === "object" && entry.value != null ? "" + entry.value : "" + entry;
+                    							raw = raw.trim();
+                    							if(raw.indexOf("$$") != -1){
+                    								let tsExpr = page.pageOwner.transform$toTsMonaco(raw);
+                    								parts.push(tsExpr && tsExpr !== "" ? tsExpr : JSON.stringify(raw));
+                    							}
+                    							else if(raw.indexOf("api.") == 0){
+                    								parts.push(raw);
+                    							}
+                    							else if(raw.indexOf("await api.") == 0){
+                    								parts.push(raw.substring(6).trim());
+                    							}
+                    							else{
+                    								parts.push(JSON.stringify(raw));
+                    							}
+                    						}
+                    						page.currentObject.conds[vars.l].val2 =  {
+                    							str: "(async ()=>{\n\treturn [" + parts.join(", ") + "];\n})();",
+                    							type: ''ts'',
+                    							arr: arr
+                    						};
+                    						if (page.pageOwner != null && page.pageOwner.setVisiblePaletteContext != null) {
+                    							page.pageOwner.setVisiblePaletteContext("ts", page.c8oforms_monacoeditor || false, page.currentObject, vars.l);
+                    						}
+                    						page.save.emit(page.currentObject);
+                    						return page.currentObject;
+                    					}
                     					let sourceStr = page.currentObject.conds[vars.l].val2.str != null ? "" + page.currentObject.conds[vars.l].val2.str : "";
                     					let strWithoutSpace = sourceStr.replace(/\s/g, "");
                     					if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){

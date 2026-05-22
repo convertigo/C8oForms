@@ -6204,23 +6204,17 @@ scriptContent:
         	 */
         	private isAfieldSimpleOrMultiple(cond: FieldObject): boolean {
         		try {
-        			return (
-        				cond.subject != undefined &&
-        				cond.subject == "field" &&
-        				this.hasConditionValue(cond.val1) &&
-        				this.hasConditionValue(cond.val2) &&
-        				cond.operator != undefined &&
-        				cond.operator != ""
-        			);
-        		} catch (e) {
+        			let hasUnaryOperator = cond.operator == "is_filled" || cond.operator == "is_empty";
         			return (
         				cond.subject != undefined &&
         				cond.subject == "field" &&
         				this.hasConditionValue(cond.val1) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
-        				(cond.operator == "is_filled" || cond.operator == "is_empty")
+        				(hasUnaryOperator || this.hasConditionValue(cond.val2))
         			);
+        		} catch (e) {
+        			return false;
         		}
         	}
         
@@ -6231,21 +6225,16 @@ scriptContent:
         	 */
         	private isAfieldSimpleOrMultipleGo(cond: FieldObject): boolean {
         		try {
+        			let hasUnaryOperator = cond.operator == "is_filled" || cond.operator == "is_empty";
         			return (
         				this.hasConditionValue(cond.val1) &&
-        				this.hasConditionValue(cond.val2) &&
         				cond.operator != undefined &&
         				cond.operator != "" &&
-        				cond.type == "goToPageIf"
+        				cond.type == "goToPageIf" &&
+        				(hasUnaryOperator || this.hasConditionValue(cond.val2))
         			);
         		} catch (e) {
-        			return (
-        				this.hasConditionValue(cond.val1) &&
-        				cond.operator != undefined &&
-        				cond.operator != "" &&
-        				(cond.operator == "is_filled" || cond.operator == "is_empty") &&
-        				cond.type == "goToPageIf"
-        			);
+        			return false;
         		}
         	}
         
@@ -6348,6 +6337,9 @@ scriptContent:
         		if (val == null) {
         			return "";
         		}
+        		if (val.type === "ts") {
+        			return this.getValTsValue(val.str);
+        		}
         		if (val.source) {
         			return this.getSimple(val);
         		}
@@ -6367,6 +6359,74 @@ scriptContent:
         		return val.str;
         	}
         
+        	private getValMultipleEntryValue(entry: any): any {
+        		let value = entry != null && typeof entry === "object" && entry.value != null ? entry.value : entry;
+        		if (typeof value === "string") {
+        			const raw = value.trim();
+        			if (raw.indexOf("$$") !== -1) {
+        				try {
+        					let page = this;
+        					const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        					const expression = this.stringOf$$ToCode(raw, "ts", [], regex, false, false);
+        					if (expression != null && expression !== "") {
+        						return eval(expression);
+        					}
+        				}
+        				catch (e) {
+        				}
+        			}
+        			if (raw.indexOf("api.") === 0 || raw.indexOf("await api.") === 0) {
+        				try {
+        					const expression = raw.indexOf("await ") === 0 ? raw.substring(6).trim() : raw;
+        					return eval(expression);
+        				}
+        				catch (e) {
+        				}
+        			}
+        		}
+        		return value;
+        	}
+        
+        	private getValTsValue(code: string): any {
+        		if (code == null || code === "") {
+        			return "";
+        		}
+        		try {
+        			let page = this;
+        			let raw = ("" + code).trim();
+        			let match = raw.match(/^\(async\s*\(\)\s*=>\s*\{\s*return\s+([\s\S]*?);?\s*\}\)\(\);?$/);
+        			if (match != null && match[1] != null) {
+        				return eval(match[1]);
+        			}
+        			let value = eval(raw);
+        			if (value != null && typeof value.then === "function") {
+        				return "";
+        			}
+        			return value;
+        		}
+        		catch (e) {
+        			return "";
+        		}
+        	}
+        
+        	private normalizeValMultiple(value: any): Array<any> {
+        		if (Array.isArray(value)) {
+        			return value;
+        		}
+        		if (value != null && typeof value === "object") {
+        			if (Array.isArray(value.arr)) {
+        				return value.arr.map((e) => { return this.getValMultipleEntryValue(e); });
+        			}
+        			if (Array.isArray(value.values)) {
+        				return value.values;
+        			}
+        			if (Array.isArray(value.value)) {
+        				return value.value;
+        			}
+        		}
+        		return value == null || value === "" ? [] : [value];
+        	}
+        
         	/**
         	 * Retrieves the value of a multiple field.
         	 * @param val - ValFieldObject representing a multiple field
@@ -6375,6 +6435,9 @@ scriptContent:
         	private getValMultiple(val: ValFieldObject): Array<any> {
         		let ret;
         		let str;
+        		if (val != null && val.type === "ts") {
+        			return this.normalizeValMultiple(this.getValTsValue(val.str));
+        		}
         		if (val.source) {
         			switch (val.type) {
         				case "checkbox":
@@ -6391,7 +6454,12 @@ scriptContent:
         					break;
         			}
         		} else {
-        			ret = val.arr.map((e) => { return e.value; });
+        			if (Array.isArray(val.arr) && val.arr.length > 0) {
+        				ret = val.arr.map((e) => { return this.getValMultipleEntryValue(e); });
+        			}
+        			else {
+        				ret = this.normalizeValMultiple(this.getValSimple(val));
+        			}
         		}
         		return ret;
         	}
@@ -6632,13 +6700,8 @@ scriptContent:
         	 * @param field - FieldObject representing the field
         	 * @returns True if the field is filled, false otherwise
         	 */
-        	private is_filled(field: FieldObject): boolean {
-        		const val = this.getValSimple(field.val1);
-        		if (field.val1.type == "grid") {
-        			return val != "" && JSON.stringify(val) != JSON.stringify({});
-        		} else {
-        			return val != "";
-        		}
+        	private is_filled(field: FieldObject, type: string): boolean {
+        		return this.isConditionValueFilled(this.getValueForFilledCondition(field));
         	}
         
         	/**
@@ -6646,13 +6709,35 @@ scriptContent:
         	 * @param field - FieldObject representing the field
         	 * @returns True if the field is empty, false otherwise
         	 */
-        	private is_empty(field: FieldObject): boolean {
-        		const val = this.getValSimple(field.val1);
-        		if (field.val1.type == "grid") {
-        			return val == "" || JSON.stringify(val) == JSON.stringify({});
-        		} else {
-        			return val == "";
+        	private is_empty(field: FieldObject, type: string): boolean {
+        		return !this.isConditionValueFilled(this.getValueForFilledCondition(field));
+        	}
+        
+        	private getValueForFilledCondition(field: FieldObject): any {
+        		switch (field.val1.type) {
+        			case "checkbox":
+        			case "radio_group":
+        			case "checkbox_group":
+        				return this.getValMultiple(field.val1);
+        			default:
+        				return this.getValSimple(field.val1);
         		}
+        	}
+        
+        	private isConditionValueFilled(value: any): boolean {
+        		if (value == null) {
+        			return false;
+        		}
+        		if (Array.isArray(value)) {
+        			return value.length > 0;
+        		}
+        		if (typeof value == "string") {
+        			return value.trim() != "";
+        		}
+        		if (typeof value == "object") {
+        			return JSON.stringify(value) != JSON.stringify({});
+        		}
+        		return value !== "";
         	}
         
         

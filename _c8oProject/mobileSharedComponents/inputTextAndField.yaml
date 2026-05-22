@@ -3,7 +3,7 @@ scriptContent:
     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
-        /*Begin_c8o_CompImport*/
+        '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	/*End_c8o_CompDeclaration*/
@@ -14,8 +14,119 @@ scriptContent:
         /*Begin_c8o_CompFinalization*/
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompFunction*/
+        	private getDragOwner(): any {
+        		return this.pageOwner?.pageOwner || this.pageOwner || this.owner;
+        	}
+        	private isSourceDrag(event: any): boolean {
+        		try {
+        			return event?.dataTransfer?.getData?.("__c8oformsdrag_source") === "true";
+        		}
+        		catch (e) {
+        			return false;
+        		}
+        	}
+        	private htmlDragToValue(html: string): string {
+        		if (html == null || html === "") {
+        			return "";
+        		}
+        		const owner = this.getDragOwner();
+        		try {
+        			if (owner != null && typeof owner.transformHtmlto$ === "function") {
+        				return owner.transformHtmlto$(html);
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return "";
+        	}
+        	private isDropMarkerValue(value: string): boolean {
+        		const clean = value == null ? "" : ("" + value).trim();
+        		return clean === "" || clean === "true" || clean === "false" || clean === "__c8oformsdrag_source" || clean === "__c8oformsdrag";
+        	}
+        	private getDroppedSourceValue(event: any): string {
+        		let plain = event?.dataTransfer?.getData?.("text/plain") || "";
+        		plain = (plain || "").replace(/[\r\n]+$/g, "").trim();
+        		if (!this.isDropMarkerValue(plain)) {
+        			return plain;
+        		}
+        		let html = event?.dataTransfer?.getData?.("text/html") || "";
+        		let value = this.htmlDragToValue(html);
+        		value = (value || "").replace(/[\r\n]+$/g, "").trim();
+        		if (!this.isDropMarkerValue(value)) {
+        			return value;
+        		}
+        		return "";
+        	}
+        	private getDisplayForDroppedValue(value: string): string {
+        		const clean = value == null ? "" : ("" + value).trim();
+        		const match = clean.match(/\$\$(?:START)?(\d+)([\s\S]*?)(?:END)?(?:\d+)?\$\$/);
+        		if (match != null) {
+        			try {
+        				const meta = JSON.parse(match[2]);
+        				return meta.c8oName || meta.name || (meta.c8opath != null && meta.c8opath !== "" ? ("" + meta.c8opath).split(".").pop() : "") || (this.pageOwner?.getItemNameById != null ? this.pageOwner.getItemNameById(+match[1]) : "") || clean;
+        			}
+        			catch (e) {
+        			}
+        		}
+        		if (clean.indexOf("api.") === 0 || clean.indexOf("await api.") === 0) {
+        			let withoutAwait = clean.indexOf("await ") === 0 ? clean.substring(6).trim() : clean;
+        			let last = withoutAwait.split(".").pop() || withoutAwait;
+        			return last.indexOf("(") != -1 ? last.substring(0, last.indexOf("(")) : last;
+        		}
+        		return clean;
+        	}
+        	public onMultipleDragOver(event: any): boolean {
+        		if (!this.inputngx || !this.isSourceDrag(event)) {
+        			return true;
+        		}
+        		event.preventDefault();
+        		event.stopPropagation();
+        		event.stopImmediatePropagation?.();
+        		if (event.dataTransfer != null) {
+        			event.dataTransfer.dropEffect = "copy";
+        		}
+        		return false;
+        	}
+        	public onMultipleDrop(event: any): boolean {
+        		if (!this.inputngx || !this.isSourceDrag(event)) {
+        			return true;
+        		}
+        		event.preventDefault();
+        		event.stopPropagation();
+        		event.stopImmediatePropagation?.();
+        		let value = "";
+        		try {
+        			value = this.getDroppedSourceValue(event);
+        			if (value === "") {
+        				return false;
+        			}
+        			if (this.current == null) {
+        				return false;
+        			}
+        			if (this.current.val2 == null || typeof this.current.val2 !== "object") {
+        				this.current.val2 = { str: "", source: false, type: "text", arr: [] };
+        			}
+        			if (!Array.isArray(this.current.val2.arr)) {
+        				this.current.val2.arr = [];
+        			}
+        			const tag = { value: value, display: this.getDisplayForDroppedValue(value) };
+        			if (this.current.val2.arr.findIndex((item) => item != null && item.value === tag.value) === -1) {
+        				this.current.val2.arr = this.current.val2.arr.concat([tag]);
+        			}
+        			this.current.val2.str = "";
+        			this.current.val2.source = false;
+        			if (this.current.val2.type == null || this.current.val2.type === "") {
+        				this.current.val2.type = "text";
+        			}
+        			this.save.emit(this.current);
+        		}
+        		catch (e) {
+        			this.c8o?.log?.error?.("[InputTextAndField] source drop failed " + (e?.message || JSON.stringify(e)));
+        		}
+        		return false;
+        	}
         	/*End_c8o_CompFunction*/
-        
+        '
 ↓current [ngx.components.UICompVariable-1595423220716]: 
 ↓i [ngx.components.UICompVariable-1595423220719]: 
 ↓type [ngx.components.UICompVariable-1595423328032]: 
@@ -31,6 +142,18 @@ scriptContent:
   ↓Div [ngx.components.UIDynamicElement-1595428736397]: 
     beanData: '{"ionBean":"DivTag"}'
     tagName: div
+    ↓AttrDropOver [ngx.components.UIAttribute-1779353000021]: 
+      attrName: (dragover)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.onMultipleDragOver($event)
+    ↓AttrDrop [ngx.components.UIAttribute-1779353000022]: 
+      attrName: (drop)
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.onMultipleDrop($event)
     ↓Attr2 [ngx.components.UIAttribute-1595428745829]: 
       attrName: '[ngStyle]'
       attrValue: 
@@ -181,7 +304,7 @@ scriptContent:
               '{
                "ionBean": "PopoverAction",
                "page": "plain:C8Oforms.MobileApplication.Application.PopOverInputs",
-               "data": "script:{form: this.pageOwner.navParams.data.form, self: this.pageOwner.navParams.data.self, var:''val2'', current: this.current,type: ''multiple'', suj: ''arr''}",
+               "data": "script:{form: this.form || this.pageOwner?.navParams?.data?.form || this.pageOwner?.form, self: this.pageOwner?.navParams?.data?.self, var:''val2'', current: this.current,type: ''multiple'', suj: ''arr''}",
                "event": "script:(event == undefined ? $event : event)",
                "cssClass": "plain:"
               }'
@@ -387,7 +510,7 @@ scriptContent:
               '{
                "ionBean": "PopoverAction",
                "page": "plain:C8Oforms.MobileApplication.Application.PopOverInputs",
-               "data": "script:{form: this.pageOwner.form, self: this.pageOwner.navParams.data.self, var:''val2'', current: this.current,type: this.type}",
+               "data": "script:{form: this.form || this.pageOwner?.form || this.pageOwner?.navParams?.data?.form, self: this.pageOwner?.navParams?.data?.self, var:''val2'', current: this.current,type: this.type}",
                "event": "script:(event == undefined ? $event : event)",
                "cssClass": "plain:"
               }'
