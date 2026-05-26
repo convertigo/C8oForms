@@ -91,6 +91,9 @@ scriptContent:
         }
         
         getToolbarTextColor(): string {
+        	if (this.global?.pwa === true) {
+        		return this.getContrastingTextColor(this.getToolbarThemeColor());
+        	}
         	if (this.parentLocal?.policyColor) {
         		return this.parentLocal.policyColor;
         	}
@@ -109,8 +112,40 @@ scriptContent:
         }
         
         getContrastingTextColor(color: string): string {
-        	if (!color || color.indexOf(''var('') === 0) {
-        		return ''var(--ion-color-primary-contrast)'';
+        	const rgb = this.parseToolbarColor(this.resolveToolbarColor(color));
+        	if (rgb == null) {
+        		return ''#FFFFFF'';
+        	}
+        	const srgb = [rgb.r, rgb.g, rgb.b].map(function(value) {
+        		const channel = value / 255;
+        		return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+        	});
+        	const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+        	return luminance > 0.179 ? ''#000000'' : ''#FFFFFF'';
+        }
+        
+        resolveToolbarColor(color: string): string {
+        	if (!color) {
+        		return '''';
+        	}
+        	const trimmed = color.trim();
+        	if (trimmed.indexOf(''var('') !== 0 || typeof window === ''undefined'' || typeof document === ''undefined'') {
+        		return trimmed;
+        	}
+        	const end = trimmed.indexOf('')'');
+        	const content = end === -1 ? trimmed.substring(4) : trimmed.substring(4, end);
+        	const property = content.split('','')[0].trim();
+        	const fallback = content.indexOf('','') !== -1 ? content.substring(content.indexOf('','') + 1).trim() : '''';
+        	if (!property) {
+        		return fallback;
+        	}
+        	const resolved = window.getComputedStyle(document.documentElement).getPropertyValue(property).trim();
+        	return resolved || fallback;
+        }
+        
+        parseToolbarColor(color: string): any {
+        	if (!color) {
+        		return null;
         	}
         	let hex = color.trim();
         	if (hex[0] === ''#'') {
@@ -119,17 +154,22 @@ scriptContent:
         	if (hex.length === 3) {
         		hex = hex.split('''').map(function(c) { return c + c; }).join('''');
         	}
-        	if (hex.length !== 6) {
-        		return ''#FFFFFF'';
+        	if (hex.length === 6) {
+        		const r = parseInt(hex.substring(0, 2), 16);
+        		const g = parseInt(hex.substring(2, 4), 16);
+        		const b = parseInt(hex.substring(4, 6), 16);
+        		if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        			return { r: r, g: g, b: b };
+        		}
         	}
-        	const r = parseInt(hex.substring(0, 2), 16);
-        	const g = parseInt(hex.substring(2, 4), 16);
-        	const b = parseInt(hex.substring(4, 6), 16);
-        	if (isNaN(r) || isNaN(g) || isNaN(b)) {
-        		return ''#FFFFFF'';
+        	const match = color.match(/rgba?\(([^)]+)\)/i);
+        	if (match != null) {
+        		const parts = match[1].split('','').map(function(part) { return parseFloat(part.trim()); });
+        		if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        			return { r: parts[0], g: parts[1], b: parts[2] };
+        		}
         	}
-        	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        	return luminance > 0.5 ? ''#1A1A1A'' : ''#FFFFFF'';
+        	return null;
         }
         
         async detectSvgByContentType(url: string): Promise<boolean | null> {
@@ -538,7 +578,7 @@ scriptContent:
               '{
                "ionBean": "SetGlobalAction",
                "Property": "plain:isMenuOpen",
-               "Value": "script:!this.global.isMenuOpen"
+               "Value": "script:(this.global.__pwaMenuUserOpened = (this.global?.pwa === true ? !this.global.isMenuOpen : false), !this.global.isMenuOpen)"
               }'
         ↓Attr1 [ngx.components.UIAttribute-1762273032398]: 
           attrName: '[style]'
@@ -786,7 +826,7 @@ scriptContent:
               textValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.displayText
+                  - MobileSmartSourceType: 'script:this.global?.pwa === true ? this.getPwaAppName() : this.displayText'
             ↓fontSize [ngx.components.UIStyle-1758273292814]: 
               styleContent: 
                 - xmlizable: 
@@ -1023,7 +1063,7 @@ scriptContent:
         directiveSource: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:(window.innerWidth > 943 && this.searchBarType.length === 0) || (window.innerWidth > 1000 && this.searchBarType.length > 0)
+            - MobileSmartSourceType: script:this.global?.pwa === true || (window.innerWidth > 943 && this.searchBarType.length === 0) || (window.innerWidth > 1000 && this.searchBarType.length > 0)
         ↓DivText [ngx.components.UIDynamicElement-1772621540872]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -1041,7 +1081,7 @@ scriptContent:
               textValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:this.displayText
+                  - MobileSmartSourceType: 'script:this.global?.pwa === true ? this.getPwaAppName() : this.displayText'
             ↓Style [ngx.components.UIStyle-1776429887382]: 
               styleContent: 
                 - xmlizable: 
@@ -1099,7 +1139,7 @@ scriptContent:
               attrValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: 'script:''color: ''+(this.global?.pwa === true ? this.getToolbarTextColor() : this.global?.externalBrandColorLoginCard)+'' !important;'''
+                  - MobileSmartSourceType: 'script:this.global?.pwa === true ? ''display: none;'' : ''color: ''+this.global?.externalBrandColorLoginCard+'' !important;'''
           ↓Attr1 [ngx.components.UIAttribute-1772621540902]: 
             attrName: '*ngIf'
             attrValue: 
