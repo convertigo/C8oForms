@@ -73,7 +73,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/21180ee9
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_GeneratePWAAssets
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/bbe8594288607077d4c297ff0b0ebd107b89013e#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Geocoding_ui_ngx</b></summary><blockquote><p>
