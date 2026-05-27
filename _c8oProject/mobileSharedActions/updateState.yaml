@@ -319,11 +319,28 @@ comment: Update the state of a field
                       
                       params.meta = JSON.stringify(params.meta);
                       
+          				page["__updateStateLocalWriteInFlight"] = true;
           		        let res = (await page.c8o.callJsonObject("C8Oforms.APIV2_updateFormulaireDocument", params).async()).res;
           				if(res.rev){
           					page["form"]["_rev"] = res.rev;
+          					page["__updateStateLastOwnRev"] = res.rev;
           				}
-          		        page.ref.detectChanges();
+          				let activeInput = false;
+          				try {
+          					const active = document?.activeElement;
+          					activeInput = active != null && (
+          						active.tagName === "INPUT" ||
+          						active.tagName === "TEXTAREA" ||
+          						active.tagName === "ION-INPUT" ||
+          						active.tagName === "ION-TEXTAREA" ||
+          						active.closest?.("ion-input, ion-textarea, input, textarea") != null
+          					);
+          				}
+          				catch (e) {
+          				}
+          				if (!activeInput) {
+          		        	page.ref.detectChanges();
+          				}
           		        page.c8o.log.debug("[updateStateHttp] doc updated on server");
           			};
           			if(page["__updateStateRunning"] === true){
@@ -336,7 +353,12 @@ comment: Update the state of a field
           					while(page["__updateStatePending"] != null){
           						const nextVars = page["__updateStatePending"];
           						page["__updateStatePending"] = null;
-          						await executeUpdate(nextVars);
+          						try {
+          							await executeUpdate(nextVars);
+          						}
+          						finally {
+          							page["__updateStateLocalWriteInFlight"] = false;
+          						}
           					}
           				}
           				finally {
