@@ -31,7 +31,7 @@ componentScriptContent:
         			.setForceFormData(true);
         		// Force Convertigo global endpoints under DisplayObjects routes so
         		// FullSync never resolves against the static PWA folder.
-        		if (window.location.href.indexOf("/DisplayObjects") != -1 && window.location.href.indexOf("/DisplayObjects/pwas/") == -1) {
+        		if (window.location.href.indexOf("/DisplayObjects") != -1) {
         			const displayObjectsIndex = window.location.href.indexOf("/DisplayObjects");
         			const convertigoProjectEndpoint = window.location.href.substring(0, displayObjectsIndex);
         			settings
@@ -43,13 +43,7 @@ componentScriptContent:
         		this.monitorPwaUpdates();
         		// set some globals vars
         		this.initializeGlobals();
-        		const isPwaRoute = window.location.pathname.indexOf("/pwas/") !== -1;
-        		this.global.pwa = isPwaRoute;
-        		this.global.isMenuOpen = !isPwaRoute && window.innerWidth > 1140;
-        		if (isPwaRoute) {
-        			this.global.__pwaMenuDefaultApplied = true;
-        			this.global.__pwaMenuUserOpened = false;
-        		}
+        		this.global.isMenuOpen = (window.innerWidth > 1140) ? true : false
         		/*End_c8o_AppSettings*/
         /*Begin_c8o_AppConstructor*/
         		this.bindChunkRecoveryHandlers();
@@ -78,21 +72,6 @@ componentScriptContent:
         				this.monitorDEVPwaUpdates();
         				/*End_c8o_AppInitialization*/
         /*Begin_c8o_AppFunction*/
-        	public getStandalonePwaId(): string {
-        		const pathParts = window.location.pathname.split("/");
-        		const pwasIndex = pathParts.indexOf("pwas");
-        		return pwasIndex !== -1 ? pathParts[pwasIndex + 1] || '''' : '''';
-        	}
-        
-        	public getStandalonePwaBaseUrl(): string {
-        		const pathParts = window.location.pathname.split("/");
-        		const pwasIndex = pathParts.indexOf("pwas");
-        		if (pwasIndex !== -1 && pathParts[pwasIndex + 1]) {
-        			return window.location.origin + pathParts.slice(0, pwasIndex + 2).join("/") + "/";
-        		}
-        		return new URL(".", document.baseURI).href;
-        	}
-        
         	public bindChunkRecoveryHandlers(): void {
         		if (this.chunkRecoveryListenerBound) {
         			return;
@@ -297,24 +276,14 @@ componentScriptContent:
         		if (indexPWA != -1 && indexMobile == -1) {
         			// get url base
         			this.global.pwa = true;
-        			if (this.global.__pwaMenuDefaultApplied !== true) {
-        				this.global.isMenuOpen = false;
-        				this.global.__pwaMenuDefaultApplied = true;
-        			}
-        			const baseUrl = this.getStandalonePwaBaseUrl();
+        			const baseUrl = window.location.origin + this.getInstance(APP_BASE_HREF);
         			this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
-        			let standalonePwa = this.getStandalonePwaId();
+        			let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
         			this.global.standalonePwa = standalonePwa;
         			// try to get manifest.webmanifest to detdermine themes
         			this.global.pwaGet
         				.subscribe(
         					response => {
-        						if (response["name"] != undefined) {
-        							this.global.pwaName = response["name"];
-        						}
-        						if (response["short_name"] != undefined) {
-        							this.global.pwaShortName = response["short_name"];
-        						}
         						if (response["theme_color"] != undefined) {
         							this.statusBar.backgroundColorByHexString(response["theme_color"]);
         							this.global.pwaThemeColor = response["theme_color"];
@@ -1054,11 +1023,9 @@ componentScriptContent:
         				    if (indexPWA != -1 && indexMobile == -1) {
         				        // get url base
         				        this.global.pwa = true;
-        						this.global.isMenuOpen = false;
-        						this.global.__pwaMenuDefaultApplied = true;
-        						let baseUrl = this.getStandalonePwaBaseUrl();
+        						let baseUrl = document.querySelector(''base'')?.getAttribute(''href'') || ''/'';
         				        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
-        	                    let standalonePwa = this.getStandalonePwaId();
+        	                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
         	                  	this.global.standalonePwa = standalonePwa;
         					    try{
         							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
@@ -1362,20 +1329,10 @@ componentScriptContent:
         				        // get url base
         				        if(event.route.params["i"] == undefined || event.route.params["i"] == ":i"){
         							this.global.pwa = true;
-        							if (this.global.__pwaMenuDefaultApplied !== true) {
-        								this.global.isMenuOpen = false;
-        								this.global.__pwaMenuDefaultApplied = true;
-        							}
-        					        let baseUrl = this.getStandalonePwaBaseUrl();
+        					        let baseUrl = document.querySelector(''base'')?.getAttribute(''href'') || ''/'';
         					        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
-        		                    let standalonePwa = this.getStandalonePwaId();
+        		                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
         		                  	this.global.standalonePwa = standalonePwa;
-        							if (page.local.formId == null || page.local.formId == ":formId" || page.local.formId == "undefined") {
-        								page.local.formId = standalonePwa;
-        								event.route.params["formId"] = standalonePwa;
-        								page.local.published = true;
-        								page.global.published = true;
-        							}
         							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
         							// if PWAS is anonymous, then no login needed 
         			                if (response["anonymous"] == true && response["anonymousKey"] != undefined) {
@@ -1685,7 +1642,7 @@ componentScriptContent:
         		/*End_c8o_function:CTS1765360727798*/
         '
 isPWA: true
-splitPaneLayout: 'this.global?.pwa === true ? (this.global?.__pwaMenuUserOpened === true && this.global?.isMenuOpen === true) : this.global?.isMenuOpen'
+splitPaneLayout: this.global?.isMenuOpen
 tplProjectName: C8Oforms
 useClickForTap: true
 ↓Menu [ngx.components.UIDynamicMenu-1500890597895]: 🗏 mobileMenus/Menu.yaml
@@ -3224,20 +3181,7 @@ useClickForTap: true
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            '		try{
-            			if(!page.global?.isMenuOpen || !page.global?.menuItems){
-            				page.global.isMenuOpen = false;
-            				page.global.menuItems = 				[
-            				  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: true}, publication:{badge: 0, active: false}, nocode: {badge: 0, active: false}} },
-            				  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},
-            				  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}
-            				];
-            			}
-            		}
-            		catch(e){
-            			
-            		}
-            		try {
+            '		try {
             			page.global.c8opageName = event.pageName;
             			document.body.classList.toggle(''dark'', false);
             			let indexPWA;
@@ -3284,11 +3228,9 @@ useClickForTap: true
             				    if (indexPWA != -1 && indexMobile == -1) {
             				        // get url base
             				        this.global.pwa = true;
-            						this.global.isMenuOpen = false;
-            						this.global.__pwaMenuDefaultApplied = true;
-            						let baseUrl = this.getStandalonePwaBaseUrl();
+            						let baseUrl = document.querySelector(''base'')?.getAttribute(''href'') || ''/'';
             				        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
-            	                    let standalonePwa = this.getStandalonePwaId();
+            	                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
             	                  	this.global.standalonePwa = standalonePwa;
             					    try{
             							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
@@ -3592,20 +3534,10 @@ useClickForTap: true
             				        // get url base
             				        if(event.route.params["i"] == undefined || event.route.params["i"] == ":i"){
             							this.global.pwa = true;
-            							if (this.global.__pwaMenuDefaultApplied !== true) {
-            								this.global.isMenuOpen = false;
-            								this.global.__pwaMenuDefaultApplied = true;
-            							}
-            					        let baseUrl = this.getStandalonePwaBaseUrl();
+            					        let baseUrl = document.querySelector(''base'')?.getAttribute(''href'') || ''/'';
             					        this.global.pwaGet = this.c8o.httpPublic.get(baseUrl + "manifest.webmanifest");
-            		                    let standalonePwa = this.getStandalonePwaId();
+            		                    let standalonePwa = baseUrl.split("/")[baseUrl.split("/").indexOf("pwas") + 1];
             		                  	this.global.standalonePwa = standalonePwa;
-            							if (page.local.formId == null || page.local.formId == ":formId" || page.local.formId == "undefined") {
-            								page.local.formId = standalonePwa;
-            								event.route.params["formId"] = standalonePwa;
-            								page.local.published = true;
-            								page.global.published = true;
-            							}
             							let response = await page.c8o.httpPublic.get(baseUrl + "manifest.webmanifest").toPromise();
             							// if PWAS is anonymous, then no login needed 
             			                if (response["anonymous"] == true && response["anonymousKey"] != undefined) {
@@ -3826,6 +3758,22 @@ useClickForTap: true
                 - ↑value: '{ C8oSessionStatus }'
               - java.lang.String: 
                 - ↑value: c8osdkangular
+  ↓If [ngx.components.UIDynamicAction-1760109634879]: 
+    beanData: '{"ionBean":"IfAction","condition":"script:!this.global?.isMenuOpen || !this.global?.menuItems"}'
+    ↓SetGlobal [ngx.components.UIDynamicAction-1759162714496]: 
+      beanData: |
+        '{
+         "ionBean": "SetGlobalAction",
+         "Property": "plain:isMenuOpen",
+         "Value": "script:false"
+        }'
+    ↓SetGlobal1 [ngx.components.UIDynamicAction-1760109784324]: 
+      beanData: |
+        '{
+         "ionBean": "SetGlobalAction",
+         "Property": "plain:menuItems",
+         "Value": "script:[\n  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: true}, publication:{badge: 0, active: false}, nocode: {badge: 0, active: false}} },\n  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},\n  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}\n]"
+        }'
 ↓StyleToasts [ngx.components.UIStyle-1646935895223]: 
   styleContent: 
     - xmlizable: 
@@ -6298,7 +6246,6 @@ useClickForTap: true
           page-conditionalpage,
           page-resetpasswordpage,
           page-modalconfigure,
-          page-createpwa,
           ion-alert {
           // place the class on an ion-item el
           .form-input {
