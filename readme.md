@@ -242,7 +242,7 @@ For more technical informations : [documentation](./project.md)
         - [/forms/export/{id}](#formsexport{id})
             - [Operations](#operations)
                 - [GetOperation](#getoperation)
-- [Convertigo Forms Builder](#convertigo-forms-builder)
+- [Convertigo No Code Studio](#convertigo-no-code-studio)
     - [Pages](#pages)
         - [adminDashboardDetail](#admindashboarddetail)
         - [adminDashboardHome](#admindashboardhome)
@@ -4519,7 +4519,7 @@ Export a forms with a given id
 <td>id</td><td></td>
 </tr>
 </table>
-## Convertigo Forms Builder
+## Convertigo No Code Studio
 
 Describes the mobile application global properties 2
 
