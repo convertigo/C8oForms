@@ -1016,11 +1016,8 @@ scriptContent:
         				.pipe(retry(3))
         				.subscribe(
         					(data: any) => {
-        						if (this.local.tree) {
-        							let result = this.computeAdditionalPaletteElements(this.local.tree, data);
-        							data[result.index].objects = data[result.index].objects.concat(result.val);
-        						}
-        						this.local.Palette = data;
+        						this.local.basePalette = JSON.parse(JSON.stringify(data));
+        						this.refreshPaletteFromTree();
         						this.c8o.log.debug("Palette loaded");
         						this.ref.detectChanges();
         					},
@@ -1332,6 +1329,9 @@ scriptContent:
         	public computeAdditionalPaletteElements(tree, data: any) {
         		let val = [];
         		let index = null;
+        		if (!Array.isArray(tree) || !Array.isArray(data)) {
+        			return { val: val, index: index };
+        		}
         		data.forEach((el, i) => {
         			if (el.name == "background_process") {
         				index = i;
@@ -1389,13 +1389,13 @@ scriptContent:
         
         								let va = {};
         								if (typeof (elemChoosen.variables.name) == "string") {
-        									va[elemChoosen.variables.name] = {};
+        									va[elemChoosen.variables.name] = { str: "", html: false };
         								}
         								else if (typeof (elemChoosen.variables.name) == "undefined") {
         								}
         								else {
         									for (let el of elemChoosen.variables.name) {
-        										va[el] = {};
+        										va[el] = { str: "", html: false };
         									}
         								}
         								const sequenceName = elemChoosen.name;
@@ -1434,6 +1434,26 @@ scriptContent:
         			}
         		}
         		return { val: val, index: index };
+        	}
+        	public refreshPaletteFromTree(): void {
+        		try {
+        			if (!this.local.basePalette) {
+        				return;
+        			}
+        			let palette = JSON.parse(JSON.stringify(this.local.basePalette));
+        			let result = this.computeAdditionalPaletteElements(this.local.tree, palette);
+        			if (result && result.index !== null && result.index !== undefined && palette[result.index] && Array.isArray(result.val)) {
+        				if (!Array.isArray(palette[result.index].objects)) {
+        					palette[result.index].objects = [];
+        				}
+        				palette[result.index].objects = palette[result.index].objects.concat(result.val);
+        			}
+        			this.local.Palette = palette;
+        			this.local.filteredPaletteComponents = this.searchPalette(this.local.Palette, this.local.searchComponents || "");
+        		}
+        		catch (e) {
+        			this.c8o.log.error("an error occured while refreshing Palette", e);
+        		}
         	}
         	public getGrids() {
         		return this.form.formulaire.filter((x) => { return x.type == "grid" });
@@ -49518,9 +49538,8 @@ title: Title for editor
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
               		try {
-              			if(this.local.Palette){
-              				let result = page.computeAdditionalPaletteElements(page.local.tree, this.local.Palette);
-              				this.local.Palette[result.index].objects = this.local.Palette[result.index].objects.concat(result.val);
+              			if(this.local.basePalette){
+              				page.refreshPaletteFromTree();
               			}
               		} catch (e) {
               		
@@ -59674,6 +59693,9 @@ title: Title for editor
           //--ion-grid-column-padding-xs	//Padding for the Column on xs screens and up
           //--ion-grid-columns	//The number of total Columns in the Grid
           min-width:0;
+          min-height: 0;
+          height: calc(100vh - 56px);
+          max-height: calc(100vh - 56px);
           ;
           }
           .class1741109898814 {
@@ -69731,8 +69753,8 @@ title: Title for editor
           //--ion-grid-columns	//The number of total Columns in the Grid
           min-width:0;
           min-height: 0;
-          height: 100%;
-          max-height: 100%;
+          height: calc(100vh - 56px);
+          max-height: calc(100vh - 56px);
           display: flex;
           ;
           }
