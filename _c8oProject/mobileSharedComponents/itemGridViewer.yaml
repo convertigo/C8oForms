@@ -171,31 +171,44 @@ scriptContent:
         	}
         	
         	public checkColumnDefs(colDef) {
-        //		console.log(colDef, this.model, this.item);
-        		if (colDef.length > 0 && (this.local?.colDef == undefined || this.local.colDef.length == 0)) {				
+        		let columns = Array.isArray(colDef) ? colDef : [];
+        		let formsConfig = null;
+        		try {
         			if (this.item?.sources && this.item.sources["lib_BaseRow.formssource_GetTableData"] && this.item.sources["lib_BaseRow.formssource_GetTableData"]?.vars
         				&& this.item.sources["lib_BaseRow.formssource_GetTableData"].vars?.forms_config &&
         				this.item.sources["lib_BaseRow.formssource_GetTableData"].vars?.forms_config?.str &&
         				this.item.sources["lib_BaseRow.formssource_GetTableData"].vars.forms_config.str.length > 0
         			) {
-        				let hidden = JSON.parse(this.item.sources["lib_BaseRow.formssource_GetTableData"].vars.forms_config.str).hidden;
-        //				console.log(colDef, hidden);
-        				for (let i = 0; i < colDef.length; i++) {
-        					const item = colDef[i];
-        					const field = item.field;
-        					if (hidden.includes(field) && !field?.hide) {
-        						colDef[i].hide = true;
-        					} else {
-        						continue;
-        					}
+        				formsConfig = JSON.parse(this.item.sources["lib_BaseRow.formssource_GetTableData"].vars.forms_config.str);
+        			}
+        		} catch (e) {
+        			formsConfig = null;
+        		}
+        
+        		const hidden = Array.isArray(formsConfig?.hidden) ? formsConfig.hidden : [];
+        		if (columns.length == 0 && Array.isArray(formsConfig?.columns)) {
+        			columns = formsConfig.columns.map((field) => ({
+        				field: field,
+        				headerName: field
+        			}));
+        		}
+        
+        		if (columns.length > 0) {
+        			const normalizedColumns = columns.map((column) => {
+        				const nextColumn = Object.assign({}, column);
+        				if (hidden.includes(nextColumn.field)) {
+        					nextColumn.hide = true;
         				}
-        				
-        				this.local.colDef = colDef;
-        	
+        				return nextColumn;
+        			});
+        			const signature = JSON.stringify(normalizedColumns);
+        			if (this.local?.colDefSignature != signature) {
+        				this.local.colDef = normalizedColumns;
+        				this.local.colDefSignature = signature;
         			}
         		}
         			
-        		return (this.local?.colDef && this.local.colDef.length > 0 ? this.local.colDef : colDef);
+        		return (this.local?.colDef && this.local.colDef.length > 0 ? this.local.colDef : columns);
         	}
         	/*End_c8o_CompFunction*/
         '
@@ -594,7 +607,7 @@ scriptContent:
         varValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: 'script:this.model?.colDef != undefined ? this.model.colDef : this.disabled == true ? [{ field: ''make'' },{ field: ''model'' },{ field: ''price'' }]:[]'
+            - MobileSmartSourceType: 'script:this.checkColumnDefs(this.model?.colDef != undefined ? this.model.colDef : this.disabled == true ? [{ field: ''make'' },{ field: ''model'' },{ field: ''price'' }]:[])'
       ↓rowData [ngx.components.UIUseVariable-1608287020791]: 
         comment: 'Array of row { fieldName1: ''value1'', fieldName2: ''value2'', fieldName3: true, ...} objects'
         varValue: 
