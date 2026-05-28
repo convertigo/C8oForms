@@ -276,6 +276,40 @@ scriptContent:
         			return this.translate.instant(''share_form'') + '' '' + this.local?.form?.name
         		}
         	}
+        	public normalizeBoolean(value){
+        		return value == true || value == "true";
+        	}
+        	public getPublishedFormId(){
+        		var formId = this.navParams?.data?.existingGrps?._id;
+        		if(formId == undefined || formId == null || formId == ""){
+        			formId = this.local?.form?._id;
+        		}
+        		formId = formId != null ? "" + formId : "";
+        		return formId.indexOf("published_") == 0 ? formId : "published_" + formId;
+        	}
+        	public async saveSharedAnonymousIfChanged(){
+        		try {
+        			if(this.local.collab == true || this.local.form == null){
+        				return;
+        			}
+        			var currentSharedAnonymous = this.normalizeBoolean(this.local.form.sharedAnonymous);
+        			var initialSharedAnonymous = this.normalizeBoolean(this.local.initialSharedAnonymous);
+        			if(currentSharedAnonymous === initialSharedAnonymous){
+        				return;
+        			}
+        			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_SetSharedAnonymous", {
+        				id: this.getPublishedFormId(),
+        				meta: JSON.stringify({ sharedAnonymous: currentSharedAnonymous })
+        			}).async();
+        			if(resp?.res?.sharedAnonymous != undefined){
+        				this.local.form.sharedAnonymous = this.normalizeBoolean(resp.res.sharedAnonymous);
+        			}
+        			this.local.initialSharedAnonymous = this.normalizeBoolean(this.local.form.sharedAnonymous);
+        		}
+        		catch(e) {
+        			console.log("an error occured while calling APIV2_SetSharedAnonymous", e);
+        		}
+        	}
         	public isAcollab(id){
         		if(this.local.collab == false && this.local.form.c8oCollabs != undefined && this.local.form.c8oCollabs[id] != undefined && this.local.form.c8oCollabs[id] == true){
         			return true
@@ -13441,6 +13475,7 @@ title: Title for ManageAccessRights
               					page.local.form = resp.res.doc;
               					page.local.pwa = resp.res.pwa;
               					page.local.initialPwaNotAnonymous = page.local.pwa?.notAnonymous == true;
+              					page.local.initialSharedAnonymous = page.normalizeBoolean(page.local.form?.sharedAnonymous);
               					page.local.linkAuth = resp.res.linkAuth;
               					page.local.linkAnno = resp.res.linkAnno;
               					let InvitUse_App = page["translate"].instant("InvitUse_App")
@@ -13605,6 +13640,7 @@ title: Title for ManageAccessRights
                         					revoke_invit: page.local.revoke_invit,
                         				})
                         			}).async();
+                        			await page.saveSharedAnonymousIfChanged();
                         		} catch (e) {
                         		} finally {
                         			return;
@@ -13708,6 +13744,7 @@ title: Title for ManageAccessRights
                         				})
                         				
                         			}).async();
+                        			await page.saveSharedAnonymousIfChanged();
                         			if(page.local.collab != true && page.local.pwa != null){
                         				let currentNotAnonymous = page.local.pwa?.notAnonymous == true;
                         				if(page.local.initialPwaNotAnonymous !== true && currentNotAnonymous === true){
@@ -13914,6 +13951,7 @@ title: Title for ManageAccessRights
                         				})
                         				
                         			}).async();
+                        			await page.saveSharedAnonymousIfChanged();
                         			if(page.local.collab != true && page.local.pwa != null){
                         				let currentNotAnonymous = page.local.pwa?.notAnonymous == true;
                         				if(page.local.initialPwaNotAnonymous !== true && currentNotAnonymous === true){
@@ -14119,6 +14157,7 @@ title: Title for ManageAccessRights
                         				})
                         				
                         			}).async();
+                        			await page.saveSharedAnonymousIfChanged();
                         			if(page.local.collab != true && page.local.pwa != null){
                         				let currentNotAnonymous = page.local.pwa?.notAnonymous == true;
                         				if(page.local.initialPwaNotAnonymous !== true && currentNotAnonymous === true){
