@@ -42,12 +42,36 @@ comment: |
     	params = { filters: {} };
     	log.warn("parse failed" + JSON.stringify(e));
     }
-    if (params.filters.show_all_apps === true) {
+    var hasUserFilter = params.user != null && params.user != undefined && params.user != "" && params.user != "undefined";
+    var userFilterIds = [];
+    if (hasUserFilter) {
+        var rawUsers = Array.isArray(params.user) ? params.user : [params.user];
+        for (var userIndex = 0; userIndex < rawUsers.length; userIndex++) {
+            var rawUser = rawUsers[userIndex];
+            if (rawUser != null && rawUser.value != undefined) {
+                rawUser = rawUser.value;
+            }
+            if (rawUser == null || rawUser == undefined || rawUser == "" || rawUser == "undefined") {
+                continue;
+            }
+            var normalizedUser = "" + rawUser;
+            if (normalizedUser.indexOf("C8Oreserved_") == 0) {
+                normalizedUser = normalizedUser.substring(12);
+            }
+            if (userFilterIds.indexOf(normalizedUser) == -1) {
+                userFilterIds.push(normalizedUser);
+            }
+        }
+        hasUserFilter = userFilterIds.length > 0;
+    }
+    if (params.filters.show_all_apps === true || hasUserFilter) {
     	try {
     		include("js/isAdmin.js");
     	}
     	catch (e) {
     		params.filters.show_all_apps = false;
+            params.user = null;
+            hasUserFilter = false;
     	}
     }
     
@@ -306,30 +330,31 @@ comment: |
     
     }
     
-    if (admin === true && params.user != null) {
+    if ((admin === true || hasUserFilter) && userFilterIds.length > 0) {
     	admin = false;
-    	authenticatedUserID = params.user.substring(12);
+        authenticatedUserID = userFilterIds[0];
     }
     
     // request is acl or group based create filter
     if (!admin && withACL) {
-    	// call c8ofullsyncgrp =>  design/get_groups_by_user
-    	query = new java.util.HashMap();
-    	query.put(''reduce'', ''false'');
-    	keys = toJettison([authenticatedUserID]);
-    	rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
-    	// call c8oforms_fs =>  authentication/distinctGroups
-    	query = new java.util.HashMap();
-    	query.put(''reduce'', ''true'');
-    	query.put(''group'', ''true'');
-    	_use_keys = rows.map((x) => { return x.value });
-    	keys = toJettison(_use_keys);
-    	if (params.filters.hide_apps_i_created === false) {
-    		usedGroups = toJSON(fsclient.postView(targetDB, ''authentication'', ''distinctGroups'', query, keys));
-    		usedGroups = usedGroups.rows.map((x) => { return x.key/*.replace(/\./g, ''\\.'') */ });
-    	}
-    	else {
-    		usedGroups = ["C8Oreserved_" + authenticatedUserID];
+        // call c8ofullsyncgrp =>  design/get_groups_by_user
+        query = new java.util.HashMap();
+        query.put(''reduce'', ''false'');
+        var aclUserIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+        keys = toJettison(aclUserIds);
+        rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
+        // call c8oforms_fs =>  authentication/distinctGroups
+        query = new java.util.HashMap();
+        query.put(''reduce'', ''true'');
+        query.put(''group'', ''true'');
+        _use_keys = rows.map((x) => { return x.value });
+        keys = toJettison(_use_keys);
+        if (params.filters.hide_apps_i_created === false) {
+            usedGroups = toJSON(fsclient.postView(targetDB, ''authentication'', ''distinctGroups'', query, keys));
+            usedGroups = usedGroups.rows.map((x) => { return x.key/*.replace(/\./g, ''\\.'') */ });
+        }
+        else {
+            usedGroups = aclUserIds.map((x) => { return "C8Oreserved_" + x });
     	}
     }
     else {
@@ -363,8 +388,9 @@ comment: |
     			var _res = toJSON(fsclient.postFind(targetDB, toJettison(query)));
     			log.warn(JSON.stringify(_res));
     			if (params.filters.hide_apps_i_created !== false) {
-    				_res.docs = _res.docs.filter((x) => {
-    					return x.creator == authenticatedUserID;
+                    var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+                    _res.docs = _res.docs.filter((x) => {
+                        return creatorFilterIds.indexOf(x.creator) != -1;
     				})
     			}
     			res.docs = res.docs.concat(_res.docs);
@@ -391,8 +417,9 @@ comment: |
     			var _resV = toJSON(fsclient.postView(targetDB, query.design, query.view, _query, keys));
     			_resV = _resV.rows;
     			if (params.filters.hide_apps_i_created !== false) {
-    				_resV = _resV.filter((x) => {
-    					return x.value.creator == authenticatedUserID;
+                    var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+                    _resV = _resV.filter((x) => {
+                        return creatorFilterIds.indexOf(x.value.creator) != -1;
     				})
     			}
     			if (_resV != undefined) {
@@ -524,6 +551,14 @@ comment: |
     		}
     		mangoquery.selector["$and"][1]["$or"].push(obj)
     	}
+        var directAclUserIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+        for (var directAclIndex = 1; directAclIndex < directAclUserIds.length; directAclIndex++) {
+            mangoquery.selector["$and"][1]["$or"].push({
+                "~c8oAcl": {
+                    "$eq": directAclUserIds[directAclIndex]
+                }
+            });
+        }
     
     	// now request
     	mangoquery.selector["$and"] = requests[target].selector.concat(mangoquery.selector["$and"]);
@@ -577,8 +612,9 @@ comment: |
     
     	res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
     	if (params.filters.hide_apps_i_created !== false) {
-    		res.docs = res.docs.filter((x) => {
-    			return x.creator == authenticatedUserID;
+            var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+            res.docs = res.docs.filter((x) => {
+                return creatorFilterIds.indexOf(x.creator) != -1;
     		})
     	}
     }'

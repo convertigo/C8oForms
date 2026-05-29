@@ -21,16 +21,31 @@
           		if(filters == null){
           			filters = {};
           		}
-          		page.local.filters = filters;
-          		page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/search", dynamicParams: JSON.stringify({filters: filters, query: page["query"], tag: page.local.searchTags, subTag: page.local.searchSubTags, shared: page.local.shared, user: page.local._searchUser?.[0]?.value})})
+              page.local.filters = filters;
+              var currentCall = vars.call != null && vars.call != undefined ? vars.call : new Date().getTime();
+              page.local.totalCall = currentCall;
+              page.local.spinner = true;
+              page.local.loadingError = false;
+              page.local.alreadyFinished = false;
+              page.local.count = undefined;
+              page["list"] = [];
+              page.local.showAdvancedSearch = false;
+              if (page.ref != undefined && page.ref.detectChanges != undefined) {
+                page.ref.detectChanges();
+              }
+              var selectedUsers = Array.isArray(page.local._searchUser) ? page.local._searchUser.map((x) => { return x != null && x.value != undefined ? x.value : x; }) : [];
+              page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/search", dynamicParams: JSON.stringify({filters: filters, query: page["query"], tag: page.local.searchTags, subTag: page.local.searchSubTags, shared: page.local.shared, user: selectedUsers})})
           	        .then((response: any, parameters: any)=>{
           				console.log(response);
-          				if(page.local.totalCall == vars.call){
+          				if(page.local.totalCall == currentCall){
           					page.local.count = response.res.docs.length;
           		            var regex = new RegExp(page["query"].replace(/[.*+?^${}()|[\]\\]/g, ''\\$&''), ''gi'');
           					page["list"] = [...response.res.docs.map((x)=>{if(x.name != null) {x.boldName = x.name.replace(regex, (match) => `<strong>${match}</strong>`);} return x})];
           					page.local.alreadyFinished = true;
           					page.local.spinner = false;
+                            if (page.ref != undefined && page.ref.detectChanges != undefined) {
+                              page.ref.detectChanges();
+                            }
           				}
           	            
           	            resolve();
@@ -39,6 +54,15 @@
           	        .fail((error)=>{
           				console.error("e", error);
           				page.c8o.log.error("[doSearchForm] an error occured "+ JSON.stringify(error));
+                        if(page.local.totalCall == currentCall){
+                            page.local.count = 0;
+                            page.local.alreadyFinished = true;
+                            page.local.loadingError = true;
+                            page.local.spinner = false;
+                            if (page.ref != undefined && page.ref.detectChanges != undefined) {
+                              page.ref.detectChanges();
+                            }
+                        }
           				resolve();
           	        });
           '

@@ -8769,6 +8769,12 @@ This component provides Chips management for your apps
 <td>keepOpen</td><td></td>
 </tr>
 <tr>
+<td>loading</td><td></td>
+</tr>
+<tr>
+<td>loadingText</td><td></td>
+</tr>
+<tr>
 <td>maxItems</td><td></td>
 </tr>
 <tr>
