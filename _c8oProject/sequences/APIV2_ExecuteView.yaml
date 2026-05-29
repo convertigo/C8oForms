@@ -118,6 +118,7 @@ comment: |
             "æÆ"
         ];
         var charToClass = {};
+        var combiningMarksClass = "[" + String.fromCharCode(768) + "-" + String.fromCharCode(879) + "]*";
         for (var groupIndex = 0; groupIndex < accentGroups.length; groupIndex++) {
             var group = accentGroups[groupIndex];
             var escapedGroup = "";
@@ -134,13 +135,36 @@ comment: |
         for (var valueIndex = 0; valueIndex < text.length; valueIndex++) {
             var c = text.charAt(valueIndex);
             if (charToClass[c] != undefined) {
-                regex += charToClass[c];
+                regex += charToClass[c] + combiningMarksClass;
             }
             else {
-                regex += escapeRegexCharForClass(c);
+                regex += escapeRegexCharForClass(c) + combiningMarksClass;
             }
         }
         return ".*" + regex + ".*";
+    }
+    
+    function normalizeSearchText(value) {
+        var text = value == undefined || value == null ? "" : "" + value;
+        text = text.toLowerCase();
+        text = text.replace(new RegExp("[" + String.fromCharCode(768) + "-" + String.fromCharCode(879) + "]", "g"), "");
+        text = text.replace(/[àáâãäåāăą]/g, "a");
+        text = text.replace(/æ/g, "ae");
+        text = text.replace(/[çćč]/g, "c");
+        text = text.replace(/[ďđ]/g, "d");
+        text = text.replace(/[èéêëēėęě]/g, "e");
+        text = text.replace(/[ìíîïīįı]/g, "i");
+        text = text.replace(/ł/g, "l");
+        text = text.replace(/[ñńň]/g, "n");
+        text = text.replace(/[òóôõöøōő]/g, "o");
+        text = text.replace(/œ/g, "oe");
+        text = text.replace(/[ŕř]/g, "r");
+        text = text.replace(/[śšş]/g, "s");
+        text = text.replace(/[ťț]/g, "t");
+        text = text.replace(/[ùúûüūůűų]/g, "u");
+        text = text.replace(/[ýÿ]/g, "y");
+        text = text.replace(/[žźż]/g, "z");
+        return text;
     }
     
     let targetDB = "c8oforms_fs";
@@ -623,9 +647,11 @@ comment: |
     
     	// now request
     	mangoquery.selector["$and"] = requests[target].selector.concat(mangoquery.selector["$and"]);
+    	var normalizedSearchQuery = "";
     	if (params["query"] != undefined && params["query"] != "undefined" && params["query"] != "") {
-    		var myRegex = buildAccentInsensitiveRegex(params["query"])
-    		mangoquery.selector["$and"].push({ "name": { "$regex": myRegex } })
+    		normalizedSearchQuery = normalizeSearchText(params["query"]);
+    		var myRegex = buildAccentInsensitiveRegex(normalizedSearchQuery);
+    		mangoquery.selector["$and"].push({ "name": { "$regex": myRegex } });
     	}
     	try {
     		params["tag"] = JSON.parse(params["tag"]);
@@ -672,6 +698,11 @@ comment: |
     	mangoquery.use_index = requests[target].use_index;
     
     	res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
+    	if (normalizedSearchQuery != "") {
+    		res.docs = res.docs.filter(function(doc) {
+    			return normalizeSearchText(doc.name).indexOf(normalizedSearchQuery) != -1;
+    		});
+    	}
     	if (params.filters.hide_apps_i_created !== false) {
             var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
             res.docs = res.docs.filter((x) => {
