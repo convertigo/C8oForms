@@ -5866,6 +5866,9 @@ Update the state of a field
 <td>path</td><td></td>
 </tr>
 <tr>
+<td>showSourceButtonInConfig</td><td></td>
+</tr>
+<tr>
 <td>tabselected</td><td></td>
 </tr>
 <tr>
