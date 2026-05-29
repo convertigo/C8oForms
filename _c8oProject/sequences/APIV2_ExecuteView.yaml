@@ -74,6 +74,25 @@ comment: |
             hasUserFilter = false;
     	}
     }
+    function normalizeUserId(value) {
+        if (value == null || value == undefined) {
+            return "";
+        }
+        value = "" + value;
+        if (value.indexOf("C8Oreserved_") == 0) {
+            return value.substring(12);
+        }
+        return value;
+    }
+    function isCreatorMatch(creator, ids) {
+        var normalizedCreator = normalizeUserId(creator);
+        for (var creatorIndex = 0; creatorIndex < ids.length; creatorIndex++) {
+            if (normalizedCreator == normalizeUserId(ids[creatorIndex])) {
+                return true;
+            }
+        }
+        return false;
+    }
     
     var filters = {};
     try {
@@ -406,6 +425,7 @@ comment: |
     
     // get admin attr
     var admin = params.filters.show_all_apps == true;
+    var creatorOnlyFilter = hasUserFilter || (params.filters.hide_apps_i_created === true && params.filters.show_all_apps !== true);
     
     var withACL = true;
     try {
@@ -421,7 +441,7 @@ comment: |
     }
     
     // request is acl or group based create filter
-    if (!admin && withACL) {
+    if (!admin && withACL && !creatorOnlyFilter) {
         // call c8ofullsyncgrp =>  design/get_groups_by_user
         query = new java.util.HashMap();
         query.put(''reduce'', ''false'');
@@ -434,13 +454,8 @@ comment: |
         query.put(''group'', ''true'');
         _use_keys = rows.map((x) => { return x.value });
         keys = toJettison(_use_keys);
-        if (params.filters.hide_apps_i_created === false) {
-            usedGroups = toJSON(fsclient.postView(targetDB, ''authentication'', ''distinctGroups'', query, keys));
-            usedGroups = usedGroups.rows.map((x) => { return x.key/*.replace(/\./g, ''\\.'') */ });
-        }
-        else {
-            usedGroups = aclUserIds.map((x) => { return "C8Oreserved_" + x });
-    	}
+        usedGroups = toJSON(fsclient.postView(targetDB, ''authentication'', ''distinctGroups'', query, keys));
+        usedGroups = usedGroups.rows.map((x) => { return x.key/*.replace(/\./g, ''\\.'') */ });
     }
     else {
     	usedGroups = [];
@@ -449,12 +464,12 @@ comment: |
     	var _requests = [];
     	for (var selector of requests[target]) {
     		var _sel = JSON.parse(JSON.stringify(selector));
-    		if (_sel.type != "view" && !admin && withACL) {
+    		if (_sel.type != "view" && !admin && withACL && !creatorOnlyFilter) {
     			_sel.selector["$and"].push({
     				"~c8oAcl": authenticatedUserID
     			});
     		}
-    		else if (_sel.type != "view" && _sel.use_index != null && admin) {
+    		else if (_sel.type != "view" && _sel.use_index != null && (admin || creatorOnlyFilter)) {
     			if (_sel.use_index.length == 2) {
     				_sel.use_index[1] = _sel.use_index[1].substring(0, _sel.use_index[1].length - 7);
     			}
@@ -472,10 +487,10 @@ comment: |
     			log.warn(JSON.stringify(query));
     			var _res = toJSON(fsclient.postFind(targetDB, toJettison(query)));
     			log.warn(JSON.stringify(_res));
-    			if (hasUserFilter || params.filters.hide_apps_i_created !== false) {
+    			if (creatorOnlyFilter) {
                     var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
                     _res.docs = _res.docs.filter((x) => {
-                        return creatorFilterIds.indexOf(x.creator) != -1;
+                        return isCreatorMatch(x.creator, creatorFilterIds);
     				})
     			}
     			res.docs = res.docs.concat(_res.docs);
@@ -501,10 +516,10 @@ comment: |
     
     			var _resV = toJSON(fsclient.postView(targetDB, query.design, query.view, _query, keys));
     			_resV = _resV.rows;
-    			if (hasUserFilter || params.filters.hide_apps_i_created !== false) {
+    			if (creatorOnlyFilter) {
                     var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
                     _resV = _resV.filter((x) => {
-                        return creatorFilterIds.indexOf(x.value.creator) != -1;
+                        return isCreatorMatch(x.value.creator, creatorFilterIds);
     				})
     			}
     			if (_resV != undefined) {
@@ -577,7 +592,7 @@ comment: |
     else {
     	usedGroups = usedGroups.map((x) => { return x.replace(/\./g, ''\\.'') });
     	// build mangofilter
-    	if (admin) {
+    	if (admin || creatorOnlyFilter) {
     		mangoquery.selector["$and"] = [
     			{
     				"_deleted": {
@@ -612,38 +627,38 @@ comment: |
     			}
     		];
     	}
+    	if (!admin && !creatorOnlyFilter) {
+    		for (let elem of usedGroups) {
+    			let obj =
+    			{
+    				"c8oGrp": {
+    					"$or": [
+    						{
     
-    
-    	for (let elem of usedGroups) {
-    		let obj =
-    		{
-    			"c8oGrp": {
-    				"$or": [
-    					{
-    
-    					},
-    					{
-    						"$eq": elem
-    					}
+    						},
+    						{
+    							"$eq": elem
+    						}
+    					]
+    				}
+    			}
+    			obj.c8oGrp["$or"][0][elem] = {
+    				"$in": [
+    					true,
+    					"true"
     				]
     			}
+    			mangoquery.selector["$and"][1]["$or"].push(obj)
     		}
-    		obj.c8oGrp["$or"][0][elem] = {
-    			"$in": [
-    				true,
-    				"true"
-    			]
-    		}
-    		mangoquery.selector["$and"][1]["$or"].push(obj)
+            var directAclUserIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+            for (var directAclIndex = 1; directAclIndex < directAclUserIds.length; directAclIndex++) {
+                mangoquery.selector["$and"][1]["$or"].push({
+                    "~c8oAcl": {
+                        "$eq": directAclUserIds[directAclIndex]
+                    }
+                });
+            }
     	}
-        var directAclUserIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
-        for (var directAclIndex = 1; directAclIndex < directAclUserIds.length; directAclIndex++) {
-            mangoquery.selector["$and"][1]["$or"].push({
-                "~c8oAcl": {
-                    "$eq": directAclUserIds[directAclIndex]
-                }
-            });
-        }
     
     	// now request
     	mangoquery.selector["$and"] = requests[target].selector.concat(mangoquery.selector["$and"]);
@@ -703,10 +718,10 @@ comment: |
     			return normalizeSearchText(doc.name).indexOf(normalizedSearchQuery) != -1;
     		});
     	}
-    	if (hasUserFilter || params.filters.hide_apps_i_created !== false) {
+    	if (creatorOnlyFilter) {
             var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
             res.docs = res.docs.filter((x) => {
-                return creatorFilterIds.indexOf(x.creator) != -1;
+                return isCreatorMatch(x.creator, creatorFilterIds);
     		})
     	}
     }'
