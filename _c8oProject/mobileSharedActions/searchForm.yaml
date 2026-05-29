@@ -33,14 +33,66 @@
               if (page.ref != undefined && page.ref.detectChanges != undefined) {
                 page.ref.detectChanges();
               }
+              function escapeRegexChar(c) {
+                return ("" + c).replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+              }
+              function buildAccentInsensitiveRegex(value) {
+                var accentGroups = [
+                  "aAàÀáÁâÂãÃäÄåÅāĀăĂąĄ",
+                  "bB",
+                  "cCçÇćĆčČ",
+                  "dD",
+                  "eEèÈéÉêÊëËēĒėĖęĘěĚ",
+                  "fF",
+                  "gG",
+                  "hH",
+                  "iIìÌíÍîÎïÏīĪįĮ",
+                  "jJ",
+                  "kK",
+                  "lL",
+                  "mM",
+                  "nNñÑńŃ",
+                  "oOòÒóÓôÔõÕöÖøØōŌœŒ",
+                  "pP",
+                  "qQ",
+                  "rR",
+                  "sS",
+                  "tT",
+                  "uUùÙúÚûÛüÜūŪ",
+                  "vV",
+                  "wW",
+                  "xX",
+                  "yYýÝÿŸ",
+                  "zZ",
+                  "æÆ"
+                ];
+                var charToClass = {};
+                for (var groupIndex = 0; groupIndex < accentGroups.length; groupIndex++) {
+                  var group = accentGroups[groupIndex];
+                  var escapedGroup = "";
+                  for (var charIndex = 0; charIndex < group.length; charIndex++) {
+                    escapedGroup += escapeRegexChar(group.charAt(charIndex));
+                  }
+                  for (var classIndex = 0; classIndex < group.length; classIndex++) {
+                    charToClass[group.charAt(classIndex)] = "[" + escapedGroup + "]";
+                  }
+                }
+                var regex = "";
+                var text = "" + value;
+                for (var valueIndex = 0; valueIndex < text.length; valueIndex++) {
+                  var c = text.charAt(valueIndex);
+                  regex += charToClass[c] != undefined ? charToClass[c] : escapeRegexChar(c);
+                }
+                return regex;
+              }
               var selectedUsers = Array.isArray(page.local._searchUser) ? page.local._searchUser.map((x) => { return x != null && x.value != undefined ? x.value : x; }) : [];
               page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/search", dynamicParams: JSON.stringify({filters: filters, query: page["query"], tag: page.local.searchTags, subTag: page.local.searchSubTags, shared: page.local.shared, user: selectedUsers})})
           	        .then((response: any, parameters: any)=>{
           				console.log(response);
           				if(page.local.totalCall == currentCall){
           					page.local.count = response.res.docs.length;
-          		            var regex = new RegExp(page["query"].replace(/[.*+?^${}()|[\]\\]/g, ''\\$&''), ''gi'');
-          					page["list"] = [...response.res.docs.map((x)=>{if(x.name != null) {x.boldName = x.name.replace(regex, (match) => `<strong>${match}</strong>`);} return x})];
+          		            var regex = page["query"] != undefined && page["query"] != "" ? new RegExp(buildAccentInsensitiveRegex(page["query"]), ''g'') : null;
+          					page["list"] = [...response.res.docs.map((x)=>{if(x.name != null && regex != null) {x.boldName = x.name.replace(regex, (match) => `<strong>${match}</strong>`);} return x})];
           					page.local.alreadyFinished = true;
           					page.local.spinner = false;
                             if (page.ref != undefined && page.ref.detectChanges != undefined) {

@@ -82,6 +82,67 @@ comment: |
     catch (e) {
     
     }
+    
+    function escapeRegexCharForClass(c) {
+        return ("" + c).replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+    }
+    
+    function buildAccentInsensitiveRegex(value) {
+        var accentGroups = [
+            "aAàÀáÁâÂãÃäÄåÅāĀăĂąĄ",
+            "bB",
+            "cCçÇćĆčČ",
+            "dD",
+            "eEèÈéÉêÊëËēĒėĖęĘěĚ",
+            "fF",
+            "gG",
+            "hH",
+            "iIìÌíÍîÎïÏīĪįĮ",
+            "jJ",
+            "kK",
+            "lL",
+            "mM",
+            "nNñÑńŃ",
+            "oOòÒóÓôÔõÕöÖøØōŌœŒ",
+            "pP",
+            "qQ",
+            "rR",
+            "sS",
+            "tT",
+            "uUùÙúÚûÛüÜūŪ",
+            "vV",
+            "wW",
+            "xX",
+            "yYýÝÿŸ",
+            "zZ",
+            "æÆ"
+        ];
+        var charToClass = {};
+        for (var groupIndex = 0; groupIndex < accentGroups.length; groupIndex++) {
+            var group = accentGroups[groupIndex];
+            var escapedGroup = "";
+            for (var charIndex = 0; charIndex < group.length; charIndex++) {
+                escapedGroup += escapeRegexCharForClass(group.charAt(charIndex));
+            }
+            for (var classIndex = 0; classIndex < group.length; classIndex++) {
+                charToClass[group.charAt(classIndex)] = "[" + escapedGroup + "]";
+            }
+        }
+    
+        var regex = "";
+        var text = "" + value;
+        for (var valueIndex = 0; valueIndex < text.length; valueIndex++) {
+            var c = text.charAt(valueIndex);
+            if (charToClass[c] != undefined) {
+                regex += charToClass[c];
+            }
+            else {
+                regex += escapeRegexCharForClass(c);
+            }
+        }
+        return ".*" + regex + ".*";
+    }
+    
     let targetDB = "c8oforms_fs";
     if (fromResponses == "true") {
     	targetDB = "c8oforms_response_fs";
@@ -563,7 +624,7 @@ comment: |
     	// now request
     	mangoquery.selector["$and"] = requests[target].selector.concat(mangoquery.selector["$and"]);
     	if (params["query"] != undefined && params["query"] != "undefined" && params["query"] != "") {
-    		var myRegex = "(?i).*" + params["query"] + ".*"
+    		var myRegex = buildAccentInsensitiveRegex(params["query"])
     		mangoquery.selector["$and"].push({ "name": { "$regex": myRegex } })
     	}
     	try {
