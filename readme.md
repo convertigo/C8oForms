@@ -5606,6 +5606,9 @@ Update the state of a field
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>actionIcon</td><td></td>
+</tr>
+<tr>
 <td>desc</td><td></td>
 </tr>
 <tr>
@@ -5623,6 +5626,9 @@ Update the state of a field
 <table
 <tr>
 <th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>actionClicked</td><td></td>
 </tr>
 <tr>
 <td>clicked</td><td></td>
