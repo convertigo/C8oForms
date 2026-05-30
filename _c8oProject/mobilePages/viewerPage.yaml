@@ -397,7 +397,36 @@ scriptContent:
         		});
         	}
         
-        	public async performSubmitAction(step, submitActions, perform, __id = null) {
+        	public startFlowExecutionSession() {
+        		let token = this.local.user + "_" + this.local.formId + "_" + new Date().getTime() + "_" + Math.random();
+        		this.global["__c8oFormsFlowExecutionToken"] = token;
+        		this.global["__c8oFormsFlowExecutionCancelled"] = false;
+        		return token;
+        	}
+        
+        	public cancelCurrentFlowExecution() {
+        		this.global["__c8oFormsFlowExecutionCancelled"] = true;
+        		this.global["__c8oFormsFlowExecutionToken"] = null;
+        		try {
+        			if (this.local["processingDataS"] != undefined) {
+        				for (let id in this.local["processingDataS"]) {
+        					clearTimeout(this.local["processingDataS"][id]);
+        				}
+        			}
+        		}
+        		catch(e){
+        			
+        		}
+        	}
+        
+        	public isFlowExecutionActive(executionToken = null) {
+        		return executionToken == null || (this.global["__c8oFormsFlowExecutionCancelled"] !== true && this.global["__c8oFormsFlowExecutionToken"] == executionToken);
+        	}
+        
+        	public async performSubmitAction(step, submitActions, perform, __id = null, executionToken = null) {
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return;
+        		}
         		if (perform || submitActions[step["type"]] == null) {
         			submitActions[step["type"]] = []
         		}
@@ -506,6 +535,9 @@ scriptContent:
         			}
         		}
         		await this.computeVariable(findVars, variables, step);
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return;
+        		}
         		variables = Object.assign(variables, do_not_touchVars);
         		let currentAction = JSON.parse(JSON.stringify(step));
         		for (let action in currentAction.actions) {
@@ -553,7 +585,7 @@ scriptContent:
         	            }
         			}
         		}
-        		if (perform) {
+        		if (perform && this.isFlowExecutionActive(executionToken)) {
         			try{
         				let parsed = JSON.parse(variables["forms_freeVars"]);
         				for(let item in parsed){
@@ -571,7 +603,13 @@ scriptContent:
         			
         			// end handle attachments
         			let args = { doc: [JSON.stringify(doc)], attachments: attachments, attachments_meta: JSON.stringify(attachments_meta), execute_Async: "false", __context: "*", __removeContext: true };
+        			if (!this.isFlowExecutionActive(executionToken)) {
+        				return;
+        			}
         			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
+        			if (!this.isFlowExecutionActive(executionToken)) {
+        				return;
+        			}
         			this.actions[step.name]["value"] = resp?.response;
         			try {
         				this.findSameSourceInBaserow(step);
@@ -596,6 +634,9 @@ scriptContent:
         						}
         					}
         					page.local["processingDataS"][vars.item.id] = setTimeout(async ()=>{
+        						if (!page.isFlowExecutionActive(executionToken)) {
+        							return;
+        						}
         						// first filter array order get call mySelf first and then call childs
         						let alreadyDone = false;
         						
@@ -608,6 +649,9 @@ scriptContent:
         						}
         						catch(e){
         							console.error("an error occured", e);
+        						}
+        						if (!page.isFlowExecutionActive(executionToken)) {
+        							return;
         						}
         						page.local.functionsToBeCalled[vars.item.id]
         						.forEach((id)=>{
@@ -785,24 +829,39 @@ scriptContent:
         		
         	}
         
-        	public async performBusinessLogic(step) {
+        	public async performBusinessLogic(step, executionToken = null) {
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return;
+        		}
         		this.fillActionsVars([step]);
-        		await this.fillActions([step], false);
+        		await this.fillActions([step], false, executionToken);
         	}
         
-        	public async performForLoop(step, submitActions, executeSubmit, __id) {
+        	public async performForLoop(step, submitActions, executeSubmit, __id, executionToken = null) {
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return;
+        		}
         		var variables: any = {};
         		var sources: any = this.searchForSources(step, "sources", true, false, true);
         		var findVars = sources.findVars;
         		await this.computeVariable(findVars, variables, step);
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return;
+        		}
         		if (variables.selfVar != undefined && Array.isArray(variables.selfVar)) {
         			let cpt = 0;
         			for (let elem of variables.selfVar) {
+        				if (!this.isFlowExecutionActive(executionToken)) {
+        					break;
+        				}
         				window["api"].currentFor.index = cpt;
         				window["api"].currentFor.element = elem;
         				for (let ref of step.childrenRefs) {
+        					if (!this.isFlowExecutionActive(executionToken)) {
+        						break;
+        					}
         					let child = this.getItemById(ref);
-        					await this.executeStep(child, submitActions, executeSubmit, __id);
+        					await this.executeStep(child, submitActions, executeSubmit, __id, executionToken);
         				}
         				cpt++;
         			}
@@ -811,7 +870,10 @@ scriptContent:
         		}
         	}
         
-        	public async performForIfElse(step, submitActions, executeSubmit, __id= null) {
+        	public async performForIfElse(step, submitActions, executeSubmit, __id= null, executionToken = null) {
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return;
+        		}
         		var variables: any = {};
         		if (step.sources.self.vars.selfVar.type == "condition") {
         			let jsString: string = "";
@@ -834,16 +896,25 @@ scriptContent:
         			var findVars = sources.findVars;
         			await this.computeVariable(findVars, variables, step);
         		}
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return;
+        		}
         		if (variables.selfVar == true) {
         			for (let ref of step.childrenRefs) {
+        				if (!this.isFlowExecutionActive(executionToken)) {
+        					break;
+        				}
         				let child = this.getItemById(ref);
-        				await this.executeStep(child, submitActions, executeSubmit, __id);
+        				await this.executeStep(child, submitActions, executeSubmit, __id, executionToken);
         			}
         		}
         		else {
         			for (let ref of step.childrenRefsElse) {
+        				if (!this.isFlowExecutionActive(executionToken)) {
+        					break;
+        				}
         				let child = this.getItemById(ref);
-        				await this.executeStep(child, submitActions, executeSubmit, __id);
+        				await this.executeStep(child, submitActions, executeSubmit, __id, executionToken);
         			}
         		}
         	}
@@ -861,14 +932,17 @@ scriptContent:
         //		});
         	}
         
-        	public async executeStep(step, submitActions, executeSubmit, __id = null) {
+        	public async executeStep(step, submitActions, executeSubmit, __id = null, executionToken = null) {
+        		if (!this.isFlowExecutionActive(executionToken)) {
+        			return false;
+        		}
         		let submit = false;
         		switch (step.type) {
         			case "business_logic":
-        				await await this.performBusinessLogic(step);
+        				await await this.performBusinessLogic(step, executionToken);
         				break;
         			case "submit":
-        				await this.performSubmitAction(step, submitActions, executeSubmit, __id);
+        				await this.performSubmitAction(step, submitActions, executeSubmit, __id, executionToken);
         				submit = true;
         				break;
         			case "toast":
@@ -887,20 +961,21 @@ scriptContent:
         				await this.performRemoveRowFromLocalGrid(step);
         				break;
         			case "for_loop":
-        				await this.performForLoop(step, submitActions, executeSubmit, __id);
+        				await this.performForLoop(step, submitActions, executeSubmit, __id, executionToken);
         				break;
         			case "if_else":
-        				await this.performForIfElse(step, submitActions, executeSubmit, __id);
+        				await this.performForIfElse(step, submitActions, executeSubmit, __id, executionToken);
         				break;
         			case "refresh_grid":
         				await this.performRefreshGrid(step);
         				break;
         		}
-        		return submit;
+        		return this.isFlowExecutionActive(executionToken) ? submit : false;
         	}
         
         	public async executeFlow(item, executeSubmit = true) {
         		let submit = false;
+        		let executionToken = this.startFlowExecutionSession();
         		let __id = this.local.user+''_''+this.local.formId+''_''+new Date().getTime();
         		try {
         			let flowId = item.flow;
@@ -913,8 +988,11 @@ scriptContent:
         			// Then execute each action in order
         			for (let step of currentFlow) {
         				// execute current step.
+        				if (!this.isFlowExecutionActive(executionToken)) {
+        					break;
+        				}
         				if (step.parentRef == undefined) {
-        					let _submit = await this.executeStep(step, submitActions, executeSubmit, __id);
+        					let _submit = await this.executeStep(step, submitActions, executeSubmit, __id, executionToken);
         					if(_submit){
         						submit = true;
         					}
@@ -1497,10 +1575,13 @@ scriptContent:
         	 * this function is responsible to handle actions from the form. It will compute them
         	 * @param list An array containing all elements that defines the actions usally comming from form.actions
         	 */
-        	public async fillActions(list, fillFunctionId = true): Promise<any> {
+        	public async fillActions(list, fillFunctionId = true, executionToken = null): Promise<any> {
         		let page = this;
         		try {
         			for (let item of list) {
+        				if (!page.isFlowExecutionActive(executionToken)) {
+        					break;
+        				}
         				if (item["type"] == "business_logic") {
         					let sources: any = page["searchForSources"](item, "sources", true);
         					let findVars = sources.findVars;
@@ -1508,7 +1589,13 @@ scriptContent:
         					let sha = sources.sha;
         					let variables = {};
         					this.functionsById[sha] = async () => {
+        						if (!page.isFlowExecutionActive(executionToken)) {
+        							return;
+        						}
         						await page["computeVariable"](findVars, variables, item);
+        						if (!page.isFlowExecutionActive(executionToken)) {
+        							return;
+        						}
         						// if value has changed update it and call functions
         						if (page["actions"][item["name"]]["value"] !== variables["selfVar"]) {
         							page["actions"][item["name"]]["value"] = variables["selfVar"];
@@ -1527,6 +1614,10 @@ scriptContent:
         									}
         									await new Promise((resolve_set) => {
         										page.local["processingDataS"][item.id] = setTimeout(() => {
+        											if (!page.isFlowExecutionActive(executionToken)) {
+        												resolve_set();
+        												return;
+        											}
         											page.local.functionsToBeCalled[item.id]
         												.forEach((id) => {
         													page["functionsById"][id]();
@@ -1541,7 +1632,9 @@ scriptContent:
         							}
         						}
         					}
-        					await this.functionsById[sha]();
+        					if (page.isFlowExecutionActive(executionToken)) {
+        						await this.functionsById[sha]();
+        					}
         					if (fillFunctionId) {
         						this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, sha); //ToBeCalledFromObjectThatHaveToCallFunc(ObjectThatHaveToCallFunc, funcTocall);
         					}
@@ -11527,6 +11620,7 @@ title: Visualisateur
             '		page.willDestroyEvent.next();
             		page.willDestroyEvent.complete();
             		page.cancelReplicatePushResponse();
+            		page.cancelCurrentFlowExecution();
             		page.global.anonymous = null;
             		page.global.published = null;
             		try{
