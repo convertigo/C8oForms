@@ -3569,40 +3569,87 @@ scriptContent:
         	}
         
         	delElementIndex(i, j = null, k = null) {
-        		if (k != null) {
-        			this.formsList[this.getElementIndexById(i.id)]["children"][this.getElementIndexById(i.id, j.id)]["children"].splice(this.getElementIndexById(i.id, j.id, k.id), 1);
-        		}
-        		else if (j != null) {
-        			if (this.formsList[this.getElementIndexById(i.id)]["children"] != undefined) {
-        				this.formsList[this.getElementIndexById(i.id)]["children"].splice(this.getElementIndexById(i.id, j.id), 1);
+        		const normalizeId = (ref) => ref != null && typeof ref == "object" ? ref.id : ref;
+        		const getIndex = (id) => this.getElementIndexById(normalizeId(id));
+        		const removeElementById = (id) => {
+        			const index = getIndex(id);
+        			if (typeof index == "number" && index >= 0) {
+        				this.formsList.splice(index, 1);
         			}
-        			else {
-        				// get the ref of the children to remove
-        				let childrenRef = this.formsList[this.getElementIndexById(i.id)]["childrenRefs"];
-        				// remove ref from parent
-        				this.formsList[this.getElementIndexById(i.id)]["childrenRefs"].splice(j.id, 1);
-        				// get index of the children to remove
-        				let idChildren = this.getElementIndexById(childrenRef);
-        				// remove
-        				this.formsList.splice(idChildren, 1);
+        		};
+        		const removeChildRef = (parentId, childId) => {
+        			const parentIndex = getIndex(parentId);
+        			if (typeof parentIndex != "number" || parentIndex < 0) {
+        				return;
         			}
-        
-        		}
-        		else {
-        			try {
-        				let elementIndex = this.getElementIndexById(i.id);
-        				let childrenRef = this.formsList[elementIndex]["childrenRefs"];
-        				if (childrenRef != undefined) {
-        					for (let i = 0; i < childrenRef?.length; i++) {
-        						this.formsList.splice(this.getElementIndexById(childrenRef[i]), 1);
+        			const parent = this.formsList[parentIndex];
+        			for (const refKey of ["childrenRefs", "childrenRefsElse"]) {
+        				if (Array.isArray(parent?.[refKey])) {
+        					const childIndex = parent[refKey].findIndex((ref) => normalizeId(ref) == childId);
+        					if (childIndex != -1) {
+        						parent[refKey].splice(childIndex, 1);
         					}
         				}
-        				this.formsList.splice(this.getElementIndexById(i.id), 1);
         			}
-        			catch (e) {
-        				console.error("an error occured", e);
+        		};
+        		const collectDescendantIds = (item, ids = []) => {
+        			if (item == null) {
+        				return ids;
         			}
-        
+        			for (const refKey of ["childrenRefs", "childrenRefsElse"]) {
+        				if (Array.isArray(item[refKey])) {
+        					for (const ref of item[refKey]) {
+        						const childId = normalizeId(ref);
+        						const child = this.formsList.find((candidate: any) => normalizeId(candidate?.id) == childId);
+        						collectDescendantIds(child, ids);
+        						if (childId != null) {
+        							ids.push(childId);
+        						}
+        					}
+        				}
+        			}
+        			return ids;
+        		};
+        		try {
+        			const selectedChild = j == null && k == null && this.getSelectedChildEditorItem != null ? this.getSelectedChildEditorItem(i) : null;
+        			if (selectedChild != null) {
+        				i = selectedChild;
+        			}
+        			if (k != null) {
+        				this.formsList[this.getElementIndexById(i.id)]["children"][this.getElementIndexById(i.id, j.id)]["children"].splice(this.getElementIndexById(i.id, j.id, k.id), 1);
+        			}
+        			else if (j != null) {
+        				const parentIndex = getIndex(i.id);
+        				if (typeof parentIndex == "number" && this.formsList[parentIndex]["children"] != undefined) {
+        					this.formsList[parentIndex]["children"].splice(this.getElementIndexById(i.id, j.id), 1);
+        				}
+        				else {
+        					const childId = normalizeId(j);
+        					removeChildRef(i.id, childId);
+        					removeElementById(childId);
+        				}
+        			}
+        			else {
+        				if (i?.parentRef != null) {
+        					removeChildRef(i.parentRef, i.id);
+        				}
+        				const elementIndex = getIndex(i?.id);
+        				const element = typeof elementIndex == "number" ? this.formsList[elementIndex] : i;
+        				const idsToRemove = collectDescendantIds(element);
+        				idsToRemove.push(i?.id);
+        				for (let index = idsToRemove.length - 1; index >= 0; index--) {
+        					removeElementById(idsToRemove[index]);
+        				}
+        				if (this.idselectedC == i?.id) {
+        					this.idselectedC = "";
+        				}
+        				if (this.local?.showItemid == i?.id) {
+        					this.local.showItemid = "";
+        				}
+        			}
+        		}
+        		catch (e) {
+        			console.error("an error occured", e);
         		}
         		this.updateState();
         
@@ -38836,7 +38883,7 @@ title: Title for editor
                                                       varValue: 
                                                         - xmlizable: 
                                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1650357060263"}
+                                                          - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                                     ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1774533464554]: 
                                                       beanData: '{"ionBean":"InvokeAction"}'
                                                       stack: C8Oforms.MobileApplication.Application.updateState
@@ -39386,7 +39433,7 @@ title: Title for editor
                                                             varValue: 
                                                               - xmlizable: 
                                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                                - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1650357060263"}
+                                                                - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                                 ↓Attr1 [ngx.components.UIAttribute-1774533464773]: 
                                                   attrName: '[matTooltip]'
                                                   attrValue: 
@@ -39445,12 +39492,12 @@ title: Title for editor
                                                       varValue: 
                                                         - xmlizable: 
                                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357060263}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
+                                                          - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                                     ↓child [ngx.components.UIControlVariable-1774533464800]: 
                                                       varValue: 
                                                         - xmlizable: 
                                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                          - MobileSmartSourceType: script:false
+                                                          - MobileSmartSourceType: script:this.isEditingChildOf(item)
                                                 ↓Icon [ngx.components.UIDynamicElement-1774533464803]: 
                                                   beanData: '{"ionBean":"Icon","IconName":"plain:checkmark"}'
                                                   tagName: ion-icon
@@ -40117,7 +40164,7 @@ title: Title for editor
                                                     varValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1650357060263"}
+                                                        - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                                   ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1775825260284]: 
                                                     beanData: '{"ionBean":"InvokeAction"}'
                                                     stack: C8Oforms.MobileApplication.Application.updateState
@@ -40272,7 +40319,7 @@ title: Title for editor
                                                     varValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1650357060263"}
+                                                        - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                                   ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1775825287303]: 
                                                     beanData: '{"ionBean":"InvokeAction"}'
                                                     stack: C8Oforms.MobileApplication.Application.updateState
@@ -40376,7 +40423,7 @@ title: Title for editor
                                                           varValue: 
                                                             - xmlizable: 
                                                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                              - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1650357060263"}
+                                                              - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                               ↓Attr1 [ngx.components.UIAttribute-1775825159672]: 
                                                 attrName: title
                                                 attrValue: 
@@ -40418,12 +40465,12 @@ title: Title for editor
                                                     varValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357060263}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
+                                                        - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                                   ↓child [ngx.components.UIControlVariable-1775818899326]: 
                                                     varValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: script:false
+                                                        - MobileSmartSourceType: script:this.isEditingChildOf(item)
                                               ↓Attr1 [ngx.components.UIAttribute-1775825177471]: 
                                                 attrName: title
                                                 attrValue: 
@@ -46958,7 +47005,7 @@ title: Title for editor
                                                       varValue: 
                                                         - xmlizable: 
                                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                          - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"item1650357060263"}
+                                                          - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                           ↓Attr1 [ngx.components.UIAttribute-1774344228846]: 
                                             attrName: '[matTooltip]'
                                             attrValue: 
@@ -47017,12 +47064,12 @@ title: Title for editor
                                                 varValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: source:{"filter":"Iteration","project":"C8Oforms","input":"","model":{"data":[{"priority":1650357060263}],"path":"","prefix":"","suffix":"","custom":"","useCustom":false}}
+                                                    - MobileSmartSourceType: script:this.getActiveMainEditorItem(item)
                                               ↓child [ngx.components.UIControlVariable-1774344228873]: 
                                                 varValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: script:false
+                                                    - MobileSmartSourceType: script:this.isEditingChildOf(item)
                                           ↓Icon [ngx.components.UIDynamicElement-1774344228876]: 
                                             beanData: '{"ionBean":"Icon","IconName":"plain:checkmark"}'
                                             tagName: ion-icon
