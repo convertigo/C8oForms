@@ -4034,15 +4034,48 @@ scriptContent:
         		if (this.form == null || !Array.isArray(this.form.pages)) {
         			return;
         		}
-        		const originIndex = +origin;
-        		const destinationIndex = +dest;
-        		if (!Number.isFinite(originIndex) || !Number.isFinite(destinationIndex) || this.form.pages[originIndex] == null) {
+        		const originInputIndex = +origin;
+        		let destinationInputIndex = +dest;
+        		if (!Number.isFinite(originInputIndex) || !Number.isFinite(destinationInputIndex)) {
         			return;
         		}
-        		const currentPageBeforeMove = this.local != null && this.local.currentPage != null ? this.local.currentPage : this.form.pages[originIndex].pageTechName;
-        		const diff = ((originIndex + 1) - (destinationIndex + 1)) > 0 ? 1 : 0;
-        		this.form.pages.splice(destinationIndex, 0, this.form.pages[originIndex]);
-        		this.form.pages.splice(originIndex + diff, 1);
+        		const pages = this.form.pages;
+        		let displayedPages = pages;
+        		try {
+        			displayedPages = this.searchInArray(pages, this.local?.searchPages);
+        		}
+        		catch(e) {
+        			displayedPages = pages;
+        		}
+        		if (!Array.isArray(displayedPages)) {
+        			displayedPages = pages;
+        		}
+        		const usesFilteredIndexes = displayedPages.length != pages.length || displayedPages.some((page: any, index: number) => page !== pages[index]);
+        		let originPage = usesFilteredIndexes ? displayedPages[originInputIndex] : pages[originInputIndex];
+        		if (originPage == null) {
+        			return;
+        		}
+        		let originIndex = pages.findIndex((page: any) => page === originPage || (page != null && originPage != null && page.pageTechName == originPage.pageTechName));
+        		let destinationIndex = destinationInputIndex;
+        		if (usesFilteredIndexes) {
+        			if (destinationInputIndex >= displayedPages.length) {
+        				destinationIndex = pages.length;
+        			}
+        			else {
+        				const destinationPage = displayedPages[destinationInputIndex];
+        				destinationIndex = pages.findIndex((page: any) => page === destinationPage || (page != null && destinationPage != null && page.pageTechName == destinationPage.pageTechName));
+        			}
+        		}
+        		if (originIndex < 0 || destinationIndex < 0) {
+        			return;
+        		}
+        		const currentPageBeforeMove = this.local != null && this.local.currentPage != null ? this.local.currentPage : pages[originIndex].pageTechName;
+        		const movedPage = pages.splice(originIndex, 1)[0];
+        		if (movedPage == null) {
+        			return;
+        		}
+        		const insertIndex = Math.max(0, Math.min(destinationIndex, pages.length));
+        		pages.splice(insertIndex, 0, movedPage);
         		const pageOrderMap: any = this.form.pages.reduce((acc: any, page: any, index: number) => {
         			if (page != null && page.pageTechName != null) {
         				acc[page.pageTechName] = index;
@@ -9979,7 +10012,7 @@ title: Title for editor
                                           		
                                           		page.reorderFormPagesForEditor(origin, dest);
                                           		
-                                          		event.detail.complete();
+                                          		event.detail.complete(false);
                                           		
                                           		resolve(null);
                                           '
