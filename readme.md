@@ -5730,6 +5730,16 @@ Update the state of a field
 </table>
 #### chooseIcon
 
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>iconSet</td><td></td>
+</tr>
+</table>
 #### colorPicker
 
 **variables**
