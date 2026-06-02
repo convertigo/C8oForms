@@ -53,6 +53,53 @@ scriptContent:
         		return normalized;
         	}
         
+        	private getMovedFormElementId(page: any, origin: Array<number>): any {
+        		if (!Array.isArray(origin) || !Number.isFinite(origin[0])) {
+        			return null;
+        		}
+        		if (Number.isFinite(origin[1])) {
+        			const parent = page?.formsList?.[origin[0]];
+        			return parent?.childrenRefs?.[origin[1]] ?? parent?.children?.[origin[1]]?.id ?? null;
+        		}
+        		return page?.formsList?.[origin[0]]?.id ?? null;
+        	}
+        
+        	private isFormElementOrDescendant(page: any, candidate: any, movedId: any): boolean {
+        		if (candidate == null || movedId == null) {
+        			return false;
+        		}
+        		let current = candidate;
+        		let guard = 0;
+        		while (current != null && guard < 1000) {
+        			if ("" + current.id === "" + movedId) {
+        				return true;
+        			}
+        			if (current.parentRef == null || current.parentRef === "") {
+        				return false;
+        			}
+        			current = page?.formsList?.find((item: any) => "" + item?.id === "" + current.parentRef);
+        			guard++;
+        		}
+        		return false;
+        	}
+        
+        	private isDropInsideMovedFormElement(page: any, event: any, destinationValue: any): boolean {
+        		const dataTransfer = event?.dataTransfer;
+        		const types = dataTransfer?.types;
+        		const isFormsDrag = typeof types?.includes === "function" ? types.includes("__c8oformsdrag") : (typeof types?.contains === "function" ? types.contains("__c8oformsdrag") : Array.prototype.indexOf.call(types || [], "__c8oformsdrag") !== -1);
+        		if (dataTransfer == null || dataTransfer.getData("origin") !== "moved" || !isFormsDrag) {
+        			return false;
+        		}
+        		const origin = this.parseDropIndex(dataTransfer.getData("index"));
+        		const destination = this.parseDropIndex(destinationValue);
+        		if (!Array.isArray(origin) || !Array.isArray(destination) || destination.length < 2 || !Number.isFinite(destination[0])) {
+        			return false;
+        		}
+        		const movedId = this.getMovedFormElementId(page, origin);
+        		const destinationParent = page?.formsList?.[destination[0]];
+        		return this.isFormElementOrDescendant(page, destinationParent, movedId);
+        	}
+        
         	private isEquivalentMoveDrop(event: any): boolean {
         		const dataTransfer = event?.dataTransfer;
         		if (dataTransfer == null || dataTransfer.getData("origin") !== "moved") {
@@ -101,6 +148,20 @@ scriptContent:
         		if (skip === true) {
         			event?.preventDefault?.();
         			event?.stopPropagation?.();
+        		}
+        		return skip;
+        	}
+        
+        	public shouldSkipInvalidFormMoveDrop(event: any): boolean {
+        		const page = this.pageOwner || this.owner || this;
+        		const skip = this.isDropInsideMovedFormElement(page, event, this.i);
+        		if (skip === true) {
+        			event?.preventDefault?.();
+        			event?.stopPropagation?.();
+        			this.setEquivalentMoveDrop(false);
+        			if (event?.type === "drop" && typeof page?.["cleanupDragState"] === "function") {
+        				page["cleanupDragState"]("sharedDropIndicator.invalid-self-drop");
+        			}
         		}
         		return skip;
         	}
@@ -174,7 +235,7 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  '		if((this as any).shouldSkipEquivalentMoveDrop?.(event)){
+                  '		if((this as any).shouldSkipEquivalentMoveDrop?.(event) || (this as any).shouldSkipInvalidFormMoveDrop?.(event)){
                   			resolve();
                   			return;
                   		}
@@ -278,7 +339,7 @@ scriptContent:
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
                 '		console.log(vars)
-                		if((this as any).shouldSkipEquivalentMoveDrop?.(event)){
+                		if((this as any).shouldSkipEquivalentMoveDrop?.(event) || (this as any).shouldSkipInvalidFormMoveDrop?.(event)){
                 			const ownerPage: any = (page as any).pageOwner != undefined ? (page as any).pageOwner : page;
                 			if (typeof ownerPage["cleanupDragState"] === "function") {
                 				ownerPage["cleanupDragState"]("sharedDropIndicator.drop.equivalent");
@@ -304,7 +365,7 @@ scriptContent:
                 				// get origin coordinates
                 				var arrayOrigin: Array<number> = event.dataTransfer.getData("index").split(",").map((e)=>{return +e});
                 				// get destination coordinates
-                				var arrayDestination: Array<number> = vars.index;
+                				var arrayDestination: Array<number> = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((e)=>{return +e});
                 				if(vars.card && arrayDestination.length < 2){
                 					let len = page["formsList"]?.[vars.index]?.["childrenRefs"]?.length ?? page["formsList"][vars.index]["children"].length;
                 					arrayDestination.push(len)
@@ -325,7 +386,7 @@ scriptContent:
                 				// get origin coordinates
                 				var arrayOrigin: Array<number> = event.dataTransfer.getData("index").split(",").map((e)=>{return +e});
                 				// get destination coordinates
-                				var arrayDestination: Array<number> = vars.index;
+                				var arrayDestination: Array<number> = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((e)=>{return +e});
                 				if(vars.card && arrayDestination.length < 2){
                 					arrayDestination.push(page["formsList"][vars.index]["children"].length)
                 				}
@@ -435,7 +496,7 @@ scriptContent:
                 				if(vars.card){
                 					event.preventDefault();
                 					// get destination coordinates
-                					var arrayDestination: Array<number> = vars.index;
+                				var arrayDestination: Array<number> = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((e)=>{return +e});
                 					const TypeOrigin = event.dataTransfer.getData("origin");
                 					if(vars.card && arrayDestination.length < 2){
                 						let len = page.form["flows"]?.[page.local.currentIndex]?.elements?.[vars.index]?.[vars.targetCardChild]?.length;
@@ -475,7 +536,7 @@ scriptContent:
                 				else{
                 					event.preventDefault();
                 					// get destination coordinates
-                					var arrayDestination: Array<number> = vars.index;
+                				var arrayDestination: Array<number> = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((e)=>{return +e});
                 					const TypeOrigin = event.dataTransfer.getData("origin");
                 					vars.originCardChildOrigin = event.dataTransfer.getData("originCardChildOrigin") != null && event.dataTransfer.getData("originCardChildOrigin") != '''' ? event.dataTransfer.getData("originCardChildOrigin") : "childrenRefs";
                 					switch(TypeOrigin){
@@ -553,11 +614,11 @@ scriptContent:
       selfClose: true
       tagName: br
     ↓_ngStyle_ [ngx.components.UIAttribute-1730907277986]: 
-      attrName: '[style]'
+      attrName: '[ngStyle]'
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: 'script:''height:''+((this.shouldHideEquivalentMoveDrop() || !this.local?.isOver) ? ''50px !important;'' : ''75px !important;'')'
+          - MobileSmartSourceType: 'script:{''height'': (this.shouldHideEquivalentMoveDrop() || !this.local?.isOver) ? ''50px'' : ''75px'', ''border-style'': (this.local?.isOver && !this.shouldHideEquivalentMoveDrop()) ? ''solid'' : ''dashed'', ''border-color'': (this.local?.isOver && !this.shouldHideEquivalentMoveDrop()) ? ''var(--ion-color-primary-shade)'' : ''var(--ion-color-primary)'', ''background-color'': (this.local?.isOver && !this.shouldHideEquivalentMoveDrop()) ? ''rgba(var(--ion-color-primary-rgb), 0.18)'' : ''rgba(var(--ion-color-primary-rgb), 0.1)'', ''box-shadow'': (this.local?.isOver && !this.shouldHideEquivalentMoveDrop()) ? ''0 0 0 2px rgba(var(--ion-color-primary-rgb), 0.12) inset'' : ''none''}'
     ↓Style1 [ngx.components.UIStyle-1775041764430]: 
       styleContent: 
         - xmlizable: 
