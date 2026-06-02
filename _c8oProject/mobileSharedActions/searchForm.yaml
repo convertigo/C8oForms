@@ -89,6 +89,45 @@
                 }
                 return regex;
               }
+              function escapeHtml(value) {
+                return ("" + value).replace(/[&<>"\u0027]/g, function(c) {
+                  if (c == "&") {
+                    return "&amp;";
+                  }
+                  if (c == "<") {
+                    return "&lt;";
+                  }
+                  if (c == ">") {
+                    return "&gt;";
+                  }
+                  if (c == "\"") {
+                    return "&quot;";
+                  }
+                  return "&#39;";
+                });
+              }
+              function buildHighlightedName(name, regex) {
+                var text = "" + name;
+                if (regex == null) {
+                  return escapeHtml(text);
+                }
+                regex.lastIndex = 0;
+                var highlighted = "";
+                var lastIndex = 0;
+                var match;
+                while ((match = regex.exec(text)) != null) {
+                  var start = match.index;
+                  var matched = match[0];
+                  highlighted += escapeHtml(text.substring(lastIndex, start));
+                  highlighted += "<strong>" + escapeHtml(matched) + "</strong>";
+                  lastIndex = start + matched.length;
+                  if (matched.length == 0) {
+                    regex.lastIndex++;
+                  }
+                }
+                highlighted += escapeHtml(text.substring(lastIndex));
+                return highlighted;
+              }
               var selectedUsers = Array.isArray(page.local._searchUser) ? page.local._searchUser.map((x) => { return x != null && x.value != undefined ? x.value : x; }) : [];
               page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/search", dynamicParams: JSON.stringify({filters: filters, query: page["query"], tag: page.local.searchTags, subTag: page.local.searchSubTags, shared: page.local.shared, user: selectedUsers})})
           	        .then((response: any, parameters: any)=>{
@@ -96,7 +135,7 @@
           				if(page.local.totalCall == currentCall){
           					page.local.count = response.res.docs.length;
           		            var regex = page["query"] != undefined && page["query"] != "" ? new RegExp(buildAccentInsensitiveRegex(page["query"]), ''g'') : null;
-          					page["list"] = [...response.res.docs.map((x)=>{if(x.name != null && regex != null) {x.boldName = x.name.replace(regex, (match) => `<strong>${match}</strong>`);} return x})];
+          					page["list"] = [...response.res.docs.map((x)=>{if(x.name != null && regex != null) {x.boldName = buildHighlightedName(x.name, regex);} return x})];
           					page.local.alreadyFinished = true;
           					page.local.spinner = false;
                             if (page.ref != undefined && page.ref.detectChanges != undefined) {
