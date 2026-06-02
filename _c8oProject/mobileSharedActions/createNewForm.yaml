@@ -33,10 +33,27 @@
           			        },
           			        {
           			          text: page["translate"].instant("Save"),
-          					  cssClass: "btn--createapp-save",
+          					  cssClass: "btn--createapp-save alert-button-disabled",
+          					  htmlAttributes: {
+          					  	disabled: true,
+          					  	"aria-disabled": "true",
+          					  	style: {
+          					  		opacity: "0.45",
+          					  		cursor: "not-allowed",
+          					  		filter: "grayscale(1)",
+          					  		background: "#F3F4F6",
+          					  		color: "#6B7280",
+          					  		pointerEvents: "none"
+          					  	}
+          					  },
           					  handler: (data) => {
-          			              page["creating"] = data["title"];
-          			              resolve({"title": data["title"]});
+          			              let title = data["title"];
+          			              if (title == null || String(title).trim() == "") {
+          			              	return false;
+          			              }
+          			              title = String(title).trim();
+          			              page["creating"] = title;
+          			              resolve({"title": title});
           			          }
           			        }
           			      ]
@@ -44,14 +61,73 @@
           			    .then((res)=>{
           					res.present()
           					.then((r)=>{
-          						var input: any = document.getElementsByClassName(''alert-input'')[0]
-          						input.focus();
-          						input.onkeyup = (ev) => {
-          							if(ev.key === ''Enter'' && input.value.length > 0){
-          								let save : HTMLButtonElement = document.getElementsByClassName(''alert-button'')[1] as HTMLButtonElement;
-          								save.click();
+          						const setupAlert = (attempt: number = 0) => {
+          							const alertEl: any = document.querySelector("ion-alert.alert-custom-createapp");
+          							const alertShadow: any = alertEl != null ? alertEl.shadowRoot : null;
+          							const queryAlert = (selector: string) => {
+          								if (alertShadow != null) {
+          									const shadowMatch = alertShadow.querySelector(selector);
+          									if (shadowMatch != null) {
+          										return shadowMatch;
+          									}
+          								}
+          								if (alertEl != null) {
+          									const lightMatch = alertEl.querySelector(selector);
+          									if (lightMatch != null) {
+          										return lightMatch;
+          									}
+          								}
+          								return document.querySelector(selector);
+          							};
+          							const input: any = queryAlert("input.alert-input");
+          							const save: HTMLButtonElement = queryAlert("button.btn--createapp-save") as HTMLButtonElement;
+          							const wrapper: any = queryAlert(".alert-wrapper");
+          							const inputGroup: any = queryAlert(".alert-input-group");
+          							if ((input == null || save == null || wrapper == null) && attempt < 10) {
+          								setTimeout(() => setupAlert(attempt + 1), 50);
+          								return;
           							}
-          						}
+          							const fixAlertHeight = () => {
+          								if (wrapper != null) {
+          									wrapper.style.height = "202px";
+          									wrapper.style.minHeight = "202px";
+          									wrapper.style.maxHeight = "202px";
+          								}
+          								if (inputGroup != null) {
+          									inputGroup.style.minHeight = "62px";
+          								}
+          							};
+          							const updateSaveState = () => {
+          								if (save == null || input == null) {
+          									return;
+          								}
+          								const enabled = String(input.value || "").trim().length > 0;
+          								save.disabled = !enabled;
+          								save.setAttribute("aria-disabled", String(!enabled));
+          								save.classList.toggle("alert-button-disabled", !enabled);
+          								save.style.opacity = enabled ? "" : "0.45";
+          								save.style.cursor = enabled ? "" : "not-allowed";
+          								save.style.filter = enabled ? "" : "grayscale(1)";
+          								save.style.background = enabled ? "" : "#F3F4F6";
+          								save.style.color = enabled ? "" : "#6B7280";
+          								save.style.pointerEvents = enabled ? "" : "none";
+          							};
+          							if (input != null) {
+          								input.focus();
+          								input.oninput = updateSaveState;
+          								input.onfocus = fixAlertHeight;
+          								input.onblur = fixAlertHeight;
+          								input.onkeyup = (ev) => {
+          									updateSaveState();
+          									if(ev.key === "Enter" && String(input.value || "").trim().length > 0 && save != null){
+          										save.click();
+          									}
+          								};
+          							}
+          							fixAlertHeight();
+          							updateSaveState();
+          						};
+          						setupAlert();
           					})
           					
           			    })
