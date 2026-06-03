@@ -8925,6 +8925,9 @@ This component provides Chips management for your apps
 <tr>
 <td>keyName</td><td></td>
 </tr>
+<tr>
+<td>paletteMetas</td><td></td>
+</tr>
 </table>
 #### PopoverUserActions
 
