@@ -43,6 +43,7 @@ scriptContent:
         	public tinyFuncDropWithCancelText;
         	public tinyPostInit;
         	public insertHtmlContent;
+        	public replaceTinyBadgeFromTreeview;
         
         	public safeBackground: any;
         	public subscriber_tree: Subject<any>;
@@ -486,6 +487,52 @@ scriptContent:
         				}
         			}
         		}
+        		this.replaceTinyBadgeFromTreeview = function(editor, targetToReplace, html) {
+        			try {
+        				if (targetToReplace == null || html == null) {
+        					return false;
+        				}
+        				let liveTarget = targetToReplace;
+        				const fakeId = liveTarget.getAttribute?.("fakeId");
+        				if (fakeId != null && fakeId !== "") {
+        					liveTarget = document.getElementsByClassName(fakeId)?.[0] || liveTarget;
+        				}
+        				if (liveTarget == null || liveTarget.parentNode == null) {
+        					return false;
+        				}
+        				let liveEditor = editor;
+        				const body = liveTarget.closest?.(".mce-content-body");
+        				if (body?.id != null && window["tinymce"]?.get != null) {
+        					liveEditor = window["tinymce"].get(body.id) || liveEditor;
+        				}
+        				const doc = liveEditor?.getDoc?.() || document;
+        				const div = doc.createElement("div");
+        				div.innerHTML = html.trim();
+        				const newNode = div.firstChild;
+        				if (newNode == null) {
+        					return false;
+        				}
+        				if (liveEditor?.dom?.replace != null) {
+        					liveEditor.dom.replace(newNode, liveTarget, false);
+        				}
+        				else {
+        					liveTarget.parentNode.replaceChild(newNode, liveTarget);
+        				}
+        				liveEditor?.setDirty?.(true);
+        				liveEditor?.fire?.("change");
+        				liveEditor?.fire?.("input");
+        				liveEditor?.nodeChanged?.();
+        				liveEditor?.focus?.();
+        				setTimeout(() => {
+        					liveEditor?.fire?.("blur");
+        				});
+        				return true;
+        			}
+        			catch (error) {
+        				console.error("an error occured while replacing TinyMCE badge", error);
+        				return false;
+        			}
+        		}
         		this.tinyFuncDrop = function(editor) {
         			_this.registerTinySpacingControls(editor);
         			const setCaretFromEvent = (event) => {
@@ -661,18 +708,7 @@ scriptContent:
         						let handler = (res, builtin, isObject = false) => {
         							// create new badge
         							const dataI = _this.getBadge(id, currentElement.name, { c8otype: "path", c8opath: res, c8oPrettyPath: "", c8obuiltin: builtin, c8oisobject: isObject }, false, editor.inline ? "" : "html");
-        							// find target to be replaced into html
-        							if (targetToReplace.getAttribute("fakeId") != null) {
-        								targetToReplace = (editor.getBody().getElementsByClassName(targetToReplace.getAttribute("fakeId")))?.[0];
-        							}
-        							//replace target
-        							if (targetToReplace != null) {
-        								let div = document.createElement(''div'');
-        								div.innerHTML = dataI.trim();
-        								//targetToReplace.parentElement.replaceChild(div.firstChild, targetToReplace);
-        								editor.dom.replace(div.firstChild, targetToReplace, false);
-        								editor.focus();
-        							}
+        							_this.replaceTinyBadgeFromTreeview(editor, targetToReplace, dataI);
         						}
         						//create modal
         						let modalController = _this.getInstance(ModalController);
@@ -884,18 +920,7 @@ scriptContent:
         						let handler = (res, builtin, isObject = false) => {
         							// create new badge
         							const dataI = _this.getBadge(id, currentElement.name, { c8otype: "path", c8opath: res, c8oPrettyPath: "", c8obuiltin: builtin, c8oisobject: isObject }, false, editor.inline ? "" : "html");
-        							// find target to be replaced into html
-        							if (targetToReplace.getAttribute("fakeId") != null) {
-        								targetToReplace = (editor.getBody().getElementsByClassName(targetToReplace.getAttribute("fakeId")))?.[0];
-        							}
-        							//replace target
-        							if (targetToReplace != null) {
-        								let div = document.createElement(''div'');
-        								div.innerHTML = dataI.trim();
-        								//targetToReplace.parentElement.replaceChild(div.firstChild, targetToReplace);
-        								editor.dom.replace(div.firstChild, targetToReplace, false);
-        								editor.focus();
-        							}
+        							_this.replaceTinyBadgeFromTreeview(editor, targetToReplace, dataI);
         						}
         						//create modal
         						let modalController = _this.getInstance(ModalController);
