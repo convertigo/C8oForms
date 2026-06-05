@@ -397,6 +397,7 @@ For more technical informations : [documentation](./project.md)
         - [FilterBRADD](#filterbradd)
         - [getApplicationDetail](#getapplicationdetail)
         - [getUserGroupsDetail](#getusergroupsdetail)
+        - [HeaderComponents](#headercomponents)
         - [inputMultiVal](#inputmultival)
         - [inputTextAndField](#inputtextandfield)
         - [itemActionBusinessLogicEditor](#itemactionbusinesslogiceditor)
@@ -6542,6 +6543,42 @@ Display an apex chart comp. or an ag-grid comp.
 
 #### getUserGroupsDetail
 
+#### HeaderComponents
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>anyChildFocused</td><td></td>
+</tr>
+<tr>
+<td>canDragChildFromViewer</td><td></td>
+</tr>
+<tr>
+<td>child</td><td></td>
+</tr>
+<tr>
+<td>dragging</td><td></td>
+</tr>
+<tr>
+<td>draggingActions</td><td></td>
+</tr>
+<tr>
+<td>onChildCardDragEnd</td><td></td>
+</tr>
+<tr>
+<td>onChildCardDragStart</td><td></td>
+</tr>
+<tr>
+<td>showBorders</td><td></td>
+</tr>
+<tr>
+<td>showItemId</td><td></td>
+</tr>
+</table>
 #### inputMultiVal
 
 **variables**
