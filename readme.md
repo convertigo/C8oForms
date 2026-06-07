@@ -6567,6 +6567,9 @@ Display an apex chart comp. or an ag-grid comp.
 <td>draggingActions</td><td></td>
 </tr>
 <tr>
+<td>headerBorderColor</td><td></td>
+</tr>
+<tr>
 <td>headerColor</td><td></td>
 </tr>
 <tr>
