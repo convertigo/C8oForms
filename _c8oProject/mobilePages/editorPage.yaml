@@ -176,6 +176,17 @@ scriptContent:
         			''navigation_tab_selector''
         		]
         	}
+        	public groupMainEditorConfigurationTabs = {
+        		default: ''tab_selector_choice_source'',
+        		values: [
+        			''tab_selector_choice_source'',
+        			''tab_selector_conf_source'',
+        			''defaultvalue'',
+        			''data_interactions'',
+        			''visibility_tab_selector'',
+        			''navigation_tab_selector''
+        		]
+        	}
         	public sourceDataInteractionsMainEditorConfigurationTabs = {
         		default: ''tab_selector_conf_source'',
         		values: [
@@ -320,11 +331,11 @@ scriptContent:
         		},
         		radio_group: {
         			style: this.defaultMainEditorStyleTabs,
-        			configuration: this.checkboxMainEditorConfigurationTabs
+        			configuration: this.groupMainEditorConfigurationTabs
         		},
         		checkbox_group: {
         			style: this.defaultMainEditorStyleTabs,
-        			configuration: this.checkboxMainEditorConfigurationTabs
+        			configuration: this.groupMainEditorConfigurationTabs
         		},
         		description: {
         			style: this.defaultMainEditorStyleTabs,
@@ -2852,10 +2863,20 @@ scriptContent:
         					lines: [{ "title": "Line 1", "value": [], "id": (Math.random() + "").substring(2) }, { "title": "Line 2", "value": [], "id": (Math.random() + "").substring(2) }, { "title": "Line 3", "value": [], "id": (Math.random() + "").substring(2) }],
         					"id": id,
         					"name": this.getNameDispo(nameDispo != null ? nameDispo : "checkbox_group", null),
+        					sources: {
+        						self: {
+        							enabled: false,
+        							vars: {
+        								selfVar: { source: false, type: "text", str: "", html: false }
+        							}
+        						}
+        					},
         					config: {
         						"mandatory": false,
         						"disabled": false,
         						"different": false,
+        						"defaultValuesMode": "visual",
+        						"defaultValuesJs": "",
         						"html": "<p>" + this.local.question + "</p>",
         						"personalized": true,
         						"page": page
@@ -3038,10 +3059,20 @@ scriptContent:
         					lines: [{ "title": "Line 1", "value": "", "id": (Math.random() + "").substring(2) }, { "title": "Line 2", "value": "", "id": (Math.random() + "").substring(2) }, { "title": "Line 3", "value": "", "id": (Math.random() + "").substring(2) }],
         					"id": id,
         					"name": this.getNameDispo(nameDispo != null ? nameDispo : "radio_group", null),
+        					sources: {
+        						self: {
+        							enabled: false,
+        							vars: {
+        								selfVar: { source: false, type: "text", str: "", html: false }
+        							}
+        						}
+        					},
         					config: {
         						"mandatory": false,
         						"disabled": false,
         						"different": false,
+        						"defaultValuesMode": "visual",
+        						"defaultValuesJs": "",
         						"html": "<p>" + this.local.question + "</p>",
         						"personalized": true,
         						"page": page
@@ -7423,6 +7454,51 @@ scriptContent:
         			return this.translate.instant(tab);
         		}
         		return this.translate.instant(tab?.label || tab?.id || "");
+        	}
+        
+        	public getEditorPreviewModel(item) {
+        		try {
+        			if (item == null) {
+        				return {};
+        			}
+        			if (item.type == "radio") {
+        				return { value: item?.config?.defaultValue };
+        			}
+        			if (item.type == "slider") {
+        				return { value: item?.config?.defaultvalue };
+        			}
+        			if (item.type == "radio_group") {
+        				const model: any = { children: {} };
+        				const defaultValueObject = item?.sources?.self?.vars?.selfVar;
+        				const useVisualDefaults = defaultValueObject != null ? defaultValueObject.type !== "ts" : (item?.config?.defaultValuesMode || "visual") !== "js";
+        				if (Array.isArray(item.lines)) {
+        					item.lines.forEach((line) => {
+        						model.children[line?.title] = useVisualDefaults ? (line?.value || "") : "";
+        					});
+        				}
+        				return model;
+        			}
+        			if (item.type == "checkbox_group") {
+        				const model: any = { children: {} };
+        				const defaultValueObject = item?.sources?.self?.vars?.selfVar;
+        				const useVisualDefaults = defaultValueObject != null ? defaultValueObject.type !== "ts" : (item?.config?.defaultValuesMode || "visual") !== "js";
+        				if (Array.isArray(item.lines) && Array.isArray(item.children)) {
+        					item.lines.forEach((line) => {
+        						const values = useVisualDefaults && Array.isArray(line?.value) ? line.value : [];
+        						model.children[line?.title] = item.children.map((child) => {
+        							return {
+        								value: child?.value,
+        								selected: values.indexOf(child?.value) !== -1
+        							};
+        						});
+        					});
+        				}
+        				return model;
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return {};
         	}
         
         	public getMainEditorTabIds(item, group) {
@@ -30968,7 +31044,7 @@ title: Title for editor
                                                 varValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: 'script:this.formsList?.[i].type == ''radio'' ? {value: this.formsList[i]?.config?.defaultValue} : this.formsList?.[i].type == ''slider'' ? {value: this.formsList[i]?.config?.defaultvalue} : {}'
+                                                    - MobileSmartSourceType: script:this.getEditorPreviewModel(this.formsList[i])
                                             ↓Directive3 [ngx.components.UIControlDirective-1650357060839]: 
                                               directiveName: If
                                               directiveSource: 
