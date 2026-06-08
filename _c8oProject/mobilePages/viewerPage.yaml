@@ -4118,6 +4118,62 @@ scriptContent:
         	};
         
         	/**
+        	 * Registers direct fields usages from TS expressions as source dependencies.
+        	 * Runtime already supports fields[variableName], but those expressions also
+        	 * need to be statically tracked so the related business logic is refreshed.
+        	 *
+        	 * @param expression TS expression to inspect
+        	 * @param ObjectThatHaveToCallFunc holds objects id that will update value of current source
+        	 */
+        	private registerFieldsDependenciesFromTsExpression(expression: string, ObjectThatHaveToCallFunc: Array<any>): void {
+        		if (expression == undefined || expression == "" || ObjectThatHaveToCallFunc == undefined) {
+        			return;
+        		}
+        
+        		const aliases: any = {};
+        		const dependencies: Array<string> = [];
+        		const addDependency = (name: string) => {
+        			if (name != undefined && name != "" && dependencies.indexOf(name) == -1) {
+        				dependencies.push(name);
+        			}
+        		};
+        
+        		const source = ("" + expression)
+        			.replace(/\/\*[\s\S]*?\*\//g, " ")
+        			.replace(/\/\/[^\n\r]*/g, " ");
+        
+        		let match;
+        		const aliasRegex = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(["''])(.*?)\2/g;
+        		while ((match = aliasRegex.exec(source)) != null) {
+        			aliases[match[1]] = match[3];
+        		}
+        
+        		const literalBracketRegex = /\bfields\s*\[\s*(["''])(.*?)\1\s*\]/g;
+        		while ((match = literalBracketRegex.exec(source)) != null) {
+        			addDependency(match[2]);
+        		}
+        
+        		const variableBracketRegex = /\bfields\s*\[\s*([A-Za-z_$][\w$]*)\s*\]/g;
+        		while ((match = variableBracketRegex.exec(source)) != null) {
+        			if (aliases[match[1]] != undefined) {
+        				addDependency(aliases[match[1]]);
+        			}
+        		}
+        
+        		const dotRegex = /\bfields\.([A-Za-z_$][\w$]*)/g;
+        		while ((match = dotRegex.exec(source)) != null) {
+        			addDependency(match[1]);
+        		}
+        
+        		for (let dependency of dependencies) {
+        			const id = this.getIdByName(dependency);
+        			if (id != undefined && id != null && ObjectThatHaveToCallFunc.indexOf(id) == -1 && ObjectThatHaveToCallFunc.indexOf(+id) == -1) {
+        				ObjectThatHaveToCallFunc.push(id);
+        			}
+        		}
+        	}
+        
+        	/**
          * transforms a string of $$ to a c8oforms code compatible expression
          * 
          * @param str entry string of $$ to be computed to code
@@ -4130,6 +4186,9 @@ scriptContent:
         		// if stringOf$$ is null undefined or an empty string there is nothing to transform
         		if (stringOf$$ == undefined || stringOf$$ == "") {
         			return "";
+        		}
+        		if (type != undefined && type == "ts") {
+        			this.registerFieldsDependenciesFromTsExpression(stringOf$$, ObjectThatHaveToCallFunc);
         		}
         		// if it''s a "ts" expression escape backquotes
         		if (!(type != undefined && type == "ts")) {
