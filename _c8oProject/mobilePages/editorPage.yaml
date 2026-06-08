@@ -4295,7 +4295,7 @@ scriptContent:
         				}
         			}
         		}
-        		return {newnames: Array.isArray(newnames) ? newnames : [], usedIds: usedIds, nextId: new Date().getTime()};
+        		return {newnames: Array.isArray(newnames) ? newnames : [], usedIds: usedIds, nextId: new Date().getTime(), idMap: {}, nameMap: {}};
         	}
         
         	getNextCloneId(state) {
@@ -4314,6 +4314,60 @@ scriptContent:
         	getCloneFriendlyType(type) {
         		let typesfreindly = {"ion-card": "group", "ion-label":"label","ion-title":"title", "text": "inputText", "checkbox":"checkbox", "radio": "radiolist", "slider":"slider","select":"select", "img":"camera" };
         		return typesfreindly[type] != undefined ? typesfreindly[type] : type;
+        	}
+        
+        	registerCloneReference(original, clone, state) {
+        		if (original == null || clone == null || state == null) {
+        			return;
+        		}
+        		if (original.id != null && clone.id != null) {
+        			state.idMap["" + original.id] = clone.id;
+        		}
+        		if (original.name != null && clone.name != null) {
+        			state.nameMap["" + original.name] = clone.name;
+        		}
+        	}
+        
+        	remapCloneReferenceScalar(value, state) {
+        		if (state == null || value == null) {
+        			return value;
+        		}
+        		let key = "" + value;
+        		if (state.idMap != null && state.idMap[key] != null) {
+        			return state.idMap[key];
+        		}
+        		if (state.nameMap != null && state.nameMap[key] != null) {
+        			return state.nameMap[key];
+        		}
+        		return value;
+        	}
+        
+        	remapCloneReferencesInValue(value, state) {
+        		if (value == null || state == null) {
+        			return value;
+        		}
+        		if (Array.isArray(value)) {
+        			for (let i = 0; i < value.length; i++) {
+        				value[i] = this.remapCloneReferencesInValue(value[i], state);
+        			}
+        			return value;
+        		}
+        		if (typeof value == "object") {
+        			for (let key of Object.keys(value)) {
+        				value[key] = this.remapCloneReferencesInValue(value[key], state);
+        			}
+        			return value;
+        		}
+        		return this.remapCloneReferenceScalar(value, state);
+        	}
+        
+        	remapClonedElementReferences(elements, state) {
+        		if (!Array.isArray(elements) || state == null) {
+        			return;
+        		}
+        		for (let element of elements) {
+        			this.remapCloneReferencesInValue(element, state);
+        		}
         	}
         
         	rewriteCloneDataSourceReferences(item) {
@@ -4344,7 +4398,9 @@ scriptContent:
         			if (child == null) {
         				continue;
         			}
+        			let originalChild = JSON.parse(JSON.stringify(child));
         			child.id = this.getNextCloneId(state);
+        			this.registerCloneReference(originalChild, child, state);
         			if (child.config != null && targetPage != null) {
         				child.config.page = targetPage;
         			}
@@ -4366,6 +4422,7 @@ scriptContent:
         		clone.name = this.getNameDispo(this.getCloneFriendlyType(clone.type), state.newnames);
         		state.newnames.push(clone.name);
         		clone.id = this.getNextCloneId(state);
+        		this.registerCloneReference(original, clone, state);
         		clone.config = clone.config || {};
         		if (targetPage != null) {
         			clone.config.page = targetPage;
@@ -4565,6 +4622,97 @@ scriptContent:
         			this.cleanupRemovedElementReferences(item, pageTechName, idsToRemove);
         		}
         		this.syncFormsListWithForm();
+        	}
+        
+        	getPageNameForConfirm(item) {
+        		if (item != null) {
+        			if (item.name != null && item.name !== "") {
+        				return "" + item.name;
+        			}
+        			if (item.pageTechName != null && item.pageTechName !== "") {
+        				return "" + item.pageTechName;
+        			}
+        		}
+        		return "";
+        	}
+        
+        	getPageConfirmMessage(key, fallbackKey, item) {
+        		let pageName = this.getPageNameForConfirm(item);
+        		let message = this.translate != null ? this.translate.instant(key, {page: pageName}) : key;
+        		if (message == key) {
+        			let fallback = this.translate != null ? this.translate.instant(fallbackKey) : fallbackKey;
+        			return pageName !== "" ? fallback + " " + pageName : fallback;
+        		}
+        		return message;
+        	}
+        
+        	getDuplicatePageConfirmMessage(item) {
+        		return this.getPageConfirmMessage("duplicatePageConfirm", "duplicate_page", item);
+        	}
+        
+        	getDeletePageConfirmMessage(item) {
+        		return this.getPageConfirmMessage("deletePageConfirmWithName", "deletePageConfirm", item);
+        	}
+        
+        	duplicateCurrentPage(pageTechName = null) {
+        		if (this.form == null || !Array.isArray(this.form.pages) || this.form.pages.length == 0) {
+        			return;
+        		}
+        		let sourcePageTechName = pageTechName != null ? pageTechName : (this.local != null ? this.local["currentPage"] : null);
+        		let sourceIndex = this.form.pages.findIndex((pageDef) => pageDef != null && pageDef.pageTechName == sourcePageTechName);
+        		if (sourceIndex < 0) {
+        			return;
+        		}
+        		let sourcePage = this.form.pages[sourceIndex];
+        		let clonedPage = JSON.parse(JSON.stringify(sourcePage));
+        		let baseName = clonedPage.name != null && clonedPage.name !== "" ? clonedPage.name : "Page";
+        		let suffix = this.translate != null ? this.translate.instant("page_copy_suffix") : "copy";
+        		let candidateName = baseName + " " + suffix;
+        		let usedPageNames = {};
+        		for (let pageDef of this.form.pages) {
+        			if (pageDef != null && pageDef.name != null) {
+        				usedPageNames["" + pageDef.name] = true;
+        			}
+        		}
+        		let uniqueName = candidateName;
+        		let nameIndex = 2;
+        		while (usedPageNames[uniqueName]) {
+        			uniqueName = candidateName + " " + nameIndex;
+        			nameIndex++;
+        		}
+        		let usedPageTechNames = {};
+        		for (let pageDef of this.form.pages) {
+        			if (pageDef != null && pageDef.pageTechName != null) {
+        				usedPageTechNames["" + pageDef.pageTechName] = true;
+        			}
+        		}
+        		let nextPageId = new Date().getTime();
+        		while (usedPageTechNames["Page" + nextPageId]) {
+        			nextPageId++;
+        		}
+        		clonedPage.name = uniqueName;
+        		clonedPage.pageTechName = "Page" + nextPageId;
+        		this.form.pages.splice(sourceIndex + 1, 0, clonedPage);
+        
+        		let state = this.createFormCloneState([]);
+        		let clonedElements = [];
+        		let forms = this.getFormsListForEdition() as any[];
+        		for (let item of forms) {
+        			if (item != null && item.config != null && item.config.page == sourcePage.pageTechName && item.parentRef == null) {
+        				let cloneResult = this.cloneFormElementForTargetPage(item, clonedPage.pageTechName, state);
+        				if (cloneResult != null && Array.isArray(cloneResult.elements)) {
+        					clonedElements = clonedElements.concat(cloneResult.elements);
+        				}
+        			}
+        		}
+        		this.remapClonedElementReferences(clonedElements, state);
+        		this.insertClonedFormElements(this.getCloneInsertIndexForTargetPage(clonedPage.pageTechName), clonedElements);
+        		if (this.local != null) {
+        			this.local["currentIndex"] = sourceIndex + 1;
+        			this.local["currentPage"] = clonedPage.pageTechName;
+        			this.local["pages"] = this.form.pages;
+        			this.local["idHovered"] = -1;
+        		}
         	}
         
         	removeCurrentPage() {
@@ -10519,13 +10667,6 @@ title: Title for editor
                                          "IconSource": "script:(!this.isC8oIcon(item?.iconName) && this.isC8oIcon(item?.iconName) != null) ? item?.iconName && item.iconName.length > 0 ? ''assets\/images\/svg\/lucide\/'' + item.iconName + ''.svg'' : ''assets\/images\/svg\/lucide\/sticky-note.svg'' : ''not set''"
                                         }'
                                       tagName: ion-icon
-                                      ↓Attr [ngx.components.UIAttribute-1650357059465]: 
-                                        attrName: color
-                                        attrValue: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: plain:convertigo
-                                        isEnabled: false
                                       ↓Style [ngx.components.UIStyle-1650357059468]: 
                                         styleContent: 
                                           - xmlizable: 
@@ -10539,291 +10680,6 @@ title: Title for editor
                                                 min-width: 15px !important;
                                                 min-height: 16px !important;
                                                 '
-                                    ↓Div1 [ngx.components.UIDynamicElement-1749805611480]: 
-                                      beanData: '{"ionBean":"DivTag"}'
-                                      tagName: div
-                                      ↓Div [ngx.components.UIDynamicElement-1749805578990]: 
-                                        beanData: '{"ionBean":"DivTag"}'
-                                        tagName: div
-                                        ↓Text [ngx.components.UIText-1650357059471]: 
-                                          textValue: 
-                                            - xmlizable: 
-                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                              - MobileSmartSourceType: script:item.name
-                                        ↓Style [ngx.components.UIStyle-1749805635319]: 
-                                          styleContent: 
-                                            - xmlizable: 
-                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                →: |
-                                                  '	flex-shrink: 1;
-                                                  	max-width: calc(100% - 68px);
-                                                  	width: calc(100% - 68px) !important;
-                                                  	/* overflow: hidden; */
-                                                  	/* text-overflow: ellipsis; */
-                                                  	/* -webkit-line-clamp: 1; */
-                                                  	/* overflow-wrap: break-word; */
-                                                  	/* width: calc(100% - 160px); */
-                                                  	white-space: nowrap;
-                                                  	text-overflow: ellipsis;
-                                                  	min-width: calc(100% - 68px);
-                                                  	display: -webkit-box !important;
-                                                  	-webkit-line-clamp: 1;
-                                                  	-webkit-box-orient: vertical;
-                                                  	overflow: hidden !important;
-                                                  '
-                                      ↓Style [ngx.components.UIStyle-1774539098106]: 
-                                        styleContent: 
-                                          - xmlizable: 
-                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                              →: |
-                                                '//width: calc(100% - 24px) !important;
-                                                display: flex !important;
-                                                align-items: center !important;
-                                                justify-content: space-between;
-                                                height: 100%;
-                                                width: fit-content !important;
-                                                max-width: calc(100% - 61px) !important;
-                                                flex: 1;
-                                                //margin-left: 5px !important;
-                                                //gap: 3px !important;
-                                                '
-                                      ↓Div3 [ngx.components.UIDynamicElement-1780651207065]: 
-                                        beanData: '{"ionBean":"DivTag"}'
-                                        tagName: div
-                                        ↓Div1 [ngx.components.UIDynamicElement-1774949227812]: 
-                                          beanData: '{"ionBean":"DivTag"}'
-                                          tagName: div
-                                          ↓Style [ngx.components.UIStyle-1774949245259]: 
-                                            styleContent: 
-                                              - xmlizable: 
-                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                  →: |
-                                                    'height: 100% !important;
-                                                    width: 34px !important;
-                                                    display: flex !important;
-                                                    align-items: center !important;
-                                                    justify-content: center !important;
-                                                    border-radius: 0px !important;
-                                                    background-color: rgba(var(--ion-color-success-rgb), 0.2);
-                                                    //&:hover {	
-                                                    //	background-color: rgba(var(--ion-color-success-rgb), 0.2);
-                                                    //}
-                                                    '
-                                          ↓Icon [ngx.components.UIDynamicElement-1650357059474]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "Icon",
-                                               "IconName": "plain",
-                                               "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/pencil.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
-                                              }'
-                                            tagName: ion-icon
-                                            ↓Style [ngx.components.UIStyle-1650357059477]: 
-                                              styleContent: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                    →: |
-                                                      'align-self: flex-start;
-                                                      //margin-left:5px !important;
-                                                      //margin-right: 5px !important;
-                                                      zoom:1;
-                                                      margin: auto;
-                                                      max-width: 24px;
-                                                      }
-                                                      .class1592489099595:hover{
-                                                      	background-color: white;
-                                                      	color:red;
-                                                      '
-                                            ↓Event [ngx.components.UIControlEvent-1650357059480]: 
-                                              ↓CustomAction [ngx.components.UICustomAction-1650357059483]: 
-                                                actionValue: 
-                                                  - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                      →: |
-                                                        		page.local["yes"] = this.translate.instant('oui');
-                                                                page.local["no"] = this.translate.instant('non');
-                                                                page.local["deletePageConfirm"] = this.translate.instant('deletePageConfirm');
-                                                        		resolve();
-                                                        
-                                                isEnabled: false
-                                                ↓Alert [ngx.components.UIDynamicAction-1650357059486]: 
-                                                  beanData: |
-                                                    '{
-                                                     "ionBean": "AlertAction",
-                                                     "header": "script:this.local.deletePageConfirm",
-                                                     "message": "plain",
-                                                     "cssClass": "plain:alert-custom text-generic",
-                                                     "button1": "script:this.local.no",
-                                                     "button2": "script:this.local.yes",
-                                                     "value1": "plain:no",
-                                                     "value2": "plain:yes",
-                                                     "cancel1": "plain:cancel",
-                                                     "css1": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info",
-                                                     "css2": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--danger"
-                                                    }'
-                                                  ↓CustomAction [ngx.components.UICustomAction-1650357059489]: 
-                                                    actionValue: 
-                                                      - xmlizable: 
-                                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                          →: |
-                                                            		if(props.out.data == "yes"){
-                                                            			page.removeCurrentPage();
-                                                            		}
-                                                            		resolve();
-                                                            
-                                                    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357059492]: 
-                                                      beanData: '{"ionBean":"InvokeAction"}'
-                                                      stack: C8Oforms.MobileApplication.Application.updateState
-                                              ↓setIdSelectedSettings [ngx.components.UICustomAction-1774952145766]: 
-                                                actionValue: 
-                                                  - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                      →: |
-                                                        //		this.idselected = "settings";
-                                                        		this.idselected = "page_settings";
-                                                        		page.local.currentPageSettingsPanel = 'general';
-                                                        		this.tick();
-                                                        		resolve();
-                                                        
-                                            ↓Attr [ngx.components.UIAttribute-1650357059495]: 
-                                              attrName: color
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:success
-                                            ↓Attr1 [ngx.components.UIAttribute-1780671766452]: 
-                                              attrName: data-id
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:edit-action-pages
-                                        ↓Div2 [ngx.components.UIDynamicElement-1774949276438]: 
-                                          beanData: '{"ionBean":"DivTag"}'
-                                          tagName: div
-                                          ↓Style [ngx.components.UIStyle-1774949276441]: 
-                                            styleContent: 
-                                              - xmlizable: 
-                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                  →: |
-                                                    '	height: 100% !important;
-                                                    	width: 34px !important;
-                                                    	display: flex !important;
-                                                    	align-items: center !important;
-                                                    	justify-content: center !important;
-                                                    //	&:hover {	
-                                                    //		background-color: rgba(var(--ion-color-danger-rgb), 0.2);
-                                                    //	}
-                                                    	border-top-left-radius: 0px !important;
-                                                    	border-bottom-left-radius: 0px !important;
-                                                    	background-color: rgba(var(--ion-color-danger-rgb), 0.2);
-                                                    '
-                                          ↓Icon2 [ngx.components.UIDynamicElement-1774948900804]: 
-                                            beanData: |
-                                              '{
-                                               "ionBean": "Icon",
-                                               "IconName": "plain",
-                                               "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/trash-2.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
-                                              }'
-                                            tagName: ion-icon
-                                            ↓Style [ngx.components.UIStyle-1774948900807]: 
-                                              styleContent: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                    →: |
-                                                      'align-self: flex-start;
-                                                      margin-left:5px;
-                                                      zoom:1;
-                                                      margin: auto;
-                                                      max-width: 24px;
-                                                      }
-                                                      .class1592489099595:hover{
-                                                      	background-color: white;
-                                                      	color:red;
-                                                      '
-                                            ↓Event [ngx.components.UIControlEvent-1774948900810]: 
-                                              ↓CustomAction [ngx.components.UICustomAction-1774948900813]: 
-                                                actionValue: 
-                                                  - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                      →: |
-                                                        		page.local["yes"] = this.translate.instant('oui');
-                                                                page.local["no"] = this.translate.instant('non');
-                                                                page.local["deletePageConfirm"] = this.translate.instant('deletePageConfirm');
-                                                        		resolve();
-                                                        
-                                                ↓Alert [ngx.components.UIDynamicAction-1774948900816]: 
-                                                  beanData: |
-                                                    '{
-                                                     "ionBean": "AlertAction",
-                                                     "header": "script:this.local.deletePageConfirm",
-                                                     "message": "plain",
-                                                     "cssClass": "plain:alert-custom text-generic",
-                                                     "button1": "script:this.local.no",
-                                                     "button2": "script:this.local.yes",
-                                                     "value1": "plain:no",
-                                                     "value2": "plain:yes",
-                                                     "cancel1": "plain:cancel",
-                                                     "css1": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info",
-                                                     "css2": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--danger"
-                                                    }'
-                                                  ↓CustomAction [ngx.components.UICustomAction-1774948900819]: 
-                                                    actionValue: 
-                                                      - xmlizable: 
-                                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                          →: |
-                                                            		if(props.out.data == "yes"){
-                                                            			page.removeCurrentPage();
-                                                            		}
-                                                            		resolve();
-                                                            
-                                                    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1774948900822]: 
-                                                      beanData: '{"ionBean":"InvokeAction"}'
-                                                      stack: C8Oforms.MobileApplication.Application.updateState
-                                                      ↓setLocalPages [ngx.components.UICustomAction-1775136434476]: 
-                                                        actionValue: 
-                                                          - xmlizable: 
-                                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                              →: ''
-                                            ↓Attr [ngx.components.UIAttribute-1774948900825]: 
-                                              attrName: color
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:danger
-                                            ↓Attr1 [ngx.components.UIAttribute-1780671784489]: 
-                                              attrName: data-id
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:delete-action-pages
-                                        ↓Style [ngx.components.UIStyle-1780651219599]: 
-                                          styleContent: 
-                                            - xmlizable: 
-                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                →: |
-                                                  '	display: flex;
-                                                  	align-items: center;
-                                                  	height: 100%;
-                                                  '
-                                    ↓Attr [ngx.components.UIAttribute-1650357059498]: 
-                                      attrName: draggable
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:true
-                                      isEnabled: false
                                     ↓Event1 [ngx.components.UIControlEvent-1650357059501]: 
                                       attrName: (dragstart)
                                       eventName: (dragstart)
@@ -10895,17 +10751,6 @@ title: Title for editor
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                           - MobileSmartSourceType: 'script:this.local.styleDragOverPAge == i ? {''border-left'': ''solid''} : {}'
-                                    ↓Div2 [ngx.components.UIDynamicElement-1749805614564]: 
-                                      beanData: '{"ionBean":"DivTag"}'
-                                      isEnabled: false
-                                      tagName: div
-                                    ↓Attr2 [ngx.components.UIAttribute-1750078931734]: 
-                                      attrName: '[matTooltip]'
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:item.name
-                                      isEnabled: false
                                     ↓id [ngx.components.UIAttribute-1750088139810]: 
                                       attrName: id
                                       attrValue: 
@@ -10924,6 +10769,480 @@ title: Title for editor
                                          "MaxWidth": "plain:400px"
                                         }'
                                       selfClose: false
+                                    ↓DivTextAndButtons [ngx.components.UIDynamicElement-1780921478655]: 
+                                      beanData: '{"ionBean":"DivTag"}'
+                                      tagName: div
+                                      ↓Style [ngx.components.UIStyle-1780921478658]: 
+                                        styleContent: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                              →: |
+                                                'display: flex;
+                                                align-items: center;
+                                                height: 100%;
+                                                flex: 1 !important;
+                                                width: fit-content !important;
+                                                max-width: calc(100% - 58px) !important;
+                                                '
+                                      ↓DivTextOnHover [ngx.components.UIDynamicElement-1780921478664]: 
+                                        beanData: '{"ionBean":"DivTag"}'
+                                        tagName: div
+                                        ↓Text [ngx.components.UIText-1780921478667]: 
+                                          textValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:item.name
+                                        ↓Style [ngx.components.UIStyle-1780921478670]: 
+                                          styleContent: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                →: |
+                                                  '	flex-shrink: 1;
+                                                  	max-width: calc(100% - 102px);
+                                                  	width: calc(100% - 102px) !important;
+                                                  	/* overflow: hidden; */
+                                                  	/* text-overflow: ellipsis; */
+                                                  	/* -webkit-line-clamp: 1; */
+                                                  	/* overflow-wrap: break-word; */
+                                                  	/* width: calc(100% - 160px); */
+                                                  	white-space: nowrap;
+                                                  	text-overflow: ellipsis;
+                                                  	min-width: calc(100% - 102px);
+                                                  	display: -webkit-box !important;
+                                                  	-webkit-line-clamp: 1;
+                                                  	-webkit-box-orient: vertical;
+                                                  	overflow: hidden !important;
+                                                  '
+                                        ↓Attr [ngx.components.UIAttribute-1780921478673]: 
+                                          attrName: '*ngIf'
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: plain:this.local.idHovered == i
+                                      ↓DivTextNotHover [ngx.components.UIDynamicElement-1780921478676]: 
+                                        beanData: '{"ionBean":"DivTag"}'
+                                        tagName: div
+                                        ↓Text [ngx.components.UIText-1780921478679]: 
+                                          textValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: script:item.name
+                                        ↓Style [ngx.components.UIStyle-1780921478682]: 
+                                          styleContent: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                →: |
+                                                  '	flex-shrink: 1;
+                                                  	max-width: calc(100% - 12px);
+                                                  	width: calc(100% - 12px) !important;
+                                                  	/* overflow: hidden; */
+                                                  	/* text-overflow: ellipsis; */
+                                                  	/* -webkit-line-clamp: 1; */
+                                                  	/* overflow-wrap: break-word; */
+                                                  	/* width: calc(100% - 160px); */
+                                                  	white-space: nowrap;
+                                                  	text-overflow: ellipsis;
+                                                  	min-width: calc(100% - 12px);
+                                                  	display: -webkit-box !important;
+                                                  	-webkit-line-clamp: 1;
+                                                  	-webkit-box-orient: vertical;
+                                                  	overflow: hidden !important;
+                                                  '
+                                        ↓Attr [ngx.components.UIAttribute-1780921478685]: 
+                                          attrName: '*ngIf'
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: plain:this.local.idHovered != i
+                                      ↓DivButtons [ngx.components.UIDynamicElement-1780921478688]: 
+                                        beanData: '{"ionBean":"DivTag"}'
+                                        tagName: div
+                                        ↓Style [ngx.components.UIStyle-1780921478691]: 
+                                          styleContent: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                →: |
+                                                  '	display: flex;
+                                                  	align-items: center;
+                                                  	height: 100%;
+                                                  '
+                                        ↓Attr [ngx.components.UIAttribute-1780921478823]: 
+                                          attrName: '*ngIf'
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: plain:this.local.idHovered == i
+                                        ↓DivEdit [ngx.components.UIDynamicElement-1780925326937]: 
+                                          beanData: '{"ionBean":"DivTag"}'
+                                          tagName: div
+                                          ↓Style [ngx.components.UIStyle-1780925326940]: 
+                                            styleContent: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    'height: 100% !important;
+                                                    width: 34px !important;
+                                                    display: flex !important;
+                                                    align-items: center !important;
+                                                    justify-content: center !important;
+                                                    border-radius: 0px !important;
+                                                    background-color: rgba(var(--ion-color-success-rgb), 0.2);
+                                                    //&:hover {	
+                                                    //	background-color: rgba(var(--ion-color-success-rgb), 0.2);
+                                                    //}
+                                                    '
+                                          ↓Icon [ngx.components.UIDynamicElement-1780925326943]: 
+                                            beanData: |
+                                              '{
+                                               "ionBean": "Icon",
+                                               "IconName": "plain",
+                                               "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/pencil.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                                              }'
+                                            tagName: ion-icon
+                                            ↓Style [ngx.components.UIStyle-1780925326946]: 
+                                              styleContent: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                    →: |
+                                                      'align-self: flex-start;
+                                                      //margin-left:5px !important;
+                                                      //margin-right: 5px !important;
+                                                      zoom:1;
+                                                      margin: auto;
+                                                      max-width: 24px;
+                                                      }
+                                                      .class1592489099595:hover{
+                                                      	background-color: white;
+                                                      	color:red;
+                                                      '
+                                            ↓Event [ngx.components.UIControlEvent-1780925326949]: 
+                                              ↓CustomAction [ngx.components.UICustomAction-1780925326952]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        		page.local["yes"] = this.translate.instant('oui');
+                                                                page.local["no"] = this.translate.instant('non');
+                                                                page.local["deletePageConfirm"] = page.getDeletePageConfirmMessage(props.stack.root.scope.item);
+                                                        		resolve();
+                                                        
+                                                isEnabled: false
+                                                ↓Alert [ngx.components.UIDynamicAction-1780925326955]: 
+                                                  beanData: |
+                                                    '{
+                                                     "ionBean": "AlertAction",
+                                                     "header": "script:this.local.deletePageConfirm",
+                                                     "message": "plain",
+                                                     "cssClass": "plain:alert-custom text-generic",
+                                                     "button1": "script:this.local.no",
+                                                     "button2": "script:this.local.yes",
+                                                     "value1": "plain:no",
+                                                     "value2": "plain:yes",
+                                                     "cancel1": "plain:cancel",
+                                                     "css1": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info",
+                                                     "css2": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--danger"
+                                                    }'
+                                                  ↓CustomAction [ngx.components.UICustomAction-1780925326958]: 
+                                                    actionValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                          →: |
+                                                            		if(props.out.data == "yes"){
+                                                            			page.removeCurrentPage();
+                                                            		}
+                                                            		resolve();
+                                                            
+                                                    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1780925326961]: 
+                                                      beanData: '{"ionBean":"InvokeAction"}'
+                                                      stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓setIdSelectedSettings [ngx.components.UICustomAction-1780925326964]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        //		this.idselected = "settings";
+                                                        		this.idselected = "page_settings";
+                                                        		page.local.currentPageSettingsPanel = 'general';
+                                                        		this.tick();
+                                                        		resolve();
+                                                        
+                                            ↓Attr [ngx.components.UIAttribute-1780925326967]: 
+                                              attrName: color
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:success
+                                            ↓Attr1 [ngx.components.UIAttribute-1780925326970]: 
+                                              attrName: data-id
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:edit-action-pages
+                                          ↓Attr2 [ngx.components.UIAttribute-1780926065572]: 
+                                            attrName: '[title]'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: 'script:this.translate.instant(''editPageTooltip'', {page: item.name})'
+                                        ↓DivCopy [ngx.components.UIDynamicElement-1780925326973]: 
+                                          beanData: '{"ionBean":"DivTag"}'
+                                          tagName: div
+                                          ↓Style [ngx.components.UIStyle-1780925326976]: 
+                                            styleContent: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    '	height: 100% !important;
+                                                    	width: 34px !important;
+                                                    	display: flex !important;
+                                                    	align-items: center !important;
+                                                    	justify-content: center !important;
+                                                    	border-radius: 0px !important;
+                                                    	background-color: rgba(var(--ion-color-primary-rgb), 0.2);
+                                                    '
+                                          ↓Icon [ngx.components.UIDynamicElement-1780925326979]: 
+                                            beanData: '{"ionBean":"Icon","IconName":"plain:copy"}'
+                                            tagName: ion-icon
+                                            ↓Style [ngx.components.UIStyle-1780925326982]: 
+                                              styleContent: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                    →: |
+                                                      'align-self: flex-start;
+                                                      zoom:1;
+                                                      margin: auto;
+                                                      max-width: 24px;
+                                                      '
+                                            ↓Event [ngx.components.UIControlEvent-1780925326985]: 
+                                              ↓CustomAction [ngx.components.UICustomAction-1780925326988]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        		event.stopPropagation();
+                                                        		page.local["yes"] = this.translate.instant('oui');
+                                                        		page.local["no"] = this.translate.instant('non');
+                                                        		page.local["duplicatePageConfirm"] = page.getDuplicatePageConfirmMessage(props.stack.root.scope.item);
+                                                        		resolve();
+                                                        
+                                                ↓Alert [ngx.components.UIDynamicAction-1780925326991]: 
+                                                  beanData: |
+                                                    '{
+                                                     "ionBean": "AlertAction",
+                                                     "header": "script:this.local.duplicatePageConfirm",
+                                                     "message": "plain",
+                                                     "cssClass": "plain:alert-custom text-generic",
+                                                     "button1": "script:this.local.no",
+                                                     "button2": "script:this.local.yes",
+                                                     "value1": "plain:no",
+                                                     "value2": "plain:yes",
+                                                     "cancel1": "plain:cancel",
+                                                     "css1": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info",
+                                                     "css2": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--success"
+                                                    }'
+                                                  ↓duplicateIfConfirmed [ngx.components.UICustomAction-1780925326994]: 
+                                                    actionValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                          →: |
+                                                            		if (props.out.data == "yes") {
+                                                            			page.duplicateCurrentPage(props.stack.root.scope.item.pageTechName);
+                                                            			resolve(true);
+                                                            		}
+                                                            		else {
+                                                            			resolve(false);
+                                                            		}
+                                                            
+                                                    ↓If [ngx.components.UIDynamicAction-1780925326997]: 
+                                                      beanData: '{"ionBean":"IfAction","condition":"script:parent.out === true"}'
+                                                      ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1780925327000]: 
+                                                        beanData: '{"ionBean":"InvokeAction"}'
+                                                        stack: C8Oforms.MobileApplication.Application.updateState
+                                                        ↓setLocalPages [ngx.components.UICustomAction-1780925327003]: 
+                                                          actionValue: 
+                                                            - xmlizable: 
+                                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                                →: |
+                                                                  		page.local.pages = page.form.pages;
+                                                                  		page.local.ref.detectChanges();
+                                                                  		resolve();
+                                                                  
+                                                        ↓SetLocal [ngx.components.UIDynamicAction-1780925327006]: 
+                                                          beanData: |
+                                                            '{
+                                                             "ionBean": "SetLocalAction",
+                                                             "Property": "plain:visualHover",
+                                                             "Value": "script:''''"
+                                                            }'
+                                                      ↓idHovered [ngx.components.UIDynamicAction-1780925327009]: 
+                                                        beanData: |
+                                                          '{
+                                                           "ionBean": "SetLocalAction",
+                                                           "Property": "plain:idHovered",
+                                                           "Value": "script:-1"
+                                                          }'
+                                            ↓Attr [ngx.components.UIAttribute-1780925327012]: 
+                                              attrName: color
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:primary
+                                            ↓Attr1 [ngx.components.UIAttribute-1780925327015]: 
+                                              attrName: data-id
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:duplicate-action-pages
+                                          ↓Attr2 [ngx.components.UIAttribute-1780926183885]: 
+                                            attrName: '[title]'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: 'script:this.translate.instant(''duplicatePageTooltip'', {page: item.name})'
+                                        ↓DivDelete [ngx.components.UIDynamicElement-1780925327021]: 
+                                          beanData: '{"ionBean":"DivTag"}'
+                                          tagName: div
+                                          ↓Style [ngx.components.UIStyle-1780925327024]: 
+                                            styleContent: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    '	height: 100% !important;
+                                                    	width: 34px !important;
+                                                    	display: flex !important;
+                                                    	align-items: center !important;
+                                                    	justify-content: center !important;
+                                                    //	&:hover {	
+                                                    //		background-color: rgba(var(--ion-color-danger-rgb), 0.2);
+                                                    //	}
+                                                    	border-top-left-radius: 0px !important;
+                                                    	border-bottom-left-radius: 0px !important;
+                                                    	background-color: rgba(var(--ion-color-danger-rgb), 0.2);
+                                                    '
+                                          ↓Icon2 [ngx.components.UIDynamicElement-1780925327027]: 
+                                            beanData: |
+                                              '{
+                                               "ionBean": "Icon",
+                                               "IconName": "plain",
+                                               "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/trash-2.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                                              }'
+                                            tagName: ion-icon
+                                            ↓Style [ngx.components.UIStyle-1780925327030]: 
+                                              styleContent: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                    →: |
+                                                      'align-self: flex-start;
+                                                      margin-left:5px;
+                                                      zoom:1;
+                                                      margin: auto;
+                                                      max-width: 24px;
+                                                      }
+                                                      .class1592489099595:hover{
+                                                      	background-color: white;
+                                                      	color:red;
+                                                      '
+                                            ↓Event [ngx.components.UIControlEvent-1780925327033]: 
+                                              ↓CustomAction [ngx.components.UICustomAction-1780925327036]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        		page.local["yes"] = this.translate.instant('oui');
+                                                                page.local["no"] = this.translate.instant('non');
+                                                                page.local["deletePageConfirm"] = page.getDeletePageConfirmMessage(props.stack.root.scope.item);
+                                                        		resolve();
+                                                        
+                                                ↓Alert [ngx.components.UIDynamicAction-1780925327039]: 
+                                                  beanData: |
+                                                    '{
+                                                     "ionBean": "AlertAction",
+                                                     "header": "script:this.local.deletePageConfirm",
+                                                     "message": "plain",
+                                                     "cssClass": "plain:alert-custom text-generic",
+                                                     "button1": "script:this.local.no",
+                                                     "button2": "script:this.local.yes",
+                                                     "value1": "plain:no",
+                                                     "value2": "plain:yes",
+                                                     "cancel1": "plain:cancel",
+                                                     "css1": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info",
+                                                     "css2": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--danger"
+                                                    }'
+                                                  ↓CustomAction [ngx.components.UICustomAction-1780925327042]: 
+                                                    actionValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                          →: |
+                                                            		if(props.out.data == "yes"){
+                                                            			page.removeCurrentPage();
+                                                            		}
+                                                            		resolve();
+                                                            
+                                                    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1780925327045]: 
+                                                      beanData: '{"ionBean":"InvokeAction"}'
+                                                      stack: C8Oforms.MobileApplication.Application.updateState
+                                                      ↓setLocalPages [ngx.components.UICustomAction-1780925327048]: 
+                                                        actionValue: 
+                                                          - xmlizable: 
+                                                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                              →: ''
+                                            ↓Attr [ngx.components.UIAttribute-1780925327051]: 
+                                              attrName: color
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:danger
+                                            ↓Attr1 [ngx.components.UIAttribute-1780925327054]: 
+                                              attrName: data-id
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:delete-action-pages
+                                          ↓Attr2 [ngx.components.UIAttribute-1780926265748]: 
+                                            attrName: '[title]'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: 'script:this.translate.instant(''deletePageTooltip'', {page: item.name})'
+                                    ↓Event3 [ngx.components.UIControlEvent-1780925168044]: 
+                                      attrName: (mouseenter)
+                                      eventName: (mouseenter)
+                                      ↓SetLocal [ngx.components.UIDynamicAction-1780925168047]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "SetLocalAction",
+                                           "Property": "plain:idHovered",
+                                           "Value": "script:i"
+                                          }'
+                                    ↓Event4 [ngx.components.UIControlEvent-1780925168050]: 
+                                      attrName: (mouseleave)
+                                      eventName: (mouseleave)
+                                      ↓SetLocal [ngx.components.UIDynamicAction-1780925168053]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "SetLocalAction",
+                                           "Property": "plain:idHovered",
+                                           "Value": "script:-1"
+                                          }'
                                 ↓Tag [ngx.components.UIElement-1650357059540]: 
                                   identifier: ElseBlock_1592486432827
                                   tagName: ng-template
@@ -11023,7 +11342,7 @@ title: Title for editor
                                                         →: |
                                                           		page.local["yes"] = this.translate.instant('oui');
                                                                   page.local["no"] = this.translate.instant('non');
-                                                                  page.local["deletePageConfirm"] = this.translate.instant('deletePageConfirm');
+                                                                  page.local["deletePageConfirm"] = page.getDeletePageConfirmMessage(props.stack.root.scope.item);
                                                           		resolve();
                                                           
                                                   ↓Alert [ngx.components.UIDynamicAction-1780673370332]: 
@@ -11160,13 +11479,6 @@ title: Title for editor
                                           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1650357059600]: 
                                             beanData: '{"ionBean":"InvokeAction"}'
                                             stack: C8Oforms.MobileApplication.Application.detectChanges
-                                    ↓Attr [ngx.components.UIAttribute-1650357059603]: 
-                                      attrName: draggable
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:true
-                                      isEnabled: false
                                     ↓Event21 [ngx.components.UIControlEvent-1650357059606]: 
                                       attrName: (dragleave)
                                       eventName: (dragleave)
@@ -11217,7 +11529,7 @@ title: Title for editor
                                                   min-width: 15px !important;
                                                   min-height: 16px !important;
                                                 '
-                                    ↓Div4 [ngx.components.UIDynamicElement-1775140559440]: 
+                                    ↓DivTextAndButtons [ngx.components.UIDynamicElement-1775140559440]: 
                                       beanData: '{"ionBean":"DivTag"}'
                                       tagName: div
                                       ↓Style [ngx.components.UIStyle-1775140563355]: 
@@ -11233,11 +11545,7 @@ title: Title for editor
                                                 width: fit-content !important;
                                                 max-width: calc(100% - 58px) !important;
                                                 '
-                                      ↓Div [ngx.components.UIDynamicElement-1749805802053]: 
-                                        beanData: '{"ionBean":"DivTag"}'
-                                        isEnabled: false
-                                        tagName: div
-                                      ↓Div1 [ngx.components.UIDynamicElement-1749805806174]: 
+                                      ↓DivTextOnHover [ngx.components.UIDynamicElement-1749805806174]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
                                         ↓Text [ngx.components.UIText-1650357059555]: 
@@ -11252,8 +11560,8 @@ title: Title for editor
                                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                 →: |
                                                   '	flex-shrink: 1;
-                                                  	max-width: calc(100% - 68px);
-                                                  	width: calc(100% - 68px) !important;
+                                                  	max-width: calc(100% - 102px);
+                                                  	width: calc(100% - 102px) !important;
                                                   	/* overflow: hidden; */
                                                   	/* text-overflow: ellipsis; */
                                                   	/* -webkit-line-clamp: 1; */
@@ -11261,7 +11569,7 @@ title: Title for editor
                                                   	/* width: calc(100% - 160px); */
                                                   	white-space: nowrap;
                                                   	text-overflow: ellipsis;
-                                                  	min-width: calc(100% - 68px);
+                                                  	min-width: calc(100% - 102px);
                                                   	display: -webkit-box !important;
                                                   	-webkit-line-clamp: 1;
                                                   	-webkit-box-orient: vertical;
@@ -11273,7 +11581,7 @@ title: Title for editor
                                             - xmlizable: 
                                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                               - MobileSmartSourceType: plain:this.local.idHovered == i
-                                      ↓Div2 [ngx.components.UIDynamicElement-1780655439458]: 
+                                      ↓DivTextNotHover [ngx.components.UIDynamicElement-1780655439458]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
                                         ↓Text [ngx.components.UIText-1780655439461]: 
@@ -11309,7 +11617,7 @@ title: Title for editor
                                             - xmlizable: 
                                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                               - MobileSmartSourceType: plain:this.local.idHovered != i
-                                      ↓Div4 [ngx.components.UIDynamicElement-1780651750171]: 
+                                      ↓DivButtons [ngx.components.UIDynamicElement-1780651750171]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
                                         ↓Style [ngx.components.UIStyle-1780651761855]: 
@@ -11322,7 +11630,7 @@ title: Title for editor
                                                   	align-items: center;
                                                   	height: 100%;
                                                   '
-                                        ↓Div2 [ngx.components.UIDynamicElement-1775140098599]: 
+                                        ↓DivEdit [ngx.components.UIDynamicElement-1775140098599]: 
                                           beanData: '{"ionBean":"DivTag"}'
                                           tagName: div
                                           ↓Style [ngx.components.UIStyle-1775140098602]: 
@@ -11377,7 +11685,7 @@ title: Title for editor
                                                       →: |
                                                         		page.local["yes"] = this.translate.instant('oui');
                                                                 page.local["no"] = this.translate.instant('non');
-                                                                page.local["deletePageConfirm"] = this.translate.instant('deletePageConfirm');
+                                                                page.local["deletePageConfirm"] = page.getDeletePageConfirmMessage(props.stack.root.scope.item);
                                                         		resolve();
                                                         
                                                 isEnabled: false
@@ -11441,7 +11749,140 @@ title: Title for editor
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                 - MobileSmartSourceType: plain:this.local.idHovered == i
-                                        ↓Div3 [ngx.components.UIDynamicElement-1775140098632]: 
+                                          ↓Attr2 [ngx.components.UIAttribute-1780926465921]: 
+                                            attrName: '[title]'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: 'script:this.translate.instant(''editPageTooltip'', {page: item.name})'
+                                        ↓DivCopy [ngx.components.UIDynamicElement-1780725200020]: 
+                                          beanData: '{"ionBean":"DivTag"}'
+                                          tagName: div
+                                          ↓Style [ngx.components.UIStyle-1780725200021]: 
+                                            styleContent: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                  →: |
+                                                    '	height: 100% !important;
+                                                    	width: 34px !important;
+                                                    	display: flex !important;
+                                                    	align-items: center !important;
+                                                    	justify-content: center !important;
+                                                    	border-radius: 0px !important;
+                                                    	background-color: rgba(var(--ion-color-primary-rgb), 0.2);
+                                                    	transition: 300ms linear;
+                                                    '
+                                          ↓Icon [ngx.components.UIDynamicElement-1780725200022]: 
+                                            beanData: '{"ionBean":"Icon","IconName":"plain:copy"}'
+                                            tagName: ion-icon
+                                            ↓Style [ngx.components.UIStyle-1780725200023]: 
+                                              styleContent: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                    →: |
+                                                      'align-self: flex-start;
+                                                      zoom:1;
+                                                      margin: auto;
+                                                      max-width: 24px;
+                                                      '
+                                            ↓Event [ngx.components.UIControlEvent-1780725200024]: 
+                                              ↓CustomAction [ngx.components.UICustomAction-1780725200025]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        		event.stopPropagation();
+                                                        		page.local["yes"] = this.translate.instant('oui');
+                                                        		page.local["no"] = this.translate.instant('non');
+                                                        		page.local["duplicatePageConfirm"] = page.getDuplicatePageConfirmMessage(props.stack.root.scope.item);
+                                                        		resolve();
+                                                        
+                                                ↓Alert [ngx.components.UIDynamicAction-1780922000020]: 
+                                                  beanData: |
+                                                    '{
+                                                     "ionBean": "AlertAction",
+                                                     "header": "script:this.local.duplicatePageConfirm",
+                                                     "message": "plain",
+                                                     "cssClass": "plain:alert-custom text-generic",
+                                                     "button1": "script:this.local.no",
+                                                     "button2": "script:this.local.yes",
+                                                     "value1": "plain:no",
+                                                     "value2": "plain:yes",
+                                                     "cancel1": "plain:cancel",
+                                                     "css1": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info",
+                                                     "css2": "plain:btn text-generic width-fit-content btn-padding-start-0 height-28px btn--success"
+                                                    }'
+                                                  ↓duplicateIfConfirmed [ngx.components.UICustomAction-1780922000021]: 
+                                                    actionValue: 
+                                                      - xmlizable: 
+                                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                          →: |
+                                                            		if (props.out.data == "yes") {
+                                                            			page.duplicateCurrentPage(props.stack.root.scope.item.pageTechName);
+                                                            			resolve(true);
+                                                            		}
+                                                            		else {
+                                                            			resolve(false);
+                                                            		}
+                                                            
+                                                    ↓If [ngx.components.UIDynamicAction-1780922000022]: 
+                                                      beanData: '{"ionBean":"IfAction","condition":"script:parent.out === true"}'
+                                                      ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1780725200026]: 
+                                                        beanData: '{"ionBean":"InvokeAction"}'
+                                                        stack: C8Oforms.MobileApplication.Application.updateState
+                                                        ↓setLocalPages [ngx.components.UICustomAction-1780725200027]: 
+                                                          actionValue: 
+                                                            - xmlizable: 
+                                                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                                →: |
+                                                                  		page.local.pages = page.form.pages;
+                                                                  		page.local.ref.detectChanges();
+                                                                  		resolve();
+                                                                  
+                                                        ↓SetLocal [ngx.components.UIDynamicAction-1780725200028]: 
+                                                          beanData: |
+                                                            '{
+                                                             "ionBean": "SetLocalAction",
+                                                             "Property": "plain:visualHover",
+                                                             "Value": "script:''''"
+                                                            }'
+                                                      ↓idHovered [ngx.components.UIDynamicAction-1780725200029]: 
+                                                        beanData: |
+                                                          '{
+                                                           "ionBean": "SetLocalAction",
+                                                           "Property": "plain:idHovered",
+                                                           "Value": "script:-1"
+                                                          }'
+                                            ↓Attr [ngx.components.UIAttribute-1780725200030]: 
+                                              attrName: color
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:primary
+                                            ↓Attr1 [ngx.components.UIAttribute-1780725200031]: 
+                                              attrName: data-id
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:duplicate-action-pages
+                                          ↓Attr [ngx.components.UIAttribute-1780725200033]: 
+                                            attrName: '*ngIf'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: plain:this.local.idHovered == i
+                                          ↓Attr2 [ngx.components.UIAttribute-1780926492464]: 
+                                            attrName: '[title]'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: 'script:this.translate.instant(''duplicatePageTooltip'', {page: item.name})'
+                                        ↓DivDelete [ngx.components.UIDynamicElement-1775140098632]: 
                                           beanData: '{"ionBean":"DivTag"}'
                                           tagName: div
                                           ↓Style [ngx.components.UIStyle-1775140098635]: 
@@ -11496,7 +11937,7 @@ title: Title for editor
                                                       →: |
                                                         		page.local["yes"] = this.translate.instant('oui');
                                                                 page.local["no"] = this.translate.instant('non');
-                                                                page.local["deletePageConfirm"] = this.translate.instant('deletePageConfirm');
+                                                                page.local["deletePageConfirm"] = page.getDeletePageConfirmMessage(props.stack.root.scope.item);
                                                         		resolve();
                                                         
                                                 isEnabled: false
@@ -11560,19 +12001,18 @@ title: Title for editor
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                 - MobileSmartSourceType: plain:this.local.idHovered == i
+                                          ↓Attr2 [ngx.components.UIAttribute-1780926519007]: 
+                                            attrName: '[title]'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: 'script:this.translate.instant(''deletePageTooltip'', {page: item.name})'
                                         ↓Attr [ngx.components.UIAttribute-1780655465252]: 
                                           attrName: '*ngIf'
                                           attrValue: 
                                             - xmlizable: 
                                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                               - MobileSmartSourceType: plain:this.local.idHovered == i
-                                    ↓Attr2 [ngx.components.UIAttribute-1750078953915]: 
-                                      attrName: '[matTooltip]'
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:item.name
-                                      isEnabled: false
                                     ↓id [ngx.components.UIAttribute-1750087949588]: 
                                       attrName: id
                                       attrValue: 
@@ -13436,7 +13876,7 @@ title: Title for editor
                                                       →: |
                                                         		page.local["yes"] = this.translate.instant('oui');
                                                                 page.local["no"] = this.translate.instant('non');
-                                                                page.local["deletePageConfirm"] = this.translate.instant('deletePageConfirm');
+                                                                page.local["deletePageConfirm"] = page.getDeletePageConfirmMessage(props.stack.root.scope.item);
                                                         		resolve();
                                                         
                                                 isEnabled: false
@@ -13969,7 +14409,7 @@ title: Title for editor
                                                       →: |
                                                         		page.local["yes"] = this.translate.instant('oui');
                                                                 page.local["no"] = this.translate.instant('non');
-                                                                page.local["deletePageConfirm"] = this.translate.instant('deletePageConfirm');
+                                                                page.local["deletePageConfirm"] = page.getDeletePageConfirmMessage(props.stack.root.scope.item);
                                                         		resolve();
                                                         
                                                 isEnabled: false
