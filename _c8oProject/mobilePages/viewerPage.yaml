@@ -438,7 +438,7 @@ scriptContent:
         			{
         				"_id": __id,
         				"_rev": new Date().getTime(),
-        				resp: this.formsSubmit,
+        				resp: JSON.parse(JSON.stringify(this.formsSubmit)),
         				formId: this.local.formId,
         				timestamp: new Date().getTime(),
         				version: this.form?.version != undefined ? this.form?.version : ''test'',
@@ -3319,15 +3319,51 @@ scriptContent:
         								postFunc = (res) => {
         									let defaultSelected = "";
         									let defaultBinded = "";
+        									let getOptionValue = (option) => {
+        										return typeof (option) == "string" ? option : option?.value != undefined ? option.value : option?.displayValue != undefined ? option.displayValue : option;
+        									};
+        									let stringifyValue = (value) => {
+        										if (value === undefined || value === null) {
+        											return value;
+        										}
+        										if (typeof (value) == "object") {
+        											try {
+        												return JSON.stringify(value);
+        											}
+        											catch (e) {
+        												return "" + value;
+        											}
+        										}
+        										return "" + value;
+        									};
+        									let valuesMatch = (value1, value2) => {
+        										return value1 == value2 || stringifyValue(value1) == stringifyValue(value2);
+        									};
+        									let getModelValueForOption = (option, optionValue) => {
+        										if (item.type == "radio") {
+        											if (optionValue === undefined || optionValue === null) {
+        												return optionValue;
+        											}
+        											return "" + optionValue;
+        										}
+        										if (item.type == "select" && option != null && typeof (option) == "object" && option.value != undefined && typeof (option.value) != "string") {
+        											return JSON.stringify(option.value);
+        										}
+        										return optionValue;
+        									};
         									// find Colomn definitions
+        									let currentValue = formSubmit[item.name] != undefined ? formSubmit[item.name]["value"] : undefined;
         									let urlParams = page.local.urlParams.get(item["name"]);
+        									if ((urlParams == null || urlParams === "") && currentValue !== undefined && currentValue !== null && currentValue !== "") {
+        										urlParams = currentValue;
+        									}
         									if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
         										const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
         										if (tmp != undefined && tmp.length > 0) {
         											urlParams = tmp[0].value
         										}
         									}
-        									//formSubmit[item["name"]]["children"] = [];
+        									formSubmit[item["name"]]["children"] = [];
         									let array = [];
         									if (!(res["value"] == undefined)) {
         										if (typeof (res["value"]) == "string") {
@@ -3346,13 +3382,10 @@ scriptContent:
         									}
         									for (let child of array) {
         										let selected2 = false;
-        										if (child == urlParams) {
-        											defaultSelected = child;
-        											defaultBinded = child;
-        											selected2 = true;
-        										}
-        										else if (child != undefined && urlParams != undefined && child.value != undefined && JSON.stringify(child.value) == JSON.stringify(urlParams)) {
-        											defaultSelected = child.value;
+        										let optionValue = getOptionValue(child);
+        										let modelOptionValue = getModelValueForOption(child, optionValue);
+        										if (valuesMatch(optionValue, urlParams) || valuesMatch(modelOptionValue, urlParams)) {
+        											defaultSelected = modelOptionValue;
         											defaultBinded = child;
         											selected2 = true;
         										}
@@ -3379,6 +3412,9 @@ scriptContent:
         
         									}
         									let callFunctionToBecalled = false;
+        									if (defaultSelected === "" && currentValue !== undefined && currentValue !== null && currentValue !== "") {
+        										defaultSelected = currentValue;
+        									}
         									if(formSubmit[item["name"]]["value"] != defaultSelected){
         										callFunctionToBecalled = true;
         									}
@@ -3431,7 +3467,7 @@ scriptContent:
         											urlParams = tmp.map((res) => { return res.value });
         										}
         									}
-        									//formSubmit[item["name"]]["children"] = [];
+        									formSubmit[item["name"]]["children"] = [];
         									let array = [];
         									if (!(res["value"] == undefined)) {
         										if (typeof (res["value"]) == "string") {
@@ -3450,7 +3486,7 @@ scriptContent:
         									}
         									for (let child of array) {
         										let selected2 = false;
-        										if (urlParams && urlParams?.indexOf(child?.value) != -1) {
+        										if (urlParams && urlParams?.indexOf(typeof (child) == "string" ? child : child?.value) != -1) {
         											//										defaultSelected = child;
         											//										defaultBinded = child;
         											selected2 = true;
