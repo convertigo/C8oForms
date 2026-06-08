@@ -531,6 +531,10 @@ scriptContent:
         			parentNode = node;
         		}
         		if (node.property != undefined) {
+        			if (node.computed === true && node.property.type != ''Literal'') {
+        				parentNode.skipC8oTransform = true;
+        				return parentNode;
+        			}
         			// if this memberExpression has already been computed and is within another
         			if (memberExpressions[node.property.range[0]] != undefined) {
         				let randomSave = new Date().getTime() + ''_'' + ('''' + Math.random()).substring(2);
@@ -655,16 +659,28 @@ scriptContent:
         			const sortedKeys = Object.keys(memberExpressions).sort((a, b) => +b - +a);
         			for (const key of sortedKeys) {
         				let current = memberExpressions[key];
+        				if (current == null || current.skipC8oTransform === true) {
+        					continue;
+        				}
         				let range = [current.start, current.end];
         				if (current.nested) {
         					for (const rand in current.nestedByRandom) {
         						const curr = current.nestedByRandom[rand];
         						const splitted = curr.computedValue.split(/(?<!\\)\./);
-        						current.nestedByRandom[rand] = await this.tsMonacoto$$(curr, splitted, false);
+        						const nestedToken = await this.tsMonacoto$$(curr, splitted, false);
+        						if (nestedToken != null) {
+        							current.nestedByRandom[rand] = nestedToken;
+        						}
+        						else {
+        							delete current.nestedByRandom[rand];
+        						}
         					}
         				}
         				const splitted = current.computedValue.split(/(?<!\\)\./);
         				const st = await this.tsMonacoto$$(current, splitted);
+        				if (st == null) {
+        					continue;
+        				}
         				workingB = workingB.substring(0, range[0]) + st + workingB.substring(range[1]);
         			}
         

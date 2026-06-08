@@ -5616,28 +5616,42 @@ scriptContent:
         	public async computeVariable(findVars, variables, item, findName = null): Promise<any> {
         		let page = this;
         		let names = {};
+        		const createExpressionFunction = (expression: string) => {
+        			return Object.getPrototypeOf(async () => { }).constructor(
+        				''page'',
+        				''variables'',
+        				`return (async () => {
+        					const fields = page.formsSubmit || {};
+        					const actions = page.actions || {};
+        					const api = page.api || {};
+        					const vars = variables || {};
+        					with (vars) {
+        						var _ex = ${expression};
+        						return _ex;
+        					}
+        				})();`
+        			);
+        		};
+        		const evalExpression = async (expression: string): Promise<any> => {
+        			const asyncFunction = createExpressionFunction(expression);
+        			return await asyncFunction(page, variables);
+        		};
         		for (let va in findVars) {
         			try {
         				if (typeof findVars[va] == ''string'') {
         					let asyncFunction;
         					try {
-        						asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
-        							''page'',
-        							`return (async () => { var _ex = ${findVars[va]["replaceAll"](" ", "") == "" ? ''""'' :  findVars[va]}; return _ex; })();`
-        						);
+        						asyncFunction = createExpressionFunction(findVars[va]["replaceAll"](" ", "") == "" ? ''""'' :  findVars[va]);
         					}
         					catch (e) {
         						if (e.message == "Invalid left-hand side in assignment" || e.message == "invalid assignment left-hand side") {
-        							asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
-        								''page'',
-        								`return (async () => {  var _ex = ${this.removeSafeOperatorsInLHS(findVars[va])}; return _ex; })();`
-        							);
+        							asyncFunction = createExpressionFunction(this.removeSafeOperatorsInLHS(findVars[va]));
         						}
         						else {
         							throw e;
         						}
         					}
-        					variables[va] = await asyncFunction(page);
+        					variables[va] = await asyncFunction(page, variables);
         					try{
         						// legacy support for chantiers
         						if(va == "forms_mail_summary" && item?.actions?.["lib_Actions_C8Oforms.forms_notify_response_simple_by_mail_simple"]?.enabled && item?.actions?.["lib_Actions_C8Oforms.forms_notify_response_simple_by_mail_simple"]?.vars?.["forms_mail_summary"]?.type == null && variables[va] != "no" && variables[va] != "non" && variables[va] != "false" && Object.keys(item?.actions?.["lib_Actions_C8Oforms.forms_notify_response_simple_by_mail_simple"]?.vars?.["forms_mail_summary"])?.length > 0 ){
@@ -5663,7 +5677,7 @@ scriptContent:
         				else {
         					let res = JSON.parse(JSON.stringify(findVars[va]));
         					const evalInCurrentScope = async (code: string): Promise<any> => {
-        						return await eval(code);
+        						return await evalExpression(code);
         					};
         					// assume its filter
         //					console.log(res)
@@ -5682,11 +5696,7 @@ scriptContent:
         					else {
         						var temp = {};
         						for (let key in findVars[va]) {
-        							const asyncFunction = Object.getPrototypeOf(async () => { }).constructor(
-        								''page'',
-        								`return (async () => { return ${findVars[va][key]} })();`
-        							);
-        							temp[key] = await asyncFunction(page);
+        							temp[key] = await evalExpression(findVars[va][key]);
         							if (temp[key] == undefined || temp[key] == "undefined") {
         								delete variables[va];
         							}
