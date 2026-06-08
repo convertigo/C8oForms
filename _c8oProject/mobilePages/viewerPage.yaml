@@ -919,6 +919,215 @@ scriptContent:
         		}
         	}
         
+        	public getResetSourceItems(): any[] {
+        		let out: any[] = [];
+        		let seen = {};
+        		let visit = (list) => {
+        			if (!Array.isArray(list)) {
+        				return;
+        			}
+        			for (let item of list) {
+        				if (item == null || item.id == null) {
+        					continue;
+        				}
+        				if (seen[item.id] !== true) {
+        					seen[item.id] = true;
+        					out.push(item);
+        				}
+        				if (Array.isArray(item.children)) {
+        					visit(item.children);
+        				}
+        			}
+        		};
+        		visit(this.formsList);
+        		visit(this.form?.formulaire);
+        		return out;
+        	}
+        
+        	public getResetParentItem(item, allItems = this.getResetSourceItems()): any {
+        		if (item == null) {
+        			return null;
+        		}
+        		for (let parent of allItems) {
+        			if (parent == null || parent.id == item.id) {
+        				continue;
+        			}
+        			if (item.parentRef != null && +item.parentRef == +parent.id) {
+        				return parent;
+        			}
+        			if (Array.isArray(parent.childrenRefs) && parent.childrenRefs.map((x) => +x).indexOf(+item.id) != -1) {
+        				return parent;
+        			}
+        			if (Array.isArray(parent.childrenRefsElse) && parent.childrenRefsElse.map((x) => +x).indexOf(+item.id) != -1) {
+        				return parent;
+        			}
+        			if (Array.isArray(parent.children) && parent.children.some((child) => child != null && +child.id == +item.id)) {
+        				return parent;
+        			}
+        		}
+        		return null;
+        	}
+        
+        	public getResetSubmitContainer(item, allItems = this.getResetSourceItems()): any {
+        		if (item == null || item.name == null) {
+        			return null;
+        		}
+        		if (this.formsSubmit != null && this.formsSubmit[item.name] !== undefined) {
+        			return this.formsSubmit;
+        		}
+        		let parent = this.getResetParentItem(item, allItems);
+        		if (parent != null && parent.name != null && this.formsSubmit?.[parent.name]?.children?.[item.name] !== undefined) {
+        			return this.formsSubmit[parent.name].children;
+        		}
+        		return null;
+        	}
+        
+        	public isResettableFormItem(item, allItems = this.getResetSourceItems()): boolean {
+        		if (item == null || item.name == null || item.type == null) {
+        			return false;
+        		}
+        		if (["ion-card", "layout", "description", "button"].indexOf(item.type) != -1) {
+        			return false;
+        		}
+        		if (item.cat == "action") {
+        			return false;
+        		}
+        		return this.getResetSubmitContainer(item, allItems) != null;
+        	}
+        
+        	public getResetDescendantIds(targetId, allItems = this.getResetSourceItems()): any {
+        		let ids = {};
+        		if (targetId == null || targetId === "") {
+        			return ids;
+        		}
+        		ids[+targetId] = true;
+        		let changed = true;
+        		while (changed) {
+        			changed = false;
+        			for (let item of allItems) {
+        				if (item == null || item.id == null || ids[+item.id] === true) {
+        					continue;
+        				}
+        				let parent = this.getResetParentItem(item, allItems);
+        				if (parent != null && ids[+parent.id] === true) {
+        					ids[+item.id] = true;
+        					changed = true;
+        				}
+        			}
+        		}
+        		return ids;
+        	}
+        
+        	public getResetTargetItems(step): any[] {
+        		let allItems = this.getResetSourceItems();
+        		let scope = step?.config?.scope || "application";
+        		if (scope == "page") {
+        			let targetPage = step?.config?.targetPage || this.getCurrentPageTechName();
+        			return allItems.filter((item) => item?.config?.page == targetPage && this.isResettableFormItem(item, allItems));
+        		}
+        		if (scope == "component") {
+        			let ids = this.getResetDescendantIds(step?.config?.targetElement, allItems);
+        			return allItems.filter((item) => ids[+item.id] === true && this.isResettableFormItem(item, allItems));
+        		}
+        		return allItems.filter((item) => this.isResettableFormItem(item, allItems));
+        	}
+        
+        	public buildResetDefaultValue(item): any {
+        		let previousUrlParams = this.local.urlParams;
+        		let tmpRed = {};
+        		let tmpSubmit = {};
+        		try {
+        			this.local.urlParams = new URLSearchParams();
+        			this.fillFormSubmit([item], tmpRed, tmpSubmit, undefined);
+        			return tmpSubmit[item.name];
+        		}
+        		finally {
+        			this.local.urlParams = previousUrlParams;
+        		}
+        	}
+        
+        	public cloneResetValue(value): any {
+        		try {
+        			return JSON.parse(JSON.stringify(value));
+        		}
+        		catch (e) {
+        			return value;
+        		}
+        	}
+        
+        	public resetFormItemToDefault(item, allItems = this.getResetSourceItems()): boolean {
+        		let container = this.getResetSubmitContainer(item, allItems);
+        		if (container == null) {
+        			return false;
+        		}
+        		let value = this.buildResetDefaultValue(item);
+        		if (value == null) {
+        			return false;
+        		}
+        		container[item.name] = this.cloneResetValue(value);
+        		try {
+        			if (this.global?.[this.idFiles]?.[item.id] != undefined) {
+        				this.global[this.idFiles][item.id] = [];
+        			}
+        		}
+        		catch (e) {
+        			
+        		}
+        		return true;
+        	}
+        
+        	public async triggerResetDependencies(items, executionToken = null): Promise<void> {
+        		let idsToCall: string[] = [];
+        		let addId = (id) => {
+        			if (id != null && idsToCall.indexOf(id) == -1) {
+        				idsToCall.push(id);
+        			}
+        		};
+        		for (let item of items) {
+        			if (!this.isFlowExecutionActive(executionToken)) {
+        				return;
+        			}
+        			let currentSHA = this.shaById?.[item.id];
+        			let dependencies = this.local?.functionsToBeCalled?.[item.id];
+        			if (currentSHA != null && Array.isArray(dependencies) && dependencies.indexOf(currentSHA) != -1) {
+        				addId(currentSHA);
+        			}
+        			if (Array.isArray(dependencies)) {
+        				for (let id of dependencies) {
+        					addId(id);
+        				}
+        			}
+        		}
+        		for (let id of idsToCall) {
+        			if (!this.isFlowExecutionActive(executionToken)) {
+        				return;
+        			}
+        			await this.forceRefreshSourceById(id);
+        		}
+        		try {
+        			this.checkForAnyCondition(undefined, true);
+        		}
+        		catch (e) {
+        			console.error("an error occured while checking conditions after reset", e);
+        		}
+        		this.ref.detectChanges();
+        	}
+        
+        	public async performResetFields(step, executionToken = null): Promise<void> {
+        		let allItems = this.getResetSourceItems();
+        		let targetItems = this.getResetTargetItems(step);
+        		let changedItems = [];
+        		for (let item of targetItems) {
+        			if (!this.isFlowExecutionActive(executionToken)) {
+        				return;
+        			}
+        			if (this.resetFormItemToDefault(item, allItems)) {
+        				changedItems.push(item);
+        			}
+        		}
+        		await this.triggerResetDependencies(changedItems, executionToken);
+        	}
+        
         	public async performRefreshGrid(step) {
         		//this.showGridOverlayById(step.config.targetGrid);
         		let target = this.form.formulaire.find(e => +e.id == +step.config.targetGrid);
@@ -968,6 +1177,9 @@ scriptContent:
         				break;
         			case "refresh_grid":
         				await this.performRefreshGrid(step);
+        				break;
+        			case "reset_fields":
+        				await this.performResetFields(step, executionToken);
         				break;
         		}
         		return this.isFlowExecutionActive(executionToken) ? submit : false;

@@ -469,6 +469,8 @@ For more technical informations : [documentation](./project.md)
         - [itemRefreshGridActionViewer](#itemrefreshgridactionviewer)
         - [itemRemoveRowFromLocalGridActionEditor](#itemremoverowfromlocalgridactioneditor)
         - [itemRemoveRowFromLocalGridActionViewer](#itemremoverowfromlocalgridactionviewer)
+        - [itemResetFieldsActionEditor](#itemresetfieldsactioneditor)
+        - [itemResetFieldsActionViewer](#itemresetfieldsactionviewer)
         - [itemSelectEditor](#itemselecteditor)
         - [itemSelectViewver](#itemselectviewver)
         - [itemSignatureSelector](#itemsignatureselector)
@@ -8137,6 +8139,42 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+</table>
+#### itemResetFieldsActionEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>thingIndex</td><td></td>
+</tr>
+</table>
+#### itemResetFieldsActionViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
 </tr>
 </table>
 #### itemSelectEditor
