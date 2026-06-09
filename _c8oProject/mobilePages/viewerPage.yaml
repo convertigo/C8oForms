@@ -6074,6 +6074,93 @@ scriptContent:
         		execIdToCall();
         	}
         	
+        	public getRuntimeFieldEntry(name: any): any {
+        		if (name == undefined || name == null) {
+        			return null;
+        		}
+        		let fieldName = "" + name;
+        		if (this.formsSubmit != null && this.formsSubmit[fieldName] !== undefined) {
+        			return { container: this.formsSubmit, key: fieldName, item: this.formsSubmit[fieldName] };
+        		}
+        		if (this.formsSubmit != null) {
+        			for (let parentName of Object.keys(this.formsSubmit)) {
+        				let parent = this.formsSubmit[parentName];
+        				if (parent != null && parent.type === "ion-card" && parent.children != null && parent.children[fieldName] !== undefined) {
+        					return { container: parent.children, key: fieldName, item: parent.children[fieldName] };
+        				}
+        			}
+        		}
+        		return null;
+        	}
+        	
+        	public getRuntimeFieldValue(name: any): any {
+        		let entry = this.getRuntimeFieldEntry(name);
+        		if (entry == null || entry.item == null) {
+        			return undefined;
+        		}
+        		let valueKey = this.getKeyByType(entry.item.type);
+        		return entry.item[valueKey];
+        	}
+        	
+        	public setRuntimeFieldValue(name: any, value: any): boolean {
+        		let entry = this.getRuntimeFieldEntry(name);
+        		if (entry == null || entry.item == null) {
+        			return false;
+        		}
+        		let valueKey = this.getKeyByType(entry.item.type);
+        		entry.item[valueKey] = value;
+        		this.notifyRuntimeFieldChange(entry.item);
+        		return true;
+        	}
+        	
+        	public notifyRuntimeFieldChange(item: any): void {
+        		try {
+        			if (item == null || item.id == undefined || this.local?.functionsToBeCalled == undefined) {
+        				return;
+        			}
+        			let dependencies = this.local.functionsToBeCalled[item.id];
+        			if (Array.isArray(dependencies) && dependencies.length > 0) {
+        				this.triggerSourceIds(dependencies);
+        			}
+        			this.checkForAnyCondition(undefined, true);
+        			this.ref.detectChanges();
+        		}
+        		catch (e) {
+        			console.error("An error occured while notifying runtime field change", e);
+        		}
+        	}
+        	
+        	public createRuntimeFieldsProxy(): any {
+        		let page = this;
+        		return new Proxy(page.formsSubmit || {}, {
+        			get(target, prop) {
+        				if (typeof prop === "symbol") {
+        					return (target as any)[prop];
+        				}
+        				let entry = page.getRuntimeFieldEntry(prop);
+        				if (entry != null) {
+        					let valueKey = page.getKeyByType(entry.item.type);
+        					return entry.item[valueKey];
+        				}
+        				return (target as any)[prop];
+        			},
+        			set(target, prop, value) {
+        				if (typeof prop === "symbol") {
+        					(target as any)[prop] = value;
+        					return true;
+        				}
+        				if (page.setRuntimeFieldValue(prop, value)) {
+        					return true;
+        				}
+        				(target as any)[prop] = value;
+        				return true;
+        			},
+        			has(target, prop) {
+        				return prop in target || (typeof prop !== "symbol" && page.getRuntimeFieldEntry(prop) != null);
+        			}
+        		});
+        	}
+        	
         	public async initCurrentPageSources(force = false): Promise<Array<string>> {
         		if (this.formsList == undefined || this.redList == undefined || this.formsSubmit == undefined) {
         			return [];
@@ -6201,7 +6288,7 @@ scriptContent:
         				''page'',
         				''variables'',
         				`return (async () => {
-        					const fields = page.formsSubmit || {};
+        					const fields = page.createRuntimeFieldsProxy();
         					const actions = page.actions || {};
         					const api = page.api || {};
         					const vars = variables || {};
