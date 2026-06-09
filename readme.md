@@ -441,6 +441,8 @@ For more technical informations : [documentation](./project.md)
         - [itemForLoopEditor_Elem1](#itemforloopeditor_elem1)
         - [itemForLoopEditorViewer1](#itemforloopeditorviewer1)
         - [itemForLoopEditorViewer_Elem1](#itemforloopeditorviewer_elem1)
+        - [itemGalleryEditor](#itemgalleryeditor)
+        - [itemGalleryViewer](#itemgalleryviewer)
         - [itemGridEditor](#itemgrideditor)
         - [itemGridViewer](#itemgridviewer)
         - [itemHeaderEdit](#itemheaderedit)
@@ -558,13 +560,13 @@ For more technical informations : [documentation](./project.md)
      <tr><td>To contribute</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=NGX
+     C8Oforms=git@github.com:convertigo/C8oForms.git:branch=feature/#1400
      ```
      </td></tr>
      <tr><td>To simply use</td><td>
 
      ```
-     C8Oforms=git@github.com:convertigo/C8oForms/archive/NGX.zip
+     C8Oforms=git@github.com:convertigo/C8oForms/archive/feature/#1400.zip
      ```
      </td></tr>
     </table>
@@ -6001,6 +6003,9 @@ Update the state of a field
 <td>apiC8o</td><td></td>
 </tr>
 <tr>
+<td>apiCurrentFor</td><td></td>
+</tr>
+<tr>
 <td>apiForm</td><td></td>
 </tr>
 <tr>
@@ -7542,6 +7547,63 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>j</td><td></td>
+</tr>
+</table>
+#### itemGalleryEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idChildren</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
+</tr>
+<tr>
+<td>idselected</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>sectionSelected</td><td></td>
+</tr>
+<tr>
+<td>tabselected</td><td></td>
+</tr>
+</table>
+#### itemGalleryViewer
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>model</td><td>this.formsSubmit[item['name']]</td>
+</tr>
+<tr>
+<td>outModel</td><td></td>
+</tr>
+<tr>
+<td>redList</td><td></td>
 </tr>
 </table>
 #### itemGridEditor
