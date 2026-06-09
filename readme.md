@@ -2267,6 +2267,15 @@ Retrieves the Brevo conversations identifier for the user.
 <td>BrevoConversationsID</td><td>Brevo conversations identifier used for chat handoff.</td>
 </tr>
 <tr>
+<td>customContentDescription</td><td>URL of a custom header logo used in application branding.</td>
+</tr>
+<tr>
+<td>customContentTitle</td><td>URL of a custom header logo used in application branding.</td>
+</tr>
+<tr>
+<td>customHeaderDescription</td><td>URL of a custom header logo used in application branding.</td>
+</tr>
+<tr>
 <td>customHeaderLogo</td><td>URL of a custom header logo used in application branding.</td>
 </tr>
 <tr>
