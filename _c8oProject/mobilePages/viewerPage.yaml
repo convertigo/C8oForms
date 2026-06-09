@@ -1620,6 +1620,276 @@ scriptContent:
         			this.shouldEvaluateGroupDefaultValueAsTs(item, valueObject)
         		);
         	}
+        	public isSimpleChoiceDefaultExpression(value: any): boolean {
+        		return typeof value == "string" && /\$\$(?:START)?\d+[\s\S]*?(?:END)?(?:\d+)?\$\$/.test(value);
+        	}
+        	public getSimpleChoiceDefaultValueObject(value: any): any {
+        		return {
+        			type: this.isStandaloneGroupDefaultExpression(value) ? "ts" : "text",
+        			str: "" + value,
+        			html: false
+        		};
+        	}
+        	public getSimpleChoiceDefaultValueSourceObject(item: any): any {
+        		if (item == null || ["select", "radio", "checkbox"].indexOf(item.type) == -1) {
+        			return null;
+        		}
+        		let defaultValueObject = item?.sources?.self?.vars?.selfVar;
+        		if (item?.config?.defaultValuesMode === "js") {
+        			return {
+        				type: "ts",
+        				str: item?.config?.defaultValueJs || defaultValueObject?.str || item?.config?.defaultValue || "",
+        				html: false
+        			};
+        		}
+        		if (defaultValueObject?.type === "ts" || defaultValueObject?.type === "text") {
+        			return defaultValueObject;
+        		}
+        		if (this.isSimpleChoiceDefaultExpression(item?.config?.defaultValue)) {
+        			return this.getSimpleChoiceDefaultValueObject(item.config.defaultValue);
+        		}
+        		return null;
+        	}
+        	public hasSimpleChoiceDefaultExpression(item: any): boolean {
+        		if (item == null || ["select", "radio", "checkbox"].indexOf(item.type) == -1) {
+        			return false;
+        		}
+        		let defaultValueObject = this.getSimpleChoiceDefaultValueSourceObject(item);
+        		if (defaultValueObject?.type === "ts" && defaultValueObject?.str != null && ("" + defaultValueObject.str).trim() != "") {
+        			return true;
+        		}
+        		if (defaultValueObject?.type === "text" && (this.isSimpleChoiceDefaultExpression(defaultValueObject?.str) || (item?.config?.defaultValuesMode === "text" && defaultValueObject?.str != null && ("" + defaultValueObject.str).trim() != ""))) {
+        			return true;
+        		}
+        		if (item.type == "checkbox" && Array.isArray(item.children)) {
+        			for (let child of item.children) {
+        				if (this.isSimpleChoiceDefaultExpression(child?.selected)) {
+        					return true;
+        				}
+        			}
+        		}
+        		return false;
+        	}
+        	public getSimpleChoiceDefaultSources(item: any): any {
+        		if (!this.hasSimpleChoiceDefaultExpression(item)) {
+        			return null;
+        		}
+        		let vars: any = {};
+        		let defaultValueObject = this.getSimpleChoiceDefaultValueSourceObject(item);
+        		if (defaultValueObject != null) {
+        			vars.selfVar = defaultValueObject;
+        		}
+        		if (item.type == "checkbox" && Array.isArray(item.children)) {
+        			item.children.forEach((child, index) => {
+        				if (this.isSimpleChoiceDefaultExpression(child?.selected)) {
+        					vars["child_" + index] = this.getSimpleChoiceDefaultValueObject(child.selected);
+        				}
+        			});
+        		}
+        		let sourceItem = {
+        			...item,
+        			sources: {
+        				self: {
+        					enabled: true,
+        					vars: vars
+        				}
+        			}
+        		};
+        		return this.searchForSources(sourceItem, "sources", true);
+        	}
+        	public async computeSimpleChoiceDefaultVariables(item: any): Promise<any> {
+        		let sources: any = this.getSimpleChoiceDefaultSources(item);
+        		if (sources == null) {
+        			return {};
+        		}
+        		let variables: any = {};
+        		try {
+        			await this.computeVariable(sources.findVars, variables, item);
+        		}
+        		catch (e) {
+        			this.c8o.log.warn("[fillFormSubmit] Unable to compute default value for " + (item?.id || item?.name || ""), e);
+        		}
+        		return variables;
+        	}
+        	public stringifyChoiceValue(value: any): any {
+        		if (value === undefined || value === null) {
+        			return value;
+        		}
+        		if (typeof value == "object") {
+        			try {
+        				return JSON.stringify(value);
+        			}
+        			catch (e) {
+        				return "" + value;
+        			}
+        		}
+        		return "" + value;
+        	}
+        	public choiceValuesMatch(value1: any, value2: any): boolean {
+        		return value1 == value2 || this.stringifyChoiceValue(value1) == this.stringifyChoiceValue(value2);
+        	}
+        	public normalizeSingleChoiceDefaultValue(result: any): any {
+        		if (result === undefined || result === null) {
+        			return "";
+        		}
+        		if (typeof result == "object") {
+        			if (result.value !== undefined) {
+        				return this.stringifyChoiceValue(result.value);
+        			}
+        			if (result.displayValue !== undefined) {
+        				return this.stringifyChoiceValue(result.displayValue);
+        			}
+        		}
+        		return this.stringifyChoiceValue(result);
+        	}
+        	public normalizeCheckboxDefaultValuesResult(result: any): any {
+        		if (result === undefined || result === null) {
+        			return null;
+        		}
+        		if (Array.isArray(result)) {
+        			return result.map((value) => this.normalizeSingleChoiceDefaultValue(value));
+        		}
+        		if (typeof result == "string") {
+        			let trimmed = result.trim();
+        			if (trimmed == "") {
+        				return [];
+        			}
+        			try {
+        				return this.normalizeCheckboxDefaultValuesResult(JSON.parse(trimmed));
+        			}
+        			catch (e) {}
+        			let separator = this.local?.subKeyD == null ? "," : this.local.subKeyD;
+        			return trimmed.indexOf(separator) != -1 ? trimmed.split(separator) : [trimmed];
+        		}
+        		if (typeof result == "object") {
+        			return result;
+        		}
+        		if (typeof result == "boolean") {
+        			return result;
+        		}
+        		return [this.normalizeSingleChoiceDefaultValue(result)];
+        	}
+        	public isCheckboxChildSelectedFromDefaultValues(defaultValues: any, child: any): boolean {
+        		if (defaultValues == null) {
+        			return false;
+        		}
+        		if (typeof defaultValues == "boolean") {
+        			return defaultValues;
+        		}
+        		let valuesToCompare = [child?.value, child?.displayValue, child?.name].filter((value) => value !== undefined && value !== null);
+        		if (Array.isArray(defaultValues)) {
+        			return valuesToCompare.some((value) => defaultValues.some((defaultValue) => this.choiceValuesMatch(defaultValue, value)));
+        		}
+        		if (typeof defaultValues == "object") {
+        			for (let value of valuesToCompare) {
+        				if (defaultValues[value] !== undefined) {
+        					return defaultValues[value] === true || defaultValues[value] == "true" || defaultValues[value] == 1 || defaultValues[value] == "1";
+        				}
+        			}
+        		}
+        		return false;
+        	}
+        	public normalizeCheckboxDefaultSelected(result: any, child: any): boolean {
+        		if (typeof result == "boolean") {
+        			return result;
+        		}
+        		let normalized = this.normalizeCheckboxDefaultValuesResult(result);
+        		if (normalized != null && (Array.isArray(normalized) || typeof normalized == "object")) {
+        			return this.isCheckboxChildSelectedFromDefaultValues(normalized, child);
+        		}
+        		let value = this.normalizeSingleChoiceDefaultValue(result);
+        		return value == "true" || value == "1" || value == "yes" || value == "oui" || this.choiceValuesMatch(value, child?.value);
+        	}
+        	public async registerSimpleChoiceDefaultFunction(item: any, formSubmit: any): Promise<void> {
+        		let defaultSources: any = this.getSimpleChoiceDefaultSources(item);
+        		if (defaultSources == null) {
+        			return;
+        		}
+        		let page = this;
+        		let defaultFindVars = defaultSources.findVars;
+        		let defaultObjectThatHaveToCallFunc = defaultSources.ObjectThatHaveToCallFunc;
+        		let defaultSha = defaultSources.sha + "_choice_default_" + item.id;
+        		this.functionsById[defaultSha] = async (init = false) => {
+        			let variables: any = {};
+        			await page.computeVariable(defaultFindVars, variables, item);
+        			if (init && page.local.fromResponse) {
+        				return;
+        			}
+        			if (formSubmit[item.name] == null) {
+        				return;
+        			}
+        			let changed = false;
+        			if (item.type == "select" || item.type == "radio") {
+        				if (variables.selfVar === undefined || variables.selfVar === null) {
+        					return;
+        				}
+        				let nextValue = page.normalizeSingleChoiceDefaultValue(variables.selfVar);
+        				if (formSubmit[item.name].value !== nextValue) {
+        					formSubmit[item.name].value = nextValue;
+        					changed = true;
+        				}
+        				if (Array.isArray(formSubmit[item.name].children)) {
+        					for (let child of formSubmit[item.name].children) {
+        						let nextSelected = page.choiceValuesMatch(child.value, nextValue) || page.choiceValuesMatch(child.displayValue, nextValue);
+        						if (child.selected !== nextSelected) {
+        							child.selected = nextSelected;
+        							changed = true;
+        						}
+        					}
+        				}
+        			}
+        			else if (item.type == "checkbox" && Array.isArray(formSubmit[item.name].children)) {
+        				let defaultValues = variables.selfVar !== undefined ? page.normalizeCheckboxDefaultValuesResult(variables.selfVar) : null;
+        				if (defaultValues != null && JSON.stringify(formSubmit[item.name].value) != JSON.stringify(defaultValues)) {
+        					formSubmit[item.name].value = defaultValues;
+        					changed = true;
+        				}
+        				for (let i = 0; i < formSubmit[item.name].children.length; i++) {
+        					let child = item.children?.[i] || formSubmit[item.name].children[i];
+        					let nextSelected = defaultValues != null
+        						? page.isCheckboxChildSelectedFromDefaultValues(defaultValues, child)
+        						: variables["child_" + i] !== undefined
+        							? page.normalizeCheckboxDefaultSelected(variables["child_" + i], child)
+        							: formSubmit[item.name].children[i].selected;
+        					if (formSubmit[item.name].children[i].selected !== nextSelected) {
+        						formSubmit[item.name].children[i].selected = nextSelected;
+        						changed = true;
+        					}
+        				}
+        			}
+        			if (changed) {
+        				try {
+        					if (page.local["processingDataS"] == undefined) {
+        						page.local["processingDataS"] = {};
+        					}
+        					if (page.local.functionsToBeCalled[item.id] != undefined) {
+        						if (page.local["processingDataS"][item.id] != undefined) {
+        							try {
+        								clearTimeout(page.local["processingDataS"][item.id]);
+        							}
+        							catch (e) {
+        								page.c8o.log.error("[fillActions] An error occured " + JSON.stringify(e), e);
+        							}
+        						}
+        						await new Promise((resolve_set) => {
+        							page.local["processingDataS"][item.id] = setTimeout(() => {
+        								page.local.functionsToBeCalled[item.id].forEach((id) => {
+        									page["functionsById"][id]();
+        								});
+        								resolve_set();
+        							}, 0);
+        						});
+        					}
+        					page.ref.detectChanges();
+        				}
+        				catch (e) {
+        					page.c8o.log.error("[fillActions] Error while trying to refresh a default value " + JSON.stringify(e), e);
+        				}
+        			}
+        		};
+        		await this.functionsById[defaultSha](true);
+        		this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(defaultObjectThatHaveToCallFunc, defaultSha);
+        	}
          
         	public async getGroupDefaultValuesFromJs(item: any): Promise<any> {
         		try {
@@ -1684,6 +1954,8 @@ scriptContent:
         					if (!item.config.sourceEnabled) {
         						let urlParams = page.local.urlParams.get(item["name"]);
         						let arrayUrlParams = urlParams != null ? urlParams.split(page.local.subKeyD) : [];
+        						let defaultVariables = page.hasSimpleChoiceDefaultExpression(item) ? await page.computeSimpleChoiceDefaultVariables(item) : {};
+        						let computedDefaultValues = defaultVariables.selfVar !== undefined ? page.normalizeCheckboxDefaultValuesResult(defaultVariables.selfVar) : null;
         						for (let child in item["children"]) {
         							let selected: boolean;
         							try {
@@ -1697,7 +1969,11 @@ scriptContent:
         								}
         								// in this case take default value
         								if (selected == undefined) {
-        									selected = item["children"][child].selected;
+        									selected = computedDefaultValues != null
+        										? page.isCheckboxChildSelectedFromDefaultValues(computedDefaultValues, item["children"][child])
+        										: defaultVariables["child_" + child] !== undefined
+        											? page.normalizeCheckboxDefaultSelected(defaultVariables["child_" + child], item["children"][child])
+        											: item["children"][child].selected;
         								}
         							}
         							catch (e) {
@@ -1705,6 +1981,15 @@ scriptContent:
         								selected = false;
         							}
         							formSubmit[item["name"]]["children"].push({ "value": item["children"][child].value, "selected": selected, "other": item["children"][child].other });
+        						}
+        					}
+        					else if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined) {
+        						formSubmit[item["name"]]["value"] = response[item["name"]]["value"];
+        					}
+        					else if (page.hasSimpleChoiceDefaultExpression(item)) {
+        						let defaultVariables = await page.computeSimpleChoiceDefaultVariables(item);
+        						if (defaultVariables.selfVar !== undefined) {
+        							formSubmit[item["name"]]["value"] = page.normalizeCheckboxDefaultValuesResult(defaultVariables.selfVar);
         						}
         					}
         				}
@@ -1723,14 +2008,16 @@ scriptContent:
         					// search for default values in urlParams
         					let urlParams = page.local.urlParams.get(item["name"]);
         					let defaultSelected = "";
+        					let defaultVariables = page.hasSimpleChoiceDefaultExpression(item) ? await page.computeSimpleChoiceDefaultVariables(item) : {};
+        					let computedDefaultValue = defaultVariables.selfVar !== undefined ? page.normalizeSingleChoiceDefaultValue(defaultVariables.selfVar) : item.config?.defaultValue;
         					if (!item.config.sourceEnabled) {
         						for (let child in item["children"]) {
         							let selected: boolean = false;
         							let useResponse = response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] && response[item["name"]]["children"][child]["selected"] != undefined;
         							try {
-        								selected = useResponse ? response[item["name"]]["children"][child]["selected"] : urlParams != undefined ? item["children"][child]["value"] == urlParams : item.config?.defaultValue != undefined ? (item["children"][child]["value"] == item.config?.defaultValue) : false;
+        								selected = useResponse ? response[item["name"]]["children"][child]["selected"] : urlParams != undefined ? item["children"][child]["value"] == urlParams : computedDefaultValue != undefined ? page.choiceValuesMatch(item["children"][child]["value"], computedDefaultValue) : false;
         								//to preselect others
-        								if (selected == false && item.children[child].other && item.config?.defaultValue == ''__c8o__unique_other'') {
+        								if (selected == false && item.children[child].other && computedDefaultValue == ''__c8o__unique_other'') {
         									defaultSelected = ''__c8o__unique_other'';
         								}
         								if (selected) {
@@ -1745,7 +2032,7 @@ scriptContent:
         					}
         					else {
         						
-        						defaultSelected = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : "";
+        						defaultSelected = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : computedDefaultValue != undefined ? computedDefaultValue : "";
         						if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined) {
         							formSubmit[item["name"]]["children"] = response[item["name"]]["children"];
         						}
@@ -2585,6 +2872,9 @@ scriptContent:
         							await this.functionsById[defaultSha](true);
         							this.fillFunctionsIDToBeCalledFromObjectThatHaveToCallFunc(defaultObjectThatHaveToCallFunc, defaultSha);
         						}
+        					}
+        					if (["select", "checkbox", "radio"].indexOf(item.type) != -1 && page.hasSimpleChoiceDefaultExpression(item)) {
+        						await page.registerSimpleChoiceDefaultFunction(item, formSubmit);
         					}
         					if (item.type == "map") {
         						if (page.local.sourceValue[item.name] == null) {
@@ -3630,10 +3920,19 @@ scriptContent:
         									let defaultBinded = "";
         									// find Colomn definitions
         									let urlParams = page.local.urlParams.get(item["name"]);
+        									let defaultValues = null;
+        									let currentValue = formSubmit[item.name] != undefined ? formSubmit[item.name]["value"] : undefined;
+        									if ((urlParams == null || urlParams === "") && currentValue !== undefined && currentValue !== null && currentValue !== "") {
+        										defaultValues = currentValue;
+        										if (typeof currentValue == "string") {
+        											urlParams = currentValue.indexOf(page.local.subKeyD) != -1 ? currentValue.split(page.local.subKeyD) : [currentValue];
+        										}
+        									}
         									if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
         										const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
         										if (tmp != undefined && tmp.length > 0) {
         											urlParams = tmp.map((res) => { return res.value });
+        											defaultValues = null;
         										}
         									}
         									formSubmit[item["name"]]["children"] = [];
@@ -3655,7 +3954,10 @@ scriptContent:
         									}
         									for (let child of array) {
         										let selected2 = false;
-        										if (urlParams && urlParams?.indexOf(typeof (child) == "string" ? child : child?.value) != -1) {
+        										if (defaultValues != null && page.isCheckboxChildSelectedFromDefaultValues(defaultValues, typeof (child) == "string" ? { value: child } : child)) {
+        											selected2 = true;
+        										}
+        										else if (urlParams && urlParams?.indexOf(typeof (child) == "string" ? child : child?.value) != -1) {
         											//										defaultSelected = child;
         											//										defaultBinded = child;
         											selected2 = true;
@@ -3730,6 +4032,9 @@ scriptContent:
         							this.previousAndPostFunctions[sha].fail.push(failFunc);
         						}
         					}
+        				}
+        				else if (["select", "checkbox", "radio"].indexOf(item.type) != -1 && page.hasSimpleChoiceDefaultExpression(item)) {
+        					await page.registerSimpleChoiceDefaultFunction(item, formSubmit);
         				}
         				else if (item.type == "grid" && item["config"]["sourceEnabled"] === false) {
         

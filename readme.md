@@ -6013,6 +6013,9 @@ Update the state of a field
 <td>currentObject</td><td></td>
 </tr>
 <tr>
+<td>defaultValueGridKind</td><td></td>
+</tr>
+<tr>
 <td>displayName</td><td></td>
 </tr>
 <tr>
@@ -6316,6 +6319,9 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>apiUser</td><td></td>
+</tr>
+<tr>
+<td>defaultValueGridKind</td><td></td>
 </tr>
 <tr>
 <td>height</td><td></td>
