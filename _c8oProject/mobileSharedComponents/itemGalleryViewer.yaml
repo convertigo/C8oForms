@@ -77,13 +77,104 @@ scriptContent:
         		return columns.filter((col) => col != null && col.hide !== true && (col.field != null || col.headerName != null));
         	}
         	
+        	public getGallerySourceConfig() {
+        		try {
+        			const sources = this.item?.sources;
+        			if (sources == null) {
+        				return null;
+        			}
+        			let source = null;
+        			if (this.pageOwner?.getEnabled != null) {
+        				const enabled = this.pageOwner.getEnabled(sources);
+        				source = enabled != null ? sources[enabled] : null;
+        			}
+        			if (source == null) {
+        				for (let name in sources) {
+        					if (sources[name]?.enabled == true) {
+        						source = sources[name];
+        						break;
+        					}
+        				}
+        			}
+        			let raw = source?.vars?.forms_config != null ? source.vars.forms_config : source?.vars?.formsConfig;
+        			if (raw != null && raw.str != undefined) {
+        				raw = raw.str;
+        			}
+        			if (typeof raw == "string" && raw.trim() != "") {
+        				return JSON.parse(raw);
+        			}
+        			if (raw != null && typeof raw == "object") {
+        				return raw;
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return null;
+        	}
+        	
+        	public pushGalleryPreviewColumn(columns, seen, name) {
+        		if (name == null || ("" + name).trim() == "") {
+        			return;
+        		}
+        		const key = "" + name;
+        		if (seen[key] == true) {
+        			return;
+        		}
+        		seen[key] = true;
+        		columns.push({ field: key, headerName: key });
+        	}
+        	
+        	public getGalleryPreviewColumns() {
+        		let columns = this.checkColumnDefs(this.model?.colDef != undefined ? this.model.colDef : []);
+        		if (columns.length > 0) {
+        			return columns;
+        		}
+        		const seen = {};
+        		columns = [];
+        		const sourceConfig = this.getGallerySourceConfig();
+        		if (sourceConfig != null) {
+        			if (Array.isArray(sourceConfig.columns)) {
+        				sourceConfig.columns.forEach((column) => this.pushGalleryPreviewColumn(columns, seen, column));
+        			}
+        			if (Array.isArray(sourceConfig.hidden)) {
+        				sourceConfig.hidden.forEach((column) => this.pushGalleryPreviewColumn(columns, seen, column));
+        			}
+        			this.pushGalleryPreviewColumn(columns, seen, sourceConfig.displayValue);
+        			this.pushGalleryPreviewColumn(columns, seen, sourceConfig.value);
+        		}
+        		if (columns.length == 0 && Array.isArray(this.item?.config?.columns)) {
+        			this.item.config.columns.forEach((column) => {
+        				const name = column?.name || column?.field || column?.headerName || column;
+        				this.pushGalleryPreviewColumn(columns, seen, name);
+        			});
+        		}
+        		return columns;
+        	}
+        	
+        	public getGalleryPreviewRows() {
+        		const count = Math.max(1, this.getGalleryCardsPerLine());
+        		const data = Array.isArray(this.model?.data) ? this.model.data : [];
+        		if (data.length > 0) {
+        			return data.slice(0, count);
+        		}
+        		const columns = this.getGalleryPreviewColumns();
+        		const rows = [];
+        		for (let index = 0; index < count; index++) {
+        			const row = {};
+        			columns.forEach((column) => {
+        				const key = column.field || column.headerName;
+        				if (key != null && key != "") {
+        					row[key] = key + " " + (index + 1);
+        				}
+        			});
+        			rows.push(row);
+        		}
+        		return rows;
+        	}
+        	
         	public getGalleryRows() {
         		if (this.disabled == true) {
-        			return [
-        				{ make: "Manufacturer 1", model: "Model A", price: 35000 },
-        				{ make: "Manufacturer 2", model: "Model B", price: 32000 },
-        				{ make: "Manufacturer 3", model: "Model C", price: 72000 }
-        			];
+        			return this.getGalleryPreviewRows();
         		}
         		return Array.isArray(this.model?.data) ? this.model.data : [];
         	}
@@ -166,18 +257,92 @@ scriptContent:
         	
         	public galleryValueEquals(a, b) {
         		try {
-        			return JSON.stringify(a) == JSON.stringify(b);
+        			return JSON.stringify(this.normalizeGalleryComparableValue(a)) == JSON.stringify(this.normalizeGalleryComparableValue(b));
         		}
         		catch (e) {
         			return false;
         		}
         	}
         	
+        	public normalizeGalleryComparableValue(value) {
+        		if (value == null || typeof value != "object") {
+        			return value;
+        		}
+        		if (Array.isArray(value)) {
+        			return value.map((entry) => this.normalizeGalleryComparableValue(entry));
+        		}
+        		const normalized = {};
+        		Object.keys(value).sort().forEach((key) => {
+        			normalized[key] = this.normalizeGalleryComparableValue(value[key]);
+        		});
+        		return normalized;
+        	}
+        	
+        	public normalizeGallerySelectedEntry(entry) {
+        		if (entry == null) {
+        			return null;
+        		}
+        		if (entry.data != undefined) {
+        			return this.getGalleryRowValue(entry.data);
+        		}
+        		return entry;
+        	}
+        	
+        	public getGallerySelectedValues() {
+        		const selected = this.outModel?.value;
+        		if (Array.isArray(selected)) {
+        			return selected.map((entry) => this.normalizeGallerySelectedEntry(entry)).filter((entry) => entry != null);
+        		}
+        		const techGridSelected = this.pageOwner?.local?.techGrid?.[this.item?.name];
+        		if (Array.isArray(techGridSelected)) {
+        			return techGridSelected.map((entry) => this.normalizeGallerySelectedEntry(entry)).filter((entry) => entry != null);
+        		}
+        		return [];
+        	}
+        	
+        	public getGalleryTechGridSelection(selected) {
+        		const rows = this.getGalleryRows();
+        		return selected.map((entry) => {
+        			const rawRow = rows.find((row) => this.galleryValueEquals(this.getGalleryRowValue(row), entry));
+        			return { data: rawRow != null ? rawRow : entry };
+        		});
+        	}
+        	
+        	public getGalleryReturnedValue() {
+        		let returnedValue = this.item?.config?.returned_value;
+        		if (returnedValue != null && typeof returnedValue == "object" && returnedValue.item != undefined) {
+        			returnedValue = returnedValue.item;
+        		}
+        		return returnedValue == "cell_selected" ? "row_selected" : returnedValue;
+        	}
+        	
+        	public isGalleryValueEmpty() {
+        		const returnedValue = this.getGalleryReturnedValue();
+        		const value = this.outModel?.value;
+        		if (returnedValue == "multiple_row_selected" || returnedValue == "all_the_data") {
+        			return !Array.isArray(value) || value.length == 0;
+        		}
+        		return value == null || value == "" || (typeof value == "object" && !Array.isArray(value) && Object.keys(value).length == 0);
+        	}
+        	
+        	public updateGalleryMandatoryError() {
+        		if (this.item?.config?.mandatory != true || this.redList == null) {
+        			return;
+        		}
+        		const isEmpty = this.isGalleryValueEmpty();
+        		if (this.redList === true || this.redList === false) {
+        			this.redList = isEmpty;
+        		}
+        		else {
+        			this.redList[this.item.name] = isEmpty;
+        		}
+        	}
+        	
         	public isGalleryRowSelected(row) {
         		const selected = this.outModel?.value;
         		const rowValue = this.getGalleryRowValue(row);
-        		if (this.item?.config?.returned_value == "multiple_row_selected") {
-        			return Array.isArray(selected) && selected.some((entry) => this.galleryValueEquals(entry, rowValue));
+        		if (this.getGalleryReturnedValue() == "multiple_row_selected") {
+        			return this.getGallerySelectedValues().some((entry) => this.galleryValueEquals(entry, rowValue));
         		}
         		return selected != null && Object.keys(selected || {}).length > 0 && this.galleryValueEquals(selected, rowValue);
         	}
@@ -191,6 +356,16 @@ scriptContent:
         			return template.str.trim() != "" ? template.str : "";
         		}
         		return "";
+        	}
+        	
+        	public isGalleryPreviewFromDataSource() {
+        		if (this.disabled != true) {
+        			return false;
+        		}
+        		if (this.item?.config?.sourceEnabled === false) {
+        			return false;
+        		}
+        		return this.getGallerySourceConfig() != null || this.item?.sources != null;
         	}
         
         	public getGalleryParentItem() {
@@ -231,12 +406,30 @@ scriptContent:
         		return columns.find((column) => (column.field || column.headerName) == key || column.headerName == key) || { field: key, headerName: key };
         	}
         	
+        	public decodeGalleryTemplateHtml(template) {
+        		const html = "" + template;
+        		if (html.indexOf("&lt;") == -1 && html.indexOf("&gt;") == -1 && html.indexOf("&amp;") == -1) {
+        			return html;
+        		}
+        		try {
+        			const textarea = document.createElement("textarea");
+        			textarea.innerHTML = html;
+        			const decoded = textarea.value;
+        			if (decoded.indexOf("<") != -1 && decoded.indexOf(">") != -1) {
+        				return decoded;
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return html;
+        	}
+        	
         	public prepareGalleryTemplateHtml(template) {
         		// TinyMCE blank lines may be serialized as <p></p> or <p><span></span></p>:
         		// mark them and give them a real line box so they survive rendering
         		try {
         			const container = document.createElement("div");
-        			container.innerHTML = "" + template;
+        			container.innerHTML = this.decodeGalleryTemplateHtml(template);
         			container.querySelectorAll("p").forEach((p) => {
         				const text = (p.textContent || "").replace(/\u00a0/g, " ").trim();
         				if (text == "" && p.querySelector("img,svg,table,div,br") == null) {
@@ -249,6 +442,30 @@ scriptContent:
         		catch (e) {
         			return "" + template;
         		}
+        	}
+        	
+        	public getGalleryTemplateTokenLabel(rawToken) {
+        		try {
+        			const match = ("" + rawToken).match(/\{[\s\S]*\}/);
+        			if (match != null) {
+        				const meta = JSON.parse(match[0]);
+        				return meta.name || meta.c8oName || meta.c8oPrettyPath || meta.c8opath || "";
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return "";
+        	}
+        	
+        	public renderGalleryTemplateHtmlPreview(template) {
+        		let prepared = this.prepareGalleryTemplateHtml(template);
+        		return prepared.replace(/\$\$(?:START)?(\d+)([\s\S]*?)(?:END)?(?:\d+)?\$\$/g, (match) => {
+        			const label = this.getGalleryTemplateTokenLabel(match);
+        			if (label == "") {
+        				return "";
+        			}
+        			return `<span class="styleBadge badge badge-md c8o-gallery-template-token" contenteditable="false">${this.escapeGalleryHtml(label)}</span>`;
+        		});
         	}
         	
         	public cleanGalleryRenderedHtml(html) {
@@ -337,8 +554,8 @@ scriptContent:
         	}
         	
         	public isGallerySelectable() {
-        		const returnedValue = this.item?.config?.returned_value;
-        		return this.disabled != true && (returnedValue == "cell_selected" || returnedValue == "row_selected" || returnedValue == "multiple_row_selected");
+        		const returnedValue = this.getGalleryReturnedValue();
+        		return this.disabled != true && (returnedValue == "row_selected" || returnedValue == "multiple_row_selected");
         	}
         	
         	public getGalleryBreakpoint(): string {
@@ -390,7 +607,7 @@ scriptContent:
         			const selected = this.isGalleryRowSelected(row);
         			const titleColumn = columns[0];
         			const title = titleColumn != null ? this.getGalleryDisplayValue(this.getGalleryCellRawValue(row, titleColumn)) : "";
-        			const renderedTemplate = template != "" ? this.renderGalleryTemplate(template, row, columns, index) : "";
+        			const renderedTemplate = template != "" ? (this.isGalleryPreviewFromDataSource() ? this.renderGalleryTemplateHtmlPreview(template) : this.renderGalleryTemplate(template, row, columns, index)) : "";
         			const cardClass = renderedTemplate != "" ? "c8o-gallery-card-custom" : "c8o-gallery-card-fallback";
         			html += `<button type="button" class="c8o-gallery-card ${cardClass} ${selected ? "c8o-gallery-card-selected" : ""}" data-gallery-index="${index}">`;
         			if (renderedTemplate != "") {
@@ -424,7 +641,7 @@ scriptContent:
         	}
         	
         	public syncGalleryAllData() {
-        		if (this.item?.config?.returned_value != "all_the_data" || this.outModel == null) {
+        		if (this.getGalleryReturnedValue() != "all_the_data" || this.outModel == null) {
         			return;
         		}
         		try {
@@ -499,15 +716,16 @@ scriptContent:
         		if (row == null || this.outModel == null) {
         			return;
         		}
-        		if (this.item?.config?.returned_value == "nothing" || this.item?.config?.returned_value == "all_the_data") {
+        		const returnedValue = this.getGalleryReturnedValue();
+        		if (returnedValue != "row_selected" && returnedValue != "multiple_row_selected") {
         			return;
         		}
         		if (this.pageOwner.local.techGrid == undefined) {
         			this.pageOwner.local.techGrid = {};
         		}
         		const rowValue = this.getGalleryRowValue(row);
-        		if (this.item?.config?.returned_value == "multiple_row_selected") {
-        			const selected = Array.isArray(this.outModel.value) ? [...this.outModel.value] : [];
+        		if (returnedValue == "multiple_row_selected") {
+        			const selected = this.getGallerySelectedValues();
         			const existingIndex = selected.findIndex((entry) => this.galleryValueEquals(entry, rowValue));
         			if (existingIndex >= 0) {
         				selected.splice(existingIndex, 1);
@@ -516,7 +734,7 @@ scriptContent:
         				selected.push(rowValue);
         			}
         			this.outModel.value = selected;
-        			this.pageOwner.local.techGrid[this.item.name] = selected.map((entry) => ({ data: entry }));
+        			this.pageOwner.local.techGrid[this.item.name] = this.getGalleryTechGridSelection(selected);
         		}
         		else {
         			if (this.isGalleryRowSelected(row)) {
@@ -528,6 +746,7 @@ scriptContent:
         				this.pageOwner.local.techGrid[this.item.name] = { data: row };
         			}
         		}
+        		this.updateGalleryMandatoryError();
         		this.runGalleryDependencies(true);
         	}
         	/*End_c8o_CompFunction*/
@@ -546,7 +765,7 @@ scriptContent:
 ↓DivRoot [ngx.components.UIDynamicElement-1781091100006]: 
   beanData: '{"ionBean":"DivTag"}'
   identifier: divtext
-  tagName: div
+  tagName: fieldset
   ↓AttrId [ngx.components.UIAttribute-1781091100007]: 
     attrName: '[attr.id]'
     attrValue: 
@@ -559,9 +778,111 @@ scriptContent:
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
-            position:relative;
+            'position:relative;
             margin-bottom:15px;
-            
+            border: 0;
+            padding: 0;
+            min-inline-size: 0;
+            '
+  ↓LegendQuestion [ngx.components.UIElement-1781108600001]: 
+    tagName: legend
+    ↓Text [ngx.components.UIText-1781108600002]: 
+      textValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.pageOwner.removeHTML(this.item?.config?.html || "")
+  ↓Div [ngx.components.UIDynamicElement-1781109423504]: 
+    beanData: '{"ionBean":"DivTag"}'
+    tagName: div
+    ↓Attr [ngx.components.UIAttribute-1781109423507]: 
+      attrName: '[ngClass]'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: 'script:this.redList != undefined ?  this.redList[this.item.name] == true ? (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryvpadding'', ''styledivred''] : ''styledivred'': (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryv''] : []: (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryv''] : []'
+      comment: 'this.redList != undefined ?  this.redList[this.item.name] == true ? (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryvpadding'', ''styledivred''] : ''styledivred'': (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryv'', ''styledivnormal''] : ''styledivnormal'': (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryv'', ''styledivnormal''] : ''styledivnormal'''
+    ↓Attr1 [ngx.components.UIAttribute-1781109423510]: 
+      attrName: '[attr.id]'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.item.name
+    ↓Style [ngx.components.UIStyle-1781109423513]: 
+      styleContent: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              position:relative;
+              
+    ↓Directive [ngx.components.UIControlDirective-1781109423516]: 
+      directiveName: If
+      directiveSource: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:this.disabled else ElseBlock_1627489489614
+      ↓UseSharedComponent [ngx.components.UIUseShared-1781109423519]: 
+        sharedcomponent: C8Oforms.MobileApplication.Application.sharedLabelElem
+        ↓item [ngx.components.UIUseVariable-1781109423522]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.item
+        ↓setStyle [ngx.components.UIUseVariable-1781109423525]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:true
+    ↓Tag [ngx.components.UIElement-1781109423528]: 
+      identifier: ElseBlock_1627489489614
+      tagName: ng-template
+      ↓Div [ngx.components.UIDynamicElement-1781109423531]: 
+        beanData: '{"ionBean":"DivTag"}'
+        tagName: div
+        ↓Attr2 [ngx.components.UIAttribute-1781109423534]: 
+          attrName: '[ngClass]'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:['styledivnormal']
+          isEnabled: false
+        ↓UseSharedComponent [ngx.components.UIUseShared-1781109423537]: 
+          sharedcomponent: C8Oforms.MobileApplication.Application.sharedLabelElem
+          ↓item [ngx.components.UIUseVariable-1781109423540]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.item
+          ↓setStyle [ngx.components.UIUseVariable-1781109423543]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:true
+          ↓Style [ngx.components.UIStyle-1781109423546]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '	overflow: auto;
+                    '
+        ↓Style [ngx.components.UIStyle-1781109423630]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '	display: flex;
+                  	justify-content: space-between;
+                  	align-items: center;
+                  	max-width: 100%;
+                  '
+    ↓Attr3 [ngx.components.UIAttribute-1781109423855]: 
+      attrName: '*ngIf'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: plain:this.global.relaodAgGrid == undefined
   ↓GalleryHost [ngx.components.UIDynamicElement-1781091100012]: 
     beanData: '{"ionBean":"DivTag"}'
     tagName: div

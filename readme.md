@@ -441,6 +441,7 @@ For more technical informations : [documentation](./project.md)
         - [itemForLoopEditor_Elem1](#itemforloopeditor_elem1)
         - [itemForLoopEditorViewer1](#itemforloopeditorviewer1)
         - [itemForLoopEditorViewer_Elem1](#itemforloopeditorviewer_elem1)
+        - [itemGalleryCardsPerLine](#itemgallerycardsperline)
         - [itemGalleryEditor](#itemgalleryeditor)
         - [itemGalleryViewer](#itemgalleryviewer)
         - [itemGridEditor](#itemgrideditor)
@@ -7547,6 +7548,30 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>j</td><td></td>
+</tr>
+</table>
+#### itemGalleryCardsPerLine
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>item</td><td></td>
+</tr>
+<tr>
+<td>main_icn</td><td></td>
+</tr>
+<tr>
+<td>main_title</td><td></td>
+</tr>
+<tr>
+<td>target</td><td></td>
+</tr>
+<tr>
+<td>tooltip</td><td></td>
 </tr>
 </table>
 #### itemGalleryEditor
