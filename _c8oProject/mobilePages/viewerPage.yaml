@@ -8903,6 +8903,149 @@ scriptContent:
         	public cancelReplicatePushResponse(): any {
         		return this.c8o.callJsonObject("fs://c8oforms_response_fs.replicate_push", { cancel: true }).async();
         	}
+        	
+        
+        	private hasOwn(obj: any, key: string): boolean {
+        	  return Object.prototype.hasOwnProperty.call(obj, key);
+        	}
+        
+        	private getCurrentPage(): any {
+        	  return this.local.pages?.[this.local.currentIndex];
+        	}
+        
+        	private isGlobalNavigationEnabled(): boolean {
+        	  return this.form?.globalNavigationEnabled === true;
+        	}
+        
+        	public getNavigationValue<T>(
+        	  key: string,
+        	  defaultValue: T
+        	): T {
+        	  const currentPage = this.getCurrentPage();
+        	  const globalNavigation = this.form?.navigation;
+        
+        	  /**
+        	   * 1. Si la navigation globale est activée,
+        	   * alors la config globale prime.
+        	   *
+        	   * Important :
+        	   * - false est une valeur valide
+        	   * - null / undefined signifient "pas de valeur globale"
+        	   */
+        	  if (this.isGlobalNavigationEnabled()) {
+        	    const hasGlobalValue =
+        	      globalNavigation &&
+        	      this.hasOwn(globalNavigation, key) &&
+        	      globalNavigation[key] !== null &&
+        	      globalNavigation[key] !== undefined;
+        
+        	    if (hasGlobalValue) {
+        	      return globalNavigation[key];
+        	    }
+        	  }
+        
+        	  /**
+        	   * 2. Si la navigation globale est désactivée,
+        	   * ou si la valeur globale est null / undefined,
+        	   * alors la page courante prend le relais.
+        	   */
+        	  const hasPageValue =
+        	    currentPage &&
+        	    this.hasOwn(currentPage, key) &&
+        	    currentPage[key] !== null &&
+        	    currentPage[key] !== undefined;
+        
+        	  if (hasPageValue) {
+        	    return currentPage[key];
+        	  }
+        
+        	  /**
+        	   * 3. Fallback final.
+        	   */
+        	  return defaultValue;
+        	}
+        
+        	public isTabsEnabledAt(position: "top" | "bottom"): boolean {
+        	  if (!this.getCurrentPage()) {
+        	    return false;
+        	  }
+        
+        	  const positionTab = this.getNavigationValue<string>("positionTab", "bottom");
+        	  const enabledTab = this.getNavigationValue<boolean>("enabledTab", false);
+        	  const enabledButtons = this.getNavigationValue<boolean>("enabledButtons", false);
+        	  const positionButtons = this.getNavigationValue<string>("positionButtons", "standard");
+        
+        	  return (
+        	    positionTab === position &&
+        	    (
+        	      enabledTab === true ||
+        	      (
+        	        enabledButtons === true &&
+        	        positionButtons === "tab"
+        	      )
+        	    )
+        	  );
+        	}
+        
+        	public isTopNavigationEnabled(): boolean {
+        	  return this.isTabsEnabledAt("top");
+        	}
+        
+        	public isBottomNavigationEnabled(): boolean {
+        	  return this.isTabsEnabledAt("bottom");
+        	}
+        
+        	public isStandardButtonsNavigationEnabled(): boolean {
+        	  if (!this.getCurrentPage()) {
+        	    return false;
+        	  }
+        
+        	  const enabledButtons = this.getNavigationValue<boolean | undefined>(
+        	    "enabledButtons",
+        	    undefined
+        	  );
+        
+        	  const positionButtons = this.getNavigationValue<string>(
+        	    "positionButtons",
+        	    "standard"
+        	  );
+        
+        	  return (
+        	    positionButtons === "standard" &&
+        	    (
+        	      enabledButtons === undefined ||
+        	      enabledButtons === true
+        	    )
+        	  );
+        	}
+        
+        	public isTabButtonsNavigationEnabled(): boolean {
+        	  if (!this.getCurrentPage()) {
+        	    return false;
+        	  }
+        
+        	  const enabledButtons = this.getNavigationValue<boolean>(
+        	    "enabledButtons",
+        	    false
+        	  );
+        
+        	  const positionButtons = this.getNavigationValue<string>(
+        	    "positionButtons",
+        	    "standard"
+        	  );
+        
+        	  return (
+        	    enabledButtons === true &&
+        	    positionButtons === "tab"
+        	  );
+        	}
+        
+        	public shouldDisplayBottomNavigationOrStandardButtons(): boolean {
+        	  return (
+        	    this.isBottomNavigationEnabled() ||
+        	    this.isStandardButtonsNavigationEnabled()
+        	  );
+        	}
         	/*End_c8o_PageFunction*/
         '
 segment: viewer/:formId/:edit/:i
@@ -10228,7 +10371,7 @@ title: Visualisateur
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: plain:this.form.progressIndicator && !(this.local.pages?.[this.local.currentIndex]?.positionTab == 'top' && (( this.local.pages?.[this.local.currentIndex]?.enabledTab == true) || ( this.local.pages?.[this.local.currentIndex]?.positionButtons == 'tab' && this.local.pages?.[this.local.currentIndex]?.enabledButtons == true)))
+            - MobileSmartSourceType: plain:this.form.progressIndicator && this.isTopNavigationEnabled()
   ↓ToolBar2 [ngx.components.UIDynamicElement-1664292410958]: 
     beanData: '{"ionBean":"ToolBar"}'
     tagName: ion-toolbar
@@ -10237,7 +10380,7 @@ title: Visualisateur
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: plain:this.local.canRespond && (this.local.pages?.[this.local.currentIndex]?.positionTab == 'top' && (( this.local.pages?.[this.local.currentIndex]?.enabledTab == true) || ( this.local.pages?.[this.local.currentIndex]?.positionButtons == 'tab' && this.local.pages?.[this.local.currentIndex]?.enabledButtons == true)))
+          - MobileSmartSourceType: plain:this.local.canRespond && this.isTopNavigationEnabled()
     ↓UseSharedComponent [ngx.components.UIUseShared-1664293057266]: 
       sharedcomponent: C8Oforms.MobileApplication.Application.SharedTabs
     ↓ProgressBar [ngx.components.UIDynamicElement-1733481293296]: 
@@ -11247,7 +11390,7 @@ title: Visualisateur
             directiveSource: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:local.pages?.[local.currentIndex]?.enabledButtons === undefined || (local.pages?.[local.currentIndex]?.enabledButtons === true &&local.pages?.[local.currentIndex]?.positionButtons === 'standard')
+                - MobileSmartSourceType: script:this.isStandardButtonsNavigationEnabled()
             ↓Directive1 [ngx.components.UIControlDirective-1592514107460]: 
               directiveName: If
               directiveSource: 
@@ -13111,4 +13254,4 @@ title: Visualisateur
     attrValue: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: plain:this.local.canRespond && (this.local.pages?.[this.local.currentIndex]?.positionTab == 'bottom' && (( this.local.pages?.[this.local.currentIndex]?.enabledTab == true) || ( this.local.pages?.[this.local.currentIndex]?.positionButtons == 'tab' && this.local.pages?.[this.local.currentIndex]?.enabledButtons == true)))
+        - MobileSmartSourceType: plain:this.local.canRespond && this.isBottomNavigationEnabled()
