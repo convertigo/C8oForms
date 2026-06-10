@@ -6,15 +6,40 @@ scriptContent:
         '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
+        	breakpoints = {
+        		xl: "(min-width: 1200px)",
+        		lg: "(min-width: 992px) and (max-width: 1199px)",
+        		md: "(min-width: 768px) and (max-width: 991px)",
+        		sm: "(min-width: 576px) and (max-width: 767px)",
+        		xs: "(max-width: 575px)"
+        	};
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.local.galleryRowsSignature = "";
+        		this.local.galleryHtmlSignature = "";
+        		this.local.galleryTrustedHtml = null;
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
+        		this.local.currentGalleryBreakpoint = this.getGalleryBreakpoint();
+        		this.local.galleryBreakpointListener = () => {
+        			const breakpoint = this.getGalleryBreakpoint();
+        			if (this.local.currentGalleryBreakpoint !== breakpoint) {
+        				this.local.currentGalleryBreakpoint = breakpoint;
+        				this.local.galleryHtmlSignature = "";
+        				this.ref.detectChanges();
+        			}
+        		};
+        		window.addEventListener("resize", this.local.galleryBreakpointListener);
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
+        		if (this.local.galleryBreakpointListener != null) {
+        			window.removeEventListener("resize", this.local.galleryBreakpointListener);
+        		}
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompChanges*/
+        		if (changes.item?.currentValue?.config != null) {
+        			this.local.galleryHtmlSignature = "";
+        		}
         		/*End_c8o_CompChanges*/
         /*Begin_c8o_CompDoCheck*/
         		this.syncGalleryAllData();
@@ -206,14 +231,54 @@ scriptContent:
         		return columns.find((column) => (column.field || column.headerName) == key || column.headerName == key) || { field: key, headerName: key };
         	}
         	
+        	public prepareGalleryTemplateHtml(template) {
+        		// TinyMCE blank lines may be serialized as <p></p> or <p><span></span></p>:
+        		// mark them and give them a real line box so they survive rendering
+        		try {
+        			const container = document.createElement("div");
+        			container.innerHTML = "" + template;
+        			container.querySelectorAll("p").forEach((p) => {
+        				const text = (p.textContent || "").replace(/\u00a0/g, " ").trim();
+        				if (text == "" && p.querySelector("img,svg,table,div,br") == null) {
+        					p.innerHTML = "&nbsp;";
+        					p.setAttribute("data-gallery-blank", "true");
+        				}
+        			});
+        			return container.innerHTML;
+        		}
+        		catch (e) {
+        			return "" + template;
+        		}
+        	}
+        	
+        	public cleanGalleryRenderedHtml(html) {
+        		// evaluated badges inject block divs inside <p>, the browser parser then
+        		// splits the paragraph and leaves empty <p></p> artifacts: drop them
+        		try {
+        			const container = document.createElement("div");
+        			container.innerHTML = "" + html;
+        			container.querySelectorAll("p:not([data-gallery-blank])").forEach((p) => {
+        				const text = (p.textContent || "").replace(/\u00a0/g, " ").trim();
+        				if (text == "" && p.querySelector("img,svg,table,div,br") == null) {
+        					p.remove();
+        				}
+        			});
+        			return container.innerHTML;
+        		}
+        		catch (e) {
+        			return "" + html;
+        		}
+        	}
+        	
         	public renderGalleryTemplate(template, row, columns, index) {
         		if (template == null || template == "") {
         			return "";
         		}
-        		if (("" + template).indexOf("$$") != -1) {
-        			return this.renderGalleryCurrentForTemplate(template, row, columns, index);
+        		const prepared = this.prepareGalleryTemplateHtml(template);
+        		if (prepared.indexOf("$$") != -1) {
+        			return this.renderGalleryCurrentForTemplate(prepared, row, columns, index);
         		}
-        		return ("" + template).replace(/\{\{\s*(value|column)\s*:\s*([^}]+?)\s*\}\}/g, (match, kind, fieldName) => {
+        		return prepared.replace(/\{\{\s*(value|column)\s*:\s*([^}]+?)\s*\}\}/g, (match, kind, fieldName) => {
         			const column = this.getGalleryColumnByName(columns, fieldName);
         			if (kind == "column") {
         				return this.escapeGalleryHtml(column?.headerName || column?.field || fieldName);
@@ -271,13 +336,53 @@ scriptContent:
         		}
         	}
         	
+        	public isGallerySelectable() {
+        		const returnedValue = this.item?.config?.returned_value;
+        		return this.disabled != true && (returnedValue == "cell_selected" || returnedValue == "row_selected" || returnedValue == "multiple_row_selected");
+        	}
+        	
+        	public getGalleryBreakpoint(): string {
+        		if (window.matchMedia(this.breakpoints.xl).matches) return "xl";
+        		if (window.matchMedia(this.breakpoints.lg).matches) return "lg";
+        		if (window.matchMedia(this.breakpoints.md).matches) return "md";
+        		if (window.matchMedia(this.breakpoints.sm).matches) return "sm";
+        		return "xs";
+        	}
+        	
+        	public normalizeGalleryCardsPerLine(value, fallback) {
+        		const parsed = parseInt(value, 10);
+        		return isNaN(parsed) || parsed < 1 ? fallback : parsed;
+        	}
+        	
+        	public getGalleryCardsPerLine() {
+        		const config = this.item?.config || {};
+        		const desktop = this.normalizeGalleryCardsPerLine(config.cardsPerLine, 1);
+        		const tablet = this.normalizeGalleryCardsPerLine(config.cardsPerLineTablet, desktop);
+        		const phoneL = this.normalizeGalleryCardsPerLine(config.cardsPerLinePhoneL, tablet);
+        		const phoneP = this.normalizeGalleryCardsPerLine(config.cardsPerLinePhoneP, 1);
+        		const breakpoint = this.local.currentGalleryBreakpoint || this.getGalleryBreakpoint();
+        		if (breakpoint == "md") {
+        			return tablet;
+        		}
+        		if (breakpoint == "sm") {
+        			return phoneL;
+        		}
+        		if (breakpoint == "xs") {
+        			return phoneP;
+        		}
+        		return desktop;
+        	}
+        	
         	public getGalleryHtml() {
         		const rows = this.getGalleryRows();
         		const columns = this.getGalleryColumns();
         		const template = this.getConfiguredGalleryTemplate();
         		const hasError = this.redList === true || this.redList?.[this.item?.name] === true;
         		const layoutClass = this.isGalleryInsideLayout() ? "c8o-gallery-layout" : "c8o-gallery-list";
-        		let html = `<div class="c8o-gallery-grid ${layoutClass} ${hasError ? "c8o-gallery-error" : ""}">`;
+        		const selectableClass = this.isGallerySelectable() ? "c8o-gallery-selectable" : "";
+        		const cardsPerLine = this.getGalleryCardsPerLine();
+        		const gridStyle = ` style="--c8o-gallery-cards-per-line: ${cardsPerLine}"`;
+        		let html = `<div class="c8o-gallery-grid ${layoutClass} ${selectableClass} ${hasError ? "c8o-gallery-error" : ""}"${gridStyle}>`;
         		if (rows.length == 0) {
         			html += `<div class="c8o-gallery-empty">${this.escapeGalleryHtml(this.translate.instant("no_result_grid"))}</div>`;
         		}
@@ -285,8 +390,9 @@ scriptContent:
         			const selected = this.isGalleryRowSelected(row);
         			const titleColumn = columns[0];
         			const title = titleColumn != null ? this.getGalleryDisplayValue(this.getGalleryCellRawValue(row, titleColumn)) : "";
-        			html += `<button type="button" class="c8o-gallery-card ${selected ? "c8o-gallery-card-selected" : ""}" data-gallery-index="${index}">`;
         			const renderedTemplate = template != "" ? this.renderGalleryTemplate(template, row, columns, index) : "";
+        			const cardClass = renderedTemplate != "" ? "c8o-gallery-card-custom" : "c8o-gallery-card-fallback";
+        			html += `<button type="button" class="c8o-gallery-card ${cardClass} ${selected ? "c8o-gallery-card-selected" : ""}" data-gallery-index="${index}">`;
         			if (renderedTemplate != "") {
         				html += renderedTemplate;
         			}
@@ -304,6 +410,17 @@ scriptContent:
         		});
         		html += `</div>`;
         		return html;
+        	}
+        	
+        	public getGalleryTrustedHtml() {
+        		// keep a stable SafeHtml reference between change detection cycles, otherwise
+        		// [innerHTML] replaces the DOM on every cycle and card clicks are lost
+        		const html = this.getGalleryHtml();
+        		if (this.local.galleryHtmlSignature != html || this.local.galleryTrustedHtml == null) {
+        			this.local.galleryHtmlSignature = html;
+        			this.local.galleryTrustedHtml = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        		}
+        		return this.local.galleryTrustedHtml;
         	}
         	
         	public syncGalleryAllData() {
@@ -449,7 +566,7 @@ scriptContent:
     beanData: '{"ionBean":"DivTag"}'
     tagName: div
     ↓Fragment [ngx.components.UICustom-1781091100013]: 
-      htmlTemplate: <div class="c8o-gallery-host" [innerHTML]="router.sanitizer.bypassSecurityTrustHtml(getGalleryHtml())" (click)="onGalleryContainerClick($event)"></div>
+      htmlTemplate: <div class="c8o-gallery-host" [innerHTML]="getGalleryTrustedHtml()" (click)="onGalleryContainerClick($event)"></div>
     ↓Style [ngx.components.UIStyle-1781091100014]: 
       styleContent: 
         - xmlizable: 
@@ -459,48 +576,45 @@ scriptContent:
               '	::ng-deep .c8o-gallery-host {
               		width: 100%;
               		display: block;
-              		background: #f4f4f4;
-              		padding: 16px;
               		box-sizing: border-box;
               	}
               	::ng-deep .c8o-gallery-grid {
               		display: grid;
-              		grid-template-columns: 1fr;
-              		gap: 14px;
+              		grid-template-columns: repeat(var(--c8o-gallery-cards-per-line, 1), minmax(0, 1fr));
+              		gap: 12px;
               		width: 100%;
               		align-items: stretch;
               		box-sizing: border-box;
               	}
               	::ng-deep .c8o-gallery-grid.c8o-gallery-layout {
-              		grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
               		gap: 18px;
               	}
               	::ng-deep .c8o-gallery-card {
               		appearance: none;
               		-webkit-appearance: none;
-              		display: flex;
-              		flex-direction: column;
-              		gap: 10px;
+              		display: block;
               		width: 100%;
-              		min-height: 132px;
-              		text-align: left;
+              		margin: 0;
+              		padding: 12px 16px;
               		border: 1px solid #e2e8f0;
               		border-radius: 6px;
               		background: #fff;
-              		color: var(--ion-text-color, #1f2933);
-              		padding: 16px;
-              		cursor: pointer;
-              		box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
-              		box-sizing: border-box;
+              		box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+              		text-align: left;
+              		color: inherit;
               		font: inherit;
-              		line-height: normal;
+              		line-height: inherit;
               		text-transform: none;
-              		transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+              		cursor: default;
+              		box-sizing: border-box;
+              		transition: border-color 120ms ease, box-shadow 120ms ease;
               	}
-              	::ng-deep .c8o-gallery-card:hover {
+              	::ng-deep .c8o-gallery-selectable .c8o-gallery-card {
+              		cursor: pointer;
+              	}
+              	::ng-deep .c8o-gallery-selectable .c8o-gallery-card:hover {
               		border-color: var(--ion-color-primary);
               		box-shadow: 0 6px 18px rgba(var(--ion-color-primary-rgb), 0.14);
-              		transform: translateY(-1px);
               	}
               	::ng-deep .c8o-gallery-card-selected {
               		border-color: var(--ion-color-primary);
@@ -509,7 +623,23 @@ scriptContent:
               	::ng-deep .c8o-gallery-error .c8o-gallery-card {
               		border-color: var(--ion-color-danger);
               	}
-              	::ng-deep .c8o-gallery-card-title {
+              	::ng-deep .c8o-gallery-card p {
+              		margin: 1em 0;
+              	}
+              	::ng-deep .c8o-gallery-card p:first-child {
+              		margin-top: 0;
+              	}
+              	::ng-deep .c8o-gallery-card p:last-child {
+              		margin-bottom: 0;
+              	}
+              	::ng-deep .c8o-gallery-card-fallback {
+              		display: flex;
+              		flex-direction: column;
+              		gap: 10px;
+              		color: var(--ion-text-color, #1f2933);
+              		padding: 16px;
+              	}
+              	::ng-deep .c8o-gallery-card-fallback .c8o-gallery-card-title {
               		display: block;
               		font-weight: 600;
               		font-size: 15px;
@@ -519,26 +649,26 @@ scriptContent:
               		text-overflow: ellipsis;
               		white-space: nowrap;
               	}
-              	::ng-deep .c8o-gallery-card-fields {
+              	::ng-deep .c8o-gallery-card-fallback .c8o-gallery-card-fields {
               		display: flex;
               		flex-direction: column;
               		gap: 8px;
               	}
-              	::ng-deep .c8o-gallery-field {
+              	::ng-deep .c8o-gallery-card-fallback .c8o-gallery-field {
               		display: flex;
               		flex-direction: column;
               		gap: 3px;
               		font-size: 14px;
               		line-height: 18px;
               	}
-              	::ng-deep .c8o-gallery-field-label {
+              	::ng-deep .c8o-gallery-card-fallback .c8o-gallery-field-label {
               		color: #111827;
               		font-weight: 600;
               		overflow: hidden;
               		text-overflow: ellipsis;
               		white-space: nowrap;
               	}
-              	::ng-deep .c8o-gallery-field-value {
+              	::ng-deep .c8o-gallery-card-fallback .c8o-gallery-field-value {
               		color: #1f2933;
               		overflow: hidden;
               		text-overflow: ellipsis;
@@ -548,7 +678,7 @@ scriptContent:
               		border: 1px dashed var(--ion-color-light-shade, #d7d8da);
               		border-radius: 6px;
               		color: var(--ion-color-medium);
-              		background: #fff;
+              		background: transparent;
               		padding: 24px;
               		text-align: center;
               		grid-column: 1 / -1;
