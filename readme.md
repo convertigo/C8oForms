@@ -6007,6 +6007,9 @@ Update the state of a field
 <td>apiCurrentFor</td><td></td>
 </tr>
 <tr>
+<td>apiCurrentForLabel</td><td></td>
+</tr>
+<tr>
 <td>apiForm</td><td></td>
 </tr>
 <tr>
@@ -6099,6 +6102,9 @@ Update the state of a field
 </tr>
 <tr>
 <td>apiCurrentFor</td><td></td>
+</tr>
+<tr>
+<td>apiCurrentForLabel</td><td></td>
 </tr>
 <tr>
 <td>apiForm</td><td></td>
@@ -9844,6 +9850,9 @@ This component represents a toolbar UI similar to the provided image. It include
 </tr>
 <tr>
 <td>currentElement</td><td></td>
+</tr>
+<tr>
+<td>galleryTemplate</td><td></td>
 </tr>
 <tr>
 <td>graphic</td><td></td>

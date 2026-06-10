@@ -746,17 +746,43 @@ scriptContent:
         					try {
         						//get pos
         						let ev = _this.findClickedPosition(editor, e);
+        						// gallery template badges target the current card row, not the item value
+        						const existingBadgePath = targetToReplace?.getAttribute?.("c8opath") || "";
+        						const isGalleryTemplateBadge = existingBadgePath.indexOf("api.currentFor.element") == 0;
+        						if (isGalleryTemplateBadge) {
+        							// toolbox badges carry id 1: resolve the gallery item being edited
+        							const selectedElement = _this.getElementById(+_this.idselected);
+        							if (selectedElement?.type == "gallery") {
+        								currentElement = selectedElement;
+        							}
+        						}
         						// define response handler
         						let handler = (res, builtin, isObject = false) => {
+        							let badgePath = res;
+        							let badgeName = currentElement.name;
+        							if (isGalleryTemplateBadge) {
+        								let remainder = "" + res;
+        								if (remainder.indexOf(currentElement.name + ".") == 0) {
+        									remainder = remainder.substring(currentElement.name.length + 1);
+        								}
+        								const segments = remainder.split(".");
+        								let property = null;
+        								if (segments.length > 1 && ["displayName", "displayValue", "value"].indexOf(segments[segments.length - 1]) != -1) {
+        									property = segments.pop();
+        								}
+        								const fieldName = segments.join(".");
+        								badgePath = "api.currentFor.element[''" + fieldName.replace(/\\/g, "\\\\").replace(/''/g, "\\''") + "'']" + (property != null ? "." + property : "");
+        								badgeName = fieldName + (property != null ? "." + property : "");
+        							}
         							// create new badge
-        							const dataI = _this.getBadge(id, currentElement.name, { c8otype: "path", c8opath: res, c8oPrettyPath: "", c8obuiltin: builtin, c8oisobject: isObject }, false, editor.inline ? "" : "html");
+        							const dataI = _this.getBadge(id, badgeName, { c8otype: "path", c8opath: badgePath, c8oPrettyPath: "", c8obuiltin: builtin, c8oisobject: isObject }, false, editor.inline ? "" : "html");
         							_this.replaceTinyBadgeFromTreeview(editor, targetToReplace, dataI);
         						}
         						//create modal
         						let modalController = _this.getInstance(ModalController);
         						let popover = await modalController.create({
         							component: C8Oforms_TreeviewContent,
-        							componentProps: { tree: null, ''name'': e.target.parentElement.textContent, ''path'': currentElement.name, handler: handler, currentElement: currentElement, graphic: true, showHeader: true },
+        							componentProps: { tree: null, ''name'': e.target.parentElement.textContent, ''path'': currentElement.name, handler: handler, currentElement: currentElement, graphic: true, showHeader: true, galleryTemplate: isGalleryTemplateBadge },
         							cssClass: "modalCSV"
         						});
         						_this.ref.detectChanges();
@@ -5179,7 +5205,7 @@ scriptContent:
         					str += ''<'' + this.local.tagName + '' '' + this.local.tagId + ''="'' + id + ''" fakeId="'' + uniqueId + ''" class="styleBadge badge badge-md badge-md-'' + color + '' '' + uniqueId + ''" color="'' + color + `" contenteditable="false" style="${badgeStyle}" c8otype="${"path"}" c8opath="${meta.c8opath != undefined ? meta.c8opath : ""}", c8oPrettyPath="${meta.c8oPrettyPath != undefined ? meta.c8oPrettyPath : ""}",  c8obuiltin="${meta.c8obuiltin != undefined ? meta.c8obuiltin : ""}">` + this.getStringForPath(meta, name) + button + ''</'' + this.local.tagName + ''>'';
         					break;
         				case undefined:
-        					str += ''<'' + this.local.tagName + '' '' + this.local.tagId + ''="'' + id + ''" fakeId=${uniqueId} class="styleBadge badge badge-md badge-md-'' + color + '' '' + uniqueId + ''" color="'' + color + `" contenteditable="false" style="${badgeStyle}" c8otype="${"path"}" c8opath="${meta.c8opath != undefined ? meta.c8opath : ""}" c8oname="${name}"> ` + icnText + "&nbsp;" + name + ''</'' + this.local.tagName + ''>'';
+        					str += ''<'' + this.local.tagName + '' '' + this.local.tagId + ''="'' + id + ''" fakeId=${uniqueId} class="styleBadge badge badge-md badge-md-'' + color + '' '' + uniqueId + ''" color="'' + color + `" contenteditable="false" style="${badgeStyle}" c8otype="${"path"}" c8opath="${meta.c8opath != undefined ? meta.c8opath : ""}" c8oname="${name}"> ` + icnText + "&nbsp;" + name + (("" + (meta.c8opath != undefined ? meta.c8opath : "")).indexOf("api.currentFor.") == 0 ? button : "") + ''</'' + this.local.tagName + ''>'';
         					break;
         				default:
         					str += ''<'' + this.local.tagName + '' '' + this.local.tagId + ''="'' + id + ''" fakeId=${uniqueId} class="styleBadge badge badge-md badge-md-'' + color + '' '' + uniqueId + ''" color="'' + color + `" contenteditable="false" style="${badgeStyle}" c8otype="${"path"}" c8opath="${meta.c8opath != undefined ? meta.c8opath : ""}"> ` + icnText + "&nbsp;" + name + ''</'' + this.local.tagName + ''>'';
