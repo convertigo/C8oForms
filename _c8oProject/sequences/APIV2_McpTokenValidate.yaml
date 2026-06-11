@@ -1,0 +1,172 @@
+accessibility: Hidden
+comment: |
+  Validate an MCP JWT after the MCP project has decoded it.
+  The signature is verified against the secret stored in the target user's C8Oreserved document.
+↓ValidateMcpToken [steps.SimpleStep-1893000004001]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    var Base64 = java.util.Base64;
+    var MessageDigest = java.security.MessageDigest;
+    var Mac = javax.crypto.Mac;
+    var SecretKeySpec = javax.crypto.spec.SecretKeySpec;
+    var SimpleDateFormat = java.text.SimpleDateFormat;
+    var TimeZone = java.util.TimeZone;
+    
+    var result = {
+    	status: "error",
+    	authenticated: false,
+    	error: {
+    		code: "invalid_token",
+    		message: "MCP token is invalid."
+    	}
+    };
+    
+    function fail(code, message) {
+    	result = {
+    		status: "error",
+    		authenticated: false,
+    		error: {
+    			code: code,
+    			message: message
+    		}
+    	};
+    }
+    
+    function sign(data, secretKey) {
+    	var mac = Mac.getInstance("HmacSHA256");
+    	var keySpec = new SecretKeySpec(new java.lang.String(String(secretKey)).getBytes("UTF-8"), "HmacSHA256");
+    	mac.init(keySpec);
+    	return String(Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(new java.lang.String(String(data)).getBytes("UTF-8"))));
+    }
+    
+    function sha256(value) {
+    	var digest = MessageDigest.getInstance("SHA-256");
+    	return String(Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest(new java.lang.String(String(value)).getBytes("UTF-8"))));
+    }
+    
+    function isoDate(ms) {
+    	var format = new SimpleDateFormat("yyyy-MM-dd''T''HH:mm:ss''Z''");
+    	format.setTimeZone(TimeZone.getTimeZone("UTC"));
+    	return String(format.format(new java.util.Date(ms)));
+    }
+    
+    function normalizeTokenList(tokens) {
+    	if (tokens == null) {
+    		return [];
+    	}
+    	return Array.isArray(tokens) ? tokens : [tokens];
+    }
+    
+    try {
+    	var header = JSON.parse(headerJson == null ? "{}" : String(headerJson));
+    	var payload = JSON.parse(payloadJson == null ? "{}" : String(payloadJson));
+    	var tokenSigningInput = signingInput == null ? "" : String(signingInput);
+    	var tokenSignature = signature == null ? "" : String(signature);
+    	var nowSeconds = Math.floor(new Date().getTime() / 1000);
+    
+    	if (String(header.alg || "") !== "HS256") {
+    		fail("unsupported_token_algorithm", "MCP token must use HS256.");
+    	}
+    	else if (String(header.typ || "JWT").toUpperCase() !== "JWT") {
+    		fail("unsupported_token_type", "MCP token must be a JWT.");
+    	}
+    	else if (String(payload.iss || "") !== "C8Oforms") {
+    		fail("invalid_token_issuer", "MCP token issuer is invalid.");
+    	}
+    	else if (String(payload.aud || "") !== "ConvertigoMCP") {
+    		fail("invalid_token_audience", "MCP token audience is invalid.");
+    	}
+    	else if (payload.exp != null && nowSeconds > Number(payload.exp)) {
+    		fail("expired_token", "MCP token has expired.");
+    	}
+    	else if (payload.nbf != null && nowSeconds < Number(payload.nbf)) {
+    		fail("token_not_yet_valid", "MCP token is not valid yet.");
+    	}
+    	else {
+    		var userId = String(payload.sub || payload.user || payload.userId || "").trim();
+    		var tokenId = String(header.kid || payload.kid || "").trim();
+    		var jti = String(payload.jti || "").trim();
+    		if (!userId.length) {
+    			fail("missing_user", "MCP token does not contain a user id.");
+    		}
+    		else if (!tokenId.length) {
+    			fail("missing_token_id", "MCP token does not contain a token id.");
+    		}
+    		else if (!jti.length) {
+    			fail("missing_token_jti", "MCP token does not contain a token identifier.");
+    		}
+    		else {
+    			var doc = toJSON(fsclient.getDocument("c8oforms_fs", "C8Oreserved_" + userId));
+    			var mcp = doc && doc.mcp ? doc.mcp : {};
+    			if (mcp.signature == null || String(mcp.signature).length === 0) {
+    				fail("missing_signature", "MCP token signing key is missing.");
+    			}
+    			else {
+    				var expectedSignature = sign(tokenSigningInput, mcp.signature);
+    				if (expectedSignature !== tokenSignature) {
+    					fail("invalid_token_signature", "MCP token signature is invalid.");
+    				}
+    				else {
+    					var tokens = normalizeTokenList(mcp.tokens);
+    					var token = null;
+    					var jtiHash = sha256(jti);
+    					for (var i = 0; i < tokens.length; i++) {
+    						if (String(tokens[i].id || "") === tokenId && String(tokens[i].jtiHash || "") === jtiHash) {
+    							token = tokens[i];
+    							break;
+    						}
+    					}
+    					if (token == null) {
+    						fail("token_not_found", "MCP token was not found.");
+    					}
+    					else if (token.revokedAt != null && String(token.revokedAt).length > 0) {
+    						fail("revoked_token", "MCP token has been revoked.");
+    					}
+    					else {
+    						token.lastUsedAt = isoDate(new Date().getTime());
+    						doc.mcp.tokens = tokens;
+    						fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(doc), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false);
+    						result = {
+    							status: "ok",
+    							authenticated: true,
+    							user: userId,
+    							payload: {
+    								user: userId,
+    								scope: payload.scope || "forms:write",
+    								iat: payload.iat == null ? null : payload.iat,
+    								exp: payload.exp == null ? null : payload.exp
+    							}
+    						};
+    					}
+    				}
+    			}
+    		}
+    	}
+    }
+    catch (e) {
+    	fail("invalid_token", String(e));
+    }
+    '
+↓Result [steps.JsonToXmlStep-1893000004002]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: result
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: result
+↓headerJson [variables.RequestableVariable-1893000004003]: 
+  comment: Decoded JWT header serialized as JSON.
+↓payloadJson [variables.RequestableVariable-1893000004004]: 
+  comment: Decoded JWT payload serialized as JSON.
+↓signingInput [variables.RequestableVariable-1893000004005]: 
+  comment: JWT signing input, header and payload base64url parts.
+↓signature [variables.RequestableVariable-1893000004006]: 
+  comment: JWT signature base64url part.

@@ -118,7 +118,11 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/78fb392c8cfa
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
+<<<<<<< HEAD
 see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/2942b6686fedc759707cd50d76af6ac19fff4a6d#readme)
+=======
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/5c69ff41174b37102a3a45709dc584747b7f77cf#readme)
+>>>>>>> refs/remotes/origin/feature/#1404
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
@@ -5979,6 +5983,132 @@ comment
 </td>
 <td>
 
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_McpTokenCreate</b> : Create a named MCP token for the connected user</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_McpTokenCreate
+
+Create a named MCP token for the connected user.
+The raw JWT is returned only once; only metadata and the signing secret are stored in the user document.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;name
+</td>
+<td>
+User-visible token name.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_McpTokenList</b> : List MCP token metadata for the connected user</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_McpTokenList
+
+List MCP token metadata for the connected user.
+Returns the MCP endpoint and client setup instructions without exposing secrets.
+</p></blockquote></details>
+
+<details><summary><b>APIV2_McpTokenRevoke</b> : Revoke one named MCP token for the connected user</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_McpTokenRevoke
+
+Revoke one named MCP token for the connected user.
+The token metadata remains visible with a revoked status.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;tokenId
+</td>
+<td>
+Identifier of the MCP token to revoke.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_McpTokenValidate</b> : Validate an MCP JWT after the MCP project has decoded it</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_McpTokenValidate
+
+Validate an MCP JWT after the MCP project has decoded it.
+The signature is verified against the secret stored in the target user's C8Oreserved document.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;headerJson
+</td>
+<td>
+Decoded JWT header serialized as JSON.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;payloadJson
+</td>
+<td>
+Decoded JWT payload serialized as JSON.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;signature
+</td>
+<td>
+JWT signature base64url part.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;signingInput
+</td>
+<td>
+JWT signing input, header and payload base64url parts.
 </td>
 </tr>
 </table>

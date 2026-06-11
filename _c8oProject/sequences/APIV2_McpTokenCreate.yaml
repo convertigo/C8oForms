@@ -1,0 +1,203 @@
+accessibility: Hidden
+authenticatedContextRequired: true
+comment: |
+  Create a named MCP token for the connected user.
+  The raw JWT is returned only once; only metadata and the signing secret are stored in the user document.
+↓CreateMcpToken [steps.SimpleStep-1893000002001]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    var Base64 = java.util.Base64;
+    var SecureRandom = java.security.SecureRandom;
+    var MessageDigest = java.security.MessageDigest;
+    var Mac = javax.crypto.Mac;
+    var SecretKeySpec = javax.crypto.spec.SecretKeySpec;
+    var UUID = java.util.UUID;
+    var SimpleDateFormat = java.text.SimpleDateFormat;
+    var TimeZone = java.util.TimeZone;
+    
+    var authenticatedUserID = context.getAuthenticatedUser();
+    var result = {
+    	status: "error",
+    	error: {
+    		code: "token_creation_failed",
+    		message: "MCP token could not be created."
+    	}
+    };
+    
+    function base64Url(value) {
+    	return String(Base64.getUrlEncoder().withoutPadding().encodeToString(new java.lang.String(String(value)).getBytes("UTF-8")));
+    }
+    
+    function randomBase64Url(size) {
+    	var random = new SecureRandom();
+    	var bytes = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, size);
+    	random.nextBytes(bytes);
+    	return String(Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
+    }
+    
+    function sign(data, secretKey) {
+    	var mac = Mac.getInstance("HmacSHA256");
+    	var keySpec = new SecretKeySpec(new java.lang.String(String(secretKey)).getBytes("UTF-8"), "HmacSHA256");
+    	mac.init(keySpec);
+    	return String(Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(new java.lang.String(String(data)).getBytes("UTF-8"))));
+    }
+    
+    function sha256(value) {
+    	var digest = MessageDigest.getInstance("SHA-256");
+    	return String(Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest(new java.lang.String(String(value)).getBytes("UTF-8"))));
+    }
+    
+    function isoDate(ms) {
+    	var format = new SimpleDateFormat("yyyy-MM-dd''T''HH:mm:ss''Z''");
+    	format.setTimeZone(TimeZone.getTimeZone("UTC"));
+    	return String(format.format(new java.util.Date(ms)));
+    }
+    
+    function normalizeTokenList(tokens) {
+    	if (tokens == null) {
+    		return [];
+    	}
+    	return Array.isArray(tokens) ? tokens : [tokens];
+    }
+    
+    function publicToken(token) {
+    	token = token || {};
+    	return {
+    		id: token.id || "",
+    		name: token.name || "",
+    		createdAt: token.createdAt || "",
+    		expiresAt: token.expiresAt || "",
+    		lastUsedAt: token.lastUsedAt || "",
+    		revokedAt: token.revokedAt || "",
+    		status: token.revokedAt != undefined && String(token.revokedAt).length > 0 ? "revoked" : "active",
+    		scope: token.scope || "forms:write"
+    	};
+    }
+    
+    function getMcpUrl() {
+    	try {
+    		var base = String(context.getConvertigoUrl() || "").replace(/\/+$/, "");
+    		if (base.length > 0) {
+    			return base + "/api/mcp";
+    		}
+    	}
+    	catch (e) {}
+    	return "http://localhost:18082/convertigo/api/mcp";
+    }
+    
+    try {
+    	var tokenName = name == null ? "" : String(name).trim();
+    	if (!tokenName.length) {
+    		result = {
+    			status: "error",
+    			error: {
+    				code: "missing_token_name",
+    				message: "MCP token label is required."
+    			}
+    		};
+    	}
+    	else {
+    		if (tokenName.length > 80) {
+    			tokenName = tokenName.substring(0, 80);
+    		}
+    	
+    		var docId = "C8Oreserved_" + authenticatedUserID;
+    		var doc;
+    		try {
+    			doc = toJSON(fsclient.getDocument("c8oforms_fs", docId));
+    		}
+    		catch (e) {
+    			doc = {_id: docId};
+    		}
+    		if (doc == null || doc.error != undefined) {
+    			doc = {_id: docId};
+    		}
+    		if (doc.mcp == null) {
+    			doc.mcp = {};
+    		}
+    		if (doc.mcp.signature == null || String(doc.mcp.signature).length < 32) {
+    			doc.mcp.signature = randomBase64Url(48);
+    		}
+    		var tokens = normalizeTokenList(doc.mcp.tokens);
+    	
+    		var nowMs = new Date().getTime();
+    		var nowSeconds = Math.floor(nowMs / 1000);
+    		var expiresSeconds = nowSeconds + (365 * 24 * 60 * 60);
+    		var tokenId = "mcp_" + String(UUID.randomUUID()).replace(/-/g, "");
+    		var jti = String(UUID.randomUUID());
+    		var header = {
+    			alg: "HS256",
+    			typ: "JWT",
+    			kid: tokenId
+    		};
+    		var payload = {
+    			iss: "C8Oforms",
+    			aud: "ConvertigoMCP",
+    			sub: authenticatedUserID,
+    			user: authenticatedUserID,
+    			jti: jti,
+    			iat: nowSeconds,
+    			nbf: nowSeconds,
+    			exp: expiresSeconds,
+    			scope: "forms:write"
+    		};
+    		var signingInput = base64Url(JSON.stringify(header)) + "." + base64Url(JSON.stringify(payload));
+    		var token = signingInput + "." + sign(signingInput, doc.mcp.signature);
+    		var tokenMeta = {
+    			id: tokenId,
+    			name: tokenName,
+    			jtiHash: sha256(jti),
+    			createdAt: isoDate(nowMs),
+    			expiresAt: isoDate(expiresSeconds * 1000),
+    			lastUsedAt: "",
+    			revokedAt: "",
+    			scope: "forms:write"
+    		};
+    	
+    		tokens.push(tokenMeta);
+    		doc.mcp.tokens = tokens;
+    		fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(doc), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false);
+    	
+    		var publicTokens = [];
+    		for (var i = 0; i < tokens.length; i++) {
+    			publicTokens.push(publicToken(tokens[i]));
+    		}
+    		var mcpUrl = getMcpUrl();
+    		result = {
+    			status: "ok",
+    			token: token,
+    			tokenInfo: publicToken(tokenMeta),
+    			tokens: publicTokens,
+    			mcpUrl: mcpUrl,
+    			instructions: "Copy this token now. It will not be shown again after you leave this page.",
+    			configSnippet: "[mcp_servers.convertigo]\nurl = \"" + mcpUrl + "\"\nstartup_timeout_sec = 60"
+    		};
+    	}
+    }
+    catch (e) {
+    	result = {
+    		status: "error",
+    		error: {
+    			code: "token_creation_failed",
+    			message: String(e)
+    		}
+    	};
+    }
+    '
+↓Result [steps.JsonToXmlStep-1893000002002]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: result
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: result
+↓name [variables.RequestableVariable-1893000002003]: 
+  comment: User-visible token name.
