@@ -12698,6 +12698,22 @@ comment
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;apiCurrentFor
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;apiCurrentForLabel
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;apiForm
 </td>
 <td>
@@ -12935,6 +12951,14 @@ comment
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;apiCurrentFor
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;apiCurrentForLabel
 </td>
 <td>
 
@@ -16645,6 +16669,216 @@ comment
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;j
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>itemGalleryCardsPerLine</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") itemGalleryCardsPerLine
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;item
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;main_icn
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;main_title
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;target
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;tooltip
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>itemGalleryEditor</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") itemGalleryEditor
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;form
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;idChildren
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;idForm
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;idselected
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;isChild
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;item
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;sectionSelected
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;tabselected
+</td>
+<td>
+
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>itemGalleryViewer</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uisharedcomponent_16x16.png?raw=true "UISharedRegularComponent") itemGalleryViewer
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;disabled
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;item
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;model
+</td>
+<td>
+this.formsSubmit[item['name']]
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;outModel
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;redList
 </td>
 <td>
 
@@ -22295,6 +22529,14 @@ comment
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;currentElement
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;galleryTemplate
 </td>
 <td>
 
