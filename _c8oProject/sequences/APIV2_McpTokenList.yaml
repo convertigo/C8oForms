@@ -1,0 +1,77 @@
+accessibility: Hidden
+authenticatedContextRequired: true
+comment: |
+  List MCP token metadata for the connected user.
+  Returns the MCP endpoint and client setup instructions without exposing secrets.
+↓ListMcpTokens [steps.SimpleStep-1893000001001]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    var authenticatedUserID = context.getAuthenticatedUser();
+    var result = {
+    	status: "ok",
+    	mcpUrl: "http://localhost:18082/convertigo/api/mcp",
+    	instructions: "Create a token, copy it once, then paste it in your MCP-compatible client.",
+    	configSnippet: "[mcp_servers.convertigo]\nurl = \"http://localhost:18082/convertigo/api/mcp\"\nstartup_timeout_sec = 60",
+    	tokens: []
+    };
+    
+    function normalizeTokenList(tokens) {
+    	if (tokens == null) {
+    		return [];
+    	}
+    	return Array.isArray(tokens) ? tokens : [tokens];
+    }
+    
+    function publicToken(token) {
+    	token = token || {};
+    	return {
+    		id: token.id || "",
+    		name: token.name || "",
+    		createdAt: token.createdAt || "",
+    		expiresAt: token.expiresAt || "",
+    		lastUsedAt: token.lastUsedAt || "",
+    		revokedAt: token.revokedAt || "",
+    		status: token.revokedAt != undefined && String(token.revokedAt).length > 0 ? "revoked" : "active",
+    		scope: token.scope || "forms:write"
+    	};
+    }
+    
+    function getMcpUrl() {
+    	try {
+    		var base = String(context.getConvertigoUrl() || "").replace(/\/+$/, "");
+    		if (base.length > 0) {
+    			return base + "/api/mcp";
+    		}
+    	}
+    	catch (e) {}
+    	return "http://localhost:18082/convertigo/api/mcp";
+    }
+    
+    try {
+    	result.mcpUrl = getMcpUrl();
+    	result.configSnippet = "[mcp_servers.convertigo]\nurl = \"" + result.mcpUrl + "\"\nstartup_timeout_sec = 60";
+    	var doc = toJSON(fsclient.getDocument("c8oforms_fs", "C8Oreserved_" + authenticatedUserID));
+    	var tokens = normalizeTokenList(doc && doc.mcp ? doc.mcp.tokens : []);
+    	for (var i = 0; i < tokens.length; i++) {
+    		result.tokens.push(publicToken(tokens[i]));
+    	}
+    }
+    catch (e) {
+    	result.tokens = [];
+    }
+    '
+↓Result [steps.JsonToXmlStep-1893000001002]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: result
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: result

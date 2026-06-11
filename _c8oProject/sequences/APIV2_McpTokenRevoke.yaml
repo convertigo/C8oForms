@@ -1,0 +1,110 @@
+accessibility: Hidden
+authenticatedContextRequired: true
+comment: |
+  Revoke one named MCP token for the connected user.
+  The token metadata remains visible with a revoked status.
+↓RevokeMcpToken [steps.SimpleStep-1893000003001]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    
+    var SimpleDateFormat = java.text.SimpleDateFormat;
+    var TimeZone = java.util.TimeZone;
+    var authenticatedUserID = context.getAuthenticatedUser();
+    var result = {
+    	status: "error",
+    	error: {
+    		code: "token_revoke_failed",
+    		message: "MCP token could not be revoked."
+    	},
+    	tokens: []
+    };
+    
+    function isoDate(ms) {
+    	var format = new SimpleDateFormat("yyyy-MM-dd''T''HH:mm:ss''Z''");
+    	format.setTimeZone(TimeZone.getTimeZone("UTC"));
+    	return String(format.format(new java.util.Date(ms)));
+    }
+    
+    function normalizeTokenList(tokens) {
+    	if (tokens == null) {
+    		return [];
+    	}
+    	return Array.isArray(tokens) ? tokens : [tokens];
+    }
+    
+    function publicToken(token) {
+    	token = token || {};
+    	return {
+    		id: token.id || "",
+    		name: token.name || "",
+    		createdAt: token.createdAt || "",
+    		expiresAt: token.expiresAt || "",
+    		lastUsedAt: token.lastUsedAt || "",
+    		revokedAt: token.revokedAt || "",
+    		status: token.revokedAt != undefined && String(token.revokedAt).length > 0 ? "revoked" : "active",
+    		scope: token.scope || "forms:write"
+    	};
+    }
+    
+    try {
+    	var docId = "C8Oreserved_" + authenticatedUserID;
+    	var id = tokenId == null ? "" : String(tokenId);
+    	var doc = toJSON(fsclient.getDocument("c8oforms_fs", docId));
+    	var tokens = normalizeTokenList(doc && doc.mcp ? doc.mcp.tokens : []);
+    	var found = false;
+    	for (var i = 0; i < tokens.length; i++) {
+    		if (String(tokens[i].id || "") === id) {
+    			tokens[i].revokedAt = tokens[i].revokedAt && String(tokens[i].revokedAt).length > 0 ? tokens[i].revokedAt : isoDate(new Date().getTime());
+    			found = true;
+    		}
+    	}
+    	if (!found) {
+    		result = {
+    			status: "error",
+    			error: {
+    				code: "token_not_found",
+    				message: "MCP token was not found."
+    			},
+    			tokens: []
+    		};
+    	}
+    	else {
+    		doc.mcp.tokens = tokens;
+    		fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(doc), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false);
+    		var publicTokens = [];
+    		for (var j = 0; j < tokens.length; j++) {
+    			publicTokens.push(publicToken(tokens[j]));
+    		}
+    		result = {
+    			status: "ok",
+    			tokens: publicTokens
+    		};
+    	}
+    }
+    catch (e) {
+    	result = {
+    		status: "error",
+    		error: {
+    			code: "token_revoke_failed",
+    			message: String(e)
+    		},
+    		tokens: []
+    	};
+    }
+    '
+↓Result [steps.JsonToXmlStep-1893000003002]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: result
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: result
+↓tokenId [variables.RequestableVariable-1893000003003]: 
+  comment: Identifier of the MCP token to revoke.
