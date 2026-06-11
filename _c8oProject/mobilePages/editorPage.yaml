@@ -8256,19 +8256,54 @@ scriptContent:
         	  return Object.prototype.hasOwnProperty.call(obj, key);
         	}
         
-        	private getCurrentPage(): any {
-        	  return this.local.pages?.[this.local.currentIndex];
+        	private getCurrentPage(index = -1): any {
+        	  return this.local.pages?.[((index != -1) ? index : this.local.currentIndex)];
         	}
         
         	private isGlobalNavigationEnabled(): boolean {
         	  return this.form?.globalNavigationEnabled === true;
         	}
+        	
+        	private isIndividualNavigationEnabled(index = -1): boolean {
+        	  return this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.individualNavigation === true;
+        	}
+        	
+        	public isAllPagesIncluded(): boolean {
+        		return this.form.pages.filter(it => it?.included).length > 0;
+        	}
+        	
+        	public isNavigationsEquals(index = -1): boolean {
+        		return (
+        			(this.form?.navigation?.included == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.included)
+        			&&
+        			(this.form?.navigation?.positionTab == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.positionTab)
+        			&&
+        			(this.form?.navigation?.enabledTab == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.enabledTab)
+        			&&
+        			(this.form?.navigation?.enabledButtons == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.enabledButtons)
+        			&&
+        			(this.form?.navigation?.positionButtons == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.positionButtons)
+        			&&
+        			(this.form?.navigation?.checkMandatoryInCurrentPage == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.checkMandatoryInCurrentPage)
+        		)
+        	}
+        	
+        	public applyConfigurationToGlobal(index = -1) {
+        		this.form.navigation.included = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.included;
+        		this.form.navigation.positionTab = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.positionTab;
+        		this.form.navigation.enabledTab = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.enabledTab;
+        		this.form.navigation.enabledButtons = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.enabledButtons;
+        		this.form.navigation.positionButtons = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.positionButtons;
+        		this.form.navigation.checkMandatoryInCurrentPage = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.checkMandatoryInCurrentPage;
+        		this.form.navigation.appliedConfiguration = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.appliedConfiguration;
+        	}
         
         	public getNavigationValue<T>(
         	  key: string,
-        	  defaultValue: T
+        	  defaultValue: T,
+        	  index = -1
         	): T {
-        	  const currentPage = this.getCurrentPage();
+        	  const currentPage = this.getCurrentPage(index);
         	  const globalNavigation = this.form?.navigation;
         
         	  /**
@@ -8279,7 +8314,7 @@ scriptContent:
         	   * - false est une valeur valide
         	   * - null / undefined signifient "pas de valeur globale"
         	   */
-        	  if (this.isGlobalNavigationEnabled()) {
+        	  if (this.isGlobalNavigationEnabled() && !this.isIndividualNavigationEnabled()) {
         	    const hasGlobalValue =
         	      globalNavigation &&
         	      this.hasOwn(globalNavigation, key) &&
@@ -8323,14 +8358,23 @@ scriptContent:
         	  const positionButtons = this.getNavigationValue<string>("positionButtons", "standard");
         
         	  return (
-        	    positionTab === position &&
-        	    (
-        	      enabledTab === true ||
-        	      (
-        	        enabledButtons === true &&
-        	        positionButtons === "tab"
-        	      )
-        	    )
+        		(positionTab === position &&
+        		(
+        		  enabledTab === true ||
+        		  (
+        			(
+        		    enabledButtons === true &&
+        		    positionButtons === "tab"
+        			)
+        		  )
+        		))
+        		||
+        		(position === "bottom" &&
+        			(
+        			enabledButtons === true &&
+        			positionButtons === "standard"
+        			)
+        		)
         	  );
         	}
         
@@ -8381,6 +8425,7 @@ scriptContent:
         	    "standard"
         	  );
         
+        //	  console.log(enabledButtons, positionButtons)
         	  return (
         	    enabledButtons === true &&
         	    positionButtons === "tab"
@@ -13405,7 +13450,7 @@ title: Title for editor
                                       '		let list = page[''form''][''pages''].map(x=> x.name);
                                       		let name = page.getNameDispo("Page ", list, true);
                                       		// iconName oldly set to "book-outline"
-                                      		page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", iconName: "sticky-note", checkMandatoryInCurrentPage: true });
+                                      		page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", iconName: "sticky-note", checkMandatoryInCurrentPage: true , individualNavigation: false});
                                       		resolve();
                                       '
                               ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1780583331068]: 
@@ -18032,7 +18077,7 @@ title: Title for editor
                                 attrValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: plain:this.isTabsEnabledAt('top')
+                                    - MobileSmartSourceType: plain:this.isTabsEnabledAt('top') && ( (this.getNavigationValue('included', true) && this.form?.globalNavigationEnabled) || (this.isAllPagesIncluded() && !this.form?.globalNavigationEnabled) )
                               ↓Style [ngx.components.UIStyle-1775137264959]: 
                                 styleContent: 
                                   - xmlizable: 
@@ -26570,31 +26615,48 @@ title: Title for editor
                                           ↓TextItem [ngx.components.UIDynamicElement-1781105002629]: 
                                             beanData: '{"ionBean":"TextItem"}'
                                             tagName: ion-text
-                                            ↓Icon [ngx.components.UIDynamicElement-1781105002632]: 
-                                              beanData: |
-                                                '{
-                                                 "ionBean": "Icon",
-                                                 "IconName": "plain",
-                                                 "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/triangle-alert.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
-                                                }'
-                                              tagName: ion-icon
-                                              ↓Style [ngx.components.UIStyle-1781105002635]: 
+                                            ↓Div [ngx.components.UIDynamicElement-1781190631035]: 
+                                              beanData: '{"ionBean":"DivTag"}'
+                                              tagName: div
+                                              ↓Icon [ngx.components.UIDynamicElement-1781105002632]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "Icon",
+                                                   "IconName": "plain",
+                                                   "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/triangle-alert.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                                                  }'
+                                                tagName: ion-icon
+                                                ↓Style [ngx.components.UIStyle-1781105002635]: 
+                                                  styleContent: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '	width: 16px;
+                                                          	height: 16px;
+                                                          	min-width: 16px;
+                                                          	color: var(--ion-color-warning);
+                                                          '
+                                              ↓Text [ngx.components.UIText-1781105002638]: 
+                                                i18n: true
+                                                textValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:alert_global_nav_enabled
+                                              ↓Style [ngx.components.UIStyle-1781190671233]: 
                                                 styleContent: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                       →: |
-                                                        '	width: 16px;
-                                                        	height: 16px;
-                                                        	min-width: 16px;
-                                                        	color: var(--ion-color-warning);
+                                                        '	display: flex;
+                                                        	gap: 6px;
+                                                        	align-items: flex-start;
+                                                        	width: 100%;
+                                                        	margin-bottom: 6px;
+                                                        	padding-bottom: 8px;
+                                                        	border-bottom: 1px solid var(--ion-color-warning);
                                                         '
-                                            ↓Text [ngx.components.UIText-1781105002638]: 
-                                              i18n: true
-                                              textValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:alert_global_nav_enabled
                                             ↓Style [ngx.components.UIStyle-1781105002641]: 
                                               styleContent: 
                                                 - xmlizable: 
@@ -26602,9 +26664,9 @@ title: Title for editor
                                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                     →: |
                                                       '	display: flex;
+                                                      	flex-direction: column;
                                                       	gap: 6px;
-                                                      	align-items: flex-start;
-                                                      	padding: 8px 6px;
+                                                      	padding: 8px 12px;
                                                       	border: 1px solid var(--ion-color-warning);
                                                       	color: var(--ion-color-warning);
                                                       	border-radius: 10px;
@@ -26617,6 +26679,219 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: plain:this.form?.globalNavigationEnabled && this.local.currentPageSettingsPanel == 'navigation'
+                                            ↓UsePageTabsNavigation1 [ngx.components.UIUseShared-1781188989133]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1781188989136]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('label_ignore_global_navigation')
+                                              ↓options [ngx.components.UIUseVariable-1781188989139]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['non', 'oui']
+                                              ↓model [ngx.components.UIUseVariable-1781188989142]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex]?.individualNavigation === false ? ''non'' : ''oui'''
+                                              ↓style [ngx.components.UIUseVariable-1781188989145]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1781188989148]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1781188989151]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1781188989154]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1781188989157]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1781188989160]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setPageTabsNavigation [ngx.components.UICustomAsyncAction-1781188989163]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		try {
+                                                          			let currentPage = page.form.pages[page.local.currentIndex];
+                                                          			if(event.out != "oui"){
+                                                          				currentPage.individualNavigation = false;
+                                                          			}
+                                                          			else {
+                                                          				currentPage.individualNavigation = true;
+                                                          			}
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1781188989166]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                          ↓TextItem1 [ngx.components.UIDynamicElement-1781191268269]: 
+                                            beanData: '{"ionBean":"TextItem"}'
+                                            tagName: ion-text
+                                            ↓Style [ngx.components.UIStyle-1781191268281]: 
+                                              styleContent: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                    →: |
+                                                      '	display: flex;
+                                                      	flex-direction: column;
+                                                      	gap: 6px;
+                                                      	padding: 8px 12px;
+                                                      	border: 1px solid #1A1A1A;
+                                                      	border-radius: 10px;
+                                                      	background: #FFF;
+                                                      	font-weight: 400;
+                                                      '
+                                            ↓Attr [ngx.components.UIAttribute-1781191268284]: 
+                                              attrName: '*ngIf'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:(this.local.currentPageSettingsPanel == 'navigation')
+                                            ↓Div [ngx.components.UIDynamicElement-1781191340818]: 
+                                              beanData: '{"ionBean":"DivTag"}'
+                                              tagName: div
+                                              ↓Style [ngx.components.UIStyle-1781191340830]: 
+                                                styleContent: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        '	display: flex;
+                                                        	gap: 6px;
+                                                        	align-items: flex-start;
+                                                        	width: 100%;
+                                                        	margin-bottom: 6px;
+                                                        	padding-bottom: 8px;
+                                                        	border-bottom: 1px solid #1A1A1A;
+                                                        '
+                                              ↓Icon [ngx.components.UIDynamicElement-1781191268272]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "Icon",
+                                                   "IconName": "plain",
+                                                   "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/info.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                                                  }'
+                                                tagName: ion-icon
+                                                ↓Style [ngx.components.UIStyle-1781191268275]: 
+                                                  styleContent: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '	width: 16px;
+                                                          	height: 16px;
+                                                          	min-width: 16px;
+                                                          '
+                                              ↓Text [ngx.components.UIText-1781191268278]: 
+                                                i18n: true
+                                                textValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:desc_apply_page_navigation_to_global
+                                            ↓UsePageTabsNavigation2 [ngx.components.UIUseShared-1781189233640]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1781189233643]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('label_apply_page_navigation_to_global')
+                                              ↓options [ngx.components.UIUseVariable-1781189233646]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['non', 'oui']
+                                              ↓model [ngx.components.UIUseVariable-1781189233649]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:(!(this.form?.navigation?.appliedConfiguration?.pageTechName === this.local?.pages[this.local?.currentIndex]?.pageTechName && this.isNavigationsEquals())) ? ''non'' : ''oui'''
+                                              ↓style [ngx.components.UIUseVariable-1781189233652]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1781189233655]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1781189233658]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1781189233661]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1781189233664]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1781189233667]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setPageTabsNavigation [ngx.components.UICustomAsyncAction-1781189233670]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		try {
+                                                          			console.log(event.out, !(page.form?.navigation?.appliedConfiguration?.pageTechName === page.local?.pages[this.local?.currentIndex]?.pageTechName && page.isNavigationsEquals()))
+                                                          			let currentPage = page.form.pages[page.local.currentIndex];
+                                                          			if ((page.form?.navigation?.appliedConfiguration?.pageTechName === page.local?.pages[this.local?.currentIndex]?.pageTechName && page.isNavigationsEquals())) {
+                                                          				if(event.out != "oui"){
+                                                          					page.form.navigation.appliedConfiguration = null;
+                                                          				}				
+                                                          			} else {
+                                                          				if(event.out == "oui"){
+                                                          					page.form.navigation.appliedConfiguration = currentPage;
+                                                          					page.applyConfigurationToGlobal();
+                                                          				}
+                                                          			}
+                                                          		} catch (e) {
+                                                          			console.error(e);
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1781189233673]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
                                           ↓UsePageName [ngx.components.UIUseShared-1779359000020]: 
                                             identifier: nameCurrP
                                             sharedcomponent: C8Oforms.MobileApplication.Application.TextInputSetting
@@ -26979,71 +27254,6 @@ title: Title for editor
                                                           	cursor:pointer !important;
                                                           }
                                                           '
-                                          ↓UsePageInMenu [ngx.components.UIUseShared-1779359000030]: 
-                                            sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
-                                            ↓label [ngx.components.UIUseVariable-1779359000031]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:this.translate.instant('page_setting_display_in_menu')
-                                            ↓options [ngx.components.UIUseVariable-1779359000032]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:['oui', 'non']
-                                            ↓model [ngx.components.UIUseVariable-1779359000033]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].included !== false ? ''oui'' : ''non'''
-                                            ↓style [ngx.components.UIUseVariable-1779359000034]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:{width: 100}'
-                                            ↓AttrDisplay [ngx.components.UIAttribute-1779359000035]: 
-                                              attrName: '[style.display]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
-                                            ↓AttrPadding [ngx.components.UIAttribute-1779359000036]: 
-                                              attrName: '[style.--c8o-setting-row-padding]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:0
-                                            ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000037]: 
-                                              attrName: '[style.--c8o-toggle-label-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:320px
-                                            ↓AttrControlWidth [ngx.components.UIAttribute-1779359000038]: 
-                                              attrName: '[style.--c8o-toggle-control-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:max-content
-                                            ↓Event [ngx.components.UIControlEvent-1779359000039]: 
-                                              attrName: (modelChanged)
-                                              eventName: modelChanged
-                                              ↓setPageInMenu [ngx.components.UICustomAsyncAction-1779359000040]: 
-                                                actionValue: 
-                                                  - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                      →: |
-                                                        		try {
-                                                        			page.form.pages[page.local.currentIndex].included = event.out == "oui";
-                                                        		} catch (e) {
-                                                        		} finally {
-                                                        			return;
-                                                        		}
-                                                        
-                                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000041]: 
-                                                  beanData: '{"ionBean":"InvokeAction"}'
-                                                  stack: C8Oforms.MobileApplication.Application.updateState
                                           ↓UseDisplayPageTitle [ngx.components.UIUseShared-1779359000042]: 
                                             sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
                                             ↓label [ngx.components.UIUseVariable-1779359000043]: 
@@ -27109,217 +27319,429 @@ title: Title for editor
                                                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000053]: 
                                                   beanData: '{"ionBean":"InvokeAction"}'
                                                   stack: C8Oforms.MobileApplication.Application.updateState
-                                          ↓UsePageButtonsNavigation [ngx.components.UIUseShared-1779359000054]: 
-                                            sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
-                                            ↓label [ngx.components.UIUseVariable-1779359000055]: 
-                                              varValue: 
+                                          ↓TextItem2 [ngx.components.UIDynamicElement-1781193328737]: 
+                                            beanData: '{"ionBean":"TextItem"}'
+                                            tagName: ion-text
+                                            ↓Style [ngx.components.UIStyle-1781193328740]: 
+                                              styleContent: 
                                                 - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:this.translate.instant('buttons')
-                                            ↓options [ngx.components.UIUseVariable-1779359000056]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:['disabled', 'standardB', 'tabB']
-                                            ↓model [ngx.components.UIUseVariable-1779359000057]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].enabledButtons === false ? ''disabled'' : (this.form.pages[this.local.currentIndex].positionButtons == ''tab'' ? ''tabB'' : ''standardB'')'
-                                            ↓style [ngx.components.UIUseVariable-1779359000058]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:{width: 100}'
-                                            ↓AttrDisplay [ngx.components.UIAttribute-1779359000059]: 
-                                              attrName: '[style.display]'
+                                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                    →: |
+                                                      '	display: flex;
+                                                      	flex-direction: column;
+                                                      	gap: 6px;
+                                                      	padding: 8px 12px;
+                                                      	border: 1px solid var(--ion-color-primary);
+                                                      	border-radius: 10px;
+                                                      	background: #FFF;
+                                                      	font-weight: 400;
+                                                      '
+                                            ↓Attr [ngx.components.UIAttribute-1781193328743]: 
+                                              attrName: '*ngIf'
                                               attrValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
-                                            ↓AttrPadding [ngx.components.UIAttribute-1779359000060]: 
-                                              attrName: '[style.--c8o-setting-row-padding]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:0
-                                            ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000061]: 
-                                              attrName: '[style.--c8o-toggle-label-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:320px
-                                            ↓AttrControlWidth [ngx.components.UIAttribute-1779359000062]: 
-                                              attrName: '[style.--c8o-toggle-control-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:max-content
-                                            ↓Event [ngx.components.UIControlEvent-1779359000063]: 
-                                              attrName: (modelChanged)
-                                              eventName: modelChanged
-                                              ↓setPageButtonsNavigation [ngx.components.UICustomAsyncAction-1779359000064]: 
-                                                actionValue: 
+                                                  - MobileSmartSourceType: plain:(this.local.currentPageSettingsPanel == 'navigation')
+                                            ↓Div [ngx.components.UIDynamicElement-1781193644831]: 
+                                              beanData: '{"ionBean":"DivTag"}'
+                                              tagName: div
+                                              ↓Style [ngx.components.UIStyle-1781193644834]: 
+                                                styleContent: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                                       →: |
-                                                        '		try {
-                                                        			let currentPage = page.form.pages[page.local.currentIndex];
-                                                        			if(event.out == "disabled"){
-                                                        				currentPage.enabledButtons = false;
-                                                        			}
-                                                        			else {
-                                                        				currentPage.enabledButtons = true;
-                                                        				currentPage.positionButtons = event.out == "tabB" ? "tab" : "standard";
-                                                        			}
-                                                        			page.setFlags();
-                                                        		} catch (e) {
-                                                        		} finally {
-                                                        			return;
-                                                        		}
+                                                        '	display: flex;
+                                                        	gap: 6px;
+                                                        	align-items: flex-start;
+                                                        	width: 100%;
+                                                        	margin-bottom: 6px;
+                                                        	padding-bottom: 8px;
+                                                        	color: var(--ion-color-primary);
+                                                        	border-bottom: 1px solid var(--ion-color-primary);
                                                         '
-                                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000065]: 
-                                                  beanData: '{"ionBean":"InvokeAction"}'
-                                                  stack: C8Oforms.MobileApplication.Application.updateState
-                                          ↓UsePageTabsNavigation [ngx.components.UIUseShared-1779359000066]: 
-                                            sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
-                                            ↓label [ngx.components.UIUseVariable-1779359000067]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:this.translate.instant('tabs_page')
-                                            ↓options [ngx.components.UIUseVariable-1779359000068]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:['disabled', 'header', 'footer']
-                                            ↓model [ngx.components.UIUseVariable-1779359000069]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].enabledTab === false ? ''disabled'' : (this.form.pages[this.local.currentIndex].positionTab == ''top'' ? ''header'' : ''footer'')'
-                                            ↓style [ngx.components.UIUseVariable-1779359000070]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:{width: 100}'
-                                            ↓AttrDisplay [ngx.components.UIAttribute-1779359000071]: 
-                                              attrName: '[style.display]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
-                                            ↓AttrPadding [ngx.components.UIAttribute-1779359000072]: 
-                                              attrName: '[style.--c8o-setting-row-padding]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:0
-                                            ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000073]: 
-                                              attrName: '[style.--c8o-toggle-label-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:320px
-                                            ↓AttrControlWidth [ngx.components.UIAttribute-1779359000074]: 
-                                              attrName: '[style.--c8o-toggle-control-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:max-content
-                                            ↓Event [ngx.components.UIControlEvent-1779359000075]: 
-                                              attrName: (modelChanged)
-                                              eventName: modelChanged
-                                              ↓setPageTabsNavigation [ngx.components.UICustomAsyncAction-1779359000076]: 
-                                                actionValue: 
+                                              ↓Icon [ngx.components.UIDynamicElement-1781193644837]: 
+                                                beanData: |
+                                                  '{
+                                                   "ionBean": "Icon",
+                                                   "IconName": "plain",
+                                                   "IconSource": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/circle-chevron-down.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
+                                                  }'
+                                                tagName: ion-icon
+                                                ↓Style [ngx.components.UIStyle-1781193644840]: 
+                                                  styleContent: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '	width: 16px;
+                                                          	height: 16px;
+                                                          	min-width: 16px;
+                                                          	color: var(--ion-color-primary);
+                                                          '
+                                              ↓Text [ngx.components.UIText-1781193644843]: 
+                                                i18n: true
+                                                textValue: 
                                                   - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                      →: |
-                                                        '		try {
-                                                        			let currentPage = page.form.pages[page.local.currentIndex];
-                                                        			if(event.out == "disabled"){
-                                                        				currentPage.enabledTab = false;
-                                                        			}
-                                                        			else {
-                                                        				currentPage.enabledTab = true;
-                                                        				currentPage.positionTab = event.out == "header" ? "top" : "bottom";
-                                                        			}
-                                                        			page.setFlags();
-                                                        		} catch (e) {
-                                                        		} finally {
-                                                        			return;
-                                                        		}
-                                                        '
-                                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000077]: 
-                                                  beanData: '{"ionBean":"InvokeAction"}'
-                                                  stack: C8Oforms.MobileApplication.Application.updateState
-                                          ↓UseCheckMandatoryInPage [ngx.components.UIUseShared-1779359000078]: 
-                                            sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
-                                            ↓label [ngx.components.UIUseVariable-1779359000079]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:this.translate.instant('check_mandatory_next')
-                                            ↓options [ngx.components.UIUseVariable-1779359000080]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:['oui', 'non']
-                                            ↓model [ngx.components.UIUseVariable-1779359000081]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].checkMandatoryInCurrentPage ? ''oui'' : ''non'''
-                                            ↓style [ngx.components.UIUseVariable-1779359000082]: 
-                                              varValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:{width: 100}'
-                                            ↓AttrDisplay [ngx.components.UIAttribute-1779359000083]: 
-                                              attrName: '[style.display]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
-                                            ↓AttrPadding [ngx.components.UIAttribute-1779359000084]: 
-                                              attrName: '[style.--c8o-setting-row-padding]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:0
-                                            ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000085]: 
-                                              attrName: '[style.--c8o-toggle-label-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:320px
-                                            ↓AttrControlWidth [ngx.components.UIAttribute-1779359000086]: 
-                                              attrName: '[style.--c8o-toggle-control-width]'
-                                              attrValue: 
-                                                - xmlizable: 
-                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:max-content
-                                            ↓Event [ngx.components.UIControlEvent-1779359000087]: 
-                                              attrName: (modelChanged)
-                                              eventName: modelChanged
-                                              ↓setCheckMandatoryInPage [ngx.components.UICustomAsyncAction-1779359000088]: 
-                                                actionValue: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:config
+                                            ↓UsePageInMenu [ngx.components.UIUseShared-1779359000030]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1779359000031]: 
+                                                varValue: 
                                                   - xmlizable: 
-                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                                      →: |
-                                                        		try {
-                                                        			page.form.pages[page.local.currentIndex].checkMandatoryInCurrentPage = event.out == "oui";
-                                                        		} catch (e) {
-                                                        		} finally {
-                                                        			return;
-                                                        		}
-                                                        
-                                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000089]: 
-                                                  beanData: '{"ionBean":"InvokeAction"}'
-                                                  stack: C8Oforms.MobileApplication.Application.updateState
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('page_setting_display_in_menu')
+                                              ↓options [ngx.components.UIUseVariable-1779359000032]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['oui', 'non']
+                                              ↓model [ngx.components.UIUseVariable-1779359000033]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].included !== false ? ''oui'' : ''non'''
+                                              ↓style [ngx.components.UIUseVariable-1779359000034]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1779359000035]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1779359000036]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000037]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1779359000038]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1779359000039]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setPageInMenu [ngx.components.UICustomAsyncAction-1779359000040]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		try {
+                                                          			page.form.pages[page.local.currentIndex].included = event.out == "oui";
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000041]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓keyName [ngx.components.UIUseVariable-1781195650824]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓i18nCallback [ngx.components.UIUseVariable-1781195650826]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓hasSeparators [ngx.components.UIUseVariable-1781195650828]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓disabled [ngx.components.UIUseVariable-1781195650830]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                            ↓UsePageButtonsNavigation [ngx.components.UIUseShared-1779359000054]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1779359000055]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('buttons')
+                                              ↓options [ngx.components.UIUseVariable-1779359000056]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['disabled', 'standardB', 'tabB']
+                                              ↓model [ngx.components.UIUseVariable-1779359000057]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].enabledButtons === false ? ''disabled'' : (this.form.pages[this.local.currentIndex].positionButtons == ''tab'' ? ''tabB'' : ''standardB'')'
+                                              ↓style [ngx.components.UIUseVariable-1779359000058]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1779359000059]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1779359000060]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000061]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1779359000062]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1779359000063]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setPageButtonsNavigation [ngx.components.UICustomAsyncAction-1779359000064]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '		try {
+                                                          			let currentPage = page.form.pages[page.local.currentIndex];
+                                                          			if(event.out == "disabled"){
+                                                          				currentPage.enabledButtons = false;
+                                                          			}
+                                                          			else {
+                                                          				currentPage.enabledButtons = true;
+                                                          				currentPage.positionButtons = event.out == "tabB" ? "tab" : "standard";
+                                                          			}
+                                                          			page.setFlags();
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          '
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000065]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓keyName [ngx.components.UIUseVariable-1781195653185]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓i18nCallback [ngx.components.UIUseVariable-1781195653187]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓hasSeparators [ngx.components.UIUseVariable-1781195653189]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓disabled [ngx.components.UIUseVariable-1781195653191]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.form?.globalNavigationEnabled && !this.local?.pages[this.local?.currentIndex]?.individualNavigation
+                                            ↓UsePageTabsNavigation [ngx.components.UIUseShared-1779359000066]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1779359000067]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('tabs_page')
+                                              ↓options [ngx.components.UIUseVariable-1779359000068]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['disabled', 'header', 'footer']
+                                              ↓model [ngx.components.UIUseVariable-1779359000069]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].enabledTab === false ? ''disabled'' : (this.form.pages[this.local.currentIndex].positionTab == ''top'' ? ''header'' : ''footer'')'
+                                              ↓style [ngx.components.UIUseVariable-1779359000070]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1779359000071]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1779359000072]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000073]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1779359000074]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1779359000075]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setPageTabsNavigation [ngx.components.UICustomAsyncAction-1779359000076]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '		try {
+                                                          			let currentPage = page.form.pages[page.local.currentIndex];
+                                                          			if(event.out == "disabled"){
+                                                          				currentPage.enabledTab = false;
+                                                          			}
+                                                          			else {
+                                                          				currentPage.enabledTab = true;
+                                                          				currentPage.positionTab = event.out == "header" ? "top" : "bottom";
+                                                          			}
+                                                          			page.setFlags();
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          '
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000077]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓keyName [ngx.components.UIUseVariable-1781195655545]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓i18nCallback [ngx.components.UIUseVariable-1781195655547]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓hasSeparators [ngx.components.UIUseVariable-1781195655549]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓disabled [ngx.components.UIUseVariable-1781195655551]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                            ↓UseCheckMandatoryInPage [ngx.components.UIUseShared-1779359000078]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1779359000079]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('check_mandatory_next')
+                                              ↓options [ngx.components.UIUseVariable-1779359000080]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['oui', 'non']
+                                              ↓model [ngx.components.UIUseVariable-1779359000081]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form.pages[this.local.currentIndex].checkMandatoryInCurrentPage ? ''oui'' : ''non'''
+                                              ↓style [ngx.components.UIUseVariable-1779359000082]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1779359000083]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.local.currentPageSettingsPanel == ''navigation'' ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1779359000084]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1779359000085]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1779359000086]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1779359000087]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setCheckMandatoryInPage [ngx.components.UICustomAsyncAction-1779359000088]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          		try {
+                                                          			page.form.pages[page.local.currentIndex].checkMandatoryInCurrentPage = event.out == "oui";
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1779359000089]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓keyName [ngx.components.UIUseVariable-1781195658315]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓i18nCallback [ngx.components.UIUseVariable-1781195658317]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓hasSeparators [ngx.components.UIUseVariable-1781195658319]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓disabled [ngx.components.UIUseVariable-1781195658321]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
                                       ↓Attr [ngx.components.UIAttribute-1650357060179]: 
                                         attrName: '[style.border]'
                                         attrValue: 
@@ -32569,7 +32991,7 @@ title: Title for editor
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:this.getNavigationValue('positionTab', 'bottom') == 'bottom' && this.getNavigationValue('enabledTab', false)
+                                          - MobileSmartSourceType: plain:this.isTabButtonsNavigationEnabled()
                                   ↓Event2 [ngx.components.UIControlEvent-1776445064159]: 
                                     attrName: (mouseenter)
                                     eventName: (mouseenter)
@@ -32717,7 +33139,7 @@ title: Title for editor
                                 attrValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: plain:this.isTabsEnabledAt('bottom') || this.isStandardButtonsNavigationEnabled()
+                                    - MobileSmartSourceType: plain:this.isTabsEnabledAt('bottom')
                             ↓Style [ngx.components.UIStyle-1664196532805]: 
                               styleContent: 
                                 - xmlizable: 
