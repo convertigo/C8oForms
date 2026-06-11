@@ -89,6 +89,10 @@ For more technical informations : [documentation](./project.md)
     - [APIV2_getSharedInviteesStats](#apiv2_getsharedinviteesstats)
     - [APIV2_getUsersByIds](#apiv2_getusersbyids)
     - [APIV2_mapper_redirect](#apiv2_mapper_redirect)
+    - [APIV2_McpTokenCreate](#apiv2_mcptokencreate)
+    - [APIV2_McpTokenList](#apiv2_mcptokenlist)
+    - [APIV2_McpTokenRevoke](#apiv2_mcptokenrevoke)
+    - [APIV2_McpTokenValidate](#apiv2_mcptokenvalidate)
     - [APIV2_MigrateADUsersToLowercase](#apiv2_migrateaduserstolowercase)
     - [APIV2_NotifyUsersSharing](#apiv2_notifyuserssharing)
     - [APIV2_OverrideUserSettings](#apiv2_overrideusersettings)
@@ -1589,6 +1593,65 @@ Rebuilds parameters and returns a 302 redirect to the target sequence.
 </tr>
 <tr>
 <td>targetSequence</td><td></td>
+</tr>
+</table>
+### APIV2_McpTokenCreate
+
+Create a named MCP token for the connected user.
+The raw JWT is returned only once; only metadata and the signing secret are stored in the user document.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>name</td><td>User-visible token name.</td>
+</tr>
+</table>
+### APIV2_McpTokenList
+
+List MCP token metadata for the connected user.
+Returns the MCP endpoint and client setup instructions without exposing secrets.
+
+### APIV2_McpTokenRevoke
+
+Revoke one named MCP token for the connected user.
+The token metadata remains visible with a revoked status.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>tokenId</td><td>Identifier of the MCP token to revoke.</td>
+</tr>
+</table>
+### APIV2_McpTokenValidate
+
+Validate an MCP JWT after the MCP project has decoded it.
+The signature is verified against the secret stored in the target user's C8Oreserved document.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>headerJson</td><td>Decoded JWT header serialized as JSON.</td>
+</tr>
+<tr>
+<td>payloadJson</td><td>Decoded JWT payload serialized as JSON.</td>
+</tr>
+<tr>
+<td>signature</td><td>JWT signature base64url part.</td>
+</tr>
+<tr>
+<td>signingInput</td><td>JWT signing input, header and payload base64url parts.</td>
 </tr>
 </table>
 ### APIV2_MigrateADUsersToLowercase

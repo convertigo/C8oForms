@@ -1672,6 +1672,16 @@ ${msgIdle}`, { headers: this.adapter.newHeaders({ "Content-Type": "text/plain" }
       const req = event.request;
       const scopeUrl = this.scope.registration.scope;
       const requestUrlObj = this.adapter.parseUrl(req.url, scopeUrl);
+      const requestPath = (() => {
+        try {
+          return new URL(req.url).pathname;
+        } catch (e) {
+          return requestUrlObj.path || "";
+        }
+      })();
+      if (requestPath.indexOf("/convertigo/fullsync/") !== -1 || requestPath.indexOf("/.fullsync/") !== -1) {
+        return;
+      }
       if (req.headers.has("ngsw-bypass") || /[?&]ngsw-bypass(?:[=&]|$)/i.test(requestUrlObj.search)) {
         return;
       }
