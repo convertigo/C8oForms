@@ -9763,6 +9763,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <th>name</th><th>comment</th>
 </tr>
 <tr>
+<td>disabled</td><td></td>
+</tr>
+<tr>
 <td>hasSeparators</td><td></td>
 </tr>
 <tr>
