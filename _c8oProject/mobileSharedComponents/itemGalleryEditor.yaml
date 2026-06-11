@@ -11,12 +11,17 @@ scriptContent:
         		this.local.galleryPaletteSignature = "";
         		this.local.galleryPaletteCache = null;
         		this.local.galleryTemplateEditorReload = false;
+        		this.local.galleryAdaptPromptSignature = null;
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompChanges*/
+        		// local data is not supported for galleries yet: coerce back to source mode
+        		if (changes.item?.currentValue?.config?.sourceEnabled === false) {
+        			changes.item.currentValue.config.sourceEnabled = true;
+        		}
         		/*End_c8o_CompChanges*/
         /*Begin_c8o_CompDoCheck*/
         		/*End_c8o_CompDoCheck*/
@@ -107,7 +112,30 @@ scriptContent:
         		fields.push({ name: key, label: label != null && ("" + label).trim() != "" ? "" + label : key });
         	}
         
+        	public isGalleryLocalData() {
+        		return this.item?.config?.sourceEnabled === false;
+        	}
+        
+        	public getGalleryLocalColumnFields(displayedOnly) {
+        		const fields = [];
+        		const seen = {};
+        		if (Array.isArray(this.item?.config?.columns)) {
+        			this.item.config.columns.forEach((column) => {
+        				if (displayedOnly && column?.hide === true) {
+        					return;
+        				}
+        				const name = column != null && typeof column == "object" ? (column.name || column.field || column.headerName) : column;
+        				const label = column != null && typeof column == "object" ? (column.label || column.headerName || name) : name;
+        				this.addGalleryField(fields, seen, name, label);
+        			});
+        		}
+        		return fields;
+        	}
+        
         	public getGalleryModelFields() {
+        		if (this.isGalleryLocalData()) {
+        			return this.getGalleryLocalColumnFields(false);
+        		}
         		const fields = [];
         		const seen = {};
         		const sourceConfig = this.parseGallerySourceConfig();
@@ -131,6 +159,9 @@ scriptContent:
         	}
         
         	public getDisplayedGalleryModelFields() {
+        		if (this.isGalleryLocalData()) {
+        			return this.getGalleryLocalColumnFields(true);
+        		}
         		const fields = [];
         		const seen = {};
         		const sourceConfig = this.parseGallerySourceConfig();
@@ -185,8 +216,14 @@ scriptContent:
         			.replace(/''/g, "&#39;");
         	}
         
+        	public encodeGalleryFieldName(fieldName) {
+        		// the engine strips backslashes when parsing badge metadata, so the code
+        		// must not contain any quote or backslash: URI-encode the field name
+        		return encodeURIComponent("" + (fieldName == null ? "" : fieldName)).replace(/[''()*!]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+        	}
+        
         	public getGalleryFieldAccessCode(fieldName) {
-        		return "api.currentFor.element[''" + this.escapeGalleryString(fieldName) + "'']";
+        		return "api.currentFor.element[decodeURIComponent(''" + this.encodeGalleryFieldName(fieldName) + "'')]";
         	}
         
         	public getGalleryStringLiteral(value) {
@@ -250,9 +287,70 @@ scriptContent:
         		return false;
         	}
         
+        	public galleryTemplateNeedsAdaptation(config, signature) {
+        		const template = config.galleryTemplate;
+        		if (template == null || typeof template != "object") {
+        			return false;
+        		}
+        		if (template.str == null || ("" + template.str).trim() == "") {
+        			return false;
+        		}
+        		return template.sourceSignature != null && template.sourceSignature != signature;
+        	}
+        
+        	public async promptGalleryTemplateAdaptation(signature) {
+        		if (this.local.galleryAdaptPromptSignature == signature) {
+        			return;
+        		}
+        		this.local.galleryAdaptPromptSignature = signature;
+        		const config = this.ensureGalleryConfig();
+        		try {
+        			const alertController = this.getInstance(AlertController);
+        			const alert = await alertController.create({
+        				header: this.translate.instant("gallery_adapt_presentation_title"),
+        				message: this.translate.instant("gallery_adapt_presentation_message"),
+        				buttons: [
+        					{
+        						text: this.translate.instant("gallery_adapt_presentation_keep"),
+        						role: "cancel"
+        					},
+        					{
+        						text: this.translate.instant("gallery_adapt_presentation_apply"),
+        						role: "confirm"
+        					}
+        				]
+        			});
+        			await alert.present();
+        			const res = await alert.onDidDismiss();
+        			if (res.role === "confirm") {
+        				config.galleryTemplate = this.buildDefaultGalleryTemplateObject();
+        				this.local.galleryPaletteSignature = "";
+        				this.local.galleryPaletteCache = null;
+        				this.local.galleryTemplateEditorReload = true;
+        				this.ref.detectChanges();
+        				setTimeout(() => {
+        					this.local.galleryTemplateEditorReload = false;
+        					this.ref.detectChanges();
+        				}, 50);
+        			}
+        			else {
+        				// the user keeps his presentation: stop tracking it as auto-generated
+        				config.galleryTemplate = { ...config.galleryTemplate, autoGenerated: false, sourceSignature: signature };
+        			}
+        			this.pageOwner.updateState();
+        		}
+        		catch (e) {
+        		}
+        	}
+        
         	public syncDefaultGalleryTemplate() {
         		const config = this.ensureGalleryConfig();
         		const signature = this.getGalleryTemplateSignature();
+        		if (this.galleryTemplateNeedsAdaptation(config, signature)) {
+        			// source configuration changed: ask before overwriting the presentation
+        			this.promptGalleryTemplateAdaptation(signature);
+        			return;
+        		}
         		if (this.shouldRegenerateGalleryTemplate(config, signature)) {
         			config.galleryTemplate = this.buildDefaultGalleryTemplateObject();
         		}
@@ -278,6 +376,10 @@ scriptContent:
         			config.galleryTemplate.html = true;
         			config.galleryTemplate.type = "html";
         		}
+        		if (config.galleryTemplate.sourceSignature == null) {
+        			// start tracking the source columns so later changes can be detected
+        			config.galleryTemplate.sourceSignature = this.getGalleryTemplateSignature();
+        		}
         		return config.galleryTemplate;
         	}
         
@@ -295,7 +397,31 @@ scriptContent:
         		config.galleryTemplate = next;
         	}
         
-        	public resetDefaultGalleryTemplate() {
+        	public async resetDefaultGalleryTemplate() {
+        		try {
+        			const alertController = this.getInstance(AlertController);
+        			const alert = await alertController.create({
+        				header: this.translate.instant("gallery_reset_presentation_title"),
+        				message: this.translate.instant("gallery_reset_presentation_message"),
+        				buttons: [
+        					{
+        						text: this.translate.instant("cancel_pwamsg"),
+        						role: "cancel"
+        					},
+        					{
+        						text: this.translate.instant("gallery_reset_presentation_confirm"),
+        						role: "confirm"
+        					}
+        				]
+        			});
+        			await alert.present();
+        			const res = await alert.onDidDismiss();
+        			if (res.role !== "confirm") {
+        				return;
+        			}
+        		}
+        		catch (e) {
+        		}
         		const config = this.ensureGalleryConfig();
         		config.galleryTemplate = this.buildDefaultGalleryTemplateObject();
         		this.local.galleryPaletteSignature = "";

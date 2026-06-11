@@ -79,6 +79,10 @@ scriptContent:
         	
         	public getGallerySourceConfig() {
         		try {
+        			if (this.item?.config?.sourceEnabled === false) {
+        				// local data: ignore any leftover enabled source
+        				return null;
+        			}
         			const sources = this.item?.sources;
         			if (sources == null) {
         				return null;
@@ -205,13 +209,17 @@ scriptContent:
         		}
         		if (typeof value == "object") {
         			if (value.displayValue != undefined) {
-        				return value.displayValue;
+        				return this.getGalleryDisplayValue(value.displayValue);
         			}
         			if (value.value != undefined) {
-        				return value.value;
+        				return this.getGalleryDisplayValue(value.value);
         			}
         			if (value.name != undefined) {
         				return value.name;
+        			}
+        			if (Object.prototype.hasOwnProperty.call(value, "value") || Object.prototype.hasOwnProperty.call(value, "displayValue")) {
+        				// cell descriptor with a null value: render nothing
+        				return "";
         			}
         			try {
         				return JSON.stringify(value);
@@ -511,10 +519,13 @@ scriptContent:
         			if (key != null && key != "") {
         				// one object per field: X.displayName is the column name, X.displayValue
         				// the cell value; toString keeps a bare drop rendering the value
+        				const raw = this.getGalleryCellRawValue(row, column);
+        				const rawValue = raw != null && typeof raw == "object" && Object.prototype.hasOwnProperty.call(raw, "value") ? raw.value : raw;
         				const entry = {
         					displayName: "" + (column?.headerName || column?.field || key),
-        					displayValue: this.getGalleryDisplayValue(this.getGalleryCellRawValue(row, column)),
-        					value: this.getGalleryCellRawValue(row, column)
+        					name: "" + key,
+        					displayValue: this.getGalleryDisplayValue(raw),
+        					value: rawValue == null ? "" : rawValue
         				};
         				entry.toString = function () {
         					return "" + (this.displayValue == null ? "" : this.displayValue);
@@ -525,27 +536,51 @@ scriptContent:
         		return current;
         	}
         
-        	public renderGalleryCurrentForTemplate(template, row, columns, index) {
-        		const page = this.pageOwner;
-        		if (page == null || typeof page.stringOf$$ToCode != "function") {
+        	public renderGalleryPreviewTemplate(template, row, columns, index) {
+        		// editor preview: the page does not embed the $$ evaluator, resolve the
+        		// badge tokens locally against the current card row
+        		try {
+        			const api = { currentFor: { index: index, element: this.getGalleryCurrentForElement(row, columns) } };
+        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
+        			const rendered = ("" + template).replace(regex, (match, id, metaStr) => {
+        				try {
+        					const meta = JSON.parse(metaStr.replace(/\\/g, ""));
+        					const value = eval(meta.c8opath);
+        					return value == null ? "" : this.escapeGalleryHtml("" + value);
+        				}
+        				catch (e) {
+        					return "";
+        				}
+        			});
+        			return this.cleanGalleryRenderedHtml(rendered);
+        		}
+        		catch (e) {
         			return "";
         		}
-        		const previousIndex = window["api"]?.currentFor?.index;
-        		const previousElement = window["api"]?.currentFor?.element;
+        	}
+        	
+        	public renderGalleryCurrentForTemplate(template, row, columns, index) {
+        		// evaluate each badge token in isolation: a field in error is simply
+        		// hidden instead of breaking the whole card template
         		try {
-        			if (window["api"] == null) {
-        				window["api"] = {};
-        			}
-        			if (window["api"].currentFor == null) {
-        				window["api"].currentFor = {};
-        			}
-        			window["api"].currentFor.index = index;
-        			window["api"].currentFor.element = this.getGalleryCurrentForElement(row, columns);
-        			const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
-        			const expression = page.stringOf$$ToCode("" + template, "html", [], regex, true);
-        			const api = window["api"];
-        			const result = eval(expression);
-        			return result != null && result != "null" && result != "undefined" ? "" + result : "";
+        			const api = { currentFor: { index: index, element: this.getGalleryCurrentForElement(row, columns) } };
+        			const regex = /\$\$(?:START)?(\d+)([\s\S]*?)(?:END)?(?:\d+)?\$\$/g;
+        			const rendered = ("" + template).replace(regex, (match, id, metaStr) => {
+        				try {
+        					const meta = JSON.parse(metaStr.replace(/\\/g, ""));
+        					const value = eval(meta.c8opath);
+        					return value == null ? "" : "" + value;
+        				}
+        				catch (e) {
+        					try {
+        						this.c8o.log.warn("[gallery] Field hidden, unable to render a card template token", e);
+        					}
+        					catch (ignored) {
+        					}
+        					return "";
+        				}
+        			});
+        			return this.cleanGalleryRenderedHtml(rendered);
         		}
         		catch (e) {
         			try {
@@ -554,12 +589,6 @@ scriptContent:
         			catch (ignored) {
         			}
         			return "";
-        		}
-        		finally {
-        			if (window["api"]?.currentFor != null) {
-        				window["api"].currentFor.index = previousIndex == undefined ? null : previousIndex;
-        				window["api"].currentFor.element = previousElement == undefined ? null : previousElement;
-        			}
         		}
         	}
         	
@@ -600,6 +629,19 @@ scriptContent:
         		return desktop;
         	}
         	
+        	public isGalleryLoading() {
+        		// same signal as grids: page.local.updating[item.id] is 0 while fetching
+        		if (this.disabled == true) {
+        			return false;
+        		}
+        		const updating = this.pageOwner?.local?.updating?.[this.item?.id];
+        		if (updating === 0) {
+        			return true;
+        		}
+        		// before the first fetch is wired, the model may still be missing entirely
+        		return updating === undefined && (this.model == null || this.model.data === undefined);
+        	}
+        
         	public getGalleryHtml() {
         		const rows = this.getGalleryRows();
         		const columns = this.getGalleryColumns();
@@ -611,7 +653,12 @@ scriptContent:
         		const gridStyle = ` style="--c8o-gallery-cards-per-line: ${cardsPerLine}"`;
         		let html = `<div class="c8o-gallery-grid ${layoutClass} ${selectableClass} ${hasError ? "c8o-gallery-error" : ""}"${gridStyle}>`;
         		if (rows.length == 0) {
-        			html += `<div class="c8o-gallery-empty">${this.escapeGalleryHtml(this.translate.instant("no_result_grid"))}</div>`;
+        			if (this.isGalleryLoading()) {
+        				html += `<div class="c8o-gallery-empty c8o-gallery-loading"><ion-spinner name="dots"></ion-spinner><span>${this.escapeGalleryHtml(this.translate.instant("loading_data"))}</span></div>`;
+        			}
+        			else {
+        				html += `<div class="c8o-gallery-empty">${this.escapeGalleryHtml(this.translate.instant("no_result_grid"))}</div>`;
+        			}
         		}
         		rows.forEach((row, index) => {
         			const selected = this.isGalleryRowSelected(row);
@@ -917,13 +964,48 @@ scriptContent:
               		align-items: stretch;
               		box-sizing: border-box;
               	}
+              	::ng-deep .c8o-gallery-card-custom img {
+              		display: block;
+              		width: 100% !important;
+              		height: 180px !important;
+              		max-width: 100% !important;
+              		max-height: 180px !important;
+              		object-fit: cover;
+              		border-radius: 4px;
+              	}
+              	::ng-deep .c8o-gallery-loading {
+              		display: flex;
+              		align-items: center;
+              		justify-content: center;
+              		gap: 8px;
+              	}
+              	::ng-deep .c8o-gallery-host .styleBadge {
+              		padding: 3px 8px;
+              		text-align: center;
+              		display: inline-flex;
+              		justify-content: center;
+              		align-items: center;
+              		min-width: 10px;
+              		font-weight: bold;
+              		font-size: 0.8em;
+              		line-height: 1;
+              		white-space: nowrap;
+              		vertical-align: baseline;
+              		user-select: contain !important;
+              		border-radius: 10px;
+              		color: #fff;
+              		background-color: #3880ff;
+              	}
               	::ng-deep .c8o-gallery-grid.c8o-gallery-layout {
               		gap: 18px;
               	}
               	::ng-deep .c8o-gallery-card {
               		appearance: none;
               		-webkit-appearance: none;
-              		display: block;
+              		display: flex;
+              		flex-direction: column;
+              		align-items: stretch;
+              		justify-content: flex-start;
               		width: 100%;
               		margin: 0;
               		padding: 12px 16px;
