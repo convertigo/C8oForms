@@ -185,12 +185,39 @@ scriptContent:
         			formsConfig = null;
         		}
         
+        		const configuredColumns = Array.isArray(formsConfig?.columns) ? formsConfig.columns : [];
         		const hidden = Array.isArray(formsConfig?.hidden) ? formsConfig.hidden : [];
-        		if (columns.length == 0 && Array.isArray(formsConfig?.columns)) {
-        			columns = formsConfig.columns.map((field) => ({
+        		if (columns.length == 0 && configuredColumns.length > 0) {
+        			columns = configuredColumns.map((field) => ({
         				field: field,
         				headerName: field
         			}));
+        		}
+        		else if (columns.length > 0 && configuredColumns.length > 0) {
+        			const consumedColumnIndexes = new Set<number>();
+        			const orderedColumns = [];
+        			const matchesConfiguredField = (column, field) => {
+        				return column?.field == field || column?.headerName == field || column?.technicalName == field;
+        			};
+        			configuredColumns.forEach((field) => {
+        				const columnIndex = columns.findIndex((column, index) => !consumedColumnIndexes.has(index) && matchesConfiguredField(column, field));
+        				if (columnIndex != -1) {
+        					orderedColumns.push(columns[columnIndex]);
+        					consumedColumnIndexes.add(columnIndex);
+        				}
+        				else {
+        					orderedColumns.push({
+        						field: field,
+        						headerName: field
+        					});
+        				}
+        			});
+        			columns.forEach((column, index) => {
+        				if (!consumedColumnIndexes.has(index)) {
+        					orderedColumns.push(column);
+        				}
+        			});
+        			columns = orderedColumns;
         		}
         
         		if (columns.length > 0) {
