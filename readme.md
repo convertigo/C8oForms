@@ -6103,6 +6103,9 @@ Update the state of a field
 <td>dragging</td><td></td>
 </tr>
 <tr>
+<td>editorInfo</td><td></td>
+</tr>
+<tr>
 <td>explicitTarget</td><td></td>
 </tr>
 <tr>

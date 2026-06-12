@@ -7665,7 +7665,31 @@ scriptContent:
         		return mode === "js" || ((mode == null || mode === "") && defaultValueObject?.type === "ts");
         	}
         
-        	public getEditorPreviewItem(item) {
+        	public getEditorPreviewCacheKey(item) {
+        		try {
+        			if (item == null) {
+        				return "";
+        			}
+        			return JSON.stringify({
+        				id: item?.id,
+        				type: item?.type,
+        				mode: item?.config?.defaultValuesMode,
+        				defaultValue: item?.config?.defaultValue,
+        				defaultvalue: item?.config?.defaultvalue,
+        				defaultValueJs: item?.config?.defaultValueJs,
+        				defaultValuesJs: item?.config?.defaultValuesJs,
+        				selfType: item?.sources?.self?.vars?.selfVar?.type,
+        				selfStr: item?.sources?.self?.vars?.selfVar?.str,
+        				children: item?.children,
+        				lines: item?.lines
+        			});
+        		}
+        		catch (e) {
+        			return String(item?.id || item?.name || "");
+        		}
+        	}
+        
+        	public buildEditorPreviewItem(item) {
         		if (!this.isEditorPreviewDefaultJsMode(item)) {
         			return item;
         		}
@@ -7685,12 +7709,11 @@ scriptContent:
         		return previewItem;
         	}
         
-        	public getEditorPreviewModel(item) {
+        	public buildEditorPreviewModel(item) {
         		try {
         			if (item == null) {
         				return {};
         			}
-        			item = this.getEditorPreviewItem(item);
         			if (item.type == "radio") {
         				return { value: item?.config?.defaultValue };
         			}
@@ -7739,6 +7762,39 @@ scriptContent:
         		catch (e) {
         		}
         		return {};
+        	}
+        
+        	public getEditorPreviewCacheEntry(item) {
+        		if (!this.isEditorPreviewDefaultAwareType(item)) {
+        			return null;
+        		}
+        		if (this.local.editorPreviewCache == null) {
+        			this.local.editorPreviewCache = {};
+        		}
+        		const cacheId = String(item?.id || item?.name || "");
+        		const cacheKey = this.getEditorPreviewCacheKey(item);
+        		const cached = this.local.editorPreviewCache[cacheId];
+        		if (cached != null && cached.key === cacheKey) {
+        			return cached;
+        		}
+        		const previewItem = this.buildEditorPreviewItem(item);
+        		const previewModel = this.buildEditorPreviewModel(previewItem);
+        		this.local.editorPreviewCache[cacheId] = {
+        			key: cacheKey,
+        			item: previewItem,
+        			model: previewModel
+        		};
+        		return this.local.editorPreviewCache[cacheId];
+        	}
+        
+        	public getEditorPreviewItem(item) {
+        		const cacheEntry = this.getEditorPreviewCacheEntry(item);
+        		return cacheEntry != null ? cacheEntry.item : item;
+        	}
+        
+        	public getEditorPreviewModel(item) {
+        		const cacheEntry = this.getEditorPreviewCacheEntry(item);
+        		return cacheEntry != null ? cacheEntry.model : {};
         	}
         
         	public getMainEditorTabIds(item, group) {
