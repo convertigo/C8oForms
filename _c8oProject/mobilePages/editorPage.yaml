@@ -7652,13 +7652,57 @@ scriptContent:
         		return this.translate.instant(tab?.label || tab?.id || "");
         	}
         
+        	public isEditorPreviewDefaultAwareType(item) {
+        		return ["text", "textarea", "radio", "checkbox", "select", "radio_group", "checkbox_group", "slider", "datetime", "time", "barcode"].indexOf(item?.type) !== -1;
+        	}
+        
+        	public isEditorPreviewDefaultJsMode(item) {
+        		if (!this.isEditorPreviewDefaultAwareType(item)) {
+        			return false;
+        		}
+        		const mode = item?.config?.defaultValuesMode;
+        		const defaultValueObject = item?.sources?.self?.vars?.selfVar;
+        		return mode === "js" || ((mode == null || mode === "") && defaultValueObject?.type === "ts");
+        	}
+        
+        	public getEditorPreviewItem(item) {
+        		if (!this.isEditorPreviewDefaultJsMode(item)) {
+        			return item;
+        		}
+        		const previewItem: any = {...item, config: {...(item?.config || {})}};
+        		previewItem.config.defaultValue = "";
+        		previewItem.config.defaultvalue = "";
+        		if (Array.isArray(item.children)) {
+        			previewItem.children = item.children.map((child: any) => {
+        				return {...child, selected: false};
+        			});
+        		}
+        		if (Array.isArray(item.lines)) {
+        			previewItem.lines = item.lines.map((line: any) => {
+        				return {...line, value: Array.isArray(line?.value) ? [] : ""};
+        			});
+        		}
+        		return previewItem;
+        	}
+        
         	public getEditorPreviewModel(item) {
         		try {
         			if (item == null) {
         				return {};
         			}
+        			item = this.getEditorPreviewItem(item);
         			if (item.type == "radio") {
         				return { value: item?.config?.defaultValue };
+        			}
+        			if (item.type == "select") {
+        				return { value: item?.config?.defaultValue };
+        			}
+        			if (item.type == "checkbox") {
+        				return {
+        					children: Array.isArray(item.children) ? item.children.map((child: any) => {
+        						return {...child, selected: child?.selected === true};
+        					}) : []
+        				};
         			}
         			if (item.type == "slider") {
         				return { value: item?.config?.defaultvalue };
@@ -32266,11 +32310,10 @@ title: Title for editor
                                             ↓UseSharedComponent [ngx.components.UIUseShared-1650357060818]: 
                                               sharedcomponent: C8Oforms.MobileApplication.Application.switchItemViewer
                                               ↓currentItem [ngx.components.UIUseVariable-1650357060821]: 
-                                                binding: twoWayBinding
                                                 varValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: script:this.formsList[i]
+                                                    - MobileSmartSourceType: script:this.getEditorPreviewItem(this.formsList[i])
                                               ↓disabled [ngx.components.UIUseVariable-1650357060830]: 
                                                 varValue: 
                                                   - xmlizable: 

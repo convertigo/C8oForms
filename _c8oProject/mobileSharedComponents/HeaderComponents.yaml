@@ -202,8 +202,100 @@ scriptContent:
         		}
         		return this.itemHasFilledConditions(item, "goToPageIf");
         	}
+        	public isHeaderDefaultScriptFilled(value: any): boolean {
+        		if (typeof value != "string") {
+        			return false;
+        		}
+        		var normalized = value.replace(/\s+/g, "").replace(/;/g, "");
+        		return normalized != "" && normalized != "(async()=>{return''''})()" && normalized != "(async()=>{return''})()" && normalized != "(async()=>{return[]})()" && normalized != "(async()=>{return{}})()";
+        	}
+        	public isHeaderDefaultValueFilled(value: any): boolean {
+        		if (value == null) {
+        			return false;
+        		}
+        		if (typeof value == "boolean") {
+        			return true;
+        		}
+        		if (typeof value == "number") {
+        			return !isNaN(value);
+        		}
+        		if (typeof value == "string") {
+        			return value.replace(/^\s+|\s+$/g, "") != "";
+        		}
+        		if (Array.isArray(value)) {
+        			for (var i = 0; i < value.length; i++) {
+        				if (this.isHeaderDefaultValueFilled(value[i])) {
+        					return true;
+        				}
+        			}
+        			return false;
+        		}
+        		if (typeof value == "object") {
+        			if (value.type == "ts") {
+        				return this.isHeaderDefaultScriptFilled(value.str);
+        			}
+        			if (value.str != null || value.arr != null) {
+        				return this.isHeaderDefaultValueFilled(value.str) || this.isHeaderDefaultValueFilled(value.arr);
+        			}
+        			for (var key of Object.keys(value)) {
+        				if (["type", "source", "html", "enabled"].indexOf(key) !== -1) {
+        					continue;
+        				}
+        				if (this.isHeaderDefaultValueFilled(value[key])) {
+        					return true;
+        				}
+        			}
+        		}
+        		return false;
+        	}
+        	public itemHasConfiguredDefaultValue(item: any): boolean {
+        		if (this.pageOwner != null && this.pageOwner.itemHasConfiguredDefaultValue != null) {
+        			return this.pageOwner.itemHasConfiguredDefaultValue(item);
+        		}
+        		if (item == null) {
+        			return false;
+        		}
+        		var config = item.config || {};
+        		var selfVar = item?.sources?.self?.vars?.selfVar;
+        		var hasDefaultValuesMode = config.defaultValuesMode != null && config.defaultValuesMode != "";
+        		var useJsDefault = config.defaultValuesMode == "js" || (!hasDefaultValuesMode && selfVar != null && selfVar.type == "ts");
+        		if (useJsDefault) {
+        			return this.isHeaderDefaultScriptFilled(selfVar?.str) || this.isHeaderDefaultScriptFilled(config.defaultValueJs) || this.isHeaderDefaultScriptFilled(config.defaultValuesJs);
+        		}
+        		if (item.type == "radio") {
+        			return this.isHeaderDefaultValueFilled(config.defaultValue);
+        		}
+        		if (selfVar != null) {
+        			if (selfVar.type == "ts") {
+        				if (useJsDefault && this.isHeaderDefaultScriptFilled(selfVar.str)) {
+        					return true;
+        				}
+        			}
+        			else if (!hasDefaultValuesMode && (this.isHeaderDefaultValueFilled(selfVar.str) || this.isHeaderDefaultValueFilled(selfVar.arr))) {
+        				return true;
+        			}
+        		}
+        		if (this.isHeaderDefaultValueFilled(config.defaultValue) || this.isHeaderDefaultValueFilled(config.defaultvalue) || (useJsDefault && (this.isHeaderDefaultScriptFilled(config.defaultValueJs) || this.isHeaderDefaultScriptFilled(config.defaultValuesJs)))) {
+        			return true;
+        		}
+        		if (Array.isArray(item.children)) {
+        			for (var i = 0; i < item.children.length; i++) {
+        				if (item.children[i]?.selected === true) {
+        					return true;
+        				}
+        			}
+        		}
+        		if (Array.isArray(item.lines)) {
+        			for (var j = 0; j < item.lines.length; j++) {
+        				if (this.isHeaderDefaultValueFilled(item.lines[j]?.value)) {
+        					return true;
+        				}
+        			}
+        		}
+        		return false;
+        	}
         	public itemHasConfiguredHeaderState(item: any): boolean {
-        		return this.itemHasConfiguredDataSource(item) || this.itemHasConfiguredVisibilityCondition(item) || this.itemHasConfiguredNavigationCondition(item);
+        		return this.itemHasConfiguredDataSource(item) || this.itemHasConfiguredDefaultValue(item) || this.itemHasConfiguredVisibilityCondition(item) || this.itemHasConfiguredNavigationCondition(item);
         	}
         	/*End_c8o_CompFunction*/
         '
@@ -519,6 +611,28 @@ scriptContent:
                         '
               ↓Tooltips [ngx.components.UIDynamicAttr-1780671830467]: 
                 beanData: '{"ionBean":"Tooltips","Tooltip":"script:''configured_mandatory_tooltip'' | translate"}'
+                selfClose: false
+          ↓DefaultValueIndicator [ngx.components.UIControlDirective-1781740100001]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.itemHasConfiguredDefaultValue(this.child)
+            ↓Icon [ngx.components.UIDynamicElement-1781740100002]: 
+              beanData: '{"ionBean":"Icon","IconName":"plain:bookmark-outline"}'
+              tagName: ion-icon
+              ↓Style [ngx.components.UIStyle-1781740100003]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '	width: 14px;
+                        	height: 14px;
+                        	display: block;
+                        '
+              ↓Tooltips [ngx.components.UIDynamicAttr-1781740100004]: 
+                beanData: '{"ionBean":"Tooltips","Tooltip":"script:''defaultvalue'' | translate"}'
                 selfClose: false
           ↓DatasourceIndicator [ngx.components.UIControlDirective-1780661784450]: 
             directiveName: If
