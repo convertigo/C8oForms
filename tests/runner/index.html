@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>C8oForms — test runner</title>
+<style>
+  :root { --bg:#0f1222; --panel:#171a2e; --panel2:#1f2340; --ink:#e7e9f3; --mut:#9aa0c0;
+          --line:#2a2f52; --blue:#4f9eff; --green:#3ddc84; --red:#ff5a6a; --amber:#ffb547; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:16px 20px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
+  h1 { font-size:16px; margin:0; font-weight:700; }
+  .ver { color:var(--mut); }
+  .ver b { color:var(--ink); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 20px; align-items:start; }
+  @media (max-width:980px){ .grid{ grid-template-columns:1fr; } }
+  .controls { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin-left:auto; }
+  .controls label { color:var(--mut); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button { background:transparent; color:var(--mut); border:0; padding:6px 12px; cursor:pointer; font:inherit; }
+  .seg button.on { background:var(--blue); color:#04122b; font-weight:700; }
+  input[type=range]{ vertical-align:middle; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+  .card h3 { margin:0 0 4px; font-size:14px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .kind { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .k-regression{ background:rgba(79,158,255,.15); color:var(--blue); }
+  .k-open{ background:rgba(255,90,106,.15); color:var(--red); }
+  .k-smoke{ background:rgba(61,220,132,.15); color:var(--green); }
+  .id { color:var(--mut); font-family:ui-monospace,monospace; font-size:12px; }
+  .meta { color:var(--mut); font-size:12px; margin:6px 0; }
+  details summary { cursor:pointer; color:var(--mut); font-size:12px; }
+  ol { margin:8px 0 0; padding-left:20px; color:var(--mut); font-size:12px; }
+  button.run { background:var(--blue); color:#04122b; border:0; border-radius:8px; padding:7px 14px; font-weight:700; cursor:pointer; }
+  button.run:disabled { opacity:.4; cursor:not-allowed; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:7px 14px; cursor:pointer; }
+  .runall { background:var(--green); color:#03210f; border:0; border-radius:8px; padding:9px 18px; font-weight:800; cursor:pointer; }
+  .console { position:sticky; top:16px; background:#0a0c18; border:1px solid var(--line); border-radius:12px; height:calc(100vh - 130px); display:flex; flex-direction:column; }
+  .cbar { padding:10px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--mut); }
+  .dot.run{ background:var(--amber); animation:pulse 1s infinite; }
+  .dot.ok{ background:var(--green); } .dot.ko{ background:var(--red); }
+  @keyframes pulse{ 50%{ opacity:.3; } }
+  pre { margin:0; padding:12px 14px; overflow:auto; flex:1; font:12px/1.5 ui-monospace,SFMono-Regular,monospace; white-space:pre-wrap; word-break:break-word; }
+  .log-cmd{ color:var(--blue); } .log-err{ color:var(--red); } .log-phase{ color:var(--amber); font-weight:700; margin-top:8px; }
+  .log-ok{ color:var(--green); font-weight:700; } .log-ko{ color:var(--red); font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>C8oForms · test runner</h1>
+  <span class="ver">deployed: <b id="served">…</b> <button class="ghost" id="refresh" style="padding:3px 8px;">↻</button></span>
+  <div class="controls">
+    <span>
+      <label>version</label>
+      <span class="seg" id="version">
+        <button data-v="latest" class="on">Latest (deploy if needed)</button>
+        <button data-v="broken">Broken (deploy first)</button>
+      </span>
+    </span>
+    <span><label><input type="checkbox" id="headed" checked /> headed (watch)</label></span>
+    <span><label>slow-mo <b id="slowval">500</b>ms</label>
+      <input type="range" id="slowmo" min="0" max="2000" step="100" value="500" /></span>
+    <button class="runall" id="runall">▶ Run all</button>
+  </div>
+</header>
+
+<div class="grid">
+  <div id="list"></div>
+  <div class="console">
+    <div class="cbar"><span class="dot" id="dot"></span><span id="status">idle</span>
+      <button class="ghost" id="clear" style="margin-left:auto; padding:3px 10px;">clear</button></div>
+    <pre id="log"></pre>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let version = 'latest', running = false, es = null;
+
+// global controls
+$('#version').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  version = b.dataset.v;
+  [...$('#version').children].forEach((x) => x.classList.toggle('on', x === b));
+  render();
+});
+$('#slowmo').addEventListener('input', (e) => $('#slowval').textContent = e.target.value);
+$('#clear').addEventListener('click', () => { $('#log').textContent = ''; setStatus('idle',''); });
+$('#refresh').addEventListener('click', refreshVersion);
+$('#runall').addEventListener('click', () => run(['all']));
+
+let tests = [];
+async function load() {
+  const r = await (await fetch('/api/tests')).json();
+  tests = r.tests; $('#served').textContent = r.servedVersion; render();
+}
+async function refreshVersion() {
+  $('#served').textContent = '…';
+  $('#served').textContent = (await (await fetch('/api/served-version')).json()).servedVersion;
+}
+
+function brokenOf(t){ return t.brokenVersion || t.fixedVersion || t.version || ''; }
+
+function render() {
+  $('#list').innerHTML = '';
+  for (const t of tests) {
+    const brokenV = brokenOf(t);
+    const noBroken = version === 'broken' && !brokenV;
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <div class="row">
+        <span class="kind k-${t.kind}">${t.kind}</span>
+        <h3>${esc(t.title)}</h3>
+      </div>
+      <div class="row"><span class="id">${esc(t.id)}</span>
+        <span class="meta">${versionLabel(t)}</span></div>
+      ${repro(t)}
+      <div class="row" style="margin-top:10px;">
+        <button class="run" data-id="${t.id}" ${noBroken ? 'disabled title="no broken version for this test"' : ''}>▶ Run this</button>
+      </div>`;
+    $('#list').appendChild(el);
+  }
+  $('#list').querySelectorAll('button.run').forEach((b) =>
+    b.addEventListener('click', () => run([b.dataset.id])));
+  $('#runall').disabled = running;
+}
+
+function versionLabel(t) {
+  if (version === 'latest') return 'will ensure the latest release is deployed, then run';
+  const v = brokenOf(t);
+  return v ? `will ensure <b>${esc(v)}</b> is deployed, then run` : 'no broken version declared';
+}
+function repro(t) {
+  if (!t.reproduction || !t.reproduction.length) return '';
+  return `<details><summary>reproduction (${t.reproduction.length} steps)</summary>
+    <ol>${t.reproduction.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`;
+}
+function esc(s){ return String(s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function setStatus(text, kind){ $('#status').textContent = text; $('#dot').className = 'dot' + (kind ? ' ' + kind : ''); }
+function append(line, cls){
+  const span = document.createElement('span');
+  span.className = cls ? 'log-' + cls : '';
+  span.textContent = line + '\n';
+  $('#log').appendChild(span);
+  $('#log').scrollTop = $('#log').scrollHeight;
+}
+
+function run(ids) {
+  if (running) return;
+  running = true; render();
+  setStatus('running…', 'run');
+  const q = new URLSearchParams({
+    ids: ids.join(','), version,
+    slowMo: $('#slowmo').value, headed: $('#headed').checked ? '1' : '0',
+  });
+  es = new EventSource('/api/run?' + q.toString());
+  es.addEventListener('log', (e) => { const d = JSON.parse(e.data); append(d.line, d.cls); });
+  es.addEventListener('phase', (e) => append('\n— ' + JSON.parse(e.data).label + ' —', 'phase'));
+  es.addEventListener('done', (e) => {
+    const ok = JSON.parse(e.data).ok;
+    append(ok ? '\n✓ done — all green' : '\n✗ done — see failures above', ok ? 'ok' : 'ko');
+    setStatus(ok ? 'passed' : 'failed', ok ? 'ok' : 'ko');
+    finish();
+  });
+  es.onerror = () => { append('\n[connection closed]', 'err'); finish(); };
+}
+function finish(){ if (es){ es.close(); es = null; } running = false; render(); refreshVersion(); }
+
+load();
+</script>
+</body>
+</html>

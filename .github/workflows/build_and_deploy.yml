@@ -434,8 +434,60 @@ jobs:
             echo "## Dependencies report" >> "$GITHUB_STEP_SUMMARY"
             cat dist/dependencies_report.md >> "$GITHUB_STEP_SUMMARY"
             
+  e2e_tests:
+    # Gate the release: run the Playwright suite against the freshly deployed
+    # endpoint. If anything fails, the `release` job (which needs this one) is
+    # skipped — no release on a red build.
+    needs: build_and_deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm ci || npm install
+
+      - name: Install Playwright browser
+        working-directory: tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e tests against the deployed endpoint
+        working-directory: tests
+        env:
+          # TEST_NOCODE_ENDPOINT is the Convertigo server (…/convertigo). The app
+          # lives under /projects/C8Oforms/DisplayObjects/mobile/ — use the full
+          # URL as-is via C8OFORMS_APP_URL.
+          TEST_NOCODE_ENDPOINT: ${{ secrets.TEST_NOCODE_ENDPOINT }}
+          # Disposable test account; override with repo secrets if you set them.
+          C8OFORMS_TEST_USER: ${{ secrets.C8OFORMS_TEST_USER || 'testuser-convertigo@yopmail.com' }}
+          C8OFORMS_TEST_PASSWORD: ${{ secrets.C8OFORMS_TEST_PASSWORD || 'testuser-convertigo@yopmail.com' }}
+        run: |
+          set -euo pipefail
+          export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
+          echo "App URL: $C8OFORMS_APP_URL"
+          echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
+          # Run every spec EXCEPT open-bug tests (kind=open) — those are red on
+          # purpose (the bug isn't fixed yet) and must not block the release.
+          SPECS=$(node -e "const t=require('./e2e/regression-manifest.json').tests;const s=[...new Set(Object.values(t).filter(x=>x.kind!=='open').map(x=>x.spec))];process.stdout.write(s.join(' '))")
+          echo "Running specs: $SPECS"
+          npx playwright test $SPECS
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: tests/test-results
+          if-no-files-found: ignore
+
   release:
-    needs: [build_and_deploy, deps_report]
+    needs: [build_and_deploy, deps_report, e2e_tests]
     runs-on: ubuntu-latest
     steps:
       - name: Download CAR File
@@ -475,7 +527,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   close_and_set_issues_to_be_tested:
-    needs: build_and_deploy
+    # Only mark/close issues once the e2e gate passed (a release was produced).
+    needs: [build_and_deploy, e2e_tests]
     runs-on: ubuntu-latest
     permissions:
       issues: write
