@@ -32,7 +32,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   retries: 0,
   workers: 1,
-  reporter: [['list']],
+  reporter: [['list'], ['json', { outputFile: 'test-results/results.json' }]],
   use: {
     baseURL,
     viewport: { width: 1440, height: 900 },

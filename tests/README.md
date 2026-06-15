@@ -81,6 +81,17 @@ Closing the tab cancels the run and kills the browser/deploy it spawned. The
 slow-mo value is passed to Playwright via `C8OFORMS_SLOWMO` (also usable
 directly: `C8OFORMS_SLOWMO=800 npx playwright test --headed`).
 
+## CI release gate
+
+On a tag push, `.github/workflows/build_and_deploy.yml` runs the **whole suite**
+against the freshly deployed endpoint, then `ci/gate.mjs` decides whether to
+release. It blocks the release **only on an unexpected failure** — a test that
+should pass going red (a regression that came back, or a broken journey).
+Failures of `open`-kind specs are red on purpose and do **not** block; they are
+reported as "expected red". So every test runs (full visibility), and a known
+open bug never blocks shipping unrelated fixes. When an open bug is fixed, flip
+its `kind` to `regression` and it starts gating like the rest.
+
 ## Verifying a test (for testers)
 
 `verify.sh` proves a test is a **real** regression test: it deploys the version
