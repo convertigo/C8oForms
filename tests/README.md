@@ -156,9 +156,9 @@ still open on beta225.
    --json body,comments`). A reopened ticket often describes a second bug in the
    comments. The **Version** field gives the broken version; `git tag --contains
    <commit "ref #NNNN fixed">` gives the first fixed release.
-2. Deploy the broken version on the repro server with `scripts/deploy-version.sh
-   <tag>` (wipes the projects, then deploys every `.car`, dependencies first and
-   `C8Oforms` last).
+2. Deploy the broken version on the repro server with `node
+   scripts/deploy-version.mjs <tag>` (wipes the projects, then deploys every
+   `.car`, dependencies first and `C8Oforms` last; cross-platform — needs `gh`).
 3. Reproduce the bug, write the spec, confirm it is **red**.
 4. Deploy the fixed version, confirm the spec is **green** (or, for an open bug,
    leave it red and mark the manifest entry `open`).

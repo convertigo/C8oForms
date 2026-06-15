@@ -76,7 +76,7 @@ run_phase() {
   local label="$1" version="$2"
   echo
   echo "${bold}-- $label: deploying $version --${rst}"
-  ./scripts/deploy-version.sh "$version"
+  node scripts/deploy-version.mjs "$version"
   local got; got="$(served_version)"
   if [[ "$got" == "$version" ]]; then
     echo "${dim}server confirmed on $got${rst}"

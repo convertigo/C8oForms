@@ -72,7 +72,7 @@ async function ensureDeployed(send, version, ctl) {
     return true;
   }
   send('log', { line: `served version is ${current}; deploying ${version}…`, cls: 'out' });
-  const code = await run(send, './scripts/deploy-version.sh', [version], {}, ctl);
+  const code = await run(send, process.execPath, ['scripts/deploy-version.mjs', version], {}, ctl);
   if (code !== 0) {
     send('log', { line: `deploy of ${version} failed`, cls: 'err' });
     return false;
