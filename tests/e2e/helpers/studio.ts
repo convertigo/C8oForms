@@ -31,7 +31,40 @@ export const SEL = {
   createFormSaveButton: 'button.btn--createapp-save',
   // component config header — "Identifiant technique" input
   technicalIdInput: '.class1776763411136 input',
+  // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
+  sourcePalette: '.class1775922875303',
+  sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
 };
+
+export const SOURCE_PALETTE_SECTION = {
+  router: { header: '.class1732284059236', body: '.class1732284059272' },
+  application: { header: '.class1732284059317', body: '.class1732284059353' },
+  form: { header: '.class1732284059398', body: '.class1732284059434' },
+  user: { header: '.class1732284059479', body: '.class1732284059515' },
+  page: { header: '.class1732284059560', body: '.class1732284059596' },
+  translation: { header: '.class1732284059641', body: '.class1732284059677' },
+  c8o: { header: '.class1732284059722', body: '.class1732284059758' },
+} as const;
+
+export type SourcePaletteSection = keyof typeof SOURCE_PALETTE_SECTION;
+
+export interface SourcePaletteSectionState {
+  name: SourcePaletteSection;
+  expanded: boolean;
+  height: number;
+  opacity: number;
+  pointerEvents: string;
+}
+
+const DEFAULT_SOURCE_PALETTE_SECTIONS: SourcePaletteSection[] = [
+  'router',
+  'application',
+  'form',
+  'user',
+  'page',
+  'translation',
+  'c8o',
+];
 
 /**
  * Palette components share the same priority class, so the stable, non-i18n
@@ -154,6 +187,79 @@ export async function openPreview(page: Page): Promise<void> {
 
 export async function openConfigTab(page: Page, label: string): Promise<void> {
   await page.locator(SEL.configTab).filter({ hasText: label }).first().click();
+}
+
+export async function waitForSourcePaletteSections(
+  page: Page,
+  minimum = 3,
+  preferred: SourcePaletteSection[] = DEFAULT_SOURCE_PALETTE_SECTIONS,
+): Promise<SourcePaletteSection[]> {
+  await page.locator(SEL.sourcePalette).first().waitFor({ state: 'visible', timeout: 15_000 });
+  await expect
+    .poll(async () => (await sourcePaletteSectionStates(page, preferred)).length, {
+      message: `source palette should expose at least ${minimum} sections`,
+      timeout: 15_000,
+    })
+    .toBeGreaterThanOrEqual(minimum);
+
+  return (await sourcePaletteSectionStates(page, preferred)).map((state) => state.name).slice(0, minimum);
+}
+
+export async function clickSourcePaletteCollapseAll(page: Page): Promise<void> {
+  const button = page.locator(SEL.sourcePaletteCollapseAllButton).first();
+  await expect(button, 'source palette collapse-all action should be visible').toBeVisible({ timeout: 15_000 });
+  await button.click();
+  await page.waitForTimeout(350);
+}
+
+export async function clickSourcePaletteSection(page: Page, section: SourcePaletteSection): Promise<void> {
+  const header = page.locator(`${SEL.sourcePalette} ${SOURCE_PALETTE_SECTION[section].header}`).first();
+  await expect(header, `source palette section ${section} should be visible`).toBeVisible({ timeout: 15_000 });
+  await header.click();
+  await page.waitForTimeout(350);
+}
+
+export async function sourcePaletteSectionStates(
+  page: Page,
+  sections: SourcePaletteSection[] = DEFAULT_SOURCE_PALETTE_SECTIONS,
+): Promise<SourcePaletteSectionState[]> {
+  await page.locator(SEL.sourcePalette).first().waitFor({ state: 'visible', timeout: 15_000 });
+  return page.evaluate(
+    ({ rootSelector, definitions, sectionNames }) => {
+      const root = document.querySelector(rootSelector) || document;
+      const isRenderable = (el: Element | null): el is HTMLElement => {
+        if (!(el instanceof HTMLElement)) return false;
+        const style = getComputedStyle(el);
+        const box = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0;
+      };
+
+      return sectionNames.flatMap((name) => {
+        const def = definitions[name];
+        const header = root.querySelector(def.header);
+        const body = root.querySelector(def.body);
+        if (!isRenderable(header) || !(body instanceof HTMLElement)) return [];
+
+        const style = getComputedStyle(body);
+        const box = body.getBoundingClientRect();
+        const opacity = Number(style.opacity);
+        return [
+          {
+            name,
+            expanded: opacity > 0.5 && style.pointerEvents !== 'none' && box.height > 5,
+            height: Math.round(box.height),
+            opacity,
+            pointerEvents: style.pointerEvents,
+          },
+        ];
+      });
+    },
+    {
+      rootSelector: SEL.sourcePalette,
+      definitions: SOURCE_PALETTE_SECTION,
+      sectionNames: sections,
+    },
+  );
 }
 
 export async function closeComponentConfig(page: Page): Promise<void> {
