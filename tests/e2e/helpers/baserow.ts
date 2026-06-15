@@ -36,6 +36,8 @@ export interface EnsureTableSpec {
   table: string;
   /** Column definitions, e.g. [{ name: 'Name', type: 'text' }, …]. */
   columns: Array<{ name: string; type: string }>;
+  /** Optional seed rows, only applied when the table is created. */
+  rows?: Array<Record<string, string | number | boolean | null>>;
 }
 
 function mcpUrl(): string {
@@ -45,9 +47,9 @@ function mcpUrl(): string {
 }
 
 function mcpToken(): string {
-  const t = process.env.C8OFORMS_MCP_TOKEN;
+  const t = process.env.C8OFORMS_MCP_TOKEN ?? process.env['greg-forms-codex'];
   if (!t) {
-    throw new Error('C8OFORMS_MCP_TOKEN is not set — needed for Baserow fixtures (see tests/.env.example).');
+    throw new Error('C8OFORMS_MCP_TOKEN is not set - needed for Baserow fixtures (see tests/.env.example).');
   }
   return t;
 }
@@ -149,13 +151,28 @@ export async function ensureBaserowTable(spec: EnsureTableSpec): Promise<Baserow
   );
   if (exists) return before;
 
-  // TODO: confirm the exact argument shape of nocode-baserow-schema-apply against
-  // a live call once the server-side Baserow is enabled. The intent below is a
-  // declarative "make this workspace/base/table with these columns exist".
   await callMcp('nocode-baserow-schema-apply', {
-    workspace: spec.workspace,
-    database: spec.database,
-    tables: [{ name: spec.table, columns: spec.columns }],
+    mode: 'apply',
+    readBack: true,
+    create: {
+      workspace: true,
+      base: true,
+      tables: true,
+      fields: true,
+      sampleRows: (spec.rows?.length ?? 0) > 0,
+    },
+    schema: {
+      workspaceName: spec.workspace,
+      baseName: spec.database,
+      tables: [
+        {
+          name: spec.table,
+          fields: spec.columns,
+          sampleRows: spec.rows ?? [],
+          upsertKey: spec.rows?.length ? spec.columns[0]?.name : undefined,
+        },
+      ],
+    },
   });
 
   return baserowCatalog();
