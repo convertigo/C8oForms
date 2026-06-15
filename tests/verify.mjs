@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
+import { latestRelease } from './scripts/release.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(here, '.env') });
@@ -53,20 +54,9 @@ function run(cmd, args) {
     child.on('error', () => resolve(1));
   });
 }
-// gh needs shell:true so Windows resolves gh.exe.
-function capture(cmd, args) {
-  return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd: here, shell: true });
-    let out = '';
-    child.stdout.on('data', (d) => (out += d));
-    child.on('close', () => resolve(out.trim()));
-    child.on('error', () => resolve(''));
-  });
-}
-const resolveVersion = async (v) =>
-  v === 'latest'
-    ? capture('gh', ['release', 'list', '-R', REPO, '--limit', '1', '--json', 'tagName', '--jq', '.[0].tagName'])
-    : v;
+// "latest" = newest release of the highest version line (ignores old-line
+// hotfixes like 2.1.x). Pin a line with C8O_RELEASE_PREFIX.
+const resolveVersion = async (v) => (v === 'latest' ? latestRelease(REPO) : v);
 
 const headedArgs = process.env.HEADED === '1' ? ['--headed'] : [];
 

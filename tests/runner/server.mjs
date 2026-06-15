@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import dotenv from 'dotenv';
+import { latestRelease } from '../scripts/release.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const testsDir = join(here, '..');
@@ -46,20 +47,11 @@ async function servedVersion() {
   }
 }
 
-// Capture a command's stdout (no streaming).
-function capture(cmd, args) {
-  return new Promise((resolve) => {
-    const c = spawn(cmd, args, { cwd: testsDir });
-    let out = '';
-    c.stdout.on('data', (d) => (out += d));
-    c.on('close', () => resolve(out.trim()));
-    c.on('error', () => resolve(''));
-  });
-}
-
 const repo = () => process.env.C8O_REPO || 'convertigo/C8oForms';
+// Newest release of the highest version line (ignores hotfixes on older lines
+// like 2.1.x). Pin a line with C8O_RELEASE_PREFIX.
 function resolveLatest() {
-  return capture('gh', ['release', 'list', '-R', repo(), '--limit', '1', '--json', 'tagName', '--jq', '.[0].tagName']);
+  return latestRelease(repo());
 }
 
 // Make sure `version` is the one actually served before running. Deploys it if
