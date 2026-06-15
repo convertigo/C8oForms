@@ -9789,6 +9789,12 @@ This component is a modal dialog for resetting the password. It accepts an input
 <tr>
 <td>style</td><td></td>
 </tr>
+<tr>
+<td>tooltipContent</td><td></td>
+</tr>
+<tr>
+<td>tooltipEnabled</td><td></td>
+</tr>
 </table>
 **events**
 
