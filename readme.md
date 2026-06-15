@@ -5,6 +5,8 @@
 
 Convertigo No Code Studio
 
+[![e2e tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/convertigo/C8oForms/badges/e2e-badge.json)](https://github.com/convertigo/C8oForms/actions/workflows/build_and_deploy.yml)
+
 ## Introducing Convertigo No Code Studio ##
 
 Form Builder is the "No Code" tool built on top of Convertigo Low Code platform technology.

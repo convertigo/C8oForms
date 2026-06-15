@@ -206,6 +206,9 @@ ${lineBreak}
 <#assign intro>
 	<@header toc=toc anchors=anchors heading="#" text=project.label />
 	<@comment text=project.comment />
+
+[![e2e tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/convertigo/C8oForms/badges/e2e-badge.json)](https://github.com/convertigo/C8oForms/actions/workflows/build_and_deploy.yml)
+
 	<#-- you can add your text or own macro call here to add something -->
 	<#--
 	This is text i want to add after the project comment
