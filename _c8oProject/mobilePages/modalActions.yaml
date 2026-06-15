@@ -59,6 +59,7 @@ scriptContent:
         		catch(e){
         			
         		}
+        		this.local.tree = this.sanitizeInternalVariablesTree(this.local.tree);
         		this.local.item = this.navParams.data["item"];
         		this.local.source = this.navParams.data["source"] == true;
         		this.local.type = this.navParams.data["type"] || this.local.item?.type;
@@ -108,6 +109,56 @@ scriptContent:
         	public removeUnderscores(str){
                 return str.replace(/_/gi, '' '');
             }
+        
+        	public isInternalVariableName(name: any): boolean {
+        		return name == "forms_form_id";
+        	}
+        
+        	public sanitizeSequenceVariables(variables: any): any {
+        		if (variables == null || variables.name == null) {
+        			return variables;
+        		}
+        		if (typeof variables.name == "string") {
+        			return this.isInternalVariableName(variables.name) ? {...variables, name: [], comment: [], type: []} : variables;
+        		}
+        		if (!Array.isArray(variables.name)) {
+        			return variables;
+        		}
+        		let sanitized = {...variables, name: [], comment: [], type: []};
+        		for (let i = 0; i < variables.name.length; i++) {
+        			if (this.isInternalVariableName(variables.name[i])) {
+        				continue;
+        			}
+        			sanitized.name.push(variables.name[i]);
+        			if (Array.isArray(variables.comment)) {
+        				sanitized.comment.push(variables.comment[i]);
+        			}
+        			if (Array.isArray(variables.type)) {
+        				sanitized.type.push(variables.type[i]);
+        			}
+        		}
+        		return sanitized;
+        	}
+        
+        	public sanitizeInternalVariablesTree(tree: any): any {
+        		if (!Array.isArray(tree)) {
+        			return tree;
+        		}
+        		return tree.map((project) => {
+        			if (!project || !Array.isArray(project.sequences)) {
+        				return project;
+        			}
+        			return {
+        				...project,
+        				sequences: project.sequences.map((sequence) => {
+        					if (!sequence || sequence.variables == null) {
+        						return sequence;
+        					}
+        					return {...sequence, variables: this.sanitizeSequenceVariables(sequence.variables)};
+        				})
+        			};
+        		});
+        	}
         
         
         	public getHtmlNameBaby(index: number, name: string, variables: any){
@@ -1150,13 +1201,17 @@ title: Title for modalActions
                     
                     				let va = {};
                     				if(typeof(elemChoosen.variables.name) == "string"){
-                    					va[elemChoosen.variables.name] = { str: "", html: false };
+                    					if (!this.isInternalVariableName(elemChoosen.variables.name)) {
+                    						va[elemChoosen.variables.name] = { str: "", html: false };
+                    					}
                     				}
                     				else if(typeof(elemChoosen.variables.name) == "undefined"){
                     				}
                     				else{
                     					for(let el of elemChoosen.variables.name){
-                                        	va[el] = { str: "", html: false };
+                    						if (!this.isInternalVariableName(el)) {
+                                        		va[el] = { str: "", html: false };
+                    						}
                                     	}
                     				}
                     				const sequenceName = elemChoosen.name;

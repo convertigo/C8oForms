@@ -47,9 +47,46 @@ scriptContent:
         		this.current = this.currentName != null && sources != null ? sources[this.currentName] : undefined;
         			
         	}
+        	public isInternalVariableName(name){
+        		return name == "forms_form_id";
+        	}
+        	public isVariableVisibleInUi(name){
+        		if(this.isInternalVariableName(name)){
+        			return false;
+        		}
+        		if(name == "forms_filter" && this.isSource && this.pageOwner.getMetaFromPalette(this.item.type).hasFilter == true){
+        			return false;
+        		}
+        		return true;
+        	}
+        	public cloneVisibleVariables(variables){
+        		let cloned = {name: [], type: [], comment: []};
+        		if(variables == null || variables.name == null){
+        			return cloned;
+        		}
+        		let names = Array.isArray(variables.name) ? variables.name : [variables.name];
+        		let types = Array.isArray(variables.type) ? variables.type : [variables.type];
+        		let comments = Array.isArray(variables.comment) ? variables.comment : [variables.comment];
+        		names.forEach((entry, index)=>{
+        			if(this.isVariableVisibleInUi(entry)){
+        				cloned.name.push(entry);
+        				cloned.type.push(types[index]);
+        				cloned.comment.push(comments[index]);
+        			}
+        		});
+        		return cloned;
+        	}
+        	public sanitizeCurrentMetas(meta){
+        		if(meta == null){
+        			return meta;
+        		}
+        		let sanitized = {...meta};
+        		sanitized.variables = this.cloneVisibleVariables(meta.variables);
+        		return sanitized;
+        	}
         	public buildFallbackCurrentMetas(projectName, sequenceName){
         		try{
-        			let variableNames = this.current != null && this.current.vars != null ? Object.keys(this.current.vars) : [];
+        			let variableNames = this.current != null && this.current.vars != null ? Object.keys(this.current.vars).filter((name)=>{ return this.isVariableVisibleInUi(name); }) : [];
         			return {
         				name: sequenceName != null && sequenceName != "" ? sequenceName : (this.currentName != null ? "" + this.currentName : ""),
         				comment: projectName != null && projectName != "" ? projectName : (this.currentName != null ? "" + this.currentName : ""),
@@ -96,32 +133,23 @@ scriptContent:
         				if(p.name == projectName){
         					for(let s of p.sequences){
         						if(s.name == sequenceName){
-        							if(s.variables != undefined && s.variables.name != undefined){
-        								s.variables.name.forEach((entry, index)=>{
-        									// if this component has builtin support form forms_filter remove it from ui
-        									if(entry == "forms_filter" && this.pageOwner.getMetaFromPalette(this.item.type).hasFilter == true){
-        										s.variables.type?.splice(index, 1);
-        										s.variables.name.splice(index, 1);
-        										s.variables.comment.splice(index, 1);
-        									}
-        								})
-        							}
-        							if(s.variables != undefined && s.variables.type != undefined){
-        								s.variables.type.forEach((entry, index)=>{
+        							let sanitizedSequence = this.sanitizeCurrentMetas(s);
+        							if(sanitizedSequence.variables != undefined && sanitizedSequence.variables.type != undefined){
+        								sanitizedSequence.variables.type.forEach((entry, index)=>{
         									// if this component has builtin support form forms_filter remove it from ui
         								if(entry == "__c8o_multi"){
         //										s.variables.type?.splice(index, 1);
         //										s.variables.name.splice(index, 1);
         //										s.variables.comment.splice(index, 1);
         									this.local.addAllowed = true;
-        									this.local.addName = s.variables.name[index];
-        									if(this.current != null && this.current.vars != null && !Array.isArray(this.current.vars[s.variables.name[index]])){
-        										this.current.vars[s.variables.name[index]] = [];
+        									this.local.addName = sanitizedSequence.variables.name[index];
+        									if(this.current != null && this.current.vars != null && !Array.isArray(this.current.vars[sanitizedSequence.variables.name[index]])){
+        										this.current.vars[sanitizedSequence.variables.name[index]] = [];
         									}
         								}
         							})
         						}
-        						meta = s;
+        						meta = sanitizedSequence;
         						meta.url = this.c8o.endpointConvertigo + ''/projects/'' + p.name + ''/logos/'' +  s.name + ''.svg'';
         					}
         					
@@ -134,6 +162,12 @@ scriptContent:
         		}
         //		console.log("META : ", meta)
         		this.currentMetas = meta;
+        		if(this.currentMetas != null && this.currentMetas.variables != null && Array.isArray(this.currentMetas.variables.name)){
+        			if(this.pageOwner.local.index == null || this.pageOwner.local.index >= this.currentMetas.variables.name.length){
+        				this.pageOwner.local.index = this.currentMetas.variables.name.length > 0 ? 0 : null;
+        				this.pageOwner.local.indexBis = null;
+        			}
+        		}
         		this.ref.detectChanges();
         	}
         public getCurrentVarTypeFromMetas(){
