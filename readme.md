@@ -9705,6 +9705,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>label</td><td></td>
 </tr>
 <tr>
+<td>min</td><td></td>
+</tr>
+<tr>
 <td>model</td><td></td>
 </tr>
 <tr>
