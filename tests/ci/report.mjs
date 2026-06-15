@@ -1,10 +1,17 @@
-// Post-release CI step: the release happens even when a regression test fails.
-// This script classifies the Playwright results, reopens any closed issue whose
-// recorded issue-backed test failed on the released tag, and writes a Markdown
-// report to both the GitHub step summary and tests/dist/e2e_report.md.
+// Post-release CI step: the release happens even when a test fails. This script
+// is driven by the ACTUAL Playwright results (not the manifest), so every test
+// that ran is counted and every failing issue-backed test is handled — even
+// specs that were never registered in the manifest.
 //
-// It intentionally exits 0: the release is already produced, and this step is a
-// reporting/remediation step rather than a gate.
+// It:
+//   1. counts pass/fail from test-results/results.json (real denominator),
+//   2. reopens any CLOSED issue whose test failed (issue number read from the
+//      test title `#NNNN`), commenting the released tag,
+//   3. writes a Markdown report (step summary + dist/e2e_report.md) and a
+//      shields.io badge (dist/badge/e2e-badge.json).
+// The manifest is used only as optional metadata (kind = open/regression/…,
+// fixedVersion for the comment). It intentionally exits 0 — it reports, it does
+// not gate the release.
 import {
   appendFileSync,
   existsSync,
@@ -23,19 +30,14 @@ const testsDir = join(here, '..');
 const releaseTag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME || 'unknown';
 const repo = process.env.GITHUB_REPOSITORY || 'convertigo/C8oForms';
 const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
-const runUrl = process.env.GITHUB_RUN_ID
-  ? `${serverUrl}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`
-  : '';
+const runUrl = process.env.GITHUB_RUN_ID ? `${serverUrl}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}` : '';
 
-const manifest = JSON.parse(
-  readFileSync(join(testsDir, 'e2e', 'regression-manifest.json'), 'utf8'),
-).tests;
+const manifest = JSON.parse(readFileSync(join(testsDir, 'e2e', 'regression-manifest.json'), 'utf8')).tests;
 
 function findResultsJson(dir) {
+  if (!existsSync(dir)) return null;
   const direct = join(dir, 'results.json');
   if (existsSync(direct)) return direct;
-  if (!existsSync(dir)) return null;
-
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
     if (statSync(p).isDirectory()) {
@@ -48,177 +50,137 @@ function findResultsJson(dir) {
   return null;
 }
 
-function collectFailingSpecs(report) {
-  const failing = [];
-
-  function specFailed(spec) {
-    if (spec.ok === false) return true;
-    return (spec.tests || []).some((test) =>
-      (test.results || []).some((result) =>
-        ['failed', 'timedOut', 'interrupted'].includes(result.status),
-      ),
-    );
-  }
-
-  function walk(suites = []) {
-    for (const suite of suites) {
-      for (const spec of suite.specs || []) {
-        if (specFailed(spec)) {
-          failing.push({
-            file: basename(spec.file || suite.file || ''),
-            title: spec.title || '',
-          });
-        }
+// Every test (= Playwright "spec") from the report, with its pass/fail.
+function collectTests(report) {
+  const out = [];
+  const failed = (spec) =>
+    spec.ok === false ||
+    (spec.tests || []).some((t) => (t.results || []).some((r) => ['failed', 'timedOut', 'interrupted'].includes(r.status)));
+  const walk = (suites = []) => {
+    for (const s of suites) {
+      for (const spec of s.specs || []) {
+        out.push({ file: basename(spec.file || s.file || ''), title: spec.title || '', failed: failed(spec) });
       }
-      walk(suite.suites || []);
+      walk(s.suites || []);
     }
-  }
-
+  };
   walk(report.suites || []);
-  return failing;
+  return out;
 }
 
-function issueNumber(id) {
-  return String(id).match(/^\d+/)?.[0] || '';
-}
-
-function manifestEntryFailed(entry, failingSpecs) {
-  const specFile = basename(entry.spec);
-  const grep = entry.grep ? String(entry.grep).toLowerCase() : '';
-  return failingSpecs.some((failing) => {
-    if (failing.file !== specFile) return false;
-    return !grep || failing.title.toLowerCase().includes(grep);
-  });
+// Optional manifest metadata for a test, matched by spec file + grep substring.
+function manifestFor(test) {
+  for (const [id, entry] of Object.entries(manifest)) {
+    if (basename(entry.spec) !== test.file) continue;
+    const grep = entry.grep ? String(entry.grep).toLowerCase() : '';
+    if (!grep || test.title.toLowerCase().includes(grep)) return { id, entry };
+  }
+  return null;
 }
 
 function gh(args) {
   try {
-    return {
-      ok: true,
-      stdout: execFileSync('gh', args, {
-        encoding: 'utf8',
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }).trim(),
-    };
+    return { ok: true, stdout: execFileSync('gh', args, { encoding: 'utf8', env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }).trim() };
   } catch (error) {
-    const stderr = String(error.stderr || error.message || '').trim();
-    return { ok: false, stdout: '', stderr };
+    return { ok: false, stdout: '', stderr: String(error.stderr || error.message || '').trim() };
   }
 }
 
-function tableCell(value) {
-  return String(value ?? '')
-    .replace(/\r?\n/g, ' ')
-    .replace(/\|/g, '\\|');
-}
+const tableCell = (v) => String(v ?? '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
 
+// ── Collect results ──────────────────────────────────────────────────────────
 const resultsPath = findResultsJson(join(testsDir, 'test-results'));
 const missingResults = !resultsPath;
-const failingSpecs = missingResults
-  ? []
-  : collectFailingSpecs(JSON.parse(readFileSync(resultsPath, 'utf8')));
 
-const results = Object.entries(manifest).map(([id, entry]) => {
-  const failed = missingResults ? false : manifestEntryFailed(entry, failingSpecs);
-  return {
-    id,
-    entry,
-    failed,
-    issue: issueNumber(id),
-    action: '',
-  };
+const tests = (missingResults ? [] : collectTests(JSON.parse(readFileSync(resultsPath, 'utf8')))).map((t) => {
+  const m = manifestFor(t);
+  const issue = (t.title.match(/#(\d+)/) || [])[1] || '';
+  return { ...t, issue, kind: m?.entry.kind || (issue ? 'regression' : 'smoke'), entry: m?.entry };
 });
 
+// ── Reopen closed issues whose test failed (deduped per issue) ───────────────
 const reopened = [];
 const alreadyOpen = [];
 const issueErrors = [];
-const reopenableKinds = new Set(['regression', 'open']);
+const handled = new Set();
 
-for (const result of results) {
-  const { entry, failed, issue } = result;
-  if (!failed || !issue || !reopenableKinds.has(entry.kind)) continue;
-
-  const state = gh(['issue', 'view', issue, '-R', repo, '--json', 'state', '--jq', '.state']);
-  if (!state.ok) {
-    result.action = 'Issue lookup failed';
-    issueErrors.push(`#${issue}: ${state.stderr || 'state lookup failed'}`);
+for (const t of tests) {
+  if (!t.failed) {
+    t.action = 'No action';
     continue;
   }
+  if (!t.issue) {
+    t.action = t.kind === 'open' ? 'Expected red (open)' : 'Failure (no issue)';
+    continue;
+  }
+  if (handled.has(t.issue)) {
+    t.action = `See #${t.issue}`;
+    continue;
+  }
+  handled.add(t.issue);
 
-  if (state.stdout.toUpperCase() === 'CLOSED') {
-    const versionContext =
-      entry.kind === 'regression' && entry.fixedVersion
-        ? `The manifest says it was fixed in ${entry.fixedVersion}, so this regression is present after that fix and in ${releaseTag}.`
-        : entry.brokenVersion
-        ? `The manifest still tracks this test as ${entry.kind} from ${entry.brokenVersion}, with no passing fixed version recorded.`
-        : `The manifest still tracks this test as ${entry.kind}, with no passing fixed version recorded.`;
+  const state = gh(['issue', 'view', t.issue, '-R', repo, '--json', 'state', '--jq', '.state']);
+  if (!state.ok) {
+    t.action = 'Issue lookup failed';
+    issueErrors.push(`#${t.issue}: ${state.stderr || 'state lookup failed'}`);
+    continue;
+  }
+  if (state.stdout.toUpperCase() !== 'CLOSED') {
+    t.action = `Already open #${t.issue}`;
+    alreadyOpen.push(t.issue);
+    continue;
+  }
+  const context = t.entry?.fixedVersion
+    ? `It was fixed in ${t.entry.fixedVersion}, so the regression is present after that fix and in ${releaseTag}.`
+    : `The test for this issue failed on ${releaseTag}.`;
+  const comment = [
+    `E2E regression detected in ${releaseTag}.`,
+    '',
+    `The automated end-to-end test for this issue failed on the released tag ${releaseTag}.`,
+    context,
+    runUrl ? `CI run: ${runUrl}` : '',
+    '',
+    'Reopened automatically by the release workflow.',
+  ].filter(Boolean).join('\n');
 
-    const comment = [
-      `Issue test failed in ${releaseTag}.`,
-      '',
-      `The automated end-to-end test for this issue failed on the released tag ${releaseTag}.`,
-      versionContext,
-      runUrl ? `CI run: ${runUrl}` : '',
-      '',
-      'Reopened automatically by the release workflow.',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const reopenedIssue = gh(['issue', 'reopen', issue, '-R', repo, '-c', comment]);
-    if (reopenedIssue.ok) {
-      reopened.push(issue);
-      result.action = `Reopened #${issue}`;
-    } else {
-      result.action = 'Reopen failed';
-      issueErrors.push(`#${issue}: ${reopenedIssue.stderr || 'reopen failed'}`);
-    }
+  const r = gh(['issue', 'reopen', t.issue, '-R', repo, '-c', comment]);
+  if (r.ok) {
+    t.action = `Reopened #${t.issue}`;
+    reopened.push(t.issue);
   } else {
-    alreadyOpen.push(issue);
-    result.action = `Already open #${issue}`;
+    t.action = 'Reopen failed';
+    issueErrors.push(`#${t.issue}: ${r.stderr || 'reopen failed'}`);
   }
 }
 
-for (const result of results) {
-  if (result.action) continue;
-  if (missingResults) result.action = 'No Playwright result';
-  else if (result.failed && result.entry.kind === 'open') result.action = 'Expected red open bug';
-  else if (result.failed) result.action = 'Reported failure';
-  else result.action = 'No action';
-}
+// ── Report ───────────────────────────────────────────────────────────────────
+const failedTests = tests.filter((t) => t.failed);
+const unexpected = failedTests.filter((t) => t.kind !== 'open'); // open bugs are red on purpose
+const passedCount = tests.length - failedTests.length;
 
-const failed = results.filter((result) => result.failed);
-const passedCount = results.length - failed.length;
 const lines = [];
-
 lines.push(`## E2E regression report - \`${releaseTag}\``);
 lines.push('');
 if (runUrl) lines.push(`CI run: ${runUrl}`);
+lines.push('');
 if (missingResults) {
-  lines.push('');
   lines.push('Playwright did not produce a JSON report, so no issue was reopened automatically.');
 } else {
-  lines.push('');
-  lines.push(`Passed **${passedCount}/${results.length}**, failed **${failed.length}**.`);
-  lines.push('Test failures do not block this release; failed closed issue-backed tests are reopened below.');
+  lines.push(`Passed **${passedCount}/${tests.length}**, failed **${failedTests.length}** (${unexpected.length} unexpected).`);
+  lines.push('Test failures do not block the release; failed closed issue-backed tests are reopened.');
 }
-
 if (reopened.length) lines.push(`\nReopened issues: ${reopened.map((n) => `#${n}`).join(', ')}`);
-if (alreadyOpen.length) lines.push(`\nFailed issues already open: ${alreadyOpen.map((n) => `#${n}`).join(', ')}`);
+if (alreadyOpen.length) lines.push(`\nFailed issues already open: ${[...new Set(alreadyOpen)].map((n) => `#${n}`).join(', ')}`);
 if (issueErrors.length) {
   lines.push('\nIssue automation errors:');
-  for (const error of issueErrors) lines.push(`- ${error}`);
+  for (const e of issueErrors) lines.push(`- ${e}`);
 }
 
 lines.push('');
 lines.push('| Test | Kind | Issue | Result | Action |');
 lines.push('|---|---|---|---|---|');
-for (const { id, entry, failed: isFailed, issue, action } of results) {
-  const status = missingResults ? 'NO RESULT' : isFailed ? 'FAIL' : 'PASS';
-  lines.push(
-    `| ${tableCell(entry.title || id)} | ${tableCell(entry.kind || '')} | ${issue ? `#${issue}` : '-'} | ${status} | ${tableCell(action)} |`,
-  );
+for (const t of [...tests].sort((a, b) => Number(b.failed) - Number(a.failed))) {
+  lines.push(`| ${tableCell(t.title)} | ${tableCell(t.kind)} | ${t.issue ? `#${t.issue}` : '-'} | ${t.failed ? 'FAIL' : 'PASS'} | ${tableCell(t.action)} |`);
 }
 
 const markdown = `${lines.join('\n')}\n`;
@@ -227,18 +189,11 @@ writeFileSync(join(testsDir, 'dist', 'e2e_report.md'), markdown);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
 console.log(markdown);
 
-// shields.io endpoint badge for the README, published to the `badges` branch.
-// Green unless an UNEXPECTED test failed — an open-bug red is expected, so it
-// still counts as healthy (the number conveys the open bug).
-const unexpected = failed.filter((result) => result.entry.kind !== 'open');
+// shields.io endpoint badge. Green unless an UNEXPECTED test failed (an open-bug
+// red is expected, so the badge stays green — the number still conveys it).
 const badge = missingResults
   ? { schemaVersion: 1, label: 'e2e', message: 'no results', color: 'lightgrey' }
-  : {
-      schemaVersion: 1,
-      label: 'e2e',
-      message: `${passedCount}/${results.length} passed`,
-      color: unexpected.length ? 'red' : 'brightgreen',
-    };
+  : { schemaVersion: 1, label: 'e2e', message: `${passedCount}/${tests.length} passed`, color: unexpected.length ? 'red' : 'brightgreen' };
 const badgeDir = join(testsDir, 'dist', 'badge');
 mkdirSync(badgeDir, { recursive: true });
 writeFileSync(join(badgeDir, 'e2e-badge.json'), `${JSON.stringify(badge)}\n`);
