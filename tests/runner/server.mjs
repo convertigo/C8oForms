@@ -16,6 +16,10 @@ dotenv.config({ path: join(testsDir, '.env') });
 
 const PORT = Number(process.env.RUNNER_PORT ?? 8771);
 const MANIFEST = join(testsDir, 'e2e', 'regression-manifest.json');
+// Run Playwright via the local CLI with the current node binary, so we don't
+// depend on `npx` being on the spawned process's PATH (which breaks on Windows
+// and GUI-launched servers — `spawn npx ENOENT`).
+const PW_CLI = join(testsDir, 'node_modules', '@playwright', 'test', 'cli.js');
 
 function appBaseUrl() {
   const direct = process.env.C8OFORMS_APP_URL;
@@ -122,9 +126,10 @@ function run(send, cmd, args, env, ctl) {
   });
 }
 
-// Build the playwright args for one test (or the whole suite when spec is null).
+// Build the `node <cli> test …` args for one test (or the whole suite when
+// spec is null). Run it with `run(send, process.execPath, pwArgs(...), …)`.
 function pwArgs({ spec, grep, headed }) {
-  const args = ['playwright', 'test'];
+  const args = [PW_CLI, 'test'];
   if (spec) args.push(spec);
   if (grep) args.push('-g', grep);
   if (headed) args.push('--headed');
@@ -165,7 +170,7 @@ async function execute(send, params, tests, ctl) {
     if (!(await ensureDeployed(send, latest, ctl))) return send('done', { ok: false });
     if (!ctl.cancelled) {
       send('phase', { label: `Running the whole suite on ${latest}` });
-      ok = (await run(send, 'npx', pwArgs({ spec: null, headed }), env, ctl)) === 0;
+      ok = (await run(send, process.execPath, pwArgs({ spec: null, headed }), env, ctl)) === 0;
     }
     if (ctl.cancelled) send('log', { line: '\n[cancelled]', cls: 'err' });
     return send('done', { ok: ok && !ctl.cancelled });
@@ -191,7 +196,7 @@ async function execute(send, params, tests, ctl) {
     }
     if (ctl.cancelled) break;
     send('phase', { label: `Running ${t.id} on ${target}` });
-    const code = await run(send, 'npx', pwArgs({ spec: t.spec, grep: t.grep, headed }), env, ctl);
+    const code = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed }), env, ctl);
     ok = ok && code === 0;
   }
 
