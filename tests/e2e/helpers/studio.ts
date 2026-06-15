@@ -14,6 +14,8 @@ export const SEL = {
   componentOverlay: '.class1776441955089',
   // component config panel tabs (one bean repeated per tab, filtered by label)
   configTab: '.class1775835275881',
+  // component config panel "Configuration" section label
+  configSectionLabel: '.span-configuration',
   // config panel close button
   configClose: '.class1775818868859',
   // MapDataInteractionsEditor.yaml — height setting input
@@ -24,6 +26,8 @@ export const SEL = {
   previewButton: '.class1773331718985',
   // editor canvas wrapper of a map component
   mapComponent: 'c8oforms-itemmapviewer',
+  checkboxComponent: 'c8oforms-itemcheckboxviewer',
+  descriptionComponent: 'c8oforms-itemdescriptionviewer',
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
   blankFormCard: '.class1645547241644',
   // ion-alert prompt shown by createNewForm (stable CSS classes set in the action code)
@@ -38,6 +42,9 @@ export const SEL = {
   conditionFieldBrowseButton: 'ion-button.class1758189195718',
   conditionOperatorSelect: 'ion-select.class1758189195757',
   conditionValueTagInput: 'tag-input input',
+  checkboxOptionInput: 'ion-input.class1588839628131 input',
+  checkboxOptionAddButton: 'ion-button.class1587560901011',
+  checkboxOptionDeleteButton: 'ion-button.class1588839628212',
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
   sourcePalette: '.class1775922875303',
   sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
@@ -68,6 +75,13 @@ export interface SourcePaletteSectionState {
   height: number;
   opacity: number;
   pointerEvents: string;
+}
+
+export interface CheckboxDescriptionFixtureOptions {
+  title?: string;
+  checkboxTechnicalId?: string;
+  descriptionTechnicalId?: string;
+  checkboxOptions?: string[];
 }
 
 const DEFAULT_SOURCE_PALETTE_SECTIONS: SourcePaletteSection[] = [
@@ -512,17 +526,58 @@ export async function openPreview(page: Page): Promise<void> {
   await page.waitForTimeout(2_000);
 }
 
-export async function openConfigTab(page: Page, label: string): Promise<void> {
-  const tabs = page.locator(SEL.configTab).filter({ hasText: label });
-  const count = await tabs.count();
+export async function openConfigurationSection(page: Page): Promise<void> {
+  await clickVisibleByText(page, SEL.configSectionLabel, /^configuration$/i, 'configuration section');
+  await expect(page.locator(SEL.configTab).first(), 'configuration tabs should be mounted').toBeAttached({
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(350);
+}
+
+export async function openConfigTab(page: Page, label: string | RegExp): Promise<void> {
+  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false)) {
+    await page.waitForTimeout(350);
+    return;
+  }
+
+  await openConfigurationSection(page);
+  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false)) {
+    await page.waitForTimeout(350);
+    return;
+  }
+
+  throw new Error(`No visible config tab matches ${label}`);
+}
+
+async function clickVisibleByText(
+  page: Page,
+  selector: string,
+  label: string | RegExp,
+  description: string,
+  required = true,
+): Promise<boolean> {
+  const elements = page.locator(selector);
+  const count = await elements.count();
   for (let i = 0; i < count; i++) {
-    const tab = tabs.nth(i);
-    if (await tab.isVisible().catch(() => false)) {
-      await tab.click();
-      return;
+    const element = elements.nth(i);
+    if (!(await element.isVisible().catch(() => false))) continue;
+    const text = normalizeVisibleText(await element.innerText().catch(() => ''));
+    const matches =
+      typeof label === 'string' ? text.toLowerCase() === normalizeVisibleText(label).toLowerCase() : label.test(text);
+    if (matches) {
+      await element.click();
+      return true;
     }
   }
-  await tabs.first().click();
+
+  if (required) {
+    throw new Error(`No visible ${description} matches ${label}`);
+  }
+  return false;
+}
+
+function normalizeVisibleText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 export async function waitForSourcePaletteSections(
@@ -720,6 +775,132 @@ export async function setTechnicalId(page: Page, value: string): Promise<void> {
   await input.fill(value);
   await input.blur();
   await page.waitForTimeout(1_500); // editor persists the rename on blur
+}
+
+export async function setCheckboxLocalOptions(page: Page, values: string[]): Promise<void> {
+  if (values.length === 0) {
+    throw new Error('setCheckboxLocalOptions needs at least one value');
+  }
+
+  await openConfigTab(page, /Configuration de la source|Source configuration/i);
+  await expect
+    .poll(() => page.locator(SEL.checkboxOptionInput).count(), {
+      message: 'checkbox local options should be visible',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(0);
+
+  while ((await page.locator(SEL.checkboxOptionInput).count()) < values.length) {
+    const before = await page.locator(SEL.checkboxOptionInput).count();
+    await page.locator(SEL.checkboxOptionAddButton).first().click();
+    await expect
+      .poll(() => page.locator(SEL.checkboxOptionInput).count(), {
+        message: 'adding a checkbox option should create an editable input',
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(before);
+  }
+
+  while ((await page.locator(SEL.checkboxOptionInput).count()) > values.length) {
+    const before = await page.locator(SEL.checkboxOptionInput).count();
+    await page.locator(SEL.checkboxOptionDeleteButton).last().click();
+    await expect
+      .poll(() => page.locator(SEL.checkboxOptionInput).count(), {
+        message: 'deleting a checkbox option should remove its input',
+        timeout: 10_000,
+      })
+      .toBeLessThan(before);
+  }
+
+  for (const [index, value] of values.entries()) {
+    const input = page.locator(SEL.checkboxOptionInput).nth(index);
+    await input.fill(value);
+    await input.blur();
+  }
+  await page.waitForTimeout(1_000);
+}
+
+export async function createFormWithCheckboxAndDescription(
+  page: Page,
+  opts: CheckboxDescriptionFixtureOptions = {},
+): Promise<string> {
+  const formId = await createBlankForm(page, opts.title ?? `Repro checkbox visibility ${Date.now()}`);
+
+  await addComponent(page, PALETTE_ICON.checkbox);
+  await page.locator(SEL.checkboxComponent).first().waitFor({ state: 'visible', timeout: 30_000 });
+  await openComponentConfig(page, SEL.checkboxComponent);
+  await setTechnicalId(page, opts.checkboxTechnicalId ?? 'checkbox1');
+  await setCheckboxLocalOptions(page, opts.checkboxOptions ?? ['Oui']);
+  await closeComponentConfig(page);
+
+  await addComponent(page, PALETTE_ICON.description);
+  await page.locator(SEL.descriptionComponent).first().waitFor({ state: 'visible', timeout: 30_000 });
+  await openComponentConfig(page, SEL.descriptionComponent);
+  await setTechnicalId(page, opts.descriptionTechnicalId ?? 'desc1');
+  await closeComponentConfig(page);
+
+  return formId;
+}
+
+export async function openComponentVisibilityConfig(page: Page, technicalId: string): Promise<void> {
+  await openComponentConfigByTechnicalId(page, technicalId);
+  await openConfigTab(page, /Visibilit|Visibility/i);
+}
+
+export async function configureVisibilityEqualsField(page: Page, fieldTechnicalId: string): Promise<void> {
+  await page.locator(SEL.visibilityModeButton).filter({ hasText: /Selon une condition|condition/i }).first().click();
+  await page.locator(SEL.visibilityAddConditionButton).first().click();
+
+  await page.locator(SEL.conditionFieldBrowseButton).first().click();
+  await page.locator('ion-popover ion-item').filter({ hasText: fieldTechnicalId }).first().click();
+  await expect(page.locator(SEL.conditionFieldInput).first()).toHaveValue(fieldTechnicalId);
+
+  const operator = page.locator(SEL.conditionOperatorSelect).first();
+  await operator.click();
+  await page.getByText('=', { exact: true }).last().click();
+  await expect
+    .poll(() => operator.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: 'visibility condition operator should be equals',
+      timeout: 10_000,
+    })
+    .toBe('equals');
+}
+
+export async function fillVisibilityTagValue(page: Page, value: string): Promise<void> {
+  await page.locator(SEL.conditionValueTagInput).first().fill(value);
+  await page.keyboard.press('Enter');
+}
+
+export function visibilityValueChip(page: Page, value: string) {
+  return page.locator('tag').filter({ hasText: value }).first();
+}
+
+export async function fillVisibilityValueTextEditor(page: Page, value: string): Promise<void> {
+  const frameBody = page.frameLocator('iframe.tox-edit-area__iframe').last().locator('body');
+  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await frameBody.fill(value);
+    return;
+  }
+
+  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(inlineEditor, 'visibility value should expose a TinyMCE text editor').toBeVisible({ timeout: 10_000 });
+  await inlineEditor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type(value);
+  await page.keyboard.press('Tab');
+}
+
+export async function expectVisibilityValueTextEditorToContain(page: Page, value: string): Promise<void> {
+  const frameBody = page.frameLocator('iframe.tox-edit-area__iframe').last().locator('body');
+  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await expect(frameBody).toContainText(value, { timeout: 10_000 });
+    return;
+  }
+
+  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(inlineEditor, 'visibility value text editor should contain the configured value').toContainText(value, {
+    timeout: 10_000,
+  });
 }
 
 /**
