@@ -31,9 +31,23 @@ export const SEL = {
   createFormSaveButton: 'button.btn--createapp-save',
   // component config header — "Identifiant technique" input
   technicalIdInput: '.class1776763411136 input',
+  editorHomeButton: 'ion-button.class1774605933364',
+  visibilityModeButton: 'button.class1775840591959',
+  visibilityAddConditionButton: 'ion-button.class1758191882601',
+  conditionFieldInput: '.class1758189195703 input',
+  conditionFieldBrowseButton: 'ion-button.class1758189195718',
+  conditionOperatorSelect: 'ion-select.class1758189195757',
+  conditionValueTagInput: 'tag-input input',
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
   sourcePalette: '.class1775922875303',
   sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
+  publishedApplicationsTab: 'ion-button.class1761754757348',
+  cardMenuButton: 'ion-button.class1606574763560',
+  publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
+  pwaEditModal: 'ion-modal.modal-pwa-edition',
+  pwaAccessToggle: 'c8oforms-toggleswitch.class1779878486939',
+  pwaAccessToggleButton: 'button.class1775840591959',
+  pwaSaveButton: 'ion-button.class1762425668421',
 };
 
 export const SOURCE_PALETTE_SECTION = {
@@ -87,6 +101,21 @@ export const PALETTE_ICON = {
 export const TEST_USER = process.env.C8OFORMS_TEST_USER ?? '';
 export const TEST_PASSWORD = process.env.C8OFORMS_TEST_PASSWORD ?? TEST_USER;
 
+type JsonRecord = Record<string, unknown>;
+
+export type FormElement = JsonRecord & {
+  id?: number;
+  name: string;
+  type: string;
+  config?: JsonRecord & { page?: string };
+};
+
+export interface CreatedFormDocument {
+  id: string;
+  document: JsonRecord;
+  pageTechName: string;
+}
+
 export async function login(page: Page): Promise<void> {
   if (!TEST_USER) {
     throw new Error(
@@ -106,6 +135,288 @@ export async function login(page: Page): Promise<void> {
 /** The editor keeps live connections open: never wait for networkidle here. */
 export async function openEditor(page: Page, formId: string): Promise<void> {
   await page.goto(`./editor/${formId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+}
+
+export async function openViewer(page: Page, formId: string, mode = ':edit', response = ':i'): Promise<void> {
+  await page.goto(`./viewer/${formId}/${mode}/${response}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+}
+
+export async function c8oCall(page: Page, sequence: string, params: Record<string, unknown>): Promise<JsonRecord> {
+  return page.evaluate(
+    async ({ sequenceName, sequenceParams }) => {
+      const formData = new FormData();
+      formData.append('__project', 'C8Oforms');
+      formData.append('__sequence', sequenceName);
+      for (const [key, value] of Object.entries(sequenceParams)) {
+        if (value === undefined || value === null) continue;
+        formData.append(key, typeof value === 'string' ? value : JSON.stringify(value));
+      }
+
+      const response = await fetch(`${location.origin}/convertigo/projects/C8Oforms/.json`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const text = await response.text();
+      let json: Record<string, unknown>;
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`C8o ${sequenceName} returned non-JSON: ${text.slice(0, 300)}`);
+      }
+      if (!response.ok || (json as { error?: unknown }).error) {
+        throw new Error(`C8o ${sequenceName} failed: ${JSON.stringify(json).slice(0, 500)}`);
+      }
+      return json;
+    },
+    { sequenceName: sequence, sequenceParams: params },
+  );
+}
+
+export async function getFormDocument(page: Page, formId: string): Promise<JsonRecord> {
+  const response = await c8oCall(page, 'APIV2_getDocument', { id: formId });
+  const doc = (response.res ?? (response as { document?: unknown }).document) as JsonRecord | undefined;
+  if (!doc || typeof doc !== 'object') {
+    throw new Error(`APIV2_getDocument did not return a document for ${formId}`);
+  }
+  return doc;
+}
+
+export async function getPwaDocument(page: Page, formId: string): Promise<JsonRecord | null> {
+  const id = formId.startsWith('published_') ? formId : `published_${formId}`;
+  const response = await c8oCall(page, 'APIV2_getPWA', { id: `${id}_pwa_document` }).catch(() => null);
+  return ((response?.res as JsonRecord | undefined)?.pwa as JsonRecord | undefined) ?? null;
+}
+
+export async function publishFormWithPwa(
+  page: Page,
+  formId: string,
+  pwa: JsonRecord & { notAnonymous: boolean },
+): Promise<void> {
+  const form = await getFormDocument(page, formId);
+  await c8oCall(page, 'APIV2_Publish', {
+    id: formId,
+    rev: form._rev,
+    meta: JSON.stringify({
+      publishing: true,
+      pwa: {
+        backgroundColor: '#ffffff',
+        name: String(form.name ?? `PWA ${formId}`),
+        shortName: String(form.name ?? `PWA ${formId}`),
+        themeColor: '#0cbbe7',
+        querystr: '',
+        thumbnail: {
+          fromVar: false,
+          fromId: formId,
+          content_type: '',
+        },
+        originalThumbnail: (form.thumbnail as JsonRecord | undefined) ?? defaultThumbnail(),
+        originalFormId: `published_${formId}`,
+        ...pwa,
+      },
+    }),
+  });
+}
+
+export async function createFormDocument(
+  page: Page,
+  title: string,
+  elements: FormElement[] = [],
+): Promise<CreatedFormDocument> {
+  const now = Date.now();
+  const pageTechName = `Page${now}`;
+  const preparedElements = elements.map((element, index) => ({
+    ...element,
+    id: element.id ?? now + index + 1,
+    config: {
+      ...(element.config ?? {}),
+      page: element.config?.page ?? pageTechName,
+    },
+  }));
+
+  const document = {
+    name: title,
+    tag: '',
+    formulaire: preparedElements,
+    flows: [
+      { id: 'formulas', name: 'Formulas', elements: [] },
+      { id: 'submit', name: 'Submit', elements: [] },
+    ],
+    actions: [],
+    technicalVersion: '1.0.20',
+    config: {
+      schemaVersion: 1,
+      editor: true,
+    },
+    pages: [
+      {
+        name: 'Page 1',
+        pageTechName,
+        desc: '',
+        positionTab: 'bottom',
+        enabledTab: false,
+        included: true,
+        enabledButtons: true,
+        positionButtons: 'tab',
+        iconName: 'sticky-note',
+        checkMandatoryInCurrentPage: true,
+        individualNavigation: false,
+      },
+    ],
+    navigation: {
+      included: true,
+      positionTab: 'bottom',
+      enabledTab: false,
+      enabledButtons: true,
+      positionButtons: 'standard',
+      checkMandatoryInCurrentPage: true,
+      appliedConfiguration: 'global',
+    },
+    globalNavigationEnabled: false,
+    loopToForm: true,
+    thumbnail: defaultThumbnail(),
+  };
+
+  const response = await c8oCall(page, 'APIV2_updateFormulaireDocument', {
+    meta: JSON.stringify(document),
+  });
+  const res = (response.res ?? response) as JsonRecord;
+  const id = String(res.id ?? res._id ?? '');
+  if (!id) {
+    throw new Error(`APIV2_updateFormulaireDocument did not return a form id: ${JSON.stringify(response)}`);
+  }
+  return { id, document, pageTechName };
+}
+
+export function textElement(name: string, options: JsonRecord = {}): FormElement {
+  return {
+    type: 'text',
+    name,
+    config: {
+      mandatory: false,
+      placeholder: 'Votre reponse',
+      type: 'text',
+      clearInput: false,
+      short: true,
+      disabled: false,
+      label: name,
+      html: `<p>${name}</p>`,
+      personalized: true,
+      ...(options.config as JsonRecord | undefined),
+    },
+    sources: options.sources,
+  };
+}
+
+export function gridElement(name: string, columns: string[], options: JsonRecord = {}): FormElement {
+  return {
+    type: 'grid',
+    name,
+    config: {
+      sourceEnabled: false,
+      mandatory: false,
+      disabled: false,
+      label: name,
+      html: `<p>${name}</p>`,
+      personalized: true,
+      returned_value: 'row_selected',
+      AutoSizeColumns: true,
+      columns: columns.map((column) => ({ name: column, type: 'text' })),
+      ...(options.config as JsonRecord | undefined),
+    },
+    conditions: options.conditions,
+  };
+}
+
+export function sourceSelectElement(name: string, options: JsonRecord = {}): FormElement {
+  return {
+    type: 'select',
+    name,
+    config: {
+      sourceEnabled: true,
+      mandatory: false,
+      cancelText: 'Cancel',
+      okText: 'OK',
+      type: 'popover',
+      placeholder: 'Choisir une reponse',
+      disabled: false,
+      label: name,
+      html: `<p>${name}</p>`,
+      personalized: true,
+      ...(options.config as JsonRecord | undefined),
+    },
+    children: [],
+    sources: options.sources,
+  };
+}
+
+export function checkboxElement(name: string, values: string[], options: JsonRecord = {}): FormElement {
+  const selectedValues = (options.selectedValues as string[] | undefined) ?? values;
+  const base = Date.now();
+  return {
+    type: 'checkbox',
+    name,
+    children: values.map((value, index) => ({
+      value,
+      selected: selectedValues.includes(value),
+      label_color: '#202124',
+      position: 'unset',
+      id: `${base}${index}`,
+    })),
+    config: {
+      mandatory: false,
+      checked: false,
+      disabled: false,
+      html: name,
+      personalized: true,
+      ...(options.config as JsonRecord | undefined),
+    },
+    conditions: options.conditions,
+    sources: options.sources,
+  };
+}
+
+export function descriptionElement(name: string, html: string, options: JsonRecord = {}): FormElement {
+  return {
+    type: 'description',
+    name,
+    config: {
+      html,
+      personalized: true,
+      ...(options.config as JsonRecord | undefined),
+    },
+    conditions: options.conditions,
+    sources: options.sources,
+  };
+}
+
+export function visibleIfFieldEquals(fieldName: string, value: string): JsonRecord {
+  return {
+    visibleIf: {
+      type: 'visibleIf',
+      condVisible: 'and',
+      conds: [
+        {
+          type: 'visibleIf',
+          subject: 'field',
+          operator: 'equals',
+          val1: { str: fieldName, type: 'text', source: true },
+          val2: { str: value, type: 'text', source: false },
+        },
+      ],
+      groups: [],
+    },
+  };
+}
+
+function defaultThumbnail(): JsonRecord {
+  return {
+    enabled: true,
+    index: null,
+    random: '',
+    type: 'color',
+    color: '#0cbbe7',
+  };
 }
 
 /**
@@ -156,6 +467,22 @@ export async function openComponentConfig(page: Page, componentTag: string): Pro
   await expect(page.locator(SEL.configClose).first()).toBeVisible({ timeout: 15_000 });
 }
 
+export async function openComponentConfigByTechnicalId(page: Page, technicalId: string): Promise<void> {
+  const label = page.getByText(technicalId, { exact: true }).first();
+  await expect(label, `component ${technicalId} should be visible`).toBeVisible({ timeout: 30_000 });
+  await label.click();
+  await expect(page.locator(SEL.configClose).first()).toBeVisible({ timeout: 15_000 });
+}
+
+export async function reopenEditorFromHome(page: Page, title: string): Promise<void> {
+  await page.locator(SEL.editorHomeButton).first().click();
+  await page.waitForURL('**/selector/**', { timeout: 30_000 });
+  const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
+  await expect(card, `home should show form card ${title}`).toBeVisible({ timeout: 30_000 });
+  await card.click();
+  await page.waitForURL('**/editor/**', { timeout: 30_000 });
+}
+
 /** Rendered height (px) of the first leaflet map on the page. */
 export async function mapHeight(page: Page): Promise<number> {
   return page
@@ -186,7 +513,16 @@ export async function openPreview(page: Page): Promise<void> {
 }
 
 export async function openConfigTab(page: Page, label: string): Promise<void> {
-  await page.locator(SEL.configTab).filter({ hasText: label }).first().click();
+  const tabs = page.locator(SEL.configTab).filter({ hasText: label });
+  const count = await tabs.count();
+  for (let i = 0; i < count; i++) {
+    const tab = tabs.nth(i);
+    if (await tab.isVisible().catch(() => false)) {
+      await tab.click();
+      return;
+    }
+  }
+  await tabs.first().click();
 }
 
 export async function waitForSourcePaletteSections(
@@ -267,11 +603,63 @@ export async function closeComponentConfig(page: Page): Promise<void> {
   await page.locator(SEL.configClose).waitFor({ state: 'hidden', timeout: 15_000 });
 }
 
+export async function acceptRgpdIfVisible(page: Page): Promise<void> {
+  await page.waitForTimeout(300);
+  const rgpd = page.getByText(/JE SUIS D['’]ACCORD/i).last();
+  if (await rgpd.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await rgpd.click({ force: true });
+    await page.locator('ion-toast').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
+  }
+}
+
 // ── Authoring journeys (reusable building blocks) ───────────────────────────
 // These drive the real UI, so they double as tests of each journey AND as a way
 // for any spec to build its own fixture instead of relying on a pre-existing
 // form. Run them against a current version — the authoring UI selectors are not
 // guaranteed stable on the older versions used for red/green verification.
+
+export async function openPublishedPwaEditor(page: Page, title: string): Promise<void> {
+  await page.locator(SEL.publishedApplicationsTab).first().click();
+  if (await page.locator('ion-popover').isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+    await page.locator('ion-popover').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
+  }
+  const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
+  await expect(card, `published form card ${title} should be visible`).toBeVisible({ timeout: 30_000 });
+  const menu = card.locator(SEL.cardMenuButton).first();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await card.hover();
+    await page.waitForTimeout(500);
+    await menu.click({ timeout: 2_000 }).catch(async () => {
+      await menu.evaluate((el) => (el as HTMLElement).click());
+    });
+    if (
+      await page
+        .locator(SEL.publishedPwaMenuItem)
+        .first()
+        .waitFor({ state: 'visible', timeout: 2_000 })
+        .then(() => true)
+        .catch(() => false)
+    ) {
+      break;
+    }
+  }
+  const pwaMenuItem = page.locator(SEL.publishedPwaMenuItem).first();
+  await expect(pwaMenuItem, 'the published card menu should expose the PWA editor action').toBeVisible({
+    timeout: 5_000,
+  });
+  await pwaMenuItem.click();
+  await page.locator(SEL.pwaEditModal).waitFor({ state: 'visible', timeout: 30_000 });
+}
+
+export async function setPwaAccessModeAndSave(page: Page, mode: 'authenticated' | 'anonymous'): Promise<void> {
+  const modal = page.locator(SEL.pwaEditModal).last();
+  const toggle = modal.locator(SEL.pwaAccessToggle).first();
+  await expect(toggle, 'the PWA access-mode toggle should be visible').toBeVisible({ timeout: 30_000 });
+  await toggle.locator(SEL.pwaAccessToggleButton).nth(mode === 'authenticated' ? 0 : 1).click();
+  await modal.locator(SEL.pwaSaveButton).first().click();
+  await expect(modal).toBeHidden({ timeout: 60_000 });
+}
 
 /**
  * From the selector/home (where login lands), create a blank form and land in
@@ -302,7 +690,8 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
 export async function addComponent(page: Page, icon: string): Promise<void> {
   const tile = page.locator(`[draggable="true"]:has(img[src$="${icon}"])`).first();
   const before = await countComponents(page);
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await acceptRgpdIfVisible(page);
     await tile.scrollIntoViewIfNeeded();
     await tile.dblclick();
     try {
