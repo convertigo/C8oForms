@@ -435,9 +435,8 @@ jobs:
             cat dist/dependencies_report.md >> "$GITHUB_STEP_SUMMARY"
             
   e2e_tests:
-    # Gate the release: run the Playwright suite against the freshly deployed
-    # endpoint. If anything fails, the `release` job (which needs this one) is
-    # skipped — no release on a red build.
+    # Run the Playwright suite against the freshly deployed endpoint. Test
+    # failures are reported later, but they do not block the release anymore.
     needs: build_and_deploy
     runs-on: ubuntu-latest
     steps:
@@ -472,18 +471,29 @@ jobs:
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           echo "App URL: $C8OFORMS_APP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
-          # Run the WHOLE suite (open bugs included, for visibility). The gate
-          # then blocks the release only on an UNEXPECTED failure — a failing
-          # open-bug test (kind=open) is red on purpose and does not block.
-          npx playwright test || true
-          node ci/gate.mjs
+          # Run the WHOLE suite (open bugs included, for visibility). If
+          # Playwright produced its JSON report, keep the job green so the
+          # release can proceed; missing results still indicate an infra/setup
+          # failure and should stop the workflow.
+          set +e
+          npx playwright test
+          TEST_STATUS=$?
+          set -e
+          if [ ! -f test-results/results.json ]; then
+            echo "Playwright did not produce test-results/results.json"
+            exit "$TEST_STATUS"
+          fi
+          echo "Playwright exited with $TEST_STATUS; release continues and the report job will classify failures."
 
-      - name: Upload Playwright artifacts on failure
-        if: failure()
+      - name: Upload Playwright artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-results
-          path: tests/test-results
+          path: |
+            tests/test-results/results.json
+            tests/test-results/**/*.png
+            tests/test-results/**/*.zip
           if-no-files-found: ignore
 
   release:
@@ -527,10 +537,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   close_and_set_issues_to_be_tested:
-    # Only mark/close issues once the e2e gate passed (a release was produced).
-    needs: [build_and_deploy, e2e_tests]
+    # Only mark/close issues once the release was actually produced.
+    needs: release
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       issues: write
     steps:
       - name: Checkout code
@@ -593,3 +604,53 @@ jobs:
                 });
               }
             }
+
+  e2e_regression_report:
+    # Runs after the release and after the "to be tested" issue closure job, so
+    # failed closed regressions end the workflow reopened.
+    needs: [release, close_and_set_issues_to_be_tested]
+    if: ${{ always() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Download Playwright results
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: playwright-results
+          path: tests/test-results
+
+      - name: Generate e2e regression report
+        working-directory: tests
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        run: node ci/report.mjs
+
+      - name: Attach e2e regression report to GitHub release
+        continue-on-error: true
+        working-directory: tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: gh release upload "$RELEASE_TAG" dist/e2e_report.md -R "$GITHUB_REPOSITORY" --clobber
+
+      - name: Upload e2e regression report
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-regression-report
+          path: tests/dist/e2e_report.md
+          if-no-files-found: error

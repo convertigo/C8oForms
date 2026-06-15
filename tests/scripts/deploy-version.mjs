@@ -1,6 +1,6 @@
 // Cross-platform deploy: replace a C8oForms release (project + all dependencies)
 // on a Convertigo server. Node port of deploy-version.sh so it runs on Windows
-// too (the runner and verify.sh both call this). Uses `gh` to download the
+// too (the runner and verify.mjs both call this). Uses `gh` to download the
 // release, adm-zip to unpack, and fetch (no curl/bash) for the engine calls.
 //
 //   node scripts/deploy-version.mjs <release-tag>

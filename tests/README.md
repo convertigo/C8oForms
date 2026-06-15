@@ -19,7 +19,7 @@ C8OFORMS_BASE_URL=... npx playwright test      # any other server
 Credentials and the target server live in `tests/.env` (gitignored), loaded by
 `playwright.config.ts` via dotenv — nothing is hardcoded. The test user defaults
 are in `.env.example`; `CONVERTIGO_ADMIN_PASSWORD` (deploy server) is only needed
-for `verify.sh`.
+for `verify.mjs`.
 
 ### Running against a local server
 
@@ -94,7 +94,7 @@ its `kind` to `regression` and it starts gating like the rest.
 
 ## Verifying a test (for testers)
 
-`verify.sh` proves a test is a **real** regression test: it deploys the version
+`verify.mjs` proves a test is a **real** regression test: it deploys the version
 where the bug was reported, runs the test (which must be **red**), then deploys
 the fixed version and runs it again (which must be **green**). A test that does
 not fail on the broken version is not catching the bug — that is exactly what
@@ -106,10 +106,10 @@ cp .env.example .env        # once: set CONVERTIGO_ADMIN_PASSWORD
 npm install                 # once
 npx playwright install chromium  # once
 
-./verify.sh                       # list every test you can verify
-./verify.sh 1412                  # regression: red on broken, green on fixed
-./verify.sh journey-create-form   # smoke: green on the latest version
-HEADED=1 ./verify.sh 1412         # same, with the browser visible so you can watch
+node verify.mjs                       # list every test you can verify
+node verify.mjs 1412                  # regression: red on broken, green on fixed
+node verify.mjs journey-create-form   # smoke: green on the latest version
+HEADED=1 node verify.mjs 1412         # same, with the browser visible so you can watch
 ```
 
 The script streams progress (deploy + test) and prints a verdict. It exits 0 when
@@ -119,16 +119,16 @@ the expectation for that test's kind holds, 1 otherwise — usable as-is in CI.
 
 [e2e/regression-manifest.json](e2e/regression-manifest.json) is the single
 registry of all e2e specs — it is where you wire up every new test. Each entry
-has a `kind` that tells `verify.sh` what to do:
+has a `kind` that tells `verify.mjs` what to do:
 
-| `kind` | meaning | `verify.sh` deploys | expects |
+| `kind` | meaning | `verify.mjs` deploys | expects |
 |---|---|---|---|
 | `regression` | fixed bug | `brokenVersion` then `fixedVersion` | red then green |
 | `open` | bug not fixed yet (`fixedVersion: null`) | `brokenVersion` | red (still reproduces) |
 | `smoke` | journey / sanity (e.g. authoring) | `version` (`"latest"` resolves to the newest release) | green |
 
 Other fields: `title`, `spec`, `rootCause` (bugs), `reproduction` (manual steps,
-shown by `verify.sh`), and `grep` (optional — a test-title substring so one entry
+shown by `verify.mjs`), and `grep` (optional — a test-title substring so one entry
 targets one `test()` inside a multi-test spec, e.g. the three authoring journeys
 in `journeys.spec.ts`). **To add a test**, write the spec then add its manifest
 entry.
@@ -138,7 +138,7 @@ entry.
 A bug that has no fix yet still gets a spec, and that spec is meant to **fail
 (red)** — it is a reminder that there is work to do, not a flake. Do not mark it
 `test.fail()`: we want it red so it gets fixed. Mark its manifest entry with
-`kind: "open"` and `fixedVersion: null`; `verify.sh <id>` then deploys the version
+`kind: "open"` and `fixedVersion: null`; `verify.mjs <id>` then deploys the version
 where it still reproduces and confirms the test is red. When the bug is fixed the
 spec turns green on its own — record the fixed version and flip `kind` to
 `"regression"`.
@@ -146,7 +146,7 @@ spec turns green on its own — record the fixed version and flip `kind` to
 Example: `e2e/issue-1412-reopened.spec.ts` (clearing the map height collapses it),
 still open on beta225.
 
-> ⚠️ `verify.sh` redeploys the shared `test-repro` server on every run (twice for
+> ⚠️ `verify.mjs` redeploys the shared `test-repro` server on every run (twice for
 > a fixed bug). Use it to validate a test, not in a tight loop — coordinate if
 > several people share the server.
 
@@ -178,7 +178,7 @@ server — local, test-repro, or CI.
 
 > The authoring helpers drive the editor UI, so the specs assume the deployed
 > build's authoring screens match the current selectors. For the C8oForms beta
-> line that holds across the versions `verify.sh` deploys; if a much older build
+> line that holds across the versions `verify.mjs` deploys; if a much older build
 > ever diverged, that is where to look first.
 
 ## Conventions
