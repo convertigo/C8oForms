@@ -1,5 +1,7 @@
 # C8oForms e2e regression tests
 
+[![e2e tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/convertigo/C8oForms/badges/e2e-badge.json)](https://github.com/convertigo/C8oForms/actions/workflows/build_and_deploy.yml)
+
 A Playwright suite driven by GitHub issues: each reproducible bug becomes a spec
 `e2e/issue-NNNN.spec.ts`, validated **red** on the version where the bug was
 found and **green** on the version that fixed it, then kept in the permanent
@@ -81,16 +83,22 @@ Closing the tab cancels the run and kills the browser/deploy it spawned. The
 slow-mo value is passed to Playwright via `C8OFORMS_SLOWMO` (also usable
 directly: `C8OFORMS_SLOWMO=800 npx playwright test --headed`).
 
-## CI release gate
+## CI test report & badge
 
 On a tag push, `.github/workflows/build_and_deploy.yml` runs the **whole suite**
-against the freshly deployed endpoint, then `ci/gate.mjs` decides whether to
-release. It blocks the release **only on an unexpected failure** — a test that
-should pass going red (a regression that came back, or a broken journey).
-Failures of `open`-kind specs are red on purpose and do **not** block; they are
-reported as "expected red". So every test runs (full visibility), and a known
-open bug never blocks shipping unrelated fixes. When an open bug is fixed, flip
-its `kind` to `regression` and it starts gating like the rest.
+against the freshly deployed endpoint. The release is **always produced** — tests
+don't block it. After the release, `ci/report.mjs`:
+
+- **reopens any closed issue whose test failed**, commenting the version
+  (`<tag>`) in which the regression was detected and the version it was fixed in;
+- writes a Markdown report to the **run summary**, attaches it to the GitHub
+  release, and uploads it as an artifact;
+- publishes a shields.io **badge** (`<passed>/<total> passed`) to the orphan
+  `badges` branch — green unless an *unexpected* test failed (an `open`-kind bug
+  is red on purpose and keeps the badge green). The badge is shown at the top of
+  this README and the project `readme.md`.
+
+The badge only appears after the first tagged build creates the `badges` branch.
 
 ## Verifying a test (for testers)
 

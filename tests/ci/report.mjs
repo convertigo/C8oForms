@@ -227,4 +227,20 @@ writeFileSync(join(testsDir, 'dist', 'e2e_report.md'), markdown);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
 console.log(markdown);
 
+// shields.io endpoint badge for the README, published to the `badges` branch.
+// Green unless an UNEXPECTED test failed — an open-bug red is expected, so it
+// still counts as healthy (the number conveys the open bug).
+const unexpected = failed.filter((result) => result.entry.kind !== 'open');
+const badge = missingResults
+  ? { schemaVersion: 1, label: 'e2e', message: 'no results', color: 'lightgrey' }
+  : {
+      schemaVersion: 1,
+      label: 'e2e',
+      message: `${passedCount}/${results.length} passed`,
+      color: unexpected.length ? 'red' : 'brightgreen',
+    };
+const badgeDir = join(testsDir, 'dist', 'badge');
+mkdirSync(badgeDir, { recursive: true });
+writeFileSync(join(badgeDir, 'e2e-badge.json'), `${JSON.stringify(badge)}\n`);
+
 process.exit(0);

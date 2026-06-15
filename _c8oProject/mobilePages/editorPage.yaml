@@ -1480,13 +1480,17 @@ scriptContent:
         
         								let va = {};
         								if (typeof (elemChoosen.variables.name) == "string") {
-        									va[elemChoosen.variables.name] = { str: "", html: false };
+        									if (!this.isInternalSourceVariableName(elemChoosen.variables.name)) {
+        										va[elemChoosen.variables.name] = { str: "", html: false };
+        									}
         								}
         								else if (typeof (elemChoosen.variables.name) == "undefined") {
         								}
         								else {
         									for (let el of elemChoosen.variables.name) {
-        										va[el] = { str: "", html: false };
+        										if (!this.isInternalSourceVariableName(el)) {
+        											va[el] = { str: "", html: false };
+        										}
         									}
         								}
         								const sequenceName = elemChoosen.name;
@@ -2733,7 +2737,7 @@ scriptContent:
         						zoom: 12,
         						autoCenter: true,
         						geoCodeSearchAddress: true,
-        						minHeight: "400px",
+        						minHeight: "",
         						sourceMarkersEnabled: false,
         						sourceCirclesEnabled: false,
         						sourcePolygonsEnabled: false
@@ -4117,6 +4121,45 @@ scriptContent:
         			}
         		}
         	}
+        	public isInternalSourceVariableName(name) {
+        		return name == "forms_form_id";
+        	}
+        	public getConfigurableVarNames(vars) {
+        		if (vars == null) {
+        			return [];
+        		}
+        		return Object.keys(vars).filter((x) => {
+        			return x != "forms_filter" && !this.isInternalSourceVariableName(x);
+        		});
+        	}
+        	public getConfigurableVarNamesFromMetadata(variables) {
+        		if (variables == null || variables.name == null) {
+        			return [];
+        		}
+        		let names = Array.isArray(variables.name) ? variables.name : [variables.name];
+        		return names.filter((x) => {
+        			return x != "forms_filter" && !this.isInternalSourceVariableName(x);
+        		});
+        	}
+        	public getConfigurableVariableNameFromMetadata(variables, index) {
+        		return this.getConfigurableVarNamesFromMetadata(variables)[index];
+        	}
+        	public getConfigurableVariableMetadataIndex(variables, index) {
+        		if (variables == null || variables.name == null) {
+        			return index;
+        		}
+        		let names = Array.isArray(variables.name) ? variables.name : [variables.name];
+        		let visibleIndex = -1;
+        		for (let i = 0; i < names.length; i++) {
+        			if (names[i] != "forms_filter" && !this.isInternalSourceVariableName(names[i])) {
+        				visibleIndex++;
+        				if (visibleIndex == index) {
+        					return i;
+        				}
+        			}
+        		}
+        		return index;
+        	}
         	public getSequenceByName(sequence, name) {
         		for (let i in sequence) {
         			if (sequence[i].name == name) {
@@ -4132,7 +4175,9 @@ scriptContent:
         			for (let i in this.local.tree) {
         				if (this.local.tree[i].name == name) {
         					let iSeq = this.getSequenceByName(this.local.tree[i].sequences, str.split(".")[1])
-        					return this.local.tree[i].sequences[iSeq]["variables"].comment[this.local.index]
+        					let variables = this.local.tree[i].sequences[iSeq]["variables"];
+        					let metadataIndex = this.getConfigurableVariableMetadataIndex(variables, this.local.index);
+        					return this.getCommentAtIndex(variables.comment, metadataIndex)
         				}
         			}
         		}
@@ -4156,7 +4201,12 @@ scriptContent:
         			for (let i in tree) {
         				if (tree[i].name == name) {
         					let iSeq = this.getSequenceByName(tree[i].sequences, str.split(".")[1]);
-        					let val = tree[i].sequences[iSeq]["variables"].type[this.local.index];
+        					let variables = tree[i].sequences[iSeq]["variables"];
+        					let metadataIndex = this.getConfigurableVariableMetadataIndex(variables, this.local.index);
+        					let val = this.getCommentAtIndex(variables.type, metadataIndex);
+        					if (val == null) {
+        						return "text";
+        					}
         					if (val.indexOf("configure=") == 0) {
         						return "configure";
         					}
@@ -4174,7 +4224,7 @@ scriptContent:
         	public getCurrentName(entry) {
         		try {
         			let name = this["getEnabled"](entry);
-        			return (Object.keys(entry[name][''vars''])[this.local.index]);
+        			return (this.getConfigurableVarNames(entry[name][''vars''])[this.local.index]);
         		}
         		catch (e) {
         			return "";
@@ -4187,7 +4237,7 @@ scriptContent:
         
         		try {
         			let name = this["getEnabled"](entry);
-        			let keyIndex = (Object.keys(entry[name][''vars''])[this.local.index]);
+        			let keyIndex = (this.getConfigurableVarNames(entry[name][''vars''])[this.local.index]);
         			return entry[name][''vars''][keyIndex];
         		}
         		catch (e) {
@@ -4197,9 +4247,7 @@ scriptContent:
         
         	public keyIndex(entry) {
         		let name = this["getEnabled"](entry);
-        		let obj = (Object.keys(entry[name][''vars''])).filter((x) => {
-        			return x != "forms_filter";
-        		});
+        		let obj = this.getConfigurableVarNames(entry[name][''vars'']);
         		return obj[this.local.index];
         	}
         	getElementIdByName(name) {
@@ -5911,7 +5959,7 @@ scriptContent:
         								let defaultVars = {};
         								let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
         								try {
-        									defaultVars = Object.keys(currentElem.sources[source].vars).map((x => { return { key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" } })).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
+        									defaultVars = this.getConfigurableVarNames(currentElem.sources[source].vars).map((x => { return { key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" } })).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
         								}
         								catch (e) {
         
