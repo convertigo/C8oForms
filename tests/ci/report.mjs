@@ -1,6 +1,6 @@
 // Post-release CI step: the release happens even when a regression test fails.
 // This script classifies the Playwright results, reopens any closed issue whose
-// recorded regression test failed on the released tag, and writes a Markdown
+// recorded issue-backed test failed on the released tag, and writes a Markdown
 // report to both the GitHub step summary and tests/dist/e2e_report.md.
 //
 // It intentionally exits 0: the release is already produced, and this step is a
@@ -133,10 +133,11 @@ const results = Object.entries(manifest).map(([id, entry]) => {
 const reopened = [];
 const alreadyOpen = [];
 const issueErrors = [];
+const reopenableKinds = new Set(['regression', 'open']);
 
 for (const result of results) {
   const { entry, failed, issue } = result;
-  if (!failed || entry.kind !== 'regression' || !issue) continue;
+  if (!failed || !issue || !reopenableKinds.has(entry.kind)) continue;
 
   const state = gh(['issue', 'view', issue, '-R', repo, '--json', 'state', '--jq', '.state']);
   if (!state.ok) {
@@ -146,13 +147,18 @@ for (const result of results) {
   }
 
   if (state.stdout.toUpperCase() === 'CLOSED') {
+    const versionContext =
+      entry.kind === 'regression' && entry.fixedVersion
+        ? `The manifest says it was fixed in ${entry.fixedVersion}, so this regression is present after that fix and in ${releaseTag}.`
+        : entry.brokenVersion
+        ? `The manifest still tracks this test as ${entry.kind} from ${entry.brokenVersion}, with no passing fixed version recorded.`
+        : `The manifest still tracks this test as ${entry.kind}, with no passing fixed version recorded.`;
+
     const comment = [
-      `Regression detected in ${releaseTag}.`,
+      `Issue test failed in ${releaseTag}.`,
       '',
       `The automated end-to-end test for this issue failed on the released tag ${releaseTag}.`,
-      entry.fixedVersion
-        ? `The manifest says it was fixed in ${entry.fixedVersion}, so this regression is present after that fix and in ${releaseTag}.`
-        : 'The manifest does not record a fixed version for this test.',
+      versionContext,
       runUrl ? `CI run: ${runUrl}` : '',
       '',
       'Reopened automatically by the release workflow.',
@@ -195,11 +201,11 @@ if (missingResults) {
 } else {
   lines.push('');
   lines.push(`Passed **${passedCount}/${results.length}**, failed **${failed.length}**.`);
-  lines.push('Test failures do not block this release; failed closed regressions are reopened below.');
+  lines.push('Test failures do not block this release; failed closed issue-backed tests are reopened below.');
 }
 
-if (reopened.length) lines.push(`\nReopened regression issues: ${reopened.map((n) => `#${n}`).join(', ')}`);
-if (alreadyOpen.length) lines.push(`\nFailed regression issues already open: ${alreadyOpen.map((n) => `#${n}`).join(', ')}`);
+if (reopened.length) lines.push(`\nReopened issues: ${reopened.map((n) => `#${n}`).join(', ')}`);
+if (alreadyOpen.length) lines.push(`\nFailed issues already open: ${alreadyOpen.map((n) => `#${n}`).join(', ')}`);
 if (issueErrors.length) {
   lines.push('\nIssue automation errors:');
   for (const error of issueErrors) lines.push(`- ${error}`);
