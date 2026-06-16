@@ -35,6 +35,18 @@ export const SEL = {
   createFormSaveButton: 'button.btn--createapp-save',
   // component config header — "Identifiant technique" input
   technicalIdInput: '.class1776763411136 input',
+  // editorPage.yaml — the page navigation buttons block (sharedTabs, holds the
+  // submit/next/prev buttons). Clicking it opens the page settings.
+  pageButtonsBlock: '.class1775139583527',
+  // page-settings section toggles (active section carries app-settings-btn-active)
+  pageSettingsGeneralTab: '.class1779366500007',
+  pageSettingsNavigationTab: '.class1779366500013',
+  // Pages panel (left sidebar) + a page row's inline edit (pencil) action
+  pagesPanelButton: '.class1773237523408',
+  pageRow: '.class1749805611480',
+  pageEditButton: '.class1650357059474',
+  // page settings "Nom de la page" input (TextInputSetting)
+  pageNameInput: '.class1776265600007 input',
   editorHomeButton: 'ion-button.class1774605933364',
   visibilityModeButton: 'button.class1775840591959',
   visibilityAddConditionButton: 'ion-button.class1758191882601',
@@ -55,6 +67,20 @@ export const SEL = {
   pwaAccessToggle: 'c8oforms-toggleswitch.class1779878486939',
   pwaAccessToggleButton: 'button.class1775840591959',
   pwaSaveButton: 'ion-button.class1762425668421',
+  // Horizontal layout container (type "layout") rendered in the editor canvas,
+  // and the wrapper around each child nested inside it.
+  layoutViewer: 'c8oforms-itemlayouteditorviewer',
+  layoutChild: 'c8oforms-itemlayouteditor_elem',
+  // a nested child's card (hover target) and the button that opens its editor
+  layoutChildCard: '.class1776776353779',
+  layoutChildOpenButton: '.class1780649358276',
+  // the empty-container "initial" drop button shown while a palette drag is active
+  containerInitialDropZone: '.class1600440331787',
+  // open component editor: the "Supprimer" (delete) button in the right rail
+  componentDeleteButton: '.class1775818864338',
+  // delete-confirmation ion-alert: the danger-styled "Oui"/confirm button
+  // (the "Non" button is btn--info; both carry text-generic, so key on btn--danger)
+  confirmDeleteYesButton: 'ion-alert button.btn--danger',
 };
 
 export const SOURCE_PALETTE_SECTION = {
@@ -99,6 +125,8 @@ const DEFAULT_SOURCE_PALETTE_SECTIONS: SourcePaletteSection[] = [
  * discriminator is each tile's icon SVG filename. Extend as needed.
  */
 export const PALETTE_ICON = {
+  layout: 'icn_layout.svg',
+  group: 'icn_group.svg',
   map: 'map.svg',
   textInput: 'icn_input_txt.svg',
   description: 'icn_title.svg',
@@ -920,4 +948,223 @@ export async function createFormWithMap(
   await setTechnicalId(page, opts.technicalId ?? 'map_repro');
   await closeComponentConfig(page);
   return id;
+}
+
+/**
+ * Open the page settings by clicking the page **navigation buttons block** (the
+ * shared tab bar at the bottom of the page that holds the submit/next/prev
+ * buttons). Waits for the General/Navigation section toggles to be present so a
+ * caller can assert which section opened. Used by #1392.
+ */
+export async function openPageButtonsConfig(page: Page): Promise<void> {
+  const block = page.locator(SEL.pageButtonsBlock).first();
+  await block.waitFor({ state: 'visible', timeout: 30_000 });
+  await block.scrollIntoViewIfNeeded();
+  await block.click();
+  // Context guard: the page settings must have opened (both section toggles render).
+  await expect(page.locator(SEL.pageSettingsGeneralTab).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(SEL.pageSettingsNavigationTab).first()).toBeVisible({ timeout: 15_000 });
+}
+
+/** Which page-settings section is active: 'general' | 'navigation' | 'unknown'. */
+export async function activePageSettingsSection(page: Page): Promise<'general' | 'navigation' | 'unknown'> {
+  const navActive = await page.locator(SEL.pageSettingsNavigationTab).first().evaluate((el) =>
+    el.classList.contains('app-settings-btn-active'),
+  );
+  if (navActive) return 'navigation';
+  const genActive = await page.locator(SEL.pageSettingsGeneralTab).first().evaluate((el) =>
+    el.classList.contains('app-settings-btn-active'),
+  );
+  return genActive ? 'general' : 'unknown';
+}
+
+/**
+ * Open a page's General settings (where the "Nom de la page" field lives) and
+ * leave the General section active. Two affordances reach the same panel and the
+ * stable selectors drift across the beta line, so try both and converge on the
+ * name field being visible:
+ *   1. the page navigation buttons block (2.2 line, e.g. beta233);
+ *   2. the Pages panel pencil (older line, e.g. beta158).
+ * Used by #1383.
+ */
+export async function openPageSettings(page: Page): Promise<void> {
+  const nameInput = page.locator(SEL.pageNameInput).first();
+
+  // Ensure the General section is shown (the name field lives there) and visible.
+  const ensureGeneralName = async (timeout: number): Promise<boolean> => {
+    if (await nameInput.isVisible().catch(() => false)) return true;
+    const general = page.locator(SEL.pageSettingsGeneralTab).first();
+    if (await general.count()) await general.click().catch(() => {});
+    return nameInput
+      .waitFor({ state: 'visible', timeout })
+      .then(() => true)
+      .catch(() => false);
+  };
+
+  // Path 1: the page navigation buttons block.
+  try {
+    await openPageButtonsConfig(page);
+    if (await ensureGeneralName(5_000)) return;
+  } catch {
+    // fall through to the Pages panel
+  }
+
+  // Path 2: the Pages panel → hover the page row → click its edit pencil.
+  await page.locator(SEL.pagesPanelButton).first().click();
+  const row = page.locator(SEL.pageRow).first();
+  if (await row.count()) {
+    await row.hover().catch(() => {});
+    const pencil = page.locator(SEL.pageEditButton).first();
+    if (await pencil.count()) await pencil.click().catch(() => {});
+  }
+  if (await ensureGeneralName(8_000)) return;
+
+  throw new Error('Could not open the page settings: the page name field never became visible.');
+}
+
+/**
+ * Start recording ion-toast messages. Toasts auto-dismiss after a couple of
+ * seconds, so a point-in-time DOM read races against them; install a
+ * MutationObserver up front and collect each toast's `message` as it appears.
+ * Call before the action that should raise a toast, then read `recordedToasts`.
+ */
+export async function recordToasts(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __c8oToasts?: string[] };
+    if (w.__c8oToasts) return;
+    w.__c8oToasts = [];
+    const grab = (n: HTMLElement & { message?: string }) => {
+      const msg = (n.message ?? n.textContent ?? '').trim();
+      if (msg) w.__c8oToasts!.push(msg);
+    };
+    const obs = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of Array.from(mutation.addedNodes)) {
+          if ((node as HTMLElement).nodeName === 'ION-TOAST') {
+            const toast = node as HTMLElement & { message?: string };
+            grab(toast);
+            // the message property may be assigned just after insertion
+            setTimeout(() => grab(toast), 80);
+          }
+        }
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
+/** Messages captured since `recordToasts` was called. */
+export async function recordedToasts(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const w = window as unknown as { __c8oToasts?: string[] };
+    return w.__c8oToasts ? [...w.__c8oToasts] : [];
+  });
+}
+
+/**
+ * Add a Horizontal layout container to the current page by double-clicking its
+ * palette tile (icon icn_layout.svg). The layout renders as `layoutViewer`.
+ * A dblclick fired before the editor is interactive only selects the tile, so
+ * wait for the tile, then retry once if the layout did not get added.
+ */
+export async function addHorizontalLayout(page: Page): Promise<void> {
+  const tile = page.locator(`[draggable="true"]:has(img[src$="${PALETTE_ICON.layout}"])`).first();
+  await tile.waitFor({ state: 'visible', timeout: 30_000 });
+  const layout = page.locator(SEL.layoutViewer);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.waitForTimeout(1_200);
+    await tile.dblclick();
+    try {
+      await expect(layout).toHaveCount(1, { timeout: 8_000 });
+      return;
+    } catch {
+      // editor was not interactive yet; retry once
+    }
+  }
+  await expect(layout, 'the Horizontal layout was not added to the page').toHaveCount(1, { timeout: 5_000 });
+}
+
+/**
+ * Drag a palette component (by its icon SVG) into a container element (e.g. a
+ * Horizontal layout). Containers of type "layout" only accept children via
+ * drag-and-drop, not the double-click add. This is a *real* pointer drag:
+ * Playwright/Chromium intercepts native HTML5 drag-and-drop, so pressing the
+ * tile and moving the mouse in steps to the container fires the app's genuine
+ * dragstart/dragover/drop handlers (which nest the component). The container's
+ * active drop zone only appears once the drag is in progress, so aim for it
+ * mid-drag before releasing.
+ */
+export async function dragPaletteComponentInto(
+  page: Page,
+  paletteIcon: string,
+  containerSelector: string,
+): Promise<void> {
+  const tile = page.locator(`[draggable="true"]:has(img[src$="${paletteIcon}"])`).first();
+  const tb = await tile.boundingBox();
+  if (!tb) throw new Error(`Palette tile not found for icon ${paletteIcon}`);
+
+  await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2);
+  await page.mouse.down();
+  // a small initial move starts the native drag
+  await page.mouse.move(tb.x + tb.width / 2 + 10, tb.y + tb.height / 2 + 10, { steps: 6 });
+
+  const container = page.locator(containerSelector).first();
+  const cb = await container.boundingBox();
+  if (!cb) throw new Error(`drop container not found: ${containerSelector}`);
+  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2, { steps: 25 });
+  await page.waitForTimeout(400);
+
+  // if the container exposes an explicit drop zone while dragging, aim for it
+  const zone = page
+    .locator(`${containerSelector} [id*="afterItem"], ${containerSelector} ${SEL.containerInitialDropZone}`)
+    .first();
+  if (await zone.count()) {
+    const zb = await zone.boundingBox();
+    if (zb) await page.mouse.move(zb.x + zb.width / 2, zb.y + zb.height / 2, { steps: 8 });
+  }
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await page.waitForTimeout(1_500);
+}
+
+/**
+ * Delete a child nested inside a Horizontal layout, then confirm the
+ * "Voulez-vous supprimer cet élément ?" dialog. `index` selects which nested
+ * child (0-based, canvas order).
+ *
+ * The layout-child UI was refactored after #1363 was fixed, so the gesture to
+ * reach the child's delete differs by version and both are handled:
+ *   - new UI (e.g. beta233): hovering the child reveals a button that opens the
+ *     child's own editor, whose "Supprimer" deletes just that child;
+ *   - old UI (e.g. beta151, where the bug lives): clicking the child opens its
+ *     config panel, whose trash — wrongly bound to the parent — deletes the whole
+ *     layout (the bug).
+ * Both end on the same `componentDeleteButton` + danger-styled "Oui" confirm, so
+ * the spec's assertion (does the layout survive?) is what distinguishes them.
+ */
+export async function deleteLayoutChild(page: Page, index = 0): Promise<void> {
+  const card = page.locator(SEL.layoutChildCard).nth(index);
+  const box = await card.boundingBox();
+  if (!box) throw new Error(`layout child card #${index} not found`);
+
+  // Hover the child (mouseenter) so any hover affordance renders.
+  await page.mouse.move(5, 5);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+  await page.waitForTimeout(600);
+
+  const openButton = page.locator(SEL.layoutChildOpenButton).first();
+  if (await openButton.count()) {
+    // new UI: open the child's own editor
+    await openButton.click();
+  } else {
+    // old UI: click the child to open its config panel
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  }
+
+  const del = page.locator(`${SEL.componentDeleteButton}:visible`).first();
+  await del.waitFor({ state: 'visible', timeout: 10_000 });
+  await del.click();
+  await page.locator('ion-alert').first().waitFor({ state: 'visible', timeout: 8_000 });
+  await page.locator(SEL.confirmDeleteYesButton).first().click();
+  await page.waitForTimeout(1_500);
 }
