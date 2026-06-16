@@ -82,9 +82,20 @@
           
           		try {
           			//Define functions
+          			let runNonBlockingInitStep = async (name, func) => {
+          				try {
+          					return await func();
+          				}
+          				catch (e) {
+          					page.c8o.log.error("[callViewLiveAndFillFormListViewer] non-blocking init step failed: " + name, e);
+          					return null;
+          				}
+          			}
           			page.local.callEndInitC8o = async (response, newHash) => {
           				page.local.canRespond = true;				
-          				await (page as any).checkCanRespond(response.rows[0].value.doc, false)
+          				await runNonBlockingInitStep("checkCanRespond", async () => {
+          					return await (page as any).checkCanRespond(response.rows[0].value.doc, false);
+          				});
           				//page.ref.reattach();
           
           				// remove errorViewer
@@ -258,27 +269,33 @@
           //					// calling fillActions
           //					await page["fillActions"](formulas, null, null);
           //				}
-          				if (page["form"]["flows"]?.length > 0) {
-          					for(let flow of page["form"]["flows"]){
-          						let elem = flow.elements;
-          						page["fillActionsVars"](elem);
+          				await runNonBlockingInitStep("fillActions", async () => {
+          					if (page["form"]["flows"]?.length > 0) {
+          						for(let flow of page["form"]["flows"]){
+          							let elem = flow.elements;
+          							page["fillActionsVars"](elem);
+          						}
+          						let formulas = page["form"]["flows"].find(x=>x.id == "formulas")?.elements;
+          						if(formulas != undefined){
+          							await page["fillActions"](formulas);
+          						}
           					}
-          					let formulas = page["form"]["flows"].find(x=>x.id == "formulas")?.elements;
-          					if(formulas != undefined){
-          						await page["fillActions"](formulas);
+          					else{
+          						page["fillActionsVars"](page["form"]["actions"])
+          						// calling fillActions
+          						await page["fillActions"](page["form"]["actions"]);
           					}
-          				}
-          				else{
-          					page["fillActionsVars"](page["form"]["actions"])
-          					// calling fillActions
-          					await page["fillActions"](page["form"]["actions"]);
-          				}
-          				await page["initCurrentPageSources"](true);
+          				});
+          				await runNonBlockingInitStep("initCurrentPageSources", async () => {
+          					return await page["initCurrentPageSources"](true);
+          				});
           
           
           				//²if(isInitial){
           				// check conditions
-          				page["checkForAnyCondition"]();
+          				await runNonBlockingInitStep("checkForAnyCondition", async () => {
+          					page["checkForAnyCondition"]();
+          				});
           				//}	
           
           				// do stuff to support upload files
