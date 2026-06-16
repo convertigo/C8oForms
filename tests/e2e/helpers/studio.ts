@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Locator, Page, expect } from '@playwright/test';
 
 /**
  * Selectors are Convertigo priority CSS classes (classNNNN): the priority is
@@ -26,8 +26,12 @@ export const SEL = {
   previewButton: '.class1773331718985',
   // editor canvas wrapper of a map component
   mapComponent: 'c8oforms-itemmapviewer',
+  textComponent: 'c8oforms-itemtextviewer',
   checkboxComponent: 'c8oforms-itemcheckboxviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
+  defaultValueTextButton: '.class1678818942504, .class1777544520720',
+  defaultValueJavaScriptButton: '.class1678818942537, .class1777544520765',
+  defaultValueMonacoEditor: 'c8oforms-monacoeditor',
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
   blankFormCard: '.class1645547241644',
   // ion-alert prompt shown by createNewForm (stable CSS classes set in the action code)
@@ -474,7 +478,11 @@ function defaultThumbnail(): JsonRecord {
  *    contains the component's center (clamped near the top for tall components).
  */
 export async function openComponentConfig(page: Page, componentTag: string): Promise<void> {
-  const comp = page.locator(componentTag).first();
+  await openComponentConfigAt(page, componentTag, 0);
+}
+
+export async function openComponentConfigAt(page: Page, componentTag: string, index: number): Promise<void> {
+  const comp = page.locator(`${componentTag}:visible`).nth(index);
   await comp.waitFor({ state: 'visible', timeout: 30_000 });
   await comp.scrollIntoViewIfNeeded();
 
@@ -490,23 +498,57 @@ export async function openComponentConfig(page: Page, componentTag: string): Pro
   for (let attempt = 0; attempt < 12 && overlayIndex < 0; attempt++) {
     await page.waitForTimeout(300);
     overlayIndex = await page.evaluate(
-      ({ tag, overlaySel }) => {
-        const target = document.querySelector(tag);
+      ({ tag, targetIndex, overlaySel }) => {
+        const visible = (el: Element) => {
+          const r = (el as HTMLElement).getBoundingClientRect();
+          const s = getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+        };
+        const target = [...document.querySelectorAll(tag)].filter(visible)[targetIndex];
         if (!target) return -1;
         const t = target.getBoundingClientRect();
-        const cx = t.x + t.width / 2;
-        const cy = t.y + Math.min(t.height / 2, 200);
+        const centerX = t.x + t.width / 2;
+        const points = [
+          { x: centerX, y: t.y + Math.min(Math.max(t.height / 2, 20), Math.max(t.height - 5, 5), 200) },
+          { x: centerX, y: t.y + Math.min(Math.max(t.height * 0.25, 10), Math.max(t.height - 5, 5)) },
+          { x: t.x + Math.min(Math.max(t.width * 0.25, 20), Math.max(t.width - 5, 5)), y: t.y + Math.min(20, Math.max(t.height - 5, 5)) },
+        ];
         return [...document.querySelectorAll(overlaySel)].findIndex((o) => {
           const r = o.getBoundingClientRect();
-          return r.width > 0 && cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height;
+          return (
+            r.width > 0 &&
+            r.height > 0 &&
+            points.some((p) => p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height)
+          );
         });
       },
-      { tag: componentTag, overlaySel: SEL.componentOverlay },
+      { tag: componentTag, targetIndex: index, overlaySel: SEL.componentOverlay },
     );
   }
-  expect(overlayIndex, `no config overlay covers ${componentTag}`).toBeGreaterThanOrEqual(0);
-  await page.locator(SEL.componentOverlay).nth(overlayIndex).click();
-  await expect(page.locator(SEL.configClose).first()).toBeVisible({ timeout: 15_000 });
+
+  const configClose = page.locator(SEL.configClose).first();
+  const opened = () => configClose.waitFor({ state: 'visible', timeout: 1_500 }).then(() => true).catch(() => false);
+  if (overlayIndex >= 0) {
+    await page.locator(SEL.componentOverlay).nth(overlayIndex).dispatchEvent('click');
+    await expect(configClose).toBeVisible({ timeout: 15_000 });
+    return;
+  }
+
+  await comp.dispatchEvent('click').catch(() => undefined);
+  if (await opened()) {
+    return;
+  }
+
+  const visibleOverlays = page.locator(`${SEL.componentOverlay}:visible`);
+  const overlayCount = await visibleOverlays.count();
+  if (overlayCount > 0) {
+    await visibleOverlays.last().dispatchEvent('click').catch(() => undefined);
+    if (await opened()) {
+      return;
+    }
+  }
+
+  throw new Error(`no config overlay covers ${componentTag} at index ${index}`);
 }
 
 export async function openComponentConfigByTechnicalId(page: Page, technicalId: string): Promise<void> {
@@ -929,6 +971,165 @@ export async function expectVisibilityValueTextEditorToContain(page: Page, value
   await expect(inlineEditor, 'visibility value text editor should contain the configured value').toContainText(value, {
     timeout: 10_000,
   });
+}
+
+export async function setTextDefaultValueJavascript(page: Page, returnExpression: string): Promise<void> {
+  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+  await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
+  await confirmAlertIfVisible(page);
+
+  const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+  await expect(editor, 'default value JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await expect(editor, 'default value JavaScript editor should keep the generated async wrapper').toContainText(
+    "return '';",
+    { timeout: 10_000 },
+  );
+  await page.keyboard.press('Control+F');
+  await page.keyboard.type("return '';");
+  await page.keyboard.press('Escape');
+  await page.keyboard.type(`return ${returnExpression};`);
+  await page.keyboard.press('Tab');
+
+  await expect(editor, 'default value JavaScript editor should contain the expected expression').toContainText(
+    `return ${returnExpression};`,
+    { timeout: 10_000 },
+  );
+  await page.waitForTimeout(1_000);
+}
+
+export async function setTextDefaultValueFromUserEmailPalette(page: Page): Promise<void> {
+  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+  await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
+  await confirmAlertIfVisible(page);
+  await dragUserEmailPaletteToTinyMce(page);
+}
+
+async function clickFirstVisible(page: Page, selector: string, description: string): Promise<void> {
+  const elements = page.locator(selector);
+  const count = await elements.count();
+  for (let i = 0; i < count; i++) {
+    const element = elements.nth(i);
+    if (await element.isVisible().catch(() => false)) {
+      await element.click();
+      return;
+    }
+  }
+  throw new Error(`No visible ${description} button found for selector ${selector}`);
+}
+
+export async function dragUserEmailPaletteToTinyMce(page: Page): Promise<void> {
+  await ensureSourcePaletteSectionExpanded(page, 'user');
+  await dragPaletteEntryToEditor(page, 'email');
+}
+
+async function ensureSourcePaletteSectionExpanded(page: Page, section: SourcePaletteSection): Promise<void> {
+  const body = page.locator(`${SOURCE_PALETTE_SECTION[section].body}:visible`).last();
+  if (
+    await body
+      .evaluate((el) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.height > 5 && Number(style.opacity) > 0.5 && style.pointerEvents !== 'none';
+      })
+      .catch(() => false)
+  ) {
+    return;
+  }
+  const header = page.locator(`${SOURCE_PALETTE_SECTION[section].header}:visible`).last();
+  await expect(header, `source palette section ${section} should be visible`).toBeVisible({ timeout: 15_000 });
+  await header.click();
+  await page.waitForTimeout(350);
+}
+
+async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void> {
+  const editorBody = await visibleTinyMceBody(page);
+  await editorBody.click();
+
+  const tile = page
+    .locator(`${SOURCE_PALETTE_SECTION.user.body} [draggable="true"]:visible`)
+    .filter({ hasText: label })
+    .last();
+  await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
+
+  const before = await editorBody.locator('svg[id^="clickable-"]').count();
+  await tile.dragTo(editorBody).catch(() => undefined);
+  await page.waitForTimeout(1_000);
+  await fireActiveTinyMceChange(page);
+  if (await editorContainsPaletteEntry(editorBody, label, before)) {
+    return;
+  }
+
+  const payload = await page.evaluate(
+    ({ entryLabel, userSectionBody }) => {
+      const visible = (el: Element) => {
+        const r = (el as HTMLElement).getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+      };
+      const root = [...document.querySelectorAll(userSectionBody)].filter(visible).pop() || document;
+      const source = [...root.querySelectorAll('[draggable="true"]')]
+        .filter(visible)
+        .find((el) => (el.textContent ?? '').trim().toLowerCase().includes(entryLabel.toLowerCase()));
+      if (!source) return { ok: false, html: '' };
+
+      const dataTransfer = new DataTransfer();
+      source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+      source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+      return { ok: true, html: dataTransfer.getData('text/html') };
+    },
+    { entryLabel: label, userSectionBody: SOURCE_PALETTE_SECTION.user.body },
+  );
+  expect(payload.ok, `could not get drag payload for ${label}`).toBe(true);
+
+  await page.evaluate((html) => {
+    const tinymce = (window as any).tinymce;
+    tinymce?.activeEditor?.insertContent(html);
+  }, payload.html);
+  await fireActiveTinyMceChange(page);
+  await expect
+    .poll(() => editorContainsPaletteEntry(editorBody, label, before), {
+      message: `TinyMCE editor should contain the ${label} Source Palette token`,
+      timeout: 10_000,
+    })
+    .toBe(true);
+}
+
+async function editorContainsPaletteEntry(editorBody: Locator, label: string, previousSvgCount = 0): Promise<boolean> {
+  const svgCount = await editorBody.locator('svg[id^="clickable-"]').count().catch(() => 0);
+  if (svgCount > previousSvgCount) {
+    return true;
+  }
+  const text = await editorBody.innerText().catch(() => '');
+  return normalizeVisibleText(text).toLowerCase().includes(label.toLowerCase());
+}
+
+async function visibleTinyMceBody(page: Page): Promise<Locator> {
+  const frameBody = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('body');
+  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    return frameBody;
+  }
+
+  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(inlineEditor, 'a TinyMCE editor should be visible').toBeVisible({ timeout: 10_000 });
+  return inlineEditor;
+}
+
+async function fireActiveTinyMceChange(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const tinymce = (window as any).tinymce;
+    tinymce?.activeEditor?.fire('change');
+    tinymce?.activeEditor?.fire('blur');
+  });
+}
+
+async function confirmAlertIfVisible(page: Page): Promise<void> {
+  const alert = page.locator('ion-alert').last();
+  if (!(await alert.isVisible({ timeout: 1_500 }).catch(() => false))) {
+    return;
+  }
+  await alert.locator('button.btn--primary').first().click();
+  await alert.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
 }
 
 /**
