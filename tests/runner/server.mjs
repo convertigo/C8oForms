@@ -79,6 +79,33 @@ async function ensureDeployed(send, version, ctl) {
 }
 
 // ── SSE helpers ──────────────────────────────────────────────────────────────
+async function ensureFixture(send, test, target, env, ctl) {
+  if (!test.fixtureScript) return true;
+  send('phase', { label: `Ensuring fixture for ${test.id}` });
+  const code = await run(send, process.execPath, [test.fixtureScript], env, ctl);
+  if (code !== 0) {
+    send('log', { line: `fixture script ${test.fixtureScript} failed`, cls: 'err' });
+    return false;
+  }
+  const after = await servedVersion();
+  if (after !== target) {
+    send('log', { line: `fixture script left the server on ${after} (expected ${target})`, cls: 'err' });
+    return false;
+  }
+  send('log', { line: `fixture confirmed; server still on ${after}`, cls: 'out' });
+  return true;
+}
+
+async function ensureFixtures(send, tests, target, env, ctl) {
+  const seen = new Set();
+  for (const test of tests) {
+    if (!test.fixtureScript || seen.has(test.fixtureScript)) continue;
+    seen.add(test.fixtureScript);
+    if (!(await ensureFixture(send, test, target, env, ctl))) return false;
+  }
+  return true;
+}
+
 function sse(res) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -132,10 +159,15 @@ function brokenVersionOf(t) {
   return t.brokenVersion || t.fixedVersion || t.version || '';
 }
 
+function expectsRed(t, requestedVersion) {
+  if (t.kind === 'open' || (t.kind !== 'smoke' && !t.fixedVersion)) return true;
+  return requestedVersion === 'broken' && t.kind === 'regression';
+}
+
 // Execute the selected run, streaming everything. params: ids[], version, slowMo, headed.
 async function execute(send, params, tests, ctl) {
   const headed = params.headed;
-  const env = { C8OFORMS_SLOWMO: String(params.slowMo || 0) };
+  const env = { C8OFORMS_SLOWMO: String(params.slowMo || 0), HEADED: headed ? '1' : '0' };
 
   const selected =
     params.ids[0] === 'all' ? tests : tests.filter((t) => params.ids.includes(t.id));
@@ -158,8 +190,9 @@ async function execute(send, params, tests, ctl) {
   const targetOf = (t) => (params.version === 'broken' ? brokenVersionOf(t) : latest);
 
   // Fast path: whole suite on latest → ensure once, run once.
-  if (params.ids[0] === 'all' && params.version !== 'broken') {
+  if (params.ids[0] === 'all' && params.version !== 'broken' && !selected.some((t) => expectsRed(t, params.version))) {
     if (!(await ensureDeployed(send, latest, ctl))) return send('done', { ok: false });
+    if (!(await ensureFixtures(send, selected, latest, env, ctl))) return send('done', { ok: false });
     if (!ctl.cancelled) {
       send('phase', { label: `Running the whole suite on ${latest}` });
       ok = (await run(send, process.execPath, pwArgs({ spec: null, headed }), env, ctl)) === 0;
@@ -186,10 +219,24 @@ async function execute(send, params, tests, ctl) {
       ok = false;
       continue;
     }
+    if (!(await ensureFixture(send, t, target, env, ctl))) {
+      ok = false;
+      continue;
+    }
     if (ctl.cancelled) break;
-    send('phase', { label: `Running ${t.id} on ${target}` });
+    const shouldBeRed = expectsRed(t, params.version);
+    send('phase', { label: `Running ${t.id} on ${target}${shouldBeRed ? ' (expected RED)' : ''}` });
     const code = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed }), env, ctl);
-    ok = ok && code === 0;
+    if (shouldBeRed) {
+      if (code === 0) {
+        send('log', { line: `${t.id} passed, but this ${t.kind || 'test'} entry is expected to be RED on ${target}`, cls: 'err' });
+        ok = false;
+      } else {
+        send('log', { line: `${t.id} expected RED confirmed on ${target}`, cls: 'out' });
+      }
+    } else {
+      ok = ok && code === 0;
+    }
   }
 
   if (ctl.cancelled) send('log', { line: '\n[cancelled]', cls: 'err' });

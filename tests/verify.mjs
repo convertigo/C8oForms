@@ -60,16 +60,49 @@ const resolveVersion = async (v) => (v === 'latest' ? latestRelease(REPO) : v);
 
 const headedArgs = process.env.HEADED === '1' ? ['--headed'] : [];
 
-// Deploy a version, confirm it's served, run the spec. Returns 'PASS' | 'FAIL'.
-async function runPhase(label, version, spec, grep) {
-  console.log(`\n${bold(`-- ${label}: deploying ${version} --`)}`);
+async function runFixtureScript(script, expectedVersion) {
+  if (!script) return true;
+  console.log(bold(`-- fixture: running ${script} --`));
+  const code = await run(process.execPath, [script]);
+  if (code !== 0) {
+    console.log(red(`fixture script ${script} failed`));
+    return false;
+  }
+  const got = await servedVersion();
+  if (got !== expectedVersion) {
+    console.log(red(`fixture script left the server on ${got} (expected ${expectedVersion})`));
+    return false;
+  }
+  console.log(dim(`fixture confirmed with server still on ${got}`));
+  return true;
+}
+
+async function ensureDeployed(label, version) {
+  console.log(`\n${bold(`-- ${label}: ensuring ${version} is deployed --`)}`);
+  const current = await servedVersion();
+  if (current === version) {
+    console.log(dim(`already deployed (${version}) -- skipping deploy`));
+    return true;
+  }
+  console.log(dim(`server currently serves ${current}; deploying ${version}`));
   const dcode = await run(process.execPath, ['scripts/deploy-version.mjs', version]);
   if (dcode !== 0) {
     console.log(red(`deploy of ${version} failed`));
-    return 'FAIL';
+    return false;
   }
   const got = await servedVersion();
-  console.log(got === version ? dim(`server confirmed on ${got}`) : yellow(`warning: server serves ${got} (expected ${version})`));
+  if (got !== version) {
+    console.log(red(`server serves ${got} (expected ${version})`));
+    return false;
+  }
+  console.log(dim(`server confirmed on ${got}`));
+  return true;
+}
+
+// Confirm/deploy a version, then run the spec. Returns 'PASS' | 'FAIL' | 'ERROR'.
+async function runPhase(label, version, spec, grep, fixtureScript) {
+  if (!(await ensureDeployed(label, version))) return 'ERROR';
+  if (!(await runFixtureScript(fixtureScript, version))) return 'ERROR';
   console.log(bold(`-- ${label}: running ${spec}${grep ? ` (-g "${grep}")` : ''} --`));
   const args = [PW_CLI, 'test', spec, ...(grep ? ['-g', grep] : []), ...headedArgs];
   return (await run(process.execPath, args)) === 0 ? 'PASS' : 'FAIL';
@@ -105,17 +138,23 @@ async function main() {
   if (t.kind === 'smoke') {
     const v = await resolveVersion(t.version || 'latest');
     console.log(`\n  kind: ${bold('SMOKE')} — must PASS on ${v}`);
-    const r = await runPhase('Smoke', v, t.spec, t.grep);
+    const r = await runPhase('Smoke', v, t.spec, t.grep, t.fixtureScript);
     console.log(`\n${bold(`=================== VERDICT '${id}' ===================`)}`);
     if (r === 'PASS') { console.log(`  ${green('OK')} the journey passes on ${v} (${green('GREEN')})`); line(); process.exit(0); }
+    if (r === 'ERROR') { console.log(`  ${red('X')}  setup failed before the journey could run`); line(); process.exit(1); }
     console.log(`  ${red('X')}  the journey FAILED on ${v}`); line(); process.exit(1);
   }
 
   // Open bug: still red, no fix yet.
   if (t.kind === 'open' || !t.fixedVersion) {
     console.log(`\n  status: ${yellow('OPEN')} — broken on ${t.brokenVersion}, no fix yet (the test MUST fail)`);
-    const r = await runPhase('Open bug', t.brokenVersion, t.spec, t.grep);
+    const r = await runPhase('Open bug', t.brokenVersion, t.spec, t.grep, t.fixtureScript);
     console.log(`\n${bold(`=================== VERDICT '${id}' ===================`)}`);
+    if (r === 'ERROR') {
+      console.log(`  ${red('X')}  setup failed before the bug assertion could run`);
+      line();
+      process.exit(1);
+    }
     if (r === 'FAIL') {
       console.log(`  ${green('OK')} the bug still reproduces on ${t.brokenVersion} (${red('RED')}, as expected)`);
       line();
@@ -130,8 +169,8 @@ async function main() {
 
   // Regression: red on broken, green on fixed.
   console.log(`\n  broken version: ${t.brokenVersion}   (must FAIL)\n  fixed version : ${t.fixedVersion}    (must PASS)`);
-  const brokenResult = await runPhase('Broken version', t.brokenVersion, t.spec, t.grep);
-  const fixedResult = await runPhase('Fixed version', t.fixedVersion, t.spec, t.grep);
+  const brokenResult = await runPhase('Broken version', t.brokenVersion, t.spec, t.grep, t.fixtureScript);
+  const fixedResult = await runPhase('Fixed version', t.fixedVersion, t.spec, t.grep, t.fixtureScript);
 
   console.log(`\n${bold(`=================== VERDICT '${id}' ===================`)}`);
   console.log(brokenResult === 'FAIL'
