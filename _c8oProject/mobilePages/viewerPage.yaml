@@ -7369,11 +7369,12 @@ scriptContent:
         		let value = entry != null && typeof entry === "object" && entry.value != null ? entry.value : entry;
         		if (typeof value === "string") {
         			const raw = value.trim();
-        			if (raw.indexOf("$$") !== -1) {
+        			let sourceExpression = this.extractSourceExpression(raw);
+        			if (sourceExpression !== "") {
         				try {
         					let page = this;
         					const regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
-        					const expression = this.stringOf$$ToCode(raw, "ts", [], regex, false, false);
+        					const expression = this.stringOf$$ToCode(sourceExpression, "ts", [], regex, false, false);
         					if (expression != null && expression !== "") {
         						return eval(expression);
         					}
@@ -7391,6 +7392,19 @@ scriptContent:
         			}
         		}
         		return value;
+        	}
+        
+        	private extractSourceExpression(value: string): string {
+        		if (value == null || value.indexOf("$$") === -1) {
+        			return "";
+        		}
+        		let clean = ("" + value).trim();
+        		const standalone = clean.match(/^\s*(\$\$(?:START)?\d+[\s\S]*?(?:END)?(?:\d+)?\$\$)\s*$/);
+        		if (standalone != null && standalone[1] != null) {
+        			return standalone[1];
+        		}
+        		const wrapped = clean.match(/\$\$(?:START)?\d+[\s\S]*?(?:END)?(?:\d+)?\$\$/);
+        		return wrapped != null ? wrapped[0] : clean;
         	}
         
         	private getValTsValue(code: string): any {
@@ -7415,22 +7429,64 @@ scriptContent:
         		}
         	}
         
+        	private appendValMultipleValue(values: Array<any>, value: any): void {
+        		let normalized = this.getValMultipleEntryValue(value);
+        		if (Array.isArray(normalized)) {
+        			for (let entry of normalized) {
+        				this.appendValMultipleValue(values, entry);
+        			}
+        		}
+        		else if (normalized != null && typeof normalized === "object") {
+        			if (Array.isArray(normalized.arr)) {
+        				for (let entry of normalized.arr) {
+        					this.appendValMultipleValue(values, entry);
+        				}
+        			}
+        			else if (Array.isArray(normalized.values)) {
+        				for (let entry of normalized.values) {
+        					this.appendValMultipleValue(values, entry);
+        				}
+        			}
+        			else if (Array.isArray(normalized.value)) {
+        				for (let entry of normalized.value) {
+        					this.appendValMultipleValue(values, entry);
+        				}
+        			}
+        			else {
+        				values.push(normalized);
+        			}
+        		}
+        		else if (normalized != null && normalized !== "") {
+        			values.push(normalized);
+        		}
+        	}
+        
         	private normalizeValMultiple(value: any): Array<any> {
-        		if (Array.isArray(value)) {
-        			return value;
+        		let values: Array<any> = [];
+        		this.appendValMultipleValue(values, value);
+        		return values;
+        	}
+        
+        	private getConditionSourceFieldName(val: ValFieldObject): string {
+        		let raw: any = "";
+        		if (val != null && Array.isArray(val.arr) && val.arr.length > 0 && val.arr[0] != null) {
+        			raw = val.arr[0].value != null ? val.arr[0].value : val.arr[0];
         		}
-        		if (value != null && typeof value === "object") {
-        			if (Array.isArray(value.arr)) {
-        				return value.arr.map((e) => { return this.getValMultipleEntryValue(e); });
-        			}
-        			if (Array.isArray(value.values)) {
-        				return value.values;
-        			}
-        			if (Array.isArray(value.value)) {
-        				return value.value;
-        			}
+        		else if (val != null) {
+        			raw = val.str;
         		}
-        		return value == null || value === "" ? [] : [value];
+        		if (raw == null) {
+        			return "";
+        		}
+        		if (typeof raw === "number") {
+        			return this.getNameById(raw);
+        		}
+        		let rawStr = "" + raw;
+        		if (/^\d+$/.test(rawStr)) {
+        			let name = this.getNameById(+rawStr);
+        			return name !== "" ? name : rawStr;
+        		}
+        		return rawStr;
         	}
         
         	/**
@@ -7447,27 +7503,50 @@ scriptContent:
         		if (val.source) {
         			switch (val.type) {
         				case "checkbox":
-        					str = this.getNameById(val.arr != undefined ? val.arr[0].value : val.str);
+        					str = this.getConditionSourceFieldName(val);
         					ret = val.source ? this.getFormCheckboxValueByName(str) : val.arr;
         					break;
         				case "radio_group":
-        					str = this.getNameById(val.arr != undefined ? val.arr[0].value : val.str);
+        					str = this.getConditionSourceFieldName(val);
         					ret = val.source ? this.getFormRadioGroupValueByName(str) : val.arr;
         					break;
         				case "checkbox_group":
-        					str = this.getNameById(val.arr != undefined ? val.arr[0].value : val.str);
+        					str = this.getConditionSourceFieldName(val);
         					ret = val.source ? this.getFormCheckboxGroupValueByName(str) : val.arr;
         					break;
         			}
         		} else {
         			if (Array.isArray(val.arr) && val.arr.length > 0) {
-        				ret = val.arr.map((e) => { return this.getValMultipleEntryValue(e); });
+        				ret = this.normalizeValMultiple(val.arr);
         			}
         			else {
         				ret = this.normalizeValMultiple(this.getValSimple(val));
         			}
         		}
         		return ret;
+        	}
+        
+        	private sameMultipleValues(arr1: Array<any>, arr2: Array<any>): boolean {
+        		if (!Array.isArray(arr1) || !Array.isArray(arr2) || arr1.length != arr2.length) {
+        			return false;
+        		}
+        		let sortedArr1 = arr1.slice().sort();
+        		let sortedArr2 = arr2.slice().sort();
+        		return sortedArr1.every((value, index) => { return value == sortedArr2[index]; });
+        	}
+        
+        	private hasMultipleIntersection(arr1: Array<any>, arr2: Array<any>): boolean {
+        		if (!Array.isArray(arr1) || !Array.isArray(arr2)) {
+        			return false;
+        		}
+        		for (let value1 of arr1) {
+        			for (let value2 of arr2) {
+        				if (value1 == value2) {
+        					return true;
+        				}
+        			}
+        		}
+        		return false;
         	}
         
         	/**
@@ -7482,7 +7561,7 @@ scriptContent:
         		} else if (type === "multiple") {
         			let arr1 = this.getValMultiple(field.val1);
         			let arr2 = this.getValMultiple(field.val2);
-        			return arr1.length != arr2.length ? false : arr1.sort().every((value, index) => { return value == arr2[index]; });
+        			return this.sameMultipleValues(arr1, arr2);
         		}
         	}
         
@@ -7498,7 +7577,7 @@ scriptContent:
         		else if (type == "multiple") {
         			let arr1 = this.getValMultiple(field.val1);
         			let arr2 = this.getValMultiple(field.val2)
-        			return !(arr1.length != arr2.length ? false : arr1.sort().every((value, index) => { return value == arr2[index] }));
+        			return !this.sameMultipleValues(arr1, arr2);
         		}
         	}
         	/**
@@ -7614,13 +7693,13 @@ scriptContent:
         	 */
         	private among_following(field: FieldObject, type: string): boolean {
         		if (type === "simple") {
-        			let v1 = this.getValSimple(field.val1);
+        			let v1 = this.normalizeValMultiple(this.getValSimple(field.val1));
         			let v2 = this.getValMultiple(field.val2);
-        			return (v2.filter(w => w == v1)).length > 0;
+        			return this.hasMultipleIntersection(v1, v2);
         		} else if (type === "multiple") {
         			let v1 = this.getValMultiple(field.val1);
         			let v2 = this.getValMultiple(field.val2);
-        			return v2.filter(Set.prototype.has, new Set(v1)).length > 0;
+        			return this.hasMultipleIntersection(v1, v2);
         		}
         	}
         
@@ -7631,14 +7710,14 @@ scriptContent:
         	 */
         	private out_following(field: FieldObject, type: string) {
         		if (type == "simple") {
-        			let v1 = this.getValSimple(field.val1);
+        			let v1 = this.normalizeValMultiple(this.getValSimple(field.val1));
         			let v2 = this.getValMultiple(field.val2);
-        			return (v2.filter(w => w == v1)).length == 0;
+        			return !this.hasMultipleIntersection(v1, v2);
         		}
         		else if (type == "multiple") {
         			let v1 = this.getValMultiple(field.val1);
         			let v2 = this.getValMultiple(field.val2)
-        			return v2.filter(Set.prototype.has, new Set(v1)).length == 0;
+        			return !this.hasMultipleIntersection(v1, v2);
         		}
         	}
         
@@ -8138,7 +8217,7 @@ scriptContent:
         		}
         		catch (e) {
         		}
-        		const name = this.getNameById(val);
+        		const name = this.getConditionSourceFieldName(val);
         		return this.getFormElementValueByName(name);
         	}
         
