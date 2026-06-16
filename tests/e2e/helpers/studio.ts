@@ -64,13 +64,17 @@ export const SEL = {
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
   sourcePalette: '.class1775922875303',
   sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
+  publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
   publishedApplicationsTab: 'ion-button.class1761754757348',
   cardMenuButton: 'ion-button.class1606574763560',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
-  pwaEditModal: 'ion-modal.modal-pwa-edition',
+  pwaEditModal: 'ion-modal.modal-pwa-edition, ion-modal.modalCSV',
   pwaAccessToggle: 'c8oforms-toggleswitch.class1779878486939',
   pwaAccessToggleButton: 'button.class1775840591959',
-  pwaSaveButton: 'ion-button.class1762425668421',
+  pwaLegacyAccessCheckbox: 'ion-checkbox.class1646907933319',
+  pwaNameInput: 'ion-input.class1603802354868 input',
+  pwaShortNameInput: 'ion-input.class1603803008204 input',
+  pwaSaveButton: 'ion-button.class1762425668421, ion-button.class1649838959998',
   // Horizontal layout container (type "layout") rendered in the editor canvas,
   // and the wrapper around each child nested inside it.
   layoutViewer: 'c8oforms-itemlayouteditorviewer',
@@ -146,6 +150,8 @@ export const PALETTE_ICON = {
 // password equals the login, so C8OFORMS_TEST_PASSWORD defaults to the user.
 export const TEST_USER = process.env.C8OFORMS_TEST_USER ?? '';
 export const TEST_PASSWORD = process.env.C8OFORMS_TEST_PASSWORD ?? TEST_USER;
+export const ISSUE_1421_FIXTURE_TITLE = 'test ano 1421';
+export const ISSUE_1421_FIXTURE_PUBLISHED_ID = 'published_1670939636590';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -160,6 +166,15 @@ export interface CreatedFormDocument {
   id: string;
   document: JsonRecord;
   pageTechName: string;
+}
+
+export interface LegacyAnonymousFixture {
+  title: string;
+  draftId: string;
+  publishedId: string;
+  anonymousId: string;
+  anonymousKey: string;
+  anonymousDocument: JsonRecord;
 }
 
 export async function login(page: Page): Promise<void> {
@@ -232,6 +247,83 @@ export async function getPwaDocument(page: Page, formId: string): Promise<JsonRe
   const id = formId.startsWith('published_') ? formId : `published_${formId}`;
   const response = await c8oCall(page, 'APIV2_getPWA', { id: `${id}_pwa_document` }).catch(() => null);
   return ((response?.res as JsonRecord | undefined)?.pwa as JsonRecord | undefined) ?? null;
+}
+
+export function isMissingConfigObject(doc: JsonRecord): boolean {
+  return !Object.prototype.hasOwnProperty.call(doc, 'config');
+}
+
+export async function findLegacyAnonymousFixture(
+  page: Page,
+  title = ISSUE_1421_FIXTURE_TITLE,
+): Promise<LegacyAnonymousFixture | null> {
+  const candidates = await findFormCandidatesByTitle(page, title);
+  if (title === ISSUE_1421_FIXTURE_TITLE && !candidates.some((candidate) => candidate._id === ISSUE_1421_FIXTURE_PUBLISHED_ID)) {
+    candidates.push({ _id: ISSUE_1421_FIXTURE_PUBLISHED_ID, name: title });
+  }
+
+  for (const candidate of candidates) {
+    const candidateId = String(candidate._id ?? '');
+    if (!candidateId) continue;
+
+    const publishedId = candidateId.startsWith('published_') ? candidateId : `published_${candidateId}`;
+    const draftId = publishedId.replace(/^published_/, '');
+    const anonymousId = `${publishedId}_anonymous`;
+    const [pwa, anonymousDocument] = await Promise.all([
+      getPwaDocument(page, publishedId).catch(() => null),
+      getFormDocument(page, anonymousId).catch(() => null),
+    ]);
+    const anonymousKey =
+      typeof pwa?.anonymousKey === 'string' && pwa.anonymousKey
+        ? pwa.anonymousKey
+        : typeof pwa?.targetId === 'string'
+          ? pwa.targetId
+          : '';
+    if (
+      anonymousKey &&
+      anonymousDocument &&
+      String(anonymousDocument.name ?? '') === title &&
+      isMissingConfigObject(anonymousDocument)
+    ) {
+      return { title, draftId, publishedId, anonymousId, anonymousKey, anonymousDocument };
+    }
+  }
+
+  return null;
+}
+
+async function findFormCandidatesByTitle(page: Page, title: string): Promise<JsonRecord[]> {
+  const seen = new Set<string>();
+  const results: JsonRecord[] = [];
+  for (const target of ['formsV2/search', 'published_formsV2/search']) {
+    const response = await c8oCall(page, 'APIV2_ExecuteView', {
+      target,
+      dynamicParams: JSON.stringify({
+        query: title,
+        tag: [],
+        subTag: [],
+        filters: {
+          hide_apps_i_created: false,
+          hide_folders: true,
+          show_all_apps: false,
+        },
+      }),
+    }).catch(() => null);
+    const docs = (((response?.res as JsonRecord | undefined)?.docs ?? []) as unknown[]).filter(isJsonRecord);
+    for (const doc of docs) {
+      const id = String(doc._id ?? '');
+      if (String(doc.name ?? '') !== title || !id || seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      results.push(doc);
+    }
+  }
+  return results;
+}
+
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 export async function publishFormWithPwa(
@@ -780,8 +872,17 @@ export async function openPublishedPwaEditor(page: Page, title: string): Promise
 export async function setPwaAccessModeAndSave(page: Page, mode: 'authenticated' | 'anonymous'): Promise<void> {
   const modal = page.locator(SEL.pwaEditModal).last();
   const toggle = modal.locator(SEL.pwaAccessToggle).first();
-  await expect(toggle, 'the PWA access-mode toggle should be visible').toBeVisible({ timeout: 30_000 });
-  await toggle.locator(SEL.pwaAccessToggleButton).nth(mode === 'authenticated' ? 0 : 1).click();
+  if (await toggle.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await toggle.locator(SEL.pwaAccessToggleButton).nth(mode === 'authenticated' ? 0 : 1).click();
+  } else {
+    const legacyCheckbox = modal.locator(SEL.pwaLegacyAccessCheckbox).first();
+    await expect(legacyCheckbox, 'the legacy PWA access checkbox should be visible').toBeVisible({ timeout: 30_000 });
+    const checked = await legacyCheckbox.evaluate((el) => (el as HTMLInputElement).checked === true);
+    const shouldBeChecked = mode === 'authenticated';
+    if (checked !== shouldBeChecked) {
+      await legacyCheckbox.click();
+    }
+  }
   await modal.locator(SEL.pwaSaveButton).first().click();
   await expect(modal).toBeHidden({ timeout: 60_000 });
 }
