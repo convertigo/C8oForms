@@ -159,11 +159,6 @@ function brokenVersionOf(t) {
   return t.brokenVersion || t.fixedVersion || t.version || '';
 }
 
-function expectsRed(t, requestedVersion) {
-  if (t.kind === 'open' || (t.kind !== 'smoke' && !t.fixedVersion)) return true;
-  return requestedVersion === 'broken' && t.kind === 'regression';
-}
-
 // Execute the selected run, streaming everything. params: ids[], version, slowMo, headed.
 async function execute(send, params, tests, ctl) {
   const headed = params.headed;
@@ -190,7 +185,7 @@ async function execute(send, params, tests, ctl) {
   const targetOf = (t) => (params.version === 'broken' ? brokenVersionOf(t) : latest);
 
   // Fast path: whole suite on latest → ensure once, run once.
-  if (params.ids[0] === 'all' && params.version !== 'broken' && !selected.some((t) => expectsRed(t, params.version))) {
+  if (params.ids[0] === 'all' && params.version !== 'broken') {
     if (!(await ensureDeployed(send, latest, ctl))) return send('done', { ok: false });
     if (!(await ensureFixtures(send, selected, latest, env, ctl))) return send('done', { ok: false });
     if (!ctl.cancelled) {
@@ -224,18 +219,13 @@ async function execute(send, params, tests, ctl) {
       continue;
     }
     if (ctl.cancelled) break;
-    const shouldBeRed = expectsRed(t, params.version);
-    send('phase', { label: `Running ${t.id} on ${target}${shouldBeRed ? ' (expected RED)' : ''}` });
+    send('phase', { label: `Running ${t.id} on ${target}` });
     const code = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed }), env, ctl);
-    if (shouldBeRed) {
-      if (code === 0) {
-        send('log', { line: `${t.id} passed, but this ${t.kind || 'test'} entry is expected to be RED on ${target}`, cls: 'err' });
-        ok = false;
-      } else {
-        send('log', { line: `${t.id} expected RED confirmed on ${target}`, cls: 'out' });
-      }
+    if (code === 0) {
+      send('log', { line: `${t.id} passed on ${target}`, cls: 'out' });
     } else {
-      ok = ok && code === 0;
+      send('log', { line: `${t.id} failed on ${target}`, cls: 'err' });
+      ok = false;
     }
   }
 
