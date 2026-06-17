@@ -459,6 +459,8 @@ jobs:
 
       - name: Run e2e tests (shard ${{ matrix.shard }}/4)
         working-directory: tests
+        # The container's default shell is POSIX sh (no `pipefail`); force bash.
+        shell: bash
         env:
           # TEST_NOCODE_ENDPOINT is the Convertigo server (…/convertigo). The app
           # lives under /projects/C8Oforms/DisplayObjects/mobile/ — use the full
@@ -468,16 +470,18 @@ jobs:
           C8OFORMS_TEST_USER: ${{ secrets.C8OFORMS_TEST_USER || 'testuser-convertigo@yopmail.com' }}
           C8OFORMS_TEST_PASSWORD: ${{ secrets.C8OFORMS_TEST_PASSWORD || 'testuser-convertigo@yopmail.com' }}
         run: |
-          set -uo pipefail
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           echo "App URL: $C8OFORMS_APP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
           # Whole suite, split across shards (open bugs included, for visibility).
           # Single worker per shard; blob report is merged afterwards. Test
           # failures must not fail the shard — the report job classifies them —
-          # but a missing blob report means an infra/setup failure.
+          # but a missing blob report means an infra/setup failure. `shell: bash`
+          # turns on `-e`, so disable it around the test run to capture the code.
+          set +e
           npx playwright test --shard=${{ matrix.shard }}/4 --workers=1 --reporter=blob
           TEST_STATUS=$?
+          set -e
           if [ ! -d blob-report ]; then
             echo "Playwright did not produce a blob report (infra/setup failure)"
             exit "$TEST_STATUS"
@@ -517,6 +521,7 @@ jobs:
 
       - name: Merge into results.json
         working-directory: tests
+        shell: bash
         run: |
           mkdir -p test-results
           npx playwright merge-reports --reporter json ./all-blob-reports > test-results/results.json
