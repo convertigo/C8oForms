@@ -139,6 +139,7 @@ async function loginWorks(endpoint, user, password) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
+      __project: 'C8Oforms',
       __sequence: 'Login',
       email: user,
       password,
@@ -150,7 +151,7 @@ async function loginWorks(endpoint, user, password) {
   }
   try {
     const json = JSON.parse(text);
-    return json?.document?.ok === 'true' || json?.document?.ok === true || json?.ok === true;
+    return json?.document?.ok === 'true' || json?.document?.ok === true || json?.ok === 'true' || json?.ok === true;
   } catch {
     return /<ok>true<\/ok>/.test(text);
   }
