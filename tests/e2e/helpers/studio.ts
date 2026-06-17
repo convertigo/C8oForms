@@ -61,6 +61,8 @@ export const SEL = {
   checkboxOptionInput: 'ion-input.class1588839628131 input',
   checkboxOptionAddButton: 'ion-button.class1587560901011',
   checkboxOptionDeleteButton: 'ion-button.class1588839628212',
+  // per-option "selected by default" checkbox in a Checkbox component's config
+  checkboxOptionDefaultToggle: 'ion-checkbox.class1588839628095',
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
   sourcePalette: '.class1775922875303',
   sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
@@ -139,6 +141,8 @@ export const PALETTE_ICON = {
   textInput: 'icn_input_txt.svg',
   description: 'icn_title.svg',
   checkbox: 'icn_checkbox.svg',
+  radio: 'icn_radio_btn.svg',
+  slider: 'icn_slider.svg',
   select: 'icn_select.svg',
   date: 'icn_calendar.svg',
   chart: 'icn_chart.svg',
@@ -356,75 +360,6 @@ export async function publishFormWithPwa(
   });
 }
 
-export async function createFormDocument(
-  page: Page,
-  title: string,
-  elements: FormElement[] = [],
-): Promise<CreatedFormDocument> {
-  const now = Date.now();
-  const pageTechName = `Page${now}`;
-  const preparedElements = elements.map((element, index) => ({
-    ...element,
-    id: element.id ?? now + index + 1,
-    config: {
-      ...(element.config ?? {}),
-      page: element.config?.page ?? pageTechName,
-    },
-  }));
-
-  const document = {
-    name: title,
-    tag: '',
-    formulaire: preparedElements,
-    flows: [
-      { id: 'formulas', name: 'Formulas', elements: [] },
-      { id: 'submit', name: 'Submit', elements: [] },
-    ],
-    actions: [],
-    technicalVersion: '1.0.20',
-    config: {
-      schemaVersion: 1,
-      editor: true,
-    },
-    pages: [
-      {
-        name: 'Page 1',
-        pageTechName,
-        desc: '',
-        positionTab: 'bottom',
-        enabledTab: false,
-        included: true,
-        enabledButtons: true,
-        positionButtons: 'tab',
-        iconName: 'sticky-note',
-        checkMandatoryInCurrentPage: true,
-        individualNavigation: false,
-      },
-    ],
-    navigation: {
-      included: true,
-      positionTab: 'bottom',
-      enabledTab: false,
-      enabledButtons: true,
-      positionButtons: 'standard',
-      checkMandatoryInCurrentPage: true,
-      appliedConfiguration: 'global',
-    },
-    globalNavigationEnabled: false,
-    loopToForm: true,
-    thumbnail: defaultThumbnail(),
-  };
-
-  const response = await c8oCall(page, 'APIV2_updateFormulaireDocument', {
-    meta: JSON.stringify(document),
-  });
-  const res = (response.res ?? response) as JsonRecord;
-  const id = String(res.id ?? res._id ?? '');
-  if (!id) {
-    throw new Error(`APIV2_updateFormulaireDocument did not return a form id: ${JSON.stringify(response)}`);
-  }
-  return { id, document, pageTechName };
-}
 
 export function textElement(name: string, options: JsonRecord = {}): FormElement {
   return {
@@ -991,6 +926,18 @@ export async function setCheckboxLocalOptions(page: Page, values: string[]): Pro
   await page.waitForTimeout(1_000);
 }
 
+/**
+ * Mark a Checkbox component option as selected by default (so it carries a value
+ * at runtime in the viewer), by toggling its per-option "selected" checkbox.
+ * Call after setCheckboxLocalOptions, with the option's 0-based index.
+ */
+export async function setCheckboxDefaultSelected(page: Page, optionIndex: number): Promise<void> {
+  const toggle = page.locator(SEL.checkboxOptionDefaultToggle).nth(optionIndex);
+  await toggle.waitFor({ state: 'visible', timeout: 10_000 });
+  await toggle.click();
+  await page.waitForTimeout(300);
+}
+
 export async function createFormWithCheckboxAndDescription(
   page: Page,
   opts: CheckboxDescriptionFixtureOptions = {},
@@ -1018,28 +965,115 @@ export async function openComponentVisibilityConfig(page: Page, technicalId: str
   await openConfigTab(page, /Visibilit|Visibility/i);
 }
 
-export async function configureVisibilityEqualsField(page: Page, fieldTechnicalId: string): Promise<void> {
+/**
+ * Visibility condition operator keys, in the order the operator `ion-select`
+ * lists them. The select uses the popover interface, so options render as
+ * `ion-select-popover ion-item`; we resolve the right one by the underlying
+ * `ion-select-option` value (language-agnostic), never by its i18n label.
+ */
+export type VisibilityOperator =
+  | 'equals'
+  | 'different'
+  | 'minus'
+  | 'minusequals'
+  | 'greater'
+  | 'greaterequals'
+  | 'among_following'
+  | 'out_following'
+  | 'contains'
+  | 'not_contains'
+  | 'is_empty'
+  | 'is_filled';
+
+/** Switch the visibility config to condition mode and add a condition on a field. */
+export async function startVisibilityCondition(page: Page, fieldTechnicalId: string): Promise<void> {
   await page.locator(SEL.visibilityModeButton).filter({ hasText: /Selon une condition|condition/i }).first().click();
   await page.locator(SEL.visibilityAddConditionButton).first().click();
-
   await page.locator(SEL.conditionFieldBrowseButton).first().click();
   await page.locator('ion-popover ion-item').filter({ hasText: fieldTechnicalId }).first().click();
   await expect(page.locator(SEL.conditionFieldInput).first()).toHaveValue(fieldTechnicalId);
+}
 
-  const operator = page.locator(SEL.conditionOperatorSelect).first();
-  await operator.click();
-  await page.getByText('=', { exact: true }).last().click();
+/** Pick the condition operator by its stable value (not its i18n label). */
+export async function setVisibilityOperator(page: Page, operator: VisibilityOperator): Promise<void> {
+  const select = page.locator(SEL.conditionOperatorSelect).first();
+  const index = await select.evaluate(
+    (el, op) => Array.from(el.querySelectorAll('ion-select-option')).findIndex((o) => (o as HTMLOptionElement & { value?: string }).value === op),
+    operator,
+  );
+  if (index < 0) throw new Error(`unknown visibility operator: ${operator}`);
+  await select.click();
+  const items = page.locator('ion-select-popover ion-item');
+  await items.first().waitFor({ state: 'visible', timeout: 8_000 });
+  await items.nth(index).click();
   await expect
-    .poll(() => operator.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
-      message: 'visibility condition operator should be equals',
-      timeout: 10_000,
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: `visibility operator should be ${operator}`,
+      timeout: 8_000,
     })
-    .toBe('equals');
+    .toBe(operator);
+}
+
+export async function configureVisibilityEqualsField(page: Page, fieldTechnicalId: string): Promise<void> {
+  await startVisibilityCondition(page, fieldTechnicalId);
+  await setVisibilityOperator(page, 'equals');
 }
 
 export async function fillVisibilityTagValue(page: Page, value: string): Promise<void> {
   await page.locator(SEL.conditionValueTagInput).first().fill(value);
   await page.keyboard.press('Enter');
+}
+
+/** Set a Description component's visible content through its main TinyMCE editor. */
+export async function setDescriptionText(page: Page, text: string): Promise<void> {
+  const frame = page.frameLocator('iframe.tox-edit-area__iframe').first().locator('body');
+  if (await frame.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await frame.click();
+    await frame.fill(text);
+    return;
+  }
+  const inline = page.locator('[contenteditable="true"].mce-content-body').first();
+  await expect(inline, 'description should expose a TinyMCE content editor').toBeVisible({ timeout: 10_000 });
+  await inline.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type(text);
+}
+
+export interface VisibilityConditionSpec {
+  field: string;
+  operator: VisibilityOperator;
+  /** Literal value(s). A single string fills the text editor; an array fills the
+   * chip/tag editor used by the multiple operators. Omit for is_filled/is_empty. */
+  value?: string | string[];
+}
+
+/**
+ * Add one visibility condition entirely through the UI: condition mode → field →
+ * operator → value. The value editor is chosen from what the operator renders:
+ * `is_filled`/`is_empty` take no value, the multiple operators expose a chip
+ * editor, everything else exposes the TinyMCE text editor.
+ */
+export async function addVisibilityCondition(page: Page, spec: VisibilityConditionSpec): Promise<void> {
+  await startVisibilityCondition(page, spec.field);
+  await setVisibilityOperator(page, spec.operator);
+
+  // is_filled / is_empty take no right-hand value.
+  if (spec.operator !== 'is_filled' && spec.operator !== 'is_empty') {
+    await page.waitForTimeout(300);
+    const values = Array.isArray(spec.value) ? spec.value : spec.value != null ? [spec.value] : [];
+    const chipEditor = page.locator(SEL.conditionValueTagInput).first();
+    if (await chipEditor.isVisible({ timeout: 1_500 }).catch(() => false)) {
+      for (const value of values) await fillVisibilityTagValue(page, value);
+    } else if (values.length) {
+      await fillVisibilityValueTextEditor(page, values[0]);
+    }
+  }
+
+  // The condition editor saves asynchronously (ionChange -> save emit). Let that
+  // settle so the operator/value persists before the caller closes the panel —
+  // otherwise the last-authored condition can be lost (this bit is what made an
+  // is_empty condition look like a viewer bug).
+  await page.waitForTimeout(1_000);
 }
 
 export function visibilityValueChip(page: Page, value: string) {
