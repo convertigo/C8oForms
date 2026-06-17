@@ -473,13 +473,22 @@ jobs:
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           echo "App URL: $C8OFORMS_APP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
-          # Whole suite, split across shards (open bugs included, for visibility).
+          # Assign whole spec files to this shard, balanced by duration weight, so
+          # the few long tests land on different shards (Playwright's own --shard
+          # would cluster the alphabetically-adjacent visibility specs together).
+          SPECS="$(node ci/shard-specs.mjs ${{ matrix.shard }} 4)"
+          echo "Shard ${{ matrix.shard }} specs: $SPECS"
+          if [ -z "$SPECS" ]; then
+            echo "No specs for shard ${{ matrix.shard }}; nothing to run."
+            mkdir -p blob-report
+            exit 0
+          fi
           # Single worker per shard; blob report is merged afterwards. Test
           # failures must not fail the shard — the report job classifies them —
           # but a missing blob report means an infra/setup failure. `shell: bash`
           # turns on `-e`, so disable it around the test run to capture the code.
           set +e
-          npx playwright test --shard=${{ matrix.shard }}/4 --workers=1 --reporter=blob
+          npx playwright test $SPECS --workers=1 --reporter=blob
           TEST_STATUS=$?
           set -e
           if [ ! -d blob-report ]; then
