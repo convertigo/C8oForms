@@ -2,9 +2,6 @@
 
 const DEFAULT_USERS = [
   'testuser-convertigo@yopmail.com',
-  'testuser2-convertigo@yopmail.com',
-  'testuser3-convertigo@yopmail.com',
-  'testuser4-convertigo@yopmail.com',
 ];
 
 const FULLSYNC_USER_DB = 'lib_usermanager_fullsync';
@@ -224,11 +221,11 @@ async function main() {
   await adminLogin(endpoint);
 
   const users = testUsers();
-  if (users.length < 4) {
-    die(`Expected at least 4 test users, got ${users.length}: ${users.join(', ')}`);
+  if (users.length < 1) {
+    die('Expected at least 1 test user');
   }
 
-  for (const [index, user] of users.slice(0, 4).entries()) {
+  for (const [index, user] of users.entries()) {
     await ensureUser(endpoint, user, passwordFor(user, index), index);
   }
 }

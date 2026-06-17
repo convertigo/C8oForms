@@ -444,8 +444,8 @@ jobs:
             cat dist/dependencies_report.md >> "$GITHUB_STEP_SUMMARY"
 
   prepare_e2e_test_users:
-    # Ensure the four disposable accounts used by the matrix exist before the
-    # shards start. Shard 1 keeps the primary account used by the #1421 fixture.
+    # Ensure the disposable account used by the serial e2e suite exists before
+    # tests start. The #1421 fixture uses this same primary account.
     needs: build_and_deploy
     if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.build_and_deploy.result == 'success') }}
     runs-on: ubuntu-latest
@@ -466,25 +466,19 @@ jobs:
           TEST_NOCODE_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
           CONVERTIGO_ADMIN_USER: ${{ secrets.TEST_NOCODE_USER || 'admin' }}
           CONVERTIGO_ADMIN_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
-          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com
+          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com
         run: node ci/ensure-test-users.mjs
 
   e2e_tests:
-    # Run the Playwright suite against the freshly deployed endpoint, sharded
-    # across parallel runners. Test failures are reported later, they do not
-    # block the release. Each shard runs with a single worker and a dedicated
-    # disposable account, with shard 1 reserved for the #1421 fixture owner.
+    # Run the Playwright suite serially against the freshly deployed endpoint.
+    # Test failures are reported later, they do not block the release.
     needs: prepare_e2e_test_users
-    if: ${{ needs.prepare_e2e_test_users.result == 'success' }}
+    if: ${{ always() && needs.prepare_e2e_test_users.result == 'success' }}
     runs-on: ubuntu-latest
     # The image must match the @playwright/test version in tests/package.json
     # (browsers are pinned per Playwright version). Bump both together.
     container:
       image: mcr.microsoft.com/playwright:v1.60.0-noble
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -493,7 +487,7 @@ jobs:
         working-directory: tests
         run: npm ci || npm install
 
-      - name: Run e2e tests (shard ${{ matrix.shard }}/4)
+      - name: Run e2e tests
         working-directory: tests
         # The container's default shell is POSIX sh (no `pipefail`); force bash.
         shell: bash
@@ -506,50 +500,39 @@ jobs:
           TEST_NOCODE_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
           CONVERTIGO_ADMIN_USER: ${{ secrets.TEST_NOCODE_USER || 'admin' }}
           CONVERTIGO_ADMIN_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
-          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com
-          C8OFORMS_TEST_USER_INDEX: ${{ matrix.shard }}
+          C8OFORMS_TEST_USER: testuser-convertigo@yopmail.com
+          C8OFORMS_TEST_PASSWORD: testuser-convertigo@yopmail.com
           C8OFORMS_PRIMARY_TEST_USER: testuser-convertigo@yopmail.com
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
         run: |
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           echo "App URL: $C8OFORMS_APP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
-          IFS=',' read -ra TEST_USERS <<< "$C8OFORMS_TEST_USERS"
-          echo "Shard ${{ matrix.shard }} test user: ${TEST_USERS[$(( ${{ matrix.shard }} - 1 ))]}"
-          # Assign whole spec files to this shard, balanced by duration weight, so
-          # the few long tests land on different shards (Playwright's own --shard
-          # would cluster the alphabetically-adjacent visibility specs together).
-          SPECS="$(node ci/shard-specs.mjs ${{ matrix.shard }} 4)"
-          echo "Shard ${{ matrix.shard }} specs: $SPECS"
-          if [ -z "$SPECS" ]; then
-            echo "No specs for shard ${{ matrix.shard }}; nothing to run."
-            mkdir -p blob-report
-            exit 0
-          fi
-          # Single worker per shard; blob report is merged afterwards. Test
-          # failures must not fail the shard — the report job classifies them —
+          echo "Test user: $C8OFORMS_TEST_USER"
+          # Single worker; blob report is merged afterwards. Test
+          # failures must not fail this job — the report job classifies them —
           # but a missing blob report means an infra/setup failure. `shell: bash`
           # turns on `-e`, so disable it around the test run to capture the code.
           set +e
-          npx playwright test $SPECS --workers=1 --retries=1 --reporter=list,blob
+          npx playwright test --workers=1 --retries=1 --reporter=list,blob
           TEST_STATUS=$?
           set -e
           if [ ! -d blob-report ]; then
             echo "Playwright did not produce a blob report (infra/setup failure)"
             exit "$TEST_STATUS"
           fi
-          echo "Shard ${{ matrix.shard }} exited with $TEST_STATUS; release continues and the report job classifies failures."
+          echo "E2e tests exited with $TEST_STATUS; release continues and the report job classifies failures."
 
-      - name: Upload blob report (shard ${{ matrix.shard }})
+      - name: Upload blob report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: blob-report-${{ matrix.shard }}
+          name: blob-report-1
           path: tests/blob-report
           if-no-files-found: ignore
 
   merge_reports:
-    # Merge the four shards' blob reports into a single results.json (the shape
+    # Merge the blob report into a single results.json (the shape
     # ci/report.mjs reads) and the standard Playwright artifacts.
     needs: e2e_tests
     if: ${{ always() && needs.e2e_tests.result != 'skipped' }}
@@ -564,7 +547,7 @@ jobs:
         working-directory: tests
         run: npm ci || npm install
 
-      - name: Download blob reports from all shards
+      - name: Download blob report
         uses: actions/download-artifact@v4
         with:
           path: tests/all-blob-reports
