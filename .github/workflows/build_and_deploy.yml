@@ -434,12 +434,20 @@ jobs:
             echo "## Dependencies report" >> "$GITHUB_STEP_SUMMARY"
             cat dist/dependencies_report.md >> "$GITHUB_STEP_SUMMARY"
             
+  wait_before_e2e_matrix:
+    # Give the deployed endpoint a short settle time before the e2e shards fan out.
+    needs: build_and_deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait before e2e matrix
+        run: sleep 60
+
   e2e_tests:
     # Run the Playwright suite against the freshly deployed endpoint, sharded
     # across parallel runners. Test failures are reported later, they do not
     # block the release. Each shard runs with a single worker so the four shards
     # together stay at four concurrent sessions of the shared test account.
-    needs: build_and_deploy
+    needs: wait_before_e2e_matrix
     runs-on: ubuntu-latest
     # The image must match the @playwright/test version in tests/package.json
     # (browsers are pinned per Playwright version). Bump both together.
@@ -488,7 +496,7 @@ jobs:
           # but a missing blob report means an infra/setup failure. `shell: bash`
           # turns on `-e`, so disable it around the test run to capture the code.
           set +e
-          npx playwright test $SPECS --workers=1 --reporter=blob
+          npx playwright test $SPECS --workers=1 --reporter=list,blob
           TEST_STATUS=$?
           set -e
           if [ ! -d blob-report ]; then
