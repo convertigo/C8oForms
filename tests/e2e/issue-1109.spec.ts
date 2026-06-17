@@ -12,12 +12,17 @@ import {
   setChoiceLocalOptions,
   setChoiceDefaultValueVisual,
   setChoiceDefaultValueText,
+  setChoiceDefaultValueFromSourcePalette,
   setChoiceDefaultValueJavascript,
+  createTextBusinessLogicFormula,
   openPreview,
   choiceViewerValue,
+  recordToasts,
+  recordedToasts,
 } from './helpers/studio';
 
 const OPTIONS = ['Alpha', 'Beta', 'Gamma'];
+const FORMULA_TECHNICAL_ID = 'formula_alpha_1109';
 
 type DefaultMode = 'visual' | 'text' | 'js';
 
@@ -129,10 +134,10 @@ const CASES: ChoiceDefaultCase[] = [
  * for Aa/JS modes.
  *
  * The fixture is authored through Studio UI only: create a blank form, add each
- * component from the palette, configure local options and Default Value modes in
- * the component panels, then assert the rendered viewer state.
+ * component from the palette, configure local options and Default Value modes
+ * in the component panels, then assert the rendered viewer state.
  */
-test.setTimeout(240_000);
+test.setTimeout(360_000);
 
 test('#1109 - Select, Radio and Checkbox apply visual, text and JavaScript default values', async ({ page }) => {
   await login(page);
@@ -193,4 +198,48 @@ test('#1109 - Select, Radio and Checkbox apply visual, text and JavaScript defau
       .toEqual(scenario.expected);
     viewerIndexByKind[scenario.kind] += 1;
   }
+});
+
+/**
+ * Open bug characterization for https://github.com/convertigo/C8oForms/issues/1422
+ * "Default value in Text mode shows Unexpected token '??' after dragging a Palette source"
+ *
+ * Found in 2.2.0-beta235 and reproduced red on 2.2.0-beta236. This covers the
+ * missing #1109 use case where Aa/text mode receives a Formula source from the
+ * Source Palette. The viewer can still render the returned value, but the
+ * generated expression also raises the parsing toast "Unexpected token '??'".
+ *
+ * The fixture is authored through Studio UI only: create a blank form, add a
+ * Formula from the component palette, configure it from Workflows, add a Select,
+ * configure local options, drag the Formula source into the Select Default Value
+ * Aa editor, then open the viewer.
+ */
+test('#1109 #1422 - Select text default value accepts a Source Palette formula', async ({ page }) => {
+  await login(page);
+  await createBlankForm(page, `Issue 1109 formula source ${Date.now()}`);
+  await createTextBusinessLogicFormula(page, FORMULA_TECHNICAL_ID, 'Alpha');
+
+  await addComponent(page, PALETTE_ICON.select);
+  await expect(page.locator(SEL.selectComponent), 'select_text_formula_1109 should be added').toHaveCount(1, {
+    timeout: 30_000,
+  });
+  await openComponentConfigAt(page, SEL.selectComponent, 0);
+  await setTechnicalId(page, 'select_text_formula_1109');
+  await setChoiceLocalOptions(page, OPTIONS);
+  await setChoiceDefaultValueFromSourcePalette(page, 'formulas', FORMULA_TECHNICAL_ID);
+  await closeComponentConfig(page);
+
+  await recordToasts(page);
+  await openPreview(page, SEL.selectComponent);
+  await expect
+    .poll(() => choiceViewerValue(page, 'select', 0), {
+      message: 'select_text_formula_1109 should render the value returned by formula_alpha_1109',
+      timeout: 30_000,
+    })
+    .toBe('Alpha');
+  await page.waitForTimeout(3_000);
+  expect(
+    await recordedToasts(page),
+    'preview should not raise the #1422 parsing toast for a Source Palette formula in Aa mode',
+  ).not.toContain("Unexpected token '??'");
 });

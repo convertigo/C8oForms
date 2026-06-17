@@ -1,11 +1,12 @@
-// Resolve "latest" the way the project means it: the newest release of the
-// HIGHEST version line, not whatever was published most recently. A hotfix on an
-// old line (e.g. 2.1.17 released after the 2.2 betas) must not be picked as
-// "latest" for the 2.2 development line.
+// Resolve "latest" the way the project means it: the newest release of
+// the HIGHEST version line, not whatever was published most recently. A hotfix
+// on an old line (e.g. 2.1.17 released after the 2.2 betas) must not be picked
+// as "latest" for the 2.2 development line.
 //
 // Override with C8O_RELEASE_PREFIX to pin a line explicitly, e.g. "2.2" or
 // "2.2.0-beta".
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function gh(args) {
   return new Promise((resolve) => {
@@ -42,7 +43,7 @@ function cmp(a, b) {
 }
 
 /**
- * Newest release tag of the active line.
+ * Newest release of the active line.
  * @param {string} repo  e.g. "convertigo/C8oForms"
  * @param {string} [prefix]  optional tag prefix to pin a line (C8O_RELEASE_PREFIX)
  */
@@ -68,8 +69,8 @@ export async function latestRelease(repo, prefix = process.env.C8O_RELEASE_PREFI
   return line[line.length - 1].tag;
 }
 
-// CLI: `node scripts/release.mjs [repo]` prints the resolved latest tag.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// CLI: `node scripts/release.mjs [repo]` prints the resolved latest release tag.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const repo = process.argv[2] || process.env.C8O_REPO || 'convertigo/C8oForms';
   latestRelease(repo).then((t) => process.stdout.write(t));
 }

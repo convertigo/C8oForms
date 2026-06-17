@@ -71,10 +71,10 @@ From the page you can:
 - see every manifest test (kind, versions, reproduction steps) and the version
   the server is currently serving;
 - **Run all** or **Run this** on a single test;
-- pick the **version**: *Latest* (the newest release) or *Broken* (the test's
-  broken version). Either way the runner **checks the served version first and
-  deploys only if it differs**, then confirms the right version is live before
-  running — so you never run against the wrong build;
+- pick the **version**: *Latest* resolves the newest release; *Broken* targets
+  the test's `brokenVersion`. Either way the runner checks the served version
+  first, deploys only if it differs, then confirms the right version is live
+  before running;
 - toggle **headed** and set a **slow-mo** delay (ms) so each action is slow
   enough to follow on screen;
 - watch the deploy + Playwright output stream live, with a green/red verdict.
