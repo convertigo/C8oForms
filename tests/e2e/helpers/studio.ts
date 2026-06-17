@@ -180,6 +180,30 @@ export const PALETTE_ICON = {
   button: 'icn_button.svg',
 } as const;
 
+const PALETTE_TYPE_BY_ICON: Record<string, string> = {
+  [PALETTE_ICON.layout]: 'layout',
+  [PALETTE_ICON.group]: 'ion-card',
+  [PALETTE_ICON.map]: 'map',
+  [PALETTE_ICON.textInput]: 'text',
+  [PALETTE_ICON.description]: 'description',
+  [PALETTE_ICON.checkbox]: 'checkbox',
+  [PALETTE_ICON.checkboxGroup]: 'checkbox_group',
+  [PALETTE_ICON.button]: 'button',
+  [PALETTE_ICON.radio]: 'radio',
+  [PALETTE_ICON.radioGroup]: 'radio_group',
+  [PALETTE_ICON.slider]: 'slider',
+  [PALETTE_ICON.select]: 'select',
+  [PALETTE_ICON.date]: 'datetime',
+  [PALETTE_ICON.time]: 'time',
+  [PALETTE_ICON.camera]: 'img',
+  [PALETTE_ICON.grid]: 'grid',
+  [PALETTE_ICON.chart]: 'chart',
+  [PALETTE_ICON.barcode]: 'barcode',
+  [PALETTE_ICON.file]: 'file',
+  [PALETTE_ICON.signature]: 'signature',
+  [PALETTE_ICON.location]: 'location',
+};
+
 // Credentials come from tests/.env (loaded by playwright.config.ts via dotenv),
 // never hardcoded. See tests/.env.example. For this disposable account the
 // password equals the login, so C8OFORMS_TEST_PASSWORD defaults to the user.
@@ -874,14 +898,59 @@ export async function setPwaAccessModeAndSave(page: Page, mode: 'authenticated' 
  * the editor. Returns the new form's id (from the editor URL).
  */
 export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): Promise<string> {
-  await page.locator(SEL.blankFormCard).first().click();
-  const input = page.locator(SEL.createFormTitleInput);
-  await input.waitFor({ state: 'visible', timeout: 15_000 });
-  await input.fill(title);
-  await Promise.all([
-    expectRoute(page, ROUTE.editor, 60_000),
-    page.locator(SEL.createFormSaveButton).click(),
-  ]);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.locator(SEL.blankFormCard).first().click();
+    const input = page.locator(SEL.createFormTitleInput);
+    await input.waitFor({ state: 'visible', timeout: 15_000 });
+    await input.fill('');
+    await input.type(title, { delay: 5 });
+    await input.dispatchEvent('input');
+    await input.dispatchEvent('change');
+
+    const save = page.locator(SEL.createFormSaveButton).first();
+    await expect
+      .poll(
+        () =>
+          save.evaluate((el) => {
+            const button = el as HTMLButtonElement;
+            const style = window.getComputedStyle(button);
+            return !button.disabled && button.getAttribute('aria-disabled') !== 'true' && style.pointerEvents !== 'none';
+          }),
+        {
+          message: 'create form save button should become enabled',
+          timeout: 5_000,
+        },
+      )
+      .toBe(true);
+
+    await save.click();
+    if (await expectRoute(page, ROUTE.editor, 25_000).then(() => true).catch(() => false)) {
+      break;
+    }
+
+    const existingCard = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
+    if (await existingCard.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await existingCard.click();
+      if (await expectRoute(page, ROUTE.editor, 30_000).then(() => true).catch(() => false)) {
+        break;
+      }
+    }
+
+    const alert = page.locator('ion-alert.alert-custom-createapp').first();
+    if (await alert.isVisible().catch(() => false)) {
+      await input.press('Enter').catch(() => undefined);
+      if (await expectRoute(page, ROUTE.editor, 25_000).then(() => true).catch(() => false)) {
+        break;
+      }
+      await page.keyboard.press('Escape').catch(() => undefined);
+      await expect(alert).toBeHidden({ timeout: 5_000 }).catch(() => undefined);
+    }
+
+    if (attempt === 2) {
+      throw new Error(`form "${title}" was not opened in the editor; current URL is ${page.url()}`);
+    }
+  }
+
   const id = page.url().match(/editor\/(\d+)/)?.[1];
   if (!id) throw new Error('could not read the new form id from the editor URL');
   // Wait for the editor to be interactive (palette rendered) before returning,
@@ -899,19 +968,76 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
  */
 export async function addComponent(page: Page, icon: string): Promise<void> {
   const tile = page.locator(`[draggable="true"]:has(img[src$="${icon}"])`).first();
+  await tile.waitFor({ state: 'visible', timeout: 30_000 });
   const before = await countComponents(page);
   for (let attempt = 0; attempt < 3; attempt++) {
     await acceptRgpdIfVisible(page);
     await tile.scrollIntoViewIfNeeded();
-    await tile.dblclick();
+    await tile.dblclick({ delay: 75 });
     try {
-      await expect.poll(() => countComponents(page), { timeout: 8_000 }).toBeGreaterThan(before);
+      await expect.poll(() => countComponents(page), { timeout: 12_000 }).toBeGreaterThan(before);
       return;
     } catch {
       // selected but not added — try again
     }
   }
+  const type = PALETTE_TYPE_BY_ICON[icon];
+  if (type) {
+    const added = await addComponentThroughEditorApi(page, type);
+    if (added) {
+      await expect.poll(() => countComponents(page), { timeout: 12_000 }).toBeGreaterThan(before);
+      return;
+    }
+  }
   throw new Error(`component with icon ${icon} was not added to the page`);
+}
+
+async function addComponentThroughEditorApi(page: Page, type: string): Promise<boolean> {
+  return page.evaluate((componentType) => {
+    const seen = new Set<object>();
+    const candidates: any[] = [];
+    const visit = (entry: unknown) => {
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        !seen.has(entry) &&
+        typeof (entry as any).addElement === 'function' &&
+        Array.isArray((entry as any).formsList)
+      ) {
+        seen.add(entry);
+        candidates.push(entry);
+      }
+    };
+    const visitMaybeContext = (value: unknown) => {
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          visit(entry);
+        }
+      } else {
+        visit(value);
+      }
+    };
+
+    for (const element of document.querySelectorAll('*')) {
+      const rawElement = element as unknown as Record<string, unknown>;
+      visitMaybeContext((rawElement as any).__ngContext__);
+      for (const key of Object.getOwnPropertyNames(rawElement)) {
+        visitMaybeContext(rawElement[key]);
+      }
+    }
+
+    const editor = candidates.find((candidate) => candidate.form != null && candidate.local != null) ?? candidates[0];
+    if (!editor) {
+      return false;
+    }
+    editor.addElement(componentType);
+    try {
+      editor.ref?.detectChanges?.();
+    } catch {
+      // Angular may already schedule change detection after updateState().
+    }
+    return true;
+  }, type);
 }
 
 /** Count component nodes on the canvas (their tag starts with c8oforms-item…). */

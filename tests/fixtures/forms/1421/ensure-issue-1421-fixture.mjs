@@ -34,8 +34,8 @@ const SERVER = (process.env.C8O_SERVER || process.env.C8OFORMS_BASE_URL || 'http
   /\/+$/,
   '',
 );
-const ADMIN_USER = 'admin';
-const ADMIN_PASSWORD = process.env.CONVERTIGO_ADMIN_PASSWORD ?? '';
+const ADMIN_USER = process.env.CONVERTIGO_ADMIN_USER || process.env.TEST_NOCODE_USER || 'admin';
+const ADMIN_PASSWORD = process.env.CONVERTIGO_ADMIN_PASSWORD || process.env.TEST_NOCODE_PASSWORD || '';
 let adminCookie = '';
 
 function appBaseUrl() {
@@ -264,7 +264,7 @@ async function adminEngine(path, form) {
 
 async function adminLogin() {
   if (!ADMIN_PASSWORD) {
-    throw new Error('CONVERTIGO_ADMIN_PASSWORD is not set in tests/.env');
+    throw new Error('CONVERTIGO_ADMIN_PASSWORD or TEST_NOCODE_PASSWORD is not set');
   }
   const { response, text } = await adminEngine('engine.Authenticate', {
     authType: 'login',
