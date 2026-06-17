@@ -1,6 +1,6 @@
 // Tiny local dashboard to browse the regression manifest and run tests with a
-// chosen version (broken = deploy first, actual = current deploy), headed and
-// slowed down so a tester can watch. No framework — Node http + child_process.
+// chosen version (latest = newest release, broken = bug-report version),
+// headed and slowed down so a tester can watch. No framework — Node http + child_process.
 //
 //   cd tests && npm run runner        # then open http://127.0.0.1:8771
 import { createServer } from 'node:http';
@@ -21,6 +21,7 @@ const MANIFEST = join(testsDir, 'e2e', 'regression-manifest.json');
 // depend on `npx` being on the spawned process's PATH (which breaks on Windows
 // and GUI-launched servers — `spawn npx ENOENT`).
 const PW_CLI = join(testsDir, 'node_modules', '@playwright', 'test', 'cli.js');
+let activeCtl = null;
 
 function appBaseUrl() {
   const direct = process.env.C8OFORMS_APP_URL;
@@ -145,6 +146,19 @@ function run(send, cmd, args, env, ctl) {
   });
 }
 
+function cancelRun(ctl) {
+  if (!ctl || ctl.cancelled || ctl.finished) return false;
+  ctl.cancelled = true;
+  if (ctl.child?.pid) {
+    try {
+      process.kill(-ctl.child.pid, 'SIGTERM');
+    } catch {
+      // The child may already have exited.
+    }
+  }
+  return true;
+}
+
 // Build the `node <cli> test …` args for one test (or the whole suite when
 // spec is null). Run it with `run(send, process.execPath, pwArgs(...), …)`.
 function pwArgs({ spec, grep, headed }) {
@@ -174,6 +188,8 @@ async function execute(send, params, tests, ctl) {
   let ok = true;
 
   // Resolve the target version for "latest" once (same for every test).
+  // This is the guard that normal runs are actually launched on the latest
+  // release, not on a stale served version.
   let latest = null;
   if (params.version !== 'broken') {
     latest = await resolveLatest();
@@ -181,6 +197,7 @@ async function execute(send, params, tests, ctl) {
       send('log', { line: 'Could not resolve the latest release (is gh authenticated?).', cls: 'err' });
       return send('done', { ok: false });
     }
+    send('log', { line: `latest release resolved to ${latest}`, cls: 'out' });
   }
   const targetOf = (t) => (params.version === 'broken' ? brokenVersionOf(t) : latest);
 
@@ -196,9 +213,8 @@ async function execute(send, params, tests, ctl) {
     return send('done', { ok: ok && !ctl.cancelled });
   }
 
-  // General path: per test, VERIFY the right version is served (deploy only if
-  // it differs), then run. ensureDeployed re-checks every time, so a version
-  // drift between tests is caught — and it's cheap when already correct.
+  // General path: per test, verify the target is served (deploy only if needed),
+  // then run. ensureDeployed re-checks every time, so version drift is caught.
   // Sort by target so consecutive same-version tests don't redeploy.
   const order = [...selected].sort((a, b) => String(targetOf(a)).localeCompare(String(targetOf(b))));
   for (const t of order) {
@@ -251,6 +267,11 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ servedVersion: await servedVersion() }));
     }
+    if (url.pathname === '/api/cancel') {
+      const cancelled = cancelRun(activeCtl);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ cancelled }));
+    }
     if (url.pathname === '/api/run') {
       const send = sse(res);
       const params = {
@@ -261,15 +282,15 @@ const server = createServer(async (req, res) => {
       };
       // Cancel the run (kill the spawned child) if the tester closes the tab —
       // no orphaned headed browsers or deploys.
-      const ctl = { cancelled: false, child: null };
+      const ctl = { cancelled: false, child: null, finished: false };
+      activeCtl = ctl;
       req.on('close', () => {
-        ctl.cancelled = true;
-        if (ctl.child?.pid) {
-          try { process.kill(-ctl.child.pid, 'SIGTERM'); } catch { /* already gone */ }
-        }
+        cancelRun(ctl);
       });
       const tests = await loadTests();
       await execute(send, params, tests, ctl).catch((e) => send('log', { line: String(e), cls: 'err' }));
+      ctl.finished = true;
+      if (activeCtl === ctl) activeCtl = null;
       return res.end();
     }
     res.writeHead(404);

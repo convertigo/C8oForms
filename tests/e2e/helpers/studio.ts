@@ -32,6 +32,7 @@ export const SEL = {
   buttonComponent: 'c8oforms-itembuttonviewer',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
+  businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
   choiceOptionInput:
     'ion-input.class1571404352333 input:visible, ion-input.class1778925100118 input:visible, ion-input.class1773855097792 input:visible, ion-input.class1588840079644 input:visible, ion-input.class1588839628131 input:visible, ion-input.class1588839628323 input:visible, ion-input.class1588839628332 input:visible',
@@ -46,7 +47,7 @@ export const SEL = {
   createFormTitleInput: 'input.alert-input',
   createFormSaveButton: 'button.btn--createapp-save',
   // component config header — "Identifiant technique" input
-  technicalIdInput: '.class1776763411136 input',
+  technicalIdInput: '.class1776763411136 input, .technical-id-input input',
   // editorPage.yaml — the page navigation buttons block (sharedTabs, holds the
   // submit/next/prev buttons). Clicking it opens the page settings.
   pageButtonsBlock: '.class1775139583527',
@@ -54,7 +55,10 @@ export const SEL = {
   pageSettingsGeneralTab: '.class1779366500007',
   pageSettingsNavigationTab: '.class1779366500013',
   // Pages panel (left sidebar) + a page row's inline edit (pencil) action
-  pagesPanelButton: '.class1773237523408',
+  componentPanelButton: 'ion-button.class1773237045434, ion-button.class1780909504474',
+  componentPaletteSearch: 'ion-searchbar.class1775889901001',
+  pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
+  workflowsPanelButton: 'ion-button.class1773250515928, ion-button.class1780909504555',
   pageRow: '.class1749805611480',
   pageEditButton: '.class1650357059474',
   // page settings "Nom de la page" input (TextInputSetting)
@@ -104,6 +108,7 @@ export const SEL = {
 };
 
 export const SOURCE_PALETTE_SECTION = {
+  formulas: { header: '.class1732284059152', body: '.class1732284059188' },
   router: { header: '.class1732284059236', body: '.class1732284059272' },
   application: { header: '.class1732284059317', body: '.class1732284059353' },
   form: { header: '.class1732284059398', body: '.class1732284059434' },
@@ -131,6 +136,7 @@ export interface CheckboxDescriptionFixtureOptions {
 }
 
 const DEFAULT_SOURCE_PALETTE_SECTIONS: SourcePaletteSection[] = [
+  'formulas',
   'router',
   'application',
   'form',
@@ -164,6 +170,7 @@ export const PALETTE_ICON = {
   chart: 'icn_chart.svg',
   map: 'map.svg',
   barcode: 'icn_codebar.svg',
+  businessLogic: 'icn_business_logic.svg',
   file: 'icn_import.svg',
   signature: 'icn_sign.svg',
   location: 'location.svg',
@@ -869,11 +876,101 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
  * add took (the palette dblclick occasionally only selects the tile), retrying
  * once.
  */
+export async function openComponentsPalette(page: Page, waitForIcon = PALETTE_ICON.select): Promise<void> {
+  await acceptRgpdIfVisible(page);
+  const tileSelector = componentPaletteTileSelector(waitForIcon);
+  if (await firstVisibleLocatorOrNull(page, tileSelector, 1_000)) {
+    return;
+  }
+  if (!(await page.locator(SEL.componentPaletteSearch).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
+    await clickFirstVisible(page, SEL.componentPanelButton, 'component palette panel');
+  }
+  for (let attempt = 0; attempt < 8; attempt++) {
+    if (await firstVisibleLocatorOrNull(page, tileSelector, 500)) {
+      return;
+    }
+    await page.locator(tileSelector).first().scrollIntoViewIfNeeded().catch(() => undefined);
+    if (await firstVisibleLocatorOrNull(page, tileSelector, 500)) {
+      return;
+    }
+    await page.mouse.move(180, 350);
+    await page.mouse.wheel(0, 450);
+    await page.waitForTimeout(250);
+  }
+  await firstVisibleLocator(page, tileSelector, `component palette tile ${waitForIcon}`);
+}
+
+export async function openWorkflowsPanel(page: Page): Promise<void> {
+  await acceptRgpdIfVisible(page);
+  if (await page.locator(`${SEL.businessLogicComponent}:visible`).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+  await clickFirstVisible(page, SEL.workflowsPanelButton, 'workflows panel');
+  await page.waitForTimeout(800);
+}
+
+export async function openFirstPageFlow(page: Page): Promise<void> {
+  await clickFirstVisible(page, SEL.pagesPanelButton, 'pages panel');
+  await page.waitForTimeout(800);
+  await openComponentsPalette(page, PALETTE_ICON.select);
+  await page.waitForTimeout(800);
+}
+
+export async function createTextBusinessLogicFormula(
+  page: Page,
+  technicalId: string,
+  textValue: string,
+): Promise<void> {
+  await openComponentsPalette(page, PALETTE_ICON.businessLogic);
+  const tile = await firstVisibleLocator(
+    page,
+    componentPaletteTileSelector(PALETTE_ICON.businessLogic),
+    'business logic formula palette tile',
+  );
+  await tile.scrollIntoViewIfNeeded();
+  await tile.dblclick({ force: true });
+
+  await openWorkflowsPanel(page);
+  await expect(page.locator(SEL.businessLogicComponent).first(), `${technicalId} should be added to Workflows`).toBeVisible({
+    timeout: 30_000,
+  });
+  const formulaIndex = (await page.locator(SEL.businessLogicComponent).count()) - 1;
+  await openBusinessLogicFormulaConfig(page, formulaIndex);
+  await setTechnicalId(page, technicalId);
+  await fillVisibleTinyMceText(page, textValue, 'business logic formula text editor');
+  await closeBusinessLogicFormulaConfig(page);
+  await openFirstPageFlow(page);
+}
+
+async function openBusinessLogicFormulaConfig(page: Page, index: number): Promise<void> {
+  const formula = page.locator(`${SEL.businessLogicComponent}:visible`).nth(index);
+  await expect(formula, `business logic formula #${index} should be visible`).toBeVisible({ timeout: 30_000 });
+  await formula.scrollIntoViewIfNeeded();
+  await page.mouse.move(5, 5);
+  await formula.hover();
+  await page.waitForTimeout(500);
+  const box = await formula.boundingBox();
+  if (!box) throw new Error(`business logic formula #${index} has no clickable box`);
+  await page.mouse.click(box.x + Math.min(box.width / 2, box.width - 5), box.y + Math.min(box.height / 2, box.height - 5));
+  await firstVisibleLocator(page, SEL.technicalIdInput, 'business logic technical identifier input');
+}
+
+async function closeBusinessLogicFormulaConfig(page: Page): Promise<void> {
+  const configClose = page.locator(`${SEL.configClose}:visible`).first();
+  if (await configClose.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    await configClose.click();
+  } else {
+    await page.getByRole('button', { name: /Fermer|Close/i }).last().click();
+  }
+  await page.waitForTimeout(800);
+}
+
 export async function addComponent(page: Page, icon: string): Promise<void> {
-  const tile = page.locator(`[draggable="true"]:has(img[src$="${icon}"])`).first();
+  const tileSelector = componentPaletteTileSelector(icon);
   const before = await countComponents(page);
   for (let attempt = 0; attempt < 3; attempt++) {
     await acceptRgpdIfVisible(page);
+    const tile = await firstVisibleLocator(page, tileSelector, `component palette tile ${icon}`);
     await tile.scrollIntoViewIfNeeded();
     await tile.dblclick();
     try {
@@ -897,11 +994,50 @@ export async function countComponents(page: Page): Promise<number> {
  * Rename the technical identifier of the component whose config panel is open.
  */
 export async function setTechnicalId(page: Page, value: string): Promise<void> {
-  const input = page.locator(SEL.technicalIdInput).first();
-  await input.waitFor({ state: 'visible', timeout: 15_000 });
+  const input = await firstVisibleLocator(page, SEL.technicalIdInput, 'technical identifier input');
   await input.fill(value);
   await input.blur();
   await page.waitForTimeout(1_500); // editor persists the rename on blur
+}
+
+function componentPaletteTileSelector(icon: string): string {
+  return [
+    `[draggable="true"]:has(img[src$="${icon}"])`,
+    `ion-col.class1650357035574:has(img[src$="${icon}"])`,
+  ].join(', ');
+}
+
+async function firstVisibleLocator(page: Page, selector: string, description: string): Promise<Locator> {
+  const locator = await firstVisibleLocatorOrNull(page, selector, 15_000);
+  if (!locator) {
+    throw new Error(`No visible ${description} found for selector ${selector}`);
+  }
+  return locator;
+}
+
+async function firstVisibleLocatorOrNull(page: Page, selector: string, timeout: number): Promise<Locator | null> {
+  const elements = page.locator(selector);
+  const startedAt = Date.now();
+  do {
+    const count = await elements.count();
+    for (let i = 0; i < count; i++) {
+      if (await elements.nth(i).isVisible().catch(() => false)) {
+        return elements.nth(i);
+      }
+    }
+    if (timeout <= 0) {
+      return null;
+    }
+    await page.waitForTimeout(100);
+  } while (Date.now() - startedAt < timeout);
+
+  const count = await elements.count();
+  for (let i = 0; i < count; i++) {
+    if (await elements.nth(i).isVisible().catch(() => false)) {
+      return elements.nth(i);
+    }
+  }
+  return null;
 }
 
 export async function setChoiceLocalOptions(page: Page, values: string[]): Promise<void> {
@@ -981,17 +1117,32 @@ export async function setChoiceDefaultValueText(page: Page, value: string): Prom
   await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
   await confirmAlertIfVisible(page);
 
+  await fillVisibleTinyMceText(page, value, 'default value text editor');
+}
+
+async function fillVisibleTinyMceText(page: Page, value: string, description: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.fill(value);
   await page.keyboard.press('Tab');
   await fireActiveTinyMceChange(page);
   await expect
     .poll(() => editorBody.innerText(), {
-      message: `default value text editor should contain ${value}`,
+      message: `${description} should contain ${value}`,
       timeout: 10_000,
     })
     .toContain(value);
   await page.waitForTimeout(1_000);
+}
+
+export async function setChoiceDefaultValueFromSourcePalette(
+  page: Page,
+  section: SourcePaletteSection,
+  label: string,
+): Promise<void> {
+  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+  await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
+  await confirmAlertIfVisible(page);
+  await dragSourcePaletteEntryToTinyMce(page, section, label);
 }
 
 export async function setChoiceDefaultValueJavascript(
@@ -1400,37 +1551,56 @@ async function clickFirstVisible(page: Page, selector: string, description: stri
 }
 
 export async function dragUserEmailPaletteToTinyMce(page: Page): Promise<void> {
-  await ensureSourcePaletteSectionExpanded(page, 'user');
-  await dragPaletteEntryToEditor(page, 'email');
+  await dragSourcePaletteEntryToTinyMce(page, 'user', 'email');
 }
 
-async function ensureSourcePaletteSectionExpanded(page: Page, section: SourcePaletteSection): Promise<void> {
-  const body = page.locator(`${SOURCE_PALETTE_SECTION[section].body}:visible`).last();
-  if (
-    await body
-      .evaluate((el) => {
-        const box = (el as HTMLElement).getBoundingClientRect();
-        const style = getComputedStyle(el);
-        return box.height > 5 && Number(style.opacity) > 0.5 && style.pointerEvents !== 'none';
-      })
-      .catch(() => false)
-  ) {
+export async function dragSourcePaletteEntryToTinyMce(
+  page: Page,
+  section: SourcePaletteSection,
+  label: string,
+): Promise<void> {
+  await ensureSourcePaletteSectionExpanded(page, section, label);
+  await dragPaletteEntryToEditor(page, section, label);
+}
+
+async function ensureSourcePaletteSectionExpanded(page: Page, section: SourcePaletteSection, label?: string): Promise<void> {
+  if (label) {
+    const visibleEntry = sourcePaletteEntryLocator(page, label);
+    if (await visibleEntry.isVisible({ timeout: 1_500 }).catch(() => false)) {
+      return;
+    }
+  }
+
+  const expanded = await page.locator(SOURCE_PALETTE_SECTION[section].body).evaluateAll((elements) =>
+    elements.some((el) => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.height > 5 && Number(style.opacity) > 0.5 && style.pointerEvents !== 'none';
+    }),
+  );
+  if (expanded) {
     return;
   }
-  const header = page.locator(`${SOURCE_PALETTE_SECTION[section].header}:visible`).last();
-  await expect(header, `source palette section ${section} should be visible`).toBeVisible({ timeout: 15_000 });
+
+  const header = await firstVisibleLocator(page, SOURCE_PALETTE_SECTION[section].header, `source palette section ${section}`);
   await header.click();
   await page.waitForTimeout(350);
 }
 
-async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void> {
+async function dragPaletteEntryToEditor(page: Page, section: SourcePaletteSection, label: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click();
 
-  const tile = page
-    .locator(`${SOURCE_PALETTE_SECTION.user.body} [draggable="true"]:visible`)
+  const globalTile = sourcePaletteEntryLocator(page, label);
+  const scopedTile = page
+    .locator(`${SOURCE_PALETTE_SECTION[section].body} [draggable="true"]:visible`)
     .filter({ hasText: label })
     .last();
+  const tile = (await globalTile.isVisible({ timeout: 1_000 }).catch(() => false))
+    ? globalTile
+    : (await scopedTile.isVisible({ timeout: 1_000 }).catch(() => false))
+      ? scopedTile
+      : globalTile;
   await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
 
   const before = await editorBody.locator('svg[id^="clickable-"]').count();
@@ -1442,13 +1612,16 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
   }
 
   const payload = await page.evaluate(
-    ({ entryLabel, userSectionBody }) => {
+    ({ entryLabel, sourceSectionBody, sourcePaletteRoot }) => {
       const visible = (el: Element) => {
         const r = (el as HTMLElement).getBoundingClientRect();
         const s = getComputedStyle(el);
         return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
       };
-      const root = [...document.querySelectorAll(userSectionBody)].filter(visible).pop() || document;
+      const root =
+        [...document.querySelectorAll(sourceSectionBody)].filter(visible).pop() ||
+        [...document.querySelectorAll(sourcePaletteRoot)].filter(visible).pop() ||
+        document;
       const source = [...root.querySelectorAll('[draggable="true"]')]
         .filter(visible)
         .find((el) => (el.textContent ?? '').trim().toLowerCase().includes(entryLabel.toLowerCase()));
@@ -1459,7 +1632,7 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
       source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
       return { ok: true, html: dataTransfer.getData('text/html') };
     },
-    { entryLabel: label, userSectionBody: SOURCE_PALETTE_SECTION.user.body },
+    { entryLabel: label, sourceSectionBody: SOURCE_PALETTE_SECTION[section].body, sourcePaletteRoot: SEL.sourcePalette },
   );
   expect(payload.ok, `could not get drag payload for ${label}`).toBe(true);
 
@@ -1474,6 +1647,10 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
       timeout: 10_000,
     })
     .toBe(true);
+}
+
+function sourcePaletteEntryLocator(page: Page, label: string): Locator {
+  return page.locator('[draggable="true"]:visible').filter({ hasText: label }).last();
 }
 
 async function editorContainsPaletteEntry(editorBody: Locator, label: string, previousSvgCount = 0): Promise<boolean> {

@@ -1,7 +1,8 @@
 // Cross-platform deploy: replace a C8oForms release (project + all dependencies)
 // on a Convertigo server. Node port of deploy-version.sh so it runs on Windows
 // too (the runner and verify.mjs both call this). Uses `gh` to download the
-// release, adm-zip to unpack, and fetch (no curl/bash) for the engine calls.
+// release asset, then adm-zip to unpack and fetch (no curl/bash) for the engine
+// calls.
 //
 //   node scripts/deploy-version.mjs <release-tag>
 //   node scripts/deploy-version.mjs --dir <folder-of-cars>
@@ -25,6 +26,7 @@ const SERVER = (process.env.C8O_SERVER || 'https://test-repro.convertigo.net').r
 const REPO = process.env.C8O_REPO || 'convertigo/C8oForms';
 const PASSWORD = process.env.CONVERTIGO_ADMIN_PASSWORD;
 const ADMIN_USER = 'admin';
+const PACKAGE_ASSET = 'no_code_studio_and_dependencies.zip';
 
 const WIPE_PROJECTS = [
   'C8Oforms', 'C8Oforms_PWAs', 'lib_Actions_C8Oforms', 'lib_BaseRow',
@@ -101,9 +103,9 @@ async function main() {
     cleanup = carDir;
     log(`downloading ${tag} from ${REPO}`);
     const code = await run('gh', ['release', 'download', tag, '-R', REPO,
-      '--pattern', 'no_code_studio_and_dependencies.zip', '--dir', carDir, '--clobber']);
+      '--pattern', PACKAGE_ASSET, '--dir', carDir, '--clobber']);
     if (code !== 0) die(`gh release download failed for ${tag}`);
-    new AdmZip(join(carDir, 'no_code_studio_and_dependencies.zip')).extractAllTo(carDir, true);
+    new AdmZip(join(carDir, PACKAGE_ASSET)).extractAllTo(carDir, true);
   }
 
   const cars = readdirSync(carDir).filter((f) => f.endsWith('.car')).map((f) => f.replace(/\.car$/, ''));

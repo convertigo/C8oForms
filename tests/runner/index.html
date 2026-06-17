@@ -36,6 +36,8 @@
   button.run:disabled { opacity:.4; cursor:not-allowed; }
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:7px 14px; cursor:pointer; }
   .runall { background:var(--green); color:#03210f; border:0; border-radius:8px; padding:9px 18px; font-weight:800; cursor:pointer; }
+  .stop { background:var(--red); color:#2b050b; border:0; border-radius:8px; padding:9px 18px; font-weight:800; cursor:pointer; }
+  .stop:disabled { opacity:.4; cursor:not-allowed; }
   .console { position:sticky; top:16px; background:#0a0c18; border:1px solid var(--line); border-radius:12px; height:calc(100vh - 130px); display:flex; flex-direction:column; }
   .cbar { padding:10px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
   .dot { width:10px; height:10px; border-radius:50%; background:var(--mut); }
@@ -63,6 +65,7 @@
     <span><label>slow-mo <b id="slowval">500</b>ms</label>
       <input type="range" id="slowmo" min="0" max="2000" step="100" value="500" /></span>
     <button class="runall" id="runall">▶ Run all</button>
+    <button class="stop" id="stop" disabled>Stop</button>
   </div>
 </header>
 
@@ -77,7 +80,7 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
-let version = 'latest', running = false, es = null;
+let version = 'latest', running = false, stopping = false, es = null;
 
 // global controls
 $('#version').addEventListener('click', (e) => {
@@ -90,6 +93,7 @@ $('#slowmo').addEventListener('input', (e) => $('#slowval').textContent = e.targ
 $('#clear').addEventListener('click', () => { $('#log').textContent = ''; setStatus('idle',''); });
 $('#refresh').addEventListener('click', refreshVersion);
 $('#runall').addEventListener('click', () => run(['all']));
+$('#stop').addEventListener('click', stopRun);
 
 let tests = [];
 async function load() {
@@ -119,13 +123,14 @@ function render() {
         <span class="meta">${versionLabel(t)}</span></div>
       ${repro(t)}
       <div class="row" style="margin-top:10px;">
-        <button class="run" data-id="${t.id}" ${noBroken ? 'disabled title="no broken version for this test"' : ''}>▶ Run this</button>
+        <button class="run" data-id="${t.id}" ${running || noBroken ? `disabled title="${noBroken ? 'no broken version for this test' : 'a run is already active'}"` : ''}>▶ Run this</button>
       </div>`;
     $('#list').appendChild(el);
   }
   $('#list').querySelectorAll('button.run').forEach((b) =>
     b.addEventListener('click', () => run([b.dataset.id])));
   $('#runall').disabled = running;
+  $('#stop').disabled = !running || stopping;
 }
 
 function versionLabel(t) {
@@ -151,7 +156,7 @@ function append(line, cls){
 
 function run(ids) {
   if (running) return;
-  running = true; render();
+  running = true; stopping = false; render();
   setStatus('running…', 'run');
   const q = new URLSearchParams({
     ids: ids.join(','), version,
@@ -166,9 +171,27 @@ function run(ids) {
     setStatus(ok ? 'passed' : 'failed', ok ? 'ok' : 'ko');
     finish();
   });
-  es.onerror = () => { append('\n[connection closed]', 'err'); finish(); };
+  es.onerror = () => {
+    if (!stopping) append('\n[connection closed]', 'err');
+    finish();
+  };
 }
-function finish(){ if (es){ es.close(); es = null; } running = false; render(); refreshVersion(); }
+async function stopRun() {
+  if (!running || stopping) return;
+  stopping = true;
+  render();
+  append('\n— stopping current run —', 'phase');
+  setStatus('stopping…', 'run');
+  await fetch('/api/cancel', { method: 'POST' }).catch(() => undefined);
+  if (es) {
+    es.close();
+    es = null;
+  }
+  append('\n✕ stopped by user', 'ko');
+  setStatus('stopped', 'ko');
+  finish();
+}
+function finish(){ if (es){ es.close(); es = null; } running = false; stopping = false; render(); refreshVersion(); }
 
 load();
 </script>
