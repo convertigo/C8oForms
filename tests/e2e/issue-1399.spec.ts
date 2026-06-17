@@ -51,7 +51,7 @@ test('#1399 - viewer resolves api.user.email defaults from JS and Source Palette
   await closeComponentConfig(page);
 
   await page.locator(SEL.previewButton).first().click();
-  await page.waitForURL('**/viewer/**', { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/viewer\//, { timeout: 30_000 });
 
   await expect
     .poll(

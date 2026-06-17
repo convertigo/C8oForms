@@ -67,7 +67,7 @@ test('#1413 - description palette values escape quoted grid column names', async
   syntaxErrors.length = 0;
   await closeComponentConfig(page);
   await page.locator(SEL.previewButton).first().click();
-  await page.waitForURL('**/viewer/**', { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/viewer\//, { timeout: 30_000 });
 
   const row = page.locator('.ag-center-cols-container .ag-row').filter({ hasText: EXPECTED_VALUE }).first();
   await expect(row, 'the Baserow fixture row should render in the grid').toBeVisible({ timeout: 30_000 });
