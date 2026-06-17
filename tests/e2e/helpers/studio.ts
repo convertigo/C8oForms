@@ -31,9 +31,14 @@ export const SEL = {
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
   selectComponent: 'c8oforms-itemselectviewver',
+  radioComponent: 'c8oforms-itemradioviewver',
   gridComponent: 'c8oforms-itemgridviewer',
+  choiceOptionInput:
+    'ion-input.class1571404352333 input:visible, ion-input.class1778925100118 input:visible, ion-input.class1773855097792 input:visible, ion-input.class1588840079644 input:visible, ion-input.class1588839628131 input:visible, ion-input.class1588839628323 input:visible, ion-input.class1588839628332 input:visible',
   defaultValueTextButton: '.class1678818942504, .class1777544520720',
   defaultValueJavaScriptButton: '.class1678818942537, .class1777544520765',
+  defaultValueVisualButton: '.class1781000000001',
+  defaultValueVisualOption: '.c8o-default-values-option',
   defaultValueMonacoEditor: 'c8oforms-monacoeditor',
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
   blankFormCard: '.class1645547241644',
@@ -64,6 +69,8 @@ export const SEL = {
   checkboxOptionInput: 'ion-input.class1588839628131 input',
   checkboxOptionAddButton: 'ion-button.class1587560901011',
   checkboxOptionDeleteButton: 'ion-button.class1588839628212',
+  choiceOptionDeleteButton:
+    'ion-button.class1571404352384, ion-button.class1778925100133, ion-button.class1773855179324, ion-button.class1588840079704, ion-button.class1588839628212, ion-button.class1588839628362',
   // per-option "selected by default" checkbox in a Checkbox component's config
   checkboxOptionDefaultToggle: 'ion-checkbox.class1588839628095',
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
@@ -630,10 +637,10 @@ export async function setMapHeightAndClose(page: Page, value: string): Promise<v
 }
 
 /** Click "Aperçu" and wait for the viewer/preview to render the form. */
-export async function openPreview(page: Page): Promise<void> {
+export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): Promise<void> {
   await page.locator(SEL.previewButton).first().click();
   await page.waitForURL('**/viewer/**', { timeout: 30_000 });
-  await page.locator(SEL.mapViewer).first().waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_000);
 }
 
@@ -897,47 +904,174 @@ export async function setTechnicalId(page: Page, value: string): Promise<void> {
   await page.waitForTimeout(1_500); // editor persists the rename on blur
 }
 
-export async function setCheckboxLocalOptions(page: Page, values: string[]): Promise<void> {
+export async function setChoiceLocalOptions(page: Page, values: string[]): Promise<void> {
   if (values.length === 0) {
-    throw new Error('setCheckboxLocalOptions needs at least one value');
+    throw new Error('setChoiceLocalOptions needs at least one value');
   }
 
   await openConfigTab(page, /Configuration de la source|Source configuration/i);
   await expect
-    .poll(() => page.locator(SEL.checkboxOptionInput).count(), {
-      message: 'checkbox local options should be visible',
+    .poll(() => page.locator(SEL.choiceOptionInput).count(), {
+      message: 'choice local options should be visible',
       timeout: 15_000,
     })
     .toBeGreaterThan(0);
 
-  while ((await page.locator(SEL.checkboxOptionInput).count()) < values.length) {
-    const before = await page.locator(SEL.checkboxOptionInput).count();
+  while ((await page.locator(SEL.choiceOptionInput).count()) < values.length) {
+    const before = await page.locator(SEL.choiceOptionInput).count();
     await page.locator(SEL.checkboxOptionAddButton).first().click();
     await expect
-      .poll(() => page.locator(SEL.checkboxOptionInput).count(), {
-        message: 'adding a checkbox option should create an editable input',
+      .poll(() => page.locator(SEL.choiceOptionInput).count(), {
+        message: 'adding a choice option should create an editable input',
         timeout: 10_000,
       })
       .toBeGreaterThan(before);
   }
 
-  while ((await page.locator(SEL.checkboxOptionInput).count()) > values.length) {
-    const before = await page.locator(SEL.checkboxOptionInput).count();
-    await page.locator(SEL.checkboxOptionDeleteButton).last().click();
+  while ((await page.locator(SEL.choiceOptionInput).count()) > values.length) {
+    const before = await page.locator(SEL.choiceOptionInput).count();
+    await page.locator(SEL.choiceOptionDeleteButton).last().click();
     await expect
-      .poll(() => page.locator(SEL.checkboxOptionInput).count(), {
-        message: 'deleting a checkbox option should remove its input',
+      .poll(() => page.locator(SEL.choiceOptionInput).count(), {
+        message: 'deleting a choice option should remove its input',
         timeout: 10_000,
       })
       .toBeLessThan(before);
   }
 
   for (const [index, value] of values.entries()) {
-    const input = page.locator(SEL.checkboxOptionInput).nth(index);
+    const input = page.locator(SEL.choiceOptionInput).nth(index);
     await input.fill(value);
     await input.blur();
   }
   await page.waitForTimeout(1_000);
+}
+
+export async function setCheckboxLocalOptions(page: Page, values: string[]): Promise<void> {
+  await setChoiceLocalOptions(page, values);
+}
+
+export async function setChoiceDefaultValueVisual(page: Page, values: string[]): Promise<void> {
+  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+  await clickFirstVisible(page, SEL.defaultValueVisualButton, 'default value visual mode');
+  await confirmAlertIfVisible(page);
+  await expect(page.locator(SEL.defaultValueVisualOption).first(), 'default value visual options should be visible').toBeVisible({
+    timeout: 15_000,
+  });
+
+  for (const value of values) {
+    const option = page.locator(SEL.defaultValueVisualOption).filter({ hasText: value }).first();
+    await expect(option, `default value visual option ${value} should be visible`).toBeVisible({ timeout: 10_000 });
+    if (!(await option.evaluate((el) => el.classList.contains('c8o-default-values-option-selected')))) {
+      await option.click();
+    }
+    await expect
+      .poll(() => option.evaluate((el) => el.classList.contains('c8o-default-values-option-selected')), {
+        message: `default value visual option ${value} should be selected`,
+        timeout: 10_000,
+      })
+      .toBe(true);
+  }
+
+  await page.waitForTimeout(700);
+}
+
+export async function setChoiceDefaultValueText(page: Page, value: string): Promise<void> {
+  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+  await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
+  await confirmAlertIfVisible(page);
+
+  const editorBody = await visibleTinyMceBody(page);
+  await editorBody.fill(value);
+  await page.keyboard.press('Tab');
+  await fireActiveTinyMceChange(page);
+  await expect
+    .poll(() => editorBody.innerText(), {
+      message: `default value text editor should contain ${value}`,
+      timeout: 10_000,
+    })
+    .toContain(value);
+  await page.waitForTimeout(1_000);
+}
+
+export async function setChoiceDefaultValueJavascript(
+  page: Page,
+  emptyReturnExpression: string,
+  returnExpression: string,
+): Promise<void> {
+  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+  await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
+  await confirmAlertIfVisible(page);
+
+  const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+  await expect(editor, 'default value JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await expect(editor, 'default value JavaScript editor should keep the generated async wrapper').toContainText(
+    `return ${emptyReturnExpression};`,
+    { timeout: 10_000 },
+  );
+  await page.keyboard.press('Control+F');
+  await page.keyboard.type(`return ${emptyReturnExpression};`);
+  await page.keyboard.press('Escape');
+  await page.keyboard.type(`return ${returnExpression};`);
+  await page.keyboard.press('Tab');
+
+  await expect(editor, 'default value JavaScript editor should contain the expected expression').toContainText(
+    `return ${returnExpression};`,
+    { timeout: 10_000 },
+  );
+  await page.waitForTimeout(1_000);
+}
+
+export type ChoiceViewerKind = 'select' | 'radio' | 'checkbox';
+
+export async function choiceViewerValue(
+  page: Page,
+  kind: ChoiceViewerKind,
+  index: number,
+): Promise<string | string[]> {
+  const tag =
+    kind === 'select' ? SEL.selectComponent : kind === 'radio' ? SEL.radioComponent : SEL.checkboxComponent;
+
+  return page.evaluate(
+    ({ componentTag, componentIndex, choiceKind }) => {
+      const visible = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const root = [...document.querySelectorAll(componentTag)].filter(visible)[componentIndex] as HTMLElement | undefined;
+      if (!root) {
+        return choiceKind === 'checkbox' ? [] : '';
+      }
+
+      if (choiceKind === 'select') {
+        const select = root.querySelector('ion-select') as (HTMLElement & { value?: unknown }) | null;
+        return typeof select?.value === 'string' ? select.value : select?.value == null ? '' : String(select.value);
+      }
+
+      if (choiceKind === 'radio') {
+        const radioGroup = root.querySelector('ion-radio-group') as (HTMLElement & { value?: unknown }) | null;
+        return typeof radioGroup?.value === 'string'
+          ? radioGroup.value
+          : radioGroup?.value == null
+            ? ''
+            : String(radioGroup.value);
+      }
+
+      return [...root.querySelectorAll('ion-checkbox')]
+        .filter((checkbox) => {
+          const cb = checkbox as HTMLElement & { checked?: boolean };
+          return cb.checked === true || cb.getAttribute('aria-checked') === 'true';
+        })
+        .map((checkbox) => {
+          const labelRoot = checkbox.closest('ion-item') ?? checkbox.parentElement ?? checkbox;
+          return (labelRoot.textContent ?? '').replace(/\s+/g, ' ').trim();
+        })
+        .filter(Boolean);
+    },
+    { componentTag: tag, componentIndex: index, choiceKind: kind },
+  );
 }
 
 /**
