@@ -204,11 +204,83 @@ const PALETTE_TYPE_BY_ICON: Record<string, string> = {
   [PALETTE_ICON.location]: 'location',
 };
 
-// Credentials come from tests/.env (loaded by playwright.config.ts via dotenv),
-// never hardcoded. See tests/.env.example. For this disposable account the
-// password equals the login, so C8OFORMS_TEST_PASSWORD defaults to the user.
-export const TEST_USER = process.env.C8OFORMS_TEST_USER ?? '';
-export const TEST_PASSWORD = process.env.C8OFORMS_TEST_PASSWORD ?? TEST_USER;
+export interface LoginCredentials {
+  user: string;
+  password?: string;
+}
+
+function configuredTestUsers(): string[] {
+  return (process.env.C8OFORMS_TEST_USERS ?? process.env.TEST_NOCODE_E2E_USERS ?? '')
+    .split(',')
+    .map((user) => user.trim())
+    .filter(Boolean);
+}
+
+function oneBasedIndex(value: string | undefined): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed - 1 : null;
+}
+
+function zeroBasedIndex(value: string | undefined): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function selectedTestUserIndex(userCount: number): number {
+  const explicitIndex = oneBasedIndex(process.env.C8OFORMS_TEST_USER_INDEX);
+  if (explicitIndex !== null) return explicitIndex % userCount;
+
+  const parallelIndex = zeroBasedIndex(process.env.TEST_PARALLEL_INDEX);
+  if (parallelIndex !== null) return parallelIndex % userCount;
+
+  const workerIndex = zeroBasedIndex(process.env.TEST_WORKER_INDEX);
+  if (workerIndex !== null) return workerIndex % userCount;
+
+  return 0;
+}
+
+function credentialsForConfiguredUser(users: string[], index: number): LoginCredentials {
+  const user = users[index];
+  return {
+    user,
+    password: process.env[`C8OFORMS_TEST_PASSWORD_${index + 1}`] ?? user,
+  };
+}
+
+function currentTestCredentials(users: string[]): LoginCredentials {
+  if (users.length > 0) {
+    return credentialsForConfiguredUser(users, selectedTestUserIndex(users.length));
+  }
+
+  const user = process.env.C8OFORMS_TEST_USER ?? '';
+  return {
+    user,
+    password: process.env.C8OFORMS_TEST_PASSWORD ?? user,
+  };
+}
+
+function primaryTestCredentials(users: string[]): LoginCredentials {
+  const user = process.env.C8OFORMS_PRIMARY_TEST_USER ?? users[0] ?? process.env.C8OFORMS_TEST_USER ?? '';
+  return {
+    user,
+    password:
+      process.env.C8OFORMS_PRIMARY_TEST_PASSWORD ??
+      (users.length > 0
+        ? process.env.C8OFORMS_TEST_PASSWORD_1 ?? user
+        : process.env.C8OFORMS_TEST_PASSWORD ?? user),
+  };
+}
+
+// Credentials come from tests/.env (loaded by playwright.config.ts via dotenv)
+// or from CI env. With C8OFORMS_TEST_USERS, each worker/shard selects a
+// separate disposable account; passwords default to the selected login.
+export const TEST_USERS = configuredTestUsers();
+const CURRENT_TEST_CREDENTIALS = currentTestCredentials(TEST_USERS);
+const PRIMARY_TEST_CREDENTIALS = primaryTestCredentials(TEST_USERS);
+export const TEST_USER = CURRENT_TEST_CREDENTIALS.user;
+export const TEST_PASSWORD = CURRENT_TEST_CREDENTIALS.password ?? TEST_USER;
+export const PRIMARY_TEST_USER = PRIMARY_TEST_CREDENTIALS.user;
+export const PRIMARY_TEST_PASSWORD = PRIMARY_TEST_CREDENTIALS.password ?? PRIMARY_TEST_USER;
 export const ISSUE_1421_FIXTURE_TITLE = 'test ano 1421';
 export const ISSUE_1421_FIXTURE_PUBLISHED_ID = 'published_1670939636590';
 
@@ -236,18 +308,20 @@ export interface LegacyAnonymousFixture {
   anonymousDocument: JsonRecord;
 }
 
-export async function login(page: Page): Promise<void> {
-  if (!TEST_USER) {
+export async function login(page: Page, credentials: LoginCredentials = CURRENT_TEST_CREDENTIALS): Promise<void> {
+  const user = credentials.user;
+  const password = credentials.password ?? user;
+  if (!user) {
     throw new Error(
-      'Test user not configured. Copy tests/.env.example to tests/.env and set C8OFORMS_TEST_USER.',
+      'Test user not configured. Copy tests/.env.example to tests/.env and set C8OFORMS_TEST_USER or C8OFORMS_TEST_USERS.',
     );
   }
   await page.goto('./', { waitUntil: 'networkidle', timeout: 60_000 });
   await page.locator(SEL.loginReveal).first().click();
   const email = page.locator(SEL.emailInput);
   await email.waitFor({ state: 'visible', timeout: 15_000 });
-  await email.fill(TEST_USER);
-  await page.locator(SEL.passwordInput).fill(TEST_PASSWORD);
+  await email.fill(user);
+  await page.locator(SEL.passwordInput).fill(password);
   await page.locator(SEL.loginReveal).first().click();
   await expectRoute(page, ROUTE.selector);
 }

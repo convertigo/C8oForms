@@ -30,6 +30,12 @@ const WEIGHTS = {
   'issue-1363.spec.ts': 2,
 };
 
+// The #1421 fixture owns legacy documents for the primary disposable account,
+// so keep this spec on shard 1 where that account is selected.
+const PINNED_SHARDS = {
+  'issue-1421.spec.ts': 1,
+};
+
 function main() {
   const shardIndex = Number(process.argv[2]);
   const shardTotal = Number(process.argv[3]);
@@ -47,7 +53,19 @@ function main() {
     .sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name));
 
   const bins = Array.from({ length: shardTotal }, () => ({ load: 0, specs: [] }));
+  const remaining = [];
   for (const { name, weight } of weighted) {
+    const pinnedShard = PINNED_SHARDS[name];
+    if (pinnedShard) {
+      const bin = bins[Math.min(pinnedShard, shardTotal) - 1];
+      bin.load += weight;
+      bin.specs.push(`e2e/${name}`);
+      continue;
+    }
+    remaining.push({ name, weight });
+  }
+
+  for (const { name, weight } of remaining) {
     const bin = bins.reduce((min, b) => (b.load < min.load ? b : min));
     bin.load += weight;
     bin.specs.push(`e2e/${name}`);

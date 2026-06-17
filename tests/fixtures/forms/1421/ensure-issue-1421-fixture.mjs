@@ -28,8 +28,35 @@ const FIXTURE_FILES = [
   'legacy_forms_published_anonymous_1421.json',
   'legacy_forms_pwa_document_1421.json',
 ];
-const TEST_USER = process.env.C8OFORMS_TEST_USER ?? '';
-const TEST_PASSWORD = process.env.C8OFORMS_TEST_PASSWORD ?? TEST_USER;
+
+function configuredTestUsers() {
+  return (process.env.C8OFORMS_TEST_USERS ?? process.env.TEST_NOCODE_E2E_USERS ?? '')
+    .split(',')
+    .map((user) => user.trim())
+    .filter(Boolean);
+}
+
+function primaryTestUser() {
+  return (
+    process.env.C8OFORMS_FIXTURE_1421_USER ??
+    process.env.C8OFORMS_PRIMARY_TEST_USER ??
+    configuredTestUsers()[0] ??
+    process.env.C8OFORMS_TEST_USER ??
+    ''
+  );
+}
+
+function primaryTestPassword(user) {
+  return (
+    process.env.C8OFORMS_FIXTURE_1421_PASSWORD ??
+    process.env.C8OFORMS_PRIMARY_TEST_PASSWORD ??
+    process.env.C8OFORMS_TEST_PASSWORD_1 ??
+    (configuredTestUsers().length > 0 ? user : process.env.C8OFORMS_TEST_PASSWORD ?? user)
+  );
+}
+
+const TEST_USER = primaryTestUser();
+const TEST_PASSWORD = primaryTestPassword(TEST_USER);
 const SERVER = (process.env.C8O_SERVER || process.env.C8OFORMS_BASE_URL || 'https://test-repro.convertigo.net').replace(
   /\/+$/,
   '',

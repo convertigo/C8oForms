@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import {
   ISSUE_1421_FIXTURE_TITLE,
+  PRIMARY_TEST_PASSWORD,
+  PRIMARY_TEST_USER,
   acceptRgpdIfVisible,
   findLegacyAnonymousFixture,
   isMissingConfigObject,
@@ -35,7 +37,7 @@ test.beforeAll(async () => {
 test('#1421 - anonymous legacy form without config should still open', async ({ page, browser }, testInfo) => {
   test.setTimeout(90_000);
 
-  await login(page);
+  await login(page, { user: PRIMARY_TEST_USER, password: PRIMARY_TEST_PASSWORD });
   const fixture = await findLegacyAnonymousFixture(page);
   expect(
     fixture,
