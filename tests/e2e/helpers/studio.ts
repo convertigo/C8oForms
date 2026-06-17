@@ -29,6 +29,9 @@ export const SEL = {
   textComponent: 'c8oforms-itemtextviewer',
   checkboxComponent: 'c8oforms-itemcheckboxviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
+  buttonComponent: 'c8oforms-itembuttonviewer',
+  selectComponent: 'c8oforms-itemselectviewver',
+  gridComponent: 'c8oforms-itemgridviewer',
   defaultValueTextButton: '.class1678818942504, .class1777544520720',
   defaultValueJavaScriptButton: '.class1678818942537, .class1777544520765',
   defaultValueMonacoEditor: 'c8oforms-monacoeditor',
@@ -142,6 +145,7 @@ export const PALETTE_ICON = {
   description: 'icn_title.svg',
   checkbox: 'icn_checkbox.svg',
   checkboxGroup: 'icn_checkbox_group.svg',
+  button: 'icn_button.svg',
   radio: 'icn_radio_btn.svg',
   radioGroup: 'icn_radio_btn_group.svg',
   slider: 'icn_slider.svg',
@@ -973,6 +977,104 @@ export async function createFormWithCheckboxAndDescription(
 export async function openComponentVisibilityConfig(page: Page, technicalId: string): Promise<void> {
   await openComponentConfigByTechnicalId(page, technicalId);
   await openConfigTab(page, /Visibilit|Visibility/i);
+}
+
+export async function openComponentVisibilityConfigBySelector(page: Page, componentTag: string): Promise<void> {
+  await openComponentConfig(page, componentTag);
+  await openConfigTab(page, /Visibilit|Visibility/i);
+}
+
+export interface SourceCompletionPopoverState {
+  labels: string[];
+  items: Array<{
+    label: string;
+    imageSrc: string;
+  }>;
+  overflowY: string;
+  maxHeight: string;
+  clientHeight: number;
+  scrollHeight: number;
+  searchIconTop: number | null;
+  searchIconLeft: number | null;
+}
+
+export async function openVisibilityConditionFieldPicker(page: Page): Promise<void> {
+  await page.locator(SEL.visibilityModeButton).filter({ hasText: /Selon une condition|condition/i }).first().click();
+  await page.locator(SEL.visibilityAddConditionButton).first().click();
+  await page.locator(SEL.conditionFieldBrowseButton).first().click();
+  await sourceCompletionPopover(page).waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+export function sourceCompletionPopover(page: Page): Locator {
+  return page.locator('ion-popover.C8Oforms_PopOverSourceCompletionCSS, ion-popover:has(ion-searchbar)').last();
+}
+
+export async function sourceCompletionPopoverState(page: Page): Promise<SourceCompletionPopoverState> {
+  const popover = sourceCompletionPopover(page);
+  await expect(popover.locator('ion-searchbar'), 'source completion popover should expose a search bar').toBeVisible({
+    timeout: 10_000,
+  });
+  const list = popover.locator('ion-list').first();
+  await expect(list, 'source completion popover should expose a bounded list').toBeVisible({ timeout: 10_000 });
+
+  return popover.evaluate((root) => {
+    const normalize = (value: string | null | undefined) => (value ?? '').replace(/\s+/g, ' ').trim();
+    const listEl = root.querySelector('ion-list') as HTMLElement | null;
+    if (!listEl) {
+      throw new Error('source completion list not found');
+    }
+
+    const style = getComputedStyle(listEl);
+    const searchbar = root.querySelector('ion-searchbar') as HTMLElement & { shadowRoot?: ShadowRoot | null };
+    const searchRoot = searchbar?.shadowRoot ?? searchbar;
+    const searchIcon = searchRoot?.querySelector('.searchbar-search-icon') as HTMLElement | null;
+    const searchbarBox = searchbar?.getBoundingClientRect();
+    const searchIconBox = searchIcon?.getBoundingClientRect();
+
+    return {
+      labels: [...root.querySelectorAll('ion-list ion-item ion-label')]
+        .map((label) => normalize(label.textContent))
+        .filter(Boolean),
+      items: [...root.querySelectorAll('ion-list ion-item')].flatMap((item) => {
+        const label = normalize(item.querySelector('ion-label')?.textContent);
+        if (!label) {
+          return [];
+        }
+        const image = item.querySelector('img') as HTMLImageElement | null;
+        return [{ label, imageSrc: image?.getAttribute('src') ?? '' }];
+      }),
+      overflowY: style.overflowY,
+      maxHeight: style.maxHeight,
+      clientHeight: Math.round(listEl.clientHeight),
+      scrollHeight: Math.round(listEl.scrollHeight),
+      searchIconTop:
+        searchbarBox && searchIconBox ? Math.round((searchIconBox.top - searchbarBox.top) * 10) / 10 : null,
+      searchIconLeft:
+        searchbarBox && searchIconBox ? Math.round((searchIconBox.left - searchbarBox.left) * 10) / 10 : null,
+    };
+  });
+}
+
+export async function fillSourceCompletionSearch(page: Page, value: string): Promise<void> {
+  const searchbar = sourceCompletionPopover(page).locator('ion-searchbar').first();
+  await expect(searchbar, 'source completion search bar should be visible').toBeVisible({ timeout: 10_000 });
+  const input = searchbar.locator('input').first();
+  if (await input.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await input.fill(value);
+  } else {
+    await searchbar.evaluate((el, text) => {
+      const search = el as HTMLElement & { shadowRoot?: ShadowRoot | null; value?: string };
+      const inputEl = (search.shadowRoot ?? search).querySelector('input') as HTMLInputElement | null;
+      if (!inputEl) {
+        throw new Error('source completion search input not found');
+      }
+      search.value = text;
+      inputEl.value = text;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, detail: { value: text } }));
+    }, value);
+  }
+  await page.waitForTimeout(350);
 }
 
 /**
