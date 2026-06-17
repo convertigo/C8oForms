@@ -28,10 +28,12 @@ export const SEL = {
   mapComponent: 'c8oforms-itemmapviewer',
   textComponent: 'c8oforms-itemtextviewer',
   checkboxComponent: 'c8oforms-itemcheckboxviewer',
+  checkboxGroupComponent: 'c8oforms-itemcheckboxgroupviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
+  radioGroupComponent: 'c8oforms-itemradiogroupviewver',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
   choiceOptionInput:
@@ -39,6 +41,7 @@ export const SEL = {
   defaultValueTextButton: '.class1678818942504, .class1777544520720',
   defaultValueJavaScriptButton: '.class1678818942537, .class1777544520765',
   defaultValueVisualButton: '.class1781000000001',
+  defaultValueGroupGrid: '.c8o-default-values-grid',
   defaultValueVisualOption: '.c8o-default-values-option',
   defaultValueMonacoEditor: 'c8oforms-monacoeditor',
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
@@ -1339,6 +1342,52 @@ export async function setChoiceDefaultValueVisual(page: Page, values: string[]):
   await page.waitForTimeout(700);
 }
 
+export async function setChoiceGroupDefaultValueVisual(
+  page: Page,
+  valuesByLine: Record<string, string | string[]>,
+): Promise<void> {
+  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+  await clickFirstVisible(page, SEL.defaultValueVisualButton, 'default value visual mode');
+  await confirmAlertIfVisible(page);
+
+  const grid = page.locator(SEL.defaultValueGroupGrid).first();
+  await expect(grid, 'default value group matrix should be visible').toBeVisible({ timeout: 15_000 });
+
+  for (const [line, rawValues] of Object.entries(valuesByLine)) {
+    const values = (Array.isArray(rawValues) ? rawValues : [rawValues]).filter((value) => String(value).trim() !== '');
+    for (const value of values) {
+      const optionIndex = await grid.locator('thead th').evaluateAll(
+        (headers, optionLabel) =>
+          headers.findIndex((header, index) => index > 0 && (header.textContent ?? '').trim() === optionLabel) - 1,
+        value,
+      );
+      if (optionIndex < 0) {
+        throw new Error(`default value matrix option ${value} was not found`);
+      }
+
+      const row = grid.locator('tbody tr').filter({ hasText: line }).first();
+      await expect(row, `default value matrix row ${line} should be visible`).toBeVisible({ timeout: 10_000 });
+      const cell = row.locator('.c8o-default-values-cell').nth(optionIndex);
+      await cell.click();
+      await expect
+        .poll(
+          () =>
+            cell.locator('ion-radio, ion-checkbox').first().evaluate((el) => {
+              const input = el as HTMLElement & { checked?: boolean };
+              return input.checked === true || input.getAttribute('aria-checked') === 'true';
+            }),
+          {
+            message: `default value matrix cell ${line}/${value} should be selected`,
+            timeout: 10_000,
+          },
+        )
+        .toBe(true);
+    }
+  }
+
+  await page.waitForTimeout(700);
+}
+
 export async function setChoiceDefaultValueText(page: Page, value: string): Promise<void> {
   await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
   await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
@@ -1401,15 +1450,25 @@ export async function setChoiceDefaultValueJavascript(
   await page.waitForTimeout(1_000);
 }
 
-export type ChoiceViewerKind = 'select' | 'radio' | 'checkbox';
+export type ChoiceViewerKind = 'select' | 'radio' | 'checkbox' | 'radioGroup' | 'checkboxGroup';
+
+export type ChoiceViewerValue = string | string[] | Record<string, string | string[]>;
 
 export async function choiceViewerValue(
   page: Page,
   kind: ChoiceViewerKind,
   index: number,
-): Promise<string | string[]> {
+): Promise<ChoiceViewerValue> {
   const tag =
-    kind === 'select' ? SEL.selectComponent : kind === 'radio' ? SEL.radioComponent : SEL.checkboxComponent;
+    kind === 'select'
+      ? SEL.selectComponent
+      : kind === 'radio'
+        ? SEL.radioComponent
+        : kind === 'checkbox'
+          ? SEL.checkboxComponent
+          : kind === 'radioGroup'
+            ? SEL.radioGroupComponent
+            : SEL.checkboxGroupComponent;
 
   return page.evaluate(
     ({ componentTag, componentIndex, choiceKind }) => {
@@ -1420,16 +1479,35 @@ export async function choiceViewerValue(
       };
       const root = [...document.querySelectorAll(componentTag)].filter(visible)[componentIndex] as HTMLElement | undefined;
       if (!root) {
-        return choiceKind === 'checkbox' ? [] : '';
+        return choiceKind === 'checkbox' ? [] : choiceKind === 'checkboxGroup' || choiceKind === 'radioGroup' ? {} : '';
       }
+
+      const uniqueMatches = (pattern: RegExp) => {
+        const text = (root.textContent ?? '').replace(/\s+/g, ' ');
+        return [...text.matchAll(pattern)].map((match) => match[0]).filter((value, idx, all) => all.indexOf(value) === idx);
+      };
 
       if (choiceKind === 'select') {
         const select = root.querySelector('ion-select') as (HTMLElement & { value?: unknown }) | null;
         return typeof select?.value === 'string' ? select.value : select?.value == null ? '' : String(select.value);
       }
 
-      if (choiceKind === 'radio') {
-        const radioGroup = root.querySelector('ion-radio-group') as (HTMLElement & { value?: unknown }) | null;
+      if (choiceKind === 'radio' || choiceKind === 'radioGroup') {
+        const radioGroups = [...root.querySelectorAll('ion-radio-group')].filter(visible) as (HTMLElement & {
+          value?: unknown;
+        })[];
+        if (choiceKind === 'radioGroup') {
+          const lineLabels = uniqueMatches(/\bLine \d+\b/g);
+          return Object.fromEntries(
+            radioGroups.map((radioGroup, lineIndex) => {
+              const rawValue = radioGroup.value;
+              const value =
+                typeof rawValue === 'string' ? rawValue : rawValue == null ? '' : String(rawValue);
+              return [lineLabels[lineIndex] ?? `Line ${lineIndex + 1}`, value];
+            }),
+          );
+        }
+        const radioGroup = radioGroups[0];
         return typeof radioGroup?.value === 'string'
           ? radioGroup.value
           : radioGroup?.value == null
@@ -1437,19 +1515,56 @@ export async function choiceViewerValue(
             : String(radioGroup.value);
       }
 
-      return [...root.querySelectorAll('ion-checkbox')]
+      const checkedCheckboxes = [...root.querySelectorAll('ion-checkbox')]
         .filter((checkbox) => {
           const cb = checkbox as HTMLElement & { checked?: boolean };
-          return cb.checked === true || cb.getAttribute('aria-checked') === 'true';
-        })
-        .map((checkbox) => {
-          const labelRoot = checkbox.closest('ion-item') ?? checkbox.parentElement ?? checkbox;
-          return (labelRoot.textContent ?? '').replace(/\s+/g, ' ').trim();
-        })
+          return visible(cb) && (cb.checked === true || cb.getAttribute('aria-checked') === 'true');
+        });
+      if (choiceKind === 'checkboxGroup') {
+        const lineLabels = uniqueMatches(/\bLine \d+\b/g);
+        const optionLabels = uniqueMatches(/\bOption \d+\b/g);
+        const optionCount = optionLabels.length || 1;
+        const result: Record<string, string[]> = {};
+        for (const line of lineLabels) {
+          result[line] = [];
+        }
+        for (const checkbox of checkedCheckboxes) {
+          const checkboxIndex = [...root.querySelectorAll('ion-checkbox')].filter((cb) => visible(cb)).indexOf(checkbox);
+          const lineIndex = Math.floor(checkboxIndex / optionCount);
+          const optionIndex = checkboxIndex % optionCount;
+          const line = lineLabels[lineIndex] ?? `Line ${lineIndex + 1}`;
+          if (!result[line]) result[line] = [];
+          result[line].push(optionLabels[optionIndex] ?? `Option ${optionIndex + 1}`);
+        }
+        return result;
+      }
+
+      return checkedCheckboxes
+        .map((checkbox) => ((checkbox.closest('ion-item') ?? checkbox.parentElement ?? checkbox).textContent ?? '').replace(/\s+/g, ' ').trim())
         .filter(Boolean);
     },
     { componentTag: tag, componentIndex: index, choiceKind: kind },
   );
+}
+
+export async function expectComponentHeaderDefaultValueIndicator(
+  page: Page,
+  componentSelector: string,
+  index: number,
+  technicalId: string,
+): Promise<void> {
+  const component = page.locator(`${componentSelector}:visible`).nth(index);
+  await expect(component, `component ${componentSelector} #${index} should be visible`).toBeVisible({ timeout: 30_000 });
+  await component.scrollIntoViewIfNeeded();
+  await page.mouse.move(5, 5);
+  await component.hover();
+  const technicalIdText = page.getByText(technicalId).first();
+  await expect(technicalIdText, `component header text ${technicalId} should be visible`).toBeVisible({ timeout: 10_000 });
+  const header = technicalIdText.locator('xpath=ancestor::c8oforms-headercomponents[1]');
+  await expect(
+    header.locator('ion-icon[name="bookmark-outline"], ion-icon[ng-reflect-name="bookmark-outline"]').first(),
+    `component ${technicalId} should show the default value indicator`,
+  ).toBeVisible({ timeout: 10_000 });
 }
 
 /**
