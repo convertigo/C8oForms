@@ -140,6 +140,16 @@ const DEFAULT_SOURCE_PALETTE_SECTIONS: SourcePaletteSection[] = [
   'c8o',
 ];
 
+const ROUTE = {
+  selector: /\/selector(?:\/|$)/,
+  editor: /\/editor\//,
+  viewer: /\/viewer\//,
+} as const;
+
+async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
+  await expect(page).toHaveURL(route, { timeout });
+}
+
 /**
  * Palette components share the same priority class, so the stable, non-i18n
  * discriminator is each tile's icon SVG filename. Extend as needed.
@@ -215,7 +225,7 @@ export async function login(page: Page): Promise<void> {
   await email.fill(TEST_USER);
   await page.locator(SEL.passwordInput).fill(TEST_PASSWORD);
   await page.locator(SEL.loginReveal).first().click();
-  await page.waitForURL('**/selector/**', { timeout: 30_000 });
+  await expectRoute(page, ROUTE.selector);
 }
 
 /** The editor keeps live connections open: never wait for networkidle here. */
@@ -624,11 +634,11 @@ export async function openComponentConfigByTechnicalId(page: Page, technicalId: 
 
 export async function reopenEditorFromHome(page: Page, title: string): Promise<void> {
   await page.locator(SEL.editorHomeButton).first().click();
-  await page.waitForURL('**/selector/**', { timeout: 30_000 });
+  await expectRoute(page, ROUTE.selector);
   const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
   await expect(card, `home should show form card ${title}`).toBeVisible({ timeout: 30_000 });
   await card.click();
-  await page.waitForURL('**/editor/**', { timeout: 30_000 });
+  await expectRoute(page, ROUTE.editor);
 }
 
 /** Rendered height (px) of the first leaflet map on the page. */
@@ -655,7 +665,7 @@ export async function setMapHeightAndClose(page: Page, value: string): Promise<v
 /** Click "Aperçu" and wait for the viewer/preview to render the form. */
 export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): Promise<void> {
   await page.locator(SEL.previewButton).first().click();
-  await page.waitForURL('**/viewer/**', { timeout: 30_000 });
+  await expectRoute(page, ROUTE.viewer);
   await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_000);
 }
@@ -868,8 +878,10 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
   const input = page.locator(SEL.createFormTitleInput);
   await input.waitFor({ state: 'visible', timeout: 15_000 });
   await input.fill(title);
-  await page.locator(SEL.createFormSaveButton).click();
-  await page.waitForURL('**/editor/**', { timeout: 30_000 });
+  await Promise.all([
+    expectRoute(page, ROUTE.editor, 60_000),
+    page.locator(SEL.createFormSaveButton).click(),
+  ]);
   const id = page.url().match(/editor\/(\d+)/)?.[1];
   if (!id) throw new Error('could not read the new form id from the editor URL');
   // Wait for the editor to be interactive (palette rendered) before returning,

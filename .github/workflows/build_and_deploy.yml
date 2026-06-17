@@ -22,9 +22,17 @@ on:
   push:
     tags:
       - '**'
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: 'Convertigo endpoint to test, ending with /convertigo. Defaults to TEST_NOCODE_ENDPOINT.'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build_and_deploy:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -141,6 +149,7 @@ jobs:
           path: c8oforms_standalone.tar.gz
 
   deps_report:
+      if: ${{ github.event_name == 'push' }}
       runs-on: ubuntu-latest
       needs: build_and_deploy
       steps:
@@ -434,20 +443,13 @@ jobs:
             echo "## Dependencies report" >> "$GITHUB_STEP_SUMMARY"
             cat dist/dependencies_report.md >> "$GITHUB_STEP_SUMMARY"
             
-  wait_before_e2e_matrix:
-    # Give the deployed endpoint a short settle time before the e2e shards fan out.
-    needs: build_and_deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait before e2e matrix
-        run: sleep 60
-
   e2e_tests:
     # Run the Playwright suite against the freshly deployed endpoint, sharded
     # across parallel runners. Test failures are reported later, they do not
     # block the release. Each shard runs with a single worker so the four shards
     # together stay at four concurrent sessions of the shared test account.
-    needs: wait_before_e2e_matrix
+    needs: build_and_deploy
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.build_and_deploy.result == 'success') }}
     runs-on: ubuntu-latest
     # The image must match the @playwright/test version in tests/package.json
     # (browsers are pinned per Playwright version). Bump both together.
@@ -473,7 +475,7 @@ jobs:
           # TEST_NOCODE_ENDPOINT is the Convertigo server (…/convertigo). The app
           # lives under /projects/C8Oforms/DisplayObjects/mobile/ — use the full
           # URL as-is via C8OFORMS_APP_URL.
-          TEST_NOCODE_ENDPOINT: ${{ secrets.TEST_NOCODE_ENDPOINT }}
+          TEST_NOCODE_ENDPOINT: ${{ github.event.inputs.endpoint || secrets.TEST_NOCODE_ENDPOINT }}
           # Disposable test account; override with repo secrets if you set them.
           C8OFORMS_TEST_USER: ${{ secrets.C8OFORMS_TEST_USER || 'testuser-convertigo@yopmail.com' }}
           C8OFORMS_TEST_PASSWORD: ${{ secrets.C8OFORMS_TEST_PASSWORD || 'testuser-convertigo@yopmail.com' }}
@@ -517,7 +519,7 @@ jobs:
     # Merge the four shards' blob reports into a single results.json (the shape
     # ci/report.mjs reads) and the standard Playwright artifacts.
     needs: e2e_tests
-    if: ${{ always() }}
+    if: ${{ always() && needs.e2e_tests.result != 'skipped' }}
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.60.0-noble
@@ -553,6 +555,7 @@ jobs:
 
   release:
     needs: [build_and_deploy, deps_report, e2e_tests]
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download CAR File

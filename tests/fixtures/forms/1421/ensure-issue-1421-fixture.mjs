@@ -85,6 +85,17 @@ async function firstVisible(pageOrLocator, selectors, description, timeout = 30_
   throw new Error(`No visible ${description} found (${selectors.join(', ')})`);
 }
 
+async function waitForUrl(page, route, timeout = 60_000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (route.test(page.url())) {
+      return;
+    }
+    await page.waitForTimeout(250);
+  }
+  throw new Error(`Timed out waiting for URL ${route}; current URL is ${page.url()}`);
+}
+
 async function login(page) {
   if (!TEST_USER) {
     throw new Error('C8OFORMS_TEST_USER is not set in tests/.env');
@@ -99,7 +110,7 @@ async function login(page) {
       input.fill(TEST_PASSWORD),
     );
     await modernReveal.click();
-    await page.waitForURL('**/selector/**', { timeout: 60_000 });
+    await waitForUrl(page, /\/selector(?:\/|$)/);
     return;
   }
 
@@ -132,7 +143,7 @@ async function login(page) {
     ['ion-button.class1645091280806', 'button.class1645091280806'],
     'legacy submit button',
   ).then((button) => button.click());
-  await page.waitForURL('**/selector/**', { timeout: 60_000 });
+  await waitForUrl(page, /\/selector(?:\/|$)/);
 }
 
 async function c8oCall(page, sequence, params) {
