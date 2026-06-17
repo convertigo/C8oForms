@@ -383,6 +383,16 @@ async function seedFixture() {
   return results;
 }
 
+/**
+ * Ensure the #1421 legacy fixture exists in the FullSync database (idempotent
+ * upsert of the four CouchDB documents). Node-only (admin engine + FullSync REST),
+ * so it can run from a Playwright beforeAll without a browser. Lets the spec own
+ * its precondition instead of relying on a separate `npm run seed:1421` step.
+ */
+export async function ensureIssue1421Fixture() {
+  return seedFixture();
+}
+
 async function waitForFixture(page) {
   const deadline = Date.now() + 60_000;
   let lastError = null;
@@ -419,7 +429,12 @@ async function main() {
   });
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+// Only run the CLI flow (browser login + seed + verify) when invoked directly,
+// e.g. `npm run seed:1421` — not when imported by a spec's beforeAll.
+const invokedDirectly = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (invokedDirectly) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

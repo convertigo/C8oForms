@@ -435,29 +435,32 @@ jobs:
             cat dist/dependencies_report.md >> "$GITHUB_STEP_SUMMARY"
             
   e2e_tests:
-    # Run the Playwright suite against the freshly deployed endpoint. Test
-    # failures are reported later, but they do not block the release anymore.
+    # Run the Playwright suite against the freshly deployed endpoint, sharded
+    # across parallel runners. Test failures are reported later, they do not
+    # block the release. Each shard runs with a single worker so the four shards
+    # together stay at four concurrent sessions of the shared test account.
     needs: build_and_deploy
     runs-on: ubuntu-latest
+    # The image must match the @playwright/test version in tests/package.json
+    # (browsers are pinned per Playwright version). Bump both together.
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
 
       - name: Install test dependencies
         working-directory: tests
         run: npm ci || npm install
 
-      - name: Install Playwright browser
+      - name: Run e2e tests (shard ${{ matrix.shard }}/4)
         working-directory: tests
-        run: npx playwright install --with-deps chromium
-
-      - name: Run e2e tests against the deployed endpoint
-        working-directory: tests
+        # The container's default shell is POSIX sh (no `pipefail`); force bash.
+        shell: bash
         env:
           # TEST_NOCODE_ENDPOINT is the Convertigo server (…/convertigo). The app
           # lives under /projects/C8Oforms/DisplayObjects/mobile/ — use the full
@@ -467,33 +470,77 @@ jobs:
           C8OFORMS_TEST_USER: ${{ secrets.C8OFORMS_TEST_USER || 'testuser-convertigo@yopmail.com' }}
           C8OFORMS_TEST_PASSWORD: ${{ secrets.C8OFORMS_TEST_PASSWORD || 'testuser-convertigo@yopmail.com' }}
         run: |
-          set -euo pipefail
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           echo "App URL: $C8OFORMS_APP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
-          # Run the WHOLE suite (open bugs included, for visibility). If
-          # Playwright produced its JSON report, keep the job green so the
-          # release can proceed; missing results still indicate an infra/setup
-          # failure and should stop the workflow.
+          # Assign whole spec files to this shard, balanced by duration weight, so
+          # the few long tests land on different shards (Playwright's own --shard
+          # would cluster the alphabetically-adjacent visibility specs together).
+          SPECS="$(node ci/shard-specs.mjs ${{ matrix.shard }} 4)"
+          echo "Shard ${{ matrix.shard }} specs: $SPECS"
+          if [ -z "$SPECS" ]; then
+            echo "No specs for shard ${{ matrix.shard }}; nothing to run."
+            mkdir -p blob-report
+            exit 0
+          fi
+          # Single worker per shard; blob report is merged afterwards. Test
+          # failures must not fail the shard — the report job classifies them —
+          # but a missing blob report means an infra/setup failure. `shell: bash`
+          # turns on `-e`, so disable it around the test run to capture the code.
           set +e
-          npx playwright test
+          npx playwright test $SPECS --workers=1 --reporter=blob
           TEST_STATUS=$?
           set -e
-          if [ ! -f test-results/results.json ]; then
-            echo "Playwright did not produce test-results/results.json"
+          if [ ! -d blob-report ]; then
+            echo "Playwright did not produce a blob report (infra/setup failure)"
             exit "$TEST_STATUS"
           fi
-          echo "Playwright exited with $TEST_STATUS; release continues and the report job will classify failures."
+          echo "Shard ${{ matrix.shard }} exited with $TEST_STATUS; release continues and the report job classifies failures."
 
-      - name: Upload Playwright artifacts
+      - name: Upload blob report (shard ${{ matrix.shard }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: tests/blob-report
+          if-no-files-found: ignore
+
+  merge_reports:
+    # Merge the four shards' blob reports into a single results.json (the shape
+    # ci/report.mjs reads) and the standard Playwright artifacts.
+    needs: e2e_tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm ci || npm install
+
+      - name: Download blob reports from all shards
+        uses: actions/download-artifact@v4
+        with:
+          path: tests/all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: Merge into results.json
+        working-directory: tests
+        shell: bash
+        run: |
+          mkdir -p test-results
+          npx playwright merge-reports --reporter json ./all-blob-reports > test-results/results.json
+
+      - name: Upload merged Playwright results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-results
-          path: |
-            tests/test-results/results.json
-            tests/test-results/**/*.png
-            tests/test-results/**/*.zip
+          path: tests/test-results/results.json
           if-no-files-found: ignore
 
   release:
@@ -607,8 +654,9 @@ jobs:
 
   e2e_regression_report:
     # Runs after the release and after the "to be tested" issue closure job, so
-    # failed closed issue-backed tests end the workflow reopened.
-    needs: [release, close_and_set_issues_to_be_tested]
+    # failed closed issue-backed tests end the workflow reopened. Needs the merge
+    # job for the combined playwright-results artifact.
+    needs: [release, close_and_set_issues_to_be_tested, merge_reports]
     if: ${{ always() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
