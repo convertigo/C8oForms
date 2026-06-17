@@ -4,7 +4,7 @@
 //
 //   cd tests && npm run runner        # then open http://127.0.0.1:8771
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -122,8 +122,13 @@ function run(send, cmd, args, env, ctl) {
     if (ctl?.cancelled) return resolve(130);
     send('log', { line: `$ ${cmd} ${args.join(' ')}`, cls: 'cmd' });
     // detached:true puts the child in its own process group so we can kill the
-    // WHOLE tree (npx → npm exec → node playwright → browser) on cancel.
-    const child = spawn(cmd, args, { cwd: testsDir, env: { ...process.env, ...env }, detached: true });
+    // WHOLE tree (node Playwright CLI → browser) on cancel.
+    const child = spawn(cmd, args, {
+      cwd: testsDir,
+      env: { ...process.env, ...env },
+      detached: true,
+      windowsHide: true,
+    });
     if (ctl) ctl.child = child;
     let buf = '';
     const pump = (chunk, cls) => {
@@ -150,10 +155,25 @@ function cancelRun(ctl) {
   if (!ctl || ctl.cancelled || ctl.finished) return false;
   ctl.cancelled = true;
   if (ctl.child?.pid) {
-    try {
-      process.kill(-ctl.child.pid, 'SIGTERM');
-    } catch {
-      // The child may already have exited.
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/pid', String(ctl.child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+    } else {
+      const killProcessGroup = (signal) => {
+        try {
+          process.kill(-ctl.child.pid, signal);
+        } catch {
+          try {
+            process.kill(ctl.child.pid, signal);
+          } catch {
+            // The child may already have exited.
+          }
+        }
+      };
+      killProcessGroup('SIGTERM');
+      setTimeout(() => killProcessGroup('SIGKILL'), 2_000).unref();
     }
   }
   return true;
