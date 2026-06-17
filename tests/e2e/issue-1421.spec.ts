@@ -9,15 +9,22 @@ import {
 } from './helpers/studio';
 
 /**
- * Open-bug regression guard for https://github.com/convertigo/C8oForms/issues/1421
+ * Regression guard for https://github.com/convertigo/C8oForms/issues/1421
  * "Port anonymous form loading error handling improvements to 2.2.0"
  *
- * Still open on 2.2.0-beta233 at the time this spec was added. The legacy
- * fixture is inserted from tests/fixtures/forms/1421 because the real bug needs
- * a CouchDB anonymous published document with no config key at all; recreating
- * the form through the current UI or through 2.1.12 no longer preserves that
- * exact legacy state. This spec only reads it and opens its anonymous viewer.
+ * The real bug needs a CouchDB anonymous published document with NO config key
+ * at all; recreating that exact legacy state through the current UI (or 2.1.12)
+ * is no longer possible. So the test owns its precondition: beforeAll upserts the
+ * four legacy FullSync documents from tests/fixtures/forms/1421 (idempotent,
+ * admin-only — the same logic as `npm run seed:1421`), then the test reads it and
+ * opens its anonymous viewer.
  */
+test.beforeAll(async () => {
+  // Dynamic import: the seed is an ESM .mjs and the spec is transpiled to CJS.
+  const { ensureIssue1421Fixture } = await import('../fixtures/forms/1421/ensure-issue-1421-fixture.mjs');
+  await ensureIssue1421Fixture();
+});
+
 test('#1421 - anonymous legacy form without config should still open', async ({ page, browser }, testInfo) => {
   test.setTimeout(90_000);
 
