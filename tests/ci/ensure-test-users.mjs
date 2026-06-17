@@ -117,7 +117,7 @@ async function c8oSequence(endpoint, sequence, params) {
   } catch {
     json = null;
   }
-  if (!response.ok || json?.error || /<error/i.test(text)) {
+  if (!response.ok || json?.error || json?.document?.error || /<error/i.test(text)) {
     throw new Error(`C8Oforms.${sequence} failed: ${response.status} ${text.slice(0, 500)}`);
   }
   return { response, text, json };
@@ -178,19 +178,32 @@ async function addUser(endpoint, user, password) {
   });
 }
 
+async function changePassword(endpoint, user, password) {
+  await c8oSequence(endpoint, 'ChangePassword', {
+    user,
+    newPwd: password,
+  });
+}
+
 async function ensureUser(endpoint, user, password, index) {
   const settingsId = `C8Oreserved_${user}`;
   let existingAccount = await getDocument(endpoint, FULLSYNC_USER_DB, user);
   let existingSettings = await getDocument(endpoint, FORMS_DB, settingsId);
   let canLogin = existingAccount ? await loginWorks(endpoint, user, password) : false;
-  let prepared = false;
+  const actions = [];
 
-  if (!existingAccount || !settingIsReady(existingSettings, user) || !canLogin) {
+  if (!existingAccount || !settingIsReady(existingSettings, user)) {
     await addUser(endpoint, user, password);
-    prepared = true;
+    actions.push('AddUser');
     existingAccount = await getDocument(endpoint, FULLSYNC_USER_DB, user);
     existingSettings = await getDocument(endpoint, FORMS_DB, settingsId);
     canLogin = existingAccount ? await loginWorks(endpoint, user, password) : false;
+  }
+
+  if (existingAccount && !canLogin) {
+    await changePassword(endpoint, user, password);
+    actions.push('ChangePassword');
+    canLogin = await loginWorks(endpoint, user, password);
   }
 
   if (!existingAccount) {
@@ -200,9 +213,9 @@ async function ensureUser(endpoint, user, password, index) {
     throw new Error(`C8Oforms.AddUser did not prepare settings ${settingsId}`);
   }
   if (!canLogin) {
-    throw new Error(`C8Oforms.AddUser prepared ${user} but login still fails`);
+    throw new Error(`Prepared ${user} but login still fails with login=${user}`);
   }
-  console.log(`test user ${index + 1}: ${user} ready${prepared ? ' (AddUser)' : ''}`);
+  console.log(`test user ${index + 1}: ${user} ready${actions.length > 0 ? ` (${actions.join(', ')})` : ''}`);
 }
 
 async function main() {
