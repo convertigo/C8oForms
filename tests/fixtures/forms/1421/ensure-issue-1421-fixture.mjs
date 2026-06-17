@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +12,12 @@ dotenv.config({ path: join(testsDir, '.env') });
 const FIXTURE_TITLE = 'test ano 1421';
 const FIXTURE_DIR = here;
 const FULLSYNC_DB = 'c8oforms_fs';
+// Anonymous access is granted by two extra FullSync documents that a real
+// "publish anonymous" creates server-side: the anonymous user account (login =
+// the anonymous key) and its group membership. The studio cannot author these
+// for a frozen legacy form, so the fixture seeds them directly.
+const USER_DB = 'lib_usermanager_fullsync';
+const GROUP_DB = 'c8ofullsyncgrp';
 const DRAFT_ID = '1670939636590';
 const PUBLISHED_ID = `published_${DRAFT_ID}`;
 const ANONYMOUS_ID = `${PUBLISHED_ID}_anonymous`;
@@ -258,8 +265,8 @@ async function adminLogin() {
   }
 }
 
-async function fullSyncRequest(path, options = {}) {
-  const response = await fetch(`${SERVER}/convertigo/fullsync/${FULLSYNC_DB}/${path}`, {
+async function fullSyncRequest(path, options = {}, db = FULLSYNC_DB) {
+  const response = await fetch(`${SERVER}/convertigo/fullsync/${db}/${path}`, {
     method: options.method ?? 'GET',
     headers: {
       ...(options.headers ?? {}),
@@ -283,32 +290,36 @@ async function fullSyncRequest(path, options = {}) {
   };
 }
 
-async function getFullSyncDocument(id) {
-  const response = await fullSyncRequest(encodeURIComponent(id));
+async function getFullSyncDocument(id, db = FULLSYNC_DB) {
+  const response = await fullSyncRequest(encodeURIComponent(id), {}, db);
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`Could not read ${id} from ${FULLSYNC_DB}: ${response.status} ${response.text.slice(0, 300)}`);
+    throw new Error(`Could not read ${id} from ${db}: ${response.status} ${response.text.slice(0, 300)}`);
   }
   return response.json;
 }
 
-async function putFullSyncDocument(document) {
+async function putFullSyncDocument(document, db = FULLSYNC_DB) {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const existing = await getFullSyncDocument(document._id);
+    const existing = await getFullSyncDocument(document._id, db);
     const payload = { ...document };
     if (existing?._rev) {
       payload._rev = existing._rev;
     }
-    const response = await fullSyncRequest(encodeURIComponent(document._id), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const response = await fullSyncRequest(
+      encodeURIComponent(document._id),
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      db,
+    );
     if (response.ok) return { id: document._id, rev: response.json?.rev, updated: !!existing };
     if (response.status === 409 && attempt === 0) continue;
-    throw new Error(`Could not write ${document._id} to ${FULLSYNC_DB}: ${response.status} ${response.text.slice(0, 500)}`);
+    throw new Error(`Could not write ${document._id} to ${db}: ${response.status} ${response.text.slice(0, 500)}`);
   }
-  throw new Error(`Could not write ${document._id} to ${FULLSYNC_DB}: conflicted twice`);
+  throw new Error(`Could not write ${document._id} to ${db}: conflicted twice`);
 }
 
 async function loadFixtureDocuments() {
@@ -373,6 +384,47 @@ function validateFixtureDocuments(docs) {
   }
 }
 
+// The anonymous key is the access token stamped on the published_anonymous
+// document (`~c8oAcl`). A real "publish anonymous" registers it as a user
+// account whose password equals the key, hashed by lib_UserManager as
+// sha1Hex(login + "+" + salt). Verified against live publish-created accounts.
+function anonymousKeyFromDocs(docs) {
+  const anonymous = docs.find((doc) => doc._id === ANONYMOUS_ID);
+  const key = anonymous?.['~c8oAcl'];
+  if (typeof key !== 'string' || key.trim() === '') {
+    throw new Error(`${ANONYMOUS_ID} is missing the anonymous access key (~c8oAcl)`);
+  }
+  return key;
+}
+
+function buildAnonymousAccountDocument(anonymousKey) {
+  const salt = randomBytes(32).toString('base64');
+  const hashPassword = createHash('sha1').update(`${anonymousKey}+${salt}`).digest('hex');
+  return {
+    _id: anonymousKey,
+    account: { email: anonymousKey, hashPassword, salt, status: 'confirmed', timeStamp: Date.now() },
+    '~c8oAcl': TEST_USER,
+  };
+}
+
+function buildAnonymousGroupMembership(anonymousKey) {
+  // lib_FullSyncGrp keys a membership by sha256Hex(user + ":" + group); the
+  // group that grants a published form's responses is `_C8O_HIDDEN_<publishedId>`.
+  const group = `_C8O_HIDDEN_${PUBLISHED_ID}`;
+  const _id = createHash('sha256').update(`${anonymousKey}:${group}`).digest('hex');
+  return { _id, type: 'c8oGrp', user: anonymousKey, group, '~c8oAcl': 'c8o:admin' };
+}
+
+// Recreate the two server-side documents that "publish anonymous" would have
+// produced, so the seeded legacy form is actually reachable anonymously.
+async function seedAnonymousAccessDocuments(docs) {
+  const anonymousKey = anonymousKeyFromDocs(docs);
+  const results = [];
+  results.push(await putFullSyncDocument(buildAnonymousAccountDocument(anonymousKey), USER_DB));
+  results.push(await putFullSyncDocument(buildAnonymousGroupMembership(anonymousKey), GROUP_DB));
+  return results;
+}
+
 async function seedFixture() {
   await adminLogin();
   const docs = await loadFixtureDocuments();
@@ -380,6 +432,7 @@ async function seedFixture() {
   for (const doc of docs) {
     results.push(await putFullSyncDocument(doc));
   }
+  results.push(...(await seedAnonymousAccessDocuments(docs)));
   return results;
 }
 

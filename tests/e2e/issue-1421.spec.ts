@@ -5,7 +5,7 @@ import {
   findLegacyAnonymousFixture,
   isMissingConfigObject,
   login,
-  openViewer,
+  openAnonymousPwa,
 } from './helpers/studio';
 
 /**
@@ -15,9 +15,16 @@ import {
  * The real bug needs a CouchDB anonymous published document with NO config key
  * at all; recreating that exact legacy state through the current UI (or 2.1.12)
  * is no longer possible. So the test owns its precondition: beforeAll upserts the
- * four legacy FullSync documents from tests/fixtures/forms/1421 (idempotent,
- * admin-only — the same logic as `npm run seed:1421`), then the test reads it and
- * opens its anonymous viewer.
+ * four legacy FullSync documents from tests/fixtures/forms/1421 PLUS the two
+ * documents a real "publish anonymous" creates server-side — the anonymous user
+ * account (lib_usermanager_fullsync, password = the anonymous key, hashed
+ * sha1Hex(key + '+' + salt)) and its group membership (c8ofullsyncgrp) — without
+ * which the anonymous form is unreachable (insufficient permissions / 403).
+ *
+ * It then opens the form the way an end user does: the standalone PWA at
+ * <DisplayObjects>/pwas/<anonymousKey>/index.html (served dynamically by the
+ * engine). The studio /viewer route is auth-gated and shows "Unknown user" even
+ * for a correctly published anonymous form, so openAnonymousPwa is used instead.
  */
 test.beforeAll(async () => {
   // Dynamic import: the seed is an ESM .mjs and the spec is transpiled to CJS.
@@ -63,7 +70,7 @@ test('#1421 - anonymous legacy form without config should still open', async ({ 
   });
 
   try {
-    await openViewer(anonymousPage, fixture!.publishedId, 'false', fixture!.anonymousKey);
+    await openAnonymousPwa(anonymousPage, fixture!.anonymousKey);
     await acceptRgpdIfVisible(anonymousPage);
 
     const formTitle = anonymousPage.getByText(ISSUE_1421_FIXTURE_TITLE, { exact: true }).first();

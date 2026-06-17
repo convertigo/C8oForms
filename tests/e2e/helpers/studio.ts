@@ -227,6 +227,22 @@ export async function openViewer(page: Page, formId: string, mode = ':edit', res
   await page.goto(`./viewer/${formId}/${mode}/${response}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 }
 
+/**
+ * Open an anonymous form the way an end user actually does: through its
+ * standalone PWA. The engine serves the PWA index dynamically at
+ * <DisplayObjects>/pwas/<key>/index.html — one level above the mobile/ app
+ * baseURL — as long as the published document exists. The app reads the key
+ * from the path (getStandalonePwaId), authenticates the anonymous session and
+ * loads the form via getAnonymousForm.
+ *
+ * The studio /viewer/<id>/<edit>/<i> route is NOT the anonymous entry point: it
+ * is auth-gated and renders "Unknown user" / insufficient-permissions even for
+ * a correctly published anonymous form. Use this helper instead.
+ */
+export async function openAnonymousPwa(page: Page, anonymousKey: string): Promise<void> {
+  await page.goto(`../pwas/${anonymousKey}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+}
+
 export async function c8oCall(page: Page, sequence: string, params: Record<string, unknown>): Promise<JsonRecord> {
   return page.evaluate(
     async ({ sequenceName, sequenceParams }) => {
