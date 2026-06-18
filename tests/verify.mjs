@@ -2,11 +2,13 @@
 // Cross-platform Node port of verify.sh (no bash, so it runs on Windows too).
 //
 // Fixed bug: deploy the broken version, run the spec (must FAIL — red), deploy
-// the fixed version, run again (must PASS — green). Open bug: deploy where it
-// still reproduces, expect red. Smoke: deploy `version` ("latest"), expect green.
+// the latest release, run again (must PASS green). fixedVersion remains the
+// manifest metadata for the version that introduced/confirmed the fix. Open bug:
+// deploy where it still reproduces, expect red. Smoke: deploy `version`
+// ("latest"), expect green.
 //
 //   node verify.mjs                 # list the tests you can verify
-//   node verify.mjs 1412            # regression: red on broken, green on fixed
+//   node verify.mjs 1412            # regression: red on broken, green on latest
 //   node verify.mjs journey-login   # smoke: green on the latest version
 //   HEADED=1 node verify.mjs 1412   # show the browser
 //
@@ -167,21 +169,23 @@ async function main() {
     process.exit(1);
   }
 
-  // Regression: red on broken, green on fixed.
-  console.log(`\n  broken version: ${t.brokenVersion}   (must FAIL)\n  fixed version : ${t.fixedVersion}    (must PASS)`);
+  // Regression: red on broken, green on latest. fixedVersion is metadata: it
+  // records the version known to contain the fix, but is not the green target.
+  const latest = await resolveVersion('latest');
+  console.log(`\n  broken version: ${t.brokenVersion}   (must FAIL)\n  fixed version : ${t.fixedVersion}    (contains fix)\n  latest version: ${latest}    (must PASS)`);
   const brokenResult = await runPhase('Broken version', t.brokenVersion, t.spec, t.grep, t.fixtureScript);
-  const fixedResult = await runPhase('Fixed version', t.fixedVersion, t.spec, t.grep, t.fixtureScript);
+  const latestResult = await runPhase('Latest version', latest, t.spec, t.grep, t.fixtureScript);
 
   console.log(`\n${bold(`=================== VERDICT '${id}' ===================`)}`);
   console.log(brokenResult === 'FAIL'
     ? `  ${green('OK')} broken version (${t.brokenVersion}): test ${red('RED')} as expected`
     : `  ${red('X')}  broken version (${t.brokenVersion}): test GREEN — it does NOT catch the bug!`);
-  console.log(fixedResult === 'PASS'
-    ? `  ${green('OK')} fixed version  (${t.fixedVersion}): test ${green('GREEN')} as expected`
-    : `  ${red('X')}  fixed version  (${t.fixedVersion}): test RED — the fix does not hold or the test is broken`);
+  console.log(latestResult === 'PASS'
+    ? `  ${green('OK')} latest version (${latest}): test ${green('GREEN')} as expected (fixedVersion metadata: ${t.fixedVersion})`
+    : `  ${red('X')}  latest version (${latest}): test RED — the fix does not hold on latest or the test is broken`);
   line();
-  if (brokenResult === 'FAIL' && fixedResult === 'PASS') {
-    console.log(green(bold('Valid regression test:')) + ' red on the broken version, green on the fixed one.');
+  if (brokenResult === 'FAIL' && latestResult === 'PASS') {
+    console.log(green(bold('Valid regression test:')) + ' red on the broken version, green on the latest release.');
     process.exit(0);
   }
   console.log(red(bold('Verification FAILED:')) + ' the red->green cycle is not satisfied (see above).');
