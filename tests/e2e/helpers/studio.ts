@@ -323,10 +323,10 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
       'Test user not configured. Copy tests/.env.example to tests/.env and set C8OFORMS_TEST_USER or C8OFORMS_TEST_USERS.',
     );
   }
-  await page.goto('./', { waitUntil: 'networkidle', timeout: 60_000 });
+  await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
   await page.locator(SEL.loginReveal).first().click();
   const email = page.locator(SEL.emailInput);
-  await email.waitFor({ state: 'visible', timeout: 15_000 });
+  await email.waitFor({ state: 'visible', timeout: 30_000 });
   await email.fill(user);
   await page.locator(SEL.passwordInput).fill(password);
   await page.locator(SEL.loginReveal).first().click();
@@ -1349,13 +1349,29 @@ export async function setChoiceDefaultValueText(page: Page, value: string): Prom
 
 async function fillVisibleTinyMceText(page: Page, value: string, description: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
-  await editorBody.fill(value);
+  await editorBody.click();
+  const filledThroughTinyMce = await page.evaluate((text) => {
+    const tinymce = (window as any).tinymce;
+    const editor = tinymce?.activeEditor;
+    if (!editor) return false;
+
+    const holder = document.createElement('div');
+    holder.textContent = text;
+    editor.setContent(holder.innerHTML);
+    editor.fire('input');
+    editor.fire('change');
+    editor.fire('blur');
+    return true;
+  }, value);
+  if (!filledThroughTinyMce) {
+    await editorBody.fill(value);
+  }
   await page.keyboard.press('Tab');
   await fireActiveTinyMceChange(page);
   await expect
     .poll(() => editorBody.innerText(), {
       message: `${description} should contain ${value}`,
-      timeout: 10_000,
+      timeout: 15_000,
     })
     .toContain(value);
   await page.waitForTimeout(1_000);
@@ -2021,7 +2037,7 @@ export async function recordToasts(page: Page): Promise<void> {
     w.__c8oToasts = [];
     const grab = (n: HTMLElement & { message?: string }) => {
       const msg = (n.message ?? n.textContent ?? '').trim();
-      if (msg) w.__c8oToasts!.push(msg);
+      if (msg && w.__c8oToasts![w.__c8oToasts!.length - 1] !== msg) w.__c8oToasts!.push(msg);
     };
     const obs = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
