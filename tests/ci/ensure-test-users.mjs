@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { appendFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 
 const DEFAULT_USERS = [
   'testuser-convertigo@yopmail.com',
@@ -182,6 +183,48 @@ async function c8oSessionSequence(endpoint, sequence, params, cookie = '') {
   return { response, text, json, cookie: nextCookie };
 }
 
+async function c8oSessionMultipartSequence(endpoint, sequence, params, cookie = '') {
+  const form = new FormData();
+  const fields = {
+    __localCache_ttl: '3000',
+    __disableAutologin: 'false',
+    __project: 'C8Oforms',
+    __sequence: sequence,
+    __uuid: `web-${randomUUID()}`,
+    ...params,
+  };
+  for (const [name, value] of Object.entries(fields)) {
+    if (value !== undefined && value !== null) {
+      form.append(name, String(value));
+    }
+  }
+
+  const response = await fetch(`${endpoint}/projects/C8Oforms/.json`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Referer: `${endpoint}/projects/C8Oforms/DisplayObjects/mobile/selector/nocodedatabase/:folder/:sub/true/true`,
+      'x-convertigo-mb': '8.4.0',
+      'x-convertigo-sdk': '4.0.27-beta6',
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+    body: form,
+    redirect: 'follow',
+  });
+  const text = await response.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  const nextCookie = mergeCookies(cookie, collectSetCookies(response));
+  if (!response.ok || json?.error || json?.document?.error || /<error/i.test(text)) {
+    throw new Error(`C8Oforms.${sequence} failed: ${response.status} ${text.slice(0, 500)}`);
+  }
+  return { response, text, json, cookie: nextCookie };
+}
+
 async function getDocument(endpoint, db, id) {
   const { response, text, json } = await fullSyncRequest(endpoint, db, id);
   if (response.status === 404) {
@@ -267,6 +310,10 @@ function sequenceResult(json) {
   return json?.document?.result ?? json?.result ?? json?.document ?? json;
 }
 
+function sequenceError(json) {
+  return json?.document?.error ?? json?.error ?? null;
+}
+
 function mcpUrl(endpoint) {
   return `${endpoint.replace(/\/+$/, '')}/api/mcp`;
 }
@@ -281,6 +328,7 @@ function exportEnv(name, value) {
 
 async function createMcpToken(endpoint, user, password, index) {
   const cookie = await loginSession(endpoint, user, password);
+  await provisionBaserowAccount(endpoint, user, cookie);
   const tokenName = `C8oForms e2e shard ${index + 1}`;
   const created = await c8oSessionSequence(endpoint, 'APIV2_McpTokenCreate', { name: tokenName }, cookie);
   const result = sequenceResult(created.json);
@@ -293,6 +341,44 @@ async function createMcpToken(endpoint, user, password, index) {
   exportEnv('C8OFORMS_MCP_TOKEN', result.token);
   exportEnv('C8OFORMS_MCP_URL', result.mcpUrl || mcpUrl(endpoint));
   console.log(`MCP token ready for test user ${index + 1}: ${user}`);
+}
+
+async function provisionBaserowAccount(endpoint, user, cookie) {
+  const account = await c8oSessionMultipartSequence(endpoint, 'BaserowAccount', {}, cookie);
+  const error = sequenceError(account.json);
+  if (error) {
+    throw new Error(`C8Oforms.BaserowAccount failed for ${user}: ${JSON.stringify(error).slice(0, 500)}`);
+  }
+  const result = sequenceResult(account.json);
+  const token = result?.token;
+  const iframe = result?.iframe;
+  if (!token || !iframe) {
+    throw new Error(`C8Oforms.BaserowAccount did not return token/iframe for ${user}`);
+  }
+  await provisionBaserowIframe(iframe, token, user);
+  console.log(`Baserow account ready for ${user}`);
+}
+
+async function provisionBaserowIframe(iframe, token, user) {
+  const url = `${String(iframe).replace(/\/+$/, '')}/.json`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      __sequence: 'CheckLogin',
+      token,
+    }).toString(),
+  });
+  const text = await response.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  if (!response.ok || json?.error || !json?.jwt_token) {
+    throw new Error(`Baserow iframe CheckLogin failed for ${user}: ${response.status} ${text.slice(0, 500)}`);
+  }
 }
 
 async function ensureUser(endpoint, user, password, index) {
@@ -325,6 +411,7 @@ async function ensureUser(endpoint, user, password, index) {
   if (!canLogin) {
     throw new Error(`Prepared ${user} but login still fails with login=${user}`);
   }
+  await provisionBaserowAccount(endpoint, user, await loginSession(endpoint, user, password));
   console.log(`test user ${index + 1}: ${user} ready${actions.length > 0 ? ` (${actions.join(', ')})` : ''}`);
 }
 

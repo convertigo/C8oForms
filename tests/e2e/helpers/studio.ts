@@ -326,13 +326,101 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
     );
   }
   await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  await page.locator(SEL.loginReveal).first().click();
-  const email = page.locator(SEL.emailInput);
-  await email.waitFor({ state: 'visible', timeout: 30_000 });
-  await email.fill(user);
-  await page.locator(SEL.passwordInput).fill(password);
-  await page.locator(SEL.loginReveal).first().click();
+  await openLoginForm(page);
+  await fillInputValue(page, SEL.emailInput, user, 'login email input');
+  await fillInputValue(page, SEL.passwordInput, password, 'login password input');
+  const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
+  await submit.click({ timeout: 10_000 });
   await expectRoute(page, ROUTE.selector);
+}
+
+async function openLoginForm(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (await firstVisibleLocatorOrNull(page, SEL.emailInput, attempt === 0 ? 1_000 : 2_000)) {
+      return;
+    }
+
+    const reveal = await firstVisibleLocatorOrNull(page, SEL.loginReveal, attempt === 0 ? 30_000 : 5_000);
+    if (!reveal) break;
+    await reveal.click({ timeout: 10_000 }).catch(async () => {
+      await reveal.click({ force: true, timeout: 5_000 }).catch(() => undefined);
+    });
+
+    if (await firstVisibleLocatorOrNull(page, SEL.emailInput, 5_000)) {
+      return;
+    }
+    await page.waitForTimeout(500);
+  }
+  throw new Error(`login form did not open from ${page.url()}`);
+}
+
+async function fillInputValue(page: Page, selector: string, value: string, description: string): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const input = await firstVisibleLocatorOrNull(page, selector, attempt === 0 ? 30_000 : 5_000);
+    if (!input) {
+      await page.waitForTimeout(300);
+      continue;
+    }
+
+    const filled = await input
+      .fill(value, { timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!filled) {
+      const assigned = await assignVisibleInputValue(page, selector, value);
+      if (!assigned) {
+        await page.waitForTimeout(300);
+        continue;
+      }
+    }
+
+    const hasValue = await expect
+      .poll(() => visibleInputValue(page, selector), { timeout: 5_000 })
+      .toBe(value)
+      .then(() => true)
+      .catch(() => false);
+    if (hasValue) return;
+  }
+  throw new Error(`could not fill ${description}`);
+}
+
+async function assignVisibleInputValue(page: Page, selector: string, value: string): Promise<boolean> {
+  return page.evaluate(
+    ({ inputSelector, inputValue }) => {
+      const visible = (el: Element): el is HTMLInputElement => {
+        if (!(el instanceof HTMLInputElement)) return false;
+        const box = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const input = [...document.querySelectorAll(inputSelector)].find(visible);
+      if (!input) return false;
+
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (setter) {
+        setter.call(input, inputValue);
+      } else {
+        input.value = inputValue;
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, detail: { value: inputValue } }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+    { inputSelector: selector, inputValue: value },
+  );
+}
+
+async function visibleInputValue(page: Page, selector: string): Promise<string | null> {
+  return page.evaluate((inputSelector) => {
+    const visible = (el: Element): el is HTMLInputElement => {
+      if (!(el instanceof HTMLInputElement)) return false;
+      const box = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    return [...document.querySelectorAll(inputSelector)].find(visible)?.value ?? null;
+  }, selector);
 }
 
 /** The editor keeps live connections open: never wait for networkidle here. */
@@ -948,10 +1036,10 @@ export async function closeComponentConfig(page: Page): Promise<void> {
   await page.locator(SEL.configClose).waitFor({ state: 'hidden', timeout: 15_000 });
 }
 
-export async function acceptRgpdIfVisible(page: Page): Promise<void> {
+export async function acceptRgpdIfVisible(page: Page, timeout = 2_000): Promise<void> {
   await page.waitForTimeout(300);
-  const rgpd = page.getByText(/JE SUIS D['’]ACCORD/i).last();
-  if (await rgpd.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  const rgpd = page.getByText(/JE SUIS D['’]ACCORD|I AGREE/i).last();
+  if (await rgpd.isVisible({ timeout }).catch(() => false)) {
     await rgpd.click({ force: true });
     await page.locator('ion-toast').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
   }
@@ -1289,20 +1377,33 @@ export async function createTextBusinessLogicFormula(
   technicalId: string,
   textValue: string,
 ): Promise<void> {
-  await openComponentsPalette(page, PALETTE_ICON.businessLogic);
-  const tile = await firstVisibleLocator(
-    page,
-    componentPaletteTileSelector(PALETTE_ICON.businessLogic),
-    'business logic formula palette tile',
-  );
-  await tile.scrollIntoViewIfNeeded();
-  await tile.dblclick({ force: true });
-
+  const before = await page.locator(SEL.businessLogicComponent).count();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await openComponentsPalette(page, PALETTE_ICON.businessLogic);
+    const tile = await firstVisibleLocator(
+      page,
+      componentPaletteTileSelector(PALETTE_ICON.businessLogic),
+      'business logic formula palette tile',
+    );
+    await tile.scrollIntoViewIfNeeded().catch(() => undefined);
+    await tile.dblclick({ force: true, delay: 75 }).catch(() => undefined);
+    await openWorkflowsPanel(page);
+    if (
+      await expect
+        .poll(() => page.locator(SEL.businessLogicComponent).count(), { timeout: 10_000 })
+        .toBeGreaterThan(before)
+        .then(() => true)
+        .catch(() => false)
+    ) {
+      break;
+    }
+    await openFirstPageFlow(page);
+  }
   await openWorkflowsPanel(page);
-  await expect(page.locator(SEL.businessLogicComponent).first(), `${technicalId} should be added to Workflows`).toBeVisible({
+  await expect(page.locator(SEL.businessLogicComponent).nth(before), `${technicalId} should be added to Workflows`).toBeVisible({
     timeout: 30_000,
   });
-  const formulaIndex = (await page.locator(SEL.businessLogicComponent).count()) - 1;
+  const formulaIndex = before;
   await openBusinessLogicFormulaConfig(page, formulaIndex);
   await setTechnicalId(page, technicalId);
   await fillVisibleTinyMceText(page, textValue, 'business logic formula text editor');
@@ -1339,8 +1440,13 @@ export async function addComponent(page: Page, icon: string): Promise<void> {
   for (let attempt = 0; attempt < 3; attempt++) {
     await acceptRgpdIfVisible(page);
     const tile = await firstVisibleLocator(page, tileSelector, `component palette tile ${icon}`);
-    await tile.scrollIntoViewIfNeeded();
-    await tile.dblclick({ delay: 75 });
+    try {
+      await tile.scrollIntoViewIfNeeded({ timeout: 5_000 });
+      await tile.dblclick({ delay: 75, timeout: 5_000 });
+    } catch {
+      await page.waitForTimeout(500);
+      continue;
+    }
     try {
       await expect.poll(() => countComponents(page), { timeout: 12_000 }).toBeGreaterThan(before);
       return;
@@ -1941,7 +2047,9 @@ export async function setVisibilityOperator(page: Page, operator: VisibilityOper
     operator,
   );
   if (index < 0) throw new Error(`unknown visibility operator: ${operator}`);
+  await acceptRgpdIfVisible(page, 500);
   await select.click();
+  await acceptRgpdIfVisible(page, 500);
   const items = page.locator('ion-select-popover ion-item');
   await items.first().waitFor({ state: 'visible', timeout: 8_000 });
   await items.nth(index).click();

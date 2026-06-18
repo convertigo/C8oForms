@@ -78,6 +78,7 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
     if (sessionId) h['mcp-session-id'] = sessionId;
     const res = await fetch(url, { method: 'POST', headers: h, body: JSON.stringify(body) });
     const sid = res.headers.get('mcp-session-id') ?? sessionId;
+    const contentType = res.headers.get('content-type') ?? 'unknown content-type';
     const text = await res.text();
     const m = text.match(/data:\s*(\{[\s\S]*\})\s*$/m);
     const payload = m ? m[1] : text;
@@ -86,6 +87,16 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
       json = payload ? (JSON.parse(payload) as Json) : {};
     } catch {
       json = { _raw: text };
+    }
+    const method = String(body.method ?? 'request');
+    if (!res.ok) {
+      throw new Error(`MCP ${method} failed at ${url}: HTTP ${res.status} ${contentType} ${text.slice(0, 300)}`);
+    }
+    if (json._raw) {
+      throw new Error(`MCP ${method} returned non-JSON at ${url}: ${contentType} ${text.slice(0, 300)}`);
+    }
+    if (json.error) {
+      throw new Error(`MCP ${method} returned JSON-RPC error: ${JSON.stringify(json.error).slice(0, 500)}`);
     }
     return { res, sid, json };
   };
@@ -110,6 +121,12 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
   );
 
   const result = (out.json.result ?? out.json) as Json;
+  if (result.isError) {
+    const content = result.content as Array<Json> | undefined;
+    const textNode = Array.isArray(content) ? (content.find((c) => (c as Json).type === 'text') as Json | undefined) : undefined;
+    const message = textNode?.text ? String(textNode.text) : JSON.stringify(result);
+    throw new Error(`MCP tool ${tool} failed: ${message.slice(0, 500)}`);
+  }
   const structured = (result as Json).structuredContent;
   if (structured) return structured as Json;
   const content = (result as Json).content as Array<Json> | undefined;

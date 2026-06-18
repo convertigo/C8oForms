@@ -520,7 +520,8 @@ jobs:
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
         run: |
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
-          export C8OFORMS_MCP_URL="${TEST_NOCODE_ENDPOINT%/}/api/mcp"
+          : "${C8OFORMS_MCP_URL:=${TEST_NOCODE_ENDPOINT%/}/api/mcp}"
+          export C8OFORMS_MCP_URL
           echo "App URL: $C8OFORMS_APP_URL"
           echo "MCP URL: $C8OFORMS_MCP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
@@ -676,10 +677,10 @@ jobs:
 
   e2e_regression_report:
     # Runs after the release and after the "to be tested" issue closure job, so
-    # failed closed issue-backed tests end the workflow reopened. This is the
-    # final e2e step: e2e_tests -> release/issue closure -> regression report.
+    # failed closed issue-backed tests end the release workflow reopened. In
+    # workflow_dispatch this remains report-only: no issue, badge or release mutation.
     needs: [release, close_and_set_issues_to_be_tested, e2e_tests]
-    if: ${{ always() && needs.release.result == 'success' }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -703,6 +704,7 @@ jobs:
         working-directory: tests
         env:
           EXPECTED_E2E_RESULT_SHARDS: 4
+          E2E_REOPEN_ISSUES: ${{ github.event_name == 'push' }}
           RELEASE_TAG: ${{ github.ref_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -712,7 +714,7 @@ jobs:
         run: node ci/report.mjs
 
       - name: Publish e2e badge to the badges branch
-        if: ${{ always() && hashFiles('tests/dist/badge/e2e-badge.json') != '' }}
+        if: ${{ github.event_name == 'push' && always() && hashFiles('tests/dist/badge/e2e-badge.json') != '' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -722,6 +724,7 @@ jobs:
           commit_message: "chore(e2e): badge for ${{ github.ref_name }}"
 
       - name: Attach e2e regression report to GitHub release
+        if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         working-directory: tests
         env:
