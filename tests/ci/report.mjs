@@ -4,7 +4,7 @@
 // specs that were never registered in the manifest.
 //
 // It:
-//   1. counts pass/fail from test-results/results.json (real denominator),
+//   1. counts pass/fail from one or more Playwright results.json files (real denominator),
 //   2. reopens any CLOSED issue whose test failed (issue number read from the
 //      test title `#NNNN`), commenting the released tag,
 //   3. writes a Markdown report (step summary + dist/e2e_report.md) and a
@@ -31,23 +31,24 @@ const releaseTag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME || 'un
 const repo = process.env.GITHUB_REPOSITORY || 'convertigo/C8oForms';
 const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
 const runUrl = process.env.GITHUB_RUN_ID ? `${serverUrl}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}` : '';
+const expectedResultShards = Number(process.env.EXPECTED_E2E_RESULT_SHARDS || 0);
 
 const manifest = JSON.parse(readFileSync(join(testsDir, 'e2e', 'regression-manifest.json'), 'utf8')).tests;
 
-function findResultsJson(dir) {
-  if (!existsSync(dir)) return null;
+function findResultsJsons(dir) {
+  const found = [];
+  if (!existsSync(dir)) return found;
   const direct = join(dir, 'results.json');
-  if (existsSync(direct)) return direct;
+  if (existsSync(direct)) found.push(direct);
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
     if (statSync(p).isDirectory()) {
-      const found = findResultsJson(p);
-      if (found) return found;
+      found.push(...findResultsJsons(p));
     } else if (entry === 'results.json') {
-      return p;
+      found.push(p);
     }
   }
-  return null;
+  return [...new Set(found)].sort();
 }
 
 // Every test (= Playwright "spec") from the report, with its pass/fail.
@@ -99,10 +100,13 @@ function gh(args) {
 const tableCell = (v) => String(v ?? '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
 
 // ── Collect results ──────────────────────────────────────────────────────────
-const resultsPath = findResultsJson(join(testsDir, 'test-results'));
-const missingResults = !resultsPath;
+const resultsPaths = findResultsJsons(join(testsDir, 'test-results'));
+const missingResults = resultsPaths.length === 0;
+const partialResults = expectedResultShards > 0 && resultsPaths.length > 0 && resultsPaths.length < expectedResultShards;
 
-const tests = (missingResults ? [] : collectTests(JSON.parse(readFileSync(resultsPath, 'utf8')))).map((t) => {
+const tests = (missingResults
+  ? []
+  : resultsPaths.flatMap((resultsPath) => collectTests(JSON.parse(readFileSync(resultsPath, 'utf8'))))).map((t) => {
   const m = manifestFor(t);
   const issue = (t.title.match(/#(\d+)/) || [])[1] || '';
   return { ...t, issue, kind: m?.entry.kind || (issue ? 'regression' : 'smoke'), entry: m?.entry };
@@ -176,6 +180,9 @@ lines.push('');
 if (missingResults) {
   lines.push('Playwright did not produce a JSON report, so no issue was reopened automatically.');
 } else {
+  if (partialResults) {
+    lines.push(`Only found **${resultsPaths.length}/${expectedResultShards}** Playwright JSON reports; the result set is partial.`);
+  }
   lines.push(`Passed **${passedCount}/${tests.length}**, failed **${failedTests.length}** (${unexpected.length} unexpected).`);
   lines.push('Test failures do not block the release; failed closed issue-backed tests are reopened.');
 }
@@ -204,7 +211,12 @@ console.log(markdown);
 // red is expected, so the badge stays green — the number still conveys it).
 const badge = missingResults
   ? { schemaVersion: 1, label: 'e2e', message: 'no results', color: 'lightgrey' }
-  : { schemaVersion: 1, label: 'e2e', message: `${passedCount}/${tests.length} passed`, color: unexpected.length ? 'red' : 'brightgreen' };
+  : {
+      schemaVersion: 1,
+      label: 'e2e',
+      message: `${passedCount}/${tests.length} passed`,
+      color: partialResults || unexpected.length ? 'red' : 'brightgreen',
+    };
 const badgeDir = join(testsDir, 'dist', 'badge');
 mkdirSync(badgeDir, { recursive: true });
 writeFileSync(join(badgeDir, 'e2e-badge.json'), `${JSON.stringify(badge)}\n`);
