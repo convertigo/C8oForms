@@ -493,6 +493,14 @@ jobs:
         working-directory: tests
         run: npm ci || npm install
 
+      - name: Create e2e MCP token
+        working-directory: tests
+        env:
+          TEST_NOCODE_ENDPOINT: ${{ github.event.inputs.endpoint || secrets.TEST_NOCODE_ENDPOINT }}
+          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com
+          C8OFORMS_TEST_USER_INDEX: ${{ matrix.shard }}
+        run: node ci/ensure-test-users.mjs --emit-mcp-token
+
       - name: Run e2e tests (shard ${{ matrix.shard }}/4)
         working-directory: tests
         # The container's default shell is POSIX sh (no `pipefail`); force bash.
@@ -512,7 +520,9 @@ jobs:
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
         run: |
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
+          export C8OFORMS_MCP_URL="${TEST_NOCODE_ENDPOINT%/}/api/mcp"
           echo "App URL: $C8OFORMS_APP_URL"
+          echo "MCP URL: $C8OFORMS_MCP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
           echo "Test user index: $C8OFORMS_TEST_USER_INDEX"
           # Assign whole spec files to this shard, balanced by duration weight,
@@ -526,12 +536,12 @@ jobs:
             exit 0
           fi
           # Single worker; the Playwright config writes the list reporter plus
-          # test-results/results.json directly. Test failures must not fail this
-          # job — the report job classifies them — but a missing JSON report
-          # means an infra/setup failure. `shell: bash` turns on `-e`, so disable
-          # it around the test run to capture the code.
+          # test-results/results.json directly. Test failures fail this shard for
+          # immediate visibility, but the release job does not depend on e2e_tests.
+          # `shell: bash` turns on `-e`, so disable it around the test run to
+          # capture the code and still let the artifact upload step run.
           set +e
-          npx playwright test $SPECS --workers=1 --retries=1
+          npx playwright test $SPECS --workers=1 --retries=0
           TEST_STATUS=$?
           set -e
           if [ ! -f test-results/results.json ]; then
@@ -539,14 +549,20 @@ jobs:
             exit "$TEST_STATUS"
           fi
           echo "Shard ${{ matrix.shard }} exited with $TEST_STATUS; release continues and the report job classifies failures."
+          exit "$TEST_STATUS"
 
       - name: Upload Playwright results (shard ${{ matrix.shard }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-results-${{ matrix.shard }}
-          path: tests/test-results/results.json
+          path: |
+            tests/test-results/results.json
+            tests/test-results/**/error-context.md
+            tests/test-results/**/*.png
+            tests/test-results/**/*.zip
           if-no-files-found: ignore
+          retention-days: 7
 
   release:
     needs: [build_and_deploy, deps_report]

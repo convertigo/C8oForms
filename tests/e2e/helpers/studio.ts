@@ -54,6 +54,7 @@ export const SEL = {
   // editorPage.yaml — the page navigation buttons block (sharedTabs, holds the
   // submit/next/prev buttons). Clicking it opens the page settings.
   pageButtonsBlock: '.class1775139583527',
+  pageButtonsHoverOverlay: '.class1776445186188',
   // page-settings section toggles (active section carries app-settings-btn-active)
   pageSettingsGeneralTab: '.class1779366500007',
   pageSettingsNavigationTab: '.class1779366500013',
@@ -341,6 +342,8 @@ export async function openEditor(page: Page, formId: string): Promise<void> {
 
 export async function openViewer(page: Page, formId: string, mode = ':edit', response = ':i'): Promise<void> {
   await page.goto(`./viewer/${formId}/${mode}/${response}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expectRoute(page, ROUTE.viewer, 60_000);
+  await page.locator('page-viewerpage').waitFor({ state: 'attached', timeout: 60_000 });
 }
 
 /**
@@ -785,18 +788,18 @@ export async function openConfigurationSection(page: Page): Promise<void> {
 }
 
 export async function openConfigTab(page: Page, label: string | RegExp): Promise<void> {
-  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false)) {
+  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false, 5_000)) {
     await page.waitForTimeout(350);
     return;
   }
 
   await openConfigurationSection(page);
-  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false)) {
+  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false, 5_000)) {
     await page.waitForTimeout(350);
     return;
   }
 
-  throw new Error(`No visible config tab matches ${label}`);
+  throw new Error(`No visible config tab matches ${label}. Visible tabs: ${(await visibleTexts(page, SEL.configTab)).join(' | ')}`);
 }
 
 async function clickVisibleByText(
@@ -805,20 +808,25 @@ async function clickVisibleByText(
   label: string | RegExp,
   description: string,
   required = true,
+  timeout = 0,
 ): Promise<boolean> {
-  const elements = page.locator(selector);
-  const count = await elements.count();
-  for (let i = 0; i < count; i++) {
-    const element = elements.nth(i);
-    if (!(await element.isVisible().catch(() => false))) continue;
-    const text = normalizeVisibleText(await element.innerText().catch(() => ''));
-    const matches =
-      typeof label === 'string' ? text.toLowerCase() === normalizeVisibleText(label).toLowerCase() : label.test(text);
-    if (matches) {
-      await element.click();
-      return true;
+  const deadline = Date.now() + timeout;
+  do {
+    const elements = page.locator(selector);
+    const count = await elements.count();
+    for (let i = 0; i < count; i++) {
+      const element = elements.nth(i);
+      if (!(await element.isVisible().catch(() => false))) continue;
+      const text = normalizeVisibleText(await element.innerText().catch(() => ''));
+      if (visibleTextMatches(text, label)) {
+        await element.click();
+        return true;
+      }
     }
-  }
+    if (Date.now() < deadline) {
+      await page.waitForTimeout(250);
+    }
+  } while (Date.now() < deadline);
 
   if (required) {
     throw new Error(`No visible ${description} matches ${label}`);
@@ -828,6 +836,38 @@ async function clickVisibleByText(
 
 function normalizeVisibleText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function searchableVisibleText(text: string): string {
+  return normalizeVisibleText(text)
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+function visibleTextMatches(text: string, label: string | RegExp): boolean {
+  const visible = normalizeVisibleText(text);
+  const searchable = searchableVisibleText(text);
+  if (typeof label === 'string') {
+    return searchable === searchableVisibleText(label);
+  }
+  label.lastIndex = 0;
+  if (label.test(visible)) return true;
+  label.lastIndex = 0;
+  return label.test(searchable);
+}
+
+async function visibleTexts(page: Page, selector: string): Promise<string[]> {
+  const out: string[] = [];
+  const elements = page.locator(selector);
+  const count = await elements.count();
+  for (let i = 0; i < count; i++) {
+    const element = elements.nth(i);
+    if (await element.isVisible().catch(() => false)) {
+      out.push(normalizeVisibleText(await element.innerText().catch(() => '')));
+    }
+  }
+  return out.filter(Boolean);
 }
 
 export async function waitForSourcePaletteSections(
@@ -2114,7 +2154,14 @@ export async function openPageButtonsConfig(page: Page): Promise<void> {
   const block = page.locator(SEL.pageButtonsBlock).first();
   await block.waitFor({ state: 'visible', timeout: 30_000 });
   await block.scrollIntoViewIfNeeded();
-  await block.click();
+  await page.mouse.move(5, 5);
+  const box = await block.boundingBox();
+  if (!box) {
+    throw new Error('page navigation buttons block has no bounding box');
+  }
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.locator(SEL.pageButtonsHoverOverlay).first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   // Context guard: the page settings must have opened (both section toggles render).
   await expect(page.locator(SEL.pageSettingsGeneralTab).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.locator(SEL.pageSettingsNavigationTab).first()).toBeVisible({ timeout: 15_000 });

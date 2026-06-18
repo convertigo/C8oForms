@@ -28,7 +28,7 @@ import {
  * Each test builds its own fresh one-map fixture through the UI (createFormWithMap)
  * — no dependency on a pre-existing document, full per-test isolation.
  */
-const DATA_TAB = 'Données & Interactions';
+const DATA_TAB = /donnees.*interactions|data.*interactions/i;
 const DEFAULT_HEIGHT_MIN = 300; // a correct fallback renders ~400px; the bug collapses to ~44px
 
 test('#1412 (reopened) — clearing the height should fall back to the default (editor and viewer)', async ({
