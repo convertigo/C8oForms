@@ -1,12 +1,11 @@
-// Post-release CI step: the release happens even when a test fails. This script
+// E2E report step: release runs keep going even when a test fails. This script
 // is driven by the ACTUAL Playwright results (not the manifest), so every test
-// that ran is counted and every failing issue-backed test is handled — even
-// specs that were never registered in the manifest.
+// that ran is counted — even specs that were never registered in the manifest.
 //
 // It:
 //   1. counts pass/fail from one or more Playwright results.json files (real denominator),
-//   2. reopens any CLOSED issue whose test failed (issue number read from the
-//      test title `#NNNN`), commenting the released tag,
+//   2. optionally reopens any CLOSED issue whose test failed (issue number read
+//      from the test title `#NNNN`), commenting the released tag,
 //   3. writes a Markdown report (step summary + dist/e2e_report.md) and a
 //      shields.io badge (dist/badge/e2e-badge.json).
 // The manifest is used only as optional metadata (kind = open/regression/…,
@@ -32,6 +31,7 @@ const repo = process.env.GITHUB_REPOSITORY || 'convertigo/C8oForms';
 const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
 const runUrl = process.env.GITHUB_RUN_ID ? `${serverUrl}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}` : '';
 const expectedResultShards = Number(process.env.EXPECTED_E2E_RESULT_SHARDS || 0);
+const issueAutomationEnabled = process.env.E2E_REOPEN_ISSUES === 'true';
 
 const manifest = JSON.parse(readFileSync(join(testsDir, 'e2e', 'regression-manifest.json'), 'utf8')).tests;
 
@@ -112,7 +112,7 @@ const tests = (missingResults
   return { ...t, issue, kind: m?.entry.kind || (issue ? 'regression' : 'smoke'), entry: m?.entry };
 });
 
-// ── Reopen closed issues whose test failed (deduped per issue) ───────────────
+// ── Optional issue automation for failed issue-backed tests ──────────────────
 const reopened = [];
 const alreadyOpen = [];
 const issueErrors = [];
@@ -132,6 +132,11 @@ for (const t of tests) {
     continue;
   }
   handled.add(t.issue);
+
+  if (!issueAutomationEnabled) {
+    t.action = 'Report only';
+    continue;
+  }
 
   const state = gh(['issue', 'view', t.issue, '-R', repo, '--json', 'state', '--jq', '.state']);
   if (!state.ok) {
@@ -184,7 +189,11 @@ if (missingResults) {
     lines.push(`Only found **${resultsPaths.length}/${expectedResultShards}** Playwright JSON reports; the result set is partial.`);
   }
   lines.push(`Passed **${passedCount}/${tests.length}**, failed **${failedTests.length}** (${unexpected.length} unexpected).`);
-  lines.push('Test failures do not block the release; failed closed issue-backed tests are reopened.');
+  lines.push(
+    issueAutomationEnabled
+      ? 'Test failures do not block the release; failed closed issue-backed tests are reopened.'
+      : 'Issue automation is disabled for this run; failed tests are reported only.',
+  );
 }
 if (reopened.length) lines.push(`\nReopened issues: ${reopened.map((n) => `#${n}`).join(', ')}`);
 if (alreadyOpen.length) lines.push(`\nFailed issues already open: ${[...new Set(alreadyOpen)].map((n) => `#${n}`).join(', ')}`);

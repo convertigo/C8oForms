@@ -327,12 +327,26 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
   }
   await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
   await page.locator(SEL.loginReveal).first().click();
-  const email = page.locator(SEL.emailInput);
+  const email = page.locator(SEL.emailInput).first();
   await email.waitFor({ state: 'visible', timeout: 30_000 });
-  await email.fill(user);
-  await page.locator(SEL.passwordInput).fill(password);
+  await fillInputValue(page, email, user);
+  await fillInputValue(page, page.locator(SEL.passwordInput).first(), password);
   await page.locator(SEL.loginReveal).first().click();
   await expectRoute(page, ROUTE.selector);
+}
+
+async function fillInputValue(page: Page, input: Locator, value: string): Promise<void> {
+  await input.waitFor({ state: 'attached', timeout: 30_000 });
+  await input.fill(value, { timeout: 10_000 }).catch(async () => {
+    await input.evaluate((el, text) => {
+      const inputEl = el as HTMLInputElement;
+      inputEl.value = text;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, detail: { value: text } }));
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+  });
+  await expect.poll(() => input.inputValue(), { timeout: 5_000 }).toBe(value);
 }
 
 /** The editor keeps live connections open: never wait for networkidle here. */
@@ -1188,20 +1202,33 @@ export async function createTextBusinessLogicFormula(
   technicalId: string,
   textValue: string,
 ): Promise<void> {
-  await openComponentsPalette(page, PALETTE_ICON.businessLogic);
-  const tile = await firstVisibleLocator(
-    page,
-    componentPaletteTileSelector(PALETTE_ICON.businessLogic),
-    'business logic formula palette tile',
-  );
-  await tile.scrollIntoViewIfNeeded();
-  await tile.dblclick({ force: true });
-
+  const before = await page.locator(SEL.businessLogicComponent).count();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await openComponentsPalette(page, PALETTE_ICON.businessLogic);
+    const tile = await firstVisibleLocator(
+      page,
+      componentPaletteTileSelector(PALETTE_ICON.businessLogic),
+      'business logic formula palette tile',
+    );
+    await tile.scrollIntoViewIfNeeded().catch(() => undefined);
+    await tile.dblclick({ force: true, delay: 75 }).catch(() => undefined);
+    await openWorkflowsPanel(page);
+    if (
+      await expect
+        .poll(() => page.locator(SEL.businessLogicComponent).count(), { timeout: 10_000 })
+        .toBeGreaterThan(before)
+        .then(() => true)
+        .catch(() => false)
+    ) {
+      break;
+    }
+    await openFirstPageFlow(page);
+  }
   await openWorkflowsPanel(page);
-  await expect(page.locator(SEL.businessLogicComponent).first(), `${technicalId} should be added to Workflows`).toBeVisible({
+  await expect(page.locator(SEL.businessLogicComponent).nth(before), `${technicalId} should be added to Workflows`).toBeVisible({
     timeout: 30_000,
   });
-  const formulaIndex = (await page.locator(SEL.businessLogicComponent).count()) - 1;
+  const formulaIndex = before;
   await openBusinessLogicFormulaConfig(page, formulaIndex);
   await setTechnicalId(page, technicalId);
   await fillVisibleTinyMceText(page, textValue, 'business logic formula text editor');
@@ -1238,8 +1265,13 @@ export async function addComponent(page: Page, icon: string): Promise<void> {
   for (let attempt = 0; attempt < 3; attempt++) {
     await acceptRgpdIfVisible(page);
     const tile = await firstVisibleLocator(page, tileSelector, `component palette tile ${icon}`);
-    await tile.scrollIntoViewIfNeeded();
-    await tile.dblclick({ delay: 75 });
+    try {
+      await tile.scrollIntoViewIfNeeded({ timeout: 5_000 });
+      await tile.dblclick({ delay: 75, timeout: 5_000 });
+    } catch {
+      await page.waitForTimeout(500);
+      continue;
+    }
     try {
       await expect.poll(() => countComponents(page), { timeout: 12_000 }).toBeGreaterThan(before);
       return;

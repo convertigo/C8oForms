@@ -310,6 +310,10 @@ function sequenceResult(json) {
   return json?.document?.result ?? json?.result ?? json?.document ?? json;
 }
 
+function sequenceError(json) {
+  return json?.document?.error ?? json?.error ?? null;
+}
+
 function mcpUrl(endpoint) {
   return `${endpoint.replace(/\/+$/, '')}/api/mcp`;
 }
@@ -340,8 +344,41 @@ async function createMcpToken(endpoint, user, password, index) {
 }
 
 async function provisionBaserowAccount(endpoint, user, cookie) {
-  await c8oSessionMultipartSequence(endpoint, 'BaserowAccount', {}, cookie);
+  const account = await c8oSessionMultipartSequence(endpoint, 'BaserowAccount', {}, cookie);
+  const error = sequenceError(account.json);
+  if (error) {
+    throw new Error(`C8Oforms.BaserowAccount failed for ${user}: ${JSON.stringify(error).slice(0, 500)}`);
+  }
+  const result = sequenceResult(account.json);
+  const token = result?.token;
+  const iframe = result?.iframe;
+  if (!token || !iframe) {
+    throw new Error(`C8Oforms.BaserowAccount did not return token/iframe for ${user}`);
+  }
+  await provisionBaserowIframe(iframe, token, user);
   console.log(`Baserow account ready for ${user}`);
+}
+
+async function provisionBaserowIframe(iframe, token, user) {
+  const url = `${String(iframe).replace(/\/+$/, '')}/.json`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      __sequence: 'CheckLogin',
+      token,
+    }).toString(),
+  });
+  const text = await response.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  if (!response.ok || json?.error || !json?.jwt_token) {
+    throw new Error(`Baserow iframe CheckLogin failed for ${user}: ${response.status} ${text.slice(0, 500)}`);
+  }
 }
 
 async function ensureUser(endpoint, user, password, index) {
