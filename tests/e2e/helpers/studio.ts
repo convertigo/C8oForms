@@ -326,27 +326,101 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
     );
   }
   await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  await page.locator(SEL.loginReveal).first().click();
-  const email = page.locator(SEL.emailInput).first();
-  await email.waitFor({ state: 'visible', timeout: 30_000 });
-  await fillInputValue(page, email, user);
-  await fillInputValue(page, page.locator(SEL.passwordInput).first(), password);
-  await page.locator(SEL.loginReveal).first().click();
+  await openLoginForm(page);
+  await fillInputValue(page, SEL.emailInput, user, 'login email input');
+  await fillInputValue(page, SEL.passwordInput, password, 'login password input');
+  const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
+  await submit.click({ timeout: 10_000 });
   await expectRoute(page, ROUTE.selector);
 }
 
-async function fillInputValue(page: Page, input: Locator, value: string): Promise<void> {
-  await input.waitFor({ state: 'attached', timeout: 30_000 });
-  await input.fill(value, { timeout: 10_000 }).catch(async () => {
-    await input.evaluate((el, text) => {
-      const inputEl = el as HTMLInputElement;
-      inputEl.value = text;
-      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-      inputEl.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, detail: { value: text } }));
-      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-    }, value);
-  });
-  await expect.poll(() => input.inputValue(), { timeout: 5_000 }).toBe(value);
+async function openLoginForm(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (await firstVisibleLocatorOrNull(page, SEL.emailInput, attempt === 0 ? 1_000 : 2_000)) {
+      return;
+    }
+
+    const reveal = await firstVisibleLocatorOrNull(page, SEL.loginReveal, attempt === 0 ? 30_000 : 5_000);
+    if (!reveal) break;
+    await reveal.click({ timeout: 10_000 }).catch(async () => {
+      await reveal.click({ force: true, timeout: 5_000 }).catch(() => undefined);
+    });
+
+    if (await firstVisibleLocatorOrNull(page, SEL.emailInput, 5_000)) {
+      return;
+    }
+    await page.waitForTimeout(500);
+  }
+  throw new Error(`login form did not open from ${page.url()}`);
+}
+
+async function fillInputValue(page: Page, selector: string, value: string, description: string): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const input = await firstVisibleLocatorOrNull(page, selector, attempt === 0 ? 30_000 : 5_000);
+    if (!input) {
+      await page.waitForTimeout(300);
+      continue;
+    }
+
+    const filled = await input
+      .fill(value, { timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!filled) {
+      const assigned = await assignVisibleInputValue(page, selector, value);
+      if (!assigned) {
+        await page.waitForTimeout(300);
+        continue;
+      }
+    }
+
+    const hasValue = await expect
+      .poll(() => visibleInputValue(page, selector), { timeout: 5_000 })
+      .toBe(value)
+      .then(() => true)
+      .catch(() => false);
+    if (hasValue) return;
+  }
+  throw new Error(`could not fill ${description}`);
+}
+
+async function assignVisibleInputValue(page: Page, selector: string, value: string): Promise<boolean> {
+  return page.evaluate(
+    ({ inputSelector, inputValue }) => {
+      const visible = (el: Element): el is HTMLInputElement => {
+        if (!(el instanceof HTMLInputElement)) return false;
+        const box = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const input = [...document.querySelectorAll(inputSelector)].find(visible);
+      if (!input) return false;
+
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (setter) {
+        setter.call(input, inputValue);
+      } else {
+        input.value = inputValue;
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, detail: { value: inputValue } }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+    { inputSelector: selector, inputValue: value },
+  );
+}
+
+async function visibleInputValue(page: Page, selector: string): Promise<string | null> {
+  return page.evaluate((inputSelector) => {
+    const visible = (el: Element): el is HTMLInputElement => {
+      if (!(el instanceof HTMLInputElement)) return false;
+      const box = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    return [...document.querySelectorAll(inputSelector)].find(visible)?.value ?? null;
+  }, selector);
 }
 
 /** The editor keeps live connections open: never wait for networkidle here. */
