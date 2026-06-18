@@ -1,5 +1,6 @@
 // Tiny local dashboard to browse the regression manifest and run tests with a
-// chosen version (latest = newest release, broken = bug-report version),
+// chosen version (latest = newest release, broken = bug-report version, verify
+// = broken then latest),
 // headed and slowed down so a tester can watch. No framework — Node http + child_process.
 //
 //   cd tests && npm run runner        # then open http://127.0.0.1:8771
@@ -193,6 +194,69 @@ function brokenVersionOf(t) {
   return t.brokenVersion || t.fixedVersion || t.version || '';
 }
 
+async function executeVerify(send, params, selected, latest, env, ctl) {
+  if (params.ids[0] === 'all' || selected.length !== 1) {
+    send('log', { line: 'Broken -> Latest verification runs one manifest test at a time.', cls: 'err' });
+    return send('done', { ok: false });
+  }
+
+  const t = selected[0];
+  const broken = t.brokenVersion;
+  if (!broken) {
+    send('log', { line: `${t.id} declares no brokenVersion - cannot verify broken -> latest.`, cls: 'err' });
+    return send('done', { ok: false });
+  }
+
+  if (!(await ensureDeployed(send, broken, ctl))) return send('done', { ok: false });
+  if (!(await ensureFixture(send, t, broken, env, ctl))) return send('done', { ok: false });
+  if (ctl.cancelled) return send('done', { ok: false });
+
+  send('phase', { label: `Running ${t.id} on broken ${broken}` });
+  const brokenCode = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed: params.headed }), env, ctl);
+  if (ctl.cancelled) {
+    send('log', { line: '\n[cancelled]', cls: 'err' });
+    return send('done', { ok: false });
+  }
+  if (brokenCode === 0) {
+    send('log', { line: `${t.id} PASSED on broken ${broken} - regression was not reproduced.`, cls: 'err' });
+    return send('done', {
+      ok: false,
+      message: 'verification failed - broken version passed',
+      status: 'failed',
+      cls: 'ko',
+    });
+  }
+  send('log', { line: `${t.id} FAILED on broken ${broken} - regression reproduced.`, cls: 'err' });
+
+  if (!(await ensureDeployed(send, latest, ctl))) return send('done', { ok: false });
+  if (!(await ensureFixture(send, t, latest, env, ctl))) return send('done', { ok: false });
+  if (ctl.cancelled) return send('done', { ok: false });
+
+  send('phase', { label: `Running ${t.id} on latest ${latest}` });
+  const latestCode = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed: params.headed }), env, ctl);
+  if (ctl.cancelled) {
+    send('log', { line: '\n[cancelled]', cls: 'err' });
+    return send('done', { ok: false });
+  }
+  if (latestCode !== 0) {
+    send('log', { line: `${t.id} FAILED on latest ${latest} - fix not confirmed.`, cls: 'err' });
+    return send('done', {
+      ok: false,
+      message: 'verification failed - latest version failed',
+      status: 'failed',
+      cls: 'ko',
+    });
+  }
+
+  send('log', { line: `${t.id} PASSED on latest ${latest} - fix confirmed.`, cls: 'out' });
+  return send('done', {
+    ok: true,
+    message: 'verification complete - broken failed, latest passed',
+    status: 'verified',
+    cls: 'ok',
+  });
+}
+
 // Execute the selected run, streaming everything. params: ids[], version, slowMo, headed.
 async function execute(send, params, tests, ctl) {
   const headed = params.headed;
@@ -219,6 +283,11 @@ async function execute(send, params, tests, ctl) {
     }
     send('log', { line: `latest release resolved to ${latest}`, cls: 'out' });
   }
+
+  if (params.version === 'verify') {
+    return executeVerify(send, params, selected, latest, env, ctl);
+  }
+
   const targetOf = (t) => (params.version === 'broken' ? brokenVersionOf(t) : latest);
 
   // Fast path: whole suite on latest → ensure once, run once.
@@ -296,7 +365,7 @@ const server = createServer(async (req, res) => {
       const send = sse(res);
       const params = {
         ids: (url.searchParams.get('ids') || '').split(',').filter(Boolean),
-        version: url.searchParams.get('version') === 'broken' ? 'broken' : 'latest',
+        version: ['broken', 'verify'].includes(url.searchParams.get('version')) ? url.searchParams.get('version') : 'latest',
         slowMo: Number(url.searchParams.get('slowMo') || 0),
         headed: url.searchParams.get('headed') !== '0',
       };
