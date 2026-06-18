@@ -181,13 +181,11 @@ export const PALETTE_ICON = {
   camera: 'icn_camera.svg',
   grid: 'icn_sheet.svg',
   chart: 'icn_chart.svg',
-  map: 'map.svg',
   barcode: 'icn_codebar.svg',
   businessLogic: 'icn_business_logic.svg',
   file: 'icn_import.svg',
   signature: 'icn_sign.svg',
   location: 'location.svg',
-  button: 'icn_button.svg',
 } as const;
 
 const PALETTE_TYPE_BY_ICON: Record<string, string> = {
@@ -1372,10 +1370,28 @@ export async function setCheckboxLocalOptions(page: Page, values: string[]): Pro
   await setChoiceLocalOptions(page, values);
 }
 
-export async function setChoiceDefaultValueVisual(page: Page, values: string[]): Promise<void> {
-  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
+const DEFAULT_VALUE_TAB = /Valeur par d|Default value|defaultvalue/i;
+
+async function openDefaultValueTextMode(page: Page): Promise<void> {
+  await openConfigTab(page, DEFAULT_VALUE_TAB);
+  await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
+  await confirmAlertIfVisible(page);
+}
+
+async function openDefaultValueJavascriptMode(page: Page): Promise<void> {
+  await openConfigTab(page, DEFAULT_VALUE_TAB);
+  await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
+  await confirmAlertIfVisible(page);
+}
+
+async function openDefaultValueVisualMode(page: Page): Promise<void> {
+  await openConfigTab(page, DEFAULT_VALUE_TAB);
   await clickFirstVisible(page, SEL.defaultValueVisualButton, 'default value visual mode');
   await confirmAlertIfVisible(page);
+}
+
+export async function setChoiceDefaultValueVisual(page: Page, values: string[]): Promise<void> {
+  await openDefaultValueVisualMode(page);
   await expect(page.locator(SEL.defaultValueVisualOption).first(), 'default value visual options should be visible').toBeVisible({
     timeout: 15_000,
   });
@@ -1401,9 +1417,7 @@ export async function setChoiceGroupDefaultValueVisual(
   page: Page,
   valuesByLine: Record<string, string | string[]>,
 ): Promise<void> {
-  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
-  await clickFirstVisible(page, SEL.defaultValueVisualButton, 'default value visual mode');
-  await confirmAlertIfVisible(page);
+  await openDefaultValueVisualMode(page);
 
   const grid = page.locator(SEL.defaultValueGroupGrid).first();
   await expect(grid, 'default value group matrix should be visible').toBeVisible({ timeout: 15_000 });
@@ -1444,10 +1458,7 @@ export async function setChoiceGroupDefaultValueVisual(
 }
 
 export async function setChoiceDefaultValueText(page: Page, value: string): Promise<void> {
-  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
-  await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
-  await confirmAlertIfVisible(page);
-
+  await openDefaultValueTextMode(page);
   await fillVisibleTinyMceText(page, value, 'default value text editor');
 }
 
@@ -1486,9 +1497,7 @@ export async function setChoiceDefaultValueFromSourcePalette(
   section: SourcePaletteSection,
   label: string,
 ): Promise<void> {
-  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
-  await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
-  await confirmAlertIfVisible(page);
+  await openDefaultValueTextMode(page);
   await dragSourcePaletteEntryToTinyMce(page, section, label);
 }
 
@@ -1497,28 +1506,7 @@ export async function setChoiceDefaultValueJavascript(
   emptyReturnExpression: string,
   returnExpression: string,
 ): Promise<void> {
-  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
-  await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
-  await confirmAlertIfVisible(page);
-
-  const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
-  await expect(editor, 'default value JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
-  await editor.click();
-  await expect(editor, 'default value JavaScript editor should keep the generated async wrapper').toContainText(
-    `return ${emptyReturnExpression};`,
-    { timeout: 10_000 },
-  );
-  await page.keyboard.press('Control+F');
-  await page.keyboard.type(`return ${emptyReturnExpression};`);
-  await page.keyboard.press('Escape');
-  await page.keyboard.type(`return ${returnExpression};`);
-  await page.keyboard.press('Tab');
-
-  await expect(editor, 'default value JavaScript editor should contain the expected expression').toContainText(
-    `return ${returnExpression};`,
-    { timeout: 10_000 },
-  );
-  await page.waitForTimeout(1_000);
+  await setDefaultValueJavascriptReturn(page, emptyReturnExpression, returnExpression);
 }
 
 export type ChoiceViewerKind = 'select' | 'radio' | 'checkbox' | 'radioGroup' | 'checkboxGroup';
@@ -1919,19 +1907,24 @@ export async function expectVisibilityValueTextEditorToContain(page: Page, value
 }
 
 export async function setTextDefaultValueJavascript(page: Page, returnExpression: string): Promise<void> {
-  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
-  await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
-  await confirmAlertIfVisible(page);
+  await setDefaultValueJavascriptReturn(page, "''", returnExpression);
+}
 
+async function setDefaultValueJavascriptReturn(
+  page: Page,
+  emptyReturnExpression: string,
+  returnExpression: string,
+): Promise<void> {
+  await openDefaultValueJavascriptMode(page);
   const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
   await expect(editor, 'default value JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
   await editor.click();
   await expect(editor, 'default value JavaScript editor should keep the generated async wrapper').toContainText(
-    "return '';",
+    `return ${emptyReturnExpression};`,
     { timeout: 10_000 },
   );
   await page.keyboard.press('Control+F');
-  await page.keyboard.type("return '';");
+  await page.keyboard.type(`return ${emptyReturnExpression};`);
   await page.keyboard.press('Escape');
   await page.keyboard.type(`return ${returnExpression};`);
   await page.keyboard.press('Tab');
@@ -1944,23 +1937,12 @@ export async function setTextDefaultValueJavascript(page: Page, returnExpression
 }
 
 export async function setTextDefaultValueFromUserEmailPalette(page: Page): Promise<void> {
-  await openConfigTab(page, /Valeur par d|Default value|defaultvalue/i);
-  await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
-  await confirmAlertIfVisible(page);
+  await openDefaultValueTextMode(page);
   await dragUserEmailPaletteToTinyMce(page);
 }
 
 async function clickFirstVisible(page: Page, selector: string, description: string): Promise<void> {
-  const elements = page.locator(selector);
-  const count = await elements.count();
-  for (let i = 0; i < count; i++) {
-    const element = elements.nth(i);
-    if (await element.isVisible().catch(() => false)) {
-      await element.click();
-      return;
-    }
-  }
-  throw new Error(`No visible ${description} button found for selector ${selector}`);
+  await (await firstVisibleLocator(page, selector, description)).click();
 }
 
 export async function dragUserEmailPaletteToTinyMce(page: Page): Promise<void> {
