@@ -1103,15 +1103,8 @@ export async function configureGridBaserowSource(page: Page, source: BaserowGrid
   await page.locator('.class1775835275863').first().click();
   await openConfigTab(page, /Choix de la source|Source choice|Source selection/i);
 
-  await page.getByText(/Depuis une source de donn.es|From a data source/i).first().click();
-  await clickFirstVisible(page, SEL.dataSourceSelectButton, 'Baserow source select button', pickerTimeout, true);
-
-  const sourcePicker = page.locator('ion-modal').filter({ hasText: /R.cup.rer les donn.es|Get data/i }).last();
-  await expect(sourcePicker, 'Baserow data source picker should be visible').toBeVisible({ timeout: pickerTimeout });
-  await sourcePicker.getByText(/S.lectionner|Select/i).first().click();
-  await sourcePicker.locator('ion-button.class1599830132445').click();
-  await expect(sourcePicker).toBeHidden({ timeout: pickerTimeout });
-  await page.waitForTimeout(1_500);
+  await activateDataSourceMode(page);
+  await selectDataSourceEntry(page, pickerTimeout, 'getData');
 
   await openConfigTab(page, /Configuration de la source|Source configuration/i);
   await acceptRgpdIfVisible(page);
@@ -1162,13 +1155,7 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
     await page.getByText(/Depuis une source de donn.es|From a data source/i).first().click();
   }
 
-  await page.locator('button.class1775848361410').first().click();
-  const sourcePicker = page.locator('ion-modal').last();
-  await expect(sourcePicker, 'the Select source picker should be visible').toBeVisible({ timeout: 15_000 });
-  await sourcePicker.locator('button.class1775848361410').nth(1).click();
-  await sourcePicker.locator('ion-button.class1599830132445').click();
-  await expect(sourcePicker).toBeHidden({ timeout: 15_000 });
-  await page.waitForTimeout(1_500);
+  await selectDataSourceEntry(page, 60_000, 'getSelectData');
 
   await openConfigTab(page, /Configuration de la source|Source configuration/i);
   await acceptRgpdIfVisible(page);
@@ -1207,6 +1194,53 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
   await expect(sourceSummary, `Baserow source summary should contain ${source.valueColumn}`).toContainText(source.valueColumn, {
     timeout: 15_000,
   });
+}
+
+async function activateDataSourceMode(page: Page): Promise<void> {
+  const sourceModeButtons = page.locator('button.class1775840591959');
+  if ((await sourceModeButtons.count()) > 1) {
+    await sourceModeButtons.nth(1).click();
+    return;
+  }
+  await page.getByText(/Depuis une source de donn.es|From a data source/i).first().click();
+}
+
+async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getData' | 'getSelectData'): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await clickFirstVisible(page, SEL.dataSourceSelectButton, 'Baserow source select button', timeout, true);
+    const sourcePicker = page.locator('ion-modal:visible').last();
+    await expect(sourcePicker, 'Baserow source picker modal should open').toBeVisible({ timeout });
+
+    const sourceButton = sourcePicker.locator(SEL.dataSourceSelectButton).nth(entry === 'getSelectData' ? 1 : 0);
+    const sourceReady = await expect(sourceButton).toBeVisible({ timeout: 20_000 }).then(() => true).catch(() => false);
+    if (sourceReady) {
+      await sourceButton.click({ timeout: 10_000 }).catch(async () => {
+        await sourceButton.dispatchEvent('click');
+      });
+      await sourcePicker.locator('ion-button.class1599830132445').last().click({ timeout: 10_000 });
+      await expect(sourcePicker).toBeHidden({ timeout });
+      await page.waitForTimeout(1_500);
+      return;
+    }
+
+    await closeTopModal(page);
+    await page.waitForTimeout(1_500 * (attempt + 1));
+  }
+  throw new Error(`Baserow source picker opened without the ${entry} source`);
+}
+
+async function closeTopModal(page: Page): Promise<void> {
+  const modal = page.locator('ion-modal:visible').last();
+  if (!(await modal.isVisible({ timeout: 2_000 }).catch(() => false))) {
+    return;
+  }
+  const cancel = modal.locator('ion-button.class1599830132430').last();
+  if (await cancel.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await cancel.click({ timeout: 5_000 }).catch(() => undefined);
+  } else {
+    await page.keyboard.press('Escape').catch(() => undefined);
+  }
+  await expect(modal).toBeHidden({ timeout: 15_000 }).catch(() => undefined);
 }
 
 async function setSingleSelectSourceColumn(modal: Locator, checkboxSelector: string, targetColumn: string): Promise<void> {
