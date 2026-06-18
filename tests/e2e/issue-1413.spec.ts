@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { ensureBaserowTable, type BaserowCatalog } from './helpers/baserow';
 import {
   SEL,
   PALETTE_ICON,
@@ -9,6 +10,9 @@ import {
   setTechnicalId,
   closeComponentConfig,
   openConfigTab,
+  configureGridBaserowSource,
+  openPreview,
+  acceptRgpdIfVisible,
 } from './helpers/studio';
 
 /**
@@ -20,18 +24,39 @@ import {
  * Root cause: viewerPage generated JS string literals with unescaped grid path
  * segments, so a column such as Owner's name produced invalid JavaScript.
  */
-const DATA_TAB = 'Donnees & Interactions';
-const DATA_TAB_FR = 'Données & Interactions';
+const DATA_TAB = /donnees.*interactions|data.*interactions/i;
 const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
 const TABLE = 'Issue 1413 Quote DisplayValue';
+const ROW_LABEL = 'row_1413';
 const GRID_NAME = 'quote_grid';
 const QUOTED_COLUMN = "Owner's name";
 const EXPECTED_VALUE = "Alice's quoted owner";
+const ROW_SELECTED = /ligne sélectionnée|selected row/i;
+const GRID_CONFIGURED = /cette table a été configurée pour renvoyer|this grid has been configured to return/i;
 
-test.setTimeout(120_000);
+test.setTimeout(180_000);
 
 test('#1413 - description palette values escape quoted grid column names', async ({ page }) => {
+  const catalog = await ensureBaserowTable({
+    workspace: WORKSPACE,
+    database: BASE,
+    table: TABLE,
+    primaryField: 'Name',
+    columns: [
+      { name: 'Name', type: 'text' },
+      { name: QUOTED_COLUMN, type: 'text' },
+    ],
+    rows: [
+      {
+        Name: ROW_LABEL,
+        [QUOTED_COLUMN]: EXPECTED_VALUE,
+      },
+    ],
+    upsertKey: 'Name',
+  });
+  assertBaserowFixture(catalog);
+
   const syntaxErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error' && /SyntaxError|missing \) after argument list/.test(message.text())) {
@@ -53,7 +78,12 @@ test('#1413 - description palette values escape quoted grid column names', async
   await setTechnicalId(page, GRID_NAME);
   await acceptRgpdIfVisible(page);
 
-  await configureGridBaserowSource(page);
+  await configureGridBaserowSource(page, {
+    workspace: WORKSPACE,
+    database: BASE,
+    table: TABLE,
+    expectedColumns: [QUOTED_COLUMN],
+  });
   await setGridReturnedValueToRowSelected(page);
 
   await closeComponentConfig(page);
@@ -66,8 +96,7 @@ test('#1413 - description palette values escape quoted grid column names', async
 
   syntaxErrors.length = 0;
   await closeComponentConfig(page);
-  await page.locator(SEL.previewButton).first().click();
-  await expect(page).toHaveURL(/\/viewer\//, { timeout: 30_000 });
+  await openPreview(page, SEL.gridComponent);
 
   const row = page.locator('.ag-center-cols-container .ag-row').filter({ hasText: EXPECTED_VALUE }).first();
   await expect(row, 'the Baserow fixture row should render in the grid').toBeVisible({ timeout: 30_000 });
@@ -77,54 +106,21 @@ test('#1413 - description palette values escape quoted grid column names', async
   expect(syntaxErrors, 'quoted grid column names must not break generated Description JavaScript').toEqual([]);
 });
 
-async function configureGridBaserowSource(page: Page): Promise<void> {
-  await page.locator('.class1775835275863').first().click();
-  await openConfigTab(page, 'Choix de la source');
-
-  await page.getByText('Depuis une source de données', { exact: true }).click();
-  await page.getByText('Sélectionner', { exact: true }).click();
-
-  const sourcePicker = page.locator('ion-modal').filter({ hasText: 'Récupérer les données' }).last();
-  await expect(sourcePicker).toBeVisible({ timeout: 15_000 });
-  await sourcePicker.getByText('Sélectionner', { exact: true }).first().click();
-  await sourcePicker.locator('ion-button.class1599830132445').click();
-  await expect(sourcePicker).toBeHidden({ timeout: 15_000 });
-  await page.waitForTimeout(1_500);
-
-  await openConfigTab(page, 'Configuration de la source');
-  await acceptRgpdIfVisible(page);
-  await page.locator('button').filter({ hasText: 'Sélectionner' }).first().click();
-  await page.waitForTimeout(1_000);
-
-  const tablePicker = page.locator('ion-modal').last();
-  await expect(tablePicker).toBeVisible({ timeout: 15_000 });
-  await expect(tablePicker.getByText('Sélectionnez un espace de travail', { exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
-  await tablePicker.getByText(WORKSPACE, { exact: true }).click();
-  await page.waitForTimeout(1_500);
-  await expect(tablePicker.getByText(BASE, { exact: true })).toBeVisible({ timeout: 15_000 });
-  await tablePicker.getByText(BASE, { exact: true }).click();
-  await page.waitForTimeout(1_500);
-  await expect(tablePicker.getByText(TABLE, { exact: true })).toBeVisible({ timeout: 15_000 });
-  await tablePicker.getByText(TABLE, { exact: true }).click();
-  await page.waitForTimeout(1_500);
-  await expect(tablePicker.locator('.class1776246576145')).toContainText(TABLE, { timeout: 15_000 });
-  await expect(tablePicker.locator('.class1776267952308')).toContainText(QUOTED_COLUMN, { timeout: 15_000 });
-  await acceptRgpdIfVisible(page);
-  await tablePicker.locator('ion-button.class1776244653366').click();
-  await expect(tablePicker).toBeHidden({ timeout: 20_000 });
-  await page.waitForTimeout(1_500);
-
-  const sourceSummary = page.locator('.class1776013865512').first();
-  await expect(sourceSummary).toContainText(TABLE, { timeout: 15_000 });
-  await expect(sourceSummary).toContainText(QUOTED_COLUMN, { timeout: 15_000 });
+function assertBaserowFixture(catalog: BaserowCatalog): void {
+  const table = catalog.tables.find((candidate) => candidate.name === TABLE);
+  expect(table, `Baserow table ${TABLE} should exist`).toBeTruthy();
+  const columns = table?.columns ?? [];
+  expect(
+    columns.find((candidate) => candidate.name === QUOTED_COLUMN),
+    `Baserow column ${QUOTED_COLUMN} should exist`,
+  ).toBeTruthy();
 }
 
 async function setGridReturnedValueToRowSelected(page: Page): Promise<void> {
-  await openConfigTab(page, DATA_TAB_FR).catch(async () => openConfigTab(page, DATA_TAB));
-  await page.locator('.class1775842589999').getByText('Ligne sélectionnée', { exact: true }).click();
-  await expect(page.locator('.class1775842589999')).toContainText('Ligne sélectionnée', { timeout: 10_000 });
+  await openConfigTab(page, DATA_TAB);
+  const returnedValue = page.locator('.class1775842589999');
+  await returnedValue.getByText(ROW_SELECTED).click();
+  await expect(returnedValue).toContainText(ROW_SELECTED, { timeout: 10_000 });
 }
 
 async function insertGridColumnValueInDescription(page: Page): Promise<void> {
@@ -132,9 +128,8 @@ async function insertGridColumnValueInDescription(page: Page): Promise<void> {
   await page.frameLocator('iframe[title="Rich Text Area"]').locator('svg[id^="clickable-"]').first().click();
 
   const treeview = page.locator('ion-modal.modalCSV').last();
-  await expect(treeview.getByText('Cette table a été configurée pour renvoyer Ligne sélectionnée')).toBeVisible({
-    timeout: 15_000,
-  });
+  await expect(treeview.getByText(GRID_CONFIGURED)).toBeVisible({ timeout: 15_000 });
+  await expect(treeview.getByText(ROW_SELECTED)).toBeVisible({ timeout: 15_000 });
   await treeview.getByText(QUOTED_COLUMN, { exact: true }).click();
   await acceptRgpdIfVisible(page);
 
@@ -213,9 +208,10 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
 
     const labelBox = (labelEl as HTMLElement).getBoundingClientRect();
     const labelY = labelBox.y + labelBox.height / 2;
+    const chooseButton = (text: string) => /^(Choisir cette valeur|Choose this value)$/i.test(text.trim());
     const buttons = [...modal.querySelectorAll('ion-button')]
       .filter(visible)
-      .filter((el) => (el.textContent ?? '').trim() === 'Choisir cette valeur');
+      .filter((el) => chooseButton(el.textContent ?? ''));
 
     let best: DOMRect | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
@@ -231,15 +227,7 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
     return best ? { x: best.x + best.width / 2, y: best.y + best.height / 2 } : null;
   }, label);
 
-  expect(center, `could not find a "Choisir cette valeur" button for ${label}`).not.toBeNull();
+  expect(center, `could not find a choose-value button for ${label}`).not.toBeNull();
   await page.mouse.click(center!.x, center!.y);
   await page.locator('ion-modal.modalCSV').waitFor({ state: 'hidden', timeout: 15_000 });
-}
-
-async function acceptRgpdIfVisible(page: Page): Promise<void> {
-  const rgpd = page.getByText("JE SUIS D'ACCORD", { exact: true });
-  if (await rgpd.isVisible({ timeout: 1_000 }).catch(() => false)) {
-    await rgpd.click();
-    await page.locator('ion-toast').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
-  }
 }

@@ -22,7 +22,7 @@ import {
  * Each test builds its own fresh one-map fixture through the UI (createFormWithMap)
  * — no dependency on a pre-existing document, full per-test isolation.
  */
-const DATA_TAB = 'Données & Interactions';
+const DATA_TAB = /donnees.*interactions|data.*interactions/i;
 
 test('#1412 — a configured height applies to the map (editor and viewer)', async ({ page }) => {
   await login(page);
