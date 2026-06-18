@@ -30,7 +30,7 @@ import {
 
 const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
-const TABLE = 'Issue 1416 Date Formats';
+const TABLE = 'Issue 1416 Date Formats v2';
 const ROW_LABEL = 'row_1416';
 const GRID_TECHNICAL_ID = 'baserow_date_formats_grid_1416';
 

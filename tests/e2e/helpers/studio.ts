@@ -330,18 +330,43 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
     );
   }
   await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await openLoginForm(page);
-    await fillInputValue(page, SEL.emailInput, user, 'login email input');
-    await fillInputValue(page, SEL.passwordInput, password, 'login password input');
-    const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
-    await submit.click({ timeout: 10_000 });
-    if (await expectRoute(page, ROUTE.selector, 15_000).then(() => true).catch(() => false)) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (await selectorIsReady(page, attempt === 0 ? 3_000 : 1_000)) {
       return;
     }
-    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    const attemptSucceeded = await loginOnce(page, user, password).catch(() => false);
+    if (attemptSucceeded || (await selectorIsReady(page, 15_000))) {
+      return;
+    }
+    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
   }
-  await expectRoute(page, ROUTE.selector);
+  await expectRoute(page, ROUTE.selector, 30_000);
+}
+
+async function loginOnce(page: Page, user: string, password: string): Promise<boolean> {
+  await waitForIonicLoading(page);
+  await openLoginForm(page);
+  if (await selectorIsReady(page, 500)) {
+    return true;
+  }
+  await fillInputValue(page, SEL.emailInput, user, 'login email input');
+  await fillInputValue(page, SEL.passwordInput, password, 'login password input');
+  await waitForIonicLoading(page);
+  const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
+  await submit.click({ timeout: 20_000 }).catch(() => undefined);
+  await waitForIonicLoading(page, 20_000);
+  return selectorIsReady(page, 20_000);
+}
+
+async function selectorIsReady(page: Page, timeout: number): Promise<boolean> {
+  if (await expectRoute(page, ROUTE.selector, timeout).then(() => true).catch(() => false)) {
+    return true;
+  }
+  return firstVisibleLocatorOrNull(page, SEL.blankFormCard, timeout).then(Boolean).catch(() => false);
+}
+
+async function waitForIonicLoading(page: Page, timeout = 10_000): Promise<void> {
+  await page.locator('ion-loading:not(.overlay-hidden)').waitFor({ state: 'hidden', timeout }).catch(() => undefined);
 }
 
 async function openLoginForm(page: Page): Promise<void> {
@@ -377,7 +402,7 @@ async function fillInputValue(page: Page, selector: string, value: string, descr
       .then(() => true)
       .catch(() => false);
     if (!filled) {
-      const assigned = await assignVisibleInputValue(page, selector, value);
+      const assigned = await assignVisibleInputValue(page, selector, value).catch(() => false);
       if (!assigned) {
         await page.waitForTimeout(300);
         continue;
@@ -430,7 +455,7 @@ async function visibleInputValue(page: Page, selector: string): Promise<string |
       return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
     };
     return [...document.querySelectorAll(inputSelector)].find(visible)?.value ?? null;
-  }, selector);
+  }, selector).catch(() => null);
 }
 
 /** The editor keeps live connections open: never wait for networkidle here. */
