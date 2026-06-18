@@ -13,7 +13,7 @@ suite.
 cd tests
 cp .env.example .env                          # once: test user is pre-filled; set CONVERTIGO_ADMIN_PASSWORD if you also deploy
 npm install
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 npx playwright test                           # targets https://test-repro.convertigo.net
 C8OFORMS_BASE_URL=... npx playwright test      # any other server
 ```
@@ -78,13 +78,20 @@ From the page you can:
   confirms the right version is live before running. *Broken -> Latest* is
   intentionally limited to one test at a time so the red/green phases stay
   readable;
-- toggle **headed** and set a **slow-mo** delay (ms) so each action is slow
-  enough to follow on screen;
+- see and override `C8OFORMS_BASE_URL` and `C8OFORMS_APP_URL` before launching a
+  run. An empty `C8OFORMS_APP_URL` means the variable is unset, so the runner
+  uses `C8OFORMS_BASE_URL` and appends the C8oForms mobile path;
+- toggle **headed**, set a **slow-mo** delay (ms), and choose the Playwright
+  **browser** (`chromium`, `firefox`, or `webkit`) so each action is slow enough
+  to follow on screen;
 - watch the deploy + Playwright output stream live, with a green/red verdict.
 
 Closing the tab cancels the run and kills the browser/deploy it spawned. The
-slow-mo value is passed to Playwright via `C8OFORMS_SLOWMO` (also usable
-directly: `C8OFORMS_SLOWMO=800 npx playwright test --headed`).
+slow-mo value is passed to Playwright via `C8OFORMS_SLOWMO`; the browser choice
+is passed via `C8OFORMS_BROWSER`; runner URL overrides are passed as
+`C8OFORMS_BASE_URL` and `C8OFORMS_APP_URL` for that run only (also usable
+directly:
+`C8OFORMS_SLOWMO=800 C8OFORMS_BROWSER=firefox npx playwright test --headed`).
 
 ## CI test report & badge
 
@@ -115,7 +122,7 @@ this command checks.
 cd tests
 cp .env.example .env        # once: set CONVERTIGO_ADMIN_PASSWORD
 npm install                 # once
-npx playwright install chromium  # once
+npx playwright install chromium firefox webkit  # once
 
 node verify.mjs                       # list every test you can verify
 node verify.mjs 1412                  # regression: red on broken, green on fixed

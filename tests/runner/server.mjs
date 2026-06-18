@@ -18,16 +18,18 @@ dotenv.config({ path: join(testsDir, '.env') });
 
 const PORT = Number(process.env.RUNNER_PORT ?? 8771);
 const MANIFEST = join(testsDir, 'e2e', 'regression-manifest.json');
+const BROWSERS = new Set(['chromium', 'firefox', 'webkit']);
+const DEFAULT_BASE_URL = 'https://test-repro.convertigo.net';
 // Run Playwright via the local CLI with the current node binary, so we don't
 // depend on `npx` being on the spawned process's PATH (which breaks on Windows
 // and GUI-launched servers — `spawn npx ENOENT`).
 const PW_CLI = join(testsDir, 'node_modules', '@playwright', 'test', 'cli.js');
 let activeCtl = null;
 
-function appBaseUrl() {
-  const direct = process.env.C8OFORMS_APP_URL;
+function appBaseUrl(env = process.env) {
+  const direct = env.C8OFORMS_APP_URL;
   if (direct) return direct.endsWith('/') ? direct : `${direct}/`;
-  const server = (process.env.C8OFORMS_BASE_URL ?? 'https://test-repro.convertigo.net').replace(/\/+$/, '');
+  const server = (env.C8OFORMS_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
   return `${server}/convertigo/projects/C8Oforms/DisplayObjects/mobile/`;
 }
 
@@ -36,9 +38,9 @@ async function loadTests() {
   return Object.entries(raw.tests).map(([id, t]) => ({ id, ...t }));
 }
 
-async function servedVersion() {
+async function servedVersion(env = process.env) {
   try {
-    const res = await fetch(`${appBaseUrl()}assets/i18n/fr.json`, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`${appBaseUrl(env)}assets/i18n/fr.json`, { signal: AbortSignal.timeout(8000) });
     const text = await res.text();
     // Robust to the endpoint occasionally returning an HTML wrapper instead of
     // raw JSON: just pull the version_c8o value out.
@@ -56,22 +58,46 @@ function resolveLatest() {
   return latestRelease(repo());
 }
 
+function runnerEnvironment() {
+  return {
+    C8OFORMS_BASE_URL: process.env.C8OFORMS_BASE_URL ?? DEFAULT_BASE_URL,
+    C8OFORMS_BASE_URL_SOURCE: process.env.C8OFORMS_BASE_URL ? 'env' : 'default',
+    C8OFORMS_APP_URL: process.env.C8OFORMS_APP_URL ?? '',
+    C8OFORMS_APP_URL_SOURCE: process.env.C8OFORMS_APP_URL ? 'env' : 'unset',
+    appBaseUrl: appBaseUrl(),
+  };
+}
+
+function normalizeBrowser(value) {
+  return BROWSERS.has(value) ? value : 'chromium';
+}
+
+function runEnvironmentFromParams(params) {
+  const base = (params.get('baseUrl') || '').trim() || (process.env.C8OFORMS_BASE_URL ?? DEFAULT_BASE_URL);
+  const app = (params.get('appUrl') || '').trim();
+  return {
+    C8OFORMS_BASE_URL: base,
+    C8O_SERVER: base,
+    C8OFORMS_APP_URL: app,
+  };
+}
+
 // Make sure `version` is the one actually served before running. Deploys it if
 // the served version differs, then re-checks. Returns true only when confirmed.
-async function ensureDeployed(send, version, ctl) {
+async function ensureDeployed(send, version, env, ctl) {
   send('phase', { label: `Ensuring ${version} is deployed` });
-  const current = await servedVersion();
+  const current = await servedVersion(env);
   if (current === version) {
     send('log', { line: `already deployed (${version}) — skipping deploy`, cls: 'out' });
     return true;
   }
   send('log', { line: `served version is ${current}; deploying ${version}…`, cls: 'out' });
-  const code = await run(send, process.execPath, ['scripts/deploy-version.mjs', version], {}, ctl);
+  const code = await run(send, process.execPath, ['scripts/deploy-version.mjs', version], env, ctl);
   if (code !== 0) {
     send('log', { line: `deploy of ${version} failed`, cls: 'err' });
     return false;
   }
-  const after = await servedVersion();
+  const after = await servedVersion(env);
   if (after !== version) {
     send('log', { line: `after deploy the server serves ${after} (expected ${version}) — aborting`, cls: 'err' });
     return false;
@@ -89,7 +115,7 @@ async function ensureFixture(send, test, target, env, ctl) {
     send('log', { line: `fixture script ${test.fixtureScript} failed`, cls: 'err' });
     return false;
   }
-  const after = await servedVersion();
+  const after = await servedVersion(env);
   if (after !== target) {
     send('log', { line: `fixture script left the server on ${after} (expected ${target})`, cls: 'err' });
     return false;
@@ -207,7 +233,7 @@ async function executeVerify(send, params, selected, latest, env, ctl) {
     return send('done', { ok: false });
   }
 
-  if (!(await ensureDeployed(send, broken, ctl))) return send('done', { ok: false });
+  if (!(await ensureDeployed(send, broken, env, ctl))) return send('done', { ok: false });
   if (!(await ensureFixture(send, t, broken, env, ctl))) return send('done', { ok: false });
   if (ctl.cancelled) return send('done', { ok: false });
 
@@ -228,7 +254,7 @@ async function executeVerify(send, params, selected, latest, env, ctl) {
   }
   send('log', { line: `${t.id} FAILED on broken ${broken} - regression reproduced.`, cls: 'err' });
 
-  if (!(await ensureDeployed(send, latest, ctl))) return send('done', { ok: false });
+  if (!(await ensureDeployed(send, latest, env, ctl))) return send('done', { ok: false });
   if (!(await ensureFixture(send, t, latest, env, ctl))) return send('done', { ok: false });
   if (ctl.cancelled) return send('done', { ok: false });
 
@@ -260,7 +286,12 @@ async function executeVerify(send, params, selected, latest, env, ctl) {
 // Execute the selected run, streaming everything. params: ids[], version, slowMo, headed.
 async function execute(send, params, tests, ctl) {
   const headed = params.headed;
-  const env = { C8OFORMS_SLOWMO: String(params.slowMo || 0), HEADED: headed ? '1' : '0' };
+  const env = {
+    ...params.runtimeEnv,
+    C8OFORMS_SLOWMO: String(params.slowMo || 0),
+    C8OFORMS_BROWSER: params.browser,
+    HEADED: headed ? '1' : '0',
+  };
 
   const selected =
     params.ids[0] === 'all' ? tests : tests.filter((t) => params.ids.includes(t.id));
@@ -283,6 +314,9 @@ async function execute(send, params, tests, ctl) {
     }
     send('log', { line: `latest release resolved to ${latest}`, cls: 'out' });
   }
+  send('log', { line: `browser selected: ${params.browser}`, cls: 'out' });
+  send('log', { line: `C8OFORMS_BASE_URL=${env.C8OFORMS_BASE_URL}`, cls: 'out' });
+  send('log', { line: `C8OFORMS_APP_URL=${env.C8OFORMS_APP_URL || '(unset)'}`, cls: 'out' });
 
   if (params.version === 'verify') {
     return executeVerify(send, params, selected, latest, env, ctl);
@@ -292,7 +326,7 @@ async function execute(send, params, tests, ctl) {
 
   // Fast path: whole suite on latest → ensure once, run once.
   if (params.ids[0] === 'all' && params.version !== 'broken') {
-    if (!(await ensureDeployed(send, latest, ctl))) return send('done', { ok: false });
+    if (!(await ensureDeployed(send, latest, env, ctl))) return send('done', { ok: false });
     if (!(await ensureFixtures(send, selected, latest, env, ctl))) return send('done', { ok: false });
     if (!ctl.cancelled) {
       send('phase', { label: `Running the whole suite on ${latest}` });
@@ -315,7 +349,7 @@ async function execute(send, params, tests, ctl) {
       ok = false;
       continue;
     }
-    if (!(await ensureDeployed(send, target, ctl))) {
+    if (!(await ensureDeployed(send, target, env, ctl))) {
       ok = false;
       continue;
     }
@@ -350,11 +384,12 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/api/tests') {
       const [tests, version] = await Promise.all([loadTests(), servedVersion()]);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ tests, servedVersion: version, appBaseUrl: appBaseUrl() }));
+      return res.end(JSON.stringify({ tests, servedVersion: version, appBaseUrl: appBaseUrl(), environment: runnerEnvironment() }));
     }
     if (url.pathname === '/api/served-version') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ servedVersion: await servedVersion() }));
+      const env = runEnvironmentFromParams(url.searchParams);
+      return res.end(JSON.stringify({ servedVersion: await servedVersion(env), appBaseUrl: appBaseUrl(env) }));
     }
     if (url.pathname === '/api/cancel') {
       const cancelled = cancelRun(activeCtl);
@@ -368,6 +403,8 @@ const server = createServer(async (req, res) => {
         version: ['broken', 'verify'].includes(url.searchParams.get('version')) ? url.searchParams.get('version') : 'latest',
         slowMo: Number(url.searchParams.get('slowMo') || 0),
         headed: url.searchParams.get('headed') !== '0',
+        browser: normalizeBrowser(url.searchParams.get('browser')),
+        runtimeEnv: runEnvironmentFromParams(url.searchParams),
       };
       // Cancel the run (kill the spawned child) if the tester closes the tab —
       // no orphaned headed browsers or deploys.

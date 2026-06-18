@@ -24,6 +24,20 @@ function resolveAppUrl(): string {
   return `${server}/convertigo/projects/C8Oforms/DisplayObjects/mobile/`;
 }
 const baseURL = resolveAppUrl();
+const supportedBrowsers = ['chromium', 'firefox', 'webkit'] as const;
+type SupportedBrowser = typeof supportedBrowsers[number];
+
+function resolveBrowser(): SupportedBrowser {
+  const browser = process.env.C8OFORMS_BROWSER;
+  return supportedBrowsers.includes(browser as SupportedBrowser) ? (browser as SupportedBrowser) : 'chromium';
+}
+
+const browserName = resolveBrowser();
+const deviceName: Record<SupportedBrowser, keyof typeof devices> = {
+  chromium: 'Desktop Chrome',
+  firefox: 'Desktop Firefox',
+  webkit: 'Desktop Safari',
+};
 
 export default defineConfig({
   testDir: './e2e',
@@ -44,8 +58,8 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: browserName,
+      use: { ...devices[deviceName[browserName]], browserName },
     },
   ],
 });
