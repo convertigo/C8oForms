@@ -509,59 +509,22 @@ jobs:
           echo "App URL: $C8OFORMS_APP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
           echo "Test user: $C8OFORMS_TEST_USER"
-          # Single worker; blob report is merged afterwards. Test
-          # failures must not fail this job — the report job classifies them —
-          # but a missing blob report means an infra/setup failure. `shell: bash`
-          # turns on `-e`, so disable it around the test run to capture the code.
+          # Single worker; the Playwright config writes the list reporter plus
+          # test-results/results.json directly. Test failures must not fail this
+          # job — the report job classifies them — but a missing JSON report
+          # means an infra/setup failure. `shell: bash` turns on `-e`, so disable
+          # it around the test run to capture the code.
           set +e
-          npx playwright test --workers=1 --retries=1 --reporter=list,blob
+          npx playwright test --workers=1 --retries=1
           TEST_STATUS=$?
           set -e
-          if [ ! -d blob-report ]; then
-            echo "Playwright did not produce a blob report (infra/setup failure)"
+          if [ ! -f test-results/results.json ]; then
+            echo "Playwright did not produce test-results/results.json (infra/setup failure)"
             exit "$TEST_STATUS"
           fi
           echo "E2e tests exited with $TEST_STATUS; release continues and the report job classifies failures."
 
-      - name: Upload blob report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: blob-report-1
-          path: tests/blob-report
-          if-no-files-found: ignore
-
-  merge_reports:
-    # Merge the blob report into a single results.json (the shape
-    # ci/report.mjs reads) and the standard Playwright artifacts.
-    needs: e2e_tests
-    if: ${{ always() && needs.e2e_tests.result != 'skipped' }}
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.61.0-noble
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install test dependencies
-        working-directory: tests
-        run: npm ci || npm install
-
-      - name: Download blob report
-        uses: actions/download-artifact@v4
-        with:
-          path: tests/all-blob-reports
-          pattern: blob-report-*
-          merge-multiple: true
-
-      - name: Merge into results.json
-        working-directory: tests
-        shell: bash
-        run: |
-          mkdir -p test-results
-          npx playwright merge-reports --reporter json ./all-blob-reports > test-results/results.json
-
-      - name: Upload merged Playwright results
+      - name: Upload Playwright results
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -570,7 +533,7 @@ jobs:
           if-no-files-found: ignore
 
   release:
-    needs: [build_and_deploy, deps_report, e2e_tests]
+    needs: [build_and_deploy, deps_report]
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
@@ -681,9 +644,9 @@ jobs:
 
   e2e_regression_report:
     # Runs after the release and after the "to be tested" issue closure job, so
-    # failed closed issue-backed tests end the workflow reopened. Needs the merge
-    # job for the combined playwright-results artifact.
-    needs: [release, close_and_set_issues_to_be_tested, merge_reports]
+    # failed closed issue-backed tests end the workflow reopened. This is the
+    # final e2e step: e2e_tests -> release/issue closure -> regression report.
+    needs: [release, close_and_set_issues_to_be_tested, e2e_tests]
     if: ${{ always() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
