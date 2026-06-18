@@ -7,28 +7,42 @@
 <style>
   :root { --bg:#0f1222; --panel:#171a2e; --panel2:#1f2340; --ink:#e7e9f3; --mut:#9aa0c0;
           --line:#2a2f52; --blue:#4f9eff; --green:#3ddc84; --red:#ff5a6a; --amber:#ffb547; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
-  header { padding:16px 20px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
+  * { box-sizing:border-box; scrollbar-color:var(--line) #0a0c18; scrollbar-width:thin; }
+  *::-webkit-scrollbar { width:10px; height:10px; }
+  *::-webkit-scrollbar-track { background:#0a0c18; border-radius:999px; }
+  *::-webkit-scrollbar-thumb { background:var(--line); border:2px solid #0a0c18; border-radius:999px; }
+  *::-webkit-scrollbar-thumb:hover { background:#3a4270; }
+  body { margin:0; height:100vh; overflow:hidden; font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }
+  header { flex:0 0 auto; padding:16px 20px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:16px; align-items:center; background:var(--bg); z-index:5; }
   h1 { font-size:16px; margin:0; font-weight:700; }
   .ver { color:var(--mut); }
   .ver b { color:var(--ink); }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 20px; align-items:start; }
-  @media (max-width:980px){ .grid{ grid-template-columns:1fr; } }
+  .grid { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(420px,1fr) minmax(420px,1fr); gap:16px; padding:16px 20px; align-items:stretch; overflow:hidden; }
+  @media (max-width:980px){ body{ height:auto; overflow:auto; } .grid{ grid-template-columns:1fr; overflow:visible; } .console{ height:520px; } #list{ overflow:visible; } }
   .controls { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin-left:auto; }
   .controls label { color:var(--mut); }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .seg button { background:transparent; color:var(--mut); border:0; padding:6px 12px; cursor:pointer; font:inherit; }
   .seg button.on { background:var(--blue); color:#04122b; font-weight:700; }
   input[type=range]{ vertical-align:middle; }
+  .listpane { min-height:0; display:flex; flex-direction:column; }
+  .listbar { flex:0 0 auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; display:flex; gap:12px; align-items:center; }
+  .search { flex:1 1 auto; position:relative; }
+  .search input { width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font:inherit; outline:none; }
+  .search input:focus { border-color:var(--blue); box-shadow:0 0 0 2px rgba(79,158,255,.18); }
+  .count { color:var(--mut); font-size:12px; white-space:nowrap; }
+  #list { min-height:0; overflow:auto; padding-right:4px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
   .card h3 { margin:0 0 4px; font-size:14px; }
+  .empty { color:var(--mut); text-align:center; padding:30px 16px; }
   .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .kind { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
   .k-regression{ background:rgba(79,158,255,.15); color:var(--blue); }
   .k-open{ background:rgba(255,90,106,.15); color:var(--red); }
   .k-smoke{ background:rgba(61,220,132,.15); color:var(--green); }
   .id { color:var(--mut); font-family:ui-monospace,monospace; font-size:12px; }
+  a.id { color:var(--blue); text-decoration:none; }
+  a.id:hover { text-decoration:underline; }
   .meta { color:var(--mut); font-size:12px; margin:6px 0; }
   details summary { cursor:pointer; color:var(--mut); font-size:12px; }
   ol { margin:8px 0 0; padding-left:20px; color:var(--mut); font-size:12px; }
@@ -38,7 +52,7 @@
   .runall { background:var(--green); color:#03210f; border:0; border-radius:8px; padding:9px 18px; font-weight:800; cursor:pointer; }
   .stop { background:var(--red); color:#2b050b; border:0; border-radius:8px; padding:9px 18px; font-weight:800; cursor:pointer; }
   .stop:disabled { opacity:.4; cursor:not-allowed; }
-  .console { position:sticky; top:16px; background:#0a0c18; border:1px solid var(--line); border-radius:12px; height:calc(100vh - 130px); display:flex; flex-direction:column; }
+  .console { min-height:0; background:#0a0c18; border:1px solid var(--line); border-radius:12px; display:flex; flex-direction:column; }
   .cbar { padding:10px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
   .dot { width:10px; height:10px; border-radius:50%; background:var(--mut); }
   .dot.run{ background:var(--amber); animation:pulse 1s infinite; }
@@ -70,7 +84,15 @@
 </header>
 
 <div class="grid">
-  <div id="list"></div>
+  <section class="listpane">
+    <div class="listbar">
+      <label class="search">
+        <input type="search" id="search" placeholder="Search ticket, title, kind, version..." autocomplete="off" />
+      </label>
+      <span class="count" id="count"></span>
+    </div>
+    <div id="list"></div>
+  </section>
   <div class="console">
     <div class="cbar"><span class="dot" id="dot"></span><span id="status">idle</span>
       <button class="ghost" id="clear" style="margin-left:auto; padding:3px 10px;">clear</button></div>
@@ -94,6 +116,7 @@ $('#clear').addEventListener('click', () => { $('#log').textContent = ''; setSta
 $('#refresh').addEventListener('click', refreshVersion);
 $('#runall').addEventListener('click', () => run(['all']));
 $('#stop').addEventListener('click', stopRun);
+$('#search').addEventListener('input', render);
 
 let tests = [];
 async function load() {
@@ -108,8 +131,13 @@ async function refreshVersion() {
 function brokenOf(t){ return t.brokenVersion || t.fixedVersion || t.version || ''; }
 
 function render() {
+  const visible = filteredTests();
   $('#list').innerHTML = '';
-  for (const t of tests) {
+  $('#count').textContent = `${visible.length}/${tests.length} tests`;
+  if (visible.length === 0) {
+    $('#list').innerHTML = '<div class="card empty">No test matches the current search.</div>';
+  }
+  for (const t of visible) {
     const brokenV = brokenOf(t);
     const noBroken = version === 'broken' && !brokenV;
     const el = document.createElement('div');
@@ -119,7 +147,7 @@ function render() {
         <span class="kind k-${t.kind}">${t.kind}</span>
         <h3>${esc(t.title)}</h3>
       </div>
-      <div class="row"><span class="id">${esc(t.id)}</span>
+      <div class="row">${ticketLink(t)}
         <span class="meta">${versionLabel(t)}</span></div>
       ${repro(t)}
       <div class="row" style="margin-top:10px;">
@@ -133,6 +161,32 @@ function render() {
   $('#stop').disabled = !running || stopping;
 }
 
+function filteredTests() {
+  const q = normalize($('#search').value);
+  if (!q) return tests;
+  return tests.filter((t) => normalize([
+    t.id,
+    ticketNumber(t),
+    t.issueUrl,
+    t.title,
+    t.kind,
+    t.spec,
+    t.brokenVersion,
+    t.fixedVersion,
+    t.version,
+  ].filter(Boolean).join(' ')).includes(q));
+}
+
+function ticketNumber(t) {
+  return (String(t.issueUrl || '').match(/\/issues\/(\d+)$/) || [])[1] || (String(t.id).match(/^(\d+)/) || [])[1] || '';
+}
+
+function ticketLink(t) {
+  const label = t.issueUrl ? `#${ticketNumber(t) || t.id}` : t.id;
+  if (!t.issueUrl) return `<span class="id">${esc(label)}</span>`;
+  return `<a class="id" href="${escAttr(t.issueUrl)}" target="_blank" rel="noreferrer">${esc(label)}</a>`;
+}
+
 function versionLabel(t) {
   if (version === 'latest') return 'will ensure the latest release is deployed, then run';
   const v = brokenOf(t);
@@ -143,7 +197,9 @@ function repro(t) {
   return `<details><summary>reproduction (${t.reproduction.length} steps)</summary>
     <ol>${t.reproduction.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`;
 }
+function normalize(s){ return String(s).toLowerCase().replace(/^#/, '').trim(); }
 function esc(s){ return String(s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escAttr(s){ return esc(s).replace(/"/g, '&quot;'); }
 
 function setStatus(text, kind){ $('#status').textContent = text; $('#dot').className = 'dot' + (kind ? ' ' + kind : ''); }
 function append(line, cls){

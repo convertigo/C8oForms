@@ -1,20 +1,10 @@
 /**
- * Baserow fixtures — ensure-or-create, never assume.
+ * Baserow fixtures - ensure-or-create, never assume.
  *
- * Same rule as forms: a test that needs a Baserow table must guarantee it exists
- * rather than depend on pre-existing data. This helper checks the catalog and
- * creates what's missing, through the Convertigo MCP HTTP endpoint (the same
- * tools used to author no-code data sources): `nocode-baserow-catalog-list` to
- * inspect, `nocode-baserow-schema-apply` to create.
- *
- * ⚠️ STATUS: SKELETON — not yet exercised end to end. It is blocked on server
- * setup, not on this code:
- *   - the target needs the global symbol `lib_baserow.apikey.secret` defined,
- *     else every lib_BaseRow call returns HTTP 500 (`undefined global symbols`);
- *   - the test user needs Baserow credentials, else the catalog returns
- *     `baserow_catalog_failed: no password found for the current user`.
- * Once both are fixed on the target, confirm the `schema-apply` argument shape
- * (marked TODO below) against a live call and drop this banner.
+ * A test that needs a Baserow table must guarantee it exists rather than depend
+ * on pre-existing data. This helper applies an idempotent schema through the
+ * Convertigo MCP HTTP endpoint: existing workspace/base/table objects are reused,
+ * missing fields are created, and sample rows are upserted when supported.
  *
  * Config (tests/.env):
  *   C8OFORMS_MCP_TOKEN  bearer token for the No Code Studio MCP (forms:write).
@@ -26,18 +16,35 @@ type Json = Record<string, unknown>;
 export interface BaserowCatalog {
   workspaces: Array<{ id?: number | string; name?: string }>;
   bases: Array<{ id?: number | string; name?: string; workspace?: string }>;
-  tables: Array<{ id?: number | string; name?: string; base?: string }>;
+  tables: Array<{ id?: number | string; name?: string; base?: string; columns?: Json[] }>;
   columns: Array<Json>;
+}
+
+export interface BaserowCatalogOptions {
+  includeColumns?: boolean;
+  workspaceId?: number;
+  databaseId?: number;
+  tableId?: number;
+}
+
+export interface BaserowColumnSpec {
+  name: string;
+  type: string;
+  baserowOptions?: Json;
+  values?: Array<string | Json>;
+  description?: string;
+  required?: boolean;
 }
 
 export interface EnsureTableSpec {
   workspace: string;
   database: string;
   table: string;
-  /** Column definitions, e.g. [{ name: 'Name', type: 'text' }, …]. */
-  columns: Array<{ name: string; type: string }>;
-  /** Optional seed rows, only applied when the table is created. */
+  primaryField?: string;
+  columns: BaserowColumnSpec[];
+  /** Optional seed rows, upserted every time when supported by the MCP tool. */
   rows?: Array<Record<string, string | number | boolean | null>>;
+  upsertKey?: string;
 }
 
 function mcpUrl(): string {
@@ -56,7 +63,7 @@ function mcpToken(): string {
 
 /**
  * Minimal JSON-RPC call to the Convertigo MCP streamable-HTTP endpoint:
- * initialize → notifications/initialized → tools/call, reusing the session id.
+ * initialize -> notifications/initialized -> tools/call, reusing the session id.
  * Responses may come back as plain JSON or as a single SSE `data:` line.
  */
 async function callMcp(tool: string, args: Json): Promise<Json> {
@@ -72,7 +79,6 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
     const res = await fetch(url, { method: 'POST', headers: h, body: JSON.stringify(body) });
     const sid = res.headers.get('mcp-session-id') ?? sessionId;
     const text = await res.text();
-    // SSE frames look like "event: message\ndata: {…}\n\n" — grab the JSON.
     const m = text.match(/data:\s*(\{[\s\S]*\})\s*$/m);
     const payload = m ? m[1] : text;
     let json: Json = {};
@@ -84,7 +90,6 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
     return { res, sid, json };
   };
 
-  // 1) initialize
   const init = await post({
     jsonrpc: '2.0',
     id: 1,
@@ -97,18 +102,14 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
   });
   const sessionId = init.sid ?? undefined;
 
-  // 2) initialized notification (best-effort; ignored if the server doesn't need it)
   await post({ jsonrpc: '2.0', method: 'notifications/initialized' }, sessionId).catch(() => undefined);
 
-  // 3) tools/call
   const out = await post(
     { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: { token: mcpToken(), ...args } } },
     sessionId,
   );
 
   const result = (out.json.result ?? out.json) as Json;
-  // MCP tool results usually wrap content; many Convertigo tools also return a
-  // structuredContent / direct object. Return the most useful shape we find.
   const structured = (result as Json).structuredContent;
   if (structured) return structured as Json;
   const content = (result as Json).content as Array<Json> | undefined;
@@ -126,8 +127,14 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
 }
 
 /** Read the Baserow catalog (workspaces / bases / tables / columns). */
-export async function baserowCatalog(): Promise<BaserowCatalog> {
-  const r = (await callMcp('nocode-baserow-catalog-list', {})) as Partial<BaserowCatalog> & Json;
+export async function baserowCatalog(options: BaserowCatalogOptions = {}): Promise<BaserowCatalog> {
+  const args: Json = {};
+  if (options.includeColumns !== undefined) args.includeColumns = options.includeColumns;
+  if (options.workspaceId !== undefined) args.workspaceId = options.workspaceId;
+  if (options.databaseId !== undefined) args.databaseId = options.databaseId;
+  if (options.tableId !== undefined) args.tableId = options.tableId;
+
+  const r = (await callMcp('nocode-baserow-catalog-list', args)) as Partial<BaserowCatalog> & Json;
   if ((r as Json).status === 'error') {
     throw new Error(`baserow catalog failed: ${JSON.stringify((r as Json).error ?? r)}`);
   }
@@ -140,18 +147,12 @@ export async function baserowCatalog(): Promise<BaserowCatalog> {
 }
 
 /**
- * Ensure a Baserow table exists, creating workspace/base/table/columns only if
- * missing. Returns the catalog after the operation. Reuse this from any spec
- * that needs Baserow-backed data — do not assume the table is already there.
+ * Ensure a Baserow table exists. The MCP tool is idempotent: existing objects
+ * are reused, missing fields are created and sample rows are upserted. Returns
+ * a catalog read-back with columns so the caller can assert fixture metadata.
  */
 export async function ensureBaserowTable(spec: EnsureTableSpec): Promise<BaserowCatalog> {
-  const before = await baserowCatalog();
-  const exists = before.tables.some(
-    (t) => t.name === spec.table && (t.base === undefined || t.base === spec.database),
-  );
-  if (exists) return before;
-
-  await callMcp('nocode-baserow-schema-apply', {
+  const r = await callMcp('nocode-baserow-schema-apply', {
     mode: 'apply',
     readBack: true,
     create: {
@@ -167,13 +168,47 @@ export async function ensureBaserowTable(spec: EnsureTableSpec): Promise<Baserow
       tables: [
         {
           name: spec.table,
+          primaryField: spec.primaryField,
           fields: spec.columns,
           sampleRows: spec.rows ?? [],
-          upsertKey: spec.rows?.length ? spec.columns[0]?.name : undefined,
+          upsertKey: spec.upsertKey ?? (spec.rows?.length ? spec.columns[0]?.name : undefined),
         },
       ],
     },
   });
+  if ((r as Json).status === 'error') {
+    throw new Error(`baserow schema apply failed: ${JSON.stringify((r as Json).error ?? r)}`);
+  }
 
-  return baserowCatalog();
+  return catalogFromSchemaReadBack(r) ?? baserowCatalog();
+}
+
+function catalogFromSchemaReadBack(response: Json): BaserowCatalog | null {
+  const readBack = response.readBack as Json | undefined;
+  const rawWorkspaces = Array.isArray(readBack?.workspaces) ? (readBack.workspaces as Json[]) : [];
+  if (rawWorkspaces.length === 0) return null;
+
+  const bases: BaserowCatalog['bases'] = [];
+  const tables: BaserowCatalog['tables'] = [];
+  const columns: Json[] = [];
+  for (const workspace of rawWorkspaces) {
+    const workspaceBases = Array.isArray(workspace.bases) ? (workspace.bases as Json[]) : [];
+    for (const base of workspaceBases) {
+      bases.push(base);
+      const baseTables = Array.isArray(base.tables) ? (base.tables as Json[]) : [];
+      for (const table of baseTables) {
+        tables.push(table);
+        if (Array.isArray(table.columns)) {
+          columns.push(...(table.columns as Json[]));
+        }
+      }
+    }
+  }
+
+  return {
+    workspaces: rawWorkspaces,
+    bases,
+    tables,
+    columns,
+  };
 }
