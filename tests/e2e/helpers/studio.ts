@@ -925,6 +925,61 @@ export async function acceptRgpdIfVisible(page: Page): Promise<void> {
 // form. Run them against a current version — the authoring UI selectors are not
 // guaranteed stable on the older versions used for red/green verification.
 
+export interface BaserowGridSourceOptions {
+  workspace: string;
+  database: string;
+  table: string;
+  expectedColumns?: string[];
+}
+
+export async function configureGridBaserowSource(page: Page, source: BaserowGridSourceOptions): Promise<void> {
+  await page.locator('.class1775835275863').first().click();
+  await openConfigTab(page, /Choix de la source|Source choice|Source selection/i);
+
+  await page.getByText(/Depuis une source de donn.es|From a data source/i).first().click();
+  await page.getByText(/S.lectionner|Select/i).first().click();
+
+  const sourcePicker = page.locator('ion-modal').filter({ hasText: /R.cup.rer les donn.es|Get data/i }).last();
+  await expect(sourcePicker, 'Baserow data source picker should be visible').toBeVisible({ timeout: 15_000 });
+  await sourcePicker.getByText(/S.lectionner|Select/i).first().click();
+  await sourcePicker.locator('ion-button.class1599830132445').click();
+  await expect(sourcePicker).toBeHidden({ timeout: 15_000 });
+  await page.waitForTimeout(1_500);
+
+  await openConfigTab(page, /Configuration de la source|Source configuration/i);
+  await acceptRgpdIfVisible(page);
+  await page.locator('button').filter({ hasText: /S.lectionner|Select/i }).first().click();
+
+  const tablePicker = page.locator('ion-modal').last();
+  await expect(tablePicker, 'Baserow table picker should be visible').toBeVisible({ timeout: 15_000 });
+  await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: 15_000 });
+  await tablePicker.getByText(source.workspace, { exact: true }).click();
+  await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: 15_000 });
+  await tablePicker.getByText(source.database, { exact: true }).click();
+  await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: 15_000 });
+  await tablePicker.getByText(source.table, { exact: true }).click();
+
+  await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: 15_000 });
+  for (const column of source.expectedColumns ?? []) {
+    await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
+      column,
+      { timeout: 15_000 },
+    );
+  }
+  await acceptRgpdIfVisible(page);
+  await tablePicker.locator('ion-button.class1776244653366').click();
+  await expect(tablePicker).toBeHidden({ timeout: 20_000 });
+  await page.waitForTimeout(1_500);
+
+  const sourceSummary = page.locator('.class1776013865512').first();
+  await expect(sourceSummary).toContainText(source.table, { timeout: 15_000 });
+  for (const column of source.expectedColumns ?? []) {
+    await expect(sourceSummary, `Baserow source summary should contain ${column}`).toContainText(column, {
+      timeout: 15_000,
+    });
+  }
+}
+
 export async function openPublishedPwaEditor(page: Page, title: string): Promise<void> {
   await page.locator(SEL.publishedApplicationsTab).first().click();
   if (await page.locator('ion-popover').isVisible().catch(() => false)) {
