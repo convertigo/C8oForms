@@ -53,13 +53,23 @@ function findResultsJson(dir) {
 // Every test (= Playwright "spec") from the report, with its pass/fail.
 function collectTests(report) {
   const out = [];
-  const failed = (spec) =>
-    spec.ok === false ||
-    (spec.tests || []).some((t) => (t.results || []).some((r) => ['failed', 'timedOut', 'interrupted'].includes(r.status)));
+  const failureStatuses = new Set(['failed', 'timedOut', 'interrupted']);
+  const resultFailed = (result) => result && failureStatuses.has(result.status);
+  const finalResult = (test) => [...(test.results || [])].reverse().find((r) => r.status !== 'skipped') ?? null;
+  const testFailed = (test) => {
+    const final = finalResult(test);
+    return final ? resultFailed(final) : failureStatuses.has(test.status);
+  };
+  const testFlaky = (test) => (test.results || []).some(resultFailed) && !testFailed(test);
+  const failed = (spec) => {
+    const tests = spec.tests || [];
+    return tests.length ? tests.some(testFailed) : spec.ok === false;
+  };
+  const flaky = (spec) => (spec.tests || []).some(testFlaky);
   const walk = (suites = []) => {
     for (const s of suites) {
       for (const spec of s.specs || []) {
-        out.push({ file: basename(spec.file || s.file || ''), title: spec.title || '', failed: failed(spec) });
+        out.push({ file: basename(spec.file || s.file || ''), title: spec.title || '', failed: failed(spec), flaky: flaky(spec) });
       }
       walk(s.suites || []);
     }
@@ -180,7 +190,8 @@ lines.push('');
 lines.push('| Test | Kind | Issue | Result | Action |');
 lines.push('|---|---|---|---|---|');
 for (const t of [...tests].sort((a, b) => Number(b.failed) - Number(a.failed))) {
-  lines.push(`| ${tableCell(t.title)} | ${tableCell(t.kind)} | ${t.issue ? `#${t.issue}` : '-'} | ${t.failed ? 'FAIL' : 'PASS'} | ${tableCell(t.action)} |`);
+  const result = t.failed ? 'FAIL' : t.flaky ? 'FLAKY' : 'PASS';
+  lines.push(`| ${tableCell(t.title)} | ${tableCell(t.kind)} | ${t.issue ? `#${t.issue}` : '-'} | ${result} | ${tableCell(t.action)} |`);
 }
 
 const markdown = `${lines.join('\n')}\n`;

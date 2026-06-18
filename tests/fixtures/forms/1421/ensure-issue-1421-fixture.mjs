@@ -57,19 +57,25 @@ function primaryTestPassword(user) {
 
 const TEST_USER = primaryTestUser();
 const TEST_PASSWORD = primaryTestPassword(TEST_USER);
-const SERVER = (process.env.C8O_SERVER || process.env.C8OFORMS_BASE_URL || 'https://test-repro.convertigo.net').replace(
-  /\/+$/,
-  '',
-);
 const ADMIN_USER = process.env.CONVERTIGO_ADMIN_USER || process.env.TEST_NOCODE_USER || 'admin';
 const ADMIN_PASSWORD = process.env.CONVERTIGO_ADMIN_PASSWORD || process.env.TEST_NOCODE_PASSWORD || '';
 let adminCookie = '';
 
+function normalizeConvertigoEndpoint(value) {
+  const endpoint = (value || 'https://test-repro.convertigo.net').replace(/\/+$/, '');
+  return endpoint.endsWith('/convertigo') ? endpoint : `${endpoint}/convertigo`;
+}
+
+function convertigoEndpoint() {
+  return normalizeConvertigoEndpoint(process.env.TEST_NOCODE_ENDPOINT || process.env.C8O_SERVER || process.env.C8OFORMS_BASE_URL);
+}
+
+const CONVERTIGO_ENDPOINT = convertigoEndpoint();
+
 function appBaseUrl() {
   const direct = process.env.C8OFORMS_APP_URL;
   if (direct) return direct.endsWith('/') ? direct : `${direct}/`;
-  const server = (process.env.C8OFORMS_BASE_URL ?? 'https://test-repro.convertigo.net').replace(/\/+$/, '');
-  return `${server}/convertigo/projects/C8Oforms/DisplayObjects/mobile/`;
+  return `${CONVERTIGO_ENDPOINT}/projects/C8Oforms/DisplayObjects/mobile/`;
 }
 
 async function withBrowser(callback) {
@@ -269,7 +275,7 @@ async function findLegacyFixture(page) {
 
 async function adminEngine(path, form) {
   const body = new URLSearchParams(form).toString();
-  const response = await fetch(`${SERVER}/convertigo/admin/services/${path}`, {
+  const response = await fetch(`${CONVERTIGO_ENDPOINT}/admin/services/${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -304,7 +310,7 @@ async function adminLogin() {
 }
 
 async function fullSyncRequest(path, options = {}, db = FULLSYNC_DB) {
-  const response = await fetch(`${SERVER}/convertigo/fullsync/${db}/${path}`, {
+  const response = await fetch(`${CONVERTIGO_ENDPOINT}/fullsync/${db}/${path}`, {
     method: options.method ?? 'GET',
     headers: {
       ...(options.headers ?? {}),
