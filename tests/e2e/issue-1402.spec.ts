@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ensureBaserowTable } from './helpers/baserow';
+import { ensureBaserowTable, type BaserowCatalog } from './helpers/baserow';
 import {
   PALETTE_ICON,
   SEL,
@@ -45,8 +45,8 @@ test.use({
 
 test.setTimeout(180_000);
 
-test.beforeAll(async () => {
-  await ensureBaserowTable({
+test('#1402 - source Select dropdown has no large blank zone after the last item', async ({ page }) => {
+  const catalog = await ensureBaserowTable({
     workspace: WORKSPACE,
     database: BASE,
     table: TABLE,
@@ -58,9 +58,8 @@ test.beforeAll(async () => {
     rows: ROWS,
     upsertKey: DISPLAY_COLUMN,
   });
-});
+  assertBaserowFixture(catalog);
 
-test('#1402 - source Select dropdown has no large blank zone after the last item', async ({ page }) => {
   await login(page);
   await createBlankForm(page, `Issue 1402 source select ${Date.now()}`);
 
@@ -116,3 +115,14 @@ test('#1402 - source Select dropdown has no large blank zone after the last item
   expect(metrics.renderedChoices, 'the dropdown should render visible source choices').toBeGreaterThan(0);
   expect(metrics.bottomGap, 'the dropdown must not leave a large blank zone after the last item').toBeLessThan(90);
 });
+
+function assertBaserowFixture(catalog: BaserowCatalog): void {
+  const table = catalog.tables.find((candidate) => candidate.name === TABLE);
+  expect(table, `Baserow table ${TABLE} should exist`).toBeTruthy();
+  const columns = table?.columns ?? [];
+  for (const columnName of [DISPLAY_COLUMN, VALUE_COLUMN]) {
+    const column = columns.find((candidate) => candidate.name === columnName);
+    expect(column, `Baserow column ${columnName} should exist`).toBeTruthy();
+    expect(column?.type, `Baserow column ${columnName} should be a Text field`).toBe('text');
+  }
+}

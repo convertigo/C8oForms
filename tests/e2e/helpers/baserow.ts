@@ -61,12 +61,38 @@ function mcpToken(): string {
   return t;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientMcpError(error: unknown): boolean {
+  return /interrupted|did not terminate quickly enough|timed? ?out|temporarily|ECONNRESET|EPIPE|HTTP 50[234]/i.test(
+    String((error as Error | undefined)?.message ?? error),
+  );
+}
+
 /**
  * Minimal JSON-RPC call to the Convertigo MCP streamable-HTTP endpoint:
  * initialize -> notifications/initialized -> tools/call, reusing the session id.
  * Responses may come back as plain JSON or as a single SSE `data:` line.
  */
 async function callMcp(tool: string, args: Json): Promise<Json> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await callMcpOnce(tool, args);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientMcpError(error) || attempt === 3) {
+        throw error;
+      }
+      await sleep([2_000, 5_000, 10_000][attempt] ?? 10_000);
+    }
+  }
+  throw lastError;
+}
+
+async function callMcpOnce(tool: string, args: Json): Promise<Json> {
   const url = mcpUrl();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
