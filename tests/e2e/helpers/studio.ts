@@ -948,10 +948,10 @@ export async function closeComponentConfig(page: Page): Promise<void> {
   await page.locator(SEL.configClose).waitFor({ state: 'hidden', timeout: 15_000 });
 }
 
-export async function acceptRgpdIfVisible(page: Page): Promise<void> {
+export async function acceptRgpdIfVisible(page: Page, timeout = 2_000): Promise<void> {
   await page.waitForTimeout(300);
-  const rgpd = page.getByText(/JE SUIS D['’]ACCORD/i).last();
-  if (await rgpd.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  const rgpd = page.getByText(/JE SUIS D['’]ACCORD|I AGREE/i).last();
+  if (await rgpd.isVisible({ timeout }).catch(() => false)) {
     await rgpd.click({ force: true });
     await page.locator('ion-toast').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
   }
@@ -1840,7 +1840,9 @@ export async function setVisibilityOperator(page: Page, operator: VisibilityOper
     operator,
   );
   if (index < 0) throw new Error(`unknown visibility operator: ${operator}`);
+  await acceptRgpdIfVisible(page, 500);
   await select.click();
+  await acceptRgpdIfVisible(page, 500);
   const items = page.locator('ion-select-popover ion-item');
   await items.first().waitFor({ state: 'visible', timeout: 8_000 });
   await items.nth(index).click();
