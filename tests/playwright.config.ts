@@ -38,6 +38,9 @@ const deviceName: Record<SupportedBrowser, keyof typeof devices> = {
   firefox: 'Desktop Firefox',
   webkit: 'Desktop Safari',
 };
+const reporter = process.env.C8OFORMS_RUNNER_PROGRESS === '1'
+  ? [['list'], ['./runner/progress-reporter.ts'], ['json', { outputFile: 'test-results/results.json' }]]
+  : [['list'], ['json', { outputFile: 'test-results/results.json' }]];
 
 export default defineConfig({
   testDir: './e2e',
@@ -46,7 +49,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   retries: 0,
   workers: 3,
-  reporter: [['list'], ['json', { outputFile: 'test-results/results.json' }]],
+  reporter,
   use: {
     baseURL,
     viewport: { width: 1440, height: 900 },

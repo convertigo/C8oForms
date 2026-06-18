@@ -33,6 +33,19 @@ function appBaseUrl(env = process.env) {
   return `${server}/convertigo/projects/C8Oforms/DisplayObjects/mobile/`;
 }
 
+function formatDuration(ms) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}m${String(rest).padStart(2, '0')}s`;
+}
+
+function testLabel(test) {
+  const grep = test.grep ? ` grep="${test.grep}"` : '';
+  return `${test.id} (${test.spec}${grep})`;
+}
+
 async function loadTests() {
   const raw = JSON.parse(await readFile(MANIFEST, 'utf8'));
   return Object.entries(raw.tests).map(([id, t]) => ({ id, ...t }));
@@ -64,6 +77,12 @@ function runnerEnvironment() {
     C8OFORMS_BASE_URL_SOURCE: process.env.C8OFORMS_BASE_URL ? 'env' : 'default',
     C8OFORMS_APP_URL: process.env.C8OFORMS_APP_URL ?? '',
     C8OFORMS_APP_URL_SOURCE: process.env.C8OFORMS_APP_URL ? 'env' : 'unset',
+    C8OFORMS_TEST_USER: process.env.C8OFORMS_TEST_USER ?? '',
+    C8OFORMS_TEST_USER_SOURCE: process.env.C8OFORMS_TEST_USER ? 'env' : 'unset',
+    C8OFORMS_TEST_PASSWORD: process.env.C8OFORMS_TEST_PASSWORD ?? '',
+    C8OFORMS_TEST_PASSWORD_SOURCE: process.env.C8OFORMS_TEST_PASSWORD ? 'env' : 'unset',
+    CONVERTIGO_ADMIN_PASSWORD: process.env.CONVERTIGO_ADMIN_PASSWORD ?? '',
+    CONVERTIGO_ADMIN_PASSWORD_SOURCE: process.env.CONVERTIGO_ADMIN_PASSWORD ? 'env' : 'unset',
     appBaseUrl: appBaseUrl(),
   };
 }
@@ -75,10 +94,21 @@ function normalizeBrowser(value) {
 function runEnvironmentFromParams(params) {
   const base = (params.get('baseUrl') || '').trim() || (process.env.C8OFORMS_BASE_URL ?? DEFAULT_BASE_URL);
   const app = (params.get('appUrl') || '').trim();
+  const testUser = (params.get('testUser') || '').trim() || process.env.C8OFORMS_TEST_USER || '';
+  const passwordParam = params.get('testPassword');
+  const rawPassword = passwordParam !== null ? passwordParam : process.env.C8OFORMS_TEST_PASSWORD;
+  const testPassword = rawPassword || testUser;
+  const adminPasswordParam = params.get('adminPassword');
+  const adminPassword = adminPasswordParam !== null ? adminPasswordParam : process.env.CONVERTIGO_ADMIN_PASSWORD || '';
   return {
     C8OFORMS_BASE_URL: base,
     C8O_SERVER: base,
     C8OFORMS_APP_URL: app,
+    C8OFORMS_TEST_USER: testUser,
+    C8OFORMS_TEST_PASSWORD: testPassword,
+    CONVERTIGO_ADMIN_PASSWORD: adminPassword,
+    C8OFORMS_TEST_USERS: '',
+    TEST_NOCODE_E2E_USERS: '',
   };
 }
 
@@ -86,6 +116,7 @@ function runEnvironmentFromParams(params) {
 // the served version differs, then re-checks. Returns true only when confirmed.
 async function ensureDeployed(send, version, env, ctl) {
   send('phase', { label: `Ensuring ${version} is deployed` });
+  send('log', { line: `checking served version at ${appBaseUrl(env)}assets/i18n/fr.json`, cls: 'out' });
   const current = await servedVersion(env);
   if (current === version) {
     send('log', { line: `already deployed (${version}) — skipping deploy`, cls: 'out' });
@@ -148,6 +179,20 @@ function run(send, cmd, args, env, ctl) {
   return new Promise((resolve) => {
     if (ctl?.cancelled) return resolve(130);
     send('log', { line: `$ ${cmd} ${args.join(' ')}`, cls: 'cmd' });
+    const startedAt = Date.now();
+    let lastOutputAt = startedAt;
+    const label = [cmd, ...args].join(' ');
+    const heartbeat = setInterval(() => {
+      if (ctl?.cancelled) return;
+      const idleFor = Date.now() - lastOutputAt;
+      if (idleFor < 15_000) return;
+      send('log', {
+        line: `[runner] still running after ${formatDuration(Date.now() - startedAt)} (no output for ${formatDuration(idleFor)}): ${label}`,
+        cls: 'out',
+      });
+      lastOutputAt = Date.now();
+    }, 5_000);
+    heartbeat.unref?.();
     // detached:true puts the child in its own process group so we can kill the
     // WHOLE tree (node Playwright CLI → browser) on cancel.
     const child = spawn(cmd, args, {
@@ -159,6 +204,7 @@ function run(send, cmd, args, env, ctl) {
     if (ctl) ctl.child = child;
     let buf = '';
     const pump = (chunk, cls) => {
+      lastOutputAt = Date.now();
       buf += chunk;
       const lines = buf.split('\n');
       buf = lines.pop();
@@ -167,11 +213,13 @@ function run(send, cmd, args, env, ctl) {
     child.stdout.on('data', (d) => pump(d.toString(), 'out'));
     child.stderr.on('data', (d) => pump(d.toString(), 'err'));
     child.on('close', (code) => {
+      clearInterval(heartbeat);
       if (ctl) ctl.child = null;
       if (buf) send('log', { line: buf, cls: 'out' });
       resolve(code ?? 1);
     });
     child.on('error', (e) => {
+      clearInterval(heartbeat);
       send('log', { line: String(e), cls: 'err' });
       resolve(1);
     });
@@ -238,6 +286,7 @@ async function executeVerify(send, params, selected, latest, env, ctl) {
   if (ctl.cancelled) return send('done', { ok: false });
 
   send('phase', { label: `Running ${t.id} on broken ${broken}` });
+  send('log', { line: `playwright target: ${testLabel(t)}`, cls: 'out' });
   const brokenCode = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed: params.headed }), env, ctl);
   if (ctl.cancelled) {
     send('log', { line: '\n[cancelled]', cls: 'err' });
@@ -259,6 +308,7 @@ async function executeVerify(send, params, selected, latest, env, ctl) {
   if (ctl.cancelled) return send('done', { ok: false });
 
   send('phase', { label: `Running ${t.id} on latest ${latest}` });
+  send('log', { line: `playwright target: ${testLabel(t)}`, cls: 'out' });
   const latestCode = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed: params.headed }), env, ctl);
   if (ctl.cancelled) {
     send('log', { line: '\n[cancelled]', cls: 'err' });
@@ -290,6 +340,7 @@ async function execute(send, params, tests, ctl) {
     ...params.runtimeEnv,
     C8OFORMS_SLOWMO: String(params.slowMo || 0),
     C8OFORMS_BROWSER: params.browser,
+    C8OFORMS_RUNNER_PROGRESS: params.progress ? '1' : '0',
     HEADED: headed ? '1' : '0',
   };
 
@@ -314,9 +365,16 @@ async function execute(send, params, tests, ctl) {
     }
     send('log', { line: `latest release resolved to ${latest}`, cls: 'out' });
   }
+  send('log', { line: `selected tests: ${selected.map(testLabel).join(', ')}`, cls: 'out' });
+  send('log', { line: `version mode: ${params.version}`, cls: 'out' });
   send('log', { line: `browser selected: ${params.browser}`, cls: 'out' });
+  send('log', { line: `headed=${headed ? '1' : '0'} slowMo=${params.slowMo || 0}ms progressLogs=${params.progress ? '1' : '0'}`, cls: 'out' });
   send('log', { line: `C8OFORMS_BASE_URL=${env.C8OFORMS_BASE_URL}`, cls: 'out' });
   send('log', { line: `C8OFORMS_APP_URL=${env.C8OFORMS_APP_URL || '(unset)'}`, cls: 'out' });
+  send('log', { line: `C8OFORMS_TEST_USER=${env.C8OFORMS_TEST_USER || '(unset)'}`, cls: 'out' });
+  send('log', { line: `C8OFORMS_TEST_PASSWORD=${env.C8OFORMS_TEST_PASSWORD ? '(set)' : '(unset)'}`, cls: 'out' });
+  send('log', { line: `CONVERTIGO_ADMIN_PASSWORD=${env.CONVERTIGO_ADMIN_PASSWORD ? '(set)' : '(unset)'}`, cls: 'out' });
+  send('log', { line: `resolved app URL=${appBaseUrl(env)}`, cls: 'out' });
 
   if (params.version === 'verify') {
     return executeVerify(send, params, selected, latest, env, ctl);
@@ -330,6 +388,7 @@ async function execute(send, params, tests, ctl) {
     if (!(await ensureFixtures(send, selected, latest, env, ctl))) return send('done', { ok: false });
     if (!ctl.cancelled) {
       send('phase', { label: `Running the whole suite on ${latest}` });
+      send('log', { line: `playwright target: all manifest tests (${selected.length})`, cls: 'out' });
       ok = (await run(send, process.execPath, pwArgs({ spec: null, headed }), env, ctl)) === 0;
     }
     if (ctl.cancelled) send('log', { line: '\n[cancelled]', cls: 'err' });
@@ -359,6 +418,7 @@ async function execute(send, params, tests, ctl) {
     }
     if (ctl.cancelled) break;
     send('phase', { label: `Running ${t.id} on ${target}` });
+    send('log', { line: `playwright target: ${testLabel(t)}`, cls: 'out' });
     const code = await run(send, process.execPath, pwArgs({ spec: t.spec, grep: t.grep, headed }), env, ctl);
     if (code === 0) {
       send('log', { line: `${t.id} passed on ${target}`, cls: 'out' });
@@ -404,6 +464,7 @@ const server = createServer(async (req, res) => {
         slowMo: Number(url.searchParams.get('slowMo') || 0),
         headed: url.searchParams.get('headed') !== '0',
         browser: normalizeBrowser(url.searchParams.get('browser')),
+        progress: url.searchParams.get('progress') === '1',
         runtimeEnv: runEnvironmentFromParams(url.searchParams),
       };
       // Cancel the run (kill the spawned child) if the tester closes the tab —

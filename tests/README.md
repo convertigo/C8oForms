@@ -80,16 +80,25 @@ From the page you can:
 - see and override `C8OFORMS_BASE_URL` and `C8OFORMS_APP_URL` before launching a
   run. An empty `C8OFORMS_APP_URL` means the variable is unset, so the runner
   uses `C8OFORMS_BASE_URL` and appends the C8oForms mobile path;
+- see and override account/secrets separately from Playwright options:
+  `C8OFORMS_TEST_USER`, `C8OFORMS_TEST_PASSWORD`, and
+  `CONVERTIGO_ADMIN_PASSWORD`. Leaving the test password empty uses the test user
+  value as password;
 - toggle **headed**, set a **slow-mo** delay (ms), and choose the Playwright
   **browser** (`chromium`, `firefox`, or `webkit`) so each action is slow enough
   to follow on screen;
+- enable **progress logs** when needed to stream extra Playwright progress lines
+  in the console (test start/end, hooks, waits, slow actions, and assertions),
+  plus a runner heartbeat when deploy or Playwright stays silent for more than a
+  few seconds;
 - watch the deploy + Playwright output stream live, with a green/red verdict.
 
 Closing the tab cancels the run and kills the browser/deploy it spawned. The
 slow-mo value is passed to Playwright via `C8OFORMS_SLOWMO`; the browser choice
 is passed via `C8OFORMS_BROWSER`; runner URL overrides are passed as
-`C8OFORMS_BASE_URL` and `C8OFORMS_APP_URL` for that run only (also usable
-directly:
+`C8OFORMS_BASE_URL`, `C8OFORMS_APP_URL`, `C8OFORMS_TEST_USER`, and
+`C8OFORMS_TEST_PASSWORD`, plus `CONVERTIGO_ADMIN_PASSWORD` for deploy steps, for
+that run only (also usable directly:
 `C8OFORMS_SLOWMO=800 C8OFORMS_BROWSER=firefox npx playwright test --headed`).
 
 ## CI test report & badge
