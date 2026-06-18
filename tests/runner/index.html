@@ -13,18 +13,24 @@
   *::-webkit-scrollbar-thumb { background:var(--line); border:2px solid #0a0c18; border-radius:999px; }
   *::-webkit-scrollbar-thumb:hover { background:#3a4270; }
   body { margin:0; height:100vh; overflow:hidden; font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }
-  header { flex:0 0 auto; padding:16px 20px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:16px; align-items:center; background:var(--bg); z-index:5; }
+  header { flex:0 0 auto; padding:14px 20px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:12px; background:var(--bg); z-index:5; }
+  .topbar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:center; }
+  .brand { min-width:0; display:flex; flex-wrap:wrap; gap:12px 16px; align-items:center; }
   h1 { font-size:16px; margin:0; font-weight:700; }
   .ver { color:var(--mut); }
   .ver b { color:var(--ink); }
   .grid { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(420px,1fr) minmax(420px,1fr); gap:16px; padding:16px 20px; align-items:stretch; overflow:hidden; }
   @media (max-width:980px){ body{ height:auto; overflow:auto; } .grid{ grid-template-columns:1fr; overflow:visible; } .console{ height:520px; } #list{ overflow:visible; } }
-  .controls { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin-left:auto; }
-  .controls label { color:var(--mut); }
+  .actions { display:flex; gap:10px; align-items:center; justify-content:flex-end; white-space:nowrap; }
+  .launchbar { display:flex; gap:10px; align-items:stretch; overflow-x:auto; padding-bottom:2px; }
+  .launchbar > span, .control { flex:0 0 auto; min-height:42px; display:flex; gap:10px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .launchbar > span label, .control label, .control .label { color:var(--mut); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .check { gap:8px; color:var(--ink); }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-  .seg button { background:transparent; color:var(--mut); border:0; padding:6px 12px; cursor:pointer; font:inherit; }
+  .seg button { background:transparent; color:var(--mut); border:0; padding:6px 12px; cursor:pointer; font:inherit; white-space:nowrap; }
   .seg button.on { background:var(--blue); color:#04122b; font-weight:700; }
   input[type=range]{ vertical-align:middle; }
+  @media (max-width:760px){ .topbar{ grid-template-columns:1fr; } .actions{ justify-content:flex-start; } }
   .listpane { min-height:0; display:flex; flex-direction:column; }
   .listbar { flex:0 0 auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; display:flex; gap:12px; align-items:center; }
   .search { flex:1 1 auto; position:relative; }
@@ -50,6 +56,7 @@
   button.run:disabled { opacity:.4; cursor:not-allowed; }
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:7px 14px; cursor:pointer; }
   .runall { background:var(--green); color:#03210f; border:0; border-radius:8px; padding:9px 18px; font-weight:800; cursor:pointer; }
+  .runall:disabled { opacity:.4; cursor:not-allowed; }
   .stop { background:var(--red); color:#2b050b; border:0; border-radius:8px; padding:9px 18px; font-weight:800; cursor:pointer; }
   .stop:disabled { opacity:.4; cursor:not-allowed; }
   .console { min-height:0; background:#0a0c18; border:1px solid var(--line); border-radius:12px; display:flex; flex-direction:column; }
@@ -65,21 +72,28 @@
 </head>
 <body>
 <header>
+  <div class="topbar">
+    <div class="brand">
   <h1>C8oForms · test runner</h1>
   <span class="ver">deployed: <b id="served">…</b> <button class="ghost" id="refresh" style="padding:3px 8px;">↻</button></span>
-  <div class="controls">
+    </div>
+    <div class="actions">
+      <button class="runall" id="runall">Run all</button>
+      <button class="stop" id="stop" disabled>Stop</button>
+    </div>
+  </div>
+  <div class="launchbar" aria-label="Test launch options">
     <span>
       <label>version</label>
       <span class="seg" id="version">
         <button data-v="latest" class="on">Latest (deploy if needed)</button>
         <button data-v="broken">Broken (deploy first)</button>
+        <button data-v="verify">Broken -> Latest</button>
       </span>
     </span>
     <span><label><input type="checkbox" id="headed" checked /> headed (watch)</label></span>
     <span><label>slow-mo <b id="slowval">500</b>ms</label>
       <input type="range" id="slowmo" min="0" max="2000" step="100" value="500" /></span>
-    <button class="runall" id="runall">▶ Run all</button>
-    <button class="stop" id="stop" disabled>Stop</button>
   </div>
 </header>
 
@@ -114,7 +128,10 @@ $('#version').addEventListener('click', (e) => {
 $('#slowmo').addEventListener('input', (e) => $('#slowval').textContent = e.target.value);
 $('#clear').addEventListener('click', () => { $('#log').textContent = ''; setStatus('idle',''); });
 $('#refresh').addEventListener('click', refreshVersion);
-$('#runall').addEventListener('click', () => run(['all']));
+$('#runall').addEventListener('click', () => {
+  if (version === 'verify') return;
+  run(['all']);
+});
 $('#stop').addEventListener('click', stopRun);
 $('#search').addEventListener('input', render);
 
@@ -138,8 +155,7 @@ function render() {
     $('#list').innerHTML = '<div class="card empty">No test matches the current search.</div>';
   }
   for (const t of visible) {
-    const brokenV = brokenOf(t);
-    const noBroken = version === 'broken' && !brokenV;
+    const noBroken = (version === 'broken' && !brokenOf(t)) || (version === 'verify' && !t.brokenVersion);
     const el = document.createElement('div');
     el.className = 'card';
     el.innerHTML = `
@@ -151,13 +167,14 @@ function render() {
         <span class="meta">${versionLabel(t)}</span></div>
       ${repro(t)}
       <div class="row" style="margin-top:10px;">
-        <button class="run" data-id="${t.id}" ${running || noBroken ? `disabled title="${noBroken ? 'no broken version for this test' : 'a run is already active'}"` : ''}>▶ Run this</button>
+        <button class="run" data-id="${t.id}" ${running || noBroken ? `disabled title="${noBroken ? 'no broken version for this test' : 'a run is already active'}"` : ''}>${runLabel()}</button>
       </div>`;
     $('#list').appendChild(el);
   }
   $('#list').querySelectorAll('button.run').forEach((b) =>
     b.addEventListener('click', () => run([b.dataset.id])));
-  $('#runall').disabled = running;
+  $('#runall').disabled = running || version === 'verify';
+  $('#runall').title = version === 'verify' ? 'Broken -> Latest verification runs one ticket at a time' : '';
   $('#stop').disabled = !running || stopping;
 }
 
@@ -189,8 +206,18 @@ function ticketLink(t) {
 
 function versionLabel(t) {
   if (version === 'latest') return 'will ensure the latest release is deployed, then run';
+  if (version === 'verify') {
+    return t.brokenVersion
+      ? `will run on <b>${esc(t.brokenVersion)}</b>, then on the latest release`
+      : 'no brokenVersion declared';
+  }
   const v = brokenOf(t);
   return v ? `will ensure <b>${esc(v)}</b> is deployed, then run` : 'no broken version declared';
+}
+function runLabel() {
+  if (version === 'verify') return 'Verify broken -> latest';
+  if (version === 'broken') return 'Run broken';
+  return 'Run this';
 }
 function repro(t) {
   if (!t.reproduction || !t.reproduction.length) return '';
@@ -222,9 +249,10 @@ function run(ids) {
   es.addEventListener('log', (e) => { const d = JSON.parse(e.data); append(d.line, d.cls); });
   es.addEventListener('phase', (e) => append('\n— ' + JSON.parse(e.data).label + ' —', 'phase'));
   es.addEventListener('done', (e) => {
-    const ok = JSON.parse(e.data).ok;
-    append(ok ? '\n✓ done — tests passed' : '\n✗ done — tests failed', ok ? 'ok' : 'ko');
-    setStatus(ok ? 'passed' : 'failed', ok ? 'ok' : 'ko');
+    const d = JSON.parse(e.data);
+    const ok = d.ok;
+    append(d.message ? '\n' + d.message : ok ? '\n✓ done — tests passed' : '\n✗ done — tests failed', d.cls || (ok ? 'ok' : 'ko'));
+    setStatus(d.status || (ok ? 'passed' : 'failed'), ok ? 'ok' : 'ko');
     finish();
   });
   es.onerror = () => {
