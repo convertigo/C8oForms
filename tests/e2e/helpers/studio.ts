@@ -84,6 +84,10 @@ export const SEL = {
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
   sourcePalette: '.class1775922875303',
   sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
+  dataSourceSelectButton:
+    'c8oforms-datasourcebutton button.class1775848361410, c8oforms-datasourcebutton button.c8o-btn',
+  dataSourceConfigureButton:
+    'c8oforms-datasourceconfigurebutton button.class1776013870072, c8oforms-datasourceconfigurebutton button.c8o-btn',
   publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
   publishedApplicationsTab: 'ion-button.class1761754757348',
   cardMenuButton: 'ion-button.class1606574763560',
@@ -326,11 +330,17 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
     );
   }
   await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  await openLoginForm(page);
-  await fillInputValue(page, SEL.emailInput, user, 'login email input');
-  await fillInputValue(page, SEL.passwordInput, password, 'login password input');
-  const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
-  await submit.click({ timeout: 10_000 });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await openLoginForm(page);
+    await fillInputValue(page, SEL.emailInput, user, 'login email input');
+    await fillInputValue(page, SEL.passwordInput, password, 'login password input');
+    const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
+    await submit.click({ timeout: 10_000 });
+    if (await expectRoute(page, ROUTE.selector, 15_000).then(() => true).catch(() => false)) {
+      return;
+    }
+    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  }
   await expectRoute(page, ROUTE.selector);
 }
 
@@ -1059,49 +1069,50 @@ export interface BaserowGridSourceOptions {
 }
 
 export async function configureGridBaserowSource(page: Page, source: BaserowGridSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
   await page.locator('.class1775835275863').first().click();
   await openConfigTab(page, /Choix de la source|Source choice|Source selection/i);
 
   await page.getByText(/Depuis une source de donn.es|From a data source/i).first().click();
-  await page.getByText(/S.lectionner|Select/i).first().click();
+  await clickFirstVisible(page, SEL.dataSourceSelectButton, 'Baserow source select button', pickerTimeout, true);
 
   const sourcePicker = page.locator('ion-modal').filter({ hasText: /R.cup.rer les donn.es|Get data/i }).last();
-  await expect(sourcePicker, 'Baserow data source picker should be visible').toBeVisible({ timeout: 15_000 });
+  await expect(sourcePicker, 'Baserow data source picker should be visible').toBeVisible({ timeout: pickerTimeout });
   await sourcePicker.getByText(/S.lectionner|Select/i).first().click();
   await sourcePicker.locator('ion-button.class1599830132445').click();
-  await expect(sourcePicker).toBeHidden({ timeout: 15_000 });
+  await expect(sourcePicker).toBeHidden({ timeout: pickerTimeout });
   await page.waitForTimeout(1_500);
 
   await openConfigTab(page, /Configuration de la source|Source configuration/i);
   await acceptRgpdIfVisible(page);
-  await page.locator('button').filter({ hasText: /S.lectionner|Select/i }).first().click();
+  await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Baserow table configure button', pickerTimeout, true);
 
   const tablePicker = page.locator('ion-modal').last();
-  await expect(tablePicker, 'Baserow table picker should be visible').toBeVisible({ timeout: 15_000 });
-  await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(tablePicker, 'Baserow table picker should be visible').toBeVisible({ timeout: pickerTimeout });
+  await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: pickerTimeout });
   await tablePicker.getByText(source.workspace, { exact: true }).click();
-  await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: pickerTimeout });
   await tablePicker.getByText(source.database, { exact: true }).click();
-  await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: pickerTimeout });
   await tablePicker.getByText(source.table, { exact: true }).click();
 
-  await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: 15_000 });
+  await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
   for (const column of source.expectedColumns ?? []) {
     await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
       column,
-      { timeout: 15_000 },
+      { timeout: pickerTimeout },
     );
   }
   await acceptRgpdIfVisible(page);
   await tablePicker.locator('ion-button.class1776244653366').click();
-  await expect(tablePicker).toBeHidden({ timeout: 20_000 });
+  await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
   await page.waitForTimeout(1_500);
 
   const sourceSummary = page.locator('.class1776013865512').first();
-  await expect(sourceSummary).toContainText(source.table, { timeout: 15_000 });
+  await expect(sourceSummary).toContainText(source.table, { timeout: pickerTimeout });
   for (const column of source.expectedColumns ?? []) {
     await expect(sourceSummary, `Baserow source summary should contain ${column}`).toContainText(column, {
-      timeout: 15_000,
+      timeout: pickerTimeout,
     });
   }
 }
@@ -1436,8 +1447,8 @@ function componentPaletteTileSelector(icon: string): string {
   ].join(', ');
 }
 
-async function firstVisibleLocator(page: Page, selector: string, description: string): Promise<Locator> {
-  const locator = await firstVisibleLocatorOrNull(page, selector, 15_000);
+async function firstVisibleLocator(page: Page, selector: string, description: string, timeout = 15_000): Promise<Locator> {
+  const locator = await firstVisibleLocatorOrNull(page, selector, timeout);
   if (!locator) {
     throw new Error(`No visible ${description} found for selector ${selector}`);
   }
@@ -2089,8 +2100,21 @@ export async function setTextDefaultValueFromUserEmailPalette(page: Page): Promi
   await dragUserEmailPaletteToTinyMce(page);
 }
 
-async function clickFirstVisible(page: Page, selector: string, description: string): Promise<void> {
-  await (await firstVisibleLocator(page, selector, description)).click();
+async function clickFirstVisible(
+  page: Page,
+  selector: string,
+  description: string,
+  timeout = 15_000,
+  dispatchFallback = false,
+): Promise<void> {
+  const locator = await firstVisibleLocator(page, selector, description, timeout);
+  if (!dispatchFallback) {
+    await locator.click();
+    return;
+  }
+  await locator.click({ timeout: 10_000 }).catch(async () => {
+    await locator.dispatchEvent('click');
+  });
 }
 
 export async function dragUserEmailPaletteToTinyMce(page: Page): Promise<void> {

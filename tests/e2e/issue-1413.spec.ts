@@ -27,7 +27,7 @@ import {
 const DATA_TAB = /donnees.*interactions|data.*interactions/i;
 const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
-const TABLE = 'Issue 1413 Quote DisplayValue';
+const TABLE = 'Issue 1413 Quote Text Field';
 const ROW_LABEL = 'row_1413';
 const GRID_NAME = 'quote_grid';
 const QUOTED_COLUMN = "Owner's name";

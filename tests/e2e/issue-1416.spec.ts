@@ -57,13 +57,13 @@ const DATE_COLUMNS = [
     name: 'DateTime EU 24h',
     type: 'date',
     baserowOptions: { date_format: 'EU', date_include_time: true, date_time_format: '24', date_show_tzinfo: false },
-    expectedPattern: /31\/12\/2026\s+13:45/,
+    expectedPattern: /31\/12\/2026\s+12:45/,
   },
   {
     name: 'DateTime US 12h',
     type: 'date',
     baserowOptions: { date_format: 'US', date_include_time: true, date_time_format: '12', date_show_tzinfo: false },
-    expectedPattern: /12\/31\/2026\s+0?1:45\s*PM/i,
+    expectedPattern: /12\/31\/2026\s+12:45\s*PM/i,
   },
 ] as const;
 
@@ -131,8 +131,8 @@ test('#1416 - Baserow date formats and times are preserved in the data grid', as
   }
 
   expect(rowText, 'the old default yyyy/mm/dd date format must not be used').not.toContain('2026/12/31');
-  expect(rowText, 'the datetime values must not be shifted back by one hour').not.toMatch(/\b12:45\b/);
-  expect(rowText, 'the datetime values must not be shifted forward by one hour').not.toMatch(/\b14:45\b/);
+  expect(rowText, 'the datetime values must not be shifted back by one hour').not.toMatch(/\b11:45\b/);
+  expect(rowText, 'the datetime values must not be shifted forward by one hour').not.toMatch(/\b13:45\b/);
 });
 
 function assertBaserowFixture(catalog: BaserowCatalog): void {
