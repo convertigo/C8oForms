@@ -4,8 +4,7 @@
 
 A Playwright suite driven by GitHub issues: each reproducible bug becomes a spec
 `e2e/issue-NNNN.spec.ts`, validated **red** on the version where the bug was
-found and **green** on the version that fixed it, then kept in the permanent
-suite.
+found and **green** on the latest release, then kept in the permanent suite.
 
 ## Running the tests
 
@@ -114,7 +113,8 @@ The badge only appears after the first tagged build creates the `badges` branch.
 
 `verify.mjs` proves a test is a **real** regression test: it deploys the version
 where the bug was reported, runs the test (which must be **red**), then deploys
-the fixed version and runs it again (which must be **green**). A test that does
+the latest release and runs it again (which must be **green**). `fixedVersion`
+is metadata: it records the release known to contain the fix. A test that does
 not fail on the broken version is not catching the bug — that is exactly what
 this command checks.
 
@@ -125,7 +125,7 @@ npm install                 # once
 npx playwright install chromium firefox webkit  # once
 
 node verify.mjs                       # list every test you can verify
-node verify.mjs 1412                  # regression: red on broken, green on fixed
+node verify.mjs 1412                  # regression: red on broken, green on latest
 node verify.mjs journey-create-form   # smoke: green on the latest version
 HEADED=1 node verify.mjs 1412         # same, with the browser visible so you can watch
 ```
@@ -141,7 +141,7 @@ has a `kind` that tells `verify.mjs` what to do:
 
 | `kind` | meaning | `verify.mjs` deploys | expects |
 |---|---|---|---|
-| `regression` | fixed bug | `brokenVersion` then `fixedVersion` | red then green |
+| `regression` | fixed bug | `brokenVersion` then latest release (`fixedVersion` is metadata) | red then green |
 | `open` | bug not fixed yet (`fixedVersion: null`) | `brokenVersion` | red (still reproduces) |
 | `smoke` | journey / sanity (e.g. authoring) | `version` (`"latest"` resolves to the newest release) | green |
 
@@ -178,7 +178,8 @@ still open on beta225.
    scripts/deploy-version.mjs <tag>` (wipes the projects, then deploys every
    `.car`, dependencies first and `C8Oforms` last; cross-platform — needs `gh`).
 3. Reproduce the bug, write the spec, confirm it is **red**.
-4. Deploy the fixed version, confirm the spec is **green** (or, for an open bug,
+4. Record the release known to contain the fix in `fixedVersion`, then deploy
+   the latest release and confirm the spec is **green** (or, for an open bug,
    leave it red and mark the manifest entry `open`).
 
 ## Authoring journeys & self-seeding fixtures

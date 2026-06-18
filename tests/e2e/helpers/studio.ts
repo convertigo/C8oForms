@@ -1073,6 +1073,11 @@ export interface BaserowSelectSourceOptions extends BaserowGridSourceOptions {
   valueColumn: string;
 }
 
+const SELECT_SOURCE_TABLE_PICKER_BUTTON = 'button.class1776013870072';
+const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
+const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
+const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
+
 export async function configureGridBaserowSource(page: Page, source: BaserowGridSourceOptions): Promise<void> {
   const pickerTimeout = 60_000;
   await page.locator('.class1775835275863').first().click();
@@ -1147,10 +1152,7 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
 
   await openConfigTab(page, /Configuration de la source|Source configuration/i);
   await acceptRgpdIfVisible(page);
-  await page.locator('button.class1776013870072').first().click();
-
-  const tablePicker = page.locator('ion-modal').last();
-  await expect(tablePicker, 'Baserow table picker should be visible').toBeVisible({ timeout: 15_000 });
+  const tablePicker = await openSelectBaserowTablePicker(page);
   await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: 20_000 });
   await tablePicker.getByText(source.workspace, { exact: true }).click();
   await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -1165,8 +1167,8 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
       { timeout: 15_000 },
     );
   }
-  await setSingleSelectSourceColumn(tablePicker, 'ion-checkbox.class1776352302823', source.displayColumn);
-  await setSingleSelectSourceColumn(tablePicker, 'ion-checkbox.class1776352314668', source.valueColumn);
+  await setSingleSelectSourceColumn(tablePicker, SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX, source.displayColumn);
+  await setSingleSelectSourceColumn(tablePicker, SELECT_SOURCE_VALUE_COLUMN_CHECKBOX, source.valueColumn);
 
   await acceptRgpdIfVisible(page);
   await tablePicker.locator('ion-button.class1776244653366').click();
@@ -1184,11 +1186,88 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
   });
 }
 
+export async function openSelectBaserowSourceConfiguration(page: Page): Promise<void> {
+  await acceptRgpdIfVisible(page);
+  const configurationSection = page.locator('.class1775835275863').first();
+  if (await configurationSection.isVisible().catch(() => false)) {
+    await configurationSection.click();
+  }
+  await openConfigTab(page, /Configuration de la source|Source configuration/i);
+}
+
+export async function openSelectBaserowTablePicker(page: Page): Promise<Locator> {
+  await page.locator(SELECT_SOURCE_TABLE_PICKER_BUTTON).first().click();
+  const tablePicker = page.locator('ion-modal').last();
+  await expect(tablePicker, 'Baserow table picker should be visible').toBeVisible({ timeout: 15_000 });
+  return tablePicker;
+}
+
+export async function checkedSelectBaserowDisplayColumns(modal: Locator, candidates: string[]): Promise<string[]> {
+  return checkedSelectBaserowColumns(modal, SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX, candidates);
+}
+
+export async function checkedSelectBaserowValueColumns(modal: Locator, candidates: string[]): Promise<string[]> {
+  return checkedSelectBaserowColumns(modal, SELECT_SOURCE_VALUE_COLUMN_CHECKBOX, candidates);
+}
+
+export async function settledSelectBaserowDisplayColumns(modal: Locator, candidates: string[]): Promise<string[]> {
+  return settledSelectBaserowColumns(() => checkedSelectBaserowDisplayColumns(modal, candidates));
+}
+
+export async function settledSelectBaserowValueColumns(modal: Locator, candidates: string[]): Promise<string[]> {
+  return settledSelectBaserowColumns(() => checkedSelectBaserowValueColumns(modal, candidates));
+}
+
+export async function expectSelectBaserowColumnsVisible(modal: Locator, columns: string[]): Promise<void> {
+  for (const column of columns) {
+    await expect(selectSourceColumnRow(modal, column), `Baserow column ${column} should be visible`).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+}
+
+async function checkedSelectBaserowColumns(modal: Locator, checkboxSelector: string, candidates: string[]): Promise<string[]> {
+  const checked: string[] = [];
+  for (const name of candidates) {
+    const row = selectSourceColumnRow(modal, name);
+    if ((await row.count()) === 0) continue;
+    const checkbox = row.locator(checkboxSelector).first();
+    if ((await checkbox.count()) === 0) continue;
+    if ((await checkbox.getAttribute('aria-checked')) === 'true') {
+      checked.push(name);
+    }
+  }
+  return checked;
+}
+
+async function settledSelectBaserowColumns(read: () => Promise<string[]>): Promise<string[]> {
+  const startedAt = Date.now();
+  let stableSince = startedAt;
+  let previous = JSON.stringify(await read());
+  const timeoutMs = 3_000;
+  const stableMs = 750;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const current = JSON.stringify(await read());
+    if (current !== previous) {
+      previous = current;
+      stableSince = Date.now();
+      continue;
+    }
+    if (Date.now() - stableSince >= stableMs) {
+      break;
+    }
+  }
+
+  return JSON.parse(previous) as string[];
+}
+
 async function setSingleSelectSourceColumn(modal: Locator, checkboxSelector: string, targetColumn: string): Promise<void> {
   const targetRow = selectSourceColumnRow(modal, targetColumn);
   await expect(targetRow, `Baserow column ${targetColumn} should be available`).toBeVisible({ timeout: 15_000 });
 
-  const rows = modal.locator('ion-item.class1776161384798');
+  const rows = modal.locator(SELECT_SOURCE_COLUMN_ROW);
   const count = await rows.count();
   for (let index = 0; index < count; index++) {
     const row = rows.nth(index);
@@ -1211,7 +1290,7 @@ async function setSingleSelectSourceColumn(modal: Locator, checkboxSelector: str
 }
 
 function selectSourceColumnRow(modal: Locator, name: string): Locator {
-  return modal.locator('ion-item.class1776161384798').filter({ hasText: new RegExp(`(^|\\s)${escapeRegExp(name)}(\\s|$)`) }).first();
+  return modal.locator(SELECT_SOURCE_COLUMN_ROW).filter({ hasText: new RegExp(`(^|\\s)${escapeRegExp(name)}(\\s|$)`) }).first();
 }
 
 function escapeRegExp(value: string): string {
