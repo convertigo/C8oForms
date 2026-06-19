@@ -481,6 +481,8 @@ jobs:
     # (browsers are pinned per Playwright version). Bump both together.
     container:
       image: mcr.microsoft.com/playwright:v1.61.0-noble
+    env:
+      E2E_SHARD_TOTAL: 4
     strategy:
       fail-fast: false
       matrix:
@@ -488,6 +490,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Restore previous e2e timings
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tests/dist/sharding
+          if git ls-remote --exit-code --heads origin badges >/dev/null 2>&1; then
+            git fetch --depth=1 origin badges
+            if git cat-file -e FETCH_HEAD:e2e-timings.json 2>/dev/null; then
+              git show FETCH_HEAD:e2e-timings.json > tests/dist/sharding/e2e-timings.json
+              echo "Restored previous e2e timings from the badges branch."
+            else
+              echo "No e2e-timings.json on the badges branch; using fallback weights."
+            fi
+          else
+            echo "No badges branch found; using fallback weights."
+          fi
 
       - name: Install test dependencies
         working-directory: tests
@@ -518,6 +537,7 @@ jobs:
           C8OFORMS_TEST_USER_INDEX: ${{ matrix.shard }}
           C8OFORMS_PRIMARY_TEST_USER: testuser-convertigo@yopmail.com
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
+          C8OFORMS_SHARD_DEBUG: 1
         run: |
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           : "${C8OFORMS_MCP_URL:=${TEST_NOCODE_ENDPOINT%/}/api/mcp}"
@@ -528,10 +548,11 @@ jobs:
           echo "Test user index: $C8OFORMS_TEST_USER_INDEX"
           # Assign whole spec files to this shard, balanced by duration weight,
           # and keep issue-1421 on shard 1 where the primary account is used.
-          SPECS="$(node ci/shard-specs.mjs ${{ matrix.shard }} 4)"
-          echo "Shard ${{ matrix.shard }} specs: $SPECS"
+          TIMINGS_FILE="dist/sharding/e2e-timings.json"
+          SPECS="$(node ci/shard-specs.mjs ${{ matrix.shard }} "$E2E_SHARD_TOTAL" "$TIMINGS_FILE")"
+          echo "Shard ${{ matrix.shard }}/$E2E_SHARD_TOTAL specs: $SPECS"
           if [ -z "$SPECS" ]; then
-            echo "No specs for shard ${{ matrix.shard }}; nothing to run."
+            echo "No specs for shard ${{ matrix.shard }}/$E2E_SHARD_TOTAL; nothing to run."
             mkdir -p test-results
             printf '{"config":{},"suites":[],"errors":[],"stats":{"expected":0,"skipped":0,"unexpected":0,"flaky":0}}\n' > test-results/results.json
             exit 0
@@ -713,7 +734,7 @@ jobs:
           GITHUB_SERVER_URL: ${{ github.server_url }}
         run: node ci/report.mjs
 
-      - name: Publish e2e badge to the badges branch
+      - name: Publish e2e badge and timings to the badges branch
         if: ${{ github.event_name == 'push' && always() && hashFiles('tests/dist/badge/e2e-badge.json') != '' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -737,5 +758,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-regression-report
-          path: tests/dist/e2e_report.md
+          path: |
+            tests/dist/e2e_report.md
+            tests/dist/badge/e2e-timings.json
           if-no-files-found: error
