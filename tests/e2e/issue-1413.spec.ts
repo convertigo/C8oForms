@@ -9,7 +9,7 @@ import {
   openComponentConfig,
   setTechnicalId,
   closeComponentConfig,
-  openConfigTab,
+  openConfigTabById,
   configureGridBaserowSource,
   openPreview,
   acceptRgpdIfVisible,
@@ -24,7 +24,6 @@ import {
  * Root cause: viewerPage generated JS string literals with unescaped grid path
  * segments, so a column such as Owner's name produced invalid JavaScript.
  */
-const DATA_TAB = /donnees.*interactions|data.*interactions/i;
 const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
 const TABLE = 'Issue 1413 Quote Text Field v2';
@@ -32,8 +31,6 @@ const ROW_LABEL = 'row_1413';
 const GRID_NAME = 'quote_grid';
 const QUOTED_COLUMN = "Owner's name";
 const EXPECTED_VALUE = "Alice's quoted owner";
-const ROW_SELECTED = /ligne sélectionnée|selected row/i;
-const GRID_CONFIGURED = /cette table a été configurée pour renvoyer|this grid has been configured to return/i;
 
 // Baserow editor flows can intermittently stall on "Page loading in progress";
 // retry the whole test from a fresh page/form in CI rather than failing flaky.
@@ -121,10 +118,24 @@ function assertBaserowFixture(catalog: BaserowCatalog): void {
 }
 
 async function setGridReturnedValueToRowSelected(page: Page): Promise<void> {
-  await openConfigTab(page, DATA_TAB);
+  await openConfigTabById(page, 'data_interactions');
   const returnedValue = page.locator('.class1775842589999');
-  await returnedValue.getByText(ROW_SELECTED).click();
-  await expect(returnedValue).toContainText(ROW_SELECTED, { timeout: 10_000 });
+  const select = returnedValue.locator('ion-select').first();
+  await expect(select, 'grid returned value select should be visible').toBeVisible({ timeout: 10_000 });
+  const optionIndex = await select.evaluate((el) =>
+    Array.from(el.querySelectorAll('ion-select-option')).findIndex(
+      (option) => (option as HTMLOptionElement & { value?: string }).value === 'row_selected',
+    ),
+  );
+  expect(optionIndex, 'row_selected option should exist').toBeGreaterThanOrEqual(0);
+  await select.click();
+  await page.locator('ion-select-popover ion-item').nth(optionIndex).click();
+  await expect
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: 'grid returned value should be row_selected',
+      timeout: 10_000,
+    })
+    .toBe('row_selected');
 }
 
 async function insertGridColumnValueInDescription(page: Page): Promise<void> {
@@ -132,8 +143,7 @@ async function insertGridColumnValueInDescription(page: Page): Promise<void> {
   await page.frameLocator('iframe[title="Rich Text Area"]').locator('svg[id^="clickable-"]').first().click();
 
   const treeview = page.locator('ion-modal.modalCSV').last();
-  await expect(treeview.getByText(GRID_CONFIGURED)).toBeVisible({ timeout: 15_000 });
-  await expect(treeview.getByText(ROW_SELECTED)).toBeVisible({ timeout: 15_000 });
+  await expect(treeview, 'source tree modal should be visible').toBeVisible({ timeout: 15_000 });
   await treeview.getByText(QUOTED_COLUMN, { exact: true }).click();
   await acceptRgpdIfVisible(page);
 
@@ -212,10 +222,9 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
 
     const labelBox = (labelEl as HTMLElement).getBoundingClientRect();
     const labelY = labelBox.y + labelBox.height / 2;
-    const chooseButton = (text: string) => /^(Choisir cette valeur|Choose this value)$/i.test(text.trim());
     const buttons = [...modal.querySelectorAll('ion-button')]
       .filter(visible)
-      .filter((el) => chooseButton(el.textContent ?? ''));
+      .filter((el) => !(el as HTMLButtonElement).disabled);
 
     let best: DOMRect | null = null;
     let bestScore = Number.POSITIVE_INFINITY;

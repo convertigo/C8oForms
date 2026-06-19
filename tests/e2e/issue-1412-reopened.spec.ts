@@ -4,7 +4,7 @@ import {
   login,
   createFormWithMap,
   openComponentConfig,
-  openConfigTab,
+  openConfigTabById,
   setMapHeightAndClose,
   openPreview,
   mapHeight,
@@ -28,7 +28,6 @@ import {
  * Each test builds its own fresh one-map fixture through the UI (createFormWithMap)
  * — no dependency on a pre-existing document, full per-test isolation.
  */
-const DATA_TAB = /donnees.*interactions|data.*interactions/i;
 const DEFAULT_HEIGHT_MIN = 300; // a correct fallback renders ~400px; the bug collapses to ~44px
 
 test('#1412 (reopened) — clearing the height should fall back to the default (editor and viewer)', async ({
@@ -40,11 +39,11 @@ test('#1412 (reopened) — clearing the height should fall back to the default (
 
   // Set a height, then clear it.
   await openComponentConfig(page, SEL.mapComponent);
-  await openConfigTab(page, DATA_TAB);
+  await openConfigTabById(page, 'data_interactions');
   await setMapHeightAndClose(page, '550');
 
   await openComponentConfig(page, SEL.mapComponent);
-  await openConfigTab(page, DATA_TAB);
+  await openConfigTabById(page, 'data_interactions');
   await setMapHeightAndClose(page, '');
 
   // Editor: a cleared height should fall back to the ~400px default, not collapse.

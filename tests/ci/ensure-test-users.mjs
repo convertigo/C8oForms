@@ -9,6 +9,12 @@ const DEFAULT_USERS = [
 
 const FULLSYNC_USER_DB = 'lib_usermanager_fullsync';
 const FORMS_DB = 'c8oforms_fs';
+const REQUIRED_TEST_USER_RIGHTS = {
+  editing_rights: true,
+  nocode_db_rights: true,
+  formulas: true,
+  publication: true,
+};
 
 let adminCookie = '';
 
@@ -281,9 +287,13 @@ function settingIsReady(settings, user) {
   return (
     settings &&
     settings.mail === user &&
-    (settings.editing_rights === true || settings.editing_rights === 'true') &&
-    (settings.c8o_view_type_users === true || settings.c8o_view_type_users === 'true')
+    (settings.c8o_view_type_users === true || settings.c8o_view_type_users === 'true') &&
+    Object.entries(REQUIRED_TEST_USER_RIGHTS).every(([key, value]) => settingBoolean(settings, key) === value)
   );
+}
+
+function settingBoolean(settings, key) {
+  return settings?.[key] === true || settings?.[key] === 'true';
 }
 
 async function addUser(endpoint, user, password) {
@@ -304,6 +314,33 @@ async function changePassword(endpoint, user, password) {
     user,
     newPwd: password,
   });
+}
+
+async function grantTestUserRights(endpoint, user) {
+  const meta = {
+    _id: `C8Oreserved_${user}`,
+    mail: user,
+    provider: 'forms',
+    c8o_view_type_users: true,
+    ...REQUIRED_TEST_USER_RIGHTS,
+  };
+  const patched = await c8oSequence(endpoint, 'admin_user_patch', {
+    meta: JSON.stringify(meta),
+  });
+  if (!patchSucceeded(patched.json)) {
+    throw new Error(`C8Oforms.admin_user_patch failed for ${user}: ${patched.text.slice(0, 500)}`);
+  }
+}
+
+function patchSucceeded(json) {
+  return (
+    json?.success === true ||
+    json?.success === 'true' ||
+    json?.document?.success === true ||
+    json?.document?.success === 'true' ||
+    json?.document?.object?.success === true ||
+    json?.document?.object?.success === 'true'
+  );
 }
 
 function sequenceResult(json) {
@@ -401,6 +438,10 @@ async function ensureUser(endpoint, user, password, index) {
     actions.push('ChangePassword');
     canLogin = await loginWorks(endpoint, user, password);
   }
+
+  await grantTestUserRights(endpoint, user);
+  actions.push('GrantRights');
+  existingSettings = await getDocument(endpoint, FORMS_DB, settingsId);
 
   if (!existingAccount) {
     throw new Error(`C8Oforms.AddUser did not create account ${user}`);

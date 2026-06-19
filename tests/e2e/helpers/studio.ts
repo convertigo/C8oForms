@@ -14,6 +14,7 @@ export const SEL = {
   componentOverlay: '.class1776441955089',
   // component config panel tabs (one bean repeated per tab, filtered by label)
   configTab: '.class1775835275881',
+  configTabsContainer: '[data-main-editor-tabs-buttons="configuration"]',
   // component config panel "Configuration" section label
   configSectionLabel: '.span-configuration',
   // config panel close button
@@ -64,6 +65,7 @@ export const SEL = {
   componentPaletteSearch: 'ion-searchbar.class1775889901001',
   pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
   workflowsPanelButton: 'ion-button.class1773250515928, ion-button.class1780909504555',
+  submitFlowButton: '#unique_submit',
   pageRow: '.class1775140559440, .class1749805611480, .class1650357059456, .class1650357059543',
   pageEditButton:
     '[title^="Modifier la page"], [aria-label^="Modifier la page"], [title^="Edit page"], [aria-label^="Edit page"], .class1775140098599, .class1774949227812, .class1650357059474, .class1775140098605, .class1774948900804',
@@ -129,6 +131,8 @@ export const SEL = {
   flowConditionBuilder: '.flow-condition-editor c8oforms-conditionvisibleif, .flow-condition-editor ion-select',
   flowConditionTextModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="text-outline"])',
   flowConditionJavaScriptModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="logo-javascript"])',
+  flowSubmitActionCard: 'ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]',
+  baserowActionAddVariableButton: 'c8oforms-button_variable.class1775996201019 button.class1775995541940',
 };
 
 export const SOURCE_PALETTE_SECTION = {
@@ -143,6 +147,16 @@ export const SOURCE_PALETTE_SECTION = {
 } as const;
 
 export type SourcePaletteSection = keyof typeof SOURCE_PALETTE_SECTION;
+
+type MainEditorConfigTab =
+  | 'tab_selector_choice_source'
+  | 'tab_selector_conf_source'
+  | 'tab_selector_choice_action'
+  | 'tab_selector_conf_action'
+  | 'visibility_tab_selector'
+  | 'navigation_tab_selector'
+  | 'defaultvalue'
+  | 'data_interactions';
 
 export interface SourcePaletteSectionState {
   name: SourcePaletteSection;
@@ -209,6 +223,7 @@ export const PALETTE_ICON = {
   location: 'location.svg',
   forLoop: 'icn_for_loop.svg',
   conditionAction: 'icn_if_else.svg',
+  submitAction: 'icn_submit.svg',
 } as const;
 
 const PALETTE_TYPE_BY_ICON: Record<string, string> = {
@@ -926,58 +941,107 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
 }
 
 export async function openConfigurationSection(page: Page): Promise<void> {
-  await clickVisibleByText(page, SEL.configSectionLabel, /^configuration$/i, 'configuration section');
-  await expect(page.locator(SEL.configTab).first(), 'configuration tabs should be mounted').toBeAttached({
+  const section = page.locator(SEL.configSectionLabel).first();
+  await expect(section, 'configuration section should be visible').toBeVisible({ timeout: 10_000 });
+  await section.click({ timeout: 10_000 }).catch(async () => section.dispatchEvent('click'));
+  await expect(page.locator(`${SEL.configTabsContainer} ${SEL.configTab}`).first(), 'configuration tabs should be mounted').toBeAttached({
     timeout: 10_000,
   });
   await page.waitForTimeout(350);
 }
 
-export async function openConfigTab(page: Page, label: string | RegExp): Promise<void> {
-  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false, 5_000)) {
+export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<void> {
+  if (await clickConfigTabById(page, tabId)) {
     await page.waitForTimeout(350);
     return;
   }
 
   await openConfigurationSection(page);
-  if (await clickVisibleByText(page, SEL.configTab, label, `config tab ${label}`, false, 5_000)) {
+  if (await clickConfigTabById(page, tabId)) {
     await page.waitForTimeout(350);
     return;
   }
 
-  throw new Error(`No visible config tab matches ${label}. Visible tabs: ${(await visibleTexts(page, SEL.configTab)).join(' | ')}`);
+  throw new Error(`No visible config tab matches id ${tabId}. Visible tabs: ${(await visibleTexts(page, SEL.configTab)).join(' | ')}`);
 }
 
-async function clickVisibleByText(
-  page: Page,
-  selector: string,
-  label: string | RegExp,
-  description: string,
-  required = true,
-  timeout = 0,
-): Promise<boolean> {
-  const deadline = Date.now() + timeout;
-  do {
-    const elements = page.locator(selector);
-    const count = await elements.count();
-    for (let i = 0; i < count; i++) {
-      const element = elements.nth(i);
-      if (!(await element.isVisible().catch(() => false))) continue;
-      const text = normalizeVisibleText(await element.innerText().catch(() => ''));
-      if (visibleTextMatches(text, label)) {
-        await element.click();
-        return true;
-      }
-    }
-    if (Date.now() < deadline) {
-      await page.waitForTimeout(250);
-    }
-  } while (Date.now() < deadline);
-
-  if (required) {
-    throw new Error(`No visible ${description} matches ${label}`);
+async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
+  const index = await configTabIndexById(page, tabId);
+  if (index === null || index < 0) {
+    return false;
   }
-  return false;
+
+  const tab = page.locator(`${SEL.configTabsContainer} ${SEL.configTab}:visible`).nth(index);
+  if (!(await tab.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    return false;
+  }
+  await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+  return true;
+}
+
+async function configTabIndexById(page: Page, tabId: MainEditorConfigTab): Promise<number | null> {
+  return page
+    .evaluate((targetTabId) => {
+      const seen = new Set<object>();
+      const candidates: any[] = [];
+      const visit = (entry: unknown) => {
+        if (
+          entry &&
+          typeof entry === 'object' &&
+          !seen.has(entry) &&
+          typeof (entry as any).getMainEditorTabIds === 'function' &&
+          typeof (entry as any).getActiveMainEditorItem === 'function' &&
+          (entry as any).local != null
+        ) {
+          seen.add(entry);
+          candidates.push(entry);
+        }
+      };
+      const visitMaybeContext = (value: unknown) => {
+        if (Array.isArray(value)) {
+          for (const entry of value) visit(entry);
+        } else {
+          visit(value);
+        }
+      };
+
+      for (const element of document.querySelectorAll('*')) {
+        const rawElement = element as unknown as Record<string, unknown>;
+        visitMaybeContext((rawElement as any).__ngContext__);
+        for (const key of Object.getOwnPropertyNames(rawElement)) {
+          visitMaybeContext(rawElement[key]);
+        }
+      }
+
+      const visible = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const visibleConfigTabs = [...document.querySelectorAll('[data-main-editor-tabs-buttons="configuration"] .class1775835275881')].filter(
+        visible,
+      );
+      if (visibleConfigTabs.length === 0) return null;
+
+      for (const editor of candidates) {
+        const ids = [editor.idselected, editor.idselectedC].filter((id) => id != null && id !== '');
+        const items = ids
+          .map((id) => editor.getEditorChildById?.(id) ?? editor.getElementByID?.(id))
+          .filter((item) => item != null);
+        for (const baseItem of items) {
+          const item = editor.getActiveMainEditorItem(baseItem) ?? baseItem;
+          const tabIds = (editor.getMainEditorTabIds(item, 'configuration') ?? []).filter(
+            (id: string) => !(item?.type === 'map' && id === 'tab_selector_choice_source'),
+          );
+          const index = tabIds.indexOf(targetTabId);
+          if (index !== -1 && index < visibleConfigTabs.length) {
+            return index;
+          }
+        }
+      }
+      return null;
+    }, tabId)
+    .catch(() => null);
 }
 
 function normalizeVisibleText(text: string): string {
@@ -989,18 +1053,6 @@ function searchableVisibleText(text: string): string {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
-}
-
-function visibleTextMatches(text: string, label: string | RegExp): boolean {
-  const visible = normalizeVisibleText(text);
-  const searchable = searchableVisibleText(text);
-  if (typeof label === 'string') {
-    return searchable === searchableVisibleText(label);
-  }
-  label.lastIndex = 0;
-  if (label.test(visible)) return true;
-  label.lastIndex = 0;
-  return label.test(searchable);
 }
 
 async function visibleTexts(page: Page, selector: string): Promise<string[]> {
@@ -1096,9 +1148,12 @@ export async function closeComponentConfig(page: Page): Promise<void> {
 
 export async function acceptRgpdIfVisible(page: Page, timeout = 2_000): Promise<void> {
   await page.waitForTimeout(300);
-  const rgpd = page.getByText(/JE SUIS D['’]ACCORD|I AGREE/i).last();
-  if (await rgpd.isVisible({ timeout }).catch(() => false)) {
-    await rgpd.click({ force: true });
+  const toast = page.locator('ion-toast:visible').last();
+  if (await toast.isVisible({ timeout }).catch(() => false)) {
+    const action = toast.locator('button, ion-button').last();
+    if (await action.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await action.click({ force: true }).catch(async () => action.dispatchEvent('click'));
+    }
     await page.locator('ion-toast').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
   }
 }
@@ -1138,12 +1193,12 @@ const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
 export async function configureGridBaserowSource(page: Page, source: BaserowGridSourceOptions): Promise<void> {
   const pickerTimeout = 60_000;
   await page.locator('.class1775835275863').first().click();
-  await openConfigTab(page, /Choix de la source|Source choice|Source selection/i);
+  await openConfigTabById(page, 'tab_selector_choice_source');
 
   await activateDataSourceMode(page);
   await selectDataSourceEntry(page, pickerTimeout, 'getData');
 
-  await openConfigTab(page, /Configuration de la source|Source configuration/i);
+  await openConfigTabById(page, 'tab_selector_conf_source');
   await acceptRgpdIfVisible(page);
   await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Baserow table configure button', pickerTimeout, true);
 
@@ -1184,17 +1239,12 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
     await configurationSection.click();
   }
 
-  await openConfigTab(page, /Choix de la source|Source choice|Source selection/i);
-  const sourceModeButtons = page.locator('button.class1775840591959');
-  if ((await sourceModeButtons.count()) > 1) {
-    await sourceModeButtons.nth(1).click();
-  } else {
-    await page.getByText(/Depuis une source de donn.es|From a data source/i).first().click();
-  }
+  await openConfigTabById(page, 'tab_selector_choice_source');
+  await activateDataSourceMode(page);
 
   await selectDataSourceEntry(page, 60_000, 'getSelectData');
 
-  await openConfigTab(page, /Configuration de la source|Source configuration/i);
+  await openConfigTabById(page, 'tab_selector_conf_source');
   await acceptRgpdIfVisible(page);
   const tablePicker = await openSelectBaserowTablePicker(page);
   await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -1239,24 +1289,26 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
   await configureButtonFlowBaserowAddRowOnce(page, source);
 }
 
+async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
+  await openWorkflowsPanel(page);
+  const flow = flowName
+    ? page.locator('[draggable="true"]').filter({ hasText: flowName }).first()
+    : page.locator(SEL.submitFlowButton).first();
+  await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
+  await flow.click({ timeout: 10_000 }).catch(async () => flow.dispatchEvent('click'));
+  await page.waitForTimeout(1_000);
+}
+
 async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
   const timeout = 60_000;
-  await openWorkflowsPanel(page);
-  const flowLabel = source.flowName ?? /Flow button/i;
-  const flow = page.locator('[draggable="true"]').filter({ hasText: flowLabel }).first();
-  await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
-  await flow.click();
-  await page.waitForTimeout(1_000);
+  await openButtonWorkflow(page, source.flowName);
 
   await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
-  const actionTile = page
-    .locator('[draggable="true"]:visible')
-    .filter({ hasText: /Ajouter ou mettre[\s\S]*no-code database|Add or update[\s\S]*no-code database/i })
-    .last();
+  const actionTile = page.locator(componentPaletteTileSelector(PALETTE_ICON.submitAction)).last();
   await expect(actionTile, 'Baserow Add Row action should be available in the action palette').toBeVisible({
     timeout: 30_000,
   });
-  const actionSelector = 'ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]';
+  const actionSelector = SEL.flowSubmitActionCard;
   const before = await page.locator(actionSelector).count();
   // Add the action only if the flow does not already carry one (idempotent on
   // a reload-retry where a previous attempt already added it).
@@ -1273,7 +1325,7 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   const action = page.locator(actionSelector).last();
   await action.click();
   await page.waitForTimeout(1_000);
-  await page.getByRole('button', { name: /Configuration de l.action|Action configuration/i }).click();
+  await openConfigTabById(page, 'tab_selector_conf_action');
   await page.waitForTimeout(1_000);
 
   await selectBaserowTableFromCurrentAction(page, source, timeout);
@@ -1286,7 +1338,7 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   if (await close.isVisible({ timeout: 2_000 }).catch(() => false)) {
     await close.click({ timeout: 10_000 }).catch(async () => close.dispatchEvent('click'));
   } else {
-    await page.getByRole('button', { name: /Fermer|Close/i }).last().click();
+    throw new Error('flow action close button is not visible');
   }
   await page.waitForTimeout(1_500);
 }
@@ -1300,14 +1352,10 @@ interface ButtonFlowActionOptions {
 
 async function openButtonFlowActionConfig(
   page: Page,
-  { flowName = /Flow button/i, icon, actionCardSelector, actionName }: ButtonFlowActionOptions,
+  { flowName, icon, actionCardSelector, actionName }: ButtonFlowActionOptions,
 ): Promise<void> {
   await test.step('Open the Button workflow', async () => {
-    await openWorkflowsPanel(page);
-    const flow = page.locator('[draggable="true"]').filter({ hasText: flowName }).first();
-    await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
-    await flow.click();
-    await page.waitForTimeout(1_000);
+    await openButtonWorkflow(page, flowName);
   });
 
   await test.step(`Add the ${actionName} action`, async () => {
@@ -1335,7 +1383,7 @@ async function openButtonFlowActionConfig(
   });
 }
 
-export async function openButtonFlowLoopActionConfig(page: Page, flowName: string | RegExp = /Flow button/i): Promise<void> {
+export async function openButtonFlowLoopActionConfig(page: Page, flowName?: string | RegExp): Promise<void> {
   await openButtonFlowActionConfig(page, {
     flowName,
     icon: PALETTE_ICON.forLoop,
@@ -1344,7 +1392,7 @@ export async function openButtonFlowLoopActionConfig(page: Page, flowName: strin
   });
 }
 
-export async function openButtonFlowConditionActionConfig(page: Page, flowName: string | RegExp = /Flow button/i): Promise<void> {
+export async function openButtonFlowConditionActionConfig(page: Page, flowName?: string | RegExp): Promise<void> {
   await openButtonFlowActionConfig(page, {
     flowName,
     icon: PALETTE_ICON.conditionAction,
@@ -1469,12 +1517,21 @@ export async function expectDefaultValueJavaScriptEditorKeeps(page: Page, expect
 }
 
 async function activateDataSourceMode(page: Page): Promise<void> {
-  const sourceModeButtons = page.locator('button.class1775840591959');
+  const sourceModeButtons = page.locator('button.class1775840591959:visible');
   if ((await sourceModeButtons.count()) > 1) {
     await sourceModeButtons.nth(1).click();
     return;
   }
-  await page.getByText(/Depuis une source de donn.es|From a data source/i).first().click();
+  throw new Error('data source mode toggle is not available');
+}
+
+async function activateVisibilityConditionMode(page: Page): Promise<void> {
+  const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
+  if ((await modeButtons.count()) > 1) {
+    await modeButtons.nth(1).click();
+    return;
+  }
+  throw new Error('visibility condition mode toggle is not available');
 }
 
 async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getData' | 'getSelectData'): Promise<void> {
@@ -1590,11 +1647,13 @@ async function addBaserowActionVariable(
 
   // Bounded wait: if the editor is stuck loading, fail fast so the caller can
   // reload and re-drive instead of hanging the click until the test timeout.
-  const addButton = page.locator('button[aria-label="Ajouterbutton"]').first();
-  await expect(addButton, `Baserow action "Ajouter" button for ${column} should be available`).toBeVisible({
+  const addButton = page.locator(SEL.baserowActionAddVariableButton).first();
+  await expect(addButton, `Baserow action add-variable button for ${column} should be available`).toBeVisible({
     timeout: 30_000,
   });
-  await addButton.dispatchEvent('click');
+  await addButton.click({ timeout: 10_000 }).catch(async () => {
+    await addButton.dispatchEvent('click');
+  });
   await page.waitForTimeout(800);
   const columnInput = page.locator('ion-item.class1743090805947 input').last();
   await expect(columnInput, `Baserow action column input for ${column} should be visible`).toBeVisible({ timeout: 10_000 });
@@ -1631,7 +1690,7 @@ export async function openSelectBaserowSourceConfiguration(page: Page): Promise<
   if (await configurationSection.isVisible().catch(() => false)) {
     await configurationSection.click();
   }
-  await openConfigTab(page, /Configuration de la source|Source configuration/i);
+  await openConfigTabById(page, 'tab_selector_conf_source');
 }
 
 export async function openSelectBaserowTablePicker(page: Page): Promise<Locator> {
@@ -1958,7 +2017,7 @@ async function closeBusinessLogicFormulaConfig(page: Page): Promise<void> {
   if (await configClose.isVisible({ timeout: 1_500 }).catch(() => false)) {
     await configClose.click();
   } else {
-    await page.getByRole('button', { name: /Fermer|Close/i }).last().click();
+    throw new Error('business logic config close button is not visible');
   }
   await page.waitForTimeout(800);
 }
@@ -2104,7 +2163,7 @@ export async function setChoiceLocalOptions(page: Page, values: string[]): Promi
     throw new Error('setChoiceLocalOptions needs at least one value');
   }
 
-  await openConfigTab(page, /Configuration de la source|Source configuration/i);
+  await openConfigTabById(page, 'tab_selector_conf_source');
   await expect
     .poll(() => page.locator(SEL.choiceOptionInput).count(), {
       message: 'choice local options should be visible',
@@ -2146,22 +2205,20 @@ export async function setCheckboxLocalOptions(page: Page, values: string[]): Pro
   await setChoiceLocalOptions(page, values);
 }
 
-const DEFAULT_VALUE_TAB = /Valeur par d|Default value|defaultvalue/i;
-
 async function openDefaultValueTextMode(page: Page): Promise<void> {
-  await openConfigTab(page, DEFAULT_VALUE_TAB);
+  await openConfigTabById(page, 'defaultvalue');
   await clickFirstVisible(page, SEL.defaultValueTextButton, 'default value text mode');
   await confirmAlertIfVisible(page);
 }
 
 async function openDefaultValueJavascriptMode(page: Page): Promise<void> {
-  await openConfigTab(page, DEFAULT_VALUE_TAB);
+  await openConfigTabById(page, 'defaultvalue');
   await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
   await confirmAlertIfVisible(page);
 }
 
 async function openDefaultValueVisualMode(page: Page): Promise<void> {
-  await openConfigTab(page, DEFAULT_VALUE_TAB);
+  await openConfigTabById(page, 'defaultvalue');
   await clickFirstVisible(page, SEL.defaultValueVisualButton, 'default value visual mode');
   await confirmAlertIfVisible(page);
 }
@@ -2455,12 +2512,12 @@ export async function createFormWithCheckboxAndDescription(
 
 export async function openComponentVisibilityConfig(page: Page, technicalId: string): Promise<void> {
   await openComponentConfigByTechnicalId(page, technicalId);
-  await openConfigTab(page, /Visibilit|Visibility/i);
+  await openConfigTabById(page, 'visibility_tab_selector');
 }
 
 export async function openComponentVisibilityConfigBySelector(page: Page, componentTag: string): Promise<void> {
   await openComponentConfig(page, componentTag);
-  await openConfigTab(page, /Visibilit|Visibility/i);
+  await openConfigTabById(page, 'visibility_tab_selector');
 }
 
 export interface SourceCompletionPopoverState {
@@ -2478,7 +2535,7 @@ export interface SourceCompletionPopoverState {
 }
 
 export async function openVisibilityConditionFieldPicker(page: Page): Promise<void> {
-  await page.locator(SEL.visibilityModeButton).filter({ hasText: /Selon une condition|condition/i }).first().click();
+  await activateVisibilityConditionMode(page);
   await page.locator(SEL.visibilityAddConditionButton).first().click();
   await page.locator(SEL.conditionFieldBrowseButton).first().click();
   await sourceCompletionPopover(page).waitFor({ state: 'visible', timeout: 10_000 });
@@ -2578,7 +2635,7 @@ export type VisibilityOperator =
 
 /** Switch the visibility config to condition mode and add a condition on a field. */
 export async function startVisibilityCondition(page: Page, fieldTechnicalId: string): Promise<void> {
-  await page.locator(SEL.visibilityModeButton).filter({ hasText: /Selon une condition|condition/i }).first().click();
+  await activateVisibilityConditionMode(page);
   await page.locator(SEL.visibilityAddConditionButton).first().click();
   await page.locator(SEL.conditionFieldBrowseButton).first().click();
   await page.locator('ion-popover ion-item').filter({ hasText: fieldTechnicalId }).first().click();
