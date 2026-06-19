@@ -223,7 +223,11 @@ export async function ensureBaserowTable(spec: EnsureTableSpec): Promise<Baserow
     throw new Error(`baserow schema apply failed: ${JSON.stringify((r as Json).error ?? r)}`);
   }
 
-  return catalogFromSchemaReadBack(r) ?? baserowCatalog({ includeColumns: true });
+  const readBack = catalogFromSchemaReadBack(r);
+  if (readBack?.tables.some((table) => table.name === spec.table)) {
+    return readBack;
+  }
+  return baserowCatalog({ includeColumns: true });
 }
 
 function catalogFromSchemaReadBack(response: Json): BaserowCatalog | null {
