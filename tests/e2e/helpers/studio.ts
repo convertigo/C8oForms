@@ -1,4 +1,4 @@
-import { Locator, Page, expect } from '@playwright/test';
+import { Locator, Page, expect, test } from '@playwright/test';
 
 /**
  * Selectors are Convertigo priority CSS classes (classNNNN): the priority is
@@ -44,6 +44,7 @@ export const SEL = {
   defaultValueGroupGrid: '.c8o-default-values-grid',
   defaultValueVisualOption: '.c8o-default-values-option',
   defaultValueMonacoEditor: 'c8oforms-monacoeditor',
+  defaultValueEditorWithPalette: 'c8oforms-defaultvalueeditorwithpalette',
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
   blankFormCard: '.class1645547241644',
   // ion-alert prompt shown by createNewForm (stable CSS classes set in the action code)
@@ -113,6 +114,8 @@ export const SEL = {
   // delete-confirmation ion-alert: the danger-styled "Oui"/confirm button
   // (the "Non" button is btn--info; both carry text-generic, so key on btn--danger)
   confirmDeleteYesButton: 'ion-alert button.btn--danger',
+  flowLoopActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypefor_loop"]',
+  flowLoopConditionRow: '.for-loop-condition-row',
 };
 
 export const SOURCE_PALETTE_SECTION = {
@@ -191,6 +194,7 @@ export const PALETTE_ICON = {
   file: 'icn_import.svg',
   signature: 'icn_sign.svg',
   location: 'location.svg',
+  forLoop: 'icn_for_loop.svg',
 } as const;
 
 const PALETTE_TYPE_BY_ICON: Record<string, string> = {
@@ -1103,6 +1107,15 @@ export interface BaserowSelectSourceOptions extends BaserowGridSourceOptions {
   valueColumn: string;
 }
 
+export interface BaserowAddRowActionOptions extends BaserowGridSourceOptions {
+  flowName?: string | RegExp;
+  mappings: Array<{
+    column: string;
+    sourceSection?: SourcePaletteSection;
+    sourceLabel: string;
+  }>;
+}
+
 const SELECT_SOURCE_TABLE_PICKER_BUTTON = 'button.class1776013870072';
 const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
@@ -1203,6 +1216,114 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
   });
 }
 
+export async function configureButtonFlowBaserowAddRow(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
+  const timeout = 60_000;
+  await openWorkflowsPanel(page);
+  const flowLabel = source.flowName ?? /Flow button/i;
+  const flow = page.locator('[draggable="true"]').filter({ hasText: flowLabel }).first();
+  await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
+  await flow.click();
+  await page.waitForTimeout(1_000);
+
+  await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
+  const actionTile = page
+    .locator('[draggable="true"]:visible')
+    .filter({ hasText: /Ajouter ou mettre[\s\S]*no-code database|Add or update[\s\S]*no-code database/i })
+    .last();
+  await expect(actionTile, 'Baserow Add Row action should be available in the action palette').toBeVisible({
+    timeout: 30_000,
+  });
+  const before = await page.locator('ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]').count();
+  await actionTile.dblclick({ force: true, delay: 75 });
+  await expect
+    .poll(() => page.locator('ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]').count(), {
+      message: 'Baserow Add Row action should be added to the flow',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(before);
+
+  const action = page.locator('ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]').last();
+  await action.click();
+  await page.waitForTimeout(1_000);
+  await page.getByRole('button', { name: /Configuration de l.action|Action configuration/i }).click();
+  await page.waitForTimeout(1_000);
+
+  await selectBaserowTableFromCurrentAction(page, source, timeout);
+
+  for (const mapping of source.mappings) {
+    await addBaserowActionVariable(page, mapping.column, mapping.sourceSection ?? 'form', mapping.sourceLabel);
+  }
+
+  const close = page.locator('button.class1741109898862, .c8o-btn-close.class1741109898862').last();
+  if (await close.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await close.click({ timeout: 10_000 }).catch(async () => close.dispatchEvent('click'));
+  } else {
+    await page.getByRole('button', { name: /Fermer|Close/i }).last().click();
+  }
+  await page.waitForTimeout(1_500);
+}
+
+export async function openButtonFlowLoopActionConfig(page: Page, flowName: string | RegExp = /Flow button/i): Promise<void> {
+  await test.step('Open the Button workflow', async () => {
+    await openWorkflowsPanel(page);
+    const flow = page.locator('[draggable="true"]').filter({ hasText: flowName }).first();
+    await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
+    await flow.click();
+    await page.waitForTimeout(1_000);
+  });
+
+  await test.step('Add the Loop action', async () => {
+    await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
+    const actionTile = page.locator(componentPaletteTileSelector(PALETTE_ICON.forLoop)).last();
+    await expect(actionTile, 'Loop action should be available in the action palette').toBeVisible({
+      timeout: 30_000,
+    });
+
+    const before = await page.locator(SEL.flowLoopActionCard).count();
+    await actionTile.dblclick({ force: true, delay: 75 });
+    await expect
+      .poll(() => page.locator(SEL.flowLoopActionCard).count(), {
+        message: 'Loop action should be added to the flow',
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(before);
+  });
+
+  await test.step('Open the Loop action configuration', async () => {
+    const action = page.locator(SEL.flowLoopActionCard).last();
+    await expect(action, 'Loop action card should be visible in the flow').toBeVisible({ timeout: 15_000 });
+    await action.click();
+    await page.waitForTimeout(1_000);
+  });
+}
+
+export async function expectLoopActionIteratorModesConfigurable(page: Page, textIterator: string): Promise<void> {
+  await test.step('Check the Loop iterator editor', async () => {
+    const loopRow = page.locator(SEL.flowLoopConditionRow).last();
+    await expect(loopRow, 'Loop action should expose the iterator editor row').toBeVisible({ timeout: 15_000 });
+    await expect(
+      loopRow.locator(SEL.defaultValueEditorWithPalette),
+      'Loop action should mount the iterator editor with palette',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  await test.step('Configure the Loop iterator in text mode', async () => {
+    await clickFirstVisible(page, SEL.defaultValueTextButton, 'Loop iterator text mode');
+    await confirmAlertIfVisible(page);
+    await fillVisibleTinyMceText(page, textIterator, 'Loop iterator text editor');
+  });
+
+  await test.step('Switch the Loop iterator to JavaScript mode', async () => {
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Loop iterator JavaScript mode');
+    await confirmAlertIfVisible(page);
+    const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+    await expect(editor, 'Loop iterator JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(editor, 'Loop iterator JavaScript editor should keep the generated async wrapper').toContainText('return', {
+      timeout: 10_000,
+    });
+  });
+}
+
 async function activateDataSourceMode(page: Page): Promise<void> {
   const sourceModeButtons = page.locator('button.class1775840591959');
   if ((await sourceModeButtons.count()) > 1) {
@@ -1234,6 +1355,57 @@ async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getDat
     await page.waitForTimeout(1_500 * (attempt + 1));
   }
   throw new Error(`Baserow source picker opened without the ${entry} source`);
+}
+
+async function selectBaserowTableFromCurrentAction(
+  page: Page,
+  source: BaserowGridSourceOptions,
+  timeout: number,
+): Promise<void> {
+  await acceptRgpdIfVisible(page);
+  await clickFirstVisible(page, SELECT_SOURCE_TABLE_PICKER_BUTTON, 'Baserow action table picker button', timeout, true);
+  const tablePicker = page.locator('ion-modal:visible').last();
+  await expect(tablePicker, 'Baserow action table picker should be visible').toBeVisible({ timeout });
+  await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout });
+  await tablePicker.getByText(source.workspace, { exact: true }).click();
+  await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout });
+  await tablePicker.getByText(source.database, { exact: true }).click();
+  await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout });
+  await tablePicker.getByText(source.table, { exact: true }).click();
+  await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout });
+  for (const column of source.expectedColumns ?? []) {
+    await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
+      column,
+      { timeout },
+    );
+  }
+  await acceptRgpdIfVisible(page);
+  await tablePicker.locator('ion-button.class1776244653366').click();
+  await expect(tablePicker).toBeHidden({ timeout });
+  await page.waitForTimeout(1_500);
+}
+
+async function addBaserowActionVariable(
+  page: Page,
+  column: string,
+  sourceSection: SourcePaletteSection,
+  sourceLabel: string,
+): Promise<void> {
+  await page.locator('button[aria-label="Ajouterbutton"]').first().dispatchEvent('click');
+  await page.waitForTimeout(800);
+  const columnInput = page.locator('ion-item.class1743090805947 input').last();
+  await expect(columnInput, `Baserow action column input for ${column} should be visible`).toBeVisible({ timeout: 10_000 });
+  await columnInput.fill(column);
+  await columnInput.press('Tab').catch(() => undefined);
+
+  if (!(await page.locator(SEL.sourcePalette).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
+    await page.locator('ion-button.class1776001071909').first().click({ timeout: 10_000 }).catch(async () => {
+      await page.locator('ion-button.class1776001071909').first().dispatchEvent('click');
+    });
+    await page.waitForTimeout(800);
+  }
+  await dragSourcePaletteEntryToTinyMce(page, sourceSection, sourceLabel);
+  await page.waitForTimeout(800);
 }
 
 async function closeTopModal(page: Page): Promise<void> {
