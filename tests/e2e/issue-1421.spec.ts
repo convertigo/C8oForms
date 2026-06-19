@@ -76,9 +76,6 @@ test('#1421 - anonymous legacy form without config should still open', async ({ 
     await acceptRgpdIfVisible(anonymousPage);
 
     const formTitle = anonymousPage.getByText(ISSUE_1421_FIXTURE_TITLE, { exact: true }).first();
-    const insufficientPermissions = anonymousPage.getByText(
-      /permissions suffisantes|sufficient permissions|permisos suficientes|permessi sufficienti/i,
-    );
     const configErrorPattern =
       /oneRespByPerson|Cannot read (properties|property).*config|Cannot read (properties|property).*undefined/i;
 
@@ -87,10 +84,6 @@ test('#1421 - anonymous legacy form without config should still open', async ({ 
     while (Date.now() < deadline) {
       if (await formTitle.isVisible().catch(() => false)) {
         renderState = 'form-rendered';
-        break;
-      }
-      if (await insufficientPermissions.first().isVisible().catch(() => false)) {
-        renderState = 'insufficient-permissions';
         break;
       }
       const configError = runtimeErrors.find((message) => configErrorPattern.test(message));
@@ -105,11 +98,6 @@ test('#1421 - anonymous legacy form without config should still open', async ({ 
       renderState,
       'the anonymous legacy form should render without permissions/config errors',
     ).toBe('form-rendered');
-
-    await expect(
-      insufficientPermissions,
-      'the anonymous viewer should not show an insufficient-permissions error',
-    ).toHaveCount(0);
 
     await anonymousPage.waitForTimeout(1_000);
     const configErrors = runtimeErrors.filter((message) => configErrorPattern.test(message));

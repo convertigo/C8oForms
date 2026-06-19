@@ -4,7 +4,7 @@ import {
   login,
   createFormWithMap,
   openComponentConfig,
-  openConfigTab,
+  openConfigTabById,
   setMapHeightAndClose,
   openPreview,
   mapHeight,
@@ -22,8 +22,6 @@ import {
  * Each test builds its own fresh one-map fixture through the UI (createFormWithMap)
  * — no dependency on a pre-existing document, full per-test isolation.
  */
-const DATA_TAB = /donnees.*interactions|data.*interactions/i;
-
 test('#1412 — a configured height applies to the map (editor and viewer)', async ({ page }) => {
   await login(page);
   // createFormWithMap leaves the map visible. A missing map means a broken setup,
@@ -31,7 +29,7 @@ test('#1412 — a configured height applies to the map (editor and viewer)', asy
   await createFormWithMap(page, { technicalId: 'map_repro' });
 
   await openComponentConfig(page, SEL.mapComponent);
-  await openConfigTab(page, DATA_TAB);
+  await openConfigTabById(page, 'data_interactions');
   await setMapHeightAndClose(page, '600');
 
   // Editor canvas

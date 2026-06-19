@@ -10,7 +10,7 @@ import {
   createBlankForm,
   login,
   openComponentConfig,
-  openConfigTab,
+  openConfigTabById,
   openPreview,
   setTechnicalId,
 } from './helpers/studio';
@@ -96,7 +96,7 @@ test('#1405 - hidden data grid recomputes column widths when it becomes visible'
     table: TABLE,
     expectedColumns: COLUMNS,
   });
-  await openConfigTab(page, /Visibilit|Visibility/i);
+  await openConfigTabById(page, 'visibility_tab_selector');
   await addVisibilityCondition(page, {
     field: CONTROLLER_ID,
     operator: 'equals',
