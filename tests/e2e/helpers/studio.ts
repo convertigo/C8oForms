@@ -116,6 +116,12 @@ export const SEL = {
   confirmDeleteYesButton: 'ion-alert button.btn--danger',
   flowLoopActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypefor_loop"]',
   flowLoopConditionRow: '.for-loop-condition-row',
+  flowConditionActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypeif_else"]',
+  flowConditionEditor: '.flow-condition-editor',
+  flowConditionVisualModeButton: 'ion-button.class1743536234020, ion-button.class1777544520315',
+  flowConditionBuilder: '.flow-condition-editor c8oforms-conditionvisibleif, .flow-condition-editor ion-select',
+  flowConditionTextModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="text-outline"])',
+  flowConditionJavaScriptModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="logo-javascript"])',
 };
 
 export const SOURCE_PALETTE_SECTION = {
@@ -195,6 +201,7 @@ export const PALETTE_ICON = {
   signature: 'icn_sign.svg',
   location: 'location.svg',
   forLoop: 'icn_for_loop.svg',
+  conditionAction: 'icn_if_else.svg',
 } as const;
 
 const PALETTE_TYPE_BY_ICON: Record<string, string> = {
@@ -1289,7 +1296,17 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   await page.waitForTimeout(1_500);
 }
 
-export async function openButtonFlowLoopActionConfig(page: Page, flowName: string | RegExp = /Flow button/i): Promise<void> {
+interface ButtonFlowActionOptions {
+  flowName?: string | RegExp;
+  icon: string;
+  actionCardSelector: string;
+  actionName: string;
+}
+
+async function openButtonFlowActionConfig(
+  page: Page,
+  { flowName = /Flow button/i, icon, actionCardSelector, actionName }: ButtonFlowActionOptions,
+): Promise<void> {
   await test.step('Open the Button workflow', async () => {
     await openWorkflowsPanel(page);
     const flow = page.locator('[draggable="true"]').filter({ hasText: flowName }).first();
@@ -1298,28 +1315,46 @@ export async function openButtonFlowLoopActionConfig(page: Page, flowName: strin
     await page.waitForTimeout(1_000);
   });
 
-  await test.step('Add the Loop action', async () => {
+  await test.step(`Add the ${actionName} action`, async () => {
     await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
-    const actionTile = page.locator(componentPaletteTileSelector(PALETTE_ICON.forLoop)).last();
-    await expect(actionTile, 'Loop action should be available in the action palette').toBeVisible({
+    const actionTile = page.locator(componentPaletteTileSelector(icon)).last();
+    await expect(actionTile, `${actionName} action should be available in the action palette`).toBeVisible({
       timeout: 30_000,
     });
 
-    const before = await page.locator(SEL.flowLoopActionCard).count();
+    const before = await page.locator(actionCardSelector).count();
     await actionTile.dblclick({ force: true, delay: 75 });
     await expect
-      .poll(() => page.locator(SEL.flowLoopActionCard).count(), {
-        message: 'Loop action should be added to the flow',
+      .poll(() => page.locator(actionCardSelector).count(), {
+        message: `${actionName} action should be added to the flow`,
         timeout: 15_000,
       })
       .toBeGreaterThan(before);
   });
 
-  await test.step('Open the Loop action configuration', async () => {
-    const action = page.locator(SEL.flowLoopActionCard).last();
-    await expect(action, 'Loop action card should be visible in the flow').toBeVisible({ timeout: 15_000 });
+  await test.step(`Open the ${actionName} action configuration`, async () => {
+    const action = page.locator(actionCardSelector).last();
+    await expect(action, `${actionName} action card should be visible in the flow`).toBeVisible({ timeout: 15_000 });
     await action.click();
     await page.waitForTimeout(1_000);
+  });
+}
+
+export async function openButtonFlowLoopActionConfig(page: Page, flowName: string | RegExp = /Flow button/i): Promise<void> {
+  await openButtonFlowActionConfig(page, {
+    flowName,
+    icon: PALETTE_ICON.forLoop,
+    actionCardSelector: SEL.flowLoopActionCard,
+    actionName: 'Loop',
+  });
+}
+
+export async function openButtonFlowConditionActionConfig(page: Page, flowName: string | RegExp = /Flow button/i): Promise<void> {
+  await openButtonFlowActionConfig(page, {
+    flowName,
+    icon: PALETTE_ICON.conditionAction,
+    actionCardSelector: SEL.flowConditionActionCard,
+    actionName: 'Condition',
   });
 }
 
@@ -1347,6 +1382,66 @@ export async function expectLoopActionIteratorModesConfigurable(page: Page, text
     await expect(editor, 'Loop iterator JavaScript editor should keep the generated async wrapper').toContainText('return', {
       timeout: 10_000,
     });
+  });
+}
+
+export async function expectConditionActionModesSwitchable(page: Page): Promise<void> {
+  await test.step('Check the If condition editor', async () => {
+    const conditionEditor = page.locator(SEL.flowConditionEditor).last();
+    await expect(conditionEditor, 'Condition action should expose the If editor').toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(SEL.flowConditionVisualModeButton).last(), 'Condition action should expose field/operator mode').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator(SEL.flowConditionBuilder).first(), 'Condition field/operator builder should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator(SEL.flowConditionTextModeButton).last(), 'Condition action should expose Aa mode').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator(SEL.flowConditionJavaScriptModeButton).last(), 'Condition action should expose JavaScript mode').toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  await test.step('Switch the If condition to text mode', async () => {
+    await clickFirstVisible(page, SEL.flowConditionTextModeButton, 'Condition text mode');
+    await confirmAlertIfVisible(page);
+    await expect(await visibleTinyMceBody(page), 'Condition text editor should become visible after clicking Aa mode').toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  await test.step('Switch the If condition to JavaScript mode', async () => {
+    await clickFirstVisible(page, SEL.flowConditionJavaScriptModeButton, 'Condition JavaScript mode');
+    await confirmAlertIfVisible(page);
+    const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+    await expect(editor, 'Condition JavaScript editor should become visible after clicking JS mode').toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  await test.step('Switch the If condition back to text mode', async () => {
+    await clickFirstVisible(page, SEL.flowConditionTextModeButton, 'Condition text mode');
+    await confirmAlertIfVisible(page);
+    await expect(await visibleTinyMceBody(page), 'Condition text editor should become visible after clicking Aa mode').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
+      'Condition JavaScript editor should be hidden after returning to Aa mode',
+    ).toBeHidden({ timeout: 15_000 });
+  });
+
+  await test.step('Switch the If condition back to field/operator mode', async () => {
+    await clickFirstVisible(page, SEL.flowConditionVisualModeButton, 'Condition field/operator mode');
+    await confirmAlertIfVisible(page);
+    await expect(page.locator(SEL.flowConditionBuilder).first(), 'Condition field/operator builder should be visible again').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
+      'Condition JavaScript editor should be hidden after returning to field/operator mode',
+    ).toBeHidden({ timeout: 15_000 });
   });
 }
 
@@ -2754,7 +2849,11 @@ async function confirmAlertIfVisible(page: Page): Promise<void> {
   if (!(await alert.isVisible({ timeout: 1_500 }).catch(() => false))) {
     return;
   }
-  await alert.locator('button.btn--primary').first().click();
+  const confirmButton = alert
+    .locator('button.btn--primary, button.alert-button-role-confirm, button.alert-button')
+    .last();
+  await expect(confirmButton, 'confirmation alert should expose a confirm button').toBeVisible({ timeout: 5_000 });
+  await confirmButton.click();
   await alert.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
 }
 
