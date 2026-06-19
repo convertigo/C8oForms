@@ -1445,6 +1445,34 @@ export async function expectConditionActionModesSwitchable(page: Page): Promise<
   });
 }
 
+export async function setTextDefaultValueJavascriptCode(page: Page, code: string): Promise<void> {
+  await test.step('Write JavaScript default value code', async () => {
+    await openDefaultValueJavascriptMode(page);
+    const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+    await expect(editor, 'default value JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
+    await editor.click();
+    await expect(editor, 'default value JavaScript editor should keep the generated async wrapper').toContainText("return '';", {
+      timeout: 10_000,
+    });
+    await page.keyboard.press('Control+F');
+    await page.keyboard.type("return '';");
+    await page.keyboard.press('Escape');
+    await page.keyboard.type(code);
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(1_000);
+  });
+}
+
+export async function expectDefaultValueJavaScriptEditorKeeps(page: Page, expected: string): Promise<void> {
+  await test.step('Assert JavaScript editor content', async () => {
+    const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+    await expect(editor, `JavaScript editor should keep ${expected}`).toContainText(expected, { timeout: 15_000 });
+    await expect(editor, 'JavaScript editor should not rewrite the dynamic field lookup to null').not.toContainText(/\bnull\b/, {
+      timeout: 5_000,
+    });
+  });
+}
+
 async function activateDataSourceMode(page: Page): Promise<void> {
   const sourceModeButtons = page.locator('button.class1775840591959');
   if ((await sourceModeButtons.count()) > 1) {
@@ -2169,6 +2197,23 @@ export async function setChoiceGroupDefaultValueVisual(
 export async function setChoiceDefaultValueText(page: Page, value: string): Promise<void> {
   await openDefaultValueTextMode(page);
   await fillVisibleTinyMceText(page, value, 'default value text editor');
+}
+
+export async function setTextDefaultValueText(page: Page, value: string): Promise<void> {
+  await setChoiceDefaultValueText(page, value);
+}
+
+export async function expectViewerTextInputValue(page: Page, index: number, expected: string): Promise<void> {
+  await test.step(`Assert Text input ${index + 1} displays ${expected}`, async () => {
+    const input = page.locator(`${SEL.textComponent} ion-input input, ${SEL.textComponent} input`).nth(index);
+    await expect(input, `viewer Text input ${index + 1} should be visible`).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => input.inputValue(), {
+        message: `viewer Text input ${index + 1} should contain ${expected}`,
+        timeout: 15_000,
+      })
+      .toBe(expected);
+  });
 }
 
 async function fillVisibleTinyMceText(page: Page, value: string, description: string): Promise<void> {
