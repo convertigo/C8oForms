@@ -906,7 +906,11 @@ export async function openComponentConfigByTechnicalId(page: Page, technicalId: 
 export async function reopenEditorFromHome(page: Page, title: string): Promise<void> {
   await page.locator(SEL.editorHomeButton).first().click();
   await expectRoute(page, ROUTE.selector);
-  const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
+  const cards = page.locator('[id^="idcard"]');
+  let card = cards.filter({ hasText: title }).first();
+  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
+    card = cards.filter({ hasText: title.slice(0, 29) }).first();
+  }
   await expect(card, `home should show form card ${title}`).toBeVisible({ timeout: 30_000 });
   await card.click();
   await expectRoute(page, ROUTE.editor);
@@ -993,20 +997,23 @@ async function visibleConfigTabs(page: Page): Promise<Locator> {
 
 function fallbackConfigTabIndex(tabId: MainEditorConfigTab, visibleTabCount: number): number | null {
   if (visibleTabCount <= 0) return null;
-  const hasSourceTabs = visibleTabCount >= 5;
+  const hasSourceChoiceTab = visibleTabCount >= 5;
   switch (tabId) {
     case 'tab_selector_choice_source':
-      return visibleTabCount >= 6 ? 0 : null;
+      return hasSourceChoiceTab ? 0 : null;
     case 'tab_selector_choice_action':
       return visibleTabCount === 2 || visibleTabCount >= 6 ? 0 : null;
     case 'tab_selector_conf_source':
+      if (visibleTabCount === 4) return 0;
+      return hasSourceChoiceTab ? 1 : null;
     case 'tab_selector_conf_action':
       if (visibleTabCount === 2) return 1;
-      return hasSourceTabs ? visibleTabCount - 5 : null;
+      return visibleTabCount >= 6 ? visibleTabCount - 5 : null;
     case 'defaultvalue':
-      return hasSourceTabs ? visibleTabCount - 4 : visibleTabCount > 1 ? 1 : null;
+      return hasSourceChoiceTab ? visibleTabCount - 4 : visibleTabCount > 1 ? 1 : null;
     case 'data_interactions':
-      return hasSourceTabs ? visibleTabCount - 3 : 0;
+      if (visibleTabCount === 4) return 1;
+      return hasSourceChoiceTab ? visibleTabCount - 3 : 0;
     case 'visibility_tab_selector':
       return visibleTabCount > 1 ? visibleTabCount - 2 : null;
     case 'navigation_tab_selector':
@@ -1067,9 +1074,7 @@ async function configTabIndexById(page: Page, tabId: MainEditorConfigTab): Promi
           .filter((item) => item != null);
         for (const baseItem of items) {
           const item = editor.getActiveMainEditorItem(baseItem) ?? baseItem;
-          const tabIds = (editor.getMainEditorTabIds(item, 'configuration') ?? []).filter(
-            (id: string) => !(item?.type === 'map' && id === 'tab_selector_choice_source'),
-          );
+          const tabIds = editor.getMainEditorTabIds(item, 'configuration') ?? [];
           const index = tabIds.indexOf(targetTabId);
           if (index !== -1 && index < visibleConfigTabs.length) {
             return index;
