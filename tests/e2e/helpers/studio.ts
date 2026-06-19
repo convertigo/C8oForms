@@ -64,10 +64,17 @@ export const SEL = {
   componentPaletteSearch: 'ion-searchbar.class1775889901001',
   pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
   workflowsPanelButton: 'ion-button.class1773250515928, ion-button.class1780909504555',
-  pageRow: '.class1749805611480',
-  pageEditButton: '.class1650357059474',
+  pageRow: '.class1775140559440, .class1749805611480, .class1650357059456, .class1650357059543',
+  pageEditButton:
+    '[title^="Modifier la page"], [aria-label^="Modifier la page"], [title^="Edit page"], [aria-label^="Edit page"], .class1775140098599, .class1774949227812, .class1650357059474, .class1775140098605, .class1774948900804',
+  pageDeleteAction:
+    '.class1775140098632, .class1774949276438, [data-id="delete-action-pages"], ion-icon[src$="trash-2.svg"], img[src$="trash-2.svg"]',
+  pageAddButton: '.class1750084426535',
+  pageSearchbar: 'ion-searchbar.class1774460274462',
+  pageSettingsCard: '.class1650357060215',
+  pageSettingsCloseButton: '.c8o-btn-close',
   // page settings "Nom de la page" input (TextInputSetting)
-  pageNameInput: '.class1776265600007 input',
+  pageNameInput: '.class1776265600007 input, ion-input.class1775119427737 input, .class1775119427737 input',
   editorHomeButton: 'ion-button.class1774605933364',
   visibilityModeButton: 'button.class1775840591959',
   visibilityAddConditionButton: 'ion-button.class1758191882601',
@@ -2961,6 +2968,11 @@ export async function openPageSettings(page: Page): Promise<void> {
     if (await nameInput.isVisible().catch(() => false)) return true;
     const general = page.locator(SEL.pageSettingsGeneralTab).first();
     if (await general.count()) await general.click().catch(() => {});
+    if (await nameInput.isVisible().catch(() => false)) return true;
+    const pageSettingsCard = page.locator(SEL.pageSettingsCard).first();
+    if (await pageSettingsCard.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await pageSettingsCard.click().catch(() => {});
+    }
     return nameInput
       .waitFor({ state: 'visible', timeout })
       .then(() => true)
@@ -2986,6 +2998,97 @@ export async function openPageSettings(page: Page): Promise<void> {
   if (await ensureGeneralName(8_000)) return;
 
   throw new Error('Could not open the page settings: the page name field never became visible.');
+}
+
+export async function openPagesPanel(page: Page): Promise<void> {
+  await test.step('Open the Pages panel', async () => {
+    const visibleClose = await firstVisibleLocatorOrNull(page, SEL.pageSettingsCloseButton, 1_000);
+    if (visibleClose) {
+      await visibleClose.click();
+      await page.waitForTimeout(500);
+    }
+    if (await page.locator(SEL.pageRow).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+      return;
+    }
+    if (await page.locator(SEL.pageAddButton).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await expect(page.locator(SEL.pageRow).first(), 'Pages panel is open but no page row is visible').toBeVisible({
+        timeout: 5_000,
+      });
+      return;
+    }
+    const button = page.locator(SEL.pagesPanelButton).first();
+    await expect(button, 'Pages panel button should be visible').toBeVisible({ timeout: 15_000 });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await button.click({ timeout: 5_000 }).catch(async () => {
+        await button.click({ force: true, timeout: 5_000 });
+      });
+      if (await page.locator(SEL.pageRow).first().isVisible({ timeout: 3_000 }).catch(() => false)) {
+        return;
+      }
+    }
+    throw new Error('Pages panel did not open after clicking the Pages menu.');
+  });
+}
+
+export async function renameCurrentPageFromPagesPanel(page: Page, name: string): Promise<void> {
+  await test.step('Rename the current page from the Pages panel', async () => {
+    await openPagesPanel(page);
+    const row = page.locator(SEL.pageRow).first();
+    await expect(row, 'the default page row should be visible').toBeVisible({ timeout: 15_000 });
+    await row.hover();
+    const editAction = await firstVisibleLocatorOrNull(page, SEL.pageEditButton, 5_000);
+    if (editAction) {
+      await editAction.click();
+    } else {
+      const rowBox = await row.boundingBox();
+      const panelBox = await page.locator(SEL.pageSearchbar).first().boundingBox();
+      expect(rowBox, 'the default page row should have a bounding box').not.toBeNull();
+      expect(panelBox, 'Pages panel should have a bounding box').not.toBeNull();
+      if (!rowBox || !panelBox) return;
+      await page.mouse.click(panelBox.x + panelBox.width - 86, rowBox.y + rowBox.height / 2);
+    }
+
+    const input = page.locator(SEL.pageNameInput).first();
+    await expect(input, 'page name input should be visible after clicking the page edit action').toBeVisible({
+      timeout: 15_000,
+    });
+    await input.fill(name);
+    await input.blur();
+    await expect(input, 'page name input should keep the new name').toHaveValue(name, { timeout: 10_000 });
+    await page.waitForTimeout(1_000);
+    const closeButton = await firstVisibleLocatorOrNull(page, SEL.pageSettingsCloseButton, 3_000);
+    if (closeButton) {
+      await closeButton.click();
+      await page.waitForTimeout(500);
+    }
+  });
+}
+
+export async function expectPageDeleteActionVisibleForPage(page: Page, pageName: string): Promise<void> {
+  await test.step('Assert the page delete action is visible', async () => {
+    await openPagesPanel(page);
+    const row = page.locator(SEL.pageRow).filter({ hasText: pageName }).first();
+    await expect(row, `page row ${pageName} should be visible`).toBeVisible({ timeout: 15_000 });
+    await row.hover();
+
+    const deleteAction = await firstVisibleLocator(page, SEL.pageDeleteAction, `delete action for page ${pageName}`, 5_000);
+    await expect(deleteAction, `delete action for page ${pageName} should be visible on hover`).toBeVisible({
+      timeout: 5_000,
+    });
+
+    const boxes = await Promise.all([row.boundingBox(), deleteAction.boundingBox(), page.locator(SEL.pageSearchbar).first().boundingBox()]);
+    const [rowBox, actionBox, searchBox] = boxes;
+    expect(rowBox, `page row ${pageName} should have a bounding box`).not.toBeNull();
+    expect(actionBox, `delete action for page ${pageName} should have a bounding box`).not.toBeNull();
+    expect(searchBox, 'Pages panel should have a bounding box').not.toBeNull();
+    if (!rowBox || !actionBox || !searchBox) return;
+
+    expect(actionBox.width, 'delete action should have a visible width').toBeGreaterThan(0);
+    expect(actionBox.height, 'delete action should have a visible height').toBeGreaterThan(0);
+    expect(actionBox.x + actionBox.width, 'delete action should remain inside the Pages panel on the right').toBeLessThanOrEqual(
+      searchBox.x + searchBox.width + 1,
+    );
+  });
 }
 
 /**
