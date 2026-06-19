@@ -30,7 +30,10 @@ const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
 const TABLE = 'Issue 1402 Source Select Labels';
 const TECHNICAL_ID = 'source_select_1402';
-const ROW_COUNT = 80;
+// 40 rows still overflow the dropdown viewport and virtualize the list (so the
+// blank-zone-after-last-item bug reproduces), while keeping the Baserow fixture
+// upsert fast enough to stay well within the test budget on a cold CI engine.
+const ROW_COUNT = 40;
 const DISPLAY_COLUMN = 'Name';
 const VALUE_COLUMN = 'Value';
 
@@ -43,7 +46,9 @@ test.use({
   viewport: { width: 1920, height: 1080 },
 });
 
-test.setTimeout(180_000);
+// Generous budget: the fixture upserts 80 rows, which can be slow against a
+// freshly (re)deployed engine on push builds before the Baserow cache warms up.
+test.setTimeout(240_000);
 
 test('#1402 - source Select dropdown has no large blank zone after the last item', async ({ page }) => {
   const catalog = await ensureBaserowTable({
