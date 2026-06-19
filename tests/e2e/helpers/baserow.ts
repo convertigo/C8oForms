@@ -65,8 +65,13 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Per-request timeout for a single MCP HTTP call. A hung schema-apply (e.g. an
+// 80-row upsert against a cold engine right after a deploy) must abort and be
+// retried by callMcp instead of blocking until the global test timeout.
+const MCP_REQUEST_TIMEOUT_MS = 45_000;
+
 function isTransientMcpError(error: unknown): boolean {
-  return /interrupted|did not terminate quickly enough|timed? ?out|temporarily|ECONNRESET|EPIPE|HTTP 50[234]/i.test(
+  return /interrupted|did not terminate quickly enough|timed? ?out|temporarily|abort|ECONNRESET|EPIPE|HTTP 50[234]/i.test(
     String((error as Error | undefined)?.message ?? error),
   );
 }
@@ -76,11 +81,11 @@ function isTransientMcpError(error: unknown): boolean {
  * initialize -> notifications/initialized -> tools/call, reusing the session id.
  * Responses may come back as plain JSON or as a single SSE `data:` line.
  */
-async function callMcp(tool: string, args: Json): Promise<Json> {
+async function callMcp(tool: string, args: Json, token?: string): Promise<Json> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
-      return await callMcpOnce(tool, args);
+      return await callMcpOnce(tool, args, token);
     } catch (error) {
       lastError = error;
       if (!isTransientMcpError(error) || attempt === 3) {
@@ -92,7 +97,7 @@ async function callMcp(tool: string, args: Json): Promise<Json> {
   throw lastError;
 }
 
-async function callMcpOnce(tool: string, args: Json): Promise<Json> {
+async function callMcpOnce(tool: string, args: Json, token?: string): Promise<Json> {
   const url = mcpUrl();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -102,7 +107,12 @@ async function callMcpOnce(tool: string, args: Json): Promise<Json> {
   const post = async (body: Json, sessionId?: string) => {
     const h = { ...headers };
     if (sessionId) h['mcp-session-id'] = sessionId;
-    const res = await fetch(url, { method: 'POST', headers: h, body: JSON.stringify(body) });
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(MCP_REQUEST_TIMEOUT_MS),
+    });
     const sid = res.headers.get('mcp-session-id') ?? sessionId;
     const contentType = res.headers.get('content-type') ?? 'unknown content-type';
     const text = await res.text();
@@ -142,7 +152,7 @@ async function callMcpOnce(tool: string, args: Json): Promise<Json> {
   await post({ jsonrpc: '2.0', method: 'notifications/initialized' }, sessionId).catch(() => undefined);
 
   const out = await post(
-    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: { token: mcpToken(), ...args } } },
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: { token: token ?? mcpToken(), ...args } } },
     sessionId,
   );
 
@@ -194,7 +204,7 @@ export async function baserowCatalog(options: BaserowCatalogOptions = {}): Promi
  * are reused, missing fields are created and sample rows are upserted. Returns
  * a catalog read-back with columns so the caller can assert fixture metadata.
  */
-export async function ensureBaserowTable(spec: EnsureTableSpec): Promise<BaserowCatalog> {
+export async function ensureBaserowTable(spec: EnsureTableSpec, token?: string): Promise<BaserowCatalog> {
   const r = await callMcp('nocode-baserow-schema-apply', {
     mode: 'apply',
     readBack: true,
@@ -218,7 +228,7 @@ export async function ensureBaserowTable(spec: EnsureTableSpec): Promise<Baserow
         },
       ],
     },
-  });
+  }, token);
   if ((r as Json).status === 'error') {
     throw new Error(`baserow schema apply failed: ${JSON.stringify((r as Json).error ?? r)}`);
   }

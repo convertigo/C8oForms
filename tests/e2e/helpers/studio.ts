@@ -288,6 +288,11 @@ function primaryTestCredentials(users: string[]): LoginCredentials {
 // or from CI env. With C8OFORMS_TEST_USERS, each worker/shard selects a
 // separate disposable account; passwords default to the selected login.
 export const TEST_USERS = configuredTestUsers();
+// Credentials for a specific configured test user (0-based). Used by multi-user
+// specs (e.g. #1423 cross-user isolation) that must drive two distinct accounts.
+export function credentialsForUserIndex(index: number): LoginCredentials {
+  return credentialsForConfiguredUser(TEST_USERS, index);
+}
 const CURRENT_TEST_CREDENTIALS = currentTestCredentials(TEST_USERS);
 const PRIMARY_TEST_CREDENTIALS = primaryTestCredentials(TEST_USERS);
 export const TEST_USER = CURRENT_TEST_CREDENTIALS.user;

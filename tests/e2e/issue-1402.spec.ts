@@ -43,7 +43,9 @@ test.use({
   viewport: { width: 1920, height: 1080 },
 });
 
-test.setTimeout(180_000);
+// Generous budget: the fixture upserts 80 rows, which can be slow against a
+// freshly (re)deployed engine on push builds before the Baserow cache warms up.
+test.setTimeout(240_000);
 
 test('#1402 - source Select dropdown has no large blank zone after the last item', async ({ page }) => {
   const catalog = await ensureBaserowTable({
