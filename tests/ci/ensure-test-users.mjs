@@ -9,6 +9,7 @@ const DEFAULT_USERS = [
 
 const FULLSYNC_USER_DB = 'lib_usermanager_fullsync';
 const FORMS_DB = 'c8oforms_fs';
+const REQUIRED_TEST_USER_LANGUAGE = 'fr';
 const REQUIRED_TEST_USER_RIGHTS = {
   editing_rights: true,
   nocode_db_rights: true,
@@ -287,6 +288,7 @@ function settingIsReady(settings, user) {
   return (
     settings &&
     settings.mail === user &&
+    settings.language === REQUIRED_TEST_USER_LANGUAGE &&
     (settings.c8o_view_type_users === true || settings.c8o_view_type_users === 'true') &&
     Object.entries(REQUIRED_TEST_USER_RIGHTS).every(([key, value]) => settingBoolean(settings, key) === value)
   );
@@ -302,7 +304,7 @@ async function addUser(endpoint, user, password) {
     password,
     published_First: 'true',
     editing_rights: 'true',
-    language: 'en',
+    language: REQUIRED_TEST_USER_LANGUAGE,
     name: displayNameFor(user),
     surname: '',
     displayName: displayNameFor(user),
@@ -321,6 +323,7 @@ async function grantTestUserRights(endpoint, user) {
     _id: `C8Oreserved_${user}`,
     mail: user,
     provider: 'forms',
+    language: REQUIRED_TEST_USER_LANGUAGE,
     c8o_view_type_users: true,
     ...REQUIRED_TEST_USER_RIGHTS,
   };
