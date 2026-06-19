@@ -44,6 +44,10 @@ const ROWS = Array.from({ length: ROW_COUNT }, (_, index) => {
   return { [DISPLAY_COLUMN]: `Choice ${n}`, [VALUE_COLUMN]: `value-${n}` };
 });
 
+// Baserow editor flows can intermittently stall on "Page loading in progress";
+// retry the whole test from a fresh page/form in CI rather than failing flaky.
+test.describe.configure({ retries: process.env.CI ? 2 : 0 });
+
 test.use({
   viewport: { width: 1920, height: 1080 },
 });

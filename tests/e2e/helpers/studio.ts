@@ -1224,24 +1224,12 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
 }
 
 export async function configureButtonFlowBaserowAddRow(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
-  // The Studio editor can occasionally get stuck on "Page loading in progress"
-  // so the action affordances never render and the flow would hang to the test
-  // timeout. Drive the flow once; on failure, reload the editor and re-drive.
-  // The inner steps are idempotent (an already-added action / already-mapped
-  // column is reused) so a retry after a partial first attempt cannot duplicate.
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      await configureButtonFlowBaserowAddRowOnce(page, source);
-      return;
-    } catch (error) {
-      if (attempt === maxAttempts) {
-        throw error;
-      }
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
-      await page.waitForTimeout(3_000);
-    }
-  }
+  // Resilience for this flow is layered: the picker re-clicks each level until it
+  // advances (slow lazy fetches), and the spec uses test-level retries to re-run
+  // from scratch when the editor content intermittently stalls on
+  // "Page loading in progress". A hard page.reload() does NOT recover that stall
+  // (the reloaded editor stays empty), so we drive the flow once here.
+  await configureButtonFlowBaserowAddRowOnce(page, source);
 }
 
 async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
