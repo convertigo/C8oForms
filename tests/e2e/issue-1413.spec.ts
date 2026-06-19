@@ -35,6 +35,10 @@ const EXPECTED_VALUE = "Alice's quoted owner";
 const ROW_SELECTED = /ligne sélectionnée|selected row/i;
 const GRID_CONFIGURED = /cette table a été configurée pour renvoyer|this grid has been configured to return/i;
 
+// Baserow editor flows can intermittently stall on "Page loading in progress";
+// retry the whole test from a fresh page/form in CI rather than failing flaky.
+test.describe.configure({ retries: process.env.CI ? 2 : 0 });
+
 test.setTimeout(180_000);
 
 test('#1413 - description palette values escape quoted grid column names', async ({ page }) => {

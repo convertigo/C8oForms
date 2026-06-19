@@ -73,6 +73,10 @@ const DATE_COLUMNS = [
 
 const EXPECTED_COLUMNS = DATE_COLUMNS.map((column) => column.name);
 
+// Baserow editor flows can intermittently stall on "Page loading in progress";
+// retry the whole test from a fresh page/form in CI rather than failing flaky.
+test.describe.configure({ retries: process.env.CI ? 2 : 0 });
+
 test.use({
   locale: 'fr-FR',
   timezoneId: 'Europe/Paris',

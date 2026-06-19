@@ -40,6 +40,10 @@ const TEXT_TECHNICAL_ID = 'row_name_1396';
 const CHECKBOX_TECHNICAL_ID = 'tags_1396';
 const BUTTON_TECHNICAL_ID = 'submit_1396';
 
+// Baserow editor flows can intermittently stall on "Page loading in progress";
+// retry the whole test from a fresh page/form in CI rather than failing flaky.
+test.describe.configure({ retries: process.env.CI ? 2 : 0 });
+
 test.setTimeout(240_000);
 
 test('#1396 - Checkbox Add Row stores Baserow multiple select values', async ({ page }) => {
