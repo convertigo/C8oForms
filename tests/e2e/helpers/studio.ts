@@ -1583,11 +1583,13 @@ async function addBaserowActionVariable(
 
   // Bounded wait: if the editor is stuck loading, fail fast so the caller can
   // reload and re-drive instead of hanging the click until the test timeout.
-  const addButton = page.locator('button[aria-label="Ajouterbutton"]').first();
-  await expect(addButton, `Baserow action "Ajouter" button for ${column} should be available`).toBeVisible({
+  const addButton = page.locator('c8oforms-button_variable.class1775996201019 button.class1775995541940').first();
+  await expect(addButton, `Baserow action add-variable button for ${column} should be available`).toBeVisible({
     timeout: 30_000,
   });
-  await addButton.dispatchEvent('click');
+  await addButton.click({ timeout: 10_000 }).catch(async () => {
+    await addButton.dispatchEvent('click');
+  });
   await page.waitForTimeout(800);
   const columnInput = page.locator('ion-item.class1743090805947 input').last();
   await expect(columnInput, `Baserow action column input for ${column} should be visible`).toBeVisible({ timeout: 10_000 });
