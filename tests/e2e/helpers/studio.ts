@@ -15,6 +15,9 @@ export const SEL = {
   // component/action config panel tab buttons, selected by stable ids in helpers
   configTab: ':is(.class1775835275881, .toast-action-tab-button)',
   configTabsContainer: '[data-main-editor-tabs-buttons="configuration"]',
+  // component style panel tabs
+  styleTab: '.class1775832335416',
+  styleTabsContainer: '[data-main-editor-tabs-buttons="style"]',
   // component config panel "Configuration" section label
   configSectionLabel: '.span-configuration',
   // config panel close button
@@ -129,9 +132,14 @@ export const SEL = {
   flowConditionEditor: '.flow-condition-editor',
   flowConditionVisualModeButton: 'ion-button.class1743536234020, ion-button.class1777544520315',
   flowConditionBuilder: '.flow-condition-editor c8oforms-conditionvisibleif, .flow-condition-editor ion-select',
+  flowConditionFieldBrowseButton: '.flow-condition-editor ion-button.class1595231678502',
+  flowConditionFieldInput: '.flow-condition-editor input[disabled]',
   flowConditionTextModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="text-outline"])',
   flowConditionJavaScriptModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="logo-javascript"])',
   flowSubmitActionCard: 'ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]',
+  flowToastActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypetoast"]',
+  toastActionTabButton: 'button.toast-action-tab-button',
+  toastMessageRow: '.toast-message-row',
   baserowActionAddVariableButton: 'c8oforms-button_variable.class1775996201019 button.class1775995541940',
 };
 
@@ -164,6 +172,20 @@ export interface SourcePaletteSectionState {
   height: number;
   opacity: number;
   pointerEvents: string;
+}
+
+export interface SourcePaletteDragPayload {
+  types: string[];
+  textData: string;
+  plainData: string;
+  htmlData: string;
+  typeData: string;
+}
+
+export interface FlowConditionOperatorSelectState {
+  value: string | null;
+  optionValues: string[];
+  text: string;
 }
 
 export interface CheckboxDescriptionFixtureOptions {
@@ -218,6 +240,7 @@ export const PALETTE_ICON = {
   chart: 'icn_chart.svg',
   barcode: 'icn_codebar.svg',
   businessLogic: 'icn_business_logic.svg',
+  toastAction: 'icn_toast.svg',
   file: 'icn_import.svg',
   signature: 'icn_sign.svg',
   location: 'location.svg',
@@ -962,9 +985,25 @@ export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab):
     await page.waitForTimeout(350);
     return;
   }
+  if (await clickConfigTabByFallbackText(page, tabId)) {
+    await page.waitForTimeout(350);
+    return;
+  }
+  if (await clickConfigTabByFallbackIndex(page, tabId)) {
+    await page.waitForTimeout(350);
+    return;
+  }
 
   await openConfigurationSection(page);
   if (await clickConfigTabById(page, tabId)) {
+    await page.waitForTimeout(350);
+    return;
+  }
+  if (await clickConfigTabByFallbackText(page, tabId)) {
+    await page.waitForTimeout(350);
+    return;
+  }
+  if (await clickConfigTabByFallbackIndex(page, tabId)) {
     await page.waitForTimeout(350);
     return;
   }
@@ -972,10 +1011,71 @@ export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab):
   throw new Error(`No visible config tab matches id ${tabId}. Visible tabs: ${(await visibleTexts(page, SEL.configTab)).join(' | ')}`);
 }
 
+export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
+  const container = page.locator(SEL.styleTabsContainer).first();
+  await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
+
+  const tabs = container.locator(`${SEL.styleTab}:visible`);
+  await expect(
+    tabs,
+    'Button style tabs should expose only the two button-specific sections; the generic Question tab must be absent.',
+  ).toHaveCount(2);
+  await expect(tabs.first(), 'button visual style section should remain accessible').toBeVisible();
+  await expect(tabs.nth(1), 'button icon style section should remain accessible').toBeVisible();
+}
+
 async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
   const tabs = await visibleConfigTabs(page);
-  const index = (await configTabIndexById(page, tabId)) ?? fallbackConfigTabIndex(tabId, await tabs.count());
+  const index = await configTabIndexById(page, tabId);
   if (index === null || index < 0) {
+    return false;
+  }
+
+  const tab = tabs.nth(index);
+  if (!(await tab.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    return false;
+  }
+  await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+  return true;
+}
+
+const CONFIG_TAB_FALLBACK_TEXT: Partial<Record<MainEditorConfigTab, string[]>> = {
+  tab_selector_choice_source: ['source selection', 'choix de la source', 'eleccion de la fuente', 'scelta della sorgente'],
+  tab_selector_conf_source: [
+    'source configuration',
+    'configuration de la source',
+    'configuracion de la fuente',
+    'configurazione della sorgente',
+  ],
+  defaultvalue: ['default value', 'valeur par defaut', 'valor por defecto', 'valore predefinito'],
+  data_interactions: ['data & interactions', 'donnees & interactions', 'datos e interacciones', 'dati e interazioni'],
+  visibility_tab_selector: ['visibility', 'visibilite', 'visibilidad', 'visibilita'],
+  navigation_tab_selector: ['navigation', 'navegacion', 'navigazione'],
+};
+
+async function clickConfigTabByFallbackText(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
+  const labels = CONFIG_TAB_FALLBACK_TEXT[tabId]?.map(searchableVisibleText);
+  if (!labels?.length) {
+    return false;
+  }
+
+  const tabs = await visibleConfigTabs(page);
+  const count = await tabs.count();
+  for (let index = 0; index < count; index++) {
+    const tab = tabs.nth(index);
+    const text = searchableVisibleText(await tab.innerText().catch(() => ''));
+    if (labels.includes(text)) {
+      await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+      return true;
+    }
+  }
+  return false;
+}
+
+async function clickConfigTabByFallbackIndex(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
+  const tabs = await visibleConfigTabs(page);
+  const index = fallbackConfigTabIndex(tabId, await tabs.count());
+  if (index == null) {
     return false;
   }
 
@@ -1231,6 +1331,8 @@ const SELECT_SOURCE_TABLE_PICKER_BUTTON = SEL.dataSourceConfigureButton;
 const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
+const DATA_SOURCE_EDITOR_ACTION_BUTTON = 'button.class1775995541940';
+const DATA_SOURCE_SORT_ACTION_INDEX = 2;
 
 export async function configureGridBaserowSource(page: Page, source: BaserowGridSourceOptions): Promise<void> {
   const pickerTimeout = 60_000;
@@ -1272,6 +1374,46 @@ export async function configureGridBaserowSource(page: Page, source: BaserowGrid
       timeout: pickerTimeout,
     });
   }
+}
+
+export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<void> {
+  await test.step('Select the Baserow data source without configuring a table', async () => {
+    await openConfigurationSection(page);
+    await openConfigTabById(page, 'tab_selector_choice_source');
+    await activateDataSourceMode(page);
+    await selectDataSourceEntry(page, 60_000, 'getData');
+
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await expect(
+      page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`).first(),
+      'the data source configuration actions should be visible',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function openDataSourceSortPanel(page: Page): Promise<void> {
+  await test.step('Open the data source Sort panel', async () => {
+    const actions = page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`);
+    const sortAction = actions.nth(DATA_SOURCE_SORT_ACTION_INDEX);
+    await expect(sortAction, 'the data source Sort action should be visible').toBeVisible({ timeout: 15_000 });
+    await sortAction.click({ timeout: 10_000 }).catch(async () => sortAction.dispatchEvent('click'));
+    await expect(sortAction, 'the data source Sort action should be selected').toHaveClass(/figma-button--selected/, {
+      timeout: 10_000,
+    });
+  });
+}
+
+export async function expectDataSourceSortMissingConfigResolved(page: Page): Promise<void> {
+  const progress = page.locator('c8oforms-datasourceeditor ion-progress-bar:visible');
+  await expect(
+    progress,
+    'Sort should report the missing table/source configuration instead of showing an endless progress bar.',
+  ).toHaveCount(0);
+
+  await expect(
+    page.locator('c8oforms-datasourceeditor p:visible').first(),
+    'Sort should render a visible missing-configuration message.',
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 export async function configureSelectBaserowSource(page: Page, source: BaserowSelectSourceOptions): Promise<void> {
@@ -1333,7 +1475,12 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
 
 async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
-  const flow = page.locator('[draggable="true"]').filter({ hasText: flowName ?? /Flow button/i }).first();
+  let flow = flowName
+    ? page.locator('[draggable="true"]').filter({ hasText: flowName }).first()
+    : page.locator(SEL.submitFlowButton).first();
+  if (!flowName && !(await flow.isVisible({ timeout: 2_000 }).catch(() => false))) {
+    flow = page.locator('[draggable="true"]').filter({ hasText: /Flow button/i }).first();
+  }
   await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
   await flow.click({ timeout: 10_000 }).catch(async () => flow.dispatchEvent('click'));
   await page.waitForTimeout(1_000);
@@ -1466,6 +1613,40 @@ export async function openButtonFlowConditionActionConfig(page: Page, flowName?:
   });
 }
 
+export async function openButtonFlowToastActionConfig(page: Page, flowName?: string | RegExp): Promise<void> {
+  await openButtonFlowActionConfig(page, {
+    flowName,
+    icon: PALETTE_ICON.toastAction,
+    actionCardSelector: SEL.flowToastActionCard,
+    actionName: 'Toast',
+  });
+}
+
+export async function openToastActionMessageEditor(page: Page): Promise<void> {
+  await test.step('Open the Toast message editor', async () => {
+    const messageRow = page.locator(SEL.toastMessageRow).last();
+    if (!(await messageRow.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      const tab =
+        (await page
+          .locator(`${SEL.toastActionTabButton}:visible`)
+          .filter({ hasText: /^(Message|Mensaje|Messaggio)$/i })
+          .last()
+          .isVisible({ timeout: 1_000 })
+          .catch(() => false))
+          ? page
+              .locator(`${SEL.toastActionTabButton}:visible`)
+              .filter({ hasText: /^(Message|Mensaje|Messaggio)$/i })
+              .last()
+          : page.getByRole('button', { name: /^(Message|Mensaje|Messaggio)$/i }).last();
+      await expect(tab, 'Toast action should expose a Message tab').toBeVisible({ timeout: 15_000 });
+      await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+    }
+    await expect(messageRow, 'Toast message row should be visible').toBeVisible({ timeout: 15_000 });
+    const editor = page.locator(`${SEL.toastMessageRow} ${SEL.defaultValueEditorWithPalette}`).last();
+    await expect(editor, 'Toast message should use the sourceable text editor').toBeVisible({ timeout: 15_000 });
+  });
+}
+
 export async function expectLoopActionIteratorModesConfigurable(page: Page, textIterator: string): Promise<void> {
   await test.step('Check the Loop iterator editor', async () => {
     const loopRow = page.locator(SEL.flowLoopConditionRow).last();
@@ -1550,6 +1731,112 @@ export async function expectConditionActionModesSwitchable(page: Page): Promise<
       page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
       'Condition JavaScript editor should be hidden after returning to field/operator mode',
     ).toBeHidden({ timeout: 15_000 });
+  });
+}
+
+export async function expectConditionActionConfigurationTabsOnlyIf(page: Page): Promise<void> {
+  await test.step('Check that the Condition action configuration only exposes the If tab', async () => {
+    await expect(page.locator(SEL.flowConditionEditor).last(), 'Condition action should expose the If editor').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect
+      .poll(
+        async () =>
+          page.locator(SEL.toastActionTabButton).evaluateAll((buttons) => {
+            const visible = (el: Element) => {
+              const box = (el as HTMLElement).getBoundingClientRect();
+              const style = getComputedStyle(el);
+              return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+            };
+            return buttons.filter(visible).length;
+          }),
+        {
+          message: 'Condition action configuration should not expose empty Then/Else tabs',
+          timeout: 10_000,
+        },
+      )
+      .toBe(1);
+
+    const visibleTabClasses = await page.locator(SEL.toastActionTabButton).evaluateAll((buttons) => {
+      const visible = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      return buttons.filter(visible).map((button) => (button as HTMLElement).className);
+    });
+    expect(visibleTabClasses[0], 'the single Condition configuration tab should be selected').toContain('c8o-btn-active-style');
+  });
+}
+
+export async function selectFlowConditionField(page: Page, fieldTechnicalId: string): Promise<void> {
+  await test.step(`Select ${fieldTechnicalId} in the If condition`, async () => {
+    await clickFirstVisible(page, SEL.flowConditionFieldBrowseButton, 'If condition field picker', 15_000, true);
+    const popover = page.locator('ion-popover:visible').last();
+    await expect(popover.locator('page-popoverinputs, ion-list').first(), 'If condition picker should be visible').toBeVisible({
+      timeout: 10_000,
+    });
+
+    const item = popover
+      .locator('ion-button')
+      .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(fieldTechnicalId)}\\s*$`) })
+      .last();
+    await expect(item, `If condition picker should list ${fieldTechnicalId}`).toBeVisible({ timeout: 10_000 });
+    await item.click({ timeout: 10_000 }).catch(async () => item.dispatchEvent('click'));
+
+    await expect(page.locator(SEL.flowConditionFieldInput).last(), 'If condition field input should keep the selected field').toHaveValue(
+      fieldTechnicalId,
+      { timeout: 10_000 },
+    );
+  });
+}
+
+export async function flowConditionOperatorSelectStates(page: Page): Promise<FlowConditionOperatorSelectState[]> {
+  const editor = page.locator(SEL.flowConditionEditor).last();
+  await expect(editor, 'Condition action should expose the If editor').toBeVisible({ timeout: 15_000 });
+  return editor.evaluate((root) => {
+    const visible = (el: Element) => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+
+    return [...root.querySelectorAll('ion-select')]
+      .filter(visible)
+      .map((select) => {
+        const optionValues = [...select.querySelectorAll('ion-select-option')]
+          .map((option) => {
+            const raw = (option as HTMLElement & { value?: unknown }).value ?? option.getAttribute('value');
+            return raw == null ? '' : String(raw);
+          })
+          .filter(Boolean);
+        const value = (select as HTMLElement & { value?: unknown }).value;
+        return {
+          value: value == null ? null : String(value),
+          optionValues,
+          text: (select.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        };
+      })
+      .filter((select) => select.optionValues.includes('equals') && select.optionValues.includes('different'));
+  });
+}
+
+export async function expectFlowConditionOperatorSelectForField(page: Page, fieldTechnicalId: string): Promise<void> {
+  await test.step(`Check operator select for ${fieldTechnicalId}`, async () => {
+    await expect
+      .poll(
+        async () => {
+          const states = await flowConditionOperatorSelectStates(page);
+          return states.some(
+            (state) => state.optionValues.includes('equals') && state.optionValues.includes('different') && state.optionValues.includes('is_empty'),
+          );
+        },
+        {
+          message: `If condition should show a field operator select for ${fieldTechnicalId}`,
+          timeout: 10_000,
+        },
+      )
+      .toBe(true);
   });
 }
 
@@ -2415,6 +2702,20 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
   await page.waitForTimeout(1_000);
 }
 
+export async function fillToastMessageText(page: Page, value: string): Promise<void> {
+  await openToastActionMessageEditor(page);
+  await fillVisibleTinyMceText(page, value, 'Toast message text editor');
+}
+
+export async function tinyMceEditorContent(page: Page): Promise<{ html: string; text: string; chipCount: number }> {
+  const editorBody = await visibleTinyMceBody(page);
+  return {
+    html: await editorBody.innerHTML(),
+    text: await editorBody.innerText(),
+    chipCount: await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count(),
+  };
+}
+
 export async function setChoiceDefaultValueFromSourcePalette(
   page: Page,
   section: SourcePaletteSection,
@@ -2894,6 +3195,55 @@ export async function dragSourcePaletteEntryToTinyMce(
 ): Promise<void> {
   await ensureSourcePaletteSectionExpanded(page, section, label);
   await dragPaletteEntryToEditor(page, section, label);
+}
+
+export async function sourcePaletteEntryDragPayload(
+  page: Page,
+  section: SourcePaletteSection,
+  label: string,
+): Promise<SourcePaletteDragPayload> {
+  await ensureSourcePaletteSectionExpanded(page, section, label);
+  const tile = sourcePaletteEntryLocator(page, label);
+  await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
+  return tile.evaluate((el) => {
+    const dataTransfer = new DataTransfer();
+    el.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+    return {
+      types: [...dataTransfer.types],
+      textData: dataTransfer.getData('text'),
+      plainData: dataTransfer.getData('text/plain'),
+      htmlData: dataTransfer.getData('text/html'),
+      typeData: dataTransfer.getData('type'),
+    };
+  });
+}
+
+export async function dragSourcePaletteEntryToTinyMceStrict(
+  page: Page,
+  section: SourcePaletteSection,
+  label: string,
+): Promise<void> {
+  await ensureSourcePaletteSectionExpanded(page, section, label);
+  const editorBody = await visibleTinyMceBody(page);
+  await editorBody.click();
+  const tile = sourcePaletteEntryLocator(page, label);
+  await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
+  const before = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count();
+  await tile.dragTo(editorBody);
+  await page.waitForTimeout(1_000);
+  await fireActiveTinyMceChange(page);
+  await expect
+    .poll(
+      async () => {
+        const state = await tinyMceEditorContent(page);
+        return state.chipCount > before || normalizeVisibleText(state.text).toLowerCase().includes(label.toLowerCase());
+      },
+      {
+        message: `real Source Palette drag should insert the ${label} token into TinyMCE`,
+        timeout: 10_000,
+      },
+    )
+    .toBe(true);
 }
 
 async function ensureSourcePaletteSectionExpanded(page: Page, section: SourcePaletteSection, label?: string): Promise<void> {
