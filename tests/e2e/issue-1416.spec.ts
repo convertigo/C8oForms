@@ -18,6 +18,10 @@ import {
  * Context from #1414: Baserow Date columns configured with EU/US/ISO formats
  * were rendered in the Data Grid with the old default yyyy/mm/dd shape.
  *
+ * Also covers #1424 (datetime timezone shift): datetime fields without a forced
+ * timezone must keep their Baserow UTC value instead of being shifted by one
+ * hour (see the DateTime EU 24h / US 12h columns and the anti-shift assertions).
+ *
  * Reproduced in 2.2.0-beta223, fixed in the 2.2.0-beta232 line.
  * Root cause/observable mechanism: the grid must consume the Baserow formatted
  * display value for Date fields, preserving field-level date and time format
