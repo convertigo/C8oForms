@@ -30,10 +30,12 @@ const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
 const TABLE = 'Issue 1402 Source Select Labels';
 const TECHNICAL_ID = 'source_select_1402';
-// 40 rows still overflow the dropdown viewport and virtualize the list (so the
-// blank-zone-after-last-item bug reproduces), while keeping the Baserow fixture
-// upsert fast enough to stay well within the test budget on a cold CI engine.
-const ROW_COUNT = 40;
+// The Baserow fixture table is persistent and the MCP upsert never deletes stale
+// rows, so the row count must stay stable across runs (the test asserts the last
+// dropdown row is "Choice <ROW_COUNT>"). Keep 80; fixture-upsert slowness is
+// handled by the MCP per-request timeout + retry in helpers/baserow.ts, not by
+// shrinking the dataset.
+const ROW_COUNT = 80;
 const DISPLAY_COLUMN = 'Name';
 const VALUE_COLUMN = 'Value';
 

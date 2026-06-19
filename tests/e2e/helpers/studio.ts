@@ -1383,6 +1383,38 @@ async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getDat
   throw new Error(`Baserow source picker opened without the ${entry} source`);
 }
 
+// Click a breadcrumb entry (workspace/database/table) and re-click until the
+// next level shows up. The Baserow picker fetches each level lazily, so a slow
+// or dropped fetch (or a transient "Page loading in progress" overlay) can leave
+// the next level missing; re-clicking the same entry re-triggers the fetch.
+async function clickBaserowPickerEntryUntil(
+  page: Page,
+  picker: Locator,
+  label: string,
+  advanced: () => Promise<boolean>,
+  timeout: number,
+): Promise<void> {
+  const deadline = Date.now() + timeout;
+  let lastError: unknown;
+  while (Date.now() < deadline) {
+    if (await advanced().catch(() => false)) return;
+    const entry = picker.getByText(label, { exact: true }).first();
+    if (await entry.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await entry.click({ timeout: 5_000 }).catch(async (error) => {
+        lastError = error;
+        await entry.dispatchEvent('click').catch(() => undefined);
+      });
+      for (let i = 0; i < 8; i++) {
+        if (await advanced().catch(() => false)) return;
+        await page.waitForTimeout(1_000);
+      }
+    } else {
+      await page.waitForTimeout(1_000);
+    }
+  }
+  throw new Error(`Baserow picker did not advance after selecting "${label}"${lastError ? `: ${lastError}` : ''}`);
+}
+
 async function selectBaserowTableFromCurrentAction(
   page: Page,
   source: BaserowGridSourceOptions,
@@ -1392,13 +1424,25 @@ async function selectBaserowTableFromCurrentAction(
   await clickFirstVisible(page, SELECT_SOURCE_TABLE_PICKER_BUTTON, 'Baserow action table picker button', timeout, true);
   const tablePicker = page.locator('ion-modal:visible').last();
   await expect(tablePicker, 'Baserow action table picker should be visible').toBeVisible({ timeout });
-  await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout });
-  await tablePicker.getByText(source.workspace, { exact: true }).click();
-  await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout });
-  await tablePicker.getByText(source.database, { exact: true }).click();
-  await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout });
-  await tablePicker.getByText(source.table, { exact: true }).click();
-  await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout });
+
+  const summary = tablePicker.locator('.class1776246576145');
+  const tableSelected = async (): Promise<boolean> =>
+    ((await summary.first().textContent({ timeout: 2_000 }).catch(() => '')) ?? '').includes(source.table);
+
+  // Idempotent: on a reload-retry the action may already point at this table, so
+  // the picker opens straight into its column view with no breadcrumb to walk.
+  if (!(await tableSelected())) {
+    const databaseVisible = async (): Promise<boolean> =>
+      tablePicker.getByText(source.database, { exact: true }).first().isVisible().catch(() => false);
+    const tableVisible = async (): Promise<boolean> =>
+      tablePicker.getByText(source.table, { exact: true }).first().isVisible().catch(() => false);
+
+    await clickBaserowPickerEntryUntil(page, tablePicker, source.workspace, databaseVisible, timeout);
+    await clickBaserowPickerEntryUntil(page, tablePicker, source.database, tableVisible, timeout);
+    await clickBaserowPickerEntryUntil(page, tablePicker, source.table, tableSelected, timeout);
+  }
+
+  await expect(summary).toContainText(source.table, { timeout });
   for (const column of source.expectedColumns ?? []) {
     await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
       column,
