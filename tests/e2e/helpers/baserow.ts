@@ -68,7 +68,7 @@ function sleep(ms: number): Promise<void> {
 // Per-request timeout for a single MCP HTTP call. A hung schema-apply (e.g. an
 // 80-row upsert against a cold engine right after a deploy) must abort and be
 // retried by callMcp instead of blocking until the global test timeout.
-const MCP_REQUEST_TIMEOUT_MS = 45_000;
+const MCP_REQUEST_TIMEOUT_MS = 90_000;
 
 function isTransientMcpError(error: unknown): boolean {
   return /interrupted|did not terminate quickly enough|timed? ?out|temporarily|abort|ECONNRESET|EPIPE|HTTP 50[234]/i.test(

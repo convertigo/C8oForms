@@ -1217,6 +1217,27 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
 }
 
 export async function configureButtonFlowBaserowAddRow(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
+  // The Studio editor can occasionally get stuck on "Page loading in progress"
+  // so the action affordances never render and the flow would hang to the test
+  // timeout. Drive the flow once; on failure, reload the editor and re-drive.
+  // The inner steps are idempotent (an already-added action / already-mapped
+  // column is reused) so a retry after a partial first attempt cannot duplicate.
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await configureButtonFlowBaserowAddRowOnce(page, source);
+      return;
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
+      await page.waitForTimeout(3_000);
+    }
+  }
+}
+
+async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
   const timeout = 60_000;
   await openWorkflowsPanel(page);
   const flowLabel = source.flowName ?? /Flow button/i;
@@ -1233,16 +1254,21 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
   await expect(actionTile, 'Baserow Add Row action should be available in the action palette').toBeVisible({
     timeout: 30_000,
   });
-  const before = await page.locator('ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]').count();
-  await actionTile.dblclick({ force: true, delay: 75 });
-  await expect
-    .poll(() => page.locator('ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]').count(), {
-      message: 'Baserow Add Row action should be added to the flow',
-      timeout: 15_000,
-    })
-    .toBeGreaterThan(before);
+  const actionSelector = 'ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]';
+  const before = await page.locator(actionSelector).count();
+  // Add the action only if the flow does not already carry one (idempotent on
+  // a reload-retry where a previous attempt already added it).
+  if (before === 0) {
+    await actionTile.dblclick({ force: true, delay: 75 });
+    await expect
+      .poll(() => page.locator(actionSelector).count(), {
+        message: 'Baserow Add Row action should be added to the flow',
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(0);
+  }
 
-  const action = page.locator('ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]').last();
+  const action = page.locator(actionSelector).last();
   await action.click();
   await page.waitForTimeout(1_000);
   await page.getByRole('button', { name: /Configuration de l.action|Action configuration/i }).click();
@@ -1391,7 +1417,22 @@ async function addBaserowActionVariable(
   sourceSection: SourcePaletteSection,
   sourceLabel: string,
 ): Promise<void> {
-  await page.locator('button[aria-label="Ajouterbutton"]').first().dispatchEvent('click');
+  // Idempotent on a reload-retry: if this column is already mapped, do nothing.
+  const existingInputs = page.locator('ion-item.class1743090805947 input');
+  const existingCount = await existingInputs.count();
+  for (let i = 0; i < existingCount; i++) {
+    if ((await existingInputs.nth(i).inputValue().catch(() => '')) === column) {
+      return;
+    }
+  }
+
+  // Bounded wait: if the editor is stuck loading, fail fast so the caller can
+  // reload and re-drive instead of hanging the click until the test timeout.
+  const addButton = page.locator('button[aria-label="Ajouterbutton"]').first();
+  await expect(addButton, `Baserow action "Ajouter" button for ${column} should be available`).toBeVisible({
+    timeout: 30_000,
+  });
+  await addButton.dispatchEvent('click');
   await page.waitForTimeout(800);
   const columnInput = page.locator('ion-item.class1743090805947 input').last();
   await expect(columnInput, `Baserow action column input for ${column} should be visible`).toBeVisible({ timeout: 10_000 });

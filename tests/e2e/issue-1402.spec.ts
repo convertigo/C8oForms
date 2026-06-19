@@ -30,7 +30,10 @@ const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
 const TABLE = 'Issue 1402 Source Select Labels';
 const TECHNICAL_ID = 'source_select_1402';
-const ROW_COUNT = 80;
+// 40 rows still overflow the dropdown viewport and virtualize the list (so the
+// blank-zone-after-last-item bug reproduces), while keeping the Baserow fixture
+// upsert fast enough to stay well within the test budget on a cold CI engine.
+const ROW_COUNT = 40;
 const DISPLAY_COLUMN = 'Name';
 const VALUE_COLUMN = 'Value';
 
