@@ -57,6 +57,10 @@ function collectTests(report) {
   const failureStatuses = new Set(['failed', 'timedOut', 'interrupted']);
   const resultFailed = (result) => result && failureStatuses.has(result.status);
   const finalResult = (test) => [...(test.results || [])].reverse().find((r) => r.status !== 'skipped') ?? null;
+  const durationMs = (test) => (test.results || []).reduce((sum, result) => {
+    const duration = Number(result?.duration);
+    return Number.isFinite(duration) && duration > 0 ? sum + duration : sum;
+  }, 0);
   const testFailed = (test) => {
     const final = finalResult(test);
     return final ? resultFailed(final) : failureStatuses.has(test.status);
@@ -70,7 +74,14 @@ function collectTests(report) {
   const walk = (suites = []) => {
     for (const s of suites) {
       for (const spec of s.specs || []) {
-        out.push({ file: basename(spec.file || s.file || ''), title: spec.title || '', failed: failed(spec), flaky: flaky(spec) });
+        const tests = spec.tests || [];
+        out.push({
+          file: basename(spec.file || s.file || ''),
+          title: spec.title || '',
+          failed: failed(spec),
+          flaky: flaky(spec),
+          durationMs: tests.reduce((sum, test) => sum + durationMs(test), 0),
+        });
       }
       walk(s.suites || []);
     }
@@ -98,6 +109,33 @@ function gh(args) {
 }
 
 const tableCell = (v) => String(v ?? '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
+const formatDuration = (ms) => {
+  const seconds = Math.round(Number(ms || 0) / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return minutes ? `${minutes}m ${String(rest).padStart(2, '0')}s` : `${rest}s`;
+};
+
+function aggregateSpecTimings(items) {
+  const byFile = new Map();
+  for (const item of items) {
+    if (!item.file || !item.durationMs) continue;
+    const current = byFile.get(item.file) ?? { durationMs: 0, tests: 0, failed: 0, flaky: 0 };
+    current.durationMs += item.durationMs;
+    current.tests += 1;
+    if (item.failed) current.failed += 1;
+    if (item.flaky) current.flaky += 1;
+    byFile.set(item.file, current);
+  }
+  return Object.fromEntries([...byFile.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([file, timing]) => [file, {
+      durationMs: Math.round(timing.durationMs),
+      tests: timing.tests,
+      failed: timing.failed,
+      flaky: timing.flaky,
+    }]));
+}
 
 // ── Collect results ──────────────────────────────────────────────────────────
 const resultsPaths = findResultsJsons(join(testsDir, 'test-results'));
@@ -111,6 +149,7 @@ const tests = (missingResults
   const issue = (t.title.match(/#(\d+)/) || [])[1] || '';
   return { ...t, issue, kind: m?.entry.kind || (issue ? 'regression' : 'smoke'), entry: m?.entry };
 });
+const specTimings = aggregateSpecTimings(tests);
 
 // ── Optional issue automation for failed issue-backed tests ──────────────────
 const reopened = [];
@@ -210,6 +249,18 @@ for (const t of [...tests].sort((a, b) => Number(b.failed) - Number(a.failed))) 
   lines.push(`| ${tableCell(t.title)} | ${tableCell(t.kind)} | ${t.issue ? `#${t.issue}` : '-'} | ${result} | ${tableCell(t.action)} |`);
 }
 
+const slowestSpecs = Object.entries(specTimings).sort(([, a], [, b]) => b.durationMs - a.durationMs).slice(0, 10);
+if (slowestSpecs.length) {
+  lines.push('');
+  lines.push('Slowest spec files:');
+  lines.push('');
+  lines.push('| Spec | Duration | Tests |');
+  lines.push('|---|---:|---:|');
+  for (const [file, timing] of slowestSpecs) {
+    lines.push(`| ${tableCell(file)} | ${formatDuration(timing.durationMs)} | ${timing.tests} |`);
+  }
+}
+
 const markdown = `${lines.join('\n')}\n`;
 mkdirSync(join(testsDir, 'dist'), { recursive: true });
 writeFileSync(join(testsDir, 'dist', 'e2e_report.md'), markdown);
@@ -229,5 +280,14 @@ const badge = missingResults
 const badgeDir = join(testsDir, 'dist', 'badge');
 mkdirSync(badgeDir, { recursive: true });
 writeFileSync(join(badgeDir, 'e2e-badge.json'), `${JSON.stringify(badge)}\n`);
+writeFileSync(join(badgeDir, 'e2e-timings.json'), `${JSON.stringify({
+  schemaVersion: 1,
+  generatedAt: new Date().toISOString(),
+  releaseTag,
+  runUrl,
+  expectedResultShards,
+  resultsJsons: resultsPaths.map((p) => p.replace(`${testsDir}/`, '')),
+  specs: specTimings,
+}, null, 2)}\n`);
 
 process.exit(0);

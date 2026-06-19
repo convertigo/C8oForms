@@ -121,21 +121,35 @@ async function setGridReturnedValueToRowSelected(page: Page): Promise<void> {
   await openConfigTabById(page, 'data_interactions');
   const returnedValue = page.locator('.class1775842589999');
   const select = returnedValue.locator('ion-select').first();
-  await expect(select, 'grid returned value select should be visible').toBeVisible({ timeout: 10_000 });
-  const optionIndex = await select.evaluate((el) =>
-    Array.from(el.querySelectorAll('ion-select-option')).findIndex(
-      (option) => (option as HTMLOptionElement & { value?: string }).value === 'row_selected',
-    ),
-  );
-  expect(optionIndex, 'row_selected option should exist').toBeGreaterThanOrEqual(0);
-  await select.click();
-  await page.locator('ion-select-popover ion-item').nth(optionIndex).click();
+  if (await select.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    const optionIndex = await select.evaluate((el) =>
+      Array.from(el.querySelectorAll('ion-select-option')).findIndex(
+        (option) => (option as HTMLOptionElement & { value?: string }).value === 'row_selected',
+      ),
+    );
+    expect(optionIndex, 'row_selected option should exist').toBeGreaterThanOrEqual(0);
+    await select.click();
+    await page.locator('ion-select-popover ion-item').nth(optionIndex).click();
+    await expect
+      .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+        message: 'grid returned value should be row_selected',
+        timeout: 10_000,
+      })
+      .toBe('row_selected');
+    return;
+  }
+
+  const returnedValueButtons = page.locator('button.class1776074264497:visible');
+  await expect(returnedValueButtons.nth(2), 'grid returned value row_selected button should be visible').toBeVisible({
+    timeout: 10_000,
+  });
+  await returnedValueButtons.nth(2).click();
   await expect
-    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+    .poll(() => returnedValueButtons.nth(2).evaluate((el) => el.classList.contains('c8o-btn-selected')), {
       message: 'grid returned value should be row_selected',
       timeout: 10_000,
     })
-    .toBe('row_selected');
+    .toBe(true);
 }
 
 async function insertGridColumnValueInDescription(page: Page): Promise<void> {

@@ -12,8 +12,8 @@ export const SEL = {
   passwordInput: '.class1757337975249 input', // password > TextInput
   // editor — component overlay ("click to configure")
   componentOverlay: '.class1776441955089',
-  // component config panel tabs (one bean repeated per tab, filtered by label)
-  configTab: '.class1775835275881',
+  // component/action config panel tab buttons, selected by stable ids in helpers
+  configTab: ':is(.class1775835275881, .toast-action-tab-button)',
   configTabsContainer: '[data-main-editor-tabs-buttons="configuration"]',
   // component style panel tabs
   styleTab: '.class1775832335416',
@@ -247,6 +247,7 @@ export const PALETTE_ICON = {
   forLoop: 'icn_for_loop.svg',
   conditionAction: 'icn_if_else.svg',
   submitAction: 'icn_submit.svg',
+  baserowAddRowFromData: 'forms_AddRowFromData.svg',
 } as const;
 
 const PALETTE_TYPE_BY_ICON: Record<string, string> = {
@@ -928,7 +929,11 @@ export async function openComponentConfigByTechnicalId(page: Page, technicalId: 
 export async function reopenEditorFromHome(page: Page, title: string): Promise<void> {
   await page.locator(SEL.editorHomeButton).first().click();
   await expectRoute(page, ROUTE.selector);
-  const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
+  const cards = page.locator('[id^="idcard"]');
+  let card = cards.filter({ hasText: title }).first();
+  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
+    card = cards.filter({ hasText: title.slice(0, 29) }).first();
+  }
   await expect(card, `home should show form card ${title}`).toBeVisible({ timeout: 30_000 });
   await card.click();
   await expectRoute(page, ROUTE.editor);
@@ -967,9 +972,11 @@ export async function openConfigurationSection(page: Page): Promise<void> {
   const section = page.locator(SEL.configSectionLabel).first();
   await expect(section, 'configuration section should be visible').toBeVisible({ timeout: 10_000 });
   await section.click({ timeout: 10_000 }).catch(async () => section.dispatchEvent('click'));
-  await expect(page.locator(`${SEL.configTabsContainer} ${SEL.configTab}`).first(), 'configuration tabs should be mounted').toBeAttached({
-    timeout: 10_000,
-  });
+  const scopedTabs = page.locator(`${SEL.configTabsContainer} ${SEL.configTab}`).first();
+  const mounted = await scopedTabs.waitFor({ state: 'attached', timeout: 10_000 }).then(() => true).catch(() => false);
+  if (!mounted) {
+    await expect(page.locator(SEL.configTab).first(), 'configuration tabs should be mounted').toBeAttached({ timeout: 10_000 });
+  }
   await page.waitForTimeout(350);
 }
 
@@ -1018,23 +1025,19 @@ export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
 }
 
 async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
+  const tabs = await visibleConfigTabs(page);
   const index = await configTabIndexById(page, tabId);
   if (index === null || index < 0) {
     return false;
   }
 
-  const tab = page.locator(`${SEL.configTabsContainer} ${SEL.configTab}:visible`).nth(index);
+  const tab = tabs.nth(index);
   if (!(await tab.isVisible({ timeout: 1_000 }).catch(() => false))) {
     return false;
   }
   await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
   return true;
 }
-
-const CONFIG_TAB_FALLBACK_INDEX: Partial<Record<MainEditorConfigTab, number>> = {
-  tab_selector_choice_source: 0,
-  tab_selector_conf_source: 1,
-};
 
 const CONFIG_TAB_FALLBACK_TEXT: Partial<Record<MainEditorConfigTab, string[]>> = {
   tab_selector_choice_source: ['source selection', 'choix de la source', 'eleccion de la fuente', 'scelta della sorgente'],
@@ -1056,7 +1059,7 @@ async function clickConfigTabByFallbackText(page: Page, tabId: MainEditorConfigT
     return false;
   }
 
-  const tabs = page.locator(`${SEL.configTabsContainer} ${SEL.configTab}:visible`);
+  const tabs = await visibleConfigTabs(page);
   const count = await tabs.count();
   for (let index = 0; index < count; index++) {
     const tab = tabs.nth(index);
@@ -1070,17 +1073,54 @@ async function clickConfigTabByFallbackText(page: Page, tabId: MainEditorConfigT
 }
 
 async function clickConfigTabByFallbackIndex(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
-  const index = CONFIG_TAB_FALLBACK_INDEX[tabId];
+  const tabs = await visibleConfigTabs(page);
+  const index = fallbackConfigTabIndex(tabId, await tabs.count());
   if (index == null) {
     return false;
   }
 
-  const tab = page.locator(`${SEL.configTabsContainer} ${SEL.configTab}:visible`).nth(index);
+  const tab = tabs.nth(index);
   if (!(await tab.isVisible({ timeout: 1_000 }).catch(() => false))) {
     return false;
   }
   await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
   return true;
+}
+
+async function visibleConfigTabs(page: Page): Promise<Locator> {
+  const scoped = page.locator(`${SEL.configTabsContainer} ${SEL.configTab}:visible`);
+  if ((await scoped.count()) > 0) {
+    return scoped;
+  }
+  return page.locator(`${SEL.configTab}:visible`);
+}
+
+function fallbackConfigTabIndex(tabId: MainEditorConfigTab, visibleTabCount: number): number | null {
+  if (visibleTabCount <= 0) return null;
+  const hasSourceChoiceTab = visibleTabCount >= 5;
+  switch (tabId) {
+    case 'tab_selector_choice_source':
+      return hasSourceChoiceTab ? 0 : null;
+    case 'tab_selector_choice_action':
+      return visibleTabCount === 2 || visibleTabCount >= 6 ? 0 : null;
+    case 'tab_selector_conf_source':
+      if (visibleTabCount === 4) return 0;
+      return hasSourceChoiceTab ? 1 : null;
+    case 'tab_selector_conf_action':
+      if (visibleTabCount === 2) return 1;
+      return visibleTabCount >= 6 ? visibleTabCount - 5 : null;
+    case 'defaultvalue':
+      return hasSourceChoiceTab ? visibleTabCount - 4 : visibleTabCount > 1 ? 1 : null;
+    case 'data_interactions':
+      if (visibleTabCount === 4) return 1;
+      return hasSourceChoiceTab ? visibleTabCount - 3 : 0;
+    case 'visibility_tab_selector':
+      return visibleTabCount > 1 ? visibleTabCount - 2 : null;
+    case 'navigation_tab_selector':
+      return visibleTabCount - 1;
+    default:
+      return null;
+  }
 }
 
 async function configTabIndexById(page: Page, tabId: MainEditorConfigTab): Promise<number | null> {
@@ -1122,9 +1162,9 @@ async function configTabIndexById(page: Page, tabId: MainEditorConfigTab): Promi
         const style = getComputedStyle(el);
         return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
       };
-      const visibleConfigTabs = [...document.querySelectorAll('[data-main-editor-tabs-buttons="configuration"] .class1775835275881')].filter(
-        visible,
-      );
+      const visibleConfigTabs = [
+        ...document.querySelectorAll('[data-main-editor-tabs-buttons="configuration"] .class1775835275881, [data-main-editor-tabs-buttons="configuration"] .toast-action-tab-button'),
+      ].filter(visible);
       if (visibleConfigTabs.length === 0) return null;
 
       for (const editor of candidates) {
@@ -1134,9 +1174,7 @@ async function configTabIndexById(page: Page, tabId: MainEditorConfigTab): Promi
           .filter((item) => item != null);
         for (const baseItem of items) {
           const item = editor.getActiveMainEditorItem(baseItem) ?? baseItem;
-          const tabIds = (editor.getMainEditorTabIds(item, 'configuration') ?? []).filter(
-            (id: string) => !(item?.type === 'map' && id === 'tab_selector_choice_source'),
-          );
+          const tabIds = editor.getMainEditorTabIds(item, 'configuration') ?? [];
           const index = tabIds.indexOf(targetTabId);
           if (index !== -1 && index < visibleConfigTabs.length) {
             return index;
@@ -1289,7 +1327,7 @@ export interface BaserowAddRowActionOptions extends BaserowGridSourceOptions {
   }>;
 }
 
-const SELECT_SOURCE_TABLE_PICKER_BUTTON = 'button.class1776013870072';
+const SELECT_SOURCE_TABLE_PICKER_BUTTON = SEL.dataSourceConfigureButton;
 const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
@@ -1453,7 +1491,7 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   await openButtonWorkflow(page, source.flowName);
 
   await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
-  const actionTile = page.locator(componentPaletteTileSelector(PALETTE_ICON.submitAction)).last();
+  const actionTile = page.locator(componentPaletteTileSelector(PALETTE_ICON.baserowAddRowFromData)).last();
   await expect(actionTile, 'Baserow Add Row action should be available in the action palette').toBeVisible({
     timeout: 30_000,
   });
@@ -1475,6 +1513,10 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   await action.click();
   await page.waitForTimeout(1_000);
   await openConfigTabById(page, 'tab_selector_conf_action');
+  if (!(await firstVisibleLocatorOrNull(page, SELECT_SOURCE_TABLE_PICKER_BUTTON, 1_000))) {
+    await selectBaserowAddRowAction(page, timeout);
+    await openConfigTabById(page, 'tab_selector_conf_action');
+  }
   await page.waitForTimeout(1_000);
 
   await selectBaserowTableFromCurrentAction(page, source, timeout);
@@ -1489,6 +1531,27 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   } else {
     throw new Error('flow action close button is not visible');
   }
+  await page.waitForTimeout(1_500);
+}
+
+async function selectBaserowAddRowAction(page: Page, timeout: number): Promise<void> {
+  await openConfigTabById(page, 'tab_selector_choice_action');
+  await clickFirstVisible(page, SEL.dataSourceSelectButton, 'Baserow action select button', timeout, true);
+
+  const actionPicker = page.locator('ion-modal:visible').last();
+  await expect(actionPicker, 'Baserow action picker should be visible').toBeVisible({ timeout });
+
+  let addRowAction = actionPicker
+    .locator('c8oforms-datasourcebutton:has(img[src*="/projects/lib_BaseRow/logos/forms_AddRowFromData.svg"])')
+    .first();
+  if (!(await addRowAction.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    addRowAction = actionPicker.locator('c8oforms-datasourcebutton:has(img[src*="/projects/lib_BaseRow/logos/forms_AddRow.svg"])').first();
+  }
+  await expect(addRowAction, 'Baserow Add Row action should be available in the action picker').toBeVisible({ timeout });
+  await addRowAction.click({ timeout: 10_000 }).catch(async () => addRowAction.dispatchEvent('click'));
+
+  await actionPicker.locator('ion-footer ion-button').last().click({ timeout: 10_000 });
+  await expect(actionPicker).toBeHidden({ timeout });
   await page.waitForTimeout(1_500);
 }
 
@@ -1816,8 +1879,11 @@ async function activateDataSourceMode(page: Page): Promise<void> {
 
 async function activateVisibilityConditionMode(page: Page): Promise<void> {
   const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
-  if ((await modeButtons.count()) > 1) {
-    await modeButtons.nth(1).click();
+  if ((await modeButtons.count()) > 0) {
+    await modeButtons.last().click();
+    await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'visibility condition add button should be visible').toBeVisible({
+      timeout: 10_000,
+    });
     return;
   }
   throw new Error('visibility condition mode toggle is not available');
@@ -2306,7 +2372,12 @@ async function closeBusinessLogicFormulaConfig(page: Page): Promise<void> {
   if (await configClose.isVisible({ timeout: 1_500 }).catch(() => false)) {
     await configClose.click();
   } else {
-    throw new Error('business logic config close button is not visible');
+    const genericClose = page.locator('.c8o-btn-close:visible, button.c8o-btn-close:visible').last();
+    if (await genericClose.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await genericClose.click({ timeout: 5_000 }).catch(async () => genericClose.dispatchEvent('click'));
+    } else if (await page.locator(`${SEL.technicalIdInput}:visible`).first().isVisible({ timeout: 500 }).catch(() => false)) {
+      throw new Error('business logic config close button is not visible');
+    }
   }
   await page.waitForTimeout(800);
 }
