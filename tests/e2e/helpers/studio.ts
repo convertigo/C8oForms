@@ -1,4 +1,4 @@
-import { Locator, Page, expect } from '@playwright/test';
+import { Locator, Page, expect, test } from '@playwright/test';
 
 /**
  * Selectors are Convertigo priority CSS classes (classNNNN): the priority is
@@ -44,6 +44,7 @@ export const SEL = {
   defaultValueGroupGrid: '.c8o-default-values-grid',
   defaultValueVisualOption: '.c8o-default-values-option',
   defaultValueMonacoEditor: 'c8oforms-monacoeditor',
+  defaultValueEditorWithPalette: 'c8oforms-defaultvalueeditorwithpalette',
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
   blankFormCard: '.class1645547241644',
   // ion-alert prompt shown by createNewForm (stable CSS classes set in the action code)
@@ -113,6 +114,8 @@ export const SEL = {
   // delete-confirmation ion-alert: the danger-styled "Oui"/confirm button
   // (the "Non" button is btn--info; both carry text-generic, so key on btn--danger)
   confirmDeleteYesButton: 'ion-alert button.btn--danger',
+  flowLoopActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypefor_loop"]',
+  flowLoopConditionRow: '.for-loop-condition-row',
 };
 
 export const SOURCE_PALETTE_SECTION = {
@@ -191,6 +194,7 @@ export const PALETTE_ICON = {
   file: 'icn_import.svg',
   signature: 'icn_sign.svg',
   location: 'location.svg',
+  forLoop: 'icn_for_loop.svg',
 } as const;
 
 const PALETTE_TYPE_BY_ICON: Record<string, string> = {
@@ -1252,6 +1256,67 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
     await page.getByRole('button', { name: /Fermer|Close/i }).last().click();
   }
   await page.waitForTimeout(1_500);
+}
+
+export async function openButtonFlowLoopActionConfig(page: Page, flowName: string | RegExp = /Flow button/i): Promise<void> {
+  await test.step('Open the Button workflow', async () => {
+    await openWorkflowsPanel(page);
+    const flow = page.locator('[draggable="true"]').filter({ hasText: flowName }).first();
+    await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
+    await flow.click();
+    await page.waitForTimeout(1_000);
+  });
+
+  await test.step('Add the Loop action', async () => {
+    await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
+    const actionTile = page.locator(componentPaletteTileSelector(PALETTE_ICON.forLoop)).last();
+    await expect(actionTile, 'Loop action should be available in the action palette').toBeVisible({
+      timeout: 30_000,
+    });
+
+    const before = await page.locator(SEL.flowLoopActionCard).count();
+    await actionTile.dblclick({ force: true, delay: 75 });
+    await expect
+      .poll(() => page.locator(SEL.flowLoopActionCard).count(), {
+        message: 'Loop action should be added to the flow',
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(before);
+  });
+
+  await test.step('Open the Loop action configuration', async () => {
+    const action = page.locator(SEL.flowLoopActionCard).last();
+    await expect(action, 'Loop action card should be visible in the flow').toBeVisible({ timeout: 15_000 });
+    await action.click();
+    await page.waitForTimeout(1_000);
+  });
+}
+
+export async function expectLoopActionIteratorModesConfigurable(page: Page, textIterator: string): Promise<void> {
+  await test.step('Check the Loop iterator editor', async () => {
+    const loopRow = page.locator(SEL.flowLoopConditionRow).last();
+    await expect(loopRow, 'Loop action should expose the iterator editor row').toBeVisible({ timeout: 15_000 });
+    await expect(
+      loopRow.locator(SEL.defaultValueEditorWithPalette),
+      'Loop action should mount the iterator editor with palette',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  await test.step('Configure the Loop iterator in text mode', async () => {
+    await clickFirstVisible(page, SEL.defaultValueTextButton, 'Loop iterator text mode');
+    await confirmAlertIfVisible(page);
+    await fillVisibleTinyMceText(page, textIterator, 'Loop iterator text editor');
+  });
+
+  await test.step('Switch the Loop iterator to JavaScript mode', async () => {
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Loop iterator JavaScript mode');
+    await confirmAlertIfVisible(page);
+    const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+    await expect(editor, 'Loop iterator JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(editor, 'Loop iterator JavaScript editor should keep the generated async wrapper').toContainText('return', {
+      timeout: 10_000,
+    });
+  });
 }
 
 async function activateDataSourceMode(page: Page): Promise<void> {
