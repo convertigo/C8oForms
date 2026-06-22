@@ -48,6 +48,9 @@ export const SEL = {
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
+  chartComponent: 'c8oforms-itemchartviewer',
+  chartHeightModeToggle: '.class1780577000001',
+  chartPersonalizedHeightInput: '.class1776605300014 input',
   choiceOptionInput:
     'ion-input.class1571404352333 input:visible, ion-input.class1778925100118 input:visible, ion-input.class1773855097792 input:visible, ion-input.class1588840079644 input:visible, ion-input.class1588839628131 input:visible, ion-input.class1588839628323 input:visible, ion-input.class1588839628332 input:visible',
   defaultValueTextButton: '.class1678818942504, .class1777544520720',
@@ -180,6 +183,8 @@ type MainEditorConfigTab =
   | 'navigation_tab_selector'
   | 'defaultvalue'
   | 'data_interactions';
+
+type ChartHeightMode = 'auto' | 'personalized';
 
 export interface SourcePaletteSectionState {
   name: SourcePaletteSection;
@@ -1044,6 +1049,58 @@ export async function setMapHeightAndClose(page: Page, value: string): Promise<v
   await page.waitForTimeout(1_000); // editor applies the value through a change handler
   await closeComponentConfig(page);
   await page.waitForTimeout(1_500);
+}
+
+export async function selectChartHeightMode(page: Page, mode: ChartHeightMode): Promise<void> {
+  await test.step(`Select Chart height mode: ${mode}`, async () => {
+    const button = chartHeightModeButton(page, mode);
+    await expect(button, `Chart ${mode} height mode button should be visible`).toBeVisible({ timeout: 15_000 });
+    await button.click();
+    await expectChartHeightModeSelected(page, mode);
+  });
+}
+
+export async function expectChartHeightModeSelected(page: Page, mode: ChartHeightMode): Promise<void> {
+  await test.step(`Assert Chart height mode is ${mode}`, async () => {
+    const button = chartHeightModeButton(page, mode);
+    await expect
+      .poll(async () => (await button.getAttribute('class')) ?? '', {
+        message: `Chart ${mode} height mode button should be selected`,
+        timeout: 10_000,
+      })
+      .toContain('c8o-btn-selected');
+  });
+}
+
+export async function expectChartPersonalizedHeightInput(page: Page, visible: boolean): Promise<void> {
+  await test.step(`Assert Chart personalized height input is ${visible ? 'visible' : 'hidden'}`, async () => {
+    const input = page.locator(`${SEL.chartPersonalizedHeightInput}:visible`).first();
+    if (visible) {
+      await expect(input, 'Chart personalized height input should be visible').toBeVisible({ timeout: 10_000 });
+    } else {
+      await expect(input, 'Chart personalized height input should be hidden in automatic mode').toHaveCount(0, {
+        timeout: 10_000,
+      });
+    }
+  });
+}
+
+export async function setChartPersonalizedHeight(page: Page, value: string): Promise<void> {
+  await test.step(`Set Chart personalized height to ${value}`, async () => {
+    const input = page.locator(`${SEL.chartPersonalizedHeightInput}:visible`).first();
+    await expect(input, 'Chart personalized height input should be visible before editing').toBeVisible({ timeout: 10_000 });
+    await input.fill(value);
+    await input.blur();
+    await expect(input, 'Chart personalized height input should keep the edited value').toHaveValue(value, {
+      timeout: 10_000,
+    });
+    await page.waitForTimeout(800);
+  });
+}
+
+function chartHeightModeButton(page: Page, mode: ChartHeightMode): Locator {
+  const index = mode === 'auto' ? 0 : 1;
+  return page.locator(`${SEL.chartHeightModeToggle} button.c8o-btn:visible`).nth(index);
 }
 
 /** Click "Aperçu" and wait for the viewer/preview to render the form. */

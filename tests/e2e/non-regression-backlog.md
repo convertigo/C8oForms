@@ -1,6 +1,6 @@
 # Backlog des tests de non-regression
 
-Derniere mise a jour: 2026-06-19
+Derniere mise a jour: 2026-06-22
 
 Source: issues GitHub `convertigo/C8oForms`, etat ouvert ou ferme, limitees au milestone `2.2.0` (milestone 2.2).
 
@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 32 deja couverts; 186 a couvrir (31 ouverts, 155 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 33 deja couverts; 185 a couvrir (31 ouverts, 154 fermes); 1 exclus par label ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -77,7 +77,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 32 deja co
 | [ ] | [#1385](https://github.com/convertigo/C8oForms/issues/1385) | closed | bug, QC-Passed | ‘+’ button to add a new Page is not visible enough and hard to find |  |
 | [ ] | [#1384](https://github.com/convertigo/C8oForms/issues/1384) | closed | bug, QC-Passed | Add collaborators modal proposes CSV import but no button is available |  |
 | [x] | [#1383](https://github.com/convertigo/C8oForms/issues/1383) | closed | bug, QC-Passed, Auto QA Test | Page renaming shows “Page name already exists” when the field is empty | Auto QA Test<br>e2e/issue-1383.spec.ts |
-| [ ] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed | Chart component height field does not allow entering “auto” although the UI suggests it |  |
+| [x] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed, Auto QA Test | Chart component height field does not allow entering “auto” although the UI suggests it | Auto QA Test<br>e2e/issue-1382.spec.ts |
 | [ ] | [#1381](https://github.com/convertigo/C8oForms/issues/1381) | closed | bug, QC-Passed | Visibility condition value picker does not save selected grid fields |  |
 | [ ] | [#1380](https://github.com/convertigo/C8oForms/issues/1380) | closed | bug, QC-Passed | Vertical bar buttons do not reset to their default section when switching between Workflows, Pages, and Palette |  |
 | [ ] | [#1378](https://github.com/convertigo/C8oForms/issues/1378) | closed | enhancement | Add a flow action to reset fields by scope while preserving default values and computed values |  |
