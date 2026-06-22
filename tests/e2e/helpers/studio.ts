@@ -127,7 +127,9 @@ export const SEL = {
   // (the "Non" button is btn--info; both carry text-generic, so key on btn--danger)
   confirmDeleteYesButton: 'ion-alert button.btn--danger',
   flowLoopActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypefor_loop"]',
+  flowLoopActionEditor: 'c8oforms-itemforloopeditor1',
   flowLoopConditionRow: '.for-loop-condition-row',
+  flowLoopPaletteButton: 'c8oforms-itemforloopeditor1 ion-button.class1777542949212',
   flowConditionActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypeif_else"]',
   flowConditionEditor: '.flow-condition-editor',
   flowConditionVisualModeButton: 'ion-button.class1743536234020, ion-button.class1777544520315',
@@ -1614,6 +1616,99 @@ export async function openButtonFlowLoopActionConfig(page: Page, flowName?: stri
     icon: PALETTE_ICON.forLoop,
     actionCardSelector: SEL.flowLoopActionCard,
     actionName: 'Loop',
+  });
+}
+
+interface ClippedElementState {
+  width: number;
+  height: number;
+  visibleWidth: number;
+  visibleHeight: number;
+  visibleWidthRatio: number;
+  visibleHeightRatio: number;
+  clippingAncestors: string[];
+  wrapperOverflows: string[];
+}
+
+export async function expectLoopActionPaletteButtonFullyVisible(page: Page): Promise<void> {
+  await test.step('Assert the Loop action Palette button is fully visible', async () => {
+    await expect(page.locator(SEL.flowLoopActionEditor).last(), 'Loop action editor should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+    const button = page.locator(SEL.flowLoopPaletteButton).last();
+    await expect(button, 'Loop action Palette button should be mounted').toBeVisible({ timeout: 15_000 });
+
+    const state = await page.locator(SEL.flowLoopActionEditor).last().evaluate((editor): ClippedElementState => {
+      const buttonEl = editor.querySelector('ion-button.class1777542949212');
+      if (!(buttonEl instanceof HTMLElement)) {
+        throw new Error('Loop action Palette button was not found inside the Loop action editor');
+      }
+
+      const rect = buttonEl.getBoundingClientRect();
+      let left = rect.left;
+      let top = rect.top;
+      let right = rect.right;
+      let bottom = rect.bottom;
+      const clippingAncestors: string[] = [];
+      const wrapperOverflows: string[] = [];
+      const wrappers = [
+        editor.querySelector('.flow-editor-row.for-loop-condition-row'),
+        editor.querySelector('.for-loop-condition-col'),
+        editor.querySelector('c8oforms-defaultvalueeditorwithpalette.class1743173372803'),
+      ].filter((node): node is Element => node instanceof Element);
+
+      for (const wrapper of wrappers) {
+        const style = getComputedStyle(wrapper);
+        const clipsX = style.overflowX !== 'visible';
+        const clipsY = style.overflowY !== 'visible';
+        const className = typeof wrapper.className === 'string' ? wrapper.className : '';
+        wrapperOverflows.push(`${wrapper.tagName.toLowerCase()}.${className}(${style.overflowX}/${style.overflowY})`);
+
+        if (!clipsX && !clipsY) continue;
+
+        const ancestorRect = wrapper.getBoundingClientRect();
+        if (clipsX) {
+          left = Math.max(left, ancestorRect.left);
+          right = Math.min(right, ancestorRect.right);
+        }
+        if (clipsY) {
+          top = Math.max(top, ancestorRect.top);
+          bottom = Math.min(bottom, ancestorRect.bottom);
+        }
+
+        clippingAncestors.push(`${wrapper.tagName.toLowerCase()}.${className}(${style.overflowX}/${style.overflowY})`);
+      }
+
+      const width = rect.width;
+      const height = rect.height;
+      const visibleWidth = Math.max(0, right - left);
+      const visibleHeight = Math.max(0, bottom - top);
+      return {
+        width,
+        height,
+        visibleWidth,
+        visibleHeight,
+        visibleWidthRatio: width > 0 ? visibleWidth / width : 0,
+        visibleHeightRatio: height > 0 ? visibleHeight / height : 0,
+        clippingAncestors,
+        wrapperOverflows,
+      };
+    });
+
+    expect(
+      state.visibleWidthRatio,
+      `Loop action Palette button should not be clipped horizontally; visible ${state.visibleWidth.toFixed(
+        1,
+      )}/${state.width.toFixed(1)}px, clipping wrappers: ${state.clippingAncestors.join(
+        ' -> ',
+      )}; wrapper overflows: ${state.wrapperOverflows.join(' -> ')}`,
+    ).toBeGreaterThanOrEqual(0.95);
+    expect(
+      state.visibleHeightRatio,
+      `Loop action Palette button should not be clipped vertically; visible ${state.visibleHeight.toFixed(
+        1,
+      )}/${state.height.toFixed(1)}px`,
+    ).toBeGreaterThanOrEqual(0.95);
   });
 }
 
