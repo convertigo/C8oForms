@@ -43,6 +43,7 @@ export const SEL = {
   checkboxGroupComponent: 'c8oforms-itemcheckboxgroupviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
+  buttonIconNameInput: '.class1776709887054 input',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
@@ -1169,6 +1170,37 @@ export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
   ).toHaveCount(2);
   await expect(tabs.first(), 'button visual style section should remain accessible').toBeVisible();
   await expect(tabs.nth(1), 'button icon style section should remain accessible').toBeVisible();
+}
+
+export async function openButtonIconStyleSection(page: Page): Promise<void> {
+  const container = page.locator(SEL.styleTabsContainer).first();
+  await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
+
+  const tabs = container.locator(`${SEL.styleTab}:visible`);
+  await expect(tabs.first(), 'at least one button style tab should be visible').toBeVisible({ timeout: 15_000 });
+
+  const count = await tabs.count();
+  for (let i = 0; i < count; i++) {
+    const tab = tabs.nth(i);
+    await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+    if (await firstVisibleLocatorOrNull(page, SEL.buttonIconNameInput, 1_500)) {
+      return;
+    }
+  }
+
+  throw new Error(
+    `Button icon style section did not expose the icon name input. Visible style tabs: ${(await visibleTexts(page, SEL.styleTab)).join(' | ')}`,
+  );
+}
+
+export async function expectButtonDefaultIconName(page: Page, expectedIcon = 'bulb'): Promise<void> {
+  await test.step(`Assert Button default icon is ${expectedIcon}`, async () => {
+    await openButtonIconStyleSection(page);
+    await expect(
+      page.locator(SEL.buttonIconNameInput).first(),
+      `new Button components should default to the available ${expectedIcon} icon`,
+    ).toHaveValue(expectedIcon, { timeout: 15_000 });
+  });
 }
 
 async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {

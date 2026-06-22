@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 35 deja couverts; 183 a couvrir (31 ouverts, 152 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 36 deja couverts; 182 a couvrir (31 ouverts, 151 fermes); 1 exclus par label ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -92,7 +92,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 35 deja co
 | [ ] | [#1368](https://github.com/convertigo/C8oForms/issues/1368) | closed | bug, QC-Passed | Application name formatting is altered in search results |  |
 | [ ] | [#1367](https://github.com/convertigo/C8oForms/issues/1367) | closed | enhancement, QC-Passed | Background color too close to Studio primary color makes drop zones invisible |  |
 | [ ] | [#1366](https://github.com/convertigo/C8oForms/issues/1366) | closed | bug, QC-Passed | Searching for applications and adding a collaborator breaks the search results |  |
-| [ ] | [#1365](https://github.com/convertigo/C8oForms/issues/1365) | closed | bug, QC-Passed | The default icon **“bulb-outline”** for the Button component cannot be found in the icons list |  |
+| [x] | [#1365](https://github.com/convertigo/C8oForms/issues/1365) | closed | bug, QC-Passed, Auto QA Test | The default icon **“bulb-outline”** for the Button component cannot be found in the icons list | Auto QA Test<br>e2e/issue-1365.spec.ts |
 | [ ] | [#1364](https://github.com/convertigo/C8oForms/issues/1364) | closed | bug, QC-Passed | Cannot reorder child components inside an Horizontal layout component |  |
 | [x] | [#1363](https://github.com/convertigo/C8oForms/issues/1363) | closed | bug, QC-Passed, Auto QA Test | Deleting a component inside an Horizontal layout also deletes the Horizontal layout itself and all its content | Auto QA Test<br>e2e/issue-1363.spec.ts |
 | [ ] | [#1361](https://github.com/convertigo/C8oForms/issues/1361) | closed | bug, QC-Passed | The Workflows list does not correctly display the last flow name when it is at the bottom of a scroll |  |
