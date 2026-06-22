@@ -26,15 +26,54 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
-        	private parseDropIndex(value: any): Array<number> {
-        		if (Array.isArray(value)) {
-        			return value.map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
-        		}
-        		if (value == null || value === "") {
-        			return [];
-        		}
-        		return String(value).split(",").map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
-        	}
+            private parseDropIndex(value: any): Array<number> {
+                if (Array.isArray(value)) {
+                    return value.map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
+                }
+                if (value == null || value === "") {
+                    return [];
+                }
+                return String(value).split(",").map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
+            }
+            private getOwnerPage(): any {
+                return (this as any).pageOwner || (this as any).owner || this;
+            }
+            private hasDragType(event: any, type: string): boolean {
+                var types = event?.dataTransfer?.types;
+                if (types == null) {
+                    return false;
+                }
+                if (typeof types.includes === "function") {
+                    return types.includes(type);
+                }
+                if (typeof types.contains === "function") {
+                    return types.contains(type);
+                }
+                return Array.prototype.indexOf.call(types || [], type) !== -1;
+            }
+            private isFormsDrag(event: any): boolean {
+                if (this.hasDragType(event, "__c8oformsdrag")) {
+                    return true;
+                }
+                var ownerPage = this.getOwnerPage();
+                return ownerPage?.local?.dragging === true && ownerPage?.local?.draggingActions !== true && ownerPage?.local?.draggingFlows !== true;
+            }
+            private isContainerFormType(type: any): boolean {
+                return type === "group" || type === "ion-card" || type === "layout";
+            }
+            private isDraggingContainerFormElement(event: any): boolean {
+                var ownerPage = this.getOwnerPage();
+                if (this.isContainerFormType(ownerPage?.local?.draggingType)) {
+                    return true;
+                }
+                return this.hasDragType(event, "group") || this.hasDragType(event, "ion-card") || this.hasDragType(event, "layout");
+            }
+            public canAcceptDrop(event?: any): boolean {
+                if (this.card === true && this.isFormsDrag(event) && this.isDraggingContainerFormElement(event)) {
+                    return false;
+                }
+                return true;
+            }
         
         	private getCardChildrenLength(page: any, parentIndex: number): number {
         		const targetCardChild = this.targetCardChild || "childrenRefs";
@@ -194,7 +233,7 @@ scriptContent:
     attrValue: 
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-        - MobileSmartSourceType: 'script:{''padding-top'': this.hideText ? ''10px'' : ''0'', ''padding-bottom'': this.hideText ? ''10px'' : ''0''}'
+        - MobileSmartSourceType: 'script:{''display'': this.canAcceptDrop() ? null : ''none'', ''padding-top'': this.hideText ? ''10px'' : ''0'', ''padding-bottom'': this.hideText ? ''10px'' : ''0''}'
   ↓Div [ngx.components.UIDynamicElement-1600440331787]: 
     beanData: '{"ionBean":"DivTag"}'
     tagName: div
@@ -236,10 +275,20 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  '		if((this as any).shouldSkipEquivalentMoveDrop?.(event) || (this as any).shouldSkipInvalidFormMoveDrop?.(event)){
-                  			resolve();
-                  			return;
-                  		}
+                  '        if((this as any).canAcceptDrop?.(event) === false){
+                              if ((page as any).local != null) {
+                                  (page as any).local.isOver = false;
+                              }
+                              if (event?.dataTransfer != null) {
+                                  event.dataTransfer.dropEffect = "none";
+                              }
+                              resolve();
+                              return;
+                          }
+                          if((this as any).shouldSkipEquivalentMoveDrop?.(event) || (this as any).shouldSkipInvalidFormMoveDrop?.(event)){
+                              resolve();
+                              return;
+                          }
                   		if((page as any).pageOwner != undefined){
                   			page = (page as any).pageOwner;
                   		}
@@ -339,10 +388,21 @@ scriptContent:
             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
-                '		console.log(vars)
-                		if((this as any).shouldSkipEquivalentMoveDrop?.(event) || (this as any).shouldSkipInvalidFormMoveDrop?.(event)){
-                			const ownerPage: any = (page as any).pageOwner != undefined ? (page as any).pageOwner : page;
-                			if (typeof ownerPage["cleanupDragState"] === "function") {
+                '        console.log(vars)
+                        if((this as any).canAcceptDrop?.(event) === false){
+                            const ownerPage: any = (page as any).pageOwner != undefined ? (page as any).pageOwner : page;
+                            if (event?.dataTransfer != null) {
+                                event.dataTransfer.dropEffect = "none";
+                            }
+                            if (typeof ownerPage["cleanupDragState"] === "function") {
+                                ownerPage["cleanupDragState"]("sharedDropIndicator.drop.invalid");
+                            }
+                            resolve();
+                            return;
+                        }
+                        if((this as any).shouldSkipEquivalentMoveDrop?.(event) || (this as any).shouldSkipInvalidFormMoveDrop?.(event)){
+                            const ownerPage: any = (page as any).pageOwner != undefined ? (page as any).pageOwner : page;
+                            if (typeof ownerPage["cleanupDragState"] === "function") {
                 				ownerPage["cleanupDragState"]("sharedDropIndicator.drop.equivalent");
                 			}
                 			resolve();
