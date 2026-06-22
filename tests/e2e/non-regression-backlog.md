@@ -59,7 +59,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 32 deja co
 | [x] | [#1407](https://github.com/convertigo/C8oForms/issues/1407) | closed | bug, QC-Passed, Auto QA Test | Cannot switch PWA access from anonymous back to authenticated | Auto QA Test<br>e2e/issue-1407.spec.ts |
 | [ ] | [#1406](https://github.com/convertigo/C8oForms/issues/1406) | closed | bug | Fix response viewer action label according to user permissions |  |
 | [x] | [#1405](https://github.com/convertigo/C8oForms/issues/1405) | closed | bug, QC-Passed, Auto QA Test | Grid columns are incorrectly sized when the grid becomes visible after being hidden | Auto QA Test<br>e2e/issue-1405.spec.ts |
-| [ ] | [#1404](https://github.com/convertigo/C8oForms/issues/1404) | closed | enhancement | Add user-managed MCP tokens in settings |  |
+| [x] | [#1404](https://github.com/convertigo/C8oForms/issues/1404) | closed | enhancement, Auto QA Test | Add user-managed MCP tokens in settings | Auto QA Test<br>e2e/issue-1404.spec.ts |
 | [ ] | [#1403](https://github.com/convertigo/C8oForms/issues/1403) | closed | bug | Viewer computeVariable should preserve empty string expressions while resolving runtime scopes |  |
 | [x] | [#1402](https://github.com/convertigo/C8oForms/issues/1402) | closed | bug, QC-Passed, Auto QA Test | Select component from a data source shows a large empty zone at the end of the data list | Auto QA Test<br>e2e/issue-1402.spec.ts |
 | [x] | [#1401](https://github.com/convertigo/C8oForms/issues/1401) | closed | bug, QC-Passed, Auto QA Test | Database Connector configuration shows 404 icons, and Select data source always re‑selects two columns instead of one | Auto QA Test<br>e2e/issue-1401.spec.ts |

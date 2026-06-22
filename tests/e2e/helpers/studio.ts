@@ -10,6 +10,14 @@ export const SEL = {
   loginReveal: '.class1757337975297', // SubmitButton1
   emailInput: '.class1757337975207 input', // email > TextInput
   passwordInput: '.class1757337975249 input', // password > TextInput
+  // settingsPage.yaml — MCP tokens section
+  settingsMcpRoot: '.class1781107106295',
+  settingsMcpUrl: '.class1781107106327',
+  settingsMcpTokenNameInput: 'ion-input.class1781107106349 input, .class1781107106349 input',
+  settingsMcpCreateButton: 'ion-button.class1781107106355',
+  settingsMcpCreatedToken: '.class1781107109433',
+  settingsMcpTokenRow: '.class1781107109455',
+  settingsMcpRevokeButton: 'ion-button.class1781107109485',
   // editor — component overlay ("click to configure")
   componentOverlay: '.class1776441955089',
   // component/action config panel tab buttons, selected by stable ids in helpers
@@ -217,6 +225,7 @@ const ROUTE = {
   selector: /\/selector(?:\/|$)/,
   editor: /\/editor\//,
   viewer: /\/viewer\//,
+  settings: /\/settings(?:\/|$)/,
 } as const;
 
 async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
@@ -584,6 +593,68 @@ export async function c8oCall(page: Page, sequence: string, params: Record<strin
     },
     { sequenceName: sequence, sequenceParams: params },
   );
+}
+
+export async function openSettings(page: Page): Promise<void> {
+  await test.step('open user settings', async () => {
+    await page.goto('./settings', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expectRoute(page, ROUTE.settings, 60_000);
+    await page.locator('page-settingspage').waitFor({ state: 'attached', timeout: 60_000 });
+    await expect(page.locator(SEL.settingsMcpRoot), 'the MCP tokens settings section should be visible').toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
+
+export function mcpTokenRow(page: Page, tokenName: string): Locator {
+  return page.locator(SEL.settingsMcpTokenRow).filter({ hasText: tokenName }).first();
+}
+
+export async function expectMcpTokenListed(page: Page, tokenName: string): Promise<Locator> {
+  return test.step(`assert MCP token ${tokenName} is listed`, async () => {
+    const row = mcpTokenRow(page, tokenName);
+    await expect(row, `MCP token ${tokenName} should be listed`).toBeVisible({ timeout: 30_000 });
+    return row;
+  });
+}
+
+export async function createMcpTokenThroughSettingsUi(page: Page, tokenName: string): Promise<string> {
+  return test.step(`create MCP token ${tokenName}`, async () => {
+    await expect(page.locator(SEL.settingsMcpRoot), 'the MCP tokens settings section should be visible').toBeVisible({
+      timeout: 30_000,
+    });
+    await fillInputValue(page, SEL.settingsMcpTokenNameInput, tokenName, 'MCP token name input');
+    const createButton = page.locator(SEL.settingsMcpCreateButton).first();
+    await expect(createButton, 'the MCP token create button should be enabled').toBeEnabled({ timeout: 10_000 });
+    await createButton.click();
+
+    const token = page.locator(SEL.settingsMcpCreatedToken).first();
+    await expect(token, 'the newly created MCP token should be displayed once').toBeVisible({ timeout: 30_000 });
+    let tokenValue = '';
+    await expect
+      .poll(
+        async () => {
+          tokenValue = (await token.innerText().catch(() => '')).trim();
+          return tokenValue.length;
+        },
+        {
+          message: 'the newly created MCP token value should be populated',
+          timeout: 30_000,
+        },
+      )
+      .toBeGreaterThan(20);
+    await expectMcpTokenListed(page, tokenName);
+    return tokenValue;
+  });
+}
+
+export async function revokeMcpTokenThroughSettingsUi(page: Page, tokenName: string): Promise<void> {
+  await test.step(`revoke MCP token ${tokenName}`, async () => {
+    const row = await expectMcpTokenListed(page, tokenName);
+    const revokeButton = row.locator(SEL.settingsMcpRevokeButton).first();
+    await expect(revokeButton, `MCP token ${tokenName} should expose a revoke button`).toBeVisible({ timeout: 10_000 });
+    await revokeButton.click();
+  });
 }
 
 export async function getFormDocument(page: Page, formId: string): Promise<JsonRecord> {
