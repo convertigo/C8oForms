@@ -1,6 +1,6 @@
 # Backlog des tests de non-regression
 
-Derniere mise a jour: 2026-06-19
+Derniere mise a jour: 2026-06-22
 
 Source: issues GitHub `convertigo/C8oForms`, etat ouvert ou ferme, limitees au milestone `2.2.0` (milestone 2.2).
 
@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 31 deja couverts; 187 a couvrir (31 ouverts, 156 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 36 deja couverts; 182 a couvrir (31 ouverts, 151 fermes); 1 exclus par label ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -56,10 +56,10 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 31 deja co
 | [x] | [#1416](https://github.com/convertigo/C8oForms/issues/1416) | closed | bug, QC-Passed, Auto QA Test | Baserow data source does not return dates in the correct format | Auto QA Test<br>e2e/issue-1416.spec.ts |
 | [x] | [#1413](https://github.com/convertigo/C8oForms/issues/1413) | closed | bug, QC-Passed, Auto QA Test | Description component breaks when using a Grid Palette value whose column name contains a single quote | Auto QA Test<br>e2e/issue-1413.spec.ts |
 | [x] | [#1412](https://github.com/convertigo/C8oForms/issues/1412) | closed | bug, QC-Passed, Auto QA Test | Map height breaks after opening Data & Interactions | Auto QA Test<br>e2e/issue-1412.spec.ts<br>e2e/issue-1412-reopened.spec.ts |
-| [ ] | [#1407](https://github.com/convertigo/C8oForms/issues/1407) | closed | bug, QC-Passed | Cannot switch PWA access from anonymous back to authenticated |  |
+| [x] | [#1407](https://github.com/convertigo/C8oForms/issues/1407) | closed | bug, QC-Passed, Auto QA Test | Cannot switch PWA access from anonymous back to authenticated | Auto QA Test<br>e2e/issue-1407.spec.ts |
 | [ ] | [#1406](https://github.com/convertigo/C8oForms/issues/1406) | closed | bug | Fix response viewer action label according to user permissions |  |
 | [x] | [#1405](https://github.com/convertigo/C8oForms/issues/1405) | closed | bug, QC-Passed, Auto QA Test | Grid columns are incorrectly sized when the grid becomes visible after being hidden | Auto QA Test<br>e2e/issue-1405.spec.ts |
-| [ ] | [#1404](https://github.com/convertigo/C8oForms/issues/1404) | closed | enhancement | Add user-managed MCP tokens in settings |  |
+| [x] | [#1404](https://github.com/convertigo/C8oForms/issues/1404) | closed | enhancement, Auto QA Test | Add user-managed MCP tokens in settings | Auto QA Test<br>e2e/issue-1404.spec.ts |
 | [ ] | [#1403](https://github.com/convertigo/C8oForms/issues/1403) | closed | bug | Viewer computeVariable should preserve empty string expressions while resolving runtime scopes |  |
 | [x] | [#1402](https://github.com/convertigo/C8oForms/issues/1402) | closed | bug, QC-Passed, Auto QA Test | Select component from a data source shows a large empty zone at the end of the data list | Auto QA Test<br>e2e/issue-1402.spec.ts |
 | [x] | [#1401](https://github.com/convertigo/C8oForms/issues/1401) | closed | bug, QC-Passed, Auto QA Test | Database Connector configuration shows 404 icons, and Select data source always re‑selects two columns instead of one | Auto QA Test<br>e2e/issue-1401.spec.ts |
@@ -77,14 +77,14 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 31 deja co
 | [ ] | [#1385](https://github.com/convertigo/C8oForms/issues/1385) | closed | bug, QC-Passed | ‘+’ button to add a new Page is not visible enough and hard to find |  |
 | [ ] | [#1384](https://github.com/convertigo/C8oForms/issues/1384) | closed | bug, QC-Passed | Add collaborators modal proposes CSV import but no button is available |  |
 | [x] | [#1383](https://github.com/convertigo/C8oForms/issues/1383) | closed | bug, QC-Passed, Auto QA Test | Page renaming shows “Page name already exists” when the field is empty | Auto QA Test<br>e2e/issue-1383.spec.ts |
-| [ ] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed | Chart component height field does not allow entering “auto” although the UI suggests it |  |
+| [x] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed, Auto QA Test | Chart component height field does not allow entering “auto” although the UI suggests it | Auto QA Test<br>e2e/issue-1382.spec.ts |
 | [ ] | [#1381](https://github.com/convertigo/C8oForms/issues/1381) | closed | bug, QC-Passed | Visibility condition value picker does not save selected grid fields |  |
 | [ ] | [#1380](https://github.com/convertigo/C8oForms/issues/1380) | closed | bug, QC-Passed | Vertical bar buttons do not reset to their default section when switching between Workflows, Pages, and Palette |  |
 | [ ] | [#1378](https://github.com/convertigo/C8oForms/issues/1378) | closed | enhancement | Add a flow action to reset fields by scope while preserving default values and computed values |  |
 | [ ] | [#1377](https://github.com/convertigo/C8oForms/issues/1377) | closed | bug, QC-Passed | Chips preview display differs from chips configuration in Text mode |  |
 | [ ] | [#1376](https://github.com/convertigo/C8oForms/issues/1376) | closed | bug | [Engine] Fix regression in AD login assigning all users to a shared group |  |
-| [ ] | [#1375](https://github.com/convertigo/C8oForms/issues/1375) | closed | enhancement, QC-Passed | Opening the Application settings hides the side bar buttons, preventing quick navigation to other sections |  |
-| [ ] | [#1374](https://github.com/convertigo/C8oForms/issues/1374) | closed | bug, QC-Passed | Application configuration cannot be opened from Workflows |  |
+| [x] | [#1375](https://github.com/convertigo/C8oForms/issues/1375) | closed | enhancement, QC-Passed, Auto QA Test | Opening the Application settings hides the side bar buttons, preventing quick navigation to other sections | Auto QA Test<br>e2e/issue-1375.spec.ts |
+| [x] | [#1374](https://github.com/convertigo/C8oForms/issues/1374) | closed | bug, QC-Passed, Auto QA Test | Application configuration cannot be opened from Workflows | Auto QA Test<br>e2e/issue-1374.spec.ts |
 | [ ] | [#1373](https://github.com/convertigo/C8oForms/issues/1373) | closed | enhancement, QC-Passed | Headers for Flows must show hover feedback when editable |  |
 | [ ] | [#1372](https://github.com/convertigo/C8oForms/issues/1372) | closed | enhancement, QC-Passed | Add a “pen” (edit) icon in Flows, similar to the one available in Pages configuration |  |
 | [ ] | [#1371](https://github.com/convertigo/C8oForms/issues/1371) | closed | enhancement, QC-Passed | Harmonize validation, delete, and copy buttons across all pages |  |
@@ -92,7 +92,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 31 deja co
 | [ ] | [#1368](https://github.com/convertigo/C8oForms/issues/1368) | closed | bug, QC-Passed | Application name formatting is altered in search results |  |
 | [ ] | [#1367](https://github.com/convertigo/C8oForms/issues/1367) | closed | enhancement, QC-Passed | Background color too close to Studio primary color makes drop zones invisible |  |
 | [ ] | [#1366](https://github.com/convertigo/C8oForms/issues/1366) | closed | bug, QC-Passed | Searching for applications and adding a collaborator breaks the search results |  |
-| [ ] | [#1365](https://github.com/convertigo/C8oForms/issues/1365) | closed | bug, QC-Passed | The default icon **“bulb-outline”** for the Button component cannot be found in the icons list |  |
+| [x] | [#1365](https://github.com/convertigo/C8oForms/issues/1365) | closed | bug, QC-Passed, Auto QA Test | The default icon **“bulb-outline”** for the Button component cannot be found in the icons list | Auto QA Test<br>e2e/issue-1365.spec.ts |
 | [ ] | [#1364](https://github.com/convertigo/C8oForms/issues/1364) | closed | bug, QC-Passed | Cannot reorder child components inside an Horizontal layout component |  |
 | [x] | [#1363](https://github.com/convertigo/C8oForms/issues/1363) | closed | bug, QC-Passed, Auto QA Test | Deleting a component inside an Horizontal layout also deletes the Horizontal layout itself and all its content | Auto QA Test<br>e2e/issue-1363.spec.ts |
 | [ ] | [#1361](https://github.com/convertigo/C8oForms/issues/1361) | closed | bug, QC-Passed | The Workflows list does not correctly display the last flow name when it is at the bottom of a scroll |  |

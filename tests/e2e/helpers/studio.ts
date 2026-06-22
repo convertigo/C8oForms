@@ -10,6 +10,14 @@ export const SEL = {
   loginReveal: '.class1757337975297', // SubmitButton1
   emailInput: '.class1757337975207 input', // email > TextInput
   passwordInput: '.class1757337975249 input', // password > TextInput
+  // settingsPage.yaml — MCP tokens section
+  settingsMcpRoot: '.class1781107106295',
+  settingsMcpUrl: '.class1781107106327',
+  settingsMcpTokenNameInput: 'ion-input.class1781107106349 input, .class1781107106349 input',
+  settingsMcpCreateButton: 'ion-button.class1781107106355',
+  settingsMcpCreatedToken: '.class1781107109433',
+  settingsMcpTokenRow: '.class1781107109455',
+  settingsMcpRevokeButton: 'ion-button.class1781107109485',
   // editor — component overlay ("click to configure")
   componentOverlay: '.class1776441955089',
   // component/action config panel tab buttons, selected by stable ids in helpers
@@ -35,11 +43,15 @@ export const SEL = {
   checkboxGroupComponent: 'c8oforms-itemcheckboxgroupviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
+  buttonIconNameInput: '.class1776709887054 input',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
+  chartComponent: 'c8oforms-itemchartviewer',
+  chartHeightModeToggle: '.class1780577000001',
+  chartPersonalizedHeightInput: '.class1776605300014 input',
   choiceOptionInput:
     'ion-input.class1571404352333 input:visible, ion-input.class1778925100118 input:visible, ion-input.class1773855097792 input:visible, ion-input.class1588840079644 input:visible, ion-input.class1588839628131 input:visible, ion-input.class1588839628323 input:visible, ion-input.class1588839628332 input:visible',
   defaultValueTextButton: '.class1678818942504, .class1777544520720',
@@ -64,10 +76,14 @@ export const SEL = {
   pageSettingsGeneralTab: '.class1779366500007',
   pageSettingsNavigationTab: '.class1779366500013',
   // Pages panel (left sidebar) + a page row's inline edit (pencil) action
+  appSettingsPanelButton: 'ion-button.class1774952185775, ion-button.class1780909504441',
+  appSettingsCategories: '.app-settings-categories',
   componentPanelButton: 'ion-button.class1773237045434, ion-button.class1780909504474',
   componentPaletteSearch: 'ion-searchbar.class1775889901001',
   pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
   workflowsPanelButton: 'ion-button.class1773250515928, ion-button.class1780909504555',
+  workflowsSearchbar: 'ion-searchbar.class1774523913949',
+  workflowEntry: '#bloc-palette [draggable="true"]',
   submitFlowButton: '#unique_submit',
   pageRow: '.class1775140559440, .class1749805611480, .class1650357059456, .class1650357059543',
   pageEditButton:
@@ -105,13 +121,18 @@ export const SEL = {
   publishedApplicationsTab: 'ion-button.class1761754757348',
   cardMenuButton: 'ion-button.class1606574763560',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
-  pwaEditModal: 'ion-modal.modal-pwa-edition, ion-modal.modalCSV',
-  pwaAccessToggle: 'c8oforms-toggleswitch.class1779878486939',
+  pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
+  pwaAccessToggle: '.class1779878486939:visible',
   pwaAccessToggleButton: 'button.class1775840591959',
   pwaLegacyAccessCheckbox: 'ion-checkbox.class1646907933319',
+  pwaIconEditor: '.icon-picker, .class1779811544755, .class1603800885985',
+  pwaIconEditButton: 'ion-button.class1649864949366, ion-button.buttonEditIcon',
   pwaNameInput: 'ion-input.class1603802354868 input',
   pwaShortNameInput: 'ion-input.class1603803008204 input',
   pwaSaveButton: 'ion-button.class1762425668421, ion-button.class1649838959998',
+  wallpaperModal: 'ion-modal.modal-custom--hw-100, ion-modal.modal-custom, ion-modal.modalCSV',
+  wallpaperColorSegmentButton: 'ion-segment-button.class1774608193139, ion-segment-button.class1648553976686',
+  wallpaperSaveButton: 'ion-button.class1774608108762, ion-button.class1586166864663',
   // Horizontal layout container (type "layout") rendered in the editor canvas,
   // and the wrapper around each child nested inside it.
   layoutViewer: 'c8oforms-itemlayouteditorviewer',
@@ -168,6 +189,8 @@ type MainEditorConfigTab =
   | 'defaultvalue'
   | 'data_interactions';
 
+type ChartHeightMode = 'auto' | 'personalized';
+
 export interface SourcePaletteSectionState {
   name: SourcePaletteSection;
   expanded: boolean;
@@ -212,6 +235,7 @@ const ROUTE = {
   selector: /\/selector(?:\/|$)/,
   editor: /\/editor\//,
   viewer: /\/viewer\//,
+  settings: /\/settings(?:\/|$)/,
 } as const;
 
 async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
@@ -581,6 +605,68 @@ export async function c8oCall(page: Page, sequence: string, params: Record<strin
   );
 }
 
+export async function openSettings(page: Page): Promise<void> {
+  await test.step('open user settings', async () => {
+    await page.goto('./settings', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expectRoute(page, ROUTE.settings, 60_000);
+    await page.locator('page-settingspage').waitFor({ state: 'attached', timeout: 60_000 });
+    await expect(page.locator(SEL.settingsMcpRoot), 'the MCP tokens settings section should be visible').toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
+
+export function mcpTokenRow(page: Page, tokenName: string): Locator {
+  return page.locator(SEL.settingsMcpTokenRow).filter({ hasText: tokenName }).first();
+}
+
+export async function expectMcpTokenListed(page: Page, tokenName: string): Promise<Locator> {
+  return test.step(`assert MCP token ${tokenName} is listed`, async () => {
+    const row = mcpTokenRow(page, tokenName);
+    await expect(row, `MCP token ${tokenName} should be listed`).toBeVisible({ timeout: 30_000 });
+    return row;
+  });
+}
+
+export async function createMcpTokenThroughSettingsUi(page: Page, tokenName: string): Promise<string> {
+  return test.step(`create MCP token ${tokenName}`, async () => {
+    await expect(page.locator(SEL.settingsMcpRoot), 'the MCP tokens settings section should be visible').toBeVisible({
+      timeout: 30_000,
+    });
+    await fillInputValue(page, SEL.settingsMcpTokenNameInput, tokenName, 'MCP token name input');
+    const createButton = page.locator(SEL.settingsMcpCreateButton).first();
+    await expect(createButton, 'the MCP token create button should be enabled').toBeEnabled({ timeout: 10_000 });
+    await createButton.click();
+
+    const token = page.locator(SEL.settingsMcpCreatedToken).first();
+    await expect(token, 'the newly created MCP token should be displayed once').toBeVisible({ timeout: 30_000 });
+    let tokenValue = '';
+    await expect
+      .poll(
+        async () => {
+          tokenValue = (await token.innerText().catch(() => '')).trim();
+          return tokenValue.length;
+        },
+        {
+          message: 'the newly created MCP token value should be populated',
+          timeout: 30_000,
+        },
+      )
+      .toBeGreaterThan(20);
+    await expectMcpTokenListed(page, tokenName);
+    return tokenValue;
+  });
+}
+
+export async function revokeMcpTokenThroughSettingsUi(page: Page, tokenName: string): Promise<void> {
+  await test.step(`revoke MCP token ${tokenName}`, async () => {
+    const row = await expectMcpTokenListed(page, tokenName);
+    const revokeButton = row.locator(SEL.settingsMcpRevokeButton).first();
+    await expect(revokeButton, `MCP token ${tokenName} should expose a revoke button`).toBeVisible({ timeout: 10_000 });
+    await revokeButton.click();
+  });
+}
+
 export async function getFormDocument(page: Page, formId: string): Promise<JsonRecord> {
   const response = await c8oCall(page, 'APIV2_getDocument', { id: formId });
   const doc = (response.res ?? (response as { document?: unknown }).document) as JsonRecord | undefined;
@@ -941,6 +1027,14 @@ export async function reopenEditorFromHome(page: Page, title: string): Promise<v
   await expectRoute(page, ROUTE.editor);
 }
 
+export async function returnToSelectorFromEditor(page: Page): Promise<void> {
+  if (ROUTE.selector.test(page.url())) {
+    return;
+  }
+  await page.locator(SEL.editorHomeButton).first().click();
+  await expectRoute(page, ROUTE.selector);
+}
+
 /** Rendered height (px) of the first leaflet map on the page. */
 export async function mapHeight(page: Page): Promise<number> {
   return page
@@ -960,6 +1054,58 @@ export async function setMapHeightAndClose(page: Page, value: string): Promise<v
   await page.waitForTimeout(1_000); // editor applies the value through a change handler
   await closeComponentConfig(page);
   await page.waitForTimeout(1_500);
+}
+
+export async function selectChartHeightMode(page: Page, mode: ChartHeightMode): Promise<void> {
+  await test.step(`Select Chart height mode: ${mode}`, async () => {
+    const button = chartHeightModeButton(page, mode);
+    await expect(button, `Chart ${mode} height mode button should be visible`).toBeVisible({ timeout: 15_000 });
+    await button.click();
+    await expectChartHeightModeSelected(page, mode);
+  });
+}
+
+export async function expectChartHeightModeSelected(page: Page, mode: ChartHeightMode): Promise<void> {
+  await test.step(`Assert Chart height mode is ${mode}`, async () => {
+    const button = chartHeightModeButton(page, mode);
+    await expect
+      .poll(async () => (await button.getAttribute('class')) ?? '', {
+        message: `Chart ${mode} height mode button should be selected`,
+        timeout: 10_000,
+      })
+      .toContain('c8o-btn-selected');
+  });
+}
+
+export async function expectChartPersonalizedHeightInput(page: Page, visible: boolean): Promise<void> {
+  await test.step(`Assert Chart personalized height input is ${visible ? 'visible' : 'hidden'}`, async () => {
+    const input = page.locator(`${SEL.chartPersonalizedHeightInput}:visible`).first();
+    if (visible) {
+      await expect(input, 'Chart personalized height input should be visible').toBeVisible({ timeout: 10_000 });
+    } else {
+      await expect(input, 'Chart personalized height input should be hidden in automatic mode').toHaveCount(0, {
+        timeout: 10_000,
+      });
+    }
+  });
+}
+
+export async function setChartPersonalizedHeight(page: Page, value: string): Promise<void> {
+  await test.step(`Set Chart personalized height to ${value}`, async () => {
+    const input = page.locator(`${SEL.chartPersonalizedHeightInput}:visible`).first();
+    await expect(input, 'Chart personalized height input should be visible before editing').toBeVisible({ timeout: 10_000 });
+    await input.fill(value);
+    await input.blur();
+    await expect(input, 'Chart personalized height input should keep the edited value').toHaveValue(value, {
+      timeout: 10_000,
+    });
+    await page.waitForTimeout(800);
+  });
+}
+
+function chartHeightModeButton(page: Page, mode: ChartHeightMode): Locator {
+  const index = mode === 'auto' ? 0 : 1;
+  return page.locator(`${SEL.chartHeightModeToggle} button.c8o-btn:visible`).nth(index);
 }
 
 /** Click "Aperçu" and wait for the viewer/preview to render the form. */
@@ -1024,6 +1170,37 @@ export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
   ).toHaveCount(2);
   await expect(tabs.first(), 'button visual style section should remain accessible').toBeVisible();
   await expect(tabs.nth(1), 'button icon style section should remain accessible').toBeVisible();
+}
+
+export async function openButtonIconStyleSection(page: Page): Promise<void> {
+  const container = page.locator(SEL.styleTabsContainer).first();
+  await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
+
+  const tabs = container.locator(`${SEL.styleTab}:visible`);
+  await expect(tabs.first(), 'at least one button style tab should be visible').toBeVisible({ timeout: 15_000 });
+
+  const count = await tabs.count();
+  for (let i = 0; i < count; i++) {
+    const tab = tabs.nth(i);
+    await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+    if (await firstVisibleLocatorOrNull(page, SEL.buttonIconNameInput, 1_500)) {
+      return;
+    }
+  }
+
+  throw new Error(
+    `Button icon style section did not expose the icon name input. Visible style tabs: ${(await visibleTexts(page, SEL.styleTab)).join(' | ')}`,
+  );
+}
+
+export async function expectButtonDefaultIconName(page: Page, expectedIcon = 'bulb'): Promise<void> {
+  await test.step(`Assert Button default icon is ${expectedIcon}`, async () => {
+    await openButtonIconStyleSection(page);
+    await expect(
+      page.locator(SEL.buttonIconNameInput).first(),
+      `new Button components should default to the available ${expectedIcon} icon`,
+    ).toHaveValue(expectedIcon, { timeout: 15_000 });
+  });
 }
 
 async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
@@ -2323,56 +2500,233 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export async function openPublishedPwaEditor(page: Page, title: string): Promise<void> {
-  await page.locator(SEL.publishedApplicationsTab).first().click();
-  if (await page.locator('ion-popover').isVisible().catch(() => false)) {
-    await page.keyboard.press('Escape');
-    await page.locator('ion-popover').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
-  }
-  const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
-  await expect(card, `published form card ${title} should be visible`).toBeVisible({ timeout: 30_000 });
-  const menu = card.locator(SEL.cardMenuButton).first();
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await card.hover();
-    await page.waitForTimeout(500);
-    await menu.click({ timeout: 2_000 }).catch(async () => {
-      await menu.evaluate((el) => (el as HTMLElement).click());
-    });
-    if (
-      await page
-        .locator(SEL.publishedPwaMenuItem)
-        .first()
-        .waitFor({ state: 'visible', timeout: 2_000 })
-        .then(() => true)
-        .catch(() => false)
-    ) {
-      break;
-    }
-  }
-  const pwaMenuItem = page.locator(SEL.publishedPwaMenuItem).first();
-  await expect(pwaMenuItem, 'the published card menu should expose the PWA editor action').toBeVisible({
-    timeout: 5_000,
-  });
-  await pwaMenuItem.click();
-  await page.locator(SEL.pwaEditModal).waitFor({ state: 'visible', timeout: 30_000 });
+type PwaAccessMode = 'authenticated' | 'anonymous';
+
+function pwaAccessButtonIndex(mode: PwaAccessMode): number {
+  return mode === 'authenticated' ? 0 : 1;
 }
 
-export async function setPwaAccessModeAndSave(page: Page, mode: 'authenticated' | 'anonymous'): Promise<void> {
-  const modal = page.locator(SEL.pwaEditModal).last();
-  const toggle = modal.locator(SEL.pwaAccessToggle).first();
-  if (await toggle.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await toggle.locator(SEL.pwaAccessToggleButton).nth(mode === 'authenticated' ? 0 : 1).click();
-  } else {
-    const legacyCheckbox = modal.locator(SEL.pwaLegacyAccessCheckbox).first();
-    await expect(legacyCheckbox, 'the legacy PWA access checkbox should be visible').toBeVisible({ timeout: 30_000 });
-    const checked = await legacyCheckbox.evaluate((el) => (el as HTMLInputElement).checked === true);
-    const shouldBeChecked = mode === 'authenticated';
-    if (checked !== shouldBeChecked) {
-      await legacyCheckbox.click();
+function shortDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function visiblePwaAccessButtonClasses(modal: Locator): Promise<string[]> {
+  return modal.locator(SEL.pwaAccessToggleButton).evaluateAll((buttons) =>
+    buttons
+      .filter((button) => {
+        const element = button as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      })
+      .map((button) => (button as HTMLElement).className),
+  );
+}
+
+async function waitForVisiblePwaAccessButtonClasses(modal: Locator, timeout = 5_000): Promise<string[]> {
+  const deadline = Date.now() + timeout;
+  let classes: string[] = [];
+  do {
+    classes = await visiblePwaAccessButtonClasses(modal).catch(() => []);
+    if (classes.length >= 2) {
+      return classes;
+    }
+    await shortDelay(250);
+  } while (Date.now() < deadline);
+  return classes;
+}
+
+async function clickVisiblePwaAccessButton(modal: Locator, mode: PwaAccessMode): Promise<boolean> {
+  return modal.locator(SEL.pwaAccessToggleButton).evaluateAll((buttons, selectedIndex) => {
+    const visibleButtons = buttons.filter((button) => {
+      const element = button as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    });
+    const button = visibleButtons[selectedIndex] as HTMLElement | undefined;
+    if (!button) {
+      return false;
+    }
+    button.click();
+    return true;
+  }, pwaAccessButtonIndex(mode));
+}
+
+export async function openPublishedPwaEditor(page: Page, title: string): Promise<void> {
+  await test.step(`open published PWA editor for ${title}`, async () => {
+    await returnToSelectorFromEditor(page);
+    await page.locator(SEL.publishedApplicationsTab).first().click();
+    if (await page.locator('ion-popover').isVisible().catch(() => false)) {
+      await page.keyboard.press('Escape');
+      await page.locator('ion-popover').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
+    }
+    const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
+    await expect(card, `published form card ${title} should be visible`).toBeVisible({ timeout: 30_000 });
+    const menu = card.locator(SEL.cardMenuButton).first();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await card.hover();
+      await page.waitForTimeout(500);
+      await menu.click({ timeout: 2_000 }).catch(async () => {
+        await menu.evaluate((el) => (el as HTMLElement).click());
+      });
+      if (
+        await page
+          .locator(SEL.publishedPwaMenuItem)
+          .first()
+          .waitFor({ state: 'visible', timeout: 2_000 })
+          .then(() => true)
+          .catch(() => false)
+      ) {
+        break;
+      }
+    }
+    const pwaMenuItem = page.locator(SEL.publishedPwaMenuItem).first();
+    await expect(pwaMenuItem, 'the published card menu should expose the PWA editor action').toBeVisible({
+      timeout: 5_000,
+    });
+    await pwaMenuItem.click();
+    await page.locator(SEL.pwaEditModal).waitFor({ state: 'visible', timeout: 30_000 });
+  });
+}
+
+export async function publishCurrentFormWithPwa(page: Page, mode: PwaAccessMode): Promise<void> {
+  await test.step(`publish current form as ${mode} PWA`, async () => {
+    await expect(page.locator(SEL.publishButton).first(), 'the editor publish button should be visible').toBeVisible({
+      timeout: 30_000,
+    });
+    await page.locator(SEL.publishButton).first().click();
+    const modal = page.locator(SEL.pwaEditModal).last();
+    await expect(modal, 'publishing should open the PWA editor modal').toBeVisible({ timeout: 60_000 });
+    await ensurePwaIconConfiguredThroughUi(page, modal);
+    await ensurePwaTextInputsFilled(modal);
+    await setPwaAccessModeAndSave(page, mode);
+  });
+}
+
+async function ensurePwaIconConfiguredThroughUi(page: Page, modal: Locator): Promise<void> {
+  await test.step('configure the PWA icon with a color through the UI', async () => {
+    const wallpaperModal = page.locator(SEL.wallpaperModal).last();
+    const iconArea = modal.locator(SEL.pwaIconEditor).first();
+    await acceptRgpdIfVisible(page);
+    await expect(iconArea, 'the PWA icon editor should be visible').toBeVisible({ timeout: 30_000 });
+    await iconArea.click({ force: true }).catch(() => undefined);
+
+    if (!(await wallpaperModal.isVisible({ timeout: 3_000 }).catch(() => false))) {
+      await modal
+        .locator(SEL.pwaIconEditButton)
+        .first()
+        .click({ force: true, timeout: 2_000 })
+        .catch(() => undefined);
+    }
+
+    await expect(wallpaperModal, 'the thumbnail/color picker modal should open').toBeVisible({ timeout: 30_000 });
+    const colorSegment = wallpaperModal.locator(SEL.wallpaperColorSegmentButton).first();
+    if (await colorSegment.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await colorSegment.click().catch(() => undefined);
+    }
+    await wallpaperModal.locator(SEL.wallpaperSaveButton).first().click();
+    await expect(wallpaperModal).toBeHidden({ timeout: 30_000 });
+    await expect(modal, 'the PWA editor modal should still be visible after icon selection').toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
+
+async function ensurePwaTextInputsFilled(modal: Locator): Promise<void> {
+  for (const selector of [SEL.pwaNameInput, SEL.pwaShortNameInput]) {
+    const input = modal.locator(selector).first();
+    if (!(await input.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      continue;
+    }
+    const value = await input.inputValue().catch(() => '');
+    if (!value.trim()) {
+      await input.fill(`PWA ${Date.now()}`);
+      await input.dispatchEvent('input');
+      await input.dispatchEvent('change');
     }
   }
-  await modal.locator(SEL.pwaSaveButton).first().click();
-  await expect(modal).toBeHidden({ timeout: 60_000 });
+}
+
+export async function expectPwaAccessModeSelected(page: Page, mode: PwaAccessMode): Promise<void> {
+  await test.step(`assert PWA access mode is ${mode}`, async () => {
+    const modal = page.locator(SEL.pwaEditModal).last();
+    await expect(modal, 'the PWA editor modal should be open').toBeVisible({ timeout: 30_000 });
+    const selectedIndex = pwaAccessButtonIndex(mode);
+    const buttonClasses = await waitForVisiblePwaAccessButtonClasses(modal);
+    if (buttonClasses.length >= 2) {
+      await expect
+        .poll(async () => (await visiblePwaAccessButtonClasses(modal))[selectedIndex] ?? '', {
+          message: `PWA ${mode} toggle button should be selected`,
+          timeout: 30_000,
+        })
+        .toContain('c8o-btn-selected');
+      return;
+    }
+
+    const legacyCheckbox = modal.locator(SEL.pwaLegacyAccessCheckbox).first();
+    await expect(legacyCheckbox, 'the legacy PWA access checkbox should be visible').toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => isIonCheckboxChecked(legacyCheckbox), {
+        message: `legacy PWA access checkbox should reflect ${mode}`,
+        timeout: 10_000,
+      })
+      .toBe(mode === 'authenticated');
+  });
+}
+
+async function selectPwaAccessMode(modal: Locator, mode: PwaAccessMode): Promise<void> {
+  const selectedIndex = pwaAccessButtonIndex(mode);
+  if ((await waitForVisiblePwaAccessButtonClasses(modal)).length >= 2) {
+    expect(await clickVisiblePwaAccessButton(modal, mode), `PWA ${mode} toggle button should be clickable`).toBe(true);
+    await expect
+      .poll(async () => (await visiblePwaAccessButtonClasses(modal))[selectedIndex] ?? '', {
+        message: `PWA ${mode} toggle button should be selected after clicking it`,
+        timeout: 10_000,
+      })
+      .toContain('c8o-btn-selected');
+    return;
+  }
+
+  const legacyCheckbox = modal.locator(SEL.pwaLegacyAccessCheckbox).first();
+  await expect(legacyCheckbox, 'the legacy PWA access checkbox should be visible').toBeVisible({ timeout: 30_000 });
+  const checked = await isIonCheckboxChecked(legacyCheckbox);
+  const shouldBeChecked = mode === 'authenticated';
+  if (checked !== shouldBeChecked) {
+    await legacyCheckbox.click();
+  }
+}
+
+async function isIonCheckboxChecked(checkbox: Locator): Promise<boolean> {
+  const ariaChecked = await checkbox.getAttribute('aria-checked').catch(() => null);
+  if (ariaChecked != null) {
+    return ariaChecked === 'true';
+  }
+  return checkbox.evaluate((el) => {
+    const input = el as HTMLInputElement;
+    return input.checked === true || el.classList.contains('checkbox-checked') || el.getAttribute('ng-reflect-checked') === 'true';
+  });
+}
+
+async function confirmPwaAnonymousWarningIfVisible(page: Page): Promise<void> {
+  const confirmButton = page.locator('ion-alert button.alert-button-role-confirm').last();
+  if (await confirmButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    const alert = page.locator('ion-alert').last();
+    await confirmButton.click();
+    await expect(alert).toBeHidden({ timeout: 15_000 });
+  }
+}
+
+export async function setPwaAccessModeAndSave(page: Page, mode: PwaAccessMode): Promise<void> {
+  await test.step(`save PWA access as ${mode}`, async () => {
+    const modal = page.locator(SEL.pwaEditModal).last();
+    await expect(modal, 'the PWA editor modal should be open').toBeVisible({ timeout: 30_000 });
+    await selectPwaAccessMode(modal, mode);
+    await acceptRgpdIfVisible(page);
+    await modal.locator(SEL.pwaSaveButton).first().click();
+    await confirmPwaAnonymousWarningIfVisible(page);
+    await expect(modal).toBeHidden({ timeout: 60_000 });
+  });
 }
 
 /**
@@ -2479,6 +2833,19 @@ export async function openWorkflowsPanel(page: Page): Promise<void> {
   }
   await clickFirstVisible(page, SEL.workflowsPanelButton, 'workflows panel');
   await page.waitForTimeout(800);
+}
+
+export async function openFirstWorkflowSection(page: Page): Promise<void> {
+  await test.step('Open the first Workflows section', async () => {
+    await openWorkflowsPanel(page);
+    await expect(page.locator(SEL.workflowsSearchbar).first(), 'Workflows panel search should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+    const entry = page.locator(SEL.workflowEntry).first();
+    await expect(entry, 'the first Workflows entry should be visible').toBeVisible({ timeout: 15_000 });
+    await entry.click({ timeout: 10_000 }).catch(async () => entry.dispatchEvent('click'));
+    await page.waitForTimeout(800);
+  });
 }
 
 export async function openFirstPageFlow(page: Page): Promise<void> {
@@ -3728,6 +4095,26 @@ export async function openPagesPanel(page: Page): Promise<void> {
       }
     }
     throw new Error('Pages panel did not open after clicking the Pages menu.');
+  });
+}
+
+export async function openApplicationSettingsFromSidebar(page: Page): Promise<void> {
+  await test.step('Open application settings from the editor sidebar', async () => {
+    const button = await firstVisibleLocator(page, SEL.appSettingsPanelButton, 'application settings sidebar button');
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+    await expect(
+      page.locator(SEL.appSettingsCategories).first(),
+      'application settings categories should be visible after clicking the settings sidebar button',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function expectEditorSidebarButtonsVisible(page: Page): Promise<void> {
+  await test.step('Assert editor sidebar buttons remain visible', async () => {
+    await firstVisibleLocator(page, SEL.appSettingsPanelButton, 'application settings sidebar button', 10_000);
+    await firstVisibleLocator(page, SEL.componentPanelButton, 'component palette sidebar button', 10_000);
+    await firstVisibleLocator(page, SEL.pagesPanelButton, 'Pages sidebar button', 10_000);
+    await firstVisibleLocator(page, SEL.workflowsPanelButton, 'Workflows sidebar button', 10_000);
   });
 }
 
