@@ -302,7 +302,10 @@ async function addUser(endpoint, user, password) {
   await c8oSequence(endpoint, 'AddUser', {
     user,
     password,
-    published_First: 'true',
+    // false → the account lands on the "Édition" home (where the blank-form card
+    // lives) instead of the default "Base de données"/published view, so
+    // createBlankForm finds its entry point. (Existing accounts already fixed.)
+    published_First: 'false',
     editing_rights: 'true',
     language: REQUIRED_TEST_USER_LANGUAGE,
     name: displayNameFor(user),
