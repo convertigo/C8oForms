@@ -10,13 +10,13 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 30 deja couverts; 188 a couvrir (32 ouverts, 156 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 31 deja couverts; 187 a couvrir (31 ouverts, 156 fermes); 1 exclus par label ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
 | [ ] | [#1428](https://github.com/convertigo/C8oForms/issues/1428) | open | enhancement | The condition action (If) does not use the modernized interface for condition modes (Fields, Aa, JS) |  |
 | [ ] | [#1426](https://github.com/convertigo/C8oForms/issues/1426) | open | bug | Setting server symbol **C8Oforms.customHeaderLogo** causes oversized logo after submitting a response |  |
-| [ ] | [#1425](https://github.com/convertigo/C8oForms/issues/1425) | open | bug | Palette button is half hidden in Flow actions configuration |  |
+| [x] | [#1425](https://github.com/convertigo/C8oForms/issues/1425) | closed | bug, QC-Passed, Auto QA Test | Palette button is half hidden in Flow actions configuration | Auto QA Test<br>e2e/issue-1425.spec.ts |
 | [ ] | [#1415](https://github.com/convertigo/C8oForms/issues/1415) | open | enhancement | Reload button and menu button in a published app do not use the theme |  |
 | [ ] | [#1411](https://github.com/convertigo/C8oForms/issues/1411) | open | enhancement | Allow per-component border, margin, and padding customization |  |
 | [ ] | [#1410](https://github.com/convertigo/C8oForms/issues/1410) | open | enhancement | Add grid footer and pagination display settings |  |
