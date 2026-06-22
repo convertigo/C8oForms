@@ -44,6 +44,8 @@ export const SEL = {
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
   buttonIconNameInput: '.class1776709887054 input',
+  buttonIconClearButton: 'ion-icon.class1780311333214, .class1780311333214',
+  buttonRenderedIcon: 'c8oforms-itembuttonviewer ion-button ion-icon',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
@@ -1200,6 +1202,30 @@ export async function expectButtonDefaultIconName(page: Page, expectedIcon = 'bu
       page.locator(SEL.buttonIconNameInput).first(),
       `new Button components should default to the available ${expectedIcon} icon`,
     ).toHaveValue(expectedIcon, { timeout: 15_000 });
+  });
+}
+
+export async function clearButtonIcon(page: Page): Promise<void> {
+  await test.step('Clear Button icon', async () => {
+    await openButtonIconStyleSection(page);
+    const clearButton = page.locator(SEL.buttonIconClearButton).first();
+    await expect(
+      clearButton,
+      'Button icon section should expose a clear control so the button can be text-only',
+    ).toBeVisible({ timeout: 10_000 });
+    await clearButton.click({ timeout: 10_000 }).catch(async () => clearButton.dispatchEvent('click'));
+    await expect(page.locator(SEL.buttonIconNameInput).first(), 'button icon name should be cleared').toHaveValue('', {
+      timeout: 15_000,
+    });
+  });
+}
+
+export async function expectButtonRenderedWithoutIcon(page: Page): Promise<void> {
+  await test.step('Assert Button renders without an icon', async () => {
+    await expect(
+      page.locator(SEL.buttonRenderedIcon),
+      'a text-only Button should not render an icon in the editor canvas',
+    ).toHaveCount(0, { timeout: 15_000 });
   });
 }
 
