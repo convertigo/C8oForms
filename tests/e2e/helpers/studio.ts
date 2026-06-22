@@ -75,6 +75,8 @@ export const SEL = {
   pageSettingsGeneralTab: '.class1779366500007',
   pageSettingsNavigationTab: '.class1779366500013',
   // Pages panel (left sidebar) + a page row's inline edit (pencil) action
+  appSettingsPanelButton: 'ion-button.class1774952185775, ion-button.class1780909504441',
+  appSettingsCategories: '.app-settings-categories',
   componentPanelButton: 'ion-button.class1773237045434, ion-button.class1780909504474',
   componentPaletteSearch: 'ion-searchbar.class1775889901001',
   pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
@@ -4040,6 +4042,26 @@ export async function openPagesPanel(page: Page): Promise<void> {
       }
     }
     throw new Error('Pages panel did not open after clicking the Pages menu.');
+  });
+}
+
+export async function openApplicationSettingsFromSidebar(page: Page): Promise<void> {
+  await test.step('Open application settings from the editor sidebar', async () => {
+    const button = await firstVisibleLocator(page, SEL.appSettingsPanelButton, 'application settings sidebar button');
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+    await expect(
+      page.locator(SEL.appSettingsCategories).first(),
+      'application settings categories should be visible after clicking the settings sidebar button',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function expectEditorSidebarButtonsVisible(page: Page): Promise<void> {
+  await test.step('Assert editor sidebar buttons remain visible', async () => {
+    await firstVisibleLocator(page, SEL.appSettingsPanelButton, 'application settings sidebar button', 10_000);
+    await firstVisibleLocator(page, SEL.componentPanelButton, 'component palette sidebar button', 10_000);
+    await firstVisibleLocator(page, SEL.pagesPanelButton, 'Pages sidebar button', 10_000);
+    await firstVisibleLocator(page, SEL.workflowsPanelButton, 'Workflows sidebar button', 10_000);
   });
 }
 
