@@ -1374,7 +1374,7 @@ ${next}`;
   };
 
   // packages/service-worker/worker/src/debug.js
-  var SW_VERSION = "20.3.16";
+  var SW_VERSION = "20.3.18";
   var DEBUG_LOG_BUFFER_SIZE = 100;
   var DebugHandler = class {
     constructor(driver, adapter2) {
@@ -1905,10 +1905,11 @@ ${msgIdle}`, { headers: this.adapter.newHeaders({ "Content-Type": "text/plain" }
       }
       if (event.request.mode === "navigate" && !this.scheduledNavUpdateCheck) {
         this.scheduledNavUpdateCheck = true;
-        this.idle.schedule("check-updates-on-navigation", async () => {
-          this.scheduledNavUpdateCheck = false;
+        try {
           await this.checkForUpdate();
-        });
+        } finally {
+          this.scheduledNavUpdateCheck = false;
+        }
       }
       const appVersion = await this.assignVersion(event);
       const isVersionWithinMaxAge = (appVersion == null ? void 0 : appVersion.manifest.applicationMaxAge) === void 0 || this.adapter.time - appVersion.manifest.timestamp < appVersion.manifest.applicationMaxAge;

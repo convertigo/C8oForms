@@ -876,12 +876,13 @@ scriptContent:
         		}
         		var variables: any = {};
         		if (step.sources.self.vars.selfVar.type == "condition") {
+        			let selfVar: any = step.sources.self.vars.selfVar;
         			let jsString: string = "";
         			jsString = this.detectSubjectAndComplete(
-        				step.sources.self.vars.selfVar.cond,
-        				step.sources.self.vars.selfVar.condVisible,
+        				this.getFlowIfConditionConds(selfVar),
+        				selfVar.condVisible,
         				null,
-        				step.sources.self.vars.selfVar.groups
+        				selfVar.groups
         			);
         			try {
         				variables.selfVar = eval(jsString);
@@ -7126,6 +7127,15 @@ scriptContent:
         	 * @param {boolean} goToPage - Optional boolean value to indicate if it is for "goToPage" condition.
         	 * @returns {string} - The computed JavaScript string for visibility conditions.
         	 */
+        	public getFlowIfConditionConds(group: any): Array<any> {
+        		if (group == null || typeof(group) != "object") {
+        			return [];
+        		}
+        		let conds = Array.isArray(group.conds) ? group.conds : (Array.isArray(group.cond) ? group.cond : []);
+        		let legacyConds = Array.isArray(group.__legacyConds) ? group.__legacyConds : [];
+        		return conds.concat(legacyConds);
+        	}
+        
         	public detectSubjectAndComplete(
         		conds: Array<any>,
         		operatorStr: string,
@@ -7165,7 +7175,7 @@ scriptContent:
         		for (let group of (Array.isArray(groups) ? groups : [])) {
         			try {
         				let groupExpression = this.detectSubjectAndComplete(
-        					group != undefined ? group.conds : [],
+        					this.getFlowIfConditionConds(group),
         					group != undefined && group.condVisible != undefined ? group.condVisible : "and",
         					goToPage,
         					group != undefined && Array.isArray(group.groups) ? group.groups : []
@@ -8532,12 +8542,58 @@ scriptContent:
         		this.local.policySecondaryColor = "secondary";
         		this.local.policyDangerColor = "danger";
         		document.documentElement.style.setProperty(''--policy-color'', this.local.policyColor);
+        		this.local.pwaThemeReady = true;
+        
+        		const applyHeaderTheme = (themeColor) => {
+        			this.local.headerColor = themeColor;
+        			// Color asked for theme
+        			const color1 = new TinyColor(this.local.headerColor);
+        			// Background color
+        			const color2 = new TinyColor("#ffffff");
+        			// Get ALPHA
+        			let amount = color1.getAlpha() * 100;
+        			const visibleColor = color2.mix(color1, amount);
+        			let readabilitBlack = readability(visibleColor, "black");
+        			let readabilitWhite = readability(visibleColor, "white");
+        			if (readabilitWhite > readabilitBlack) {
+        				this.local.policyColor = "white";
+        				this.local.hooverPolicyColor = new TinyColor(visibleColor).tint(50).toString();
+        			} else {
+        				this.local.hooverPolicyColor = new TinyColor(visibleColor).shade(50).toString();
+        			}
+        			try {
+        				document.documentElement.style.setProperty(''--policy-color'', this.local.policyColor);
+        			} catch (e) {
+        				// do nothing
+        			}
+        			// Checking for other icons
+        			let readabilitBtLight = readability(visibleColor, btLightColor);
+        			let readabilitBtLight2 = readability(visibleColor, btLightColor2);
+        			if (readabilitBtLight2 > readabilitBtLight) {
+        				this.local.policyBtLightColor = "otherBtLight";
+        			}
+        			let readabilitSecondary = readability(visibleColor, secondaryColor);
+        			let readabilitSecondary2 = readability(visibleColor, secondaryColor2);
+        			if (readabilitSecondary2 > readabilitSecondary) {
+        				this.local.policySecondaryColor = "convertigo";
+        			}
+        			let readabilitDanger = readability(visibleColor, dangerColor);
+        			let readabilitDanger2 = readability(visibleColor, dangerColor2);
+        			if (readabilitDanger2 > readabilitDanger) {
+        				this.local.policyDangerColor = "otherDanger";
+        			}
+        		};
         
         		try {
         			const indexPWA = window.location.pathname.indexOf("pwas");
         			const indexMobile = window.location.pathname.indexOf("mobile");
         			// If we started in standalone PWA mode
         			if (indexPWA !== -1 && indexMobile === -1) {
+        				this.local.pwaThemeReady = false;
+        				if (this.global?.pwaThemeColor) {
+        					applyHeaderTheme(this.global.pwaThemeColor);
+        					this.local.pwaThemeReady = true;
+        				}
         				// Get PWA URL base from the current path because the index base href can point to the parent project.
         				const pathParts = window.location.pathname.split("/");
         				const pwasIndex = pathParts.indexOf("pwas");
@@ -8548,52 +8604,18 @@ scriptContent:
         				this.global.pwaGet.subscribe(
         					response => {
         						if (response["theme_color"] !== undefined) {
-        							this.local.headerColor = response["theme_color"];
-        							// Color asked for theme
-        							const color1 = new TinyColor(this.local.headerColor);
-        							// Background color
-        							const color2 = new TinyColor("#ffffff");
-        							// Get ALPHA
-        							let amount = color1.getAlpha() * 100;
-        							const visibleColor = color2.mix(color1, amount);
-        							let readabilitBlack = readability(visibleColor, "black");
-        							let readabilitWhite = readability(visibleColor, "white");
-        							if (readabilitWhite > readabilitBlack) {
-        								this.local.policyColor = "white";
-        								this.local.hooverPolicyColor = new TinyColor(visibleColor).tint(50).toString();
-        							} else {
-        								this.local.hooverPolicyColor = new TinyColor(visibleColor).shade(50).toString();
-        							}
-        							try {
-        								document.documentElement.style.setProperty(''--policy-color'', this.local.policyColor);
-        							} catch (e) {
-        								// do nothing
-        							}
-        							// Checking for other icons
-        							let readabilitBtLight = readability(visibleColor, btLightColor);
-        							let readabilitBtLight2 = readability(visibleColor, btLightColor2);
-        							if (readabilitBtLight2 > readabilitBtLight) {
-        								this.local.policyBtLightColor = "otherBtLight";
-        							}
-        							let readabilitSecondary = readability(visibleColor, secondaryColor);
-        							let readabilitSecondary2 = readability(visibleColor, secondaryColor2);
-        							if (readabilitSecondary2 > readabilitSecondary) {
-        								this.local.policySecondaryColor = "convertigo";
-        							}
-        							let readabilitDanger = readability(visibleColor, dangerColor);
-        							let readabilitDanger2 = readability(visibleColor, dangerColor2);
-        							if (readabilitDanger2 > readabilitDanger) {
-        								this.local.policyDangerColor = "otherDanger";
-        							}
+        							this.global.pwaThemeColor = response["theme_color"];
+        							applyHeaderTheme(response["theme_color"]);
         						}
+        						this.local.pwaThemeReady = true;
         					},
         					error => {
-        						// Do nothing
+        						this.local.pwaThemeReady = true;
         					}
         				);
         			}
         		} catch (e) {
-        			// Do nothing
+        			this.local.pwaThemeReady = true;
         		}
         	}
         

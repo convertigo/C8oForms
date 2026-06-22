@@ -3610,8 +3610,14 @@ export async function configureVisibilityEqualsField(page: Page, fieldTechnicalI
 }
 
 export async function fillVisibilityTagValue(page: Page, value: string): Promise<void> {
-  await page.locator(SEL.conditionValueTagInput).first().fill(value);
+  const tagInput = page.locator('tag-input:visible').last();
+  const input = tagInput.locator('input').first();
+  await expect(input, 'visibility tag value input should be visible').toBeVisible({ timeout: 10_000 });
+  await input.fill(value);
   await page.keyboard.press('Enter');
+  await expect(tagInput.locator('tag').filter({ hasText: value }).first(), `visibility tag ${value} should be added`).toBeVisible({
+    timeout: 10_000,
+  });
 }
 
 /** Set a Description component's visible content through its main TinyMCE editor. */

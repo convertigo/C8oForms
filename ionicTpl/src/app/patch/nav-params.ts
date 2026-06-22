@@ -6,12 +6,14 @@ export const NAV_PARAMS_DATA = new InjectionToken<Record<string, any>>('NAV_PARA
 @Injectable({providedIn: 'root'})
 export class NavParams {
   /** Public like Ionic 3 */
-  public data: Record<string, any>;
+  public data: Record<string, any> = {};
 
   constructor(
     @Optional() private route?: ActivatedRoute,
     @Optional() @Inject(NAV_PARAMS_DATA) private initialData?: Record<string, any>
   ) {
+	const seededData = this.initialData ? { ...this.initialData } : {};
+	this.data = seededData;
 	
     // Sync access for routed pages (constructor-safe)
     if (this.route) {

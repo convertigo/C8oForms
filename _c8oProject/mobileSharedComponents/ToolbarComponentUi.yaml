@@ -87,7 +87,10 @@ scriptContent:
         }
         
         getToolbarThemeColor(): string {
-        	return this.global?.pwaThemeColor || this.parentLocal?.headerColor || ''var(--ion-color-primary)'';
+        	if (this.global?.pwa === true && this.global?.pwaThemeColor) {
+        		return this.global.pwaThemeColor;
+        	}
+        	return this.parentLocal?.headerColor || ''var(--ion-color-primary)'';
         }
         
         getToolbarTextColor(): string {
@@ -100,13 +103,80 @@ scriptContent:
         	return this.getContrastingTextColor(this.getToolbarThemeColor());
         }
         
-        getToolbarStyle(): any {
-        	if (this.global?.pwa === true) {
+        isPublishedViewer(): boolean {
+        	return this.isViewerPage == true && (this.parentLocal?.published == true || this.parentLocal?.anonymous == true);
+        }
+        
+        isPublishedViewerThemePending(): boolean {
+        	return this.isPublishedViewer() && this.parentLocal?.pwaThemeReady === false;
+        }
+        
+        getPublishedViewerButtonStyle(baseStyle: any = {}): any {
+        	const style = Object.assign({}, baseStyle || {});
+        	if (!this.isPublishedViewer()) {
+        		return style;
+        	}
+        	if (this.isPublishedViewerThemePending()) {
+        		style[''visibility''] = ''hidden'';
+        	}
+        	const color = this.getToolbarTextColor();
+        	style[''--color''] = color;
+        	style[''--color-hover''] = color;
+        	style[''--color-focused''] = color;
+        	style[''--color-activated''] = color;
+        	style[''color''] = color;
+        	style[''--background''] = ''transparent'';
+        	style[''--background-hover''] = ''transparent'';
+        	style[''--background-focused''] = ''transparent'';
+        	style[''--background-activated''] = ''transparent'';
+        	style[''--background-hover-opacity''] = ''0'';
+        	style[''--background-focused-opacity''] = ''0'';
+        	style[''--background-activated-opacity''] = ''0'';
+        	style[''--box-shadow''] = ''none'';
+        	style[''--ripple-color''] = ''transparent'';
+        	style[''--toolbar-action-color''] = color;
+        	style[''--toolbar-action-background''] = ''transparent'';
+        	style[''--toolbar-action-border-color''] = ''transparent'';
+        	style[''--toolbar-button-hover-background''] = ''transparent'';
+        	return style;
+        }
+        
+        getMenuButtonStyle(): any {
+        	if (this.isPublishedViewer()) {
+        		return this.getPublishedViewerButtonStyle({''border-radius'': ''50%''});
+        	}
+        	if (this.global.isMenuOpen) {
         		return {
+        			''--color'': ''#0069A8'',
+        			''--background'': ''linear-gradient(135deg, #DFF2FE 0%, #B8E6FE 100%)'',
+        			''--box-shadow'': ''0 1px 3px 0 rgba(0, 0, 0, 0.10), 0 1px 2px -1px rgba(0, 0, 0, 0.10)'',
+        			''border-radius'': ''50%''
+        		};
+        	}
+        	return {
+        		''--background'': ''linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%)'',
+        		''color'': ''#364153'',
+        		''--box-shadow'': ''0 1px 3px 0 rgba(0, 0, 0, 0.10), 0 1px 2px -1px rgba(0, 0, 0, 0.10)'',
+        		''border-radius'': ''50%''
+        	};
+        }
+        
+        getViewerReloadButtonStyle(): any {
+        	const baseStyle = (this.parentLocal?.published == true || this.parentLocal?.anonymous == true) ? {''margin-right'': ''16px''} : {};
+        	return this.getPublishedViewerButtonStyle(baseStyle);
+        }
+        
+        getToolbarStyle(): any {
+        	if (this.global?.pwa === true || this.isPublishedViewer()) {
+        		const style: any = {
         			''background-color'': this.getToolbarThemeColor(),
         			''color'': this.getToolbarTextColor(),
         			''border-bottom'': ''none''
         		};
+        		if (this.isPublishedViewerThemePending()) {
+        			style[''visibility''] = ''hidden'';
+        		}
+        		return style;
         	}
         	return {};
         }
@@ -581,11 +651,11 @@ scriptContent:
                "Value": "script:(this.global.__pwaMenuUserOpened = (this.global?.pwa === true ? !this.global.isMenuOpen : false), !this.global.isMenuOpen)"
               }'
         ↓Attr1 [ngx.components.UIAttribute-1762273032398]: 
-          attrName: '[style]'
+          attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: 'script:(this.global.isMenuOpen) ? ''--color: #0069A8;--background: linear-gradient(135deg, #DFF2FE 0%, #B8E6FE 100%);--box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.10), 0 1px 2px -1px rgba(0, 0, 0, 0.10);border-radius:50%;'' : ''--background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);color: #364153;--box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.10), 0 1px 2px -1px rgba(0, 0, 0, 0.10);border-radius:50%;'''
+              - MobileSmartSourceType: script:this.getMenuButtonStyle()
         ↓Style [ngx.components.UIStyle-1770741593238]: 
           styleContent: 
             - xmlizable: 
@@ -5505,7 +5575,7 @@ scriptContent:
                 	align-items: flex-start;
                 	gap: 8px;
                 
-                	color: #FFF;
+                	color: var(--toolbar-action-color, #FFF);
                 	text-align: center;
                 //	font-family: Inter;
                 	font-size: 14px;
@@ -5514,8 +5584,8 @@ scriptContent:
                 	line-height: 20px; /* 142.857% */
                 	
                 	border-radius: 8px;
-                	border: 1px solid #E5E7EB;
-                	background: var(--ion-color-primary);
+                	border: 1px solid var(--toolbar-action-border-color, #E5E7EB);
+                	background: var(--toolbar-action-background, var(--ion-color-primary));
                 	transition: 300ms linear;
                 	
                 	&:hover {
@@ -5534,7 +5604,7 @@ scriptContent:
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: 'script:((this.parentLocal.published == true || this.parentLocal.anonymous)) ? {''margin-right'': ''16px''} : {}'
+            - MobileSmartSourceType: script:this.getViewerReloadButtonStyle()
       ↓Attr2 [ngx.components.UIAttribute-1777899292663]: 
         attrName: '[matTooltip]'
         attrValue: 
@@ -5775,11 +5845,11 @@ scriptContent:
             color: var(--ion-color-newconvertigo);
           }
           div.right-section ion-button::part(native):hover {	
-            background-color: var(--accent);
+            background-color: var(--toolbar-button-hover-background, var(--accent));
           }
           
           div.left-section ion-button::part(native):hover {
-          	background-color: var(--accent);
+          	background-color: var(--toolbar-button-hover-background, var(--accent));
           }
           
           ion-avatar {
