@@ -466,14 +466,14 @@ jobs:
           TEST_NOCODE_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
           CONVERTIGO_ADMIN_USER: ${{ secrets.TEST_NOCODE_USER || 'admin' }}
           CONVERTIGO_ADMIN_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
-          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com
+          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com,testuser5-convertigo@yopmail.com,testuser6-convertigo@yopmail.com,testuser7-convertigo@yopmail.com,testuser8-convertigo@yopmail.com
         run: node ci/ensure-test-users.mjs
 
   e2e_tests:
     # Run the Playwright suite against the freshly deployed endpoint, sharded
-    # across four GitHub-hosted runners. Test failures are reported later, they
-    # do not block the release. Each shard uses one worker and one dedicated
-    # disposable account.
+    # across four GitHub-hosted runners per browser. Test failures are reported
+    # later, they do not block the release. Each shard uses one worker and one
+    # dedicated disposable account.
     needs: prepare_e2e_test_users
     if: ${{ always() && needs.prepare_e2e_test_users.result == 'success' }}
     runs-on: ubuntu-latest
@@ -486,7 +486,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        include:
+          - browser: chromium
+            shard: 1
+            user_index: 1
+          - browser: chromium
+            shard: 2
+            user_index: 2
+          - browser: chromium
+            shard: 3
+            user_index: 3
+          - browser: chromium
+            shard: 4
+            user_index: 4
+          - browser: firefox
+            shard: 1
+            user_index: 5
+          - browser: firefox
+            shard: 2
+            user_index: 6
+          - browser: firefox
+            shard: 3
+            user_index: 7
+          - browser: firefox
+            shard: 4
+            user_index: 8
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -516,11 +540,11 @@ jobs:
         working-directory: tests
         env:
           TEST_NOCODE_ENDPOINT: ${{ github.event.inputs.endpoint || secrets.TEST_NOCODE_ENDPOINT }}
-          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com
-          C8OFORMS_TEST_USER_INDEX: ${{ matrix.shard }}
+          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com,testuser5-convertigo@yopmail.com,testuser6-convertigo@yopmail.com,testuser7-convertigo@yopmail.com,testuser8-convertigo@yopmail.com
+          C8OFORMS_TEST_USER_INDEX: ${{ matrix.user_index }}
         run: node ci/ensure-test-users.mjs --emit-mcp-token
 
-      - name: Run e2e tests (shard ${{ matrix.shard }}/4)
+      - name: Run e2e tests (${{ matrix.browser }} shard ${{ matrix.shard }}/4)
         working-directory: tests
         # The container's default shell is POSIX sh (no `pipefail`); force bash.
         shell: bash
@@ -533,8 +557,9 @@ jobs:
           TEST_NOCODE_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
           CONVERTIGO_ADMIN_USER: ${{ secrets.TEST_NOCODE_USER || 'admin' }}
           CONVERTIGO_ADMIN_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
-          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com
-          C8OFORMS_TEST_USER_INDEX: ${{ matrix.shard }}
+          C8OFORMS_BROWSER: ${{ matrix.browser }}
+          C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com,testuser5-convertigo@yopmail.com,testuser6-convertigo@yopmail.com,testuser7-convertigo@yopmail.com,testuser8-convertigo@yopmail.com
+          C8OFORMS_TEST_USER_INDEX: ${{ matrix.user_index }}
           C8OFORMS_PRIMARY_TEST_USER: testuser-convertigo@yopmail.com
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
           C8OFORMS_SHARD_DEBUG: 1
@@ -545,6 +570,7 @@ jobs:
           echo "App URL: $C8OFORMS_APP_URL"
           echo "MCP URL: $C8OFORMS_MCP_URL"
           echo "Served version: $(curl -s "$C8OFORMS_APP_URL/assets/i18n/fr.json" | grep -o '\"version_c8o\"[^,]*' || echo '?')"
+          echo "Browser: $C8OFORMS_BROWSER"
           echo "Test user index: $C8OFORMS_TEST_USER_INDEX"
           # Assign whole spec files to this shard, balanced by duration weight,
           # and keep issue-1421 on shard 1 where the primary account is used.
@@ -573,11 +599,11 @@ jobs:
           echo "Shard ${{ matrix.shard }} exited with $TEST_STATUS; release continues and the report job classifies failures."
           exit "$TEST_STATUS"
 
-      - name: Upload Playwright results (shard ${{ matrix.shard }})
+      - name: Upload Playwright results (${{ matrix.browser }} shard ${{ matrix.shard }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results-${{ matrix.shard }}
+          name: playwright-results-${{ matrix.browser }}-${{ matrix.shard }}
           path: |
             tests/test-results/results.json
             tests/test-results/**/error-context.md
@@ -724,7 +750,7 @@ jobs:
       - name: Generate e2e regression report
         working-directory: tests
         env:
-          EXPECTED_E2E_RESULT_SHARDS: 4
+          EXPECTED_E2E_RESULT_SHARDS: 8
           E2E_REOPEN_ISSUES: ${{ github.event_name == 'push' }}
           RELEASE_TAG: ${{ github.ref_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
