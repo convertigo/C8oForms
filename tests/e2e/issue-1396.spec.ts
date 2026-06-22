@@ -83,6 +83,7 @@ test('#1396 - Checkbox Add Row stores Baserow multiple select values', async ({ 
     database: BASE,
     table: TABLE,
     expectedColumns: [NAME_COLUMN, TAGS_COLUMN],
+    flowName: /Flow button/i,
     mappings: [
       { column: NAME_COLUMN, sourceLabel: TEXT_TECHNICAL_ID },
       { column: TAGS_COLUMN, sourceLabel: CHECKBOX_TECHNICAL_ID },

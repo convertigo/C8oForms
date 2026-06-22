@@ -1110,6 +1110,10 @@ async function visibleConfigTabs(page: Page): Promise<Locator> {
   return page.locator(`${SEL.configTab}:visible`);
 }
 
+function visibleSourcePaletteRoot(page: Page): Locator {
+  return page.locator(SOURCE_PALETTE_ROOT_VISIBLE).last();
+}
+
 function fallbackConfigTabIndex(tabId: MainEditorConfigTab, visibleTabCount: number): number | null {
   if (visibleTabCount <= 0) return null;
   const hasSourceChoiceTab = visibleTabCount >= 5;
@@ -1230,7 +1234,7 @@ export async function waitForSourcePaletteSections(
   minimum = 3,
   preferred: SourcePaletteSection[] = DEFAULT_SOURCE_PALETTE_SECTIONS,
 ): Promise<SourcePaletteSection[]> {
-  await page.locator(SEL.sourcePalette).first().waitFor({ state: 'visible', timeout: 15_000 });
+  await visibleSourcePaletteRoot(page).waitFor({ state: 'visible', timeout: 15_000 });
   await expect
     .poll(async () => (await sourcePaletteSectionStates(page, preferred)).length, {
       message: `source palette should expose at least ${minimum} sections`,
@@ -1249,7 +1253,7 @@ export async function clickSourcePaletteCollapseAll(page: Page): Promise<void> {
 }
 
 export async function clickSourcePaletteSection(page: Page, section: SourcePaletteSection): Promise<void> {
-  const header = page.locator(`${SEL.sourcePalette} ${SOURCE_PALETTE_SECTION[section].header}`).first();
+  const header = visibleSourcePaletteRoot(page).locator(SOURCE_PALETTE_SECTION[section].header).first();
   await expect(header, `source palette section ${section} should be visible`).toBeVisible({ timeout: 15_000 });
   await header.click();
   await page.waitForTimeout(350);
@@ -1259,16 +1263,16 @@ export async function sourcePaletteSectionStates(
   page: Page,
   sections: SourcePaletteSection[] = DEFAULT_SOURCE_PALETTE_SECTIONS,
 ): Promise<SourcePaletteSectionState[]> {
-  await page.locator(SEL.sourcePalette).first().waitFor({ state: 'visible', timeout: 15_000 });
+  await visibleSourcePaletteRoot(page).waitFor({ state: 'visible', timeout: 15_000 });
   return page.evaluate(
     ({ rootSelector, definitions, sectionNames }) => {
-      const root = document.querySelector(rootSelector) || document;
       const isRenderable = (el: Element | null): el is HTMLElement => {
         if (!(el instanceof HTMLElement)) return false;
         const style = getComputedStyle(el);
         const box = el.getBoundingClientRect();
         return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0;
       };
+      const root = [...document.querySelectorAll(rootSelector)].filter(isRenderable).pop() || document;
 
       return sectionNames.flatMap((name) => {
         const def = definitions[name];
@@ -1291,7 +1295,7 @@ export async function sourcePaletteSectionStates(
       });
     },
     {
-      rootSelector: SEL.sourcePalette,
+      rootSelector: SOURCE_PALETTE_ROOT,
       definitions: SOURCE_PALETTE_SECTION,
       sectionNames: sections,
     },
@@ -1343,6 +1347,12 @@ export interface BaserowAddRowActionOptions extends BaserowGridSourceOptions {
 }
 
 const SELECT_SOURCE_TABLE_PICKER_BUTTON = SEL.dataSourceConfigureButton;
+const BASEROW_ACTION_VARIABLE_ROW = 'ion-item.class1743090805947';
+const BASEROW_ACTION_VARIABLE_INPUT = `${BASEROW_ACTION_VARIABLE_ROW} input`;
+const BASEROW_ACTION_VARIABLE_BUTTON = 'c8oforms-button_variable.class1775996201011 button.class1775995541940';
+const BASEROW_ACTION_SOURCE_PALETTE_BUTTON = 'ion-button.class1776001071909';
+const SOURCE_PALETTE_ROOT = `${SEL.sourcePalette}, .class1776003235786`;
+const SOURCE_PALETTE_ROOT_VISIBLE = `${SEL.sourcePalette}:visible, .class1776003235786:visible`;
 const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
@@ -1537,7 +1547,10 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   await selectBaserowTableFromCurrentAction(page, source, timeout);
 
   for (const mapping of source.mappings) {
-    await addBaserowActionVariable(page, mapping.column, mapping.sourceSection ?? 'form', mapping.sourceLabel);
+    await ensureBaserowActionVariableRow(page, mapping.column);
+  }
+  for (const mapping of source.mappings) {
+    await mapBaserowActionVariable(page, mapping.column, mapping.sourceSection ?? 'form', mapping.sourceLabel);
   }
 
   const close = page.locator('button.class1741109898862, .c8o-btn-close.class1741109898862').last();
@@ -2093,44 +2106,109 @@ async function selectBaserowTableFromCurrentAction(
   await page.waitForTimeout(1_500);
 }
 
-async function addBaserowActionVariable(
+async function ensureBaserowActionVariableRow(page: Page, column: string): Promise<void> {
+  if (await isBaserowActionColumnMapped(page, column)) {
+    return;
+  }
+
+  const before = await page.locator(BASEROW_ACTION_VARIABLE_BUTTON).count();
+  await clickFirstUncovered(
+    page,
+    page.locator(SEL.baserowActionAddVariableButton),
+    `Baserow action add-variable button for ${column}`,
+    30_000,
+  );
+  await expect
+    .poll(() => page.locator(BASEROW_ACTION_VARIABLE_BUTTON).count(), {
+      message: `Baserow action variable row for ${column} should be added`,
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(before);
+
+  const columnInput = page.locator(BASEROW_ACTION_VARIABLE_INPUT).last();
+  await expect(columnInput, `Baserow action column input for ${column} should be visible`).toBeVisible({ timeout: 10_000 });
+  await columnInput.scrollIntoViewIfNeeded().catch(() => undefined);
+  await columnInput.fill(column);
+  await expect
+    .poll(() => columnInput.inputValue().catch(() => ''), {
+      message: `Baserow action column input should keep ${column}`,
+      timeout: 5_000,
+    })
+    .toBe(column);
+  await columnInput.press('Tab').catch(() => undefined);
+  await expectBaserowActionColumnMapped(page, column);
+}
+
+async function mapBaserowActionVariable(
   page: Page,
   column: string,
   sourceSection: SourcePaletteSection,
   sourceLabel: string,
 ): Promise<void> {
-  // Idempotent on a reload-retry: if this column is already mapped, do nothing.
-  const existingInputs = page.locator('ion-item.class1743090805947 input');
-  const existingCount = await existingInputs.count();
-  for (let i = 0; i < existingCount; i++) {
-    if ((await existingInputs.nth(i).inputValue().catch(() => '')) === column) {
-      return;
+  await selectBaserowActionVariable(page, column);
+  await ensureBaserowActionSourcePaletteVisible(page, column);
+  await dragSourcePaletteEntryToTinyMce(page, sourceSection, sourceLabel);
+}
+
+async function ensureBaserowActionSourcePaletteVisible(page: Page, column: string): Promise<void> {
+  if (await visibleSourcePaletteRoot(page).isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+
+  await clickFirstUncovered(
+    page,
+    page.locator(BASEROW_ACTION_SOURCE_PALETTE_BUTTON),
+    `Baserow action source palette button for ${column}`,
+    10_000,
+  );
+  await expect(visibleSourcePaletteRoot(page), `Source Palette should open for ${column}`).toBeVisible({
+    timeout: 10_000,
+  });
+}
+
+async function selectBaserowActionVariable(page: Page, column: string): Promise<void> {
+  const button = baserowActionVariableButton(page, column);
+  await expect(button, `Baserow action variable ${column} should exist`).toHaveCount(1, { timeout: 10_000 });
+  if (await button.isVisible({ timeout: 500 }).catch(() => false)) {
+    await button.click({ timeout: 5_000 }).catch(async () => button.dispatchEvent('click'));
+  } else {
+    await button.dispatchEvent('click');
+  }
+
+  await expect
+    .poll(() => page.locator(BASEROW_ACTION_VARIABLE_INPUT).last().inputValue().catch(() => ''), {
+      message: `Baserow action variable ${column} should be selected`,
+      timeout: 10_000,
+    })
+    .toBe(column);
+}
+
+async function isBaserowActionColumnMapped(page: Page, column: string): Promise<boolean> {
+  if ((await baserowActionVariableButton(page, column).count().catch(() => 0)) > 0) {
+    return true;
+  }
+
+  const inputs = page.locator(BASEROW_ACTION_VARIABLE_INPUT);
+  const count = await inputs.count();
+  for (let i = 0; i < count; i++) {
+    if ((await inputs.nth(i).inputValue().catch(() => '')) === column) {
+      return true;
     }
   }
+  return false;
+}
 
-  // Bounded wait: if the editor is stuck loading, fail fast so the caller can
-  // reload and re-drive instead of hanging the click until the test timeout.
-  const addButton = page.locator(SEL.baserowActionAddVariableButton).first();
-  await expect(addButton, `Baserow action add-variable button for ${column} should be available`).toBeVisible({
-    timeout: 30_000,
-  });
-  await addButton.click({ timeout: 10_000 }).catch(async () => {
-    await addButton.dispatchEvent('click');
-  });
-  await page.waitForTimeout(800);
-  const columnInput = page.locator('ion-item.class1743090805947 input').last();
-  await expect(columnInput, `Baserow action column input for ${column} should be visible`).toBeVisible({ timeout: 10_000 });
-  await columnInput.fill(column);
-  await columnInput.press('Tab').catch(() => undefined);
+async function expectBaserowActionColumnMapped(page: Page, column: string): Promise<void> {
+  await expect
+    .poll(() => isBaserowActionColumnMapped(page, column), {
+      message: `Baserow action mapping for ${column} should exist`,
+      timeout: 10_000,
+    })
+    .toBe(true);
+}
 
-  if (!(await page.locator(SEL.sourcePalette).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
-    await page.locator('ion-button.class1776001071909').first().click({ timeout: 10_000 }).catch(async () => {
-      await page.locator('ion-button.class1776001071909').first().dispatchEvent('click');
-    });
-    await page.waitForTimeout(800);
-  }
-  await dragSourcePaletteEntryToTinyMce(page, sourceSection, sourceLabel);
-  await page.waitForTimeout(800);
+function baserowActionVariableButton(page: Page, column: string): Locator {
+  return page.locator(BASEROW_ACTION_VARIABLE_BUTTON).filter({ hasText: column }).first();
 }
 
 async function closeTopModal(page: Page): Promise<void> {
@@ -3466,6 +3544,48 @@ async function clickFirstVisible(
   }
   await locator.click({ timeout: 10_000 }).catch(async () => {
     await locator.dispatchEvent('click');
+  });
+}
+
+async function clickFirstUncovered(page: Page, locator: Locator, description: string, timeout = 15_000): Promise<void> {
+  const deadline = Date.now() + timeout;
+  let lastError: unknown;
+
+  while (Date.now() < deadline) {
+    await waitForIonicLoading(page, 1_000);
+    const count = await locator.count();
+    for (let i = 0; i < count; i++) {
+      const candidate = locator.nth(i);
+      if (!(await candidate.isVisible({ timeout: 500 }).catch(() => false))) {
+        continue;
+      }
+      await candidate.scrollIntoViewIfNeeded().catch(() => undefined);
+      if (!(await receivesPointerEvents(candidate).catch(() => false))) {
+        continue;
+      }
+      try {
+        await candidate.click({ timeout: 2_000 });
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    await page.waitForTimeout(250);
+  }
+
+  throw new Error(`${description} was not clickable without being intercepted${lastError ? `: ${lastError}` : ''}`);
+}
+
+async function receivesPointerEvents(locator: Locator): Promise<boolean> {
+  return locator.evaluate((element) => {
+    const rect = (element as HTMLElement).getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
+    const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
+    const topElement = document.elementFromPoint(x, y);
+    const root = topElement?.getRootNode();
+    const host = root instanceof ShadowRoot ? root.host : null;
+    return !!topElement && (topElement === element || element.contains(topElement) || host === element);
   });
 }
 
