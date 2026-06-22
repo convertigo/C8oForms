@@ -20,6 +20,11 @@ import {
  * on the older versions used for red/green regression verification.
  */
 
+// Opt out of the shared authenticated storage state: these journeys (especially
+// "log in") must exercise the real login UI from a clean, unauthenticated
+// context, instead of starting from the pre-saved session every other spec uses.
+test.use({ storageState: undefined });
+
 test('journey: log in', async ({ page }) => {
   await login(page);
   // Landing on the authenticated home: the blank-form card is only there once
