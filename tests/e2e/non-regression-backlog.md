@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 37 deja couverts; 181 a couvrir (31 ouverts, 150 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 38 deja couverts; 180 a couvrir (31 ouverts, 149 fermes); 1 exclus par label ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -89,7 +89,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 37 deja co
 | [ ] | [#1372](https://github.com/convertigo/C8oForms/issues/1372) | closed | enhancement, QC-Passed | Add a “pen” (edit) icon in Flows, similar to the one available in Pages configuration |  |
 | [ ] | [#1371](https://github.com/convertigo/C8oForms/issues/1371) | closed | enhancement, QC-Passed | Harmonize validation, delete, and copy buttons across all pages |  |
 | [x] | [#1370](https://github.com/convertigo/C8oForms/issues/1370) | closed | bug, QC-Passed, Auto QA Test | Message configuration of a Toast component writes **“true”** instead of inserting the component chip in text mode | Auto QA Test<br>e2e/issue-1370.spec.ts |
-| [ ] | [#1368](https://github.com/convertigo/C8oForms/issues/1368) | closed | bug, QC-Passed | Application name formatting is altered in search results |  |
+| [x] | [#1368](https://github.com/convertigo/C8oForms/issues/1368) | closed | bug, QC-Passed, Auto QA Test | Application name formatting is altered in search results | Auto QA Test<br>e2e/issue-1368.spec.ts |
 | [ ] | [#1367](https://github.com/convertigo/C8oForms/issues/1367) | closed | enhancement, QC-Passed | Background color too close to Studio primary color makes drop zones invisible |  |
 | [ ] | [#1366](https://github.com/convertigo/C8oForms/issues/1366) | closed | bug, QC-Passed | Searching for applications and adding a collaborator breaks the search results |  |
 | [x] | [#1365](https://github.com/convertigo/C8oForms/issues/1365) | closed | bug, QC-Passed, Auto QA Test | The default icon **“bulb-outline”** for the Button component cannot be found in the icons list | Auto QA Test<br>e2e/issue-1365.spec.ts |
@@ -100,7 +100,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 37 deja co
 | [ ] | [#1358](https://github.com/convertigo/C8oForms/issues/1358) | closed | enhancement, QC-Passed | Long application names are truncated instead of wrapping inside the card |  |
 | [x] | [#1357](https://github.com/convertigo/C8oForms/issues/1357) | closed | enhancement, QC-Passed, Auto QA Test | Elements list in Visibility condition is not sorted, has no search bar, and gives no scroll indication | Auto QA Test<br>e2e/issue-1357.spec.ts |
 | [x] | [#1356](https://github.com/convertigo/C8oForms/issues/1356) | closed | bug, QC-Passed, Auto QA Test | Icon selection in Button component cannot be cleared (no way to remove the icon) | Auto QA Test<br>e2e/issue-1356.spec.ts |
-| [ ] | [#1355](https://github.com/convertigo/C8oForms/issues/1355) | closed | bug, QC-Passed | "Style du bouton" and "Icone du bouton" sections are not translated in other languages than French |  |
+| [x] | [#1355](https://github.com/convertigo/C8oForms/issues/1355) | closed | bug, QC-Passed, Auto QA Test | "Style du bouton" and "Icone du bouton" sections are not translated in other languages than French | Auto QA Test<br>e2e/issue-1355.spec.ts |
 | [x] | [#1354](https://github.com/convertigo/C8oForms/issues/1354) | closed | bug, QC-Passed, Auto QA Test | Remove the “Question” section from Button components (misleading, CSS is configured in “Style”) | Auto QA Test<br>e2e/issue-1354.spec.ts |
 | [x] | [#1353](https://github.com/convertigo/C8oForms/issues/1353) | closed | bug, QC-Passed, Auto QA Test | “Sort” filter shows infinite progress bar when Data source is not configured | Auto QA Test<br>e2e/issue-1353.spec.ts |
 | [ ] | [#1352](https://github.com/convertigo/C8oForms/issues/1352) | closed | bug, QC-Passed | Hidden folders filter only applies after changing view |  |
