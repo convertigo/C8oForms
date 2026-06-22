@@ -192,6 +192,26 @@ type MainEditorConfigTab =
   | 'data_interactions';
 
 type ChartHeightMode = 'auto' | 'personalized';
+export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
+
+export async function setStudioLanguageBeforeLoad(page: Page, lang: StudioLanguage): Promise<void> {
+  await page.addInitScript((value) => {
+    window.localStorage.setItem('lang', value);
+  }, lang);
+}
+
+export async function reloadStudioWithLanguage(page: Page, lang: StudioLanguage): Promise<void> {
+  await test.step(`Reload Studio with ${lang} language`, async () => {
+    await page.evaluate((value) => {
+      window.localStorage.setItem('lang', value);
+    }, lang);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForURL('**/selector/**', { timeout: 30_000 });
+    await expect(page.locator(SEL.blankFormCard), 'selector page should be ready after language reload').toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
 
 export interface SourcePaletteSectionState {
   name: SourcePaletteSection;
@@ -605,6 +625,17 @@ export async function c8oCall(page: Page, sequence: string, params: Record<strin
     },
     { sequenceName: sequence, sequenceParams: params },
   );
+}
+
+export async function setCurrentUserStudioLanguage(
+  page: Page,
+  lang: StudioLanguage,
+  credentials: LoginCredentials = CURRENT_TEST_CREDENTIALS,
+): Promise<void> {
+  await test.step(`Persist current user Studio language to ${lang}`, async () => {
+    await c8oCall(page, 'SetLanguage', { email: credentials.user, language: lang });
+    await reloadStudioWithLanguage(page, lang);
+  });
 }
 
 export async function openSettings(page: Page): Promise<void> {
@@ -1172,6 +1203,24 @@ export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
   ).toHaveCount(2);
   await expect(tabs.first(), 'button visual style section should remain accessible').toBeVisible();
   await expect(tabs.nth(1), 'button icon style section should remain accessible').toBeVisible();
+}
+
+export async function expectButtonStyleTabsTranslatedToEnglish(page: Page): Promise<void> {
+  await test.step('Assert Button style tabs are translated in English', async () => {
+    const container = page.locator(SEL.styleTabsContainer).first();
+    await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(
+      container.locator(`${SEL.styleTab}:visible`).first(),
+      'at least one button style tab should be visible',
+    ).toBeVisible({ timeout: 15_000 });
+
+    const tabTexts = await visibleTexts(page, `${SEL.styleTabsContainer} ${SEL.styleTab}`);
+    expect(tabTexts, 'Button style tab label should be translated to English').toContain('Button style');
+    expect(tabTexts, 'Button icon tab label should be translated to English').toContain('Button icon');
+    expect(tabTexts, 'Button style tab should not keep the French hardcoded label').not.toContain('Style du bouton');
+    expect(tabTexts, 'Button icon tab should not keep the French hardcoded label').not.toContain('Icone du bouton');
+    expect(tabTexts, 'Button icon tab should not keep the French hardcoded label').not.toContain('Icône du bouton');
+  });
 }
 
 export async function openButtonIconStyleSection(page: Page): Promise<void> {
