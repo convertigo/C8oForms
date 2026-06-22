@@ -20,7 +20,11 @@
 		page.global.c8oLoadingOptions.cssClass.set(props.cssClass ?? undefined);
 		page.global.c8oLoadingOptions.translucent.set(props.translucent);
 		page.global.c8oLoadingOptions.isOpen.set(true);
-        
+        if(!isNaN(page?.global?.c8oLoadingOptions?.duration()) && page?.global?.c8oLoadingOptions?.duration() > 0){
+			setTimeout(() => {
+				page.global.c8oLoadingOptions.isOpen.set(false);
+			}, page?.global?.c8oLoadingOptions?.duration());
+		}
         return new Promise((resolve, reject) => {
             resolve()
         });

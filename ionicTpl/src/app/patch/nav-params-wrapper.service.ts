@@ -1,66 +1,58 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Injector } from '@angular/core';
+import { AngularDelegate } from '@ionic/angular/common';
 import { ModalController, PopoverController } from '@ionic/angular/standalone';
-import { NavParamsHostComponent } from './nav-params-host.component';
+import { NavParams } from './nav-params';
 
 @Injectable({ providedIn: 'root' })
 export class NavParamsWrapperService {
 
   constructor(
     private modalCtrl: ModalController,
-    private popoverCtrl: PopoverController
+    private popoverCtrl: PopoverController,
+    private angularDelegate: AngularDelegate
   ) {}
 
   public apply() {
+	this.patchAngularOverlayDelegate();
+  }
+
+  private patchAngularOverlayDelegate() {
+	const angularDelegateAny = this.angularDelegate as any;
+	if (angularDelegateAny.__c8oNavParamsPatched) return;
 	
-    // Patch ModalController
-    const origModalCreate = this.modalCtrl.create.bind(this.modalCtrl);
-    (this.modalCtrl as any).create = (opts: any) => {
-      const wrappedOpts = this.wrapOpts(opts);
-      const modalPromise = origModalCreate(wrappedOpts);
-
-	  modalPromise.then((modal: any) => {
-	    modal.onWillDismiss?.().then(() => this.forwardHook(modal, 'ionViewWillLeave'));
-	    modal.onDidDismiss?.().then(() => this.forwardHook(modal, 'ionViewDidLeave'));
-	  });
-
-	  return modalPromise;
-    };
-
-    // Patch PopoverController
-    const origPopoverCreate = this.popoverCtrl.create.bind(this.popoverCtrl);
-    (this.popoverCtrl as any).create = (opts: any) => {
-      const wrappedOpts = this.wrapOpts(opts);
-      const popoverPromise = origPopoverCreate(wrappedOpts);
-
-	  popoverPromise.then((popover: any) => {
-	    popover.onWillDismiss?.().then(() => this.forwardHook(popover, 'ionViewWillLeave'));
-	    popover.onDidDismiss?.().then(() => this.forwardHook(popover, 'ionViewDidLeave'));
-	  });
-
-	  return popoverPromise;
-    };
-  }
-
-  private wrapOpts(opts: any) {
-    if (!opts || !opts.component || opts.component === NavParamsHostComponent) return opts;
-
-    const originalComponent = opts.component;
-    const props = opts.componentProps || {};
-
-    return {
-      ...opts,
-      component: NavParamsHostComponent,
-      componentProps: {
-        __wrapped: originalComponent,
-        __forwardProps: props,
-        __navData: props
-      }
-    };
-  }
-
-  private forwardHook(overlay: any, event: any) {
-    const hostInstance = overlay?.el?.__navHostInstance;
-    hostInstance?.triggerEvent?.(event);
+	const originalCreate = this.angularDelegate.create.bind(this.angularDelegate);
+	angularDelegateAny.create = (...args: any[]) => {
+	  const delegate: any = originalCreate(...args);
+	  if (delegate?.__c8oNavParamsPatched) return delegate;
+	  
+	  const originalAttachViewToDom = delegate.attachViewToDom.bind(delegate);
+	  const baseInjector: Injector = delegate.injector;
+	  
+	  delegate.attachViewToDom = (container: any, component: any, params?: any, cssClasses?: string[]) => {
+		const overlayNavParams = new NavParams(undefined as any);
+		overlayNavParams._prime(params || {});
+		
+		delegate.injector = Injector.create({
+		  providers: [{ provide: NavParams, useValue: overlayNavParams }],
+		  parent: baseInjector
+		});
+		
+		try {
+		  const result = originalAttachViewToDom(container, component, params, cssClasses);
+		  return Promise.resolve(result).finally(() => {
+			delegate.injector = baseInjector;
+		  });
+		} catch (e) {
+		  delegate.injector = baseInjector;
+		  throw e;
+		}
+	  };
+	  
+	  delegate.__c8oNavParamsPatched = true;
+	  return delegate;
+	};
+	
+	angularDelegateAny.__c8oNavParamsPatched = true;
   }
       
   public getModalController() : ModalController {
