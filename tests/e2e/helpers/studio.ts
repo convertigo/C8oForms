@@ -126,6 +126,12 @@ export const SEL = {
   selectorCardTitle: '.class1603968061706',
   selectorListTitle: '.class1780484375240',
   cardMenuButton: 'ion-button.class1606574763560',
+  selectorCollaboratorsMenuItem:
+    'ion-popover:not(.overlay-hidden) page-popoverpageselector ion-item:has(ion-icon.class1603730321735), ion-popover:not(.overlay-hidden) page-popoverpageselector ion-item.class1594313281739',
+  collaboratorsModal: 'ion-modal.show-modal page-manageaccessrights',
+  collaboratorSearchInput: 'c8oforms-ngxtaginputcustomc8oforms ng-select input[role="combobox"], tag-input input',
+  collaboratorAutocompleteOption: 'ng-dropdown-panel .ng-option, tag-input-dropdown .ng2-menu-item, ng2-dropdown-menu .ng2-menu-item',
+  collaboratorsSaveButton: 'ion-footer ion-button.class1779974149500',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
@@ -1084,8 +1090,136 @@ export async function searchSelectorApplicationsByName(page: Page, query: string
 
   await visibleNameInput.fill(query);
   await fillInputValue(page, SEL.selectorSearchByNameInput, query, 'selector advanced search name input');
-  await page.getByRole('button', { name: /^(Search|Rechercher)$/i }).last().click();
+  await page.getByRole('button', { name: /^(Search|Rechercher|Buscar|Cerca)$/i }).last().click();
   await page.waitForTimeout(1_500);
+}
+
+export async function expectSelectorSearchKeepsSingleApplication(page: Page, title: string): Promise<void> {
+  await test.step(`Assert selector search is still filtered to ${title}`, async () => {
+    await expect
+      .poll(async () => selectorSearchSummary(page, title), {
+        message: `selector results should stay filtered to only "${title}"`,
+        timeout: 30_000,
+      })
+      .toEqual({ hasSingleResultSummary: true, hasSearchTerm: true });
+  });
+}
+
+export async function addFirstAvailableCollaboratorFromSelectorCard(page: Page, title: string): Promise<string> {
+  return test.step(`Add a collaborator to ${title} from its selector card`, async () => {
+    await openSelectorCardCollaboratorsModal(page, title);
+
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    await expect(modal, 'the collaborators modal should be visible').toBeVisible({ timeout: 30_000 });
+
+    const input = modal.locator(SEL.collaboratorSearchInput).first();
+    await expect(input, 'collaborator autocomplete input should be visible').toBeVisible({ timeout: 30_000 });
+    await input.fill('test');
+
+    const option = page.locator(SEL.collaboratorAutocompleteOption).first();
+    await expect(option, 'at least one collaborator autocomplete option should be available').toBeVisible({
+      timeout: 15_000,
+    });
+    const optionText = normalizeWhitespace(await option.innerText());
+    await option.click();
+
+    const collaboratorMail = optionText.split(/\s+/).find((token) => token.includes('@')) ?? optionText;
+    await expect(modal.locator('ion-item').filter({ hasText: collaboratorMail }).first(), 'selected collaborator should be listed').toBeVisible({
+      timeout: 15_000,
+    });
+
+    await modal.locator(SEL.collaboratorsSaveButton).first().click();
+    await expect(modal, 'collaborators modal should close after saving').toBeHidden({ timeout: 30_000 });
+    await page.waitForTimeout(2_000);
+    return collaboratorMail;
+  });
+}
+
+async function openSelectorCardCollaboratorsModal(page: Page, title: string): Promise<void> {
+  await expectRoute(page, ROUTE.selector);
+  await dismissVisiblePopovers(page);
+  const cardId = await selectorApplicationCardId(page, title);
+  const card = page.locator(`[id="${cardId}"]`).first();
+  await expect(card, `selector should show application card ${title}`).toBeVisible({ timeout: 30_000 });
+
+  const menuOverlayId = cardId.replace(/^idcard/, 'idcardO');
+  const menu = page.locator(`[id="${menuOverlayId}"] ${SEL.cardMenuButton}`).first();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await card.hover();
+    await page.waitForTimeout(300);
+    await menu.click({ timeout: 3_000 }).catch(async () => {
+      await menu.evaluate((el) => (el as HTMLElement).click());
+    });
+
+    const item = page.locator(`${SEL.selectorCollaboratorsMenuItem}:visible`).first();
+    if (await item.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await item.click();
+      return;
+    }
+    await dismissVisiblePopovers(page);
+  }
+
+  throw new Error(`Could not open collaborators menu item for selector card ${title}`);
+}
+
+async function selectorApplicationCardId(page: Page, title: string): Promise<string> {
+  const cardId = await page.evaluate(
+    ({ titleSelector, expectedTitle }) => {
+      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+
+      for (const title of [...document.querySelectorAll(titleSelector)].filter(isVisible)) {
+        if (normalize((title as HTMLElement).innerText) !== expectedTitle) {
+          continue;
+        }
+        const card = title.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
+        return card?.id ?? null;
+      }
+      return null;
+    },
+    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+  );
+
+  if (!cardId) {
+    throw new Error(`Could not resolve selector card id for ${title}`);
+  }
+  return cardId;
+}
+
+async function dismissVisiblePopovers(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const hasVisiblePopover = await page
+      .locator('ion-popover:not(.overlay-hidden):visible')
+      .first()
+      .isVisible({ timeout: 500 })
+      .catch(() => false);
+    if (!hasVisiblePopover) {
+      return;
+    }
+    await page.keyboard.press('Escape').catch(() => undefined);
+    await page.waitForTimeout(300);
+  }
+}
+
+async function selectorSearchSummary(
+  page: Page,
+  title: string,
+): Promise<{ hasSingleResultSummary: boolean; hasSearchTerm: boolean }> {
+  return page.locator('page-selectorpage').evaluate((root, expectedTitle) => {
+    const text = (root as HTMLElement).innerText.replace(/\u00a0/g, ' ');
+    return {
+      hasSingleResultSummary: /(?:^|\n)\s*1\s+(?:results?\(s\)|r[ée]sultat\(s\)|resultado\(s\)|risultato\s*\(i\))/i.test(text),
+      hasSearchTerm: text.includes(expectedTitle),
+    };
+  }, title);
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export type SelectorHighlightedTitleLayout = {
