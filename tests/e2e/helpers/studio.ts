@@ -121,6 +121,10 @@ export const SEL = {
     'c8oforms-datasourceconfigurebutton button.class1776013870072, c8oforms-datasourceconfigurebutton button.c8o-btn',
   publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
   publishedApplicationsTab: 'ion-button.class1761754757348',
+  selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
+  selectorSearchByNameInput: 'page-selectorpage input',
+  selectorCardTitle: '.class1603968061706',
+  selectorListTitle: '.class1780484375240',
   cardMenuButton: 'ion-button.class1606574763560',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
@@ -1066,6 +1070,118 @@ export async function returnToSelectorFromEditor(page: Page): Promise<void> {
   }
   await page.locator(SEL.editorHomeButton).first().click();
   await expectRoute(page, ROUTE.selector);
+}
+
+export async function searchSelectorApplicationsByName(page: Page, query: string): Promise<void> {
+  await expectRoute(page, ROUTE.selector);
+  const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
+  if (!(await visibleNameInput.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    await page.locator(SEL.selectorSearchToggleButton).first().click();
+    await expect(visibleNameInput, 'selector advanced search name input should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
+  await visibleNameInput.fill(query);
+  await fillInputValue(page, SEL.selectorSearchByNameInput, query, 'selector advanced search name input');
+  await page.getByRole('button', { name: /^(Search|Rechercher)$/i }).last().click();
+  await page.waitForTimeout(1_500);
+}
+
+export type SelectorHighlightedTitleLayout = {
+  text: string;
+  html: string;
+  highlightedText: string;
+  display: string;
+  whiteSpace: string;
+  spaceBeforeHighlightWidth: number;
+  spaceAfterHighlightWidth: number;
+};
+
+export async function waitForSelectorHighlightedTitleLayout(
+  page: Page,
+  marker: string,
+  highlightedText: string,
+): Promise<SelectorHighlightedTitleLayout> {
+  let latestLayout: SelectorHighlightedTitleLayout | null = null;
+
+  await expect
+    .poll(
+      async () => {
+        latestLayout = await selectorHighlightedTitleLayout(page, marker, highlightedText);
+        return latestLayout?.html ?? '';
+      },
+      {
+        message: `selector search results should include a highlighted title containing "${marker}"`,
+        timeout: 30_000,
+      },
+    )
+    .not.toBe('');
+
+  if (!latestLayout) {
+    throw new Error(`selector highlighted title containing "${marker}" was not found`);
+  }
+  return latestLayout;
+}
+
+async function selectorHighlightedTitleLayout(
+  page: Page,
+  marker: string,
+  highlightedText: string,
+): Promise<SelectorHighlightedTitleLayout | null> {
+  return page.evaluate(
+    ({ titleSelector, markerText, highlightText }) => {
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const normalize = (text: string) => text.replace(/\u00a0/g, ' ');
+      const measureBoundarySpace = (node: ChildNode | null, side: 'before' | 'after') => {
+        if (!node || node.nodeType !== Node.TEXT_NODE) return 0;
+        const text = node.textContent ?? '';
+        const index = side === 'before' ? text.length - 1 : 0;
+        if (text[index] !== ' ') return 0;
+
+        const range = document.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, index + 1);
+        const width = Math.round(range.getBoundingClientRect().width * 10) / 10;
+        range.detach();
+        return width;
+      };
+
+      for (const title of [...document.querySelectorAll(titleSelector)].filter(isVisible)) {
+        if (!normalize(title.textContent ?? '').includes(markerText)) {
+          continue;
+        }
+        const strong = [...title.querySelectorAll('strong')].find((candidate) =>
+          normalize(candidate.textContent ?? '').toUpperCase().includes(highlightText.toUpperCase()),
+        );
+        if (!strong) {
+          continue;
+        }
+
+        const style = getComputedStyle(title);
+        return {
+          text: normalize(title.innerText).trimEnd(),
+          html: title.innerHTML,
+          highlightedText: normalize((strong as HTMLElement).innerText),
+          display: style.display,
+          whiteSpace: style.whiteSpace,
+          spaceBeforeHighlightWidth: measureBoundarySpace(strong.previousSibling, 'before'),
+          spaceAfterHighlightWidth: measureBoundarySpace(strong.nextSibling, 'after'),
+        };
+      }
+
+      return null;
+    },
+    {
+      titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`,
+      markerText: marker,
+      highlightText: highlightedText,
+    },
+  );
 }
 
 /** Rendered height (px) of the first leaflet map on the page. */

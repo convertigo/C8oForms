@@ -89,7 +89,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 38 deja co
 | [ ] | [#1372](https://github.com/convertigo/C8oForms/issues/1372) | closed | enhancement, QC-Passed | Add a “pen” (edit) icon in Flows, similar to the one available in Pages configuration |  |
 | [ ] | [#1371](https://github.com/convertigo/C8oForms/issues/1371) | closed | enhancement, QC-Passed | Harmonize validation, delete, and copy buttons across all pages |  |
 | [x] | [#1370](https://github.com/convertigo/C8oForms/issues/1370) | closed | bug, QC-Passed, Auto QA Test | Message configuration of a Toast component writes **“true”** instead of inserting the component chip in text mode | Auto QA Test<br>e2e/issue-1370.spec.ts |
-| [ ] | [#1368](https://github.com/convertigo/C8oForms/issues/1368) | closed | bug, QC-Passed | Application name formatting is altered in search results |  |
+| [x] | [#1368](https://github.com/convertigo/C8oForms/issues/1368) | closed | bug, QC-Passed, Auto QA Test | Application name formatting is altered in search results | Auto QA Test<br>e2e/issue-1368.spec.ts |
 | [ ] | [#1367](https://github.com/convertigo/C8oForms/issues/1367) | closed | enhancement, QC-Passed | Background color too close to Studio primary color makes drop zones invisible |  |
 | [ ] | [#1366](https://github.com/convertigo/C8oForms/issues/1366) | closed | bug, QC-Passed | Searching for applications and adding a collaborator breaks the search results |  |
 | [x] | [#1365](https://github.com/convertigo/C8oForms/issues/1365) | closed | bug, QC-Passed, Auto QA Test | The default icon **“bulb-outline”** for the Button component cannot be found in the icons list | Auto QA Test<br>e2e/issue-1365.spec.ts |
