@@ -65,10 +65,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Per-request timeout for a single MCP HTTP call. A hung schema-apply (e.g. an
-// 80-row upsert against a cold engine right after a deploy) must abort and be
-// retried by callMcp instead of blocking until the global test timeout.
-const MCP_REQUEST_TIMEOUT_MS = 90_000;
+// Per-request timeout for a single MCP HTTP call. Kept aligned with (and just
+// under) the server-side responseTimeout on ConvertigoMCP.mcp_endpoint (300s) so
+// a slow-but-progressing schema-apply (e.g. an 80-row upsert on a loaded engine)
+// is given time to finish instead of being aborted client-side and retried into
+// a still-busy engine. callMcp still retries on a genuine abort/transient error.
+const MCP_REQUEST_TIMEOUT_MS = 180_000;
 
 function isTransientMcpError(error: unknown): boolean {
   return /interrupted|did not terminate quickly enough|timed? ?out|temporarily|abort|ECONNRESET|EPIPE|HTTP 50[234]/i.test(
