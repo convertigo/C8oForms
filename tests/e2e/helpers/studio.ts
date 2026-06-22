@@ -81,6 +81,8 @@ export const SEL = {
   componentPaletteSearch: 'ion-searchbar.class1775889901001',
   pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
   workflowsPanelButton: 'ion-button.class1773250515928, ion-button.class1780909504555',
+  workflowsSearchbar: 'ion-searchbar.class1774523913949',
+  workflowEntry: '#bloc-palette [draggable="true"]',
   submitFlowButton: '#unique_submit',
   pageRow: '.class1775140559440, .class1749805611480, .class1650357059456, .class1650357059543',
   pageEditButton:
@@ -2799,6 +2801,19 @@ export async function openWorkflowsPanel(page: Page): Promise<void> {
   }
   await clickFirstVisible(page, SEL.workflowsPanelButton, 'workflows panel');
   await page.waitForTimeout(800);
+}
+
+export async function openFirstWorkflowSection(page: Page): Promise<void> {
+  await test.step('Open the first Workflows section', async () => {
+    await openWorkflowsPanel(page);
+    await expect(page.locator(SEL.workflowsSearchbar).first(), 'Workflows panel search should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+    const entry = page.locator(SEL.workflowEntry).first();
+    await expect(entry, 'the first Workflows entry should be visible').toBeVisible({ timeout: 15_000 });
+    await entry.click({ timeout: 10_000 }).catch(async () => entry.dispatchEvent('click'));
+    await page.waitForTimeout(800);
+  });
 }
 
 export async function openFirstPageFlow(page: Page): Promise<void> {

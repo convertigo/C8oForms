@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 34 deja couverts; 184 a couvrir (31 ouverts, 153 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 35 deja couverts; 183 a couvrir (31 ouverts, 152 fermes); 1 exclus par label ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -84,7 +84,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 34 deja co
 | [ ] | [#1377](https://github.com/convertigo/C8oForms/issues/1377) | closed | bug, QC-Passed | Chips preview display differs from chips configuration in Text mode |  |
 | [ ] | [#1376](https://github.com/convertigo/C8oForms/issues/1376) | closed | bug | [Engine] Fix regression in AD login assigning all users to a shared group |  |
 | [x] | [#1375](https://github.com/convertigo/C8oForms/issues/1375) | closed | enhancement, QC-Passed, Auto QA Test | Opening the Application settings hides the side bar buttons, preventing quick navigation to other sections | Auto QA Test<br>e2e/issue-1375.spec.ts |
-| [ ] | [#1374](https://github.com/convertigo/C8oForms/issues/1374) | closed | bug, QC-Passed | Application configuration cannot be opened from Workflows |  |
+| [x] | [#1374](https://github.com/convertigo/C8oForms/issues/1374) | closed | bug, QC-Passed, Auto QA Test | Application configuration cannot be opened from Workflows | Auto QA Test<br>e2e/issue-1374.spec.ts |
 | [ ] | [#1373](https://github.com/convertigo/C8oForms/issues/1373) | closed | enhancement, QC-Passed | Headers for Flows must show hover feedback when editable |  |
 | [ ] | [#1372](https://github.com/convertigo/C8oForms/issues/1372) | closed | enhancement, QC-Passed | Add a “pen” (edit) icon in Flows, similar to the one available in Pages configuration |  |
 | [ ] | [#1371](https://github.com/convertigo/C8oForms/issues/1371) | closed | enhancement, QC-Passed | Harmonize validation, delete, and copy buttons across all pages |  |
