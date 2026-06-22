@@ -65,10 +65,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Per-request timeout for a single MCP HTTP call. A hung schema-apply (e.g. an
-// 80-row upsert against a cold engine right after a deploy) must abort and be
-// retried by callMcp instead of blocking until the global test timeout.
-const MCP_REQUEST_TIMEOUT_MS = 90_000;
+// Per-request timeout for a single MCP HTTP call. Kept aligned with (and just
+// under) the server-side responseTimeout on ConvertigoMCP.mcp_endpoint (300s) so
+// a slow-but-progressing schema-apply (e.g. an 80-row upsert on a loaded engine)
+// is given time to finish instead of being aborted client-side and retried into
+// a still-busy engine. callMcp still retries on a genuine abort/transient error.
+const MCP_REQUEST_TIMEOUT_MS = 180_000;
 
 function isTransientMcpError(error: unknown): boolean {
   return /interrupted|did not terminate quickly enough|timed? ?out|temporarily|abort|ECONNRESET|EPIPE|HTTP 50[234]/i.test(
@@ -180,14 +182,14 @@ async function callMcpOnce(tool: string, args: Json, token?: string): Promise<Js
 }
 
 /** Read the Baserow catalog (workspaces / bases / tables / columns). */
-export async function baserowCatalog(options: BaserowCatalogOptions = {}): Promise<BaserowCatalog> {
+export async function baserowCatalog(options: BaserowCatalogOptions = {}, token?: string): Promise<BaserowCatalog> {
   const args: Json = {};
   if (options.includeColumns !== undefined) args.includeColumns = options.includeColumns;
   if (options.workspaceId !== undefined) args.workspaceId = options.workspaceId;
   if (options.databaseId !== undefined) args.databaseId = options.databaseId;
   if (options.tableId !== undefined) args.tableId = options.tableId;
 
-  const r = (await callMcp('nocode-baserow-catalog-list', args)) as Partial<BaserowCatalog> & Json;
+  const r = (await callMcp('nocode-baserow-catalog-list', args, token)) as Partial<BaserowCatalog> & Json;
   if ((r as Json).status === 'error') {
     throw new Error(`baserow catalog failed: ${JSON.stringify((r as Json).error ?? r)}`);
   }
@@ -199,12 +201,47 @@ export async function baserowCatalog(options: BaserowCatalogOptions = {}): Promi
   };
 }
 
+// A many-row sample upsert is the expensive part of schema-apply (it reads then
+// updates every row). Above this many rows, we first check whether the table is
+// already seeded and skip re-upserting on subsequent runs ("create if absent").
+// Below it, the upsert is cheap enough that the existence check would cost more.
+const HEAVY_SAMPLE_ROW_THRESHOLD = 20;
+
+/**
+ * True when the table already exists with every expected column. Used to skip a
+ * heavy re-seed: the fixture tables are persistent, so re-upserting the same
+ * large sample every run only loads the shared engine.
+ */
+async function tableAlreadySeeded(spec: EnsureTableSpec, token?: string): Promise<boolean> {
+  const tree = await baserowCatalog({ includeColumns: false }, token);
+  const table = tree.tables.find(
+    (t) => t.name === spec.table && (t.base === spec.database || (t as Json).baseName === spec.database),
+  );
+  if (!table) return false;
+  const databaseId = Number((table as Json).databaseId ?? (table as Json).baseId);
+  if (!Number.isFinite(databaseId)) return false;
+  const full = await baserowCatalog({ includeColumns: true, databaseId }, token);
+  const hydrated =
+    full.tables.find((t) => String((t as Json).id) === String((table as Json).id)) ??
+    full.tables.find((t) => t.name === spec.table);
+  const present = new Set((hydrated?.columns ?? []).map((c) => String((c as Json).name)));
+  return spec.columns.every((c) => present.has(c.name));
+}
+
 /**
  * Ensure a Baserow table exists. The MCP tool is idempotent: existing objects
  * are reused, missing fields are created and sample rows are upserted. Returns
  * a catalog read-back with columns so the caller can assert fixture metadata.
+ *
+ * For large sample sets the row upsert is skipped when the table is already
+ * seeded, so persistent fixtures are not re-upserted (and re-timed-out) on every
+ * run. Schema (fields) is always ensured, so the read-back metadata stays exact.
  */
 export async function ensureBaserowTable(spec: EnsureTableSpec, token?: string): Promise<BaserowCatalog> {
+  const rowCount = spec.rows?.length ?? 0;
+  const heavy = rowCount >= HEAVY_SAMPLE_ROW_THRESHOLD;
+  const seedRows = rowCount > 0 && !(heavy && (await tableAlreadySeeded(spec, token).catch(() => false)));
+
   const r = await callMcp('nocode-baserow-schema-apply', {
     mode: 'apply',
     readBack: true,
@@ -213,7 +250,7 @@ export async function ensureBaserowTable(spec: EnsureTableSpec, token?: string):
       base: true,
       tables: true,
       fields: true,
-      sampleRows: (spec.rows?.length ?? 0) > 0,
+      sampleRows: seedRows,
     },
     schema: {
       workspaceName: spec.workspace,
@@ -223,8 +260,8 @@ export async function ensureBaserowTable(spec: EnsureTableSpec, token?: string):
           name: spec.table,
           primaryField: spec.primaryField,
           fields: spec.columns,
-          sampleRows: spec.rows ?? [],
-          upsertKey: spec.upsertKey ?? (spec.rows?.length ? spec.columns[0]?.name : undefined),
+          sampleRows: seedRows ? spec.rows ?? [] : [],
+          upsertKey: seedRows ? spec.upsertKey ?? (spec.rows?.length ? spec.columns[0]?.name : undefined) : undefined,
         },
       ],
     },
@@ -237,7 +274,7 @@ export async function ensureBaserowTable(spec: EnsureTableSpec, token?: string):
   if (readBack?.tables.some((table) => table.name === spec.table)) {
     return readBack;
   }
-  return baserowCatalog({ includeColumns: true });
+  return baserowCatalog({ includeColumns: true }, token);
 }
 
 function catalogFromSchemaReadBack(response: Json): BaserowCatalog | null {
