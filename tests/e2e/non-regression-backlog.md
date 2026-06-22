@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 36 deja couverts; 182 a couvrir (31 ouverts, 151 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 37 deja couverts; 181 a couvrir (31 ouverts, 150 fermes); 1 exclus par label ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -99,7 +99,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 36 deja co
 | [ ] | [#1360](https://github.com/convertigo/C8oForms/issues/1360) | closed | enhancement, QC-Passed | Duplicate an entire page inside an application to save time |  |
 | [ ] | [#1358](https://github.com/convertigo/C8oForms/issues/1358) | closed | enhancement, QC-Passed | Long application names are truncated instead of wrapping inside the card |  |
 | [x] | [#1357](https://github.com/convertigo/C8oForms/issues/1357) | closed | enhancement, QC-Passed, Auto QA Test | Elements list in Visibility condition is not sorted, has no search bar, and gives no scroll indication | Auto QA Test<br>e2e/issue-1357.spec.ts |
-| [ ] | [#1356](https://github.com/convertigo/C8oForms/issues/1356) | closed | bug, QC-Passed | Icon selection in Button component cannot be cleared (no way to remove the icon) |  |
+| [x] | [#1356](https://github.com/convertigo/C8oForms/issues/1356) | closed | bug, QC-Passed, Auto QA Test | Icon selection in Button component cannot be cleared (no way to remove the icon) | Auto QA Test<br>e2e/issue-1356.spec.ts |
 | [ ] | [#1355](https://github.com/convertigo/C8oForms/issues/1355) | closed | bug, QC-Passed | "Style du bouton" and "Icone du bouton" sections are not translated in other languages than French |  |
 | [x] | [#1354](https://github.com/convertigo/C8oForms/issues/1354) | closed | bug, QC-Passed, Auto QA Test | Remove the “Question” section from Button components (misleading, CSS is configured in “Style”) | Auto QA Test<br>e2e/issue-1354.spec.ts |
 | [x] | [#1353](https://github.com/convertigo/C8oForms/issues/1353) | closed | bug, QC-Passed, Auto QA Test | “Sort” filter shows infinite progress bar when Data source is not configured | Auto QA Test<br>e2e/issue-1353.spec.ts |
