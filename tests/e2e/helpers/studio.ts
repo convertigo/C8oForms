@@ -1165,10 +1165,17 @@ async function openSelectorCardCollaboratorsModal(page: Page, title: string): Pr
   await expect(card, `selector should show application card ${title}`).toBeVisible({ timeout: 30_000 });
 
   const menuOverlayId = cardId.replace(/^idcard/, 'idcardO');
-  const menu = page.locator(`[id="${menuOverlayId}"] ${SEL.cardMenuButton}`).first();
+  const cardMenu = card.locator(SEL.cardMenuButton).first();
+  const overlayMenu = page.locator(`[id="${menuOverlayId}"] ${SEL.cardMenuButton}`).first();
   for (let attempt = 0; attempt < 3; attempt++) {
-    await card.hover();
+    await dismissVisiblePopovers(page);
+    await card.hover({ timeout: 2_000 }).catch(async () => {
+      await card.dispatchEvent('mouseenter');
+    });
     await page.waitForTimeout(300);
+
+    const menu = (await cardMenu.isVisible({ timeout: 1_000 }).catch(() => false)) ? cardMenu : overlayMenu;
+    await expect(menu, 'selector card menu button should be visible').toBeVisible({ timeout: 5_000 });
     await menu.click({ timeout: 3_000 }).catch(async () => {
       await menu.evaluate((el) => (el as HTMLElement).click());
     });
@@ -1213,17 +1220,36 @@ async function selectorApplicationCardId(page: Page, title: string): Promise<str
 }
 
 async function dismissVisiblePopovers(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const hasVisiblePopover = await page
-      .locator('ion-popover:not(.overlay-hidden):visible')
-      .first()
-      .isVisible({ timeout: 500 })
-      .catch(() => false);
-    if (!hasVisiblePopover) {
-      return;
-    }
+  const visiblePopovers = page.locator('ion-popover:not(.overlay-hidden):visible');
+  const hasVisiblePopover = async () => (await visiblePopovers.count().catch(() => 0)) > 0;
+
+  for (let attempt = 0; attempt < 2 && (await hasVisiblePopover()); attempt++) {
     await page.keyboard.press('Escape').catch(() => undefined);
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(200);
+    if (!(await hasVisiblePopover())) return;
+
+    await page.mouse.click(5, 5).catch(() => undefined);
+    await page.waitForTimeout(200);
+  }
+
+  if (await hasVisiblePopover()) {
+    await page.evaluate(async () => {
+      const visible = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden)')].filter(visible);
+      await Promise.all(
+        popovers.map((popover) => {
+          const dismiss = (popover as HTMLElement & { dismiss?: () => Promise<boolean> }).dismiss;
+          return dismiss?.call(popover).catch(() => false);
+        }),
+      );
+    });
+    await expect(visiblePopovers, 'visible popovers should be dismissed before interacting with selector cards').toHaveCount(0, {
+      timeout: 3_000,
+    });
   }
 }
 
