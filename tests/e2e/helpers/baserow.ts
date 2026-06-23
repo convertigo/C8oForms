@@ -201,46 +201,23 @@ export async function baserowCatalog(options: BaserowCatalogOptions = {}, token?
   };
 }
 
-// A many-row sample upsert is the expensive part of schema-apply (it reads then
-// updates every row). Above this many rows, we first check whether the table is
-// already seeded and skip re-upserting on subsequent runs ("create if absent").
-// Below it, the upsert is cheap enough that the existence check would cost more.
-const HEAVY_SAMPLE_ROW_THRESHOLD = 20;
-
-/**
- * True when the table already exists with every expected column. Used to skip a
- * heavy re-seed: the fixture tables are persistent, so re-upserting the same
- * large sample every run only loads the shared engine.
- */
-async function tableAlreadySeeded(spec: EnsureTableSpec, token?: string): Promise<boolean> {
-  const tree = await baserowCatalog({ includeColumns: false }, token);
-  const table = tree.tables.find(
-    (t) => t.name === spec.table && (t.base === spec.database || (t as Json).baseName === spec.database),
-  );
-  if (!table) return false;
-  const databaseId = Number((table as Json).databaseId ?? (table as Json).baseId);
-  if (!Number.isFinite(databaseId)) return false;
-  const full = await baserowCatalog({ includeColumns: true, databaseId }, token);
-  const hydrated =
-    full.tables.find((t) => String((t as Json).id) === String((table as Json).id)) ??
-    full.tables.find((t) => t.name === spec.table);
-  const present = new Set((hydrated?.columns ?? []).map((c) => String((c as Json).name)));
-  return spec.columns.every((c) => present.has(c.name));
-}
-
 /**
  * Ensure a Baserow table exists. The MCP tool is idempotent: existing objects
- * are reused, missing fields are created and sample rows are upserted. Returns
- * a catalog read-back with columns so the caller can assert fixture metadata.
+ * are reused, missing fields are created and sample rows are upserted (by
+ * upsertKey). Returns a catalog read-back with columns so the caller can assert
+ * fixture metadata.
  *
- * For large sample sets the row upsert is skipped when the table is already
- * seeded, so persistent fixtures are not re-upserted (and re-timed-out) on every
- * run. Schema (fields) is always ensured, so the read-back metadata stays exact.
+ * Rows are ALWAYS re-upserted when the spec defines any. We previously skipped
+ * the re-upsert for large samples on tables that already had the expected
+ * columns ("create if absent"), but that check could not see row count: a table
+ * left partially seeded by an interrupted upsert (e.g. an MCP timeout after 64 of
+ * 80 rows) was considered "seeded" forever and never topped up, so #1402 kept
+ * reading a 64-row dropdown. The upsert is idempotent (no duplicates), so always
+ * seeding self-heals such tables without changing complete ones.
  */
 export async function ensureBaserowTable(spec: EnsureTableSpec, token?: string): Promise<BaserowCatalog> {
   const rowCount = spec.rows?.length ?? 0;
-  const heavy = rowCount >= HEAVY_SAMPLE_ROW_THRESHOLD;
-  const seedRows = rowCount > 0 && !(heavy && (await tableAlreadySeeded(spec, token).catch(() => false)));
+  const seedRows = rowCount > 0;
 
   const r = await callMcp('nocode-baserow-schema-apply', {
     mode: 'apply',
