@@ -1,6 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
-import { STORAGE_STATE } from './e2e/helpers/auth-state';
 
 // Load tests/.env so credentials (test user, base URL) stay out of the code.
 // Copy .env.example to .env to get started.
@@ -62,16 +61,8 @@ export default defineConfig({
   },
   projects: [
     {
-      // Logs in once and saves the session to STORAGE_STATE.
-      name: 'setup',
-      testMatch: /auth\.setup\.ts/,
-      use: { ...devices[deviceName[browserName]], browserName },
-    },
-    {
       name: browserName,
-      use: { ...devices[deviceName[browserName]], browserName, storageState: STORAGE_STATE },
-      dependencies: ['setup'],
-      testIgnore: /auth\.setup\.ts/,
+      use: { ...devices[deviceName[browserName]], browserName },
     },
   ],
 });
