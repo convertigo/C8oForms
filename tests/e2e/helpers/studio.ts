@@ -64,6 +64,7 @@ export const SEL = {
   defaultValueMonacoEditor: 'c8oforms-monacoeditor',
   defaultValueEditorWithPalette: 'c8oforms-defaultvalueeditorwithpalette',
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
+  selectorPageRoot: 'page-selectorpage',
   blankFormCard: '.class1645547241644',
   // ion-alert prompt shown by createNewForm (stable CSS classes set in the action code)
   createFormTitleInput: 'input.alert-input',
@@ -275,6 +276,10 @@ const ROUTE = {
   viewer: /\/viewer\//,
   settings: /\/settings(?:\/|$)/,
 } as const;
+
+const SELECTOR_EMPTY_FORM_LIST_RE =
+  /(?:No applications found|Aucune application trouvée|No se encontraron aplicaciones|Nessuna applicazione trovata)/i;
+const SELECTOR_RESULT_COUNT_RE = /(\d+)\s*(?:result\(s\)|résultat\(s\)|resultado\(s\)|risultato \(i\))/i;
 
 async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
   await expect(page).toHaveURL(route, { timeout });
@@ -3125,7 +3130,8 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
 
   const input = alert.locator(SEL.createFormTitleInput).first();
   await expect(input, 'create form title input should be visible').toBeVisible({ timeout: 15_000 });
-  await fillCreateFormTitle(input, title);
+  await input.fill(title, { timeout: 15_000 });
+  await expect(input, 'create form title should be filled before saving').toHaveValue(title, { timeout: 10_000 });
 
   const save = alert.locator(SEL.createFormSaveButton).first();
   await expect(save, 'create form save button should be visible').toBeVisible({ timeout: 10_000 });
@@ -3170,29 +3176,52 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
 
 async function openCreateFormPrompt(page: Page): Promise<Locator> {
   const alertSelector = 'ion-alert.alert-custom-createapp:not(.overlay-hidden)';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await waitForIonicLoading(page, 10_000);
-    await expectRoute(page, ROUTE.selector, attempt === 0 ? 30_000 : 5_000).catch(() => undefined);
+  await waitForSelectorHomeReadyForCreate(page);
 
-    const existingAlert = page.locator(alertSelector).last();
-    if (await existingAlert.isVisible({ timeout: 500 }).catch(() => false)) {
-      return existingAlert;
-    }
+  const card = await firstVisibleLocator(page, SEL.blankFormCard, 'blank form card', 15_000);
+  await card.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+  await card.click({ timeout: 10_000 });
 
-    const card = await firstVisibleLocator(page, SEL.blankFormCard, 'blank form card', attempt === 0 ? 15_000 : 5_000);
-    await card.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
-    await card.click({ timeout: 10_000 }).catch(() => undefined);
+  const alert = page.locator(alertSelector).last();
+  await expect(alert, 'create form prompt should be visible after one blank-form click').toBeVisible({ timeout: 15_000 });
+  return alert;
+}
 
-    const alert = page.locator(alertSelector).last();
-    if (await alert.isVisible({ timeout: attempt === 0 ? 10_000 : 5_000 }).catch(() => false)) {
-      await expect(alert, 'create form prompt should be visible').toBeVisible({ timeout: 5_000 });
-      return alert;
-    }
+async function waitForSelectorHomeReadyForCreate(page: Page): Promise<void> {
+  await expectRoute(page, ROUTE.selector, 30_000);
+  await waitForIonicLoading(page, 10_000);
+  await waitForSelectorFormListLoaded(page);
+}
 
-    await page.waitForTimeout(500);
+async function waitForSelectorFormListLoaded(page: Page): Promise<void> {
+  await expect
+    .poll(() => selectorFormListState(page), {
+      message: 'selector form list should finish loading before creating a form',
+      timeout: 30_000,
+    })
+    .toMatch(/^ready:/);
+}
+
+async function selectorFormListState(page: Page): Promise<string> {
+  const root = page.locator(SEL.selectorPageRoot).first();
+  const text = await root.innerText({ timeout: 500 }).catch(() => '');
+  const count = selectorResultCount(text);
+  const skeletonCount = await root.locator('ion-skeleton-text:visible').count().catch(() => 0);
+  if (skeletonCount > 0 || count == null) {
+    return `loading:count=${count ?? 'unset'} skeletons=${skeletonCount}`;
   }
 
-  throw new Error(`create form prompt did not open after clicking the blank form card; current URL is ${page.url()}`);
+  if (count === 0) {
+    return SELECTOR_EMPTY_FORM_LIST_RE.test(text) ? 'ready:empty' : 'loading:empty-message-missing';
+  }
+
+  const hasCard = await root.locator(SEL.selectorCardTitle).first().isVisible({ timeout: 500 }).catch(() => false);
+  return hasCard ? `ready:cards:${count}` : `loading:cards-missing:${count}`;
+}
+
+function selectorResultCount(text: string): number | null {
+  const match = text.match(SELECTOR_RESULT_COUNT_RE);
+  return match ? Number(match[1]) : null;
 }
 
 async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
@@ -3227,31 +3256,6 @@ async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
       },
     )
     .toBe(true);
-}
-
-async function fillCreateFormTitle(input: Locator, title: string): Promise<void> {
-  try {
-    await input.fill(title, { timeout: 3_000 });
-  } catch {
-    await input.evaluate((el, value) => {
-      const input = el as HTMLInputElement;
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
-      input.focus();
-      descriptor?.set?.call(input, '');
-      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-      descriptor?.set?.call(input, value);
-      input.dispatchEvent(
-        new InputEvent('input', {
-          bubbles: true,
-          composed: true,
-          data: value,
-          inputType: 'insertText',
-        }),
-      );
-      input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-    }, title);
-  }
-  await expect(input, 'create form title should be filled before saving').toHaveValue(title, { timeout: 10_000 });
 }
 
 /**
