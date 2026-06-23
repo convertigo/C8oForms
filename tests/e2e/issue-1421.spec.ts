@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+// Uses the default per-test context (NOT the shared persistent one from
+// fixtures.ts): #1421 must authenticate as the PRIMARY account so the legacy
+// fixture's FullSync ACL matches. The shared context is pre-authenticated as the
+// shard's own user and login() won't switch an already-open session, so on any
+// non-primary shard (e.g. firefox shard 1 = user5) the fixture would be invisible.
+import { test, expect } from '@playwright/test';
 import {
   ISSUE_1421_FIXTURE_TITLE,
   PRIMARY_TEST_PASSWORD,
