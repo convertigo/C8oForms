@@ -1,4 +1,5 @@
-import { expect, test } from './fixtures';
+import type { Response } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { ensureBaserowTable, type BaserowCatalog } from './helpers/baserow';
 import {
   PALETTE_ICON,
@@ -98,6 +99,7 @@ test('#1396 - Checkbox Add Row stores Baserow multiple select values', async ({ 
   for (const option of SELECTED_OPTIONS) {
     await checkbox.locator('ion-item').filter({ hasText: option }).first().click();
   }
+  await installExecuteSequencesResponseCapture(page);
   const addRowResponsePromise = page.waitForResponse(
     (response) =>
       response.url().includes('/projects/C8Oforms/.json') &&
@@ -106,13 +108,122 @@ test('#1396 - Checkbox Add Row stores Baserow multiple select values', async ({ 
   );
   await page.locator(SEL.buttonComponent).getByRole('button').first().click();
   const addRowResponse = await addRowResponsePromise;
-  const addRowJson = (await addRowResponse.json().catch(() => ({}))) as Record<string, unknown>;
-  const createdRow = sequenceResult(addRowJson);
+  const createdRow = await rowFromActionResponse(page, addRowResponse);
 
   expect(createdRow?.[NAME_COLUMN], 'the Text input value should be stored in the new Baserow row').toBe(rowName);
   const tags = multipleSelectValues(createdRow?.[TAGS_COLUMN]);
   expect(tags, 'the Checkbox values should be stored in the Baserow multiple_select column').toEqual(SELECTED_OPTIONS);
 });
+
+async function rowFromActionResponse(page: Page, response: Response): Promise<Record<string, unknown> | undefined> {
+  expect(response.ok(), `Baserow Add Row action should answer 2xx, got HTTP ${response.status()}`).toBeTruthy();
+  try {
+    const json = (await response.json()) as Record<string, unknown>;
+    return sequenceResult(json);
+  } catch (error) {
+    if (isFirefoxResponseBodyReadError(error)) {
+      return sequenceResult(await capturedExecuteSequencesResponse(page));
+    }
+    throw error;
+  }
+}
+
+async function installExecuteSequencesResponseCapture(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    type CapturedResponse = { json?: Record<string, unknown>; text?: string; error?: string };
+    type CaptureWindow = Window & {
+      __c8o1396ExecuteSequences?: CapturedResponse[];
+      __c8o1396CaptureInstalled?: boolean;
+    };
+    type CapturedXhr = XMLHttpRequest & { __c8o1396Url?: string };
+
+    const captureWindow = window as CaptureWindow;
+    captureWindow.__c8o1396ExecuteSequences = [];
+    if (captureWindow.__c8o1396CaptureInstalled) return;
+    captureWindow.__c8o1396CaptureInstalled = true;
+
+    const recordText = (text: string) => {
+      const captured: CapturedResponse = { text };
+      try {
+        captured.json = text ? JSON.parse(text) : {};
+      } catch (error) {
+        captured.error = String((error as Error | undefined)?.message ?? error);
+      }
+      captureWindow.__c8o1396ExecuteSequences?.push(captured);
+    };
+
+    const recordError = (error: unknown) => {
+      captureWindow.__c8o1396ExecuteSequences?.push({
+        error: String((error as Error | undefined)?.message ?? error),
+      });
+    };
+
+    const bodyTargetsExecuteSequences = (body: unknown): boolean => {
+      if (body instanceof FormData) {
+        for (const [key, value] of body.entries()) {
+          if (key === '__sequence' && String(value) === 'APIV2_Execute_Sequences') return true;
+          if (String(value).includes('APIV2_Execute_Sequences')) return true;
+        }
+        return false;
+      }
+      if (body instanceof URLSearchParams) {
+        return body.get('__sequence') === 'APIV2_Execute_Sequences' || body.toString().includes('APIV2_Execute_Sequences');
+      }
+      return String(body ?? '').includes('APIV2_Execute_Sequences');
+    };
+
+    const urlTargetsC8oForms = (url: unknown): boolean => String(url ?? '').includes('/projects/C8Oforms/.json');
+
+    const originalFetch = captureWindow.fetch.bind(captureWindow);
+    captureWindow.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await originalFetch(input, init);
+      const url = input instanceof Request ? input.url : String(input);
+      if (urlTargetsC8oForms(url) && bodyTargetsExecuteSequences(init?.body)) {
+        response.clone().text().then(recordText).catch(recordError);
+      }
+      return response;
+    };
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    const originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function open(method: string, url: string | URL) {
+      (this as CapturedXhr).__c8o1396Url = String(url);
+      return (originalOpen as (...args: unknown[]) => void).apply(this, Array.from(arguments));
+    } as typeof XMLHttpRequest.prototype.open;
+
+    XMLHttpRequest.prototype.send = function send(body?: Document | XMLHttpRequestBodyInit | null) {
+      const xhr = this as CapturedXhr;
+      if (urlTargetsC8oForms(xhr.__c8o1396Url) && bodyTargetsExecuteSequences(body)) {
+        xhr.addEventListener('load', () => recordText(xhr.responseText));
+        xhr.addEventListener('error', () => recordError('XMLHttpRequest error while reading APIV2_Execute_Sequences'));
+      }
+      return (originalSend as (...args: unknown[]) => void).apply(this, Array.from(arguments));
+    } as typeof XMLHttpRequest.prototype.send;
+  });
+}
+
+async function capturedExecuteSequencesResponse(page: Page): Promise<Record<string, unknown>> {
+  await page.waitForFunction(
+    () => ((window as Window & { __c8o1396ExecuteSequences?: unknown[] }).__c8o1396ExecuteSequences ?? []).length > 0,
+    undefined,
+    { timeout: 10_000 },
+  );
+  const captured = await page.evaluate(() => {
+    const responses = (window as Window & {
+      __c8o1396ExecuteSequences?: Array<{ json?: Record<string, unknown>; text?: string; error?: string }>;
+    }).__c8o1396ExecuteSequences ?? [];
+    return responses.at(-1);
+  });
+
+  if (captured?.json) {
+    return captured.json;
+  }
+  throw new Error(`Unable to read captured APIV2_Execute_Sequences response: ${captured?.error ?? captured?.text ?? 'empty capture'}`);
+}
+
+function isFirefoxResponseBodyReadError(error: unknown): boolean {
+  return /Network\.getResponseBody|NS_ERROR_INVALID_CONTENT_ENCODING/i.test(String((error as Error | undefined)?.message ?? error));
+}
 
 function assertBaserowFixture(catalog: BaserowCatalog): void {
   const table = catalog.tables.find((candidate) => candidate.name === TABLE);
