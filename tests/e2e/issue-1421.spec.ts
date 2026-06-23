@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import {
   ISSUE_1421_FIXTURE_TITLE,
   PRIMARY_TEST_PASSWORD,

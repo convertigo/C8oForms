@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { ensureBaserowTable, type BaserowCatalog } from './helpers/baserow';
 import {
   PALETTE_ICON,

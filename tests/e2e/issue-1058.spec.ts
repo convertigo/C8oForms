@@ -1,4 +1,4 @@
-import { test, expect, Page, Locator } from '@playwright/test';
+import { test, expect, Page, Locator } from './fixtures';
 import { ensureBaserowTable, type BaserowCatalog } from './helpers/baserow';
 import {
   SEL,
@@ -47,8 +47,6 @@ const DURATION_ROWS = [
 test.describe.configure({ retries: process.env.CI ? 2 : 0 });
 
 test.use({
-  locale: 'fr-FR',
-  timezoneId: 'Europe/Paris',
   viewport: { width: 1920, height: 1080 },
 });
 

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from './fixtures';
 import { TYPE_BATCH_A, runTypeVisibility } from './helpers/visibility-matrix';
 
 /**
