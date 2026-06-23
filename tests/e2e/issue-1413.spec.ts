@@ -158,7 +158,7 @@ async function insertGridColumnValueInDescription(page: Page): Promise<void> {
 
   const treeview = page.locator('ion-modal.modalCSV').last();
   await expect(treeview, 'source tree modal should be visible').toBeVisible({ timeout: 15_000 });
-  await treeview.getByText(QUOTED_COLUMN, { exact: true }).click();
+  await expandTreeLabel(page, QUOTED_COLUMN);
   await acceptRgpdIfVisible(page);
 
   if (await treeview.getByText('displayValue', { exact: true }).isVisible({ timeout: 1_000 }).catch(() => false)) {
@@ -219,12 +219,17 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
   await expect(editorBody.locator('svg[id^="clickable-"]').first()).toBeVisible({ timeout: 10_000 });
 }
 
-async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise<void> {
+async function expandTreeLabel(page: Page, label: string): Promise<void> {
+  const treeview = page.locator('ion-modal.modalCSV').last();
+  await expect(treeview.getByText(label, { exact: true }), `source tree label ${label} should be visible`).toBeVisible({
+    timeout: 15_000,
+  });
+
   const center = await page.evaluate((wantedLabel) => {
     const visible = (el: Element) => {
       const r = (el as HTMLElement).getBoundingClientRect();
       const s = getComputedStyle(el);
-      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
     };
     const modal = [...document.querySelectorAll('ion-modal.modalCSV')].filter(visible).pop();
     if (!modal) return null;
@@ -236,7 +241,90 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
 
     const labelBox = (labelEl as HTMLElement).getBoundingClientRect();
     const labelY = labelBox.y + labelBox.height / 2;
-    const buttons = [...modal.querySelectorAll('ion-button')]
+    const controls = [...modal.querySelectorAll('ion-icon, svg, [role="button"], ion-button, button, [onclick]')]
+      .filter(visible)
+      .filter((el) => !(el as HTMLButtonElement).disabled)
+      .filter((el) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const centerY = box.y + box.height / 2;
+        return (
+          box.x < labelBox.x &&
+          box.x + box.width > labelBox.x - 90 &&
+          Math.abs(centerY - labelY) < 24 &&
+          box.width <= 64 &&
+          box.height <= 64
+        );
+      });
+
+    let best: DOMRect | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const control of controls) {
+      const box = (control as HTMLElement).getBoundingClientRect();
+      const score = Math.abs(box.y + box.height / 2 - labelY) + Math.abs(labelBox.x - (box.x + box.width));
+      if (score < bestScore) {
+        bestScore = score;
+        best = box;
+      }
+    }
+    return best ? { x: best.x + best.width / 2, y: best.y + best.height / 2 } : { x: labelBox.x - 44, y: labelY };
+  }, label);
+
+  expect(center, `could not find an expand button for ${label}`).not.toBeNull();
+  await page.mouse.click(center!.x, center!.y);
+  await page.waitForTimeout(300);
+
+  const hasValueFields = async () =>
+    (await treeview.getByText('displayValue', { exact: true }).isVisible().catch(() => false)) ||
+    (await treeview.getByText('value', { exact: true }).isVisible().catch(() => false));
+
+  if (!(await hasValueFields())) {
+    await page.evaluate((wantedLabel) => {
+      const visible = (el: Element) => {
+        const r = (el as HTMLElement).getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
+      };
+      const modal = [...document.querySelectorAll('ion-modal.modalCSV')].filter(visible).pop();
+      if (!modal) return;
+
+      const labelEl = [...modal.querySelectorAll('ion-label, p, span, div')]
+        .filter(visible)
+        .find((el) => (el.textContent ?? '').trim() === wantedLabel);
+      const row = labelEl?.closest('ion-item');
+      const eventInit = { bubbles: true, cancelable: true, composed: true, view: window };
+      row?.dispatchEvent(new MouseEvent('pointerdown', eventInit));
+      row?.dispatchEvent(new MouseEvent('mousedown', eventInit));
+      row?.dispatchEvent(new MouseEvent('mouseup', eventInit));
+      row?.dispatchEvent(new MouseEvent('click', eventInit));
+    }, label);
+  }
+
+  await expect
+    .poll(hasValueFields, {
+      message: `source tree label ${label} should expand to value fields`,
+      timeout: 10_000,
+    })
+    .toBe(true);
+}
+
+async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise<void> {
+  const center = await page.evaluate((wantedLabel) => {
+    const visible = (el: Element) => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
+    };
+    const modal = [...document.querySelectorAll('ion-modal.modalCSV')].filter(visible).pop();
+    if (!modal) return null;
+
+    const labelEl = [...modal.querySelectorAll('ion-label, p, span, div')]
+      .filter(visible)
+      .find((el) => (el.textContent ?? '').trim() === wantedLabel);
+    if (!labelEl) return null;
+
+    const labelBox = (labelEl as HTMLElement).getBoundingClientRect();
+    const labelY = labelBox.y + labelBox.height / 2;
+    const buttons = [...modal.querySelectorAll('ion-button, button')]
       .filter(visible)
       .filter((el) => !(el as HTMLButtonElement).disabled);
 
@@ -245,7 +333,7 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
     for (const button of buttons) {
       const box = (button as HTMLElement).getBoundingClientRect();
       if (box.x < labelBox.x) continue;
-      const score = Math.abs(box.y + box.height / 2 - labelY);
+      const score = Math.abs(box.y + box.height / 2 - labelY) + Math.max(0, box.x - labelBox.x - 500);
       if (score < bestScore) {
         bestScore = score;
         best = box;
