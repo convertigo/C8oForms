@@ -1813,8 +1813,25 @@ export async function sourcePaletteSectionStates(
 }
 
 export async function closeComponentConfig(page: Page): Promise<void> {
-  await page.locator(SEL.configClose).first().click();
-  await page.locator(SEL.configClose).waitFor({ state: 'hidden', timeout: 15_000 });
+  const closeButton = page.locator(`${SEL.configClose}:visible`).first();
+  if (await closeButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await closeButton.click({ timeout: 5_000 }).catch(async () => closeButton.dispatchEvent('click'));
+    if (await closeButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await closeButton.dispatchEvent('click').catch(() => undefined);
+    }
+  } else {
+    const genericCloseButton = page.locator('.c8o-btn-close:visible, button.c8o-btn-close:visible').last();
+    if (await genericCloseButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await genericCloseButton.click({ timeout: 5_000 }).catch(async () => genericCloseButton.dispatchEvent('click'));
+    }
+  }
+
+  await expect
+    .poll(() => page.locator(`${SEL.configClose}:visible`).count(), {
+      message: 'component configuration close button should disappear after closing the panel',
+      timeout: 15_000,
+    })
+    .toBe(0);
 }
 
 export async function acceptRgpdIfVisible(page: Page, timeout = 2_000): Promise<void> {
