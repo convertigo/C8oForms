@@ -165,12 +165,18 @@ export const SEL = {
   flowLoopPaletteButton: 'c8oforms-itemforloopeditor1 ion-button.class1777542949212',
   flowConditionActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypeif_else"]',
   flowConditionEditor: '.flow-condition-editor',
-  flowConditionVisualModeButton: 'ion-button.class1743536234020, ion-button.class1777544520315',
-  flowConditionBuilder: '.flow-condition-editor c8oforms-conditionvisibleif, .flow-condition-editor ion-select',
-  flowConditionFieldBrowseButton: '.flow-condition-editor ion-button.class1595231678502',
-  flowConditionFieldInput: '.flow-condition-editor input[disabled]',
-  flowConditionTextModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="text-outline"])',
-  flowConditionJavaScriptModeButton: '.flow-condition-editor ion-button:has(ion-icon[name="logo-javascript"])',
+  flowConditionVisualModeButton: '.flow-condition-editor ion-button.class1743536234020, .flow-condition-editor ion-button.class1777544520315',
+  flowConditionBuilder:
+    '.flow-condition-editor c8oforms-visibleifgroupeditor, .flow-condition-editor c8oforms-conditionvisibleif, .flow-condition-editor c8oforms-filterbr, .flow-condition-editor ion-select',
+  flowConditionTextExpressionEditor: '.flow-condition-editor .condition-help, .flow-condition-editor ion-searchbar',
+  flowConditionFieldBrowseButton:
+    '.flow-condition-editor ion-button.class1595231678502, .flow-condition-editor ion-item.form-item--small ion-button.initial.btn, .flow-condition-editor ion-item:has(input[disabled]) ion-button:has(ion-icon[name="ellipsis-horizontal-outline"]), .flow-condition-editor button',
+  flowConditionFieldInput:
+    '.flow-condition-editor ion-input.class1758189195706, .flow-condition-editor ion-input[title], .flow-condition-editor input[disabled]',
+  flowConditionTextModeButton:
+    '.flow-condition-editor ion-button.class1678818942504, .flow-condition-editor ion-button.class1777544520720, .flow-condition-editor ion-button:has(ion-icon[name="text-outline"])',
+  flowConditionJavaScriptModeButton:
+    '.flow-condition-editor ion-button.class1678818942537, .flow-condition-editor ion-button.class1777544520765, .flow-condition-editor ion-button:has(ion-icon[name="logo-javascript"])',
   flowSubmitActionCard: 'ion-row[id*="@prefixc8oitemsubmit"][id*="@prefixc8otypesubmit"]',
   flowToastActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypetoast"]',
   toastActionTabButton: 'button.toast-action-tab-button',
@@ -275,8 +281,9 @@ async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise
 }
 
 /**
- * Palette components share the same priority class, so the stable, non-i18n
- * discriminator is each tile's icon SVG filename. Extend as needed.
+ * Palette components share the same priority class. Prefer the icon SVG
+ * filename, and fall back to the palette's stable object type when deployed
+ * assets rewrite the rendered image src.
  */
 export const PALETTE_ICON = {
   layout: 'icn_layout.svg',
@@ -330,6 +337,15 @@ const PALETTE_TYPE_BY_ICON: Record<string, string> = {
   [PALETTE_ICON.file]: 'file',
   [PALETTE_ICON.signature]: 'signature',
   [PALETTE_ICON.location]: 'location',
+};
+
+const PALETTE_SEARCH_TERM_BY_ICON: Record<string, string> = {
+  ...PALETTE_TYPE_BY_ICON,
+  [PALETTE_ICON.businessLogic]: 'business_logic',
+  [PALETTE_ICON.toastAction]: 'toast',
+  [PALETTE_ICON.forLoop]: 'for_loop',
+  [PALETTE_ICON.conditionAction]: 'if_else',
+  [PALETTE_ICON.submitAction]: 'submit',
 };
 
 export interface LoginCredentials {
@@ -2005,10 +2021,7 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
   await openButtonWorkflow(page, source.flowName);
 
   await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
-  const actionTile = page.locator(componentPaletteTileSelector(PALETTE_ICON.baserowAddRowFromData)).last();
-  await expect(actionTile, 'Baserow Add Row action should be available in the action palette').toBeVisible({
-    timeout: 30_000,
-  });
+  const actionTile = await paletteTileForIcon(page, PALETTE_ICON.baserowAddRowFromData, 'Baserow Add Row action');
   const actionSelector = SEL.flowSubmitActionCard;
   const before = await page.locator(actionSelector).count();
   // Add the action only if the flow does not already carry one (idempotent on
@@ -2089,10 +2102,7 @@ async function openButtonFlowActionConfig(
 
   await test.step(`Add the ${actionName} action`, async () => {
     await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
-    const actionTile = page.locator(componentPaletteTileSelector(icon)).last();
-    await expect(actionTile, `${actionName} action should be available in the action palette`).toBeVisible({
-      timeout: 30_000,
-    });
+    const actionTile = await paletteTileForIcon(page, icon, `${actionName} action`);
 
     const before = await page.locator(actionCardSelector).count();
     await actionTile.dblclick({ force: true, delay: 75 });
@@ -2284,34 +2294,24 @@ export async function expectLoopActionIteratorModesConfigurable(page: Page, text
   });
 }
 
-export async function expectConditionActionModesSwitchable(page: Page): Promise<void> {
+export async function expectConditionActionModesSwitchable(page: Page, fieldTechnicalId?: string): Promise<void> {
   await test.step('Check the If condition editor', async () => {
     const conditionEditor = page.locator(SEL.flowConditionEditor).last();
     await expect(conditionEditor, 'Condition action should expose the If editor').toBeVisible({ timeout: 15_000 });
-    await expect(page.locator(SEL.flowConditionVisualModeButton).last(), 'Condition action should expose field/operator mode').toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.locator(SEL.flowConditionBuilder).first(), 'Condition field/operator builder should be visible').toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.locator(SEL.flowConditionTextModeButton).last(), 'Condition action should expose Aa mode').toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.locator(SEL.flowConditionJavaScriptModeButton).last(), 'Condition action should expose JavaScript mode').toBeVisible({
-      timeout: 15_000,
-    });
+    await expectFlowConditionModeButtons(page);
+    await expectFlowConditionFieldsMode(page, fieldTechnicalId);
   });
 
   await test.step('Switch the If condition to text mode', async () => {
-    await clickFirstVisible(page, SEL.flowConditionTextModeButton, 'Condition text mode');
+    await clickFlowConditionMode(page, 'text');
     await confirmAlertIfVisible(page);
-    await expect(await visibleTinyMceBody(page), 'Condition text editor should become visible after clicking Aa mode').toBeVisible({
+    await expect(page.locator(SEL.flowConditionTextExpressionEditor).first(), 'Condition Aa expression editor should become visible').toBeVisible({
       timeout: 15_000,
     });
   });
 
   await test.step('Switch the If condition to JavaScript mode', async () => {
-    await clickFirstVisible(page, SEL.flowConditionJavaScriptModeButton, 'Condition JavaScript mode');
+    await clickFlowConditionMode(page, 'javascript');
     await confirmAlertIfVisible(page);
     const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
     await expect(editor, 'Condition JavaScript editor should become visible after clicking JS mode').toBeVisible({
@@ -2320,9 +2320,9 @@ export async function expectConditionActionModesSwitchable(page: Page): Promise<
   });
 
   await test.step('Switch the If condition back to text mode', async () => {
-    await clickFirstVisible(page, SEL.flowConditionTextModeButton, 'Condition text mode');
+    await clickFlowConditionMode(page, 'text');
     await confirmAlertIfVisible(page);
-    await expect(await visibleTinyMceBody(page), 'Condition text editor should become visible after clicking Aa mode').toBeVisible({
+    await expect(page.locator(SEL.flowConditionTextExpressionEditor).first(), 'Condition Aa expression editor should become visible').toBeVisible({
       timeout: 15_000,
     });
     await expect(
@@ -2332,16 +2332,42 @@ export async function expectConditionActionModesSwitchable(page: Page): Promise<
   });
 
   await test.step('Switch the If condition back to field/operator mode', async () => {
-    await clickFirstVisible(page, SEL.flowConditionVisualModeButton, 'Condition field/operator mode');
+    await clickFlowConditionMode(page, 'fields');
     await confirmAlertIfVisible(page);
-    await expect(page.locator(SEL.flowConditionBuilder).first(), 'Condition field/operator builder should be visible again').toBeVisible({
-      timeout: 15_000,
-    });
+    await expectFlowConditionFieldsMode(page, fieldTechnicalId);
     await expect(
       page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
       'Condition JavaScript editor should be hidden after returning to field/operator mode',
     ).toBeHidden({ timeout: 15_000 });
   });
+}
+
+type FlowConditionMode = 'fields' | 'text' | 'javascript';
+
+async function expectFlowConditionModeButtons(page: Page): Promise<void> {
+  await lastVisibleLocator(page, SEL.flowConditionVisualModeButton, 'Condition Fields mode button');
+  await lastVisibleLocator(page, SEL.flowConditionTextModeButton, 'Condition Aa mode button');
+  await lastVisibleLocator(page, SEL.flowConditionJavaScriptModeButton, 'Condition JavaScript mode button');
+}
+
+async function clickFlowConditionMode(page: Page, mode: FlowConditionMode): Promise<void> {
+  const selector =
+    mode === 'fields'
+      ? SEL.flowConditionVisualModeButton
+      : mode === 'text'
+        ? SEL.flowConditionTextModeButton
+        : SEL.flowConditionJavaScriptModeButton;
+  const button = await lastVisibleLocator(page, selector, `Condition ${mode} mode button`);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+}
+
+async function expectFlowConditionFieldsMode(page: Page, fieldTechnicalId?: string): Promise<void> {
+  await expect(page.locator(SEL.flowConditionBuilder).first(), 'Condition field/operator builder should be visible').toBeVisible({
+    timeout: 15_000,
+  });
+  if (fieldTechnicalId) {
+    await expectFlowConditionSelectedField(page, fieldTechnicalId);
+  }
 }
 
 export async function expectConditionActionConfigurationTabsOnlyIf(page: Page): Promise<void> {
@@ -2387,18 +2413,53 @@ export async function selectFlowConditionField(page: Page, fieldTechnicalId: str
       timeout: 10_000,
     });
 
-    const item = popover
-      .locator('ion-button')
-      .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(fieldTechnicalId)}\\s*$`) })
-      .last();
+    const item = popover.getByRole('button', { name: new RegExp(`^\\s*${escapeRegExp(fieldTechnicalId)}\\s*$`) }).last();
     await expect(item, `If condition picker should list ${fieldTechnicalId}`).toBeVisible({ timeout: 10_000 });
     await item.click({ timeout: 10_000 }).catch(async () => item.dispatchEvent('click'));
 
-    await expect(page.locator(SEL.flowConditionFieldInput).last(), 'If condition field input should keep the selected field').toHaveValue(
-      fieldTechnicalId,
-      { timeout: 10_000 },
-    );
+    await expectFlowConditionSelectedField(page, fieldTechnicalId);
   });
+}
+
+export async function expectFlowConditionSelectedField(page: Page, fieldTechnicalId: string): Promise<void> {
+  await expect
+    .poll(async () => (await flowConditionSelectedFieldTexts(page)).includes(fieldTechnicalId), {
+      message: `If condition field input should keep ${fieldTechnicalId}`,
+      timeout: 10_000,
+    })
+    .toBe(true);
+}
+
+async function flowConditionSelectedFieldTexts(page: Page): Promise<string[]> {
+  const editor = page.locator(SEL.flowConditionEditor).last();
+  await expect(editor, 'Condition action should expose the If editor').toBeVisible({ timeout: 15_000 });
+  return editor.evaluate((root, selector) => {
+    const visible = (el: Element) => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+
+    const readValue = (element: Element) => {
+      const host = element as HTMLElement & { value?: unknown; shadowRoot?: ShadowRoot | null };
+      const input = element instanceof HTMLInputElement ? element : (host.shadowRoot?.querySelector('input') as HTMLInputElement | null);
+      const raw = [
+        input?.value ??
+          undefined,
+        typeof host.value === 'string' ? host.value : undefined,
+        element.getAttribute('title') ?? undefined,
+        input?.getAttribute('title') ?? undefined,
+        element.getAttribute('value') ?? undefined,
+        element.textContent ?? undefined,
+      ].find((value) => value != null && String(value).trim() !== '');
+      return String(raw).replace(/\s+/g, ' ').trim();
+    };
+
+    return [...root.querySelectorAll(selector)]
+      .filter(visible)
+      .map(readValue)
+      .filter(Boolean);
+  }, SEL.flowConditionFieldInput);
 }
 
 export async function flowConditionOperatorSelectStates(page: Page): Promise<FlowConditionOperatorSelectState[]> {
@@ -3059,57 +3120,43 @@ export async function setPwaAccessModeAndSave(page: Page, mode: PwaAccessMode): 
  * the editor. Returns the new form's id (from the editor URL).
  */
 export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): Promise<string> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await page.locator(SEL.blankFormCard).first().click();
-    const input = page.locator(SEL.createFormTitleInput);
-    await input.waitFor({ state: 'visible', timeout: 15_000 });
-    await input.fill('');
-    await input.type(title, { delay: 5 });
-    await input.dispatchEvent('input');
-    await input.dispatchEvent('change');
+  const alert = await openCreateFormPrompt(page);
+  await waitForPresentedCreateFormAlert(alert);
 
-    const save = page.locator(SEL.createFormSaveButton).first();
-    await expect
-      .poll(
-        () =>
-          save.evaluate((el) => {
-            const button = el as HTMLButtonElement;
-            const style = window.getComputedStyle(button);
-            return !button.disabled && button.getAttribute('aria-disabled') !== 'true' && style.pointerEvents !== 'none';
-          }),
-        {
-          message: 'create form save button should become enabled',
-          timeout: 5_000,
-        },
-      )
-      .toBe(true);
+  const input = alert.locator(SEL.createFormTitleInput).first();
+  await expect(input, 'create form title input should be visible').toBeVisible({ timeout: 15_000 });
+  await fillCreateFormTitle(input, title);
 
-    await save.click();
-    if (await expectRoute(page, ROUTE.editor, 25_000).then(() => true).catch(() => false)) {
-      break;
-    }
+  const save = alert.locator(SEL.createFormSaveButton).first();
+  await expect(save, 'create form save button should be visible').toBeVisible({ timeout: 10_000 });
+  await expect
+    .poll(
+      async () => {
+        if (!(await save.isVisible({ timeout: 500 }).catch(() => false))) {
+          return false;
+        }
+        return save.evaluate((el) => {
+          const element = el as HTMLElement & { disabled?: boolean };
+          const style = window.getComputedStyle(element);
+          return element.disabled !== true && element.getAttribute('aria-disabled') !== 'true' && style.pointerEvents !== 'none';
+        });
+      },
+      {
+        message: 'create form save button should become enabled',
+        timeout: 10_000,
+      },
+    )
+    .toBe(true);
 
-    const existingCard = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
-    if (await existingCard.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await existingCard.click();
-      if (await expectRoute(page, ROUTE.editor, 30_000).then(() => true).catch(() => false)) {
-        break;
-      }
-    }
+  await save.click({ timeout: 10_000 });
 
-    const alert = page.locator('ion-alert.alert-custom-createapp').first();
-    if (await alert.isVisible().catch(() => false)) {
-      await input.press('Enter').catch(() => undefined);
-      if (await expectRoute(page, ROUTE.editor, 25_000).then(() => true).catch(() => false)) {
-        break;
-      }
-      await page.keyboard.press('Escape').catch(() => undefined);
-      await expect(alert).toBeHidden({ timeout: 5_000 }).catch(() => undefined);
-    }
-
-    if (attempt === 2) {
-      throw new Error(`form "${title}" was not opened in the editor; current URL is ${page.url()}`);
-    }
+  if (!(await expectRoute(page, ROUTE.editor, 60_000).then(() => true).catch(() => false))) {
+    const createdInSelector = await page.getByText(title, { exact: true }).first().isVisible({ timeout: 2_000 }).catch(() => false);
+    throw new Error(
+      createdInSelector
+        ? `form "${title}" was created but the application did not automatically switch to the editor; current URL is ${page.url()}`
+        : `form "${title}" was not opened in the editor after creation; current URL is ${page.url()}`,
+    );
   }
 
   const id = page.url().match(/editor\/(\d+)/)?.[1];
@@ -3121,6 +3168,92 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
   return id;
 }
 
+async function openCreateFormPrompt(page: Page): Promise<Locator> {
+  const alertSelector = 'ion-alert.alert-custom-createapp:not(.overlay-hidden)';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await waitForIonicLoading(page, 10_000);
+    await expectRoute(page, ROUTE.selector, attempt === 0 ? 30_000 : 5_000).catch(() => undefined);
+
+    const existingAlert = page.locator(alertSelector).last();
+    if (await existingAlert.isVisible({ timeout: 500 }).catch(() => false)) {
+      return existingAlert;
+    }
+
+    const card = await firstVisibleLocator(page, SEL.blankFormCard, 'blank form card', attempt === 0 ? 15_000 : 5_000);
+    await card.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await card.click({ timeout: 10_000 }).catch(() => undefined);
+
+    const alert = page.locator(alertSelector).last();
+    if (await alert.isVisible({ timeout: attempt === 0 ? 10_000 : 5_000 }).catch(() => false)) {
+      await expect(alert, 'create form prompt should be visible').toBeVisible({ timeout: 5_000 });
+      return alert;
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  throw new Error(`create form prompt did not open after clicking the blank form card; current URL is ${page.url()}`);
+}
+
+async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        alert.evaluate((el) => {
+          const host = el as HTMLElement;
+          const wrapper = host.querySelector('.alert-wrapper') as HTMLElement | null;
+          const input = host.querySelector('input.alert-input') as HTMLInputElement | null;
+          if (!wrapper || !input || host.classList.contains('overlay-hidden')) {
+            return false;
+          }
+
+          const wrapperStyle = window.getComputedStyle(wrapper);
+          const inputStyle = window.getComputedStyle(input);
+          const rect = input.getBoundingClientRect();
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            wrapperStyle.display !== 'none' &&
+            wrapperStyle.visibility !== 'hidden' &&
+            inputStyle.display !== 'none' &&
+            inputStyle.visibility !== 'hidden' &&
+            !input.disabled &&
+            !input.readOnly
+          );
+        }),
+      {
+        message: 'create form prompt should be presented and editable',
+        timeout: 15_000,
+      },
+    )
+    .toBe(true);
+}
+
+async function fillCreateFormTitle(input: Locator, title: string): Promise<void> {
+  try {
+    await input.fill(title, { timeout: 3_000 });
+  } catch {
+    await input.evaluate((el, value) => {
+      const input = el as HTMLInputElement;
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      input.focus();
+      descriptor?.set?.call(input, '');
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      descriptor?.set?.call(input, value);
+      input.dispatchEvent(
+        new InputEvent('input', {
+          bubbles: true,
+          composed: true,
+          data: value,
+          inputType: 'insertText',
+        }),
+      );
+      input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    }, title);
+  }
+  await expect(input, 'create form title should be filled before saving').toHaveValue(title, { timeout: 10_000 });
+}
+
 /**
  * Add a component to the current page by double-clicking its palette tile.
  * `icon` is the tile's icon filename — use a PALETTE_ICON entry. Verifies the
@@ -3130,25 +3263,25 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
 export async function openComponentsPalette(page: Page, waitForIcon = PALETTE_ICON.select): Promise<void> {
   await acceptRgpdIfVisible(page);
   const tileSelector = componentPaletteTileSelector(waitForIcon);
-  if (await firstVisibleLocatorOrNull(page, tileSelector, 1_000)) {
+  if (await paletteTileForIconOrNull(page, waitForIcon, 1_000)) {
     return;
   }
   if (!(await page.locator(SEL.componentPaletteSearch).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
     await clickFirstVisible(page, SEL.componentPanelButton, 'component palette panel');
   }
   for (let attempt = 0; attempt < 8; attempt++) {
-    if (await firstVisibleLocatorOrNull(page, tileSelector, 500)) {
+    if (await paletteTileForIconOrNull(page, waitForIcon, 500)) {
       return;
     }
     await page.locator(tileSelector).first().scrollIntoViewIfNeeded().catch(() => undefined);
-    if (await firstVisibleLocatorOrNull(page, tileSelector, 500)) {
+    if (await paletteTileForIconOrNull(page, waitForIcon, 500)) {
       return;
     }
     await page.mouse.move(180, 350);
     await page.mouse.wheel(0, 450);
     await page.waitForTimeout(250);
   }
-  await firstVisibleLocator(page, tileSelector, `component palette tile ${waitForIcon}`);
+  await paletteTileForIcon(page, waitForIcon, `component palette tile ${waitForIcon}`);
 }
 
 export async function openWorkflowsPanel(page: Page): Promise<void> {
@@ -3188,11 +3321,7 @@ export async function createTextBusinessLogicFormula(
   const before = await page.locator(SEL.businessLogicComponent).count();
   for (let attempt = 0; attempt < 3; attempt++) {
     await openComponentsPalette(page, PALETTE_ICON.businessLogic);
-    const tile = await firstVisibleLocator(
-      page,
-      componentPaletteTileSelector(PALETTE_ICON.businessLogic),
-      'business logic formula palette tile',
-    );
+    const tile = await paletteTileForIcon(page, PALETTE_ICON.businessLogic, 'business logic formula palette tile');
     await tile.scrollIntoViewIfNeeded().catch(() => undefined);
     await tile.dblclick({ force: true, delay: 75 }).catch(() => undefined);
     await openWorkflowsPanel(page);
@@ -3248,11 +3377,10 @@ async function closeBusinessLogicFormulaConfig(page: Page): Promise<void> {
 }
 
 export async function addComponent(page: Page, icon: string): Promise<void> {
-  const tileSelector = componentPaletteTileSelector(icon);
   const before = await countComponents(page);
   for (let attempt = 0; attempt < 3; attempt++) {
     await acceptRgpdIfVisible(page);
-    const tile = await firstVisibleLocator(page, tileSelector, `component palette tile ${icon}`);
+    const tile = await paletteTileForIcon(page, icon, `component palette tile ${icon}`);
     try {
       await tile.scrollIntoViewIfNeeded({ timeout: 5_000 });
       await tile.dblclick({ delay: 75, timeout: 5_000 });
@@ -3343,8 +3471,69 @@ export async function setTechnicalId(page: Page, value: string): Promise<void> {
   await page.waitForTimeout(1_500); // editor persists the rename on blur
 }
 
+async function paletteTileForIcon(page: Page, icon: string, description: string, timeout = 30_000): Promise<Locator> {
+  const locator = await paletteTileForIconOrNull(page, icon, timeout);
+  if (!locator) {
+    throw new Error(`No visible ${description} found for icon ${icon}`);
+  }
+  return locator;
+}
+
+async function paletteTileForIconOrNull(page: Page, icon: string, timeout: number): Promise<Locator | null> {
+  const startedAt = Date.now();
+  const tileSelector = componentPaletteTileSelector(icon);
+  const byIcon = await firstVisibleLocatorOrNull(page, tileSelector, Math.min(timeout, 1_000));
+  if (byIcon) {
+    return byIcon;
+  }
+
+  const searchTerm = PALETTE_SEARCH_TERM_BY_ICON[icon];
+  const remainingAfterIcon = Math.max(0, timeout - (Date.now() - startedAt));
+  if (!searchTerm || remainingAfterIcon <= 0) {
+    return firstVisibleLocatorOrNull(page, tileSelector, remainingAfterIcon);
+  }
+
+  const searchbar = page.locator(SEL.componentPaletteSearch).first();
+  if (!(await searchbar.isVisible({ timeout: Math.min(remainingAfterIcon, 1_000) }).catch(() => false))) {
+    return firstVisibleLocatorOrNull(page, tileSelector, Math.max(0, timeout - (Date.now() - startedAt)));
+  }
+
+  await fillComponentPaletteSearch(page, searchTerm);
+  const remainingAfterSearch = Math.max(0, timeout - (Date.now() - startedAt));
+  return firstVisibleLocatorOrNull(page, paletteTileCandidateSelector(), remainingAfterSearch);
+}
+
+async function fillComponentPaletteSearch(page: Page, query: string): Promise<void> {
+  const searchbar = page.locator(SEL.componentPaletteSearch).first();
+  await expect(searchbar, 'component palette search should be visible').toBeVisible({ timeout: 15_000 });
+  await searchbar.evaluate((element, value) => {
+    const search = element as HTMLElement & { value?: string; shadowRoot?: ShadowRoot | null };
+    const root = search.shadowRoot ?? search;
+    const input = root.querySelector('input') as HTMLInputElement | null;
+    search.value = value;
+    if (input) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    }
+    search.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, composed: true, detail: { value } }));
+    search.dispatchEvent(new CustomEvent('ionChange', { bubbles: true, composed: true, detail: { value } }));
+  }, query);
+  await page.waitForTimeout(300);
+}
+
+function paletteTileCandidateSelector(): string {
+  return [
+    '#bloc-palette [draggable="true"]',
+    '#bloc-palette ion-col.class1650357035574',
+    'ion-col.class1650357035574',
+  ].join(', ');
+}
+
 function componentPaletteTileSelector(icon: string): string {
   return [
+    `#bloc-palette [draggable="true"]:has(img[src$="${icon}"])`,
+    `#bloc-palette ion-col.class1650357035574:has(img[src$="${icon}"])`,
     `[draggable="true"]:has(img[src$="${icon}"])`,
     `ion-col.class1650357035574:has(img[src$="${icon}"])`,
   ].join(', ');
@@ -4055,6 +4244,27 @@ async function clickFirstVisible(
   });
 }
 
+async function lastVisibleLocator(page: Page, selector: string, description: string, timeout = 15_000): Promise<Locator> {
+  const deadline = Date.now() + timeout;
+  let lastCount = 0;
+
+  while (Date.now() < deadline) {
+    const elements = page.locator(selector);
+    const count = await elements.count();
+    lastCount = count;
+
+    for (let i = count - 1; i >= 0; i--) {
+      const candidate = elements.nth(i);
+      if (await candidate.isVisible({ timeout: 500 }).catch(() => false)) {
+        return candidate;
+      }
+    }
+    await page.waitForTimeout(250);
+  }
+
+  throw new Error(`No visible ${description} found for selector ${selector} (${lastCount} candidates)`);
+}
+
 async function clickFirstUncovered(page: Page, locator: Locator, description: string, timeout = 15_000): Promise<void> {
   const deadline = Date.now() + timeout;
   let lastError: unknown;
@@ -4550,8 +4760,7 @@ export async function recordedToasts(page: Page): Promise<string[]> {
  * wait for the tile, then retry once if the layout did not get added.
  */
 export async function addHorizontalLayout(page: Page): Promise<void> {
-  const tile = page.locator(`[draggable="true"]:has(img[src$="${PALETTE_ICON.layout}"])`).first();
-  await tile.waitFor({ state: 'visible', timeout: 30_000 });
+  const tile = await paletteTileForIcon(page, PALETTE_ICON.layout, 'Horizontal layout palette tile');
   const layout = page.locator(SEL.layoutViewer);
   for (let attempt = 0; attempt < 2; attempt++) {
     await page.waitForTimeout(1_200);
@@ -4581,7 +4790,7 @@ export async function dragPaletteComponentInto(
   paletteIcon: string,
   containerSelector: string,
 ): Promise<void> {
-  const tile = page.locator(`[draggable="true"]:has(img[src$="${paletteIcon}"])`).first();
+  const tile = await paletteTileForIcon(page, paletteIcon, `palette tile ${paletteIcon}`);
   const tb = await tile.boundingBox();
   if (!tb) throw new Error(`Palette tile not found for icon ${paletteIcon}`);
 

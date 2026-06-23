@@ -5,6 +5,7 @@ import {
   addComponent,
   closeComponentConfig,
   createBlankForm,
+  expectConditionActionModesSwitchable,
   expectFlowConditionOperatorSelectForField,
   login,
   openButtonFlowConditionActionConfig,
@@ -27,8 +28,9 @@ import {
  *
  * The form fixture is built entirely through Studio UI: create a blank form,
  * add a Button, open its workflow, add a Condition action, select the generated
- * Condition action id from the If field picker, then assert that an operator
- * select is visible for that workflow field.
+ * Condition action id from the If field picker, assert that the If editor can
+ * switch between Fields/Aa/JS modes, then assert that an operator select is
+ * visible for that workflow field.
  */
 
 const BUTTON_ID = 'button_1334';
@@ -36,7 +38,7 @@ const CONDITION_ACTION_ID = 'if_else1';
 
 test.setTimeout(180_000);
 
-test('#1334 - If condition workflow fields show an operator selector', async ({ page }) => {
+test('#1334 - If condition workflow fields expose Fields/Aa/JS modes and an operator selector', async ({ page }) => {
   await test.step('Log in to C8oForms', async () => {
     await login(page);
   });
@@ -56,6 +58,9 @@ test('#1334 - If condition workflow fields show an operator selector', async ({ 
     await openButtonFlowConditionActionConfig(page);
   });
 
-  await selectFlowConditionField(page, CONDITION_ACTION_ID);
-  await expectFlowConditionOperatorSelectForField(page, CONDITION_ACTION_ID);
+  await test.step('Assert Condition editor modes', async () => {
+    await selectFlowConditionField(page, CONDITION_ACTION_ID);
+    await expectConditionActionModesSwitchable(page, CONDITION_ACTION_ID);
+    await expectFlowConditionOperatorSelectForField(page, CONDITION_ACTION_ID);
+  });
 });
