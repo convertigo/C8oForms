@@ -1,4 +1,4 @@
-import { test, expect, type Browser } from '@playwright/test';
+import { test, expect, type Browser } from './fixtures';
 import { execFileSync } from 'node:child_process';
 import { ensureBaserowTable } from './helpers/baserow';
 import {

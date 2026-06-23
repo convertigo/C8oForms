@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from './fixtures';
 import { OPERATOR_CASES, OPERATOR_SOURCES, runVisibilityCases } from './helpers/visibility-matrix';
 
 /**
