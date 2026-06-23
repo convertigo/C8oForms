@@ -3483,6 +3483,15 @@ async function paletteTileForIcon(page: Page, icon: string, description: string,
   return locator;
 }
 
+async function draggablePaletteTileForIcon(page: Page, icon: string, description: string, timeout = 30_000): Promise<Locator> {
+  await paletteTileForIcon(page, icon, description, timeout);
+  const locator = await firstVisibleLocatorOrNull(page, draggableComponentPaletteTileSelector(icon), timeout);
+  if (!locator) {
+    throw new Error(`No visible draggable ${description} found for icon ${icon}`);
+  }
+  return locator;
+}
+
 async function paletteTileForIconOrNull(page: Page, icon: string, timeout: number): Promise<Locator | null> {
   const startedAt = Date.now();
   const tileSelector = componentPaletteTileSelector(icon);
@@ -3540,6 +3549,13 @@ function componentPaletteTileSelector(icon: string): string {
     `#bloc-palette ion-col.class1650357035574:has(img[src$="${icon}"])`,
     `[draggable="true"]:has(img[src$="${icon}"])`,
     `ion-col.class1650357035574:has(img[src$="${icon}"])`,
+  ].join(', ');
+}
+
+function draggableComponentPaletteTileSelector(icon: string): string {
+  return [
+    `#bloc-palette [draggable="true"]:has(img[src$="${icon}"])`,
+    `[draggable="true"]:has(img[src$="${icon}"])`,
   ].join(', ');
 }
 
@@ -4794,7 +4810,63 @@ export async function dragPaletteComponentInto(
   paletteIcon: string,
   containerSelector: string,
 ): Promise<void> {
-  const tile = await paletteTileForIcon(page, paletteIcon, `palette tile ${paletteIcon}`);
+  await enableNativeDropDeliveryForLayoutDropZones(page);
+  const tile = await draggablePaletteTileForIcon(page, paletteIcon, `palette tile ${paletteIcon}`);
+  const container = page.locator(containerSelector).first();
+  const children = page.locator(`${containerSelector} ${SEL.layoutChild}`);
+  const before = await children.count();
+
+  await dragPaletteComponentWithPointer(page, tile, container, containerSelector, paletteIcon);
+  if (await waitForLayoutChildCount(children, before + 1, 6_000)) {
+    return;
+  }
+
+  await page.mouse.up().catch(() => undefined);
+  await page.waitForTimeout(500);
+  await dragPaletteComponentWithDragTo(page, tile, container, paletteIcon);
+  if (await waitForLayoutChildCount(children, before + 1, 8_000)) {
+    return;
+  }
+
+  await expect(
+    children,
+    `dragging ${paletteIcon} into ${containerSelector} should add a nested layout child`,
+  ).toHaveCount(before + 1, { timeout: 3_000 });
+}
+
+async function enableNativeDropDeliveryForLayoutDropZones(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __c8oLayoutDropDeliveryInstalled?: boolean };
+    if (w.__c8oLayoutDropDeliveryInstalled) return;
+    w.__c8oLayoutDropDeliveryInstalled = true;
+    document.addEventListener(
+      'dragover',
+      (event) => {
+        const dragEvent = event as DragEvent;
+        const target = event.target as Element | null;
+        const dataTransfer = dragEvent.dataTransfer;
+        if (
+          target?.closest?.('c8oforms-shareddropindicator, .class1600440331787') &&
+          dataTransfer &&
+          Array.from(dataTransfer.types || []).includes('__c8oformsdrag')
+        ) {
+          // Firefox only delivers a native drop if dragover was synchronously
+          // cancelled. C8Oforms still handles the real drop event itself.
+          dragEvent.preventDefault();
+        }
+      },
+      true,
+    );
+  });
+}
+
+async function dragPaletteComponentWithPointer(
+  page: Page,
+  tile: Locator,
+  container: Locator,
+  containerSelector: string,
+  paletteIcon: string,
+): Promise<void> {
   const tb = await tile.boundingBox();
   if (!tb) throw new Error(`Palette tile not found for icon ${paletteIcon}`);
 
@@ -4803,7 +4875,6 @@ export async function dragPaletteComponentInto(
   // a small initial move starts the native drag
   await page.mouse.move(tb.x + tb.width / 2 + 10, tb.y + tb.height / 2 + 10, { steps: 6 });
 
-  const container = page.locator(containerSelector).first();
   const cb = await container.boundingBox();
   if (!cb) throw new Error(`drop container not found: ${containerSelector}`);
   await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2, { steps: 25 });
@@ -4820,6 +4891,29 @@ export async function dragPaletteComponentInto(
   await page.waitForTimeout(300);
   await page.mouse.up();
   await page.waitForTimeout(1_500);
+}
+
+async function dragPaletteComponentWithDragTo(
+  page: Page,
+  tile: Locator,
+  container: Locator,
+  paletteIcon: string,
+): Promise<void> {
+  await expect(tile, `draggable palette tile ${paletteIcon} should be visible`).toBeVisible({ timeout: 10_000 });
+  await expect(container, 'drop container should be visible').toBeVisible({ timeout: 10_000 });
+  await tile.dragTo(container).catch(() => undefined);
+  await page.waitForTimeout(1_500);
+}
+
+async function waitForLayoutChildCount(children: Locator, expected: number, timeout: number): Promise<boolean> {
+  return expect
+    .poll(() => children.count(), {
+      message: `layout should contain ${expected} nested child component(s)`,
+      timeout,
+    })
+    .toBe(expected)
+    .then(() => true)
+    .catch(() => false);
 }
 
 /**
