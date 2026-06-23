@@ -338,6 +338,74 @@ async function grantTestUserRights(endpoint, user) {
   }
 }
 
+const FULLSYNC_DATA_DBS = ['c8oforms_fs', 'c8oforms_response_fs'];
+
+function shouldResetUserData() {
+  const v = process.env.E2E_RESET_USER_DATA;
+  return v === '1' || v === 'true';
+}
+
+// Delete every document a test user owns — edition forms (drafts), published
+// forms and their _pwa_document/_anonymous counterparts, folders and responses —
+// so each CI run starts from a clean, light account (a bloated FullSync makes
+// the editor slow to load). Runs as admin (engine TEST_PLATFORM_PRIVATE), which
+// can query/delete across the per-user FullSync ACL. The user's settings doc
+// (C8Oreserved_) and shared design/template docs are preserved.
+async function cleanupUserData(endpoint, user) {
+  let total = 0;
+  for (const db of FULLSYNC_DATA_DBS) {
+    const docs = await findUserOwnedDocs(endpoint, db, user);
+    if (docs.length === 0) continue;
+    await bulkDeleteDocs(endpoint, db, docs);
+    total += docs.length;
+  }
+  console.log(`reset ${total} leftover document(s) for ${user}`);
+}
+
+// Ownership is split: edition/published/folders/anonymous carry creator == user,
+// but PWA documents (published_<id>_pwa_document) have no creator and only
+// ~c8oAcl == user, while anonymous docs (published_<id>_anonymous) carry creator
+// but a hashed ~c8oAcl. Matching on EITHER catches every owned doc type.
+async function findUserOwnedDocs(endpoint, db, user) {
+  const found = [];
+  let bookmark = null;
+  for (let page = 0; page < 1000; page++) {
+    const body = {
+      selector: { $or: [{ creator: user }, { '~c8oAcl': user }] },
+      fields: ['_id', '_rev'],
+      limit: 500,
+    };
+    if (bookmark) body.bookmark = bookmark;
+    const response = await fetch(`${endpoint}/fullsync/${db}/_find`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(adminCookie ? { Cookie: adminCookie } : {}) },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`FullSync _find on ${db} failed for ${user}: ${response.status} ${(await response.text()).slice(0, 300)}`);
+    }
+    const json = await response.json();
+    // Never delete the user settings doc or shared design docs.
+    const docs = (json.docs || []).filter((d) => !d._id.startsWith('C8Oreserved_') && !d._id.startsWith('_design'));
+    found.push(...docs);
+    bookmark = json.bookmark;
+    if (!json.docs || json.docs.length < 500) break;
+  }
+  return found;
+}
+
+async function bulkDeleteDocs(endpoint, db, docs) {
+  const payload = { docs: docs.map((d) => ({ _id: d._id, _rev: d._rev, _deleted: true })) };
+  const response = await fetch(`${endpoint}/fullsync/${db}/_bulk_docs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(adminCookie ? { Cookie: adminCookie } : {}) },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`FullSync _bulk_docs delete on ${db} failed: ${response.status} ${(await response.text()).slice(0, 300)}`);
+  }
+}
+
 function patchSucceeded(json) {
   return (
     json?.success === true ||
@@ -459,6 +527,9 @@ async function ensureUser(endpoint, user, password, index) {
     throw new Error(`Prepared ${user} but login still fails with login=${user}`);
   }
   await provisionBaserowAccount(endpoint, user, await loginSession(endpoint, user, password));
+  if (shouldResetUserData()) {
+    await cleanupUserData(endpoint, user);
+  }
   console.log(`test user ${index + 1}: ${user} ready${actions.length > 0 ? ` (${actions.join(', ')})` : ''}`);
 }
 
