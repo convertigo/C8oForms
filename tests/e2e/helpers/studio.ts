@@ -2680,18 +2680,38 @@ async function ensureBaserowActionVariableRow(page: Page, column: string): Promi
     })
     .toBeGreaterThan(before);
 
-  const columnInput = page.locator(BASEROW_ACTION_VARIABLE_INPUT).last();
+  await fillBaserowActionColumnInput(page, column);
+  await expectBaserowActionColumnMapped(page, column);
+}
+
+async function fillBaserowActionColumnInput(page: Page, column: string): Promise<void> {
+  const columnIonInput = page.locator(`${BASEROW_ACTION_VARIABLE_ROW} ion-input`).last();
+  const columnInput = columnIonInput.locator('input').first();
   await expect(columnInput, `Baserow action column input for ${column} should be visible`).toBeVisible({ timeout: 10_000 });
   await columnInput.scrollIntoViewIfNeeded().catch(() => undefined);
   await columnInput.fill(column);
+  await columnIonInput.evaluate((element, value) => {
+    const host = element as HTMLElement & { value?: string };
+    const input = ((host.shadowRoot ?? host).querySelector('input') ?? host.querySelector('input')) as HTMLInputElement | null;
+    host.value = value;
+    if (input) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+      input.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, composed: true, detail: { value } }));
+      input.dispatchEvent(new CustomEvent('ionChange', { bubbles: true, composed: true, detail: { value } }));
+    }
+    host.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, composed: true, detail: { value } }));
+    host.dispatchEvent(new CustomEvent('ionChange', { bubbles: true, composed: true, detail: { value } }));
+  }, column);
+  await columnInput.press('Tab').catch(() => undefined);
   await expect
     .poll(() => columnInput.inputValue().catch(() => ''), {
       message: `Baserow action column input should keep ${column}`,
       timeout: 5_000,
     })
     .toBe(column);
-  await columnInput.press('Tab').catch(() => undefined);
-  await expectBaserowActionColumnMapped(page, column);
+  await page.waitForTimeout(500);
 }
 
 async function mapBaserowActionVariable(
@@ -2703,6 +2723,7 @@ async function mapBaserowActionVariable(
   await selectBaserowActionVariable(page, column);
   await ensureBaserowActionSourcePaletteVisible(page, column);
   await dragSourcePaletteEntryToTinyMce(page, sourceSection, sourceLabel);
+  await expectBaserowActionVariableEditorContains(page, column, sourceLabel);
 }
 
 async function ensureBaserowActionSourcePaletteVisible(page: Page, column: string): Promise<void> {
@@ -2724,6 +2745,7 @@ async function ensureBaserowActionSourcePaletteVisible(page: Page, column: strin
 async function selectBaserowActionVariable(page: Page, column: string): Promise<void> {
   const button = baserowActionVariableButton(page, column);
   await expect(button, `Baserow action variable ${column} should exist`).toHaveCount(1, { timeout: 10_000 });
+  await button.scrollIntoViewIfNeeded().catch(() => undefined);
   if (await button.isVisible({ timeout: 500 }).catch(() => false)) {
     await button.click({ timeout: 5_000 }).catch(async () => button.dispatchEvent('click'));
   } else {
@@ -2731,11 +2753,26 @@ async function selectBaserowActionVariable(page: Page, column: string): Promise<
   }
 
   await expect
-    .poll(() => page.locator(BASEROW_ACTION_VARIABLE_INPUT).last().inputValue().catch(() => ''), {
+    .poll(() => currentBaserowActionColumn(page), {
       message: `Baserow action variable ${column} should be selected`,
       timeout: 10_000,
     })
     .toBe(column);
+}
+
+async function currentBaserowActionColumn(page: Page): Promise<string> {
+  return page.locator(BASEROW_ACTION_VARIABLE_INPUT).last().inputValue().catch(() => '');
+}
+
+async function expectBaserowActionVariableEditorContains(page: Page, column: string, sourceLabel: string): Promise<void> {
+  await selectBaserowActionVariable(page, column);
+  const editorBody = await visibleTinyMceBody(page);
+  await expect
+    .poll(() => editorContainsPaletteEntry(editorBody, sourceLabel), {
+      message: `Baserow action variable ${column} should contain ${sourceLabel}`,
+      timeout: 10_000,
+    })
+    .toBe(true);
 }
 
 async function isBaserowActionColumnMapped(page: Page, column: string): Promise<boolean> {
