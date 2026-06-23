@@ -87,6 +87,7 @@ export const SEL = {
   workflowsPanelButton: 'ion-button.class1773250515928, ion-button.class1780909504555',
   workflowsSearchbar: 'ion-searchbar.class1774523913949',
   workflowEntry: '#bloc-palette [draggable="true"]',
+  buttonWorkflowEntry: '#bloc-palette [draggable="true"]:not(#unique_formulas):not(#unique_submit)',
   submitFlowButton: '#unique_submit',
   pageRow: '.class1775140559440, .class1749805611480, .class1650357059456, .class1650357059543',
   pageEditButton:
@@ -2027,15 +2028,24 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
 
 async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
-  let flow = flowName
-    ? page.locator('[draggable="true"]').filter({ hasText: flowName }).first()
-    : page.locator(SEL.submitFlowButton).first();
-  if (!flowName && !(await flow.isVisible({ timeout: 2_000 }).catch(() => false))) {
-    flow = page.locator('[draggable="true"]').filter({ hasText: /Flow button/i }).first();
+  const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();
+  let flow = buttonFlow;
+  if (flowName) {
+    const namedFlow = page.locator(SEL.workflowEntry).filter({ hasText: flowName }).first();
+    if (await namedFlow.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      flow = namedFlow;
+    } else if (!isButtonWorkflowLabelHint(flowName)) {
+      flow = namedFlow;
+    }
   }
   await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
   await flow.click({ timeout: 10_000 }).catch(async () => flow.dispatchEvent('click'));
   await page.waitForTimeout(1_000);
+}
+
+function isButtonWorkflowLabelHint(flowName: string | RegExp): boolean {
+  const value = typeof flowName === 'string' ? flowName : flowName.source;
+  return /flow\s*button/i.test(value);
 }
 
 async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
