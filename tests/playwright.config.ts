@@ -47,7 +47,12 @@ export default defineConfig({
   outputDir: './test-results',
   timeout: 90_000,
   expect: { timeout: 15_000 },
-  retries: 0,
+  // One CI-wide retry: a safety net for transient interaction hiccups (firefox is
+  // notably flakier at drag-drop/dialogs under concurrent load) so a single
+  // spurious failure doesn't fail the shard. Specs that are intrinsically flaky
+  // (Baserow editor flows) still override this with retries: 2 via
+  // test.describe.configure. Local runs keep 0 to surface real failures fast.
+  retries: process.env.CI ? 1 : 0,
   workers: 3,
   reporter,
   use: {

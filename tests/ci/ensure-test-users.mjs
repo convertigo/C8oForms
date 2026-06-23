@@ -340,6 +340,19 @@ async function grantTestUserRights(endpoint, user) {
 
 const FULLSYNC_DATA_DBS = ['c8oforms_fs', 'c8oforms_response_fs'];
 
+// The #1421 regression test relies on a hand-seeded legacy anonymous form that
+// lives on the primary account but is NOT recreated by CI (seed:1421 is run
+// manually). It carries the primary user's creator/~c8oAcl, so the per-run purge
+// would otherwise wipe it and make #1421 fail with "Missing legacy anonymous
+// fixture". Preserve its four fixed doc ids (see tests/fixtures/forms/1421).
+const FIXTURE_1421_BASE_ID = '1670939636590';
+const PRESERVED_DOC_IDS = new Set([
+  FIXTURE_1421_BASE_ID,
+  `published_${FIXTURE_1421_BASE_ID}`,
+  `published_${FIXTURE_1421_BASE_ID}_anonymous`,
+  `published_${FIXTURE_1421_BASE_ID}_pwa_document`,
+]);
+
 function shouldResetUserData() {
   const v = process.env.E2E_RESET_USER_DATA;
   return v === '1' || v === 'true';
@@ -385,8 +398,11 @@ async function findUserOwnedDocs(endpoint, db, user) {
       throw new Error(`FullSync _find on ${db} failed for ${user}: ${response.status} ${(await response.text()).slice(0, 300)}`);
     }
     const json = await response.json();
-    // Never delete the user settings doc or shared design docs.
-    const docs = (json.docs || []).filter((d) => !d._id.startsWith('C8Oreserved_') && !d._id.startsWith('_design'));
+    // Never delete the user settings doc, shared design docs, or the hand-seeded
+    // #1421 fixture (not recreated by CI).
+    const docs = (json.docs || []).filter(
+      (d) => !d._id.startsWith('C8Oreserved_') && !d._id.startsWith('_design') && !PRESERVED_DOC_IDS.has(d._id),
+    );
     found.push(...docs);
     bookmark = json.bookmark;
     if (!json.docs || json.docs.length < 500) break;
