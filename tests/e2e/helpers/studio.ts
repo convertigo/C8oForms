@@ -26,6 +26,7 @@ export const SEL = {
   // component style panel tabs
   styleTab: '.class1775832335416',
   styleTabsContainer: '[data-main-editor-tabs-buttons="style"]',
+  styleSectionLabel: '.span-style',
   // component config panel "Configuration" section label
   configSectionLabel: '.span-configuration',
   // config panel close button
@@ -51,6 +52,9 @@ export const SEL = {
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
+  gridFooterSetting: '.class1782121400000',
+  gridPaginationSetting: '.class1782121400010',
+  gridRowsPerPageSetting: '.class1782121400030',
   chartComponent: 'c8oforms-itemchartviewer',
   chartHeightModeToggle: '.class1780577000001',
   chartPersonalizedHeightInput: '.class1776605300014 input',
@@ -129,7 +133,7 @@ export const SEL = {
   selectorListTitle: '.class1780484375240',
   cardMenuButton: 'ion-button.class1606574763560',
   selectorCollaboratorsMenuItem:
-    'ion-popover:not(.overlay-hidden) page-popoverpageselector ion-item:has(ion-icon.class1603730321735), ion-popover:not(.overlay-hidden) page-popoverpageselector ion-item.class1594313281739',
+    'ion-item.class1594313281739, ion-item:has(ion-icon.class1603730321735)',
   collaboratorsModal: 'ion-modal.show-modal page-manageaccessrights',
   collaboratorSearchInput: 'c8oforms-ngxtaginputcustomc8oforms ng-select input[role="combobox"], tag-input input',
   collaboratorAutocompleteOption: 'ng-dropdown-panel .ng-option, tag-input-dropdown .ng2-menu-item, ng2-dropdown-menu .ng2-menu-item',
@@ -210,6 +214,7 @@ type MainEditorConfigTab =
   | 'data_interactions';
 
 type ChartHeightMode = 'auto' | 'personalized';
+type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
 
 export async function setStudioLanguageBeforeLoad(page: Page, lang: StudioLanguage): Promise<void> {
@@ -1169,26 +1174,93 @@ async function openSelectorCardCollaboratorsModal(page: Page, title: string): Pr
   const overlayMenu = page.locator(`[id="${menuOverlayId}"] ${SEL.cardMenuButton}`).first();
   for (let attempt = 0; attempt < 3; attempt++) {
     await dismissVisiblePopovers(page);
-    await card.hover({ timeout: 2_000 }).catch(async () => {
-      await card.dispatchEvent('mouseenter');
-    });
-    await page.waitForTimeout(300);
+    await revealSelectorCardMenu(page, card);
 
-    const menu = (await cardMenu.isVisible({ timeout: 1_000 }).catch(() => false)) ? cardMenu : overlayMenu;
-    await expect(menu, 'selector card menu button should be visible').toBeVisible({ timeout: 5_000 });
-    await menu.click({ timeout: 3_000 }).catch(async () => {
-      await menu.evaluate((el) => (el as HTMLElement).click());
-    });
+    for (const menu of [overlayMenu, cardMenu]) {
+      if (!(await menu.isVisible({ timeout: 1_000 }).catch(() => false))) {
+        continue;
+      }
 
-    const item = page.locator(`${SEL.selectorCollaboratorsMenuItem}:visible`).first();
-    if (await item.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await item.click();
-      return;
+      await clickSelectorCardMenuButton(page, menu);
+      if (await clickVisibleSelectorCollaboratorsMenuItem(page)) {
+        return;
+      }
+
+      await dismissVisiblePopovers(page);
+      await revealSelectorCardMenu(page, card);
     }
-    await dismissVisiblePopovers(page);
   }
 
   throw new Error(`Could not open collaborators menu item for selector card ${title}`);
+}
+
+async function revealSelectorCardMenu(page: Page, card: Locator): Promise<void> {
+  await card.hover({ timeout: 2_000 }).catch(async () => {
+    await card.dispatchEvent('mouseenter');
+  });
+  await page.waitForTimeout(300);
+}
+
+async function clickSelectorCardMenuButton(page: Page, menu: Locator): Promise<void> {
+  await menu.click({ timeout: 3_000, force: true }).catch(async () => {
+    await menu.evaluate((el) => (el as HTMLElement).click()).catch(async () => {
+      await menu.dispatchEvent('click').catch(() => undefined);
+    });
+  });
+  await page
+    .locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector')
+    .last()
+    .waitFor({ state: 'visible', timeout: 2_000 })
+    .catch(() => undefined);
+}
+
+async function clickVisibleSelectorCollaboratorsMenuItem(page: Page): Promise<boolean> {
+  const popover = page.locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector').last();
+  if (!(await popover.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.selectorCollaboratorsMenuItem).first();
+  if (await item.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await item.click({ timeout: 3_000 }).catch(async () => {
+      await item.evaluate((el) => (el as HTMLElement).click());
+    });
+  } else {
+    const clicked = await page.evaluate(() => {
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden) page-popoverpageselector')]
+        .filter(isVisible)
+        .reverse();
+      for (const root of popovers) {
+        const item = [...root.querySelectorAll('ion-item')].find(
+          (candidate) =>
+            isVisible(candidate) &&
+            (candidate.classList.contains('class1594313281739') ||
+              candidate.querySelector('ion-icon.class1603730321735')),
+        ) as HTMLElement | undefined;
+        if (item) {
+          item.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!clicked) {
+      return false;
+    }
+  }
+
+  return page
+    .locator(SEL.collaboratorsModal)
+    .last()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
 }
 
 async function selectorApplicationCardId(page: Page, title: string): Promise<string> {
@@ -1456,6 +1528,15 @@ export async function openConfigurationSection(page: Page): Promise<void> {
   if (!mounted) {
     await expect(page.locator(SEL.configTab).first(), 'configuration tabs should be mounted').toBeAttached({ timeout: 10_000 });
   }
+  await page.waitForTimeout(350);
+}
+
+async function openStyleSection(page: Page): Promise<void> {
+  const section = page.locator(SEL.styleSectionLabel).first();
+  await expect(section, 'style section should be visible').toBeVisible({ timeout: 10_000 });
+  await section.click({ timeout: 10_000 }).catch(async () => section.dispatchEvent('click'));
+  const scopedTabs = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}`).first();
+  await expect(scopedTabs, 'style tabs should be mounted').toBeAttached({ timeout: 10_000 });
   await page.waitForTimeout(350);
 }
 
@@ -1968,6 +2049,102 @@ export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<v
       'the data source configuration actions should be visible',
     ).toBeVisible({ timeout: 15_000 });
   });
+}
+
+export async function openGridFormattingTab(page: Page): Promise<void> {
+  await test.step('Open the Data Grid formatting configuration tab', async () => {
+    await openStyleSection(page);
+    const tabs = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`);
+    await expect(tabs.first(), 'Data Grid style tabs should be visible').toBeVisible({ timeout: 15_000 });
+
+    const count = await tabs.count();
+    for (let index = 0; index < count; index++) {
+      const tab = tabs.nth(index);
+      await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+      await page.waitForTimeout(350);
+      const footerVisible = await page.locator(`${SEL.gridFooterSetting}:visible`).first().isVisible({ timeout: 1_000 }).catch(() => false);
+      const paginationVisible = await page
+        .locator(`${SEL.gridPaginationSetting}:visible`)
+        .first()
+        .isVisible({ timeout: 1_000 })
+        .catch(() => false);
+      if (footerVisible && paginationVisible) {
+        return;
+      }
+    }
+
+    throw new Error(`Data Grid formatting controls were not found. Visible style tabs: ${(await visibleTexts(page, SEL.styleTab)).join(' | ')}`);
+  });
+}
+
+export async function expectGridFooterAndPaginationSettings(page: Page): Promise<void> {
+  await test.step('Assert Data Grid footer and pagination settings are available', async () => {
+    await expectGridToggleButtonCount(page, SEL.gridFooterSetting, 2, 'Grid footer setting');
+    await expectGridToggleButtonCount(page, SEL.gridPaginationSetting, 2, 'Grid pagination setting');
+    await expect(page.locator(`${SEL.gridRowsPerPageSetting}:visible`).first(), 'Rows per page setting should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+    const rowsInput = page.locator(`${SEL.gridRowsPerPageSetting} input:visible`).first();
+    await expect(rowsInput, 'Rows per page input should be numeric').toHaveAttribute('type', 'number', { timeout: 10_000 });
+    await expect(rowsInput, 'Rows per page input should enforce a positive minimum').toHaveAttribute('min', '1', {
+      timeout: 10_000,
+    });
+  });
+}
+
+export async function setGridFooterEnabled(page: Page, enabled: boolean): Promise<void> {
+  await clickGridSettingButton(page, SEL.gridFooterSetting, enabled ? 1 : 0, `Grid footer ${enabled ? 'enabled' : 'disabled'}`);
+}
+
+export async function setGridPaginationMode(page: Page, mode: GridPaginationMode): Promise<void> {
+  await clickGridSettingButton(page, SEL.gridPaginationSetting, mode === 'paginated' ? 1 : 0, `Grid pagination ${mode}`);
+}
+
+export async function setGridRowsPerPage(page: Page, value: string): Promise<void> {
+  const input = page.locator(`${SEL.gridRowsPerPageSetting} input:visible`).first();
+  await expect(input, 'Rows per page input should be visible before editing').toBeVisible({ timeout: 15_000 });
+  await input.fill(value);
+  await input.blur();
+  await expect(input, 'Rows per page input should keep the configured value').toHaveValue(value, { timeout: 15_000 });
+}
+
+export async function expectGridRowsPerPageValue(page: Page, value: string): Promise<void> {
+  const input = page.locator(`${SEL.gridRowsPerPageSetting} input:visible`).first();
+  await expect(input, 'Rows per page input should be visible').toBeVisible({ timeout: 15_000 });
+  await expect(input, `Rows per page input should contain ${value}`).toHaveValue(value, { timeout: 15_000 });
+}
+
+export async function expectGridRowsPerPageVisible(page: Page, visible: boolean): Promise<void> {
+  const row = page.locator(`${SEL.gridRowsPerPageSetting}:visible`);
+  if (visible) {
+    await expect(row.first(), 'Rows per page setting should be visible when pagination is enabled').toBeVisible({
+      timeout: 15_000,
+    });
+  } else {
+    await expect(row, 'Rows per page setting should be hidden when all rows are displayed').toHaveCount(0, {
+      timeout: 15_000,
+    });
+  }
+}
+
+async function expectGridToggleButtonCount(
+  page: Page,
+  settingSelector: string,
+  expected: number,
+  description: string,
+): Promise<void> {
+  await expect(
+    page.locator(`${settingSelector}:visible button.c8o-btn:visible`),
+    `${description} should expose ${expected} mode buttons`,
+  ).toHaveCount(expected, { timeout: 15_000 });
+}
+
+async function clickGridSettingButton(page: Page, settingSelector: string, index: number, description: string): Promise<void> {
+  const buttons = page.locator(`${settingSelector}:visible button.c8o-btn:visible`);
+  await expect(buttons, `${description} buttons should be visible`).toHaveCount(2, { timeout: 15_000 });
+  const button = buttons.nth(index);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(button, `${description} button should be selected`).toHaveClass(/c8o-btn-selected/, { timeout: 15_000 });
 }
 
 export async function openDataSourceSortPanel(page: Page): Promise<void> {
