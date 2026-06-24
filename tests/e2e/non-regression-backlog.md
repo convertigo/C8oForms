@@ -1,6 +1,6 @@
 # Backlog des tests de non-regression
 
-Derniere mise a jour: 2026-06-23
+Derniere mise a jour: 2026-06-24
 
 Source: issues GitHub `convertigo/C8oForms`, etat ouvert ou ferme, limitees au milestone `2.2.0` (milestone 2.2).
 
@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 44 deja couverts; 174 a couvrir (28 ouverts, 146 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 45 deja couverts; 173 a couvrir (28 ouverts, 145 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -117,7 +117,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 44 deja co
 | [ ] | [#1340](https://github.com/convertigo/C8oForms/issues/1340) | closed | bug, QC-Passed | Search bar is accent‑case‑sensitive in both directions (uppercase ↔ lowercase), causing applications not to be found |  |
 | [ ] | [#1339](https://github.com/convertigo/C8oForms/issues/1339) | closed | bug, QC-Passed | Visibility tab: condition is deleted when switching options or cancelling dialog |  |
 | [ ] | [#1338](https://github.com/convertigo/C8oForms/issues/1338) | closed | bug, QC-Passed | Search by username does not work on the selector page |  |
-| [ ] | [#1337](https://github.com/convertigo/C8oForms/issues/1337) | closed | bug, QC-Passed | Create Folder button still looks disabled after entering a folder name |  |
+| [x] | [#1337](https://github.com/convertigo/C8oForms/issues/1337) | closed | bug, QC-Passed, Auto QA Test | Create Folder button still looks disabled after entering a folder name | Auto QA Test<br>e2e/issue-1337.spec.ts |
 | [ ] | [#1336](https://github.com/convertigo/C8oForms/issues/1336) | closed | bug, QC-Passed | Fix QR button tooltip and toggle label on selector page |  |
 | [x] | [#1335](https://github.com/convertigo/C8oForms/issues/1335) | closed | bug, QC-Passed, Auto QA Test | Then/Else sections are empty and cannot be configured in “If” condition action | Auto QA Test<br>e2e/issue-1335.spec.ts |
 | [x] | [#1334](https://github.com/convertigo/C8oForms/issues/1334) | closed | bug, QC-Passed, Auto QA Test | Fields in “If condition” action show no operator (empty box) | Auto QA Test<br>e2e/issue-1334.spec.ts |

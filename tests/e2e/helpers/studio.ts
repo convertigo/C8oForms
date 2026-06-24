@@ -81,9 +81,15 @@ export const SEL = {
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
   selectorPageRoot: 'page-selectorpage',
   blankFormCard: '.class1645547241644',
+  createFolderButton: 'ion-button.class1761574287753, ion-button.class1645547180559',
+  createFolderAlert: 'ion-alert.alert-custom-createfolder:not(.overlay-hidden)',
+  createFolderTitleInput: 'input.alert-input',
+  createFolderSaveButton: 'button.custom-btn-validation-createfolder',
+  createFolderCancelButton: 'button.custom-btn-dismiss-createfolder',
   // ion-alert prompt shown by createNewForm (stable CSS classes set in the action code)
   createFormTitleInput: 'input.alert-input',
   createFormSaveButton: 'button.btn--createapp-save',
+  createFormCancelButton: 'button.btn--createapp-cancel',
   // component config header — "Identifiant technique" input
   technicalIdInput: '.class1776763411136 input, .technical-id-input input',
   // editorPage.yaml — the page navigation buttons block (sharedTabs, holds the
@@ -477,6 +483,16 @@ export interface LegacyAnonymousFixture {
   anonymousId: string;
   anonymousKey: string;
   anonymousDocument: JsonRecord;
+}
+
+export interface AlertValidationButtonState {
+  disabled: boolean;
+  ariaDisabled: string | null;
+  hasDisabledClass: boolean;
+  pointerEvents: string;
+  opacity: number;
+  cursor: string;
+  filter: string;
 }
 
 export async function login(page: Page, credentials: LoginCredentials = CURRENT_TEST_CREDENTIALS): Promise<void> {
@@ -3409,14 +3425,53 @@ export async function setPwaAccessModeAndSave(page: Page, mode: PwaAccessMode): 
   });
 }
 
+export async function openCreateApplicationPrompt(page: Page): Promise<Locator> {
+  const alert = await openCreateFormPrompt(page);
+  await waitForPresentedCreateFormAlert(alert);
+  return alert;
+}
+
+export async function openCreateFolderPrompt(page: Page): Promise<Locator> {
+  await waitForSelectorHomeReadyForCreate(page);
+
+  const button = await firstVisibleLocator(page, SEL.createFolderButton, 'create folder button', 15_000);
+  await button.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+  await button.click({ timeout: 10_000 });
+
+  const alert = page.locator(SEL.createFolderAlert).last();
+  await expect(alert, 'create folder prompt should be visible after one create-folder click').toBeVisible({ timeout: 15_000 });
+  await waitForPresentedPromptInput(alert, 'create folder prompt should be presented and editable');
+  return alert;
+}
+
+export async function alertValidationButtonState(
+  alert: Locator,
+  buttonSelector: string,
+): Promise<AlertValidationButtonState> {
+  const button = alert.locator(buttonSelector).first();
+  await expect(button, 'alert validation button should be visible').toBeVisible({ timeout: 10_000 });
+
+  return button.evaluate((el) => {
+    const element = el as HTMLElement & { disabled?: boolean };
+    const style = window.getComputedStyle(element);
+    return {
+      disabled: element.disabled === true,
+      ariaDisabled: element.getAttribute('aria-disabled'),
+      hasDisabledClass: element.classList.contains('alert-button-disabled'),
+      pointerEvents: style.pointerEvents,
+      opacity: Number.parseFloat(style.opacity || '1'),
+      cursor: style.cursor,
+      filter: style.filter,
+    };
+  });
+}
+
 /**
  * From the selector/home (where login lands), create a blank form and land in
  * the editor. Returns the new form's id (from the editor URL).
  */
 export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): Promise<string> {
-  const alert = await openCreateFormPrompt(page);
-  await waitForPresentedCreateFormAlert(alert);
-
+  const alert = await openCreateApplicationPrompt(page);
   const input = alert.locator(SEL.createFormTitleInput).first();
   await expect(input, 'create form title input should be visible').toBeVisible({ timeout: 15_000 });
   await input.fill(title, { timeout: 15_000 });
@@ -3514,6 +3569,10 @@ function selectorResultCount(text: string): number | null {
 }
 
 async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
+  await waitForPresentedPromptInput(alert, 'create form prompt should be presented and editable');
+}
+
+async function waitForPresentedPromptInput(alert: Locator, message: string): Promise<void> {
   await expect
     .poll(
       () =>
@@ -3540,7 +3599,7 @@ async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
           );
         }),
       {
-        message: 'create form prompt should be presented and editable',
+        message,
         timeout: 15_000,
       },
     )
