@@ -26,6 +26,7 @@ export const SEL = {
   // component style panel tabs
   styleTab: '.class1775832335416',
   styleTabsContainer: '[data-main-editor-tabs-buttons="style"]',
+  styleSectionLabel: '.span-style',
   // component config panel "Configuration" section label
   configSectionLabel: '.span-configuration',
   // config panel close button
@@ -36,6 +37,17 @@ export const SEL = {
   mapViewer: 'lib_leaflet-leafletmap.class1734447691502',
   // editorPage.yaml — "Aperçu" button opening the viewer/preview
   previewButton: '.class1773331718985',
+  // viewerPage.yaml — rendered viewer and default submit button
+  viewerPage: 'page-viewerpage',
+  viewerSubmitButton: [
+    'page-viewerpage ion-button.class1543865084771',
+    'page-viewerpage ion-tab-button.class1664274551545',
+    'page-viewerpage ion-tab-button:has(ion-icon[name="send-outline"])',
+    'page-viewerpage ion-footer [role="tab"]',
+  ].join(', '),
+  // responseCompleted.yaml — post-submit transition page
+  responseCompletedPage: 'page-responsecompleted',
+  responseCompletedLogo: 'page-responsecompleted img.class1684922008750',
   // editor canvas wrapper of a map component
   mapComponent: 'c8oforms-itemmapviewer',
   textComponent: 'c8oforms-itemtextviewer',
@@ -51,6 +63,9 @@ export const SEL = {
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
+  gridFooterSetting: '.class1782121400000',
+  gridPaginationSetting: '.class1782121400010',
+  gridRowsPerPageSetting: '.class1782121400030',
   chartComponent: 'c8oforms-itemchartviewer',
   chartHeightModeToggle: '.class1780577000001',
   chartPersonalizedHeightInput: '.class1776605300014 input',
@@ -66,9 +81,15 @@ export const SEL = {
   // selectorPage.yaml — the "blank form" card (bound to the createNewForm action)
   selectorPageRoot: 'page-selectorpage',
   blankFormCard: '.class1645547241644',
+  createFolderButton: 'ion-button.class1761574287753, ion-button.class1645547180559',
+  createFolderAlert: 'ion-alert.alert-custom-createfolder:not(.overlay-hidden)',
+  createFolderTitleInput: 'input.alert-input',
+  createFolderSaveButton: 'button.custom-btn-validation-createfolder',
+  createFolderCancelButton: 'button.custom-btn-dismiss-createfolder',
   // ion-alert prompt shown by createNewForm (stable CSS classes set in the action code)
   createFormTitleInput: 'input.alert-input',
   createFormSaveButton: 'button.btn--createapp-save',
+  createFormCancelButton: 'button.btn--createapp-cancel',
   // component config header — "Identifiant technique" input
   technicalIdInput: '.class1776763411136 input, .technical-id-input input',
   // editorPage.yaml — the page navigation buttons block (sharedTabs, holds the
@@ -87,6 +108,7 @@ export const SEL = {
   workflowsPanelButton: 'ion-button.class1773250515928, ion-button.class1780909504555',
   workflowsSearchbar: 'ion-searchbar.class1774523913949',
   workflowEntry: '#bloc-palette [draggable="true"]',
+  buttonWorkflowEntry: '#bloc-palette [draggable="true"]:not(#unique_formulas):not(#unique_submit)',
   submitFlowButton: '#unique_submit',
   pageRow: '.class1775140559440, .class1749805611480, .class1650357059456, .class1650357059543',
   pageEditButton:
@@ -128,7 +150,7 @@ export const SEL = {
   selectorListTitle: '.class1780484375240',
   cardMenuButton: 'ion-button.class1606574763560',
   selectorCollaboratorsMenuItem:
-    'ion-popover:not(.overlay-hidden) page-popoverpageselector ion-item:has(ion-icon.class1603730321735), ion-popover:not(.overlay-hidden) page-popoverpageselector ion-item.class1594313281739',
+    'ion-item.class1594313281739, ion-item:has(ion-icon.class1603730321735)',
   collaboratorsModal: 'ion-modal.show-modal page-manageaccessrights',
   collaboratorSearchInput: 'c8oforms-ngxtaginputcustomc8oforms ng-select input[role="combobox"], tag-input input',
   collaboratorAutocompleteOption: 'ng-dropdown-panel .ng-option, tag-input-dropdown .ng2-menu-item, ng2-dropdown-menu .ng2-menu-item',
@@ -209,6 +231,7 @@ type MainEditorConfigTab =
   | 'data_interactions';
 
 type ChartHeightMode = 'auto' | 'personalized';
+type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
 
 export async function setStudioLanguageBeforeLoad(page: Page, lang: StudioLanguage): Promise<void> {
@@ -460,6 +483,16 @@ export interface LegacyAnonymousFixture {
   anonymousId: string;
   anonymousKey: string;
   anonymousDocument: JsonRecord;
+}
+
+export interface AlertValidationButtonState {
+  disabled: boolean;
+  ariaDisabled: string | null;
+  hasDisabledClass: boolean;
+  pointerEvents: string;
+  opacity: number;
+  cursor: string;
+  filter: string;
 }
 
 export async function login(page: Page, credentials: LoginCredentials = CURRENT_TEST_CREDENTIALS): Promise<void> {
@@ -1164,23 +1197,97 @@ async function openSelectorCardCollaboratorsModal(page: Page, title: string): Pr
   await expect(card, `selector should show application card ${title}`).toBeVisible({ timeout: 30_000 });
 
   const menuOverlayId = cardId.replace(/^idcard/, 'idcardO');
-  const menu = page.locator(`[id="${menuOverlayId}"] ${SEL.cardMenuButton}`).first();
+  const cardMenu = card.locator(SEL.cardMenuButton).first();
+  const overlayMenu = page.locator(`[id="${menuOverlayId}"] ${SEL.cardMenuButton}`).first();
   for (let attempt = 0; attempt < 3; attempt++) {
-    await card.hover();
-    await page.waitForTimeout(300);
-    await menu.click({ timeout: 3_000 }).catch(async () => {
-      await menu.evaluate((el) => (el as HTMLElement).click());
-    });
-
-    const item = page.locator(`${SEL.selectorCollaboratorsMenuItem}:visible`).first();
-    if (await item.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await item.click();
-      return;
-    }
     await dismissVisiblePopovers(page);
+    await revealSelectorCardMenu(page, card);
+
+    for (const menu of [overlayMenu, cardMenu]) {
+      if (!(await menu.isVisible({ timeout: 1_000 }).catch(() => false))) {
+        continue;
+      }
+
+      await clickSelectorCardMenuButton(page, menu);
+      if (await clickVisibleSelectorCollaboratorsMenuItem(page)) {
+        return;
+      }
+
+      await dismissVisiblePopovers(page);
+      await revealSelectorCardMenu(page, card);
+    }
   }
 
   throw new Error(`Could not open collaborators menu item for selector card ${title}`);
+}
+
+async function revealSelectorCardMenu(page: Page, card: Locator): Promise<void> {
+  await card.hover({ timeout: 2_000 }).catch(async () => {
+    await card.dispatchEvent('mouseenter');
+  });
+  await page.waitForTimeout(300);
+}
+
+async function clickSelectorCardMenuButton(page: Page, menu: Locator): Promise<void> {
+  await menu.click({ timeout: 3_000, force: true }).catch(async () => {
+    await menu.evaluate((el) => (el as HTMLElement).click()).catch(async () => {
+      await menu.dispatchEvent('click').catch(() => undefined);
+    });
+  });
+  await page
+    .locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector')
+    .last()
+    .waitFor({ state: 'visible', timeout: 2_000 })
+    .catch(() => undefined);
+}
+
+async function clickVisibleSelectorCollaboratorsMenuItem(page: Page): Promise<boolean> {
+  const popover = page.locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector').last();
+  if (!(await popover.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.selectorCollaboratorsMenuItem).first();
+  if (await item.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await item.click({ timeout: 3_000 }).catch(async () => {
+      await item.evaluate((el) => (el as HTMLElement).click());
+    });
+  } else {
+    const clicked = await page.evaluate(() => {
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden) page-popoverpageselector')]
+        .filter(isVisible)
+        .reverse();
+      for (const root of popovers) {
+        const item = [...root.querySelectorAll('ion-item')].find(
+          (candidate) =>
+            isVisible(candidate) &&
+            (candidate.classList.contains('class1594313281739') ||
+              candidate.querySelector('ion-icon.class1603730321735')),
+        ) as HTMLElement | undefined;
+        if (item) {
+          item.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!clicked) {
+      return false;
+    }
+  }
+
+  return page
+    .locator(SEL.collaboratorsModal)
+    .last()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
 }
 
 async function selectorApplicationCardId(page: Page, title: string): Promise<string> {
@@ -1212,17 +1319,36 @@ async function selectorApplicationCardId(page: Page, title: string): Promise<str
 }
 
 async function dismissVisiblePopovers(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const hasVisiblePopover = await page
-      .locator('ion-popover:not(.overlay-hidden):visible')
-      .first()
-      .isVisible({ timeout: 500 })
-      .catch(() => false);
-    if (!hasVisiblePopover) {
-      return;
-    }
+  const visiblePopovers = page.locator('ion-popover:not(.overlay-hidden):visible');
+  const hasVisiblePopover = async () => (await visiblePopovers.count().catch(() => 0)) > 0;
+
+  for (let attempt = 0; attempt < 2 && (await hasVisiblePopover()); attempt++) {
     await page.keyboard.press('Escape').catch(() => undefined);
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(200);
+    if (!(await hasVisiblePopover())) return;
+
+    await page.mouse.click(5, 5).catch(() => undefined);
+    await page.waitForTimeout(200);
+  }
+
+  if (await hasVisiblePopover()) {
+    await page.evaluate(async () => {
+      const visible = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden)')].filter(visible);
+      await Promise.all(
+        popovers.map((popover) => {
+          const dismiss = (popover as HTMLElement & { dismiss?: () => Promise<boolean> }).dismiss;
+          return dismiss?.call(popover).catch(() => false);
+        }),
+      );
+    });
+    await expect(visiblePopovers, 'visible popovers should be dismissed before interacting with selector cards').toHaveCount(0, {
+      timeout: 3_000,
+    });
   }
 }
 
@@ -1420,6 +1546,17 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await page.waitForTimeout(2_000);
 }
 
+export async function submitViewerForm(page: Page): Promise<void> {
+  await test.step('Submit the viewer form', async () => {
+    await expectRoute(page, ROUTE.viewer);
+    const submit = await firstVisibleLocator(page, SEL.viewerSubmitButton, 'viewer submit button', 30_000);
+    await submit.scrollIntoViewIfNeeded().catch(() => undefined);
+    await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
+    await confirmAlertIfVisible(page);
+    await page.locator(SEL.responseCompletedPage).waitFor({ state: 'attached', timeout: 60_000 });
+  });
+}
+
 export async function openConfigurationSection(page: Page): Promise<void> {
   const section = page.locator(SEL.configSectionLabel).first();
   await expect(section, 'configuration section should be visible').toBeVisible({ timeout: 10_000 });
@@ -1429,6 +1566,15 @@ export async function openConfigurationSection(page: Page): Promise<void> {
   if (!mounted) {
     await expect(page.locator(SEL.configTab).first(), 'configuration tabs should be mounted').toBeAttached({ timeout: 10_000 });
   }
+  await page.waitForTimeout(350);
+}
+
+async function openStyleSection(page: Page): Promise<void> {
+  const section = page.locator(SEL.styleSectionLabel).first();
+  await expect(section, 'style section should be visible').toBeVisible({ timeout: 10_000 });
+  await section.click({ timeout: 10_000 }).catch(async () => section.dispatchEvent('click'));
+  const scopedTabs = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}`).first();
+  await expect(scopedTabs, 'style tabs should be mounted').toBeAttached({ timeout: 10_000 });
   await page.waitForTimeout(350);
 }
 
@@ -1943,6 +2089,102 @@ export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<v
   });
 }
 
+export async function openGridFormattingTab(page: Page): Promise<void> {
+  await test.step('Open the Data Grid formatting configuration tab', async () => {
+    await openStyleSection(page);
+    const tabs = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`);
+    await expect(tabs.first(), 'Data Grid style tabs should be visible').toBeVisible({ timeout: 15_000 });
+
+    const count = await tabs.count();
+    for (let index = 0; index < count; index++) {
+      const tab = tabs.nth(index);
+      await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+      await page.waitForTimeout(350);
+      const footerVisible = await page.locator(`${SEL.gridFooterSetting}:visible`).first().isVisible({ timeout: 1_000 }).catch(() => false);
+      const paginationVisible = await page
+        .locator(`${SEL.gridPaginationSetting}:visible`)
+        .first()
+        .isVisible({ timeout: 1_000 })
+        .catch(() => false);
+      if (footerVisible && paginationVisible) {
+        return;
+      }
+    }
+
+    throw new Error(`Data Grid formatting controls were not found. Visible style tabs: ${(await visibleTexts(page, SEL.styleTab)).join(' | ')}`);
+  });
+}
+
+export async function expectGridFooterAndPaginationSettings(page: Page): Promise<void> {
+  await test.step('Assert Data Grid footer and pagination settings are available', async () => {
+    await expectGridToggleButtonCount(page, SEL.gridFooterSetting, 2, 'Grid footer setting');
+    await expectGridToggleButtonCount(page, SEL.gridPaginationSetting, 2, 'Grid pagination setting');
+    await expect(page.locator(`${SEL.gridRowsPerPageSetting}:visible`).first(), 'Rows per page setting should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+    const rowsInput = page.locator(`${SEL.gridRowsPerPageSetting} input:visible`).first();
+    await expect(rowsInput, 'Rows per page input should be numeric').toHaveAttribute('type', 'number', { timeout: 10_000 });
+    await expect(rowsInput, 'Rows per page input should enforce a positive minimum').toHaveAttribute('min', '1', {
+      timeout: 10_000,
+    });
+  });
+}
+
+export async function setGridFooterEnabled(page: Page, enabled: boolean): Promise<void> {
+  await clickGridSettingButton(page, SEL.gridFooterSetting, enabled ? 1 : 0, `Grid footer ${enabled ? 'enabled' : 'disabled'}`);
+}
+
+export async function setGridPaginationMode(page: Page, mode: GridPaginationMode): Promise<void> {
+  await clickGridSettingButton(page, SEL.gridPaginationSetting, mode === 'paginated' ? 1 : 0, `Grid pagination ${mode}`);
+}
+
+export async function setGridRowsPerPage(page: Page, value: string): Promise<void> {
+  const input = page.locator(`${SEL.gridRowsPerPageSetting} input:visible`).first();
+  await expect(input, 'Rows per page input should be visible before editing').toBeVisible({ timeout: 15_000 });
+  await input.fill(value);
+  await input.blur();
+  await expect(input, 'Rows per page input should keep the configured value').toHaveValue(value, { timeout: 15_000 });
+}
+
+export async function expectGridRowsPerPageValue(page: Page, value: string): Promise<void> {
+  const input = page.locator(`${SEL.gridRowsPerPageSetting} input:visible`).first();
+  await expect(input, 'Rows per page input should be visible').toBeVisible({ timeout: 15_000 });
+  await expect(input, `Rows per page input should contain ${value}`).toHaveValue(value, { timeout: 15_000 });
+}
+
+export async function expectGridRowsPerPageVisible(page: Page, visible: boolean): Promise<void> {
+  const row = page.locator(`${SEL.gridRowsPerPageSetting}:visible`);
+  if (visible) {
+    await expect(row.first(), 'Rows per page setting should be visible when pagination is enabled').toBeVisible({
+      timeout: 15_000,
+    });
+  } else {
+    await expect(row, 'Rows per page setting should be hidden when all rows are displayed').toHaveCount(0, {
+      timeout: 15_000,
+    });
+  }
+}
+
+async function expectGridToggleButtonCount(
+  page: Page,
+  settingSelector: string,
+  expected: number,
+  description: string,
+): Promise<void> {
+  await expect(
+    page.locator(`${settingSelector}:visible button.c8o-btn:visible`),
+    `${description} should expose ${expected} mode buttons`,
+  ).toHaveCount(expected, { timeout: 15_000 });
+}
+
+async function clickGridSettingButton(page: Page, settingSelector: string, index: number, description: string): Promise<void> {
+  const buttons = page.locator(`${settingSelector}:visible button.c8o-btn:visible`);
+  await expect(buttons, `${description} buttons should be visible`).toHaveCount(2, { timeout: 15_000 });
+  const button = buttons.nth(index);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(button, `${description} button should be selected`).toHaveClass(/c8o-btn-selected/, { timeout: 15_000 });
+}
+
 export async function openDataSourceSortPanel(page: Page): Promise<void> {
   await test.step('Open the data source Sort panel', async () => {
     const actions = page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`);
@@ -2027,15 +2269,24 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
 
 async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
-  let flow = flowName
-    ? page.locator('[draggable="true"]').filter({ hasText: flowName }).first()
-    : page.locator(SEL.submitFlowButton).first();
-  if (!flowName && !(await flow.isVisible({ timeout: 2_000 }).catch(() => false))) {
-    flow = page.locator('[draggable="true"]').filter({ hasText: /Flow button/i }).first();
+  const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();
+  let flow = buttonFlow;
+  if (flowName) {
+    const namedFlow = page.locator(SEL.workflowEntry).filter({ hasText: flowName }).first();
+    if (await namedFlow.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      flow = namedFlow;
+    } else if (!isButtonWorkflowLabelHint(flowName)) {
+      flow = namedFlow;
+    }
   }
   await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
   await flow.click({ timeout: 10_000 }).catch(async () => flow.dispatchEvent('click'));
   await page.waitForTimeout(1_000);
+}
+
+function isButtonWorkflowLabelHint(flowName: string | RegExp): boolean {
+  const value = typeof flowName === 'string' ? flowName : flowName.source;
+  return /flow\s*button/i.test(value);
 }
 
 async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
@@ -3174,14 +3425,53 @@ export async function setPwaAccessModeAndSave(page: Page, mode: PwaAccessMode): 
   });
 }
 
+export async function openCreateApplicationPrompt(page: Page): Promise<Locator> {
+  const alert = await openCreateFormPrompt(page);
+  await waitForPresentedCreateFormAlert(alert);
+  return alert;
+}
+
+export async function openCreateFolderPrompt(page: Page): Promise<Locator> {
+  await waitForSelectorHomeReadyForCreate(page);
+
+  const button = await firstVisibleLocator(page, SEL.createFolderButton, 'create folder button', 15_000);
+  await button.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+  await button.click({ timeout: 10_000 });
+
+  const alert = page.locator(SEL.createFolderAlert).last();
+  await expect(alert, 'create folder prompt should be visible after one create-folder click').toBeVisible({ timeout: 15_000 });
+  await waitForPresentedPromptInput(alert, 'create folder prompt should be presented and editable');
+  return alert;
+}
+
+export async function alertValidationButtonState(
+  alert: Locator,
+  buttonSelector: string,
+): Promise<AlertValidationButtonState> {
+  const button = alert.locator(buttonSelector).first();
+  await expect(button, 'alert validation button should be visible').toBeVisible({ timeout: 10_000 });
+
+  return button.evaluate((el) => {
+    const element = el as HTMLElement & { disabled?: boolean };
+    const style = window.getComputedStyle(element);
+    return {
+      disabled: element.disabled === true,
+      ariaDisabled: element.getAttribute('aria-disabled'),
+      hasDisabledClass: element.classList.contains('alert-button-disabled'),
+      pointerEvents: style.pointerEvents,
+      opacity: Number.parseFloat(style.opacity || '1'),
+      cursor: style.cursor,
+      filter: style.filter,
+    };
+  });
+}
+
 /**
  * From the selector/home (where login lands), create a blank form and land in
  * the editor. Returns the new form's id (from the editor URL).
  */
 export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): Promise<string> {
-  const alert = await openCreateFormPrompt(page);
-  await waitForPresentedCreateFormAlert(alert);
-
+  const alert = await openCreateApplicationPrompt(page);
   const input = alert.locator(SEL.createFormTitleInput).first();
   await expect(input, 'create form title input should be visible').toBeVisible({ timeout: 15_000 });
   await input.fill(title, { timeout: 15_000 });
@@ -3279,6 +3569,10 @@ function selectorResultCount(text: string): number | null {
 }
 
 async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
+  await waitForPresentedPromptInput(alert, 'create form prompt should be presented and editable');
+}
+
+async function waitForPresentedPromptInput(alert: Locator, message: string): Promise<void> {
   await expect
     .poll(
       () =>
@@ -3305,7 +3599,7 @@ async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
           );
         }),
       {
-        message: 'create form prompt should be presented and editable',
+        message,
         timeout: 15_000,
       },
     )

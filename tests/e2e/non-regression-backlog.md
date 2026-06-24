@@ -1,6 +1,6 @@
 # Backlog des tests de non-regression
 
-Derniere mise a jour: 2026-06-22
+Derniere mise a jour: 2026-06-24
 
 Source: issues GitHub `convertigo/C8oForms`, etat ouvert ou ferme, limitees au milestone `2.2.0` (milestone 2.2).
 
@@ -10,23 +10,19 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 39 deja couverts; 179 a couvrir (31 ouverts, 148 fermes); 1 exclus par label ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 45 deja couverts; 173 a couvrir (28 ouverts, 145 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
 | [ ] | [#1428](https://github.com/convertigo/C8oForms/issues/1428) | open | enhancement | The condition action (If) does not use the modernized interface for condition modes (Fields, Aa, JS) |  |
-| [ ] | [#1426](https://github.com/convertigo/C8oForms/issues/1426) | open | bug | Setting server symbol **C8Oforms.customHeaderLogo** causes oversized logo after submitting a response |  |
-| [x] | [#1425](https://github.com/convertigo/C8oForms/issues/1425) | closed | bug, QC-Passed, Auto QA Test | Palette button is half hidden in Flow actions configuration | Auto QA Test<br>e2e/issue-1425.spec.ts |
 | [ ] | [#1415](https://github.com/convertigo/C8oForms/issues/1415) | open | enhancement | Reload button and menu button in a published app do not use the theme |  |
 | [ ] | [#1411](https://github.com/convertigo/C8oForms/issues/1411) | open | enhancement | Allow per-component border, margin, and padding customization |  |
-| [ ] | [#1410](https://github.com/convertigo/C8oForms/issues/1410) | open | enhancement | Add grid footer and pagination display settings |  |
 | [ ] | [#1409](https://github.com/convertigo/C8oForms/issues/1409) | open | enhancement | Use configured column names and column width mode in grid editor preview |  |
 | [ ] | [#1408](https://github.com/convertigo/C8oForms/issues/1408) | open | enhancement | Allow selecting latitude and longitude fields when configuring map data sources |  |
 | [ ] | [#1400](https://github.com/convertigo/C8oForms/issues/1400) | open | enhancement | Add a dedicated Gallery component for data-driven visual item selection |  |
 | [ ] | [#1393](https://github.com/convertigo/C8oForms/issues/1393) | open | enhancement | Add more tooltips in configuration labels to improve clarity of settings and component options |  |
 | [ ] | [#1390](https://github.com/convertigo/C8oForms/issues/1390) | open | enhancement | Tabs buttons configuration should support Wrap/Scroll in Header/Footer and allow vertical placement (Left/Right) |  |
 | [ ] | [#1386](https://github.com/convertigo/C8oForms/issues/1386) | open | enhancement | Buttons configuration can only be set per Page; no option to configure buttons globally for the whole application |  |
-| [ ] | [#1379](https://github.com/convertigo/C8oForms/issues/1379) | open | enhancement | Dragging components inside Group or Horizontal Layout shows no indication of the target component type |  |
 | [ ] | [#1362](https://github.com/convertigo/C8oForms/issues/1362) | open | enhancement | Flow list chooser not accurate with new layout and not usable with long lists |  |
 | [ ] | [#1359](https://github.com/convertigo/C8oForms/issues/1359) | open | enhancement | Version history with restore capability needed for applications |  |
 | [ ] | [#1350](https://github.com/convertigo/C8oForms/issues/1350) | open | enhancement | Search app by user should allow filtering only applications where I am a collaborator |  |
@@ -46,6 +42,8 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 39 deja co
 | [ ] | [#1043](https://github.com/convertigo/C8oForms/issues/1043) | open | enhancement | Possibilty to download the PDF attachment file in an application |  |
 | [ ] | [#606](https://github.com/convertigo/C8oForms/issues/606) | open | enhancement | Capability to decide what attachment is sent in the Send Mail action |  |
 | [ ] | [#75](https://github.com/convertigo/C8oForms/issues/75) | open | major, task | Gestion du multilangue |  |
+| [x] | [#1426](https://github.com/convertigo/C8oForms/issues/1426) | closed | bug, QC-Passed, Auto QA Test | Setting server symbol **C8Oforms.customHeaderLogo** causes oversized logo after submitting a response | Auto QA Test<br>e2e/issue-1426.spec.ts |
+| [x] | [#1425](https://github.com/convertigo/C8oForms/issues/1425) | closed | bug, QC-Passed, Auto QA Test | Palette button is half hidden in Flow actions configuration | Auto QA Test<br>e2e/issue-1425.spec.ts |
 | [x] | [#1424](https://github.com/convertigo/C8oForms/issues/1424) | closed | bug, Auto QA Test | Baserow datetime values shifted by one hour in the data grid (default timezone Europe/Paris instead of UTC) | Auto QA Test<br>e2e/issue-1416.spec.ts |
 | [x] | [#1423](https://github.com/convertigo/C8oForms/issues/1423) | closed | bug, Auto QA Test | Baserow column picker resolves the wrong user's table (project-scoped table_id cache keyed by name only) | Auto QA Test<br>e2e/issue-1423.spec.ts |
 | [x] | [#1422](https://github.com/convertigo/C8oForms/issues/1422) | closed | bug, Auto QA Test | Default value in Text mode shows “Unexpected token '??'” after dragging a Palette source | Auto QA Test<br>e2e/issue-1109.spec.ts |
@@ -56,6 +54,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 39 deja co
 | [x] | [#1416](https://github.com/convertigo/C8oForms/issues/1416) | closed | bug, QC-Passed, Auto QA Test | Baserow data source does not return dates in the correct format | Auto QA Test<br>e2e/issue-1416.spec.ts |
 | [x] | [#1413](https://github.com/convertigo/C8oForms/issues/1413) | closed | bug, QC-Passed, Auto QA Test | Description component breaks when using a Grid Palette value whose column name contains a single quote | Auto QA Test<br>e2e/issue-1413.spec.ts |
 | [x] | [#1412](https://github.com/convertigo/C8oForms/issues/1412) | closed | bug, QC-Passed, Auto QA Test | Map height breaks after opening Data & Interactions | Auto QA Test<br>e2e/issue-1412.spec.ts<br>e2e/issue-1412-reopened.spec.ts |
+| [x] | [#1410](https://github.com/convertigo/C8oForms/issues/1410) | closed | enhancement, QC-Passed, Auto QA Test | Add grid footer and pagination display settings | Auto QA Test<br>e2e/issue-1410.spec.ts |
 | [x] | [#1407](https://github.com/convertigo/C8oForms/issues/1407) | closed | bug, QC-Passed, Auto QA Test | Cannot switch PWA access from anonymous back to authenticated | Auto QA Test<br>e2e/issue-1407.spec.ts |
 | [ ] | [#1406](https://github.com/convertigo/C8oForms/issues/1406) | closed | bug | Fix response viewer action label according to user permissions |  |
 | [x] | [#1405](https://github.com/convertigo/C8oForms/issues/1405) | closed | bug, QC-Passed, Auto QA Test | Grid columns are incorrectly sized when the grid becomes visible after being hidden | Auto QA Test<br>e2e/issue-1405.spec.ts |
@@ -80,6 +79,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 39 deja co
 | [x] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed, Auto QA Test | Chart component height field does not allow entering “auto” although the UI suggests it | Auto QA Test<br>e2e/issue-1382.spec.ts |
 | [ ] | [#1381](https://github.com/convertigo/C8oForms/issues/1381) | closed | bug, QC-Passed | Visibility condition value picker does not save selected grid fields |  |
 | [ ] | [#1380](https://github.com/convertigo/C8oForms/issues/1380) | closed | bug, QC-Passed | Vertical bar buttons do not reset to their default section when switching between Workflows, Pages, and Palette |  |
+| [ ] | [#1379](https://github.com/convertigo/C8oForms/issues/1379) | closed | enhancement, QC-Passed | Dragging components inside Group or Horizontal Layout shows no indication of the target component type |  |
 | [ ] | [#1378](https://github.com/convertigo/C8oForms/issues/1378) | closed | enhancement | Add a flow action to reset fields by scope while preserving default values and computed values |  |
 | [ ] | [#1377](https://github.com/convertigo/C8oForms/issues/1377) | closed | bug, QC-Passed | Chips preview display differs from chips configuration in Text mode |  |
 | [ ] | [#1376](https://github.com/convertigo/C8oForms/issues/1376) | closed | bug | [Engine] Fix regression in AD login assigning all users to a shared group |  |
@@ -117,7 +117,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 39 deja co
 | [ ] | [#1340](https://github.com/convertigo/C8oForms/issues/1340) | closed | bug, QC-Passed | Search bar is accent‑case‑sensitive in both directions (uppercase ↔ lowercase), causing applications not to be found |  |
 | [ ] | [#1339](https://github.com/convertigo/C8oForms/issues/1339) | closed | bug, QC-Passed | Visibility tab: condition is deleted when switching options or cancelling dialog |  |
 | [ ] | [#1338](https://github.com/convertigo/C8oForms/issues/1338) | closed | bug, QC-Passed | Search by username does not work on the selector page |  |
-| [ ] | [#1337](https://github.com/convertigo/C8oForms/issues/1337) | closed | bug, QC-Passed | Create Folder button still looks disabled after entering a folder name |  |
+| [x] | [#1337](https://github.com/convertigo/C8oForms/issues/1337) | closed | bug, QC-Passed, Auto QA Test | Create Folder button still looks disabled after entering a folder name | Auto QA Test<br>e2e/issue-1337.spec.ts |
 | [ ] | [#1336](https://github.com/convertigo/C8oForms/issues/1336) | closed | bug, QC-Passed | Fix QR button tooltip and toggle label on selector page |  |
 | [x] | [#1335](https://github.com/convertigo/C8oForms/issues/1335) | closed | bug, QC-Passed, Auto QA Test | Then/Else sections are empty and cannot be configured in “If” condition action | Auto QA Test<br>e2e/issue-1335.spec.ts |
 | [x] | [#1334](https://github.com/convertigo/C8oForms/issues/1334) | closed | bug, QC-Passed, Auto QA Test | Fields in “If condition” action show no operator (empty box) | Auto QA Test<br>e2e/issue-1334.spec.ts |
@@ -129,7 +129,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 39 deja co
 | [x] | [#1327](https://github.com/convertigo/C8oForms/issues/1327) | closed | bug, QC-Passed, Auto QA Test | Can’t switch between Aa and JS modes in Condition (if) action | Auto QA Test<br>e2e/issue-1327.spec.ts |
 | [ ] | [#1326](https://github.com/convertigo/C8oForms/issues/1326) | closed | bug, QC-Passed | Updating an existing PWA republishes a new application version |  |
 | [ ] | [#1325](https://github.com/convertigo/C8oForms/issues/1325) | closed | enhancement, QC-Passed | Improve PWA configuration modal UX and simplify publication flow |  |
-| [ ] | [#1324](https://github.com/convertigo/C8oForms/issues/1324) | closed | bug, QC-Passed | Chart component shows “undefined” on hover for default values |  |
+| [x] | [#1324](https://github.com/convertigo/C8oForms/issues/1324) | closed | bug, QC-Passed, Auto QA Test | Chart component shows “undefined” on hover for default values | Auto QA Test<br>e2e/issue-1324.spec.ts |
 | [ ] | [#1323](https://github.com/convertigo/C8oForms/issues/1323) | closed | bug, QC-Passed | Warn before replacing configured action or data source values |  |
 | [ ] | [#1322](https://github.com/convertigo/C8oForms/issues/1322) | closed | bug, QC-Passed | Editor palette sometimes misses available background task actions until reload |  |
 | [ ] | [#1321](https://github.com/convertigo/C8oForms/issues/1321) | closed | bug, QC-Passed | Page settings icon is clickable without function, and “Disabled” label is not capitalized |  |
@@ -231,4 +231,4 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 39 deja co
 | [x] | [#1058](https://github.com/convertigo/C8oForms/issues/1058) | closed | enhancement, QC-Passed, Auto QA Test | Baserow duration format not supported in Grid bean | Auto QA Test<br>e2e/issue-1058.spec.ts |
 | [ ] | [#1032](https://github.com/convertigo/C8oForms/issues/1032) | closed | enhancement | Improvements for #1020 |  |
 | [ ] | [#884](https://github.com/convertigo/C8oForms/issues/884) | closed | enhancement | Restrict Sequences According to User Rights |  |
-| [ ] | [#505](https://github.com/convertigo/C8oForms/issues/505) | closed | enhancement | Improve conditional page authorisation / navigation  |  |
+| [ ] | [#505](https://github.com/convertigo/C8oForms/issues/505) | closed | enhancement | Improve conditional page authorisation / navigation |  |
