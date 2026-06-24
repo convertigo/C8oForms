@@ -16,6 +16,7 @@ scriptContent:
         	public spacingDocumentClickHandler: any = null;
         	public selectedBorderSide: string = "all";
         	public selectedSpacingTarget: string = "children";
+        	public selectedBoxStylePart: string = "container";
         	public boxStyleEditorId: string = "c8o-box-style-editor-" + Math.floor(Math.random() * 1000000000);
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
@@ -38,12 +39,12 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
-        	public getDefaultBoxStyleValue(property: string): string {
-        		if ((this.isChild !== true && this.isChild !== "true") && this.item?.type == "layout" && (property == "margin" || property == "padding")) {
-        			return "0";
+        	public getChildStyleParentDefaults(parentType: any, property: string): string {
+        		if (this.getBoxPartTarget() != "container") {
+        			return this.getBoxPartDefaultStyleValue(property);
         		}
-        		const parentType = this.getBoxStyleParentType();
-        		if (parentType == "ion-card" || parentType == "card") {
+        		const normalizedParentType = "" + (parentType || "");
+        		if (normalizedParentType == "ion-card" || normalizedParentType == "card") {
         			const cardChildDefaults: any = {
         				margin: "0",
         				padding: "0",
@@ -55,17 +56,40 @@ scriptContent:
         			};
         			return cardChildDefaults[property] || "";
         		}
-        		if (parentType == "layout") {
-        			const layoutChildDefaults: any = {
-        				margin: "0 10px 10px 0",
-        				padding: "20px 27px",
-        				borderWidth: "1px",
-        				borderStyle: "solid",
-        				borderColor: "#E5E7EB",
-        				borderRadius: "10px",
-        				backgroundColor: "#FFFFFF"
-        			};
-        			return layoutChildDefaults[property] || "";
+        		const layoutChildDefaults: any = {
+        			margin: "0 10px 10px 0",
+        			padding: "20px 27px",
+        			borderWidth: "1px",
+        			borderStyle: "solid",
+        			borderColor: "#E5E7EB",
+        			borderRadius: "10px",
+        			backgroundColor: "#FFFFFF"
+        		};
+        		return layoutChildDefaults[property] || "";
+        	}
+        
+        	public isChildStyleParentType(parentType: any): boolean {
+        		const normalizedParentType = "" + (parentType || "");
+        		return normalizedParentType == "layout" || normalizedParentType == "ion-card" || normalizedParentType == "card";
+        	}
+        
+        	public getChildStyleContextType(): string {
+        		if (this.isLayoutSpacingEditor()) {
+        			return "" + (this.item?.type || "");
+        		}
+        		return this.getBoxStyleParentType();
+        	}
+        
+        	public getDefaultBoxStyleValue(property: string): string {
+        		if (this.getBoxPartTarget() != "container") {
+        			return this.getBoxPartDefaultStyleValue(property);
+        		}
+        		if ((this.isChild !== true && this.isChild !== "true") && this.item?.type == "layout" && (property == "margin" || property == "padding")) {
+        			return "0";
+        		}
+        		const parentType = this.getBoxStyleParentType();
+        		if (this.isChildStyleParentType(parentType)) {
+        			return this.getChildStyleParentDefaults(parentType, property);
         		}
         		const defaults: any = {
         			margin: "0 0 10px 0",
@@ -80,7 +104,28 @@ scriptContent:
         	}
         
         	public isLayoutSpacingEditor(): boolean {
-        		return (this.isChild !== true && this.isChild !== "true") && this.item?.type == "layout";
+        		return (this.isChild !== true && this.isChild !== "true") && this.isChildStyleParentType(this.item?.type);
+        	}
+        
+        	public isLayoutChildStyleEditor(): boolean {
+        		return (this.isChild === true || this.isChild === "true") && this.isChildStyleParentType(this.getBoxStyleParentType());
+        	}
+        
+        	public getStyleSelfTargetLabelKey(): string {
+        		const itemType = "" + (this.item?.type || "");
+        		return itemType == "ion-card" || itemType == "card" ? "item_box_spacing_target_group" : "item_box_spacing_target_layout";
+        	}
+        
+        	public getChildStyleHintKey(section: string): string {
+        		const parentType = this.getBoxStyleParentType();
+        		const prefix = parentType == "ion-card" || parentType == "card" ? "item_box_group_child_" : "item_box_layout_child_";
+        		if (section == "border") {
+        			return prefix + "border_hint";
+        		}
+        		if (section == "background") {
+        			return prefix + "background_hint";
+        		}
+        		return prefix + "spacing_hint";
         	}
         
         	public getSpacingTarget(): string {
@@ -96,6 +141,64 @@ scriptContent:
         		return spacingTarget == "children" ? "default" : spacingTarget;
         	}
         
+        	public showBoxPartTargetTabs(): boolean {
+        		return !this.isLayoutSpacingEditor() || this.getSpacingTarget() != "self";
+        	}
+        
+        	public getBoxPartTarget(): string {
+        		if (!this.showBoxPartTargetTabs()) {
+        			return "container";
+        		}
+        		const allowed = ["container", "question", "component"];
+        		return allowed.indexOf(this.selectedBoxStylePart) != -1 ? this.selectedBoxStylePart : "container";
+        	}
+        
+        	public getBoxPartStyleKey(part: string = ""): string {
+        		const boxPart = part || this.getBoxPartTarget();
+        		if (boxPart == "question") {
+        			return "questionBoxStyle";
+        		}
+        		if (boxPart == "component") {
+        			return "componentBoxStyle";
+        		}
+        		return "boxStyle";
+        	}
+        
+        	public getBoxPartDefaultStyleValue(property: string): string {
+        		const defaults: any = {
+        			margin: "0",
+        			padding: "0",
+        			borderWidth: "0",
+        			borderStyle: "solid",
+        			borderColor: "#E5E7EB",
+        			borderRadius: "0",
+        			backgroundColor: "#FFFFFF"
+        		};
+        		return defaults[property] || "";
+        	}
+        
+        	public selectBoxPartTarget(part: string, event?: any): void {
+        		try {
+        			event?.preventDefault?.();
+        			event?.stopPropagation?.();
+        		}
+        		catch (e) {
+        		}
+        		this.selectedBoxStylePart = part;
+        		this.spacingValueEditor = null;
+        		this.borderValueEditor = null;
+        		this.removeSpacingCloseListener();
+        		try {
+        			this.ref.markForCheck();
+        		}
+        		catch (e) {
+        		}
+        	}
+        
+        	public boxPartTargetMatches(part: string): boolean {
+        		return this.getBoxPartTarget() == part;
+        	}
+        
         	public selectSpacingTarget(target: string, event?: any): void {
         		try {
         			event?.preventDefault?.();
@@ -105,9 +208,8 @@ scriptContent:
         		}
         		this.selectedSpacingTarget = target;
         		this.spacingValueEditor = null;
-        		if (this.borderValueEditor == null) {
-        			this.removeSpacingCloseListener();
-        		}
+        		this.borderValueEditor = null;
+        		this.removeSpacingCloseListener();
         		try {
         			this.ref.markForCheck();
         		}
@@ -120,16 +222,19 @@ scriptContent:
         	}
         
         	public getLayoutChildrenBaseSpacingValue(property: string): string {
-        		const defaults: any = {
-        			margin: "0 10px 10px 0",
-        			padding: "20px 27px"
-        		};
-        		return defaults[property] || "";
+        		return this.getLayoutChildrenBaseStyleValue(property);
+        	}
+        
+        	public getLayoutChildrenBaseStyleValue(property: string): string {
+        		if (this.getBoxPartTarget() != "container") {
+        			return this.getBoxPartDefaultStyleValue(property);
+        		}
+        		return this.getChildStyleParentDefaults(this.getChildStyleContextType(), property);
         	}
         
         	public getLayoutLastSpacingDefaultValue(property: string, defaultValue: any): string {
         		const value = this.cleanCssValue(defaultValue) || this.getLayoutChildrenBaseSpacingValue(property);
-        		if (property != "margin") {
+        		if (this.getBoxPartTarget() != "container" || this.getChildStyleContextType() != "layout" || property != "margin") {
         			return value;
         		}
         		const map = this.getMapFromShorthand(value);
@@ -137,7 +242,7 @@ scriptContent:
         		return this.serializeBoxMap(map);
         	}
         
-        	public getLayoutChildrenSpacingStyle(target: string = "", create: boolean = false): any {
+        	public getLayoutChildrenSpacingStyle(target: string = "", create: boolean = false, part: string = ""): any {
         		if (this.item == null) {
         			return null;
         		}
@@ -160,7 +265,43 @@ scriptContent:
         			}
         			this.item.config.layoutChildrenStyle[key] = {};
         		}
-        		return this.item.config.layoutChildrenStyle[key];
+        		const scopeStyle = this.item.config.layoutChildrenStyle[key];
+        		const boxPart = part || this.getBoxPartTarget();
+        		if (boxPart == "container") {
+        			return scopeStyle;
+        		}
+        		const partKey = this.getBoxPartStyleKey(boxPart);
+        		if (scopeStyle[partKey] == null || typeof scopeStyle[partKey] != "object" || Array.isArray(scopeStyle[partKey])) {
+        			if (!create) {
+        				return null;
+        			}
+        			scopeStyle[partKey] = {};
+        		}
+        		return scopeStyle[partKey];
+        	}
+        
+        	public cleanupLayoutChildrenStyle(scopeKey: string, part: string = ""): void {
+        		if (this.item?.config?.layoutChildrenStyle == null) {
+        			return;
+        		}
+        		const key = scopeKey || this.getSpacingStorageKey();
+        		const boxPart = part || this.getBoxPartTarget();
+        		const scopeStyle = this.item.config.layoutChildrenStyle[key];
+        		if (scopeStyle == null || typeof scopeStyle != "object" || Array.isArray(scopeStyle)) {
+        			return;
+        		}
+        		if (boxPart != "container") {
+        			const partKey = this.getBoxPartStyleKey(boxPart);
+        			if (scopeStyle[partKey] != null && typeof scopeStyle[partKey] == "object" && !Array.isArray(scopeStyle[partKey]) && Object.keys(scopeStyle[partKey]).length == 0) {
+        				delete scopeStyle[partKey];
+        			}
+        		}
+        		if (Object.keys(scopeStyle).length == 0) {
+        			delete this.item.config.layoutChildrenStyle[key];
+        		}
+        		if (Object.keys(this.item.config.layoutChildrenStyle).length == 0) {
+        			delete this.item.config.layoutChildrenStyle;
+        		}
         	}
         
         	public getSpacingBoxStyleValue(property: string): string {
@@ -189,12 +330,7 @@ scriptContent:
         			style[property] = normalized;
         		}
         		const key = this.getSpacingStorageKey();
-        		if (Object.keys(style).length == 0) {
-        			delete this.item.config.layoutChildrenStyle[key];
-        		}
-        		if (Object.keys(this.item.config.layoutChildrenStyle).length == 0) {
-        			delete this.item.config.layoutChildrenStyle;
-        		}
+        		this.cleanupLayoutChildrenStyle(key);
         	}
         
         	public getSpacingDefaultValue(property: string): string {
@@ -219,6 +355,51 @@ scriptContent:
         	public setSpacingOverrideValue(property: string, value: any, defaultValue: any): void {
         		const normalized = this.cleanCssValue(value);
         		this.setSpacingBoxStyleValue(property, this.normalizeCssComparable(normalized) == this.normalizeCssComparable(defaultValue) ? "" : normalized);
+        	}
+        
+        	public isLayoutChildrenStyleTarget(): boolean {
+        		return this.isLayoutSpacingEditor() && this.getSpacingTarget() != "self";
+        	}
+        
+        	public getTargetBoxStyleValue(property: string): string {
+        		if (!this.isLayoutChildrenStyleTarget()) {
+        			return this.getBoxStyleValue(property);
+        		}
+        		const style = this.getLayoutChildrenSpacingStyle();
+        		const value = style?.[property];
+        		return value == null ? "" : "" + value;
+        	}
+        
+        	public setTargetBoxStyleValue(property: string, value: any): void {
+        		if (!this.isLayoutChildrenStyleTarget()) {
+        			this.setBoxStyleValue(property, value);
+        			return;
+        		}
+        		this.setSpacingBoxStyleValue(property, value);
+        	}
+        
+        	public getTargetDefaultBoxStyleValue(property: string): string {
+        		if (!this.isLayoutChildrenStyleTarget()) {
+        			return this.getDefaultBoxStyleValue(property);
+        		}
+        		const target = this.getSpacingTarget();
+        		if (target == "children") {
+        			return this.getLayoutChildrenBaseStyleValue(property);
+        		}
+        		const defaultStyle = this.getLayoutChildrenSpacingStyle("children");
+        		const value = this.cleanCssValue(defaultStyle?.[property]);
+        		const defaultValue = value != "" ? value : this.getLayoutChildrenBaseStyleValue(property);
+        		return target == "last" ? this.getLayoutLastSpacingDefaultValue(property, defaultValue) : defaultValue;
+        	}
+        
+        	public getEffectiveTargetBoxStyleValue(property: string): string {
+        		const value = this.cleanCssValue(this.getTargetBoxStyleValue(property));
+        		return value != "" ? value : this.getTargetDefaultBoxStyleValue(property);
+        	}
+        
+        	public setTargetBoxStyleOverrideValue(property: string, value: any, defaultValue: any): void {
+        		const normalized = this.cleanCssValue(value);
+        		this.setTargetBoxStyleValue(property, this.normalizeCssComparable(normalized) == this.normalizeCssComparable(defaultValue) ? "" : normalized);
         	}
         
         	public getBoxStyleParentType(): string {
@@ -258,7 +439,8 @@ scriptContent:
         	}
         
         	public getBoxStyleValue(property: string): string {
-        		const value = this.item?.config?.boxStyle?.[property];
+        		const partKey = this.getBoxPartStyleKey();
+        		const value = this.item?.config?.[partKey]?.[property];
         		return value == null ? "" : "" + value;
         	}
         
@@ -274,18 +456,19 @@ scriptContent:
         		if (this.item.config == null) {
         			this.item.config = {};
         		}
-        		if (this.item.config.boxStyle == null || typeof this.item.config.boxStyle != "object" || Array.isArray(this.item.config.boxStyle)) {
-        			this.item.config.boxStyle = {};
+        		const partKey = this.getBoxPartStyleKey();
+        		if (this.item.config[partKey] == null || typeof this.item.config[partKey] != "object" || Array.isArray(this.item.config[partKey])) {
+        			this.item.config[partKey] = {};
         		}
         		const normalized = this.cleanCssValue(value);
         		if (normalized == "") {
-        			delete this.item.config.boxStyle[property];
+        			delete this.item.config[partKey][property];
         		}
         		else {
-        			this.item.config.boxStyle[property] = normalized;
+        			this.item.config[partKey][property] = normalized;
         		}
-        		if (Object.keys(this.item.config.boxStyle).length == 0) {
-        			delete this.item.config.boxStyle;
+        		if (Object.keys(this.item.config[partKey]).length == 0) {
+        			delete this.item.config[partKey];
         		}
         	}
         
@@ -700,11 +883,11 @@ scriptContent:
         	}
         
         	public getBorderTokens(): any {
-        		const parsed = this.parseBorderValue(this.getBoxStyleValue("border"));
+        		const parsed = this.parseBorderValue(this.getTargetBoxStyleValue("border"));
         		const result: any = {
-        			width: parsed.width || this.getBoxStyleValue("borderWidth"),
-        			style: parsed.style || this.getBoxStyleValue("borderStyle"),
-        			color: parsed.color || this.getBoxStyleValue("borderColor")
+        			width: parsed.width || this.getTargetBoxStyleValue("borderWidth"),
+        			style: parsed.style || this.getTargetBoxStyleValue("borderStyle"),
+        			color: parsed.color || this.getTargetBoxStyleValue("borderColor")
         		};
         		return result;
         	}
@@ -742,8 +925,8 @@ scriptContent:
         	}
         
         	public composeBorderValue(width: any, style: any, color: any): string {
-        		const normalizedStyle = this.cleanCssValue(style) || this.getDefaultBoxStyleValue("borderStyle");
-        		return (this.cleanCssValue(width) || this.getDefaultBoxStyleValue("borderWidth")) + " " + normalizedStyle + " " + (this.cleanCssValue(color) || this.getDefaultBoxStyleValue("borderColor"));
+        		const normalizedStyle = this.cleanCssValue(style) || this.getTargetDefaultBoxStyleValue("borderStyle");
+        		return (this.cleanCssValue(width) || this.getTargetDefaultBoxStyleValue("borderWidth")) + " " + normalizedStyle + " " + (this.cleanCssValue(color) || this.getTargetDefaultBoxStyleValue("borderColor"));
         	}
         
         	public getBorderSideProperty(side: string): string {
@@ -778,22 +961,22 @@ scriptContent:
         
         	public hasBorderSideOverride(side: string): boolean {
         		if (side == "all") {
-        			return this.getBoxStyleValue("border") != "" || this.getBoxStyleValue("borderWidth") != "" || this.getBoxStyleValue("borderStyle") != "" || this.getBoxStyleValue("borderColor") != "";
+        			return this.getTargetBoxStyleValue("border") != "" || this.getTargetBoxStyleValue("borderWidth") != "" || this.getTargetBoxStyleValue("borderStyle") != "" || this.getTargetBoxStyleValue("borderColor") != "";
         		}
         		const property = this.getBorderSideProperty(side);
-        		return property != "" && this.getBoxStyleValue(property) != "";
+        		return property != "" && this.getTargetBoxStyleValue(property) != "";
         	}
         
         	public getSelectedBorderTokens(): any {
         		const global = this.getBorderTokens();
         		const result: any = {
-        			width: global.width || this.getDefaultBoxStyleValue("borderWidth"),
-        			style: global.style || this.getDefaultBoxStyleValue("borderStyle"),
-        			color: global.color || this.getDefaultBoxStyleValue("borderColor")
+        			width: global.width || this.getTargetDefaultBoxStyleValue("borderWidth"),
+        			style: global.style || this.getTargetDefaultBoxStyleValue("borderStyle"),
+        			color: global.color || this.getTargetDefaultBoxStyleValue("borderColor")
         		};
         		const property = this.getBorderSideProperty(this.selectedBorderSide);
         		if (property != "") {
-        			const side = this.parseBorderValue(this.getBoxStyleValue(property));
+        			const side = this.parseBorderValue(this.getTargetBoxStyleValue(property));
         			result.width = side.width || result.width;
         			result.style = side.style || result.style;
         			result.color = side.color || result.color;
@@ -812,7 +995,7 @@ scriptContent:
         		if (property == "borderColor") {
         			return border.color;
         		}
-        		return this.getEffectiveBoxStyleValue(property);
+        		return this.getEffectiveTargetBoxStyleValue(property);
         	}
         
         	public getBorderInputDisplay(property: string): string {
@@ -820,23 +1003,23 @@ scriptContent:
         	}
         
         	public getBorderInputUnitLabel(property: string): string {
-        		const value = property == "borderWidth" ? this.getEffectiveBorderValue("borderWidth") : this.getEffectiveBoxStyleValue("borderRadius");
+        		const value = property == "borderWidth" ? this.getEffectiveBorderValue("borderWidth") : this.getEffectiveTargetBoxStyleValue("borderRadius");
         		const parsed = this.parseCssNumericValue(value);
         		return this.getBorderEditorUnitLabel(parsed.unit || "px");
         	}
         
         	public getBorderColorInputValue(): string {
         		const color = this.getEffectiveBorderValue("borderColor");
-        		return /^#[0-9a-f]{6}$/i.test(color) ? color : this.getDefaultBoxStyleValue("borderColor");
+        		return /^#[0-9a-f]{6}$/i.test(color) ? color : this.getTargetDefaultBoxStyleValue("borderColor");
         	}
         
         	public getBackgroundColorInputValue(): string {
-        		const color = this.getEffectiveBoxStyleValue("backgroundColor");
-        		return /^#[0-9a-f]{6}$/i.test(color) ? color : this.getDefaultBoxStyleValue("backgroundColor");
+        		const color = this.getEffectiveTargetBoxStyleValue("backgroundColor");
+        		return /^#[0-9a-f]{6}$/i.test(color) ? color : this.getTargetDefaultBoxStyleValue("backgroundColor");
         	}
         
         	public getBorderRadiusNumber(): number {
-        		const parsed = this.parseCssNumericValue(this.getEffectiveBoxStyleValue("borderRadius"));
+        		const parsed = this.parseCssNumericValue(this.getEffectiveTargetBoxStyleValue("borderRadius"));
         		if (isNaN(parsed.number)) {
         			return 0;
         		}
@@ -853,10 +1036,11 @@ scriptContent:
         		}
         		catch (e) {
         		}
-        		const currentValue = property == "borderWidth" ? this.getEffectiveBorderValue("borderWidth") : this.getEffectiveBoxStyleValue("borderRadius");
+        		const currentValue = property == "borderWidth" ? this.getEffectiveBorderValue("borderWidth") : this.getEffectiveTargetBoxStyleValue("borderRadius");
         		const parsed = this.parseCssNumericValue(currentValue);
         		this.spacingValueEditor = null;
         		this.borderValueEditor = {
+        			target: this.getSpacingTarget(),
         			property: property,
         			initialValue: currentValue,
         			number: parsed.number,
@@ -872,7 +1056,7 @@ scriptContent:
         	}
         
         	public borderValueEditorMatches(property: string): boolean {
-        		return this.borderValueEditor != null && this.borderValueEditor.property == property;
+        		return this.borderValueEditor != null && this.borderValueEditor.target == this.getSpacingTarget() && this.borderValueEditor.property == property;
         	}
         
         	public getBorderValueEditorLabelKey(): string {
@@ -936,7 +1120,7 @@ scriptContent:
         		this.borderValueEditor.number = isNaN(numberValue) ? 0 : Math.max(0, numberValue);
         		const formatted = this.formatBorderEditorValue(this.borderValueEditor.number, this.borderValueEditor.unit);
         		if (this.borderValueEditor.property == "borderRadius") {
-        			this.setBoxStyleOverrideValue("borderRadius", formatted, this.getDefaultBoxStyleValue("borderRadius"));
+        			this.setTargetBoxStyleOverrideValue("borderRadius", formatted, this.getTargetDefaultBoxStyleValue("borderRadius"));
         		}
         		else {
         			const tokens = this.getSelectedBorderTokens();
@@ -982,12 +1166,12 @@ scriptContent:
         		}
         		catch (e) {
         		}
-        		const defaultValue = this.borderValueEditor.property == "borderRadius" ? this.getDefaultBoxStyleValue("borderRadius") : this.getDefaultBoxStyleValue("borderWidth");
+        		const defaultValue = this.borderValueEditor.property == "borderRadius" ? this.getTargetDefaultBoxStyleValue("borderRadius") : this.getTargetDefaultBoxStyleValue("borderWidth");
         		const parsed = this.parseCssNumericValue(defaultValue);
         		this.borderValueEditor.number = parsed.number;
         		this.borderValueEditor.unit = parsed.unit;
         		if (this.borderValueEditor.property == "borderRadius") {
-        			this.setBoxStyleOverrideValue("borderRadius", defaultValue, this.getDefaultBoxStyleValue("borderRadius"));
+        			this.setTargetBoxStyleOverrideValue("borderRadius", defaultValue, this.getTargetDefaultBoxStyleValue("borderRadius"));
         		}
         		else {
         			const tokens = this.getSelectedBorderTokens();
@@ -998,27 +1182,27 @@ scriptContent:
         	}
         
         	public clearBorderSideOverrides(): void {
-        		this.setBoxStyleValue("borderTop", "");
-        		this.setBoxStyleValue("borderRight", "");
-        		this.setBoxStyleValue("borderBottom", "");
-        		this.setBoxStyleValue("borderLeft", "");
+        		this.setTargetBoxStyleValue("borderTop", "");
+        		this.setTargetBoxStyleValue("borderRight", "");
+        		this.setTargetBoxStyleValue("borderBottom", "");
+        		this.setTargetBoxStyleValue("borderLeft", "");
         	}
         
         	public setSelectedBorderTokens(tokens: any): void {
-        		const width = this.cleanCssValue(tokens?.width) || this.getDefaultBoxStyleValue("borderWidth");
-        		const style = this.cleanCssValue(tokens?.style) || this.getDefaultBoxStyleValue("borderStyle");
-        		const color = this.cleanCssValue(tokens?.color) || this.getDefaultBoxStyleValue("borderColor");
+        		const width = this.cleanCssValue(tokens?.width) || this.getTargetDefaultBoxStyleValue("borderWidth");
+        		const style = this.cleanCssValue(tokens?.style) || this.getTargetDefaultBoxStyleValue("borderStyle");
+        		const color = this.cleanCssValue(tokens?.color) || this.getTargetDefaultBoxStyleValue("borderColor");
         		const borderValue = this.composeBorderValue(width, style, color);
-        		const defaultBorderValue = this.composeBorderValue(this.getDefaultBoxStyleValue("borderWidth"), this.getDefaultBoxStyleValue("borderStyle"), this.getDefaultBoxStyleValue("borderColor"));
+        		const defaultBorderValue = this.composeBorderValue(this.getTargetDefaultBoxStyleValue("borderWidth"), this.getTargetDefaultBoxStyleValue("borderStyle"), this.getTargetDefaultBoxStyleValue("borderColor"));
         		const sideProperty = this.getBorderSideProperty(this.selectedBorderSide);
         		if (sideProperty == "") {
-        			this.setBoxStyleOverrideValue("border", borderValue, defaultBorderValue);
-        			this.setBoxStyleValue("borderWidth", "");
-        			this.setBoxStyleValue("borderStyle", "");
-        			this.setBoxStyleValue("borderColor", "");
+        			this.setTargetBoxStyleOverrideValue("border", borderValue, defaultBorderValue);
+        			this.setTargetBoxStyleValue("borderWidth", "");
+        			this.setTargetBoxStyleValue("borderStyle", "");
+        			this.setTargetBoxStyleValue("borderColor", "");
         		}
         		else {
-        			this.setBoxStyleOverrideValue(sideProperty, borderValue, defaultBorderValue);
+        			this.setTargetBoxStyleOverrideValue(sideProperty, borderValue, defaultBorderValue);
         		}
         	}
         
@@ -1036,7 +1220,7 @@ scriptContent:
         
         	public setBorderStyleFromInput(event: any): void {
         		const tokens = this.getSelectedBorderTokens();
-        		tokens.style = this.cleanCssValue(event?.target?.value) || this.getDefaultBoxStyleValue("borderStyle");
+        		tokens.style = this.cleanCssValue(event?.target?.value) || this.getTargetDefaultBoxStyleValue("borderStyle");
         		this.setSelectedBorderTokens(tokens);
         		this.notifyBoxStyleChange();
         	}
@@ -1049,27 +1233,27 @@ scriptContent:
         		catch (e) {
         		}
         		const tokens = this.getSelectedBorderTokens();
-        		tokens.style = this.cleanCssValue(value) || this.getDefaultBoxStyleValue("borderStyle");
+        		tokens.style = this.cleanCssValue(value) || this.getTargetDefaultBoxStyleValue("borderStyle");
         		this.setSelectedBorderTokens(tokens);
         		this.notifyBoxStyleChange();
         	}
         
         	public setBorderColorFromInput(event: any): void {
         		const tokens = this.getSelectedBorderTokens();
-        		tokens.color = this.cleanCssValue(event?.target?.value) || this.getDefaultBoxStyleValue("borderColor");
+        		tokens.color = this.cleanCssValue(event?.target?.value) || this.getTargetDefaultBoxStyleValue("borderColor");
         		this.setSelectedBorderTokens(tokens);
         		this.notifyBoxStyleChange();
         	}
         
         	public setBackgroundColorFromInput(event: any): void {
-        		const value = this.cleanCssValue(event?.target?.value) || this.getDefaultBoxStyleValue("backgroundColor");
-        		this.setBoxStyleOverrideValue("backgroundColor", value, this.getDefaultBoxStyleValue("backgroundColor"));
+        		const value = this.cleanCssValue(event?.target?.value) || this.getTargetDefaultBoxStyleValue("backgroundColor");
+        		this.setTargetBoxStyleOverrideValue("backgroundColor", value, this.getTargetDefaultBoxStyleValue("backgroundColor"));
         		this.notifyBoxStyleChange();
         	}
         
         	public setBorderRadiusFromInput(event: any): void {
-        		const value = this.normalizeCssInputValue(event?.target?.value, "borderRadius") || this.getDefaultBoxStyleValue("borderRadius");
-        		this.setBoxStyleOverrideValue("borderRadius", value, this.getDefaultBoxStyleValue("borderRadius"));
+        		const value = this.normalizeCssInputValue(event?.target?.value, "borderRadius") || this.getTargetDefaultBoxStyleValue("borderRadius");
+        		this.setTargetBoxStyleOverrideValue("borderRadius", value, this.getTargetDefaultBoxStyleValue("borderRadius"));
         		if (this.borderValueEditorMatches("borderRadius")) {
         			const parsed = this.parseCssNumericValue(value);
         			this.borderValueEditor.number = parsed.number;
@@ -1080,7 +1264,7 @@ scriptContent:
         
         	public setBorderRadiusFromRange(event: any): void {
         		const value = this.cleanCssValue(event?.target?.value) || "0";
-        		this.setBoxStyleOverrideValue("borderRadius", value == "0" ? "0" : value + "px", this.getDefaultBoxStyleValue("borderRadius"));
+        		this.setTargetBoxStyleOverrideValue("borderRadius", value == "0" ? "0" : value + "px", this.getTargetDefaultBoxStyleValue("borderRadius"));
         		if (this.borderValueEditorMatches("borderRadius")) {
         			this.borderValueEditor.number = parseFloat(value) || 0;
         			this.borderValueEditor.unit = "px";
@@ -1095,11 +1279,11 @@ scriptContent:
         		}
         		catch (e) {
         		}
-        		this.setBoxStyleValue("border", "");
-        		this.setBoxStyleValue("borderWidth", "");
-        		this.setBoxStyleValue("borderStyle", "");
-        		this.setBoxStyleValue("borderColor", "");
-        		this.setBoxStyleValue("borderRadius", "");
+        		this.setTargetBoxStyleValue("border", "");
+        		this.setTargetBoxStyleValue("borderWidth", "");
+        		this.setTargetBoxStyleValue("borderStyle", "");
+        		this.setTargetBoxStyleValue("borderColor", "");
+        		this.setTargetBoxStyleValue("borderRadius", "");
         		this.clearBorderSideOverrides();
         		this.borderValueEditor = null;
         		if (this.spacingValueEditor == null) {
@@ -1115,7 +1299,7 @@ scriptContent:
         		}
         		catch (e) {
         		}
-        		this.setBoxStyleValue("backgroundColor", "");
+        		this.setTargetBoxStyleValue("backgroundColor", "");
         		this.notifyBoxStyleChange();
         	}
         
@@ -1179,11 +1363,11 @@ scriptContent:
         <div class="c8o-box-setting-row">
           <div class="c8o-box-setting-label">{{ 'item_box_spacing_group' | translate }}</div>
           <div class="c8o-box-setting-control">
-            <div class="c8o-box-control-head">
+            <div class="c8o-box-control-head" [class.has-spacing-targets]="this.isLayoutSpacingEditor()">
               <div class="c8o-spacing-target-tabs" *ngIf="this.isLayoutSpacingEditor()" role="group">
                 <button type="button"
                   [class.is-active]="this.spacingTargetMatches('self')"
-                  (click)="this.selectSpacingTarget('self', $event)">{{ 'item_box_spacing_target_layout' | translate }}</button>
+                  (click)="this.selectSpacingTarget('self', $event)">{{ this.getStyleSelfTargetLabelKey() | translate }}</button>
                 <button type="button"
                   [class.is-active]="this.spacingTargetMatches('children')"
                   (click)="this.selectSpacingTarget('children', $event)">{{ 'item_box_spacing_target_children' | translate }}</button>
@@ -1194,7 +1378,21 @@ scriptContent:
                   [class.is-active]="this.spacingTargetMatches('last')"
                   (click)="this.selectSpacingTarget('last', $event)">{{ 'item_box_spacing_target_last' | translate }}</button>
               </div>
+              <div class="c8o-spacing-target-tabs c8o-part-target-tabs" *ngIf="this.showBoxPartTargetTabs()" role="group">
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('container')"
+                  (click)="this.selectBoxPartTarget('container', $event)">{{ 'item_box_part_target_container' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('question')"
+                  (click)="this.selectBoxPartTarget('question', $event)">{{ 'item_box_part_target_question' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('component')"
+                  (click)="this.selectBoxPartTarget('component', $event)">{{ 'item_box_part_target_component' | translate }}</button>
+              </div>
               <button class="c8o-mini-button" type="button" (click)="this.resetSpacing($event)">{{ 'item_box_reset' | translate }}</button>
+            </div>
+            <div class="c8o-box-helper" *ngIf="this.isLayoutChildStyleEditor()">
+              {{ this.getChildStyleHintKey('spacing') | translate }}
             </div>
       
         <div class="c8o-box-model" role="group" [attr.aria-label]="'item_box_spacing_editor' | translate">
@@ -1312,8 +1510,36 @@ scriptContent:
         <div class="c8o-box-setting-row">
           <div class="c8o-box-setting-label">{{ 'item_box_borders' | translate }}</div>
           <div class="c8o-box-setting-control">
-            <div class="c8o-box-control-head">
+            <div class="c8o-box-control-head" [class.has-spacing-targets]="this.isLayoutSpacingEditor()">
+              <div class="c8o-spacing-target-tabs" *ngIf="this.isLayoutSpacingEditor()" role="group">
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('self')"
+                  (click)="this.selectSpacingTarget('self', $event)">{{ this.getStyleSelfTargetLabelKey() | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('children')"
+                  (click)="this.selectSpacingTarget('children', $event)">{{ 'item_box_spacing_target_children' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('first')"
+                  (click)="this.selectSpacingTarget('first', $event)">{{ 'item_box_spacing_target_first' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('last')"
+                  (click)="this.selectSpacingTarget('last', $event)">{{ 'item_box_spacing_target_last' | translate }}</button>
+              </div>
+              <div class="c8o-spacing-target-tabs c8o-part-target-tabs" *ngIf="this.showBoxPartTargetTabs()" role="group">
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('container')"
+                  (click)="this.selectBoxPartTarget('container', $event)">{{ 'item_box_part_target_container' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('question')"
+                  (click)="this.selectBoxPartTarget('question', $event)">{{ 'item_box_part_target_question' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('component')"
+                  (click)="this.selectBoxPartTarget('component', $event)">{{ 'item_box_part_target_component' | translate }}</button>
+              </div>
               <button class="c8o-mini-button" type="button" (click)="this.resetBorder($event)">{{ 'item_box_reset' | translate }}</button>
+            </div>
+            <div class="c8o-box-helper" *ngIf="this.isLayoutChildStyleEditor()">
+              {{ this.getChildStyleHintKey('border') | translate }}
             </div>
       
         <div class="c8o-border-editor">
@@ -1473,12 +1699,42 @@ scriptContent:
         <div class="c8o-box-setting-row">
           <div class="c8o-box-setting-label">{{ 'item_box_background_color' | translate }}</div>
           <div class="c8o-box-setting-control">
+            <div class="c8o-box-control-head" [class.has-spacing-targets]="this.isLayoutSpacingEditor()">
+              <div class="c8o-spacing-target-tabs" *ngIf="this.isLayoutSpacingEditor()" role="group">
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('self')"
+                  (click)="this.selectSpacingTarget('self', $event)">{{ this.getStyleSelfTargetLabelKey() | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('children')"
+                  (click)="this.selectSpacingTarget('children', $event)">{{ 'item_box_spacing_target_children' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('first')"
+                  (click)="this.selectSpacingTarget('first', $event)">{{ 'item_box_spacing_target_first' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('last')"
+                  (click)="this.selectSpacingTarget('last', $event)">{{ 'item_box_spacing_target_last' | translate }}</button>
+              </div>
+              <div class="c8o-spacing-target-tabs c8o-part-target-tabs" *ngIf="this.showBoxPartTargetTabs()" role="group">
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('container')"
+                  (click)="this.selectBoxPartTarget('container', $event)">{{ 'item_box_part_target_container' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('question')"
+                  (click)="this.selectBoxPartTarget('question', $event)">{{ 'item_box_part_target_question' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.boxPartTargetMatches('component')"
+                  (click)="this.selectBoxPartTarget('component', $event)">{{ 'item_box_part_target_component' | translate }}</button>
+              </div>
+              <button class="c8o-mini-button" type="button" (click)="this.resetBackground($event)">{{ 'item_box_reset' | translate }}</button>
+            </div>
+            <div class="c8o-box-helper" *ngIf="this.isLayoutChildStyleEditor()">
+              {{ this.getChildStyleHintKey('background') | translate }}
+            </div>
             <div class="c8o-background-editor">
               <span class="c8o-border-color-field c8o-background-color-field">
                 <input class="c8o-border-color-swatch" type="color" [value]="this.getBackgroundColorInputValue()" (input)="this.setBackgroundColorFromInput($event)">
-                <input class="c8o-border-color-text" [value]="this.getEffectiveBoxStyleValue('backgroundColor')" (input)="this.setBackgroundColorFromInput($event)">
+                <input class="c8o-border-color-text" [value]="this.getEffectiveTargetBoxStyleValue('backgroundColor')" (input)="this.setBackgroundColorFromInput($event)">
               </span>
-              <button class="c8o-mini-button" type="button" (click)="this.resetBackground($event)">{{ 'item_box_reset' | translate }}</button>
             </div>
           </div>
         </div>
@@ -1541,23 +1797,39 @@ scriptContent:
             	min-width: 0;
             }
             .c8o-box-control-head{
-            	display: flex;
+            	display: grid;
+            	grid-template-columns: minmax(0, 1fr) auto;
             	align-items: center;
-            	justify-content: flex-end;
-            	gap: 8px;
+            	gap: 6px 8px;
             	min-height: 24px;
             	margin-bottom: 6px;
             }
             .c8o-spacing-target-tabs{
-            	display: inline-flex;
+            	display: flex;
             	min-width: 0;
-            	margin-right: auto;
+            	width: 100%;
+            	max-width: 100%;
+            	margin-right: 0;
             	padding: 2px;
             	border: 1px solid rgba(148, 163, 184, 0.34);
             	border-radius: 7px;
             	background: #f1f5f9;
             }
+            .c8o-box-control-head > .c8o-spacing-target-tabs:not(.c8o-part-target-tabs){
+            	grid-column: 1;
+            	grid-row: 1;
+            }
+            .c8o-part-target-tabs{
+            	grid-column: 1;
+            	grid-row: 1;
+            	margin-right: 0;
+            }
+            .c8o-box-control-head.has-spacing-targets > .c8o-part-target-tabs{
+            	grid-column: 1 / -1;
+            	grid-row: 2;
+            }
             .c8o-spacing-target-tabs button{
+            	flex: 1 1 0;
             	height: 20px;
             	min-width: 0;
             	padding: 0 6px;
@@ -1569,6 +1841,8 @@ scriptContent:
             	font-weight: 700;
             	line-height: 18px;
             	white-space: nowrap;
+            	overflow: hidden;
+            	text-overflow: ellipsis;
             	cursor: pointer;
             }
             .c8o-spacing-target-tabs button:hover{
@@ -1580,7 +1854,20 @@ scriptContent:
             	color: #1d4ed8;
             	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
             }
+            .c8o-box-helper{
+            	margin: 0 0 8px;
+            	padding: 7px 9px;
+            	border: 1px solid rgba(59, 130, 246, 0.22);
+            	border-radius: 7px;
+            	background: #eff6ff;
+            	color: #475569;
+            	font-size: 11px;
+            	font-weight: 500;
+            	line-height: 1.35;
+            }
             .c8o-mini-button{
+            	grid-column: 2;
+            	grid-row: 1;
             	height: 24px;
             	padding: 0 8px;
             	border: 1px solid rgba(148, 163, 184, 0.42);

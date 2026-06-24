@@ -6665,6 +6665,214 @@ scriptContent:
         		return style;
         	}
         
+        	public getViewerItemPartBoxStyle(item: any, part: string, baseStyle: any = null): any {
+        		let style: any = {};
+        		if (baseStyle != null && typeof baseStyle == "object") {
+        			Object.keys(baseStyle).forEach((key) => {
+        				style[key] = baseStyle[key];
+        			});
+        		}
+        		const boxPart = part == "question" || part == "component" ? part : "container";
+        		style = this.applyViewerInheritedPartBoxStyle(item, boxPart, style);
+        		const localPartStyle = this.getViewerPartBoxStyleFromItem(item, boxPart);
+        		if (localPartStyle != null) {
+        			style = this.getViewerItemBoxStyle({config: {boxStyle: localPartStyle}}, style);
+        		}
+        		return style;
+        	}
+        
+        	private applyViewerInheritedPartBoxStyle(item: any, part: string, baseStyle: any): any {
+        		let style = baseStyle || {};
+        		const parent = this.getResetParentItem(item);
+        		const parentType = "" + (parent?.type || "");
+        		if (parent == null || (parentType != "layout" && parentType != "ion-card" && parentType != "card")) {
+        			return style;
+        		}
+        		const childIndex = this.getViewerChildIndexInParent(parent, item);
+        		if (childIndex < 0) {
+        			return style;
+        		}
+        		const scopes = this.getViewerParentChildStyleScopes(parent, childIndex);
+        		for (let i = 0; i < scopes.length; i++) {
+        			const parentPartStyle = this.getViewerParentChildrenPartBoxStyle(parent, scopes[i], part);
+        			if (parentPartStyle != null) {
+        				style = this.getViewerItemBoxStyle({config: {boxStyle: parentPartStyle}}, style);
+        			}
+        		}
+        		return style;
+        	}
+        
+        	private getViewerPartBoxStyleFromItem(item: any, part: string): any {
+        		if (item?.config == null) {
+        			return null;
+        		}
+        		const key = part == "question" ? "questionBoxStyle" : part == "component" ? "componentBoxStyle" : "boxStyle";
+        		const style = item.config[key];
+        		if (style == null || typeof style != "object" || Array.isArray(style)) {
+        			return null;
+        		}
+        		return style;
+        	}
+        
+        	private getViewerParentChildrenPartBoxStyle(parentItem: any, scope: string, part: string): any {
+        		const scopeStyle = this.getViewerParentChildrenBoxStyle(parentItem, scope);
+        		if (scopeStyle == null) {
+        			return null;
+        		}
+        		if (part == "container") {
+        			return scopeStyle;
+        		}
+        		const key = part == "question" ? "questionBoxStyle" : "componentBoxStyle";
+        		const style = scopeStyle[key];
+        		if (style == null || typeof style != "object" || Array.isArray(style)) {
+        			return null;
+        		}
+        		return style;
+        	}
+        
+        	private getViewerChildIndexInParent(parentItem: any, childItem: any): number {
+        		if (parentItem == null || childItem == null) {
+        			return -1;
+        		}
+        		const childId = childItem?.id;
+        		const childrenRefs = Array.isArray(parentItem.childrenRefs) ? parentItem.childrenRefs : [];
+        		for (let i = 0; i < childrenRefs.length; i++) {
+        			const ref = childrenRefs[i];
+        			if (("" + ref) == ("" + childId) || (ref?.id != null && ("" + ref.id) == ("" + childId))) {
+        				return i;
+        			}
+        		}
+        		const children = Array.isArray(parentItem.children) ? parentItem.children : [];
+        		for (let j = 0; j < children.length; j++) {
+        			if (children[j] != null && ("" + children[j].id) == ("" + childId)) {
+        				return j;
+        			}
+        		}
+        		return -1;
+        	}
+        
+        	private getViewerParentChildStyleScopes(parentItem: any, childIndex: number): string[] {
+        		const scopes = ["default"];
+        		const parentType = "" + (parentItem?.type || "");
+        		if (parentType == "layout") {
+        			const position = this.getViewerLayoutChildPosition(parentItem, childIndex);
+        			if (position.first) {
+        				scopes.push("first");
+        			}
+        			if (position.last) {
+        				scopes.push("last");
+        			}
+        			return scopes;
+        		}
+        		const length = Array.isArray(parentItem?.childrenRefs) && parentItem.childrenRefs.length > 0 ? parentItem.childrenRefs.length : (Array.isArray(parentItem?.children) ? parentItem.children.length : 0);
+        		if (childIndex == 0) {
+        			scopes.push("first");
+        		}
+        		if (length > 0 && childIndex == length - 1) {
+        			scopes.push("last");
+        		}
+        		return scopes;
+        	}
+        
+        	private getViewerLayoutChildPosition(parentItem: any, index: number): any {
+        		const sizes = this.getViewerLayoutSizes(parentItem, this.getViewerLayoutBreakpoint());
+        		const children = Array.isArray(parentItem?.childrenRefs) ? parentItem.childrenRefs : [];
+        		if (!Array.isArray(sizes) || sizes.length == 0 || children.length == 0) {
+        			return {first: false, last: false};
+        		}
+        		let rowStart = 0;
+        		let rowWidth = 0;
+        		for (let i = 0; i < children.length; i++) {
+        			let size = parseFloat("" + sizes[i % sizes.length]);
+        			if (isNaN(size) || size <= 0) {
+        				size = 12;
+        			}
+        			size = Math.min(size, 12);
+        			if (rowWidth > 0 && rowWidth + size > 12) {
+        				if (index >= rowStart && index < i) {
+        					return {first: index == rowStart, last: false};
+        				}
+        				rowStart = i;
+        				rowWidth = 0;
+        			}
+        			rowWidth += size;
+        			if (rowWidth >= 12) {
+        				if (index >= rowStart && index <= i) {
+        					return {first: index == rowStart, last: index == i};
+        				}
+        				rowStart = i + 1;
+        				rowWidth = 0;
+        			}
+        		}
+        		return {first: index == rowStart, last: false};
+        	}
+        
+        	private getViewerLayoutBreakpoint(): string {
+        		if (typeof window == "undefined" || typeof window.matchMedia != "function") {
+        			return "xl";
+        		}
+        		if (window.matchMedia("(min-width: 1200px)").matches) return "xl";
+        		if (window.matchMedia("(min-width: 992px) and (max-width: 1199px)").matches) return "lg";
+        		if (window.matchMedia("(min-width: 768px) and (max-width: 991px)").matches) return "md";
+        		if (window.matchMedia("(min-width: 576px) and (max-width: 767px)").matches) return "sm";
+        		return "xs";
+        	}
+        
+        	private getViewerLayoutSizes(parentItem: any, breakpoint: string): any[] {
+        		const key = breakpoint == "md" ? "tablet" : breakpoint == "sm" ? "phoneL" : breakpoint == "xs" ? "phoneP" : "cols";
+        		const config = Array.isArray(parentItem?.config?.[key]) ? parentItem.config[key] : [];
+        		return config.filter((col) => col != null && parseFloat("" + col.size) > 0).map((col) => col.size);
+        	}
+        
+        	public getViewerGroupChildBoxStyle(parentItem: any, childItem: any, index: any): any {
+        		const parentType = "" + (parentItem?.type || "");
+        		if (parentType != "ion-card" && parentType != "card") {
+        			return this.getViewerItemBoxStyle(childItem);
+        		}
+        		let style: any = {};
+        		const scopes = ["default"];
+        		const position = this.getViewerGroupChildPosition(parentItem, index);
+        		if (position.first) {
+        			scopes.push("first");
+        		}
+        		if (position.last) {
+        			scopes.push("last");
+        		}
+        		for (let i = 0; i < scopes.length; i++) {
+        			const parentChildStyle = this.getViewerParentChildrenBoxStyle(parentItem, scopes[i]);
+        			if (parentChildStyle != null) {
+        				style = this.getViewerItemBoxStyle({config: {boxStyle: parentChildStyle}}, style);
+        			}
+        		}
+        		return this.getViewerItemBoxStyle(childItem, style);
+        	}
+        
+        	private getViewerParentChildrenBoxStyle(parentItem: any, scope: string): any {
+        		const config = parentItem?.config?.layoutChildrenStyle;
+        		if (config == null || typeof config != "object" || Array.isArray(config)) {
+        			return null;
+        		}
+        		const style = config[scope == "children" ? "default" : scope];
+        		if (style == null || typeof style != "object" || Array.isArray(style)) {
+        			return null;
+        		}
+        		return style;
+        	}
+        
+        	private getViewerGroupChildPosition(parentItem: any, index: any): any {
+        		const childIndex = parseInt("" + index, 10);
+        		const childrenRefs = Array.isArray(parentItem?.childrenRefs) ? parentItem.childrenRefs : [];
+        		const legacyChildren = Array.isArray(parentItem?.children) ? parentItem.children : [];
+        		const length = childrenRefs.length > 0 ? childrenRefs.length : legacyChildren.length;
+        		if (isNaN(childIndex) || length <= 0) {
+        			return {first: false, last: false};
+        		}
+        		return {
+        			first: childIndex == 0,
+        			last: childIndex == length - 1
+        		};
+        	}
+        
         	private getViewerBoxCssValue(boxStyle: any, property: string): string {
         		if (boxStyle == null || typeof boxStyle != "object" || Array.isArray(boxStyle)) {
         			return "";

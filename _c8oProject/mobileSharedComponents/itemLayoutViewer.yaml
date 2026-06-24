@@ -197,6 +197,17 @@ scriptContent:
         		}
         		return this.getLayoutChildrenSpacingValue("default", property);
         	}
+        	getLayoutChildrenExplicitStyleValue(scope: string, property: string): string {
+        		const style = this.getLayoutChildrenSpacingStyle(scope);
+        		const value = this.cleanLayoutCssValue(style?.[property]);
+        		if (value != "") {
+        			return value;
+        		}
+        		if (scope != "default") {
+        			return this.getLayoutChildrenExplicitStyleValue("default", property);
+        		}
+        		return "";
+        	}
         	getLayoutColumnSizeAt(index: number, sizes: any[]): number {
         		const rawSize = sizes[index % sizes.length];
         		let size = parseFloat("" + rawSize);
@@ -247,6 +258,59 @@ scriptContent:
         		}
         		return value;
         	}
+        	getLayoutChildExplicitStyleValue(index: number, property: string): string {
+        		let value = this.getLayoutChildrenExplicitStyleValue("default", property);
+        		const position = this.getLayoutRowPosition(index);
+        		if (position.first) {
+        			value = this.getLayoutChildrenExplicitStyleValue("first", property);
+        		}
+        		if (position.last) {
+        			value = this.getLayoutChildrenExplicitStyleValue("last", property);
+        		}
+        		return value;
+        	}
+        	composeLayoutChildBorderValue(width: string, style: string, color: string): string {
+        		return (width || "1px") + " " + (style || "solid") + " " + (color || "#E5E7EB");
+        	}
+        	getLayoutChildBorderValue(index: number): string {
+        		const border = this.getLayoutChildExplicitStyleValue(index, "border");
+        		if (border != "") {
+        			return border;
+        		}
+        		const width = this.getLayoutChildExplicitStyleValue(index, "borderWidth");
+        		const style = this.getLayoutChildExplicitStyleValue(index, "borderStyle");
+        		const color = this.getLayoutChildExplicitStyleValue(index, "borderColor");
+        		if (width == "" && style == "" && color == "") {
+        			return "";
+        		}
+        		return this.composeLayoutChildBorderValue(width, style, color);
+        	}
+        	applyLayoutChildExplicitStyle(style: any, index: number): void {
+        		const backgroundColor = this.getLayoutChildExplicitStyleValue(index, "backgroundColor");
+        		if (backgroundColor != "") {
+        			style["background-color"] = backgroundColor;
+        		}
+        		const border = this.getLayoutChildBorderValue(index);
+        		if (border != "") {
+        			style["border"] = border;
+        		}
+        		const borderRadius = this.getLayoutChildExplicitStyleValue(index, "borderRadius");
+        		if (borderRadius != "") {
+        			style["border-radius"] = borderRadius;
+        		}
+        		const sides: any = {
+        			borderTop: "border-top",
+        			borderRight: "border-right",
+        			borderBottom: "border-bottom",
+        			borderLeft: "border-left"
+        		};
+        		Object.keys(sides).forEach((property) => {
+        			const value = this.getLayoutChildExplicitStyleValue(index, property);
+        			if (value != "") {
+        				style[sides[property]] = value;
+        			}
+        		});
+        	}
         	getViewerBoxStyleForChild(child: any): any {
         		const item = this.pageOwner?.getItemById?.(child);
         		if (item == null || this.pageOwner == null || typeof this.pageOwner.getViewerItemBoxStyle != "function") {
@@ -267,6 +331,7 @@ scriptContent:
         		if (padding != "") {
         			style["padding"] = padding;
         		}
+        		this.applyLayoutChildExplicitStyle(style, index);
         		const childStyle = this.getViewerBoxStyleForChild(child);
         		const keys = ["margin", "padding", "background-color", "border", "border-radius", "border-top", "border-right", "border-bottom", "border-left"];
         		for (let i = 0; i < keys.length; i++) {
