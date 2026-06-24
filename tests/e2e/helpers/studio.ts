@@ -142,6 +142,7 @@ export const SEL = {
     'c8oforms-datasourcebutton button.class1775848361410, c8oforms-datasourcebutton button.c8o-btn',
   dataSourceConfigureButton:
     'c8oforms-datasourceconfigurebutton button.class1776013870072, c8oforms-datasourceconfigurebutton button.c8o-btn',
+  mapSourceModeRow: 'ion-row.class1777130000001',
   publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
   publishedApplicationsTab: 'ion-button.class1761754757348',
   selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
@@ -2086,6 +2087,39 @@ export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<v
       page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`).first(),
       'the data source configuration actions should be visible',
     ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function openMapDataSourcePicker(page: Page): Promise<Locator> {
+  return test.step('Open the Map data source picker', async () => {
+    await openConfigurationSection(page);
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await activateMapDataSourceMode(page);
+
+    const sourceButton = await firstVisibleLocator(page, SEL.dataSourceSelectButton, 'Map data source selection button', 15_000);
+    await sourceButton.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await sourceButton.click({ timeout: 10_000 }).catch(async () => sourceButton.dispatchEvent('click'));
+
+    const sourcePicker = page.locator('ion-modal:visible').last();
+    await expect(sourcePicker, 'Map source selection panel should open').toBeVisible({ timeout: 15_000 });
+    return sourcePicker;
+  });
+}
+
+async function activateMapDataSourceMode(page: Page): Promise<void> {
+  const sourceModeButtons = page.locator(`${SEL.mapSourceModeRow}:visible button.c8o-btn:visible`);
+  await expect(sourceModeButtons.first(), 'Map source mode toggle should be visible').toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => sourceModeButtons.count(), {
+      message: 'Map source mode toggle should expose local and data-source choices',
+      timeout: 15_000,
+    })
+    .toBeGreaterThanOrEqual(2);
+
+  const dataSourceButton = sourceModeButtons.nth(1);
+  await dataSourceButton.click({ timeout: 10_000 }).catch(async () => dataSourceButton.dispatchEvent('click'));
+  await expect(dataSourceButton, 'Map source mode should switch to data source').toHaveClass(/c8o-btn-selected/, {
+    timeout: 10_000,
   });
 }
 

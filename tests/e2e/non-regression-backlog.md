@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 45 deja couverts; 173 a couvrir (28 ouverts, 145 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 46 deja couverts; 172 a couvrir (28 ouverts, 144 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -112,7 +112,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 45 deja co
 | [ ] | [#1345](https://github.com/convertigo/C8oForms/issues/1345) | closed | bug, QC-Passed | Flow continues executing after leaving Preview mode and even on the Studio home page |  |
 | [ ] | [#1344](https://github.com/convertigo/C8oForms/issues/1344) | closed | bug, QC-Passed | User search filter should only be visible to administrators |  |
 | [ ] | [#1343](https://github.com/convertigo/C8oForms/issues/1343) | closed | bug, QC-Passed | Add‑row action: added columns cannot be deleted (no delete button) |  |
-| [ ] | [#1342](https://github.com/convertigo/C8oForms/issues/1342) | closed | bug, QC-Passed | Map component: “From a data source” button does not open the source selection panel |  |
+| [x] | [#1342](https://github.com/convertigo/C8oForms/issues/1342) | closed | bug, QC-Passed, Auto QA Test | Map component: “From a data source” button does not open the source selection panel | Auto QA Test<br>e2e/issue-1342.spec.ts |
 | [ ] | [#1341](https://github.com/convertigo/C8oForms/issues/1341) | closed | bug, QC-Passed | i18n translations missing for the “Chart” component |  |
 | [ ] | [#1340](https://github.com/convertigo/C8oForms/issues/1340) | closed | bug, QC-Passed | Search bar is accent‑case‑sensitive in both directions (uppercase ↔ lowercase), causing applications not to be found |  |
 | [ ] | [#1339](https://github.com/convertigo/C8oForms/issues/1339) | closed | bug, QC-Passed | Visibility tab: condition is deleted when switching options or cancelling dialog |  |
