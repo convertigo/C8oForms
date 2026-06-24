@@ -100,7 +100,6 @@ scriptContent:
         		}
         	}
         	public getHeaderMetaFromPalette(type: any): any {
-        		console.log(this)
         		if (this.pageOwner != null && this.pageOwner.getMetaFromPalette != null) {
         			return this.pageOwner.getMetaFromPalette(type) || {};
         		}
@@ -295,8 +294,291 @@ scriptContent:
         		}
         		return false;
         	}
+        	public itemHasConfiguredBoxStyle(item: any): boolean {
+        		return this.getHeaderBoxStyleSources(item).length > 0;
+        	}
+        	public getHeaderBoxStyleTooltip(item: any): string {
+        		var sources = this.getHeaderBoxStyleSources(item);
+        		if (sources.length == 0) {
+        			return "";
+        		}
+        		return this.getHeaderTranslatedLabel("main_tab_selector_org", "Apparence") + " : " + sources.join(", ");
+        	}
+        	private getHeaderBoxStyleSources(item: any): string[] {
+        		var sources: string[] = [];
+        		if (!this.isHeaderBoxStyleApplicableItem(item)) {
+        			return sources;
+        		}
+        		if (this.hasConfiguredHeaderBoxStyle(item)) {
+        			this.addHeaderBoxStyleSource(sources, "Composant");
+        		}
+        		var parentItem = this.getHeaderParentItem(item);
+        		if (parentItem != null) {
+        			var parentType = "" + (parentItem.type || "");
+        			var scopes = this.getHeaderParentStyleScopes(parentItem, item);
+        			if (this.hasConfiguredHeaderLayoutChildrenStyle(parentItem, scopes)) {
+        				var parentLabel = (parentType == "layout") ? this.getHeaderTranslatedLabel("item_box_spacing_target_layout", "Layout") : this.getHeaderTranslatedLabel("item_box_spacing_target_group", "Groupe");
+        				this.addHeaderBoxStyleSource(sources, parentLabel + " parent");
+        			}
+        		}
+        		if (this.hasConfiguredHeaderBoxStyle(this.getHeaderPageItem())) {
+        			this.addHeaderBoxStyleSource(sources, this.getHeaderTranslatedLabel("page_settings", "Page"));
+        		}
+        		if (this.hasConfiguredHeaderBoxStyle(this.getHeaderApplicationItem())) {
+        			this.addHeaderBoxStyleSource(sources, "Application");
+        		}
+        		return sources;
+        	}
+        	private isHeaderBoxStyleApplicableItem(item: any): boolean {
+        		if (item == null) {
+        			return false;
+        		}
+        		if (item.cat == "action") {
+        			return false;
+        		}
+        		return item.type != null || item.config != null;
+        	}
+        	private getHeaderTranslatedLabel(key: string, fallback: string): string {
+        		try {
+        			var value = this.translate != null ? this.translate.instant(key) : "";
+        			if (value != null && value != "" && value != key) {
+        				return value;
+        			}
+        		}
+        		catch (e) {}
+        		return fallback;
+        	}
+        	private addHeaderBoxStyleSource(sources: string[], label: string): void {
+        		for (var i = 0; i < sources.length; i++) {
+        			if (sources[i] == label) {
+        				return;
+        			}
+        		}
+        		sources.push(label);
+        	}
+        	private getHeaderApplicationItem(): any {
+        		return this.pageOwner?.form || null;
+        	}
+        	private getHeaderPageItem(): any {
+        		var pages = this.pageOwner?.form?.pages;
+        		if (!Array.isArray(pages)) {
+        			return null;
+        		}
+        		var index = parseInt("" + this.pageOwner?.local?.currentIndex, 10);
+        		if (isNaN(index) || index < 0 || index >= pages.length) {
+        			return null;
+        		}
+        		return pages[index];
+        	}
+        	private hasConfiguredHeaderBoxStyle(item: any): boolean {
+        		if (item == null) {
+        			return false;
+        		}
+        		var config = item.config;
+        		return this.hasConfiguredHeaderStyleObject(config?.boxStyle) || this.hasConfiguredHeaderStyleObject(config?.questionBoxStyle) || this.hasConfiguredHeaderStyleObject(config?.componentBoxStyle);
+        	}
+        	private hasConfiguredHeaderLayoutChildrenStyle(item: any, scopes: any = null): boolean {
+        		var layoutChildrenStyle = item?.config?.layoutChildrenStyle;
+        		if (layoutChildrenStyle == null || typeof layoutChildrenStyle != "object" || Array.isArray(layoutChildrenStyle)) {
+        			return false;
+        		}
+        		var scopeList = Array.isArray(scopes) && scopes.length > 0 ? scopes : Object.keys(layoutChildrenStyle);
+        		for (var i = 0; i < scopeList.length; i++) {
+        			var style = layoutChildrenStyle[scopeList[i]];
+        			if (this.hasConfiguredHeaderStyleObject(style)) {
+        				return true;
+        			}
+        		}
+        		return false;
+        	}
+        	private hasConfiguredHeaderStyleObject(style: any): boolean {
+        		if (style == null || typeof style != "object" || Array.isArray(style)) {
+        			return false;
+        		}
+        		for (var key of Object.keys(style)) {
+        			var value = style[key];
+        			if (value == null) {
+        				continue;
+        			}
+        			if (typeof value == "object") {
+        				if (this.hasConfiguredHeaderStyleObject(value)) {
+        					return true;
+        				}
+        				continue;
+        			}
+        			if (("" + value).replace(/\s*!important\s*/ig, "").trim() != "") {
+        				return true;
+        			}
+        		}
+        		return false;
+        	}
+        	private getHeaderParentItem(item: any): any {
+        		if (item == null) {
+        			return null;
+        		}
+        		if (item.parentRef != null && item.parentRef !== "") {
+        			var directParent = this.getHeaderItemById(item.parentRef);
+        			if (directParent != null) {
+        				return directParent;
+        			}
+        		}
+        		var lists = [this.pageOwner?.formsList, this.pageOwner?.form?.formulaire];
+        		for (var listIndex = 0; listIndex < lists.length; listIndex++) {
+        			var list = lists[listIndex];
+        			if (!Array.isArray(list)) {
+        				continue;
+        			}
+        			for (var i = 0; i < list.length; i++) {
+        				var parent = list[i];
+        				if (this.headerParentContainsChild(parent, item)) {
+        					return parent;
+        				}
+        			}
+        		}
+        		return null;
+        	}
+        	private getHeaderItemById(id: any): any {
+        		if (id == null || id === "") {
+        			return null;
+        		}
+        		try {
+        			if (this.pageOwner != null && typeof this.pageOwner.getElementById == "function") {
+        				var item = this.pageOwner.getElementById(id);
+        				if (item != null) {
+        					return item;
+        				}
+        			}
+        			if (this.pageOwner != null && typeof this.pageOwner.getElementByID == "function") {
+        				var legacyItem = this.pageOwner.getElementByID(id);
+        				if (legacyItem != null) {
+        					return legacyItem;
+        				}
+        			}
+        		}
+        		catch (e) {}
+        		return null;
+        	}
+        	private headerParentContainsChild(parent: any, item: any): boolean {
+        		if (parent == null || item == null || parent == item) {
+        			return false;
+        		}
+        		var childId = "" + item.id;
+        		var childrenRefs = Array.isArray(parent.childrenRefs) ? parent.childrenRefs : [];
+        		for (var i = 0; i < childrenRefs.length; i++) {
+        			var ref = childrenRefs[i];
+        			if (("" + ref) == childId || (ref?.id != null && ("" + ref.id) == childId)) {
+        				return true;
+        			}
+        		}
+        		var children = Array.isArray(parent.children) ? parent.children : [];
+        		for (var j = 0; j < children.length; j++) {
+        			if (children[j] != null && ("" + children[j].id) == childId) {
+        				return true;
+        			}
+        		}
+        		return false;
+        	}
+        	private getHeaderParentStyleScopes(parentItem: any, childItem: any): string[] {
+        		var scopes = ["default"];
+        		var childIndex = this.getHeaderChildIndexInParent(parentItem, childItem);
+        		if (childIndex < 0) {
+        			return scopes;
+        		}
+        		var parentType = "" + (parentItem?.type || "");
+        		if (parentType == "layout") {
+        			var position = this.getHeaderLayoutChildPosition(parentItem, childIndex);
+        			if (position.first) {
+        				scopes.push("first");
+        			}
+        			if (position.last) {
+        				scopes.push("last");
+        			}
+        			return scopes;
+        		}
+        		var length = this.getHeaderParentChildrenLength(parentItem);
+        		if (childIndex == 0) {
+        			scopes.push("first");
+        		}
+        		if (length > 0 && childIndex == length - 1) {
+        			scopes.push("last");
+        		}
+        		return scopes;
+        	}
+        	private getHeaderChildIndexInParent(parentItem: any, childItem: any): number {
+        		if (parentItem == null || childItem == null) {
+        			return -1;
+        		}
+        		var childId = "" + childItem.id;
+        		var childrenRefs = Array.isArray(parentItem.childrenRefs) ? parentItem.childrenRefs : [];
+        		for (var i = 0; i < childrenRefs.length; i++) {
+        			var ref = childrenRefs[i];
+        			if (("" + ref) == childId || (ref?.id != null && ("" + ref.id) == childId)) {
+        				return i;
+        			}
+        		}
+        		var children = Array.isArray(parentItem.children) ? parentItem.children : [];
+        		for (var j = 0; j < children.length; j++) {
+        			if (children[j] != null && ("" + children[j].id) == childId) {
+        				return j;
+        			}
+        		}
+        		return -1;
+        	}
+        	private getHeaderParentChildrenLength(parentItem: any): number {
+        		if (Array.isArray(parentItem?.childrenRefs) && parentItem.childrenRefs.length > 0) {
+        			return parentItem.childrenRefs.length;
+        		}
+        		return Array.isArray(parentItem?.children) ? parentItem.children.length : 0;
+        	}
+        	private getHeaderLayoutChildPosition(parentItem: any, index: number): any {
+        		var sizes = this.getHeaderLayoutSizes(parentItem, this.getHeaderLayoutBreakpoint());
+        		var children = Array.isArray(parentItem?.childrenRefs) ? parentItem.childrenRefs : [];
+        		if (!Array.isArray(sizes) || sizes.length == 0 || children.length == 0) {
+        			return {first: index == 0, last: false};
+        		}
+        		var rowStart = 0;
+        		var rowWidth = 0;
+        		for (var i = 0; i < children.length; i++) {
+        			var size = parseFloat("" + sizes[i % sizes.length]);
+        			if (isNaN(size) || size <= 0) {
+        				size = 12;
+        			}
+        			size = Math.min(size, 12);
+        			if (rowWidth > 0 && rowWidth + size > 12) {
+        				if (index >= rowStart && index < i) {
+        					return {first: index == rowStart, last: false};
+        				}
+        				rowStart = i;
+        				rowWidth = 0;
+        			}
+        			rowWidth += size;
+        			if (rowWidth >= 12) {
+        				if (index >= rowStart && index <= i) {
+        					return {first: index == rowStart, last: index == i};
+        				}
+        				rowStart = i + 1;
+        				rowWidth = 0;
+        			}
+        		}
+        		return {first: index == rowStart, last: false};
+        	}
+        	private getHeaderLayoutBreakpoint(): string {
+        		if (typeof window == "undefined" || typeof window.matchMedia != "function") {
+        			return "xl";
+        		}
+        		if (window.matchMedia("(min-width: 1200px)").matches) return "xl";
+        		if (window.matchMedia("(min-width: 992px) and (max-width: 1199px)").matches) return "lg";
+        		if (window.matchMedia("(min-width: 768px) and (max-width: 991px)").matches) return "md";
+        		if (window.matchMedia("(min-width: 576px) and (max-width: 767px)").matches) return "sm";
+        		return "xs";
+        	}
+        	private getHeaderLayoutSizes(parentItem: any, breakpoint: string): any[] {
+        		var key = breakpoint == "md" ? "tablet" : breakpoint == "sm" ? "phoneL" : breakpoint == "xs" ? "phoneP" : "cols";
+        		var config = Array.isArray(parentItem?.config?.[key]) ? parentItem.config[key] : [];
+        		return config.filter((col) => col != null && parseFloat("" + col.size) > 0).map((col) => col.size);
+        	}
         	public itemHasConfiguredHeaderState(item: any): boolean {
-        		return this.itemHasConfiguredDataSource(item) || this.itemHasConfiguredDefaultValue(item) || this.itemHasConfiguredVisibilityCondition(item) || this.itemHasConfiguredNavigationCondition(item);
+        		return this.itemHasConfiguredDataSource(item) || this.itemHasConfiguredDefaultValue(item) || this.itemHasConfiguredVisibilityCondition(item) || this.itemHasConfiguredNavigationCondition(item) || this.itemHasConfiguredBoxStyle(item);
         	}
         	/*End_c8o_CompFunction*/
         '
@@ -634,6 +916,29 @@ scriptContent:
                         '
               ↓Tooltips [ngx.components.UIDynamicAttr-1781740100004]: 
                 beanData: '{"ionBean":"Tooltips","Tooltip":"script:''defaultvalue'' | translate"}'
+                selfClose: false
+          ↓BoxStyleIndicator [ngx.components.UIControlDirective-1782305200001]: 
+            directiveName: If
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.itemHasConfiguredBoxStyle(this.child)
+            ↓Icon [ngx.components.UIDynamicElement-1782305200002]: 
+              beanData: '{"ionBean":"Icon","IconName":"plain:color-palette-outline"}'
+              tagName: ion-icon
+              ↓Style [ngx.components.UIStyle-1782305200003]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '	width: 14px;
+                        	height: 14px;
+                        	display: block;
+                        	color: var(--c8o-header-color, var(--ion-color-primary));
+                        '
+              ↓Tooltips [ngx.components.UIDynamicAttr-1782305200004]: 
+                beanData: '{"ionBean":"Tooltips","Tooltip":"script:this.getHeaderBoxStyleTooltip(this.child)"}'
                 selfClose: false
           ↓DatasourceIndicator [ngx.components.UIControlDirective-1780661784450]: 
             directiveName: If
