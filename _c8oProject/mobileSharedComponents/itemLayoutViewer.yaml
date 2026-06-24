@@ -75,13 +75,7 @@ scriptContent:
         		this.computeSize(''phoneP'', ''computedPhonePSize'');
         	}
         	isLastColumn(index: number): boolean {
-        		if(this.local.currentBreakpoint){
-        			let current = this.getArraySize(this.local.currentBreakpoint);
-        			let trueIndex = index % current.length;
-        	        return trueIndex == current.length - 1;
-        		}
-        		return false;
-        		
+        		return this.getLayoutRowPosition(index).last;
         	}
         	isLastRow(index: number): boolean {
         		if (this.local.currentBreakpoint) {
@@ -100,7 +94,7 @@ scriptContent:
         	    if (window.matchMedia(this.breakpoints.sm).matches) return ''sm'';
         	    return ''xs'';
         	}
-        	getArraySize(breakpoint: string): string {
+        	getArraySize(breakpoint: string): any {
         	  const config = {
         	    xl: this.local.computedColSize,
         	    lg: this.local.computedColSize,
@@ -109,6 +103,179 @@ scriptContent:
         	    xs: this.local.computedPhonePSize
         	  };
         	  return config[breakpoint];
+        	}
+        	cleanLayoutCssValue(value: any): string {
+        		if (value == null) {
+        			return "";
+        		}
+        		return ("" + value).replace(/\s*!important\s*/ig, "").trim();
+        	}
+        	getLayoutChildBaseSpacingValue(property: string): string {
+        		const defaults: any = {
+        			margin: "0 10px 10px 0",
+        			padding: "20px 27px"
+        		};
+        		return defaults[property] || "";
+        	}
+        	getLayoutSpacingMap(value: any): any {
+        		const normalized = this.cleanLayoutCssValue(value);
+        		const parts = normalized == "" ? [] : normalized.split(/\s+/);
+        		const map: any = {top: "0", right: "0", bottom: "0", left: "0"};
+        		if (parts.length == 1) {
+        			map.top = parts[0];
+        			map.right = parts[0];
+        			map.bottom = parts[0];
+        			map.left = parts[0];
+        		}
+        		else if (parts.length == 2) {
+        			map.top = parts[0];
+        			map.right = parts[1];
+        			map.bottom = parts[0];
+        			map.left = parts[1];
+        		}
+        		else if (parts.length == 3) {
+        			map.top = parts[0];
+        			map.right = parts[1];
+        			map.bottom = parts[2];
+        			map.left = parts[1];
+        		}
+        		else if (parts.length >= 4) {
+        			map.top = parts[0];
+        			map.right = parts[1];
+        			map.bottom = parts[2];
+        			map.left = parts[3];
+        		}
+        		return map;
+        	}
+        	serializeLayoutSpacingMap(map: any): string {
+        		const top = this.cleanLayoutCssValue(map?.top) || "0";
+        		const right = this.cleanLayoutCssValue(map?.right) || "0";
+        		const bottom = this.cleanLayoutCssValue(map?.bottom) || "0";
+        		const left = this.cleanLayoutCssValue(map?.left) || "0";
+        		if (top == right && top == bottom && top == left) {
+        			return top;
+        		}
+        		if (top == bottom && right == left) {
+        			return top + " " + right;
+        		}
+        		if (right == left) {
+        			return top + " " + right + " " + bottom;
+        		}
+        		return top + " " + right + " " + bottom + " " + left;
+        	}
+        	getLayoutLastSpacingDefaultValue(property: string): string {
+        		const value = this.getLayoutChildrenSpacingValue("default", property);
+        		if (property != "margin") {
+        			return value;
+        		}
+        		const map = this.getLayoutSpacingMap(value);
+        		map.right = "0";
+        		return this.serializeLayoutSpacingMap(map);
+        	}
+        	getLayoutChildrenSpacingStyle(scope: string): any {
+        		const config = this.item?.config?.layoutChildrenStyle;
+        		if (config == null || typeof config != "object" || Array.isArray(config)) {
+        			return null;
+        		}
+        		const style = config[scope];
+        		if (style == null || typeof style != "object" || Array.isArray(style)) {
+        			return null;
+        		}
+        		return style;
+        	}
+        	getLayoutChildrenSpacingValue(scope: string, property: string): string {
+        		const style = this.getLayoutChildrenSpacingStyle(scope);
+        		const value = this.cleanLayoutCssValue(style?.[property]);
+        		if (value != "") {
+        			return value;
+        		}
+        		if (scope == "default") {
+        			return this.getLayoutChildBaseSpacingValue(property);
+        		}
+        		if (scope == "last") {
+        			return this.getLayoutLastSpacingDefaultValue(property);
+        		}
+        		return this.getLayoutChildrenSpacingValue("default", property);
+        	}
+        	getLayoutColumnSizeAt(index: number, sizes: any[]): number {
+        		const rawSize = sizes[index % sizes.length];
+        		let size = parseFloat("" + rawSize);
+        		if (isNaN(size) || size <= 0) {
+        			return 12;
+        		}
+        		return Math.min(size, 12);
+        	}
+        	getLayoutRowPosition(index: number): any {
+        		const current = this.local.currentBreakpoint ? this.getArraySize(this.local.currentBreakpoint) : null;
+        		const children = Array.isArray(this.item?.childrenRefs) ? this.item.childrenRefs : [];
+        		if (!Array.isArray(current) || current.length == 0 || children.length == 0) {
+        			return {first: false, last: false};
+        		}
+        		let rowStart = 0;
+        		let rowWidth = 0;
+        		for (let i = 0; i < children.length; i++) {
+        			const size = this.getLayoutColumnSizeAt(i, current);
+        			if (rowWidth > 0 && rowWidth + size > 12) {
+        				if (index >= rowStart && index < i) {
+        					return {first: index == rowStart, last: false};
+        				}
+        				rowStart = i;
+        				rowWidth = 0;
+        			}
+        			rowWidth += size;
+        			if (rowWidth >= 12) {
+        				if (index >= rowStart && index <= i) {
+        					return {first: index == rowStart, last: index == i};
+        				}
+        				rowStart = i + 1;
+        				rowWidth = 0;
+        			}
+        		}
+        		return {
+        			first: index == rowStart,
+        			last: false
+        		};
+        	}
+        	getLayoutChildSpacingValue(index: number, property: string): string {
+        		let value = this.getLayoutChildrenSpacingValue("default", property);
+        		const position = this.getLayoutRowPosition(index);
+        		if (position.first) {
+        			value = this.getLayoutChildrenSpacingValue("first", property);
+        		}
+        		if (position.last) {
+        			value = this.getLayoutChildrenSpacingValue("last", property);
+        		}
+        		return value;
+        	}
+        	getViewerBoxStyleForChild(child: any): any {
+        		const item = this.pageOwner?.getItemById?.(child);
+        		if (item == null || this.pageOwner == null || typeof this.pageOwner.getViewerItemBoxStyle != "function") {
+        			return {};
+        		}
+        		return this.pageOwner.getViewerItemBoxStyle(item) || {};
+        	}
+        	getLayoutChildColumnStyle(child: any, index: number): any {
+        		return {};
+        	}
+        	getLayoutChildCardStyle(child: any, index: number): any {
+        		const style: any = {};
+        		const margin = this.getLayoutChildSpacingValue(index, "margin");
+        		const padding = this.getLayoutChildSpacingValue(index, "padding");
+        		if (margin != "") {
+        			style["margin"] = margin;
+        		}
+        		if (padding != "") {
+        			style["padding"] = padding;
+        		}
+        		const childStyle = this.getViewerBoxStyleForChild(child);
+        		const keys = ["margin", "padding", "background-color", "border", "border-radius", "border-top", "border-right", "border-bottom", "border-left"];
+        		for (let i = 0; i < keys.length; i++) {
+        			const key = keys[i];
+        			if (childStyle[key] != null) {
+        				style[key] = childStyle[key];
+        			}
+        		}
+        		return style;
         	}
         	
         	/*End_c8o_CompFunction*/
@@ -152,7 +319,7 @@ scriptContent:
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.pageOwner.getViewerItemBoxStyle(this.pageOwner.getItemById(child))
+              - MobileSmartSourceType: script:this.getLayoutChildColumnStyle(child, j)
         ↓Style [ngx.components.UIStyle-1730985366691]: 
           styleContent: 
             - xmlizable: 
@@ -182,8 +349,6 @@ scriptContent:
                   //outline-offset: -1px !important;
                   //box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.1), inset 0 0 0 4px rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.3);
                   //padding-bottom: 5px !important;
-                  margin: 0 10px 10px 0;
-                  
                   '
         ↓Tag [ngx.components.UIElement-1730984742520]: 
           tagName: fieldset
@@ -196,6 +361,12 @@ scriptContent:
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:['card', 'card-md', 'card-layout']
+            ↓AttrBoxSpacing [ngx.components.UIAttribute-1782294000001]: 
+              attrName: '[ngStyle]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.getLayoutChildCardStyle(child, j)
             ↓Style [ngx.components.UIStyle-1730984742535]: 
               styleContent: 
                 - xmlizable: 
@@ -260,6 +431,7 @@ scriptContent:
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: 'script:{''inner-margin'': !isLastColumn(j)}'
+          isEnabled: false
   ↓Style [ngx.components.UIStyle-1730985366715]: 
     styleContent: 
       - xmlizable: 

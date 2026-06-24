@@ -15,6 +15,7 @@ scriptContent:
         	public borderWidthUnits: string[] = ["px", "em", "rem"];
         	public spacingDocumentClickHandler: any = null;
         	public selectedBorderSide: string = "all";
+        	public selectedSpacingTarget: string = "children";
         	public boxStyleEditorId: string = "c8o-box-style-editor-" + Math.floor(Math.random() * 1000000000);
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
@@ -76,6 +77,148 @@ scriptContent:
         			backgroundColor: "#FFFFFF"
         		};
         		return defaults[property] || "";
+        	}
+        
+        	public isLayoutSpacingEditor(): boolean {
+        		return (this.isChild !== true && this.isChild !== "true") && this.item?.type == "layout";
+        	}
+        
+        	public getSpacingTarget(): string {
+        		if (!this.isLayoutSpacingEditor()) {
+        			return "self";
+        		}
+        		const allowed = ["self", "children", "first", "last"];
+        		return allowed.indexOf(this.selectedSpacingTarget) != -1 ? this.selectedSpacingTarget : "children";
+        	}
+        
+        	public getSpacingStorageKey(target: string = ""): string {
+        		const spacingTarget = target || this.getSpacingTarget();
+        		return spacingTarget == "children" ? "default" : spacingTarget;
+        	}
+        
+        	public selectSpacingTarget(target: string, event?: any): void {
+        		try {
+        			event?.preventDefault?.();
+        			event?.stopPropagation?.();
+        		}
+        		catch (e) {
+        		}
+        		this.selectedSpacingTarget = target;
+        		this.spacingValueEditor = null;
+        		if (this.borderValueEditor == null) {
+        			this.removeSpacingCloseListener();
+        		}
+        		try {
+        			this.ref.markForCheck();
+        		}
+        		catch (e) {
+        		}
+        	}
+        
+        	public spacingTargetMatches(target: string): boolean {
+        		return this.getSpacingTarget() == target;
+        	}
+        
+        	public getLayoutChildrenBaseSpacingValue(property: string): string {
+        		const defaults: any = {
+        			margin: "0 10px 10px 0",
+        			padding: "20px 27px"
+        		};
+        		return defaults[property] || "";
+        	}
+        
+        	public getLayoutLastSpacingDefaultValue(property: string, defaultValue: any): string {
+        		const value = this.cleanCssValue(defaultValue) || this.getLayoutChildrenBaseSpacingValue(property);
+        		if (property != "margin") {
+        			return value;
+        		}
+        		const map = this.getMapFromShorthand(value);
+        		map.right = "0";
+        		return this.serializeBoxMap(map);
+        	}
+        
+        	public getLayoutChildrenSpacingStyle(target: string = "", create: boolean = false): any {
+        		if (this.item == null) {
+        			return null;
+        		}
+        		if (this.item.config == null) {
+        			if (!create) {
+        				return null;
+        			}
+        			this.item.config = {};
+        		}
+        		if (this.item.config.layoutChildrenStyle == null || typeof this.item.config.layoutChildrenStyle != "object" || Array.isArray(this.item.config.layoutChildrenStyle)) {
+        			if (!create) {
+        				return null;
+        			}
+        			this.item.config.layoutChildrenStyle = {};
+        		}
+        		const key = this.getSpacingStorageKey(target);
+        		if (this.item.config.layoutChildrenStyle[key] == null || typeof this.item.config.layoutChildrenStyle[key] != "object" || Array.isArray(this.item.config.layoutChildrenStyle[key])) {
+        			if (!create) {
+        				return null;
+        			}
+        			this.item.config.layoutChildrenStyle[key] = {};
+        		}
+        		return this.item.config.layoutChildrenStyle[key];
+        	}
+        
+        	public getSpacingBoxStyleValue(property: string): string {
+        		if (this.getSpacingTarget() == "self") {
+        			return this.getBoxStyleValue(property);
+        		}
+        		const style = this.getLayoutChildrenSpacingStyle();
+        		const value = style?.[property];
+        		return value == null ? "" : "" + value;
+        	}
+        
+        	public setSpacingBoxStyleValue(property: string, value: any): void {
+        		if (this.getSpacingTarget() == "self") {
+        			this.setBoxStyleValue(property, value);
+        			return;
+        		}
+        		const style = this.getLayoutChildrenSpacingStyle("", true);
+        		if (style == null) {
+        			return;
+        		}
+        		const normalized = this.cleanCssValue(value);
+        		if (normalized == "") {
+        			delete style[property];
+        		}
+        		else {
+        			style[property] = normalized;
+        		}
+        		const key = this.getSpacingStorageKey();
+        		if (Object.keys(style).length == 0) {
+        			delete this.item.config.layoutChildrenStyle[key];
+        		}
+        		if (Object.keys(this.item.config.layoutChildrenStyle).length == 0) {
+        			delete this.item.config.layoutChildrenStyle;
+        		}
+        	}
+        
+        	public getSpacingDefaultValue(property: string): string {
+        		const target = this.getSpacingTarget();
+        		if (target == "self") {
+        			return this.getDefaultBoxStyleValue(property);
+        		}
+        		if (target == "children") {
+        			return this.getLayoutChildrenBaseSpacingValue(property);
+        		}
+        		const defaultStyle = this.getLayoutChildrenSpacingStyle("children");
+        		const value = this.cleanCssValue(defaultStyle?.[property]);
+        		const defaultValue = value != "" ? value : this.getLayoutChildrenBaseSpacingValue(property);
+        		return target == "last" ? this.getLayoutLastSpacingDefaultValue(property, defaultValue) : defaultValue;
+        	}
+        
+        	public getEffectiveSpacingValue(property: string): string {
+        		const value = this.cleanCssValue(this.getSpacingBoxStyleValue(property));
+        		return value != "" ? value : this.getSpacingDefaultValue(property);
+        	}
+        
+        	public setSpacingOverrideValue(property: string, value: any, defaultValue: any): void {
+        		const normalized = this.cleanCssValue(value);
+        		this.setSpacingBoxStyleValue(property, this.normalizeCssComparable(normalized) == this.normalizeCssComparable(defaultValue) ? "" : normalized);
         	}
         
         	public getBoxStyleParentType(): string {
@@ -236,7 +379,7 @@ scriptContent:
         	}
         
         	public getEffectiveSpacingMap(property: string): any {
-        		return this.getMapFromShorthand(this.getEffectiveBoxStyleValue(property));
+        		return this.getMapFromShorthand(this.getEffectiveSpacingValue(property));
         	}
         
         	public serializeBoxMap(map: any, emptyValue: string = "0"): string {
@@ -298,7 +441,7 @@ scriptContent:
         	}
         
         	public getDefaultSpacingSideValue(property: string, side: string): string {
-        		const map = this.getMapFromShorthand(this.getDefaultBoxStyleValue(property));
+        		const map = this.getMapFromShorthand(this.getSpacingDefaultValue(property));
         		return map?.[side] || "0";
         	}
         
@@ -323,8 +466,10 @@ scriptContent:
         		}
         		const currentValue = this.getSpacingSideValue(property, side);
         		const parsed = this.parseCssNumericValue(currentValue);
+        		const target = this.getSpacingTarget();
         		this.borderValueEditor = null;
         		this.spacingValueEditor = {
+        			target: target,
         			property: property,
         			side: side,
         			initialValue: currentValue,
@@ -427,7 +572,7 @@ scriptContent:
         	}
         
         	public spacingEditorMatches(property: string, side: string): boolean {
-        		return this.spacingValueEditor != null && this.spacingValueEditor.property == property && this.spacingValueEditor.side == side;
+        		return this.spacingValueEditor != null && this.spacingValueEditor.target == this.getSpacingTarget() && this.spacingValueEditor.property == property && this.spacingValueEditor.side == side;
         	}
         
         	public getSpacingEditorNumber(): number {
@@ -479,7 +624,7 @@ scriptContent:
         		this.spacingValueEditor.number = nextNumber;
         		const map = this.getEffectiveSpacingMap(this.spacingValueEditor.property);
         		map[this.spacingValueEditor.side] = this.formatSpacingEditorValue(this.spacingValueEditor.number, this.spacingValueEditor.unit);
-        		this.setBoxStyleOverrideValue(this.spacingValueEditor.property, this.serializeBoxMap(map), this.getDefaultBoxStyleValue(this.spacingValueEditor.property));
+        		this.setSpacingOverrideValue(this.spacingValueEditor.property, this.serializeBoxMap(map), this.getSpacingDefaultValue(this.spacingValueEditor.property));
         		this.notifyBoxStyleChange();
         	}
         
@@ -518,19 +663,19 @@ scriptContent:
         		}
         		catch (e) {
         		}
-        		const defaultValue = this.getDefaultBoxStyleValue(this.spacingValueEditor.property);
+        		const defaultValue = this.getSpacingDefaultValue(this.spacingValueEditor.property);
         		const defaultSideValue = this.getDefaultSpacingSideValue(this.spacingValueEditor.property, this.spacingValueEditor.side);
         		const parsed = this.parseCssNumericValue(defaultSideValue);
         		this.spacingValueEditor.number = parsed.number;
         		this.spacingValueEditor.unit = parsed.unit;
-        		this.setBoxStyleOverrideValue(this.spacingValueEditor.property, defaultValue, defaultValue);
+        		this.setSpacingOverrideValue(this.spacingValueEditor.property, defaultValue, defaultValue);
         		this.notifyBoxStyleChange();
         	}
         
         	public setSpacingSideFromInput(property: string, side: string, event: any): void {
         		const map = this.getEffectiveSpacingMap(property);
         		map[side] = this.normalizeCssInputValue(event?.target?.value, property) || "0";
-        		this.setBoxStyleOverrideValue(property, this.serializeBoxMap(map), this.getDefaultBoxStyleValue(property));
+        		this.setSpacingOverrideValue(property, this.serializeBoxMap(map), this.getSpacingDefaultValue(property));
         		if (this.spacingEditorMatches(property, side)) {
         			const parsed = this.parseCssNumericValue(map[side]);
         			this.spacingValueEditor.number = parsed.number;
@@ -546,8 +691,8 @@ scriptContent:
         		}
         		catch (e) {
         		}
-        		this.setBoxStyleValue("margin", "");
-        		this.setBoxStyleValue("padding", "");
+        		this.setSpacingBoxStyleValue("margin", "");
+        		this.setSpacingBoxStyleValue("padding", "");
         		this.spacingValueEditor = null;
         		this.borderValueEditor = null;
         		this.removeSpacingCloseListener();
@@ -1035,6 +1180,20 @@ scriptContent:
           <div class="c8o-box-setting-label">{{ 'item_box_spacing_group' | translate }}</div>
           <div class="c8o-box-setting-control">
             <div class="c8o-box-control-head">
+              <div class="c8o-spacing-target-tabs" *ngIf="this.isLayoutSpacingEditor()" role="group">
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('self')"
+                  (click)="this.selectSpacingTarget('self', $event)">{{ 'item_box_spacing_target_layout' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('children')"
+                  (click)="this.selectSpacingTarget('children', $event)">{{ 'item_box_spacing_target_children' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('first')"
+                  (click)="this.selectSpacingTarget('first', $event)">{{ 'item_box_spacing_target_first' | translate }}</button>
+                <button type="button"
+                  [class.is-active]="this.spacingTargetMatches('last')"
+                  (click)="this.selectSpacingTarget('last', $event)">{{ 'item_box_spacing_target_last' | translate }}</button>
+              </div>
               <button class="c8o-mini-button" type="button" (click)="this.resetSpacing($event)">{{ 'item_box_reset' | translate }}</button>
             </div>
       
@@ -1385,8 +1544,41 @@ scriptContent:
             	display: flex;
             	align-items: center;
             	justify-content: flex-end;
+            	gap: 8px;
             	min-height: 24px;
             	margin-bottom: 6px;
+            }
+            .c8o-spacing-target-tabs{
+            	display: inline-flex;
+            	min-width: 0;
+            	margin-right: auto;
+            	padding: 2px;
+            	border: 1px solid rgba(148, 163, 184, 0.34);
+            	border-radius: 7px;
+            	background: #f1f5f9;
+            }
+            .c8o-spacing-target-tabs button{
+            	height: 20px;
+            	min-width: 0;
+            	padding: 0 6px;
+            	border: 0;
+            	border-radius: 5px;
+            	background: transparent;
+            	color: #475569;
+            	font-size: 10px;
+            	font-weight: 700;
+            	line-height: 18px;
+            	white-space: nowrap;
+            	cursor: pointer;
+            }
+            .c8o-spacing-target-tabs button:hover{
+            	color: #0f172a;
+            	background: rgba(255, 255, 255, 0.72);
+            }
+            .c8o-spacing-target-tabs button.is-active{
+            	background: #ffffff;
+            	color: #1d4ed8;
+            	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
             }
             .c8o-mini-button{
             	height: 24px;
