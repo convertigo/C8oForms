@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 43 deja couverts; 175 a couvrir (28 ouverts, 147 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 44 deja couverts; 174 a couvrir (28 ouverts, 146 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -129,7 +129,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 43 deja co
 | [x] | [#1327](https://github.com/convertigo/C8oForms/issues/1327) | closed | bug, QC-Passed, Auto QA Test | Can’t switch between Aa and JS modes in Condition (if) action | Auto QA Test<br>e2e/issue-1327.spec.ts |
 | [ ] | [#1326](https://github.com/convertigo/C8oForms/issues/1326) | closed | bug, QC-Passed | Updating an existing PWA republishes a new application version |  |
 | [ ] | [#1325](https://github.com/convertigo/C8oForms/issues/1325) | closed | enhancement, QC-Passed | Improve PWA configuration modal UX and simplify publication flow |  |
-| [ ] | [#1324](https://github.com/convertigo/C8oForms/issues/1324) | closed | bug, QC-Passed | Chart component shows “undefined” on hover for default values |  |
+| [x] | [#1324](https://github.com/convertigo/C8oForms/issues/1324) | closed | bug, QC-Passed, Auto QA Test | Chart component shows “undefined” on hover for default values | Auto QA Test<br>e2e/issue-1324.spec.ts |
 | [ ] | [#1323](https://github.com/convertigo/C8oForms/issues/1323) | closed | bug, QC-Passed | Warn before replacing configured action or data source values |  |
 | [ ] | [#1322](https://github.com/convertigo/C8oForms/issues/1322) | closed | bug, QC-Passed | Editor palette sometimes misses available background task actions until reload |  |
 | [ ] | [#1321](https://github.com/convertigo/C8oForms/issues/1321) | closed | bug, QC-Passed | Page settings icon is clickable without function, and “Disabled” label is not capitalized |  |
