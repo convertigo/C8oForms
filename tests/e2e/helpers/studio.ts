@@ -5298,20 +5298,76 @@ async function waitForLayoutChildCount(children: Locator, expected: number, time
     .catch(() => false);
 }
 
+// Helpers for opening a nested layout child's own editor across UI variants.
+async function visibleLayoutChildOpenButtonForCard(
+  page: Page,
+  card: Locator,
+  cardBox: { x: number; y: number; width: number; height: number },
+): Promise<Locator | null> {
+  const scoped = card.locator(SEL.layoutChildOpenButton).first();
+  if (await scoped.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    return scoped;
+  }
+
+  const visibleButtons = page.locator(`${SEL.layoutChildOpenButton}:visible`);
+  const count = await visibleButtons.count();
+  for (let i = 0; i < count; i++) {
+    const candidate = visibleButtons.nth(i);
+    const box = await candidate.boundingBox().catch(() => null);
+    if (!box) continue;
+
+    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    if (
+      center.x >= cardBox.x &&
+      center.x <= cardBox.x + cardBox.width &&
+      center.y >= cardBox.y &&
+      center.y <= cardBox.y + cardBox.height
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+async function openLayoutChildEditor(
+  page: Page,
+  card: Locator,
+  box: { x: number; y: number; width: number; height: number },
+  index: number,
+): Promise<void> {
+  const childEditorOpened = () =>
+    page.locator(`${SEL.componentDeleteButton}:visible`).first().isVisible({ timeout: 1_000 }).catch(() => false);
+  const clickBoxCenter = async (targetBox: { x: number; y: number; width: number; height: number } | null) => {
+    if (!targetBox) return false;
+    await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+    return childEditorOpened();
+  };
+
+  const openButton = await visibleLayoutChildOpenButtonForCard(page, card, box);
+  if (openButton) {
+    // The hover overlay can sit below the draggable child root. A locator click
+    // waits for pointer-events; use the observed point, then dispatch bounded.
+    if (await clickBoxCenter(await openButton.boundingBox().catch(() => null))) return;
+    await openButton.dispatchEvent('click').catch(() => undefined);
+    if (await childEditorOpened()) return;
+  }
+
+  // Old UI, and fallback for builds where the whole child card is the affordance.
+  if (await clickBoxCenter(box)) return;
+  await card.dispatchEvent('click').catch(() => undefined);
+  if (await childEditorOpened()) return;
+
+  throw new Error(`Could not open editor for layout child #${index}`);
+}
+
 /**
- * Delete a child nested inside a Horizontal layout, then confirm the
- * "Voulez-vous supprimer cet élément ?" dialog. `index` selects which nested
- * child (0-based, canvas order).
+ * Delete a child nested inside a Horizontal layout, then confirm the dialog.
+ * `index` selects which nested child (0-based, canvas order).
  *
- * The layout-child UI was refactored after #1363 was fixed, so the gesture to
- * reach the child's delete differs by version and both are handled:
- *   - new UI (e.g. beta233): hovering the child reveals a button that opens the
- *     child's own editor, whose "Supprimer" deletes just that child;
- *   - old UI (e.g. beta151, where the bug lives): clicking the child opens its
- *     config panel, whose trash — wrongly bound to the parent — deletes the whole
- *     layout (the bug).
- * Both end on the same `componentDeleteButton` + danger-styled "Oui" confirm, so
- * the spec's assertion (does the layout survive?) is what distinguishes them.
+ * The layout-child UI differs by version: newer builds expose a hovered child
+ * editor affordance, while the old buggy build opens a config panel from the
+ * child card. Both paths converge on the same delete button and confirmation.
  */
 export async function deleteLayoutChild(page: Page, index = 0): Promise<void> {
   const card = page.locator(SEL.layoutChildCard).nth(index);
@@ -5323,19 +5379,12 @@ export async function deleteLayoutChild(page: Page, index = 0): Promise<void> {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
   await page.waitForTimeout(600);
 
-  const openButton = page.locator(SEL.layoutChildOpenButton).first();
-  if (await openButton.count()) {
-    // new UI: open the child's own editor
-    await openButton.click();
-  } else {
-    // old UI: click the child to open its config panel
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  }
+  await openLayoutChildEditor(page, card, box, index);
 
   const del = page.locator(`${SEL.componentDeleteButton}:visible`).first();
-  await del.waitFor({ state: 'visible', timeout: 10_000 });
-  await del.click();
-  await page.locator('ion-alert').first().waitFor({ state: 'visible', timeout: 8_000 });
-  await page.locator(SEL.confirmDeleteYesButton).first().click();
+  await del.waitFor({ state: 'visible', timeout: 5_000 });
+  await del.click({ timeout: 5_000 }).catch(async () => del.dispatchEvent('click'));
+  await page.locator('ion-alert').first().waitFor({ state: 'visible', timeout: 5_000 });
+  await page.locator(SEL.confirmDeleteYesButton).first().click({ timeout: 5_000 });
   await page.waitForTimeout(1_500);
 }

@@ -32,7 +32,7 @@ import {
 test('#1363 - deleting a child inside a Horizontal layout removes only that child, not the whole layout', async ({
   page,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(75_000);
 
   await login(page);
   const id = await createBlankForm(page, `Repro 1363 ${Date.now()}`);
