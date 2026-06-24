@@ -37,6 +37,17 @@ export const SEL = {
   mapViewer: 'lib_leaflet-leafletmap.class1734447691502',
   // editorPage.yaml — "Aperçu" button opening the viewer/preview
   previewButton: '.class1773331718985',
+  // viewerPage.yaml — rendered viewer and default submit button
+  viewerPage: 'page-viewerpage',
+  viewerSubmitButton: [
+    'page-viewerpage ion-button.class1543865084771',
+    'page-viewerpage ion-tab-button.class1664274551545',
+    'page-viewerpage ion-tab-button:has(ion-icon[name="send-outline"])',
+    'page-viewerpage ion-footer [role="tab"]',
+  ].join(', '),
+  // responseCompleted.yaml — post-submit transition page
+  responseCompletedPage: 'page-responsecompleted',
+  responseCompletedLogo: 'page-responsecompleted img.class1684922008750',
   // editor canvas wrapper of a map component
   mapComponent: 'c8oforms-itemmapviewer',
   textComponent: 'c8oforms-itemtextviewer',
@@ -1517,6 +1528,17 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await expectRoute(page, ROUTE.viewer);
   await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_000);
+}
+
+export async function submitViewerForm(page: Page): Promise<void> {
+  await test.step('Submit the viewer form', async () => {
+    await expectRoute(page, ROUTE.viewer);
+    const submit = await firstVisibleLocator(page, SEL.viewerSubmitButton, 'viewer submit button', 30_000);
+    await submit.scrollIntoViewIfNeeded().catch(() => undefined);
+    await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
+    await confirmAlertIfVisible(page);
+    await page.locator(SEL.responseCompletedPage).waitFor({ state: 'attached', timeout: 60_000 });
+  });
 }
 
 export async function openConfigurationSection(page: Page): Promise<void> {

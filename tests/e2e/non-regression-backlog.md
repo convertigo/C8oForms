@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 42 deja couverts; 176 a couvrir (28 ouverts, 148 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 43 deja couverts; 175 a couvrir (28 ouverts, 147 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -42,7 +42,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 42 deja co
 | [ ] | [#1043](https://github.com/convertigo/C8oForms/issues/1043) | open | enhancement | Possibilty to download the PDF attachment file in an application |  |
 | [ ] | [#606](https://github.com/convertigo/C8oForms/issues/606) | open | enhancement | Capability to decide what attachment is sent in the Send Mail action |  |
 | [ ] | [#75](https://github.com/convertigo/C8oForms/issues/75) | open | major, task | Gestion du multilangue |  |
-| [ ] | [#1426](https://github.com/convertigo/C8oForms/issues/1426) | closed | bug, QC-Passed | Setting server symbol **C8Oforms.customHeaderLogo** causes oversized logo after submitting a response |  |
+| [x] | [#1426](https://github.com/convertigo/C8oForms/issues/1426) | closed | bug, QC-Passed, Auto QA Test | Setting server symbol **C8Oforms.customHeaderLogo** causes oversized logo after submitting a response | Auto QA Test<br>e2e/issue-1426.spec.ts |
 | [x] | [#1425](https://github.com/convertigo/C8oForms/issues/1425) | closed | bug, QC-Passed, Auto QA Test | Palette button is half hidden in Flow actions configuration | Auto QA Test<br>e2e/issue-1425.spec.ts |
 | [x] | [#1424](https://github.com/convertigo/C8oForms/issues/1424) | closed | bug, Auto QA Test | Baserow datetime values shifted by one hour in the data grid (default timezone Europe/Paris instead of UTC) | Auto QA Test<br>e2e/issue-1416.spec.ts |
 | [x] | [#1423](https://github.com/convertigo/C8oForms/issues/1423) | closed | bug, Auto QA Test | Baserow column picker resolves the wrong user's table (project-scoped table_id cache keyed by name only) | Auto QA Test<br>e2e/issue-1423.spec.ts |
