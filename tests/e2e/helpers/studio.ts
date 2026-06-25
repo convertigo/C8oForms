@@ -691,6 +691,18 @@ export async function openViewer(page: Page, formId: string, mode = ':edit', res
   await page.locator('page-viewerpage').waitFor({ state: 'attached', timeout: 60_000 });
 }
 
+export async function openPublishedViewer(page: Page, formId: string, waitForSelector = SEL.viewerPage): Promise<void> {
+  const publishedId = formId.startsWith('published_') ? formId : `published_${formId}`;
+  await test.step(`Open published viewer ${publishedId}`, async () => {
+    const pwa = await getPwaDocument(page, publishedId);
+    const targetId = typeof pwa?.targetId === 'string' && pwa.targetId ? pwa.targetId : publishedId;
+    await page.goto(`../pwas/${targetId}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await page.locator(SEL.viewerPage).waitFor({ state: 'attached', timeout: 60_000 });
+    await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 60_000 });
+    await page.waitForTimeout(2_000);
+  });
+}
+
 /**
  * Open an anonymous form the way an end user actually does: through its
  * standalone PWA. The engine serves the PWA index dynamically at
@@ -1594,6 +1606,22 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await page.waitForTimeout(2_000);
 }
 
+export async function visibleDataGridRow(page: Page, text: string, timeout = 45_000): Promise<Locator> {
+  const row = page.locator('.ag-center-cols-container .ag-row').filter({ hasText: text }).first();
+  await expect(row, `the Data Grid row ${text} should render`).toBeVisible({ timeout });
+  await expect
+    .poll(() => normalizedLocatorText(row), {
+      message: `the Data Grid row ${text} should expose its visible cell text`,
+      timeout: 15_000,
+    })
+    .toContain(text);
+  return row;
+}
+
+export async function normalizedLocatorText(locator: Locator): Promise<string> {
+  return (await locator.innerText()).replace(/\s+/g, ' ').trim();
+}
+
 export async function submitViewerForm(page: Page): Promise<void> {
   await test.step('Submit the viewer form', async () => {
     await expectRoute(page, ROUTE.viewer);
@@ -2028,6 +2056,19 @@ export async function closeComponentConfig(page: Page): Promise<void> {
     .toBe(0);
 }
 
+export async function deleteOpenComponent(page: Page): Promise<void> {
+  await test.step('Delete the currently opened component through the configuration panel', async () => {
+    const del = page.locator(`${SEL.componentDeleteButton}:visible`).first();
+    await expect(del, 'component delete button should be visible').toBeVisible({ timeout: 10_000 });
+    await del.click({ timeout: 5_000 }).catch(async () => del.dispatchEvent('click'));
+
+    const confirm = page.locator(SEL.confirmDeleteYesButton).last();
+    await expect(confirm, 'component delete confirmation should be visible').toBeVisible({ timeout: 10_000 });
+    await confirm.click({ timeout: 5_000 }).catch(async () => confirm.dispatchEvent('click'));
+    await page.waitForTimeout(1_500);
+  });
+}
+
 export async function acceptRgpdIfVisible(page: Page, timeout = 2_000): Promise<void> {
   await page.waitForTimeout(300);
   const toast = page.locator('ion-toast:visible').last();
@@ -2087,7 +2128,14 @@ export async function configureGridBaserowSource(page: Page, source: BaserowGrid
 
   await activateDataSourceMode(page);
   await selectDataSourceEntry(page, pickerTimeout, 'getData');
+  await configureGridBaserowTable(page, source, pickerTimeout);
+}
 
+export async function configureGridBaserowTable(
+  page: Page,
+  source: BaserowGridSourceOptions,
+  pickerTimeout = 60_000,
+): Promise<void> {
   await openConfigTabById(page, 'tab_selector_conf_source');
   await acceptRgpdIfVisible(page);
   await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Baserow table configure button', pickerTimeout, true);
