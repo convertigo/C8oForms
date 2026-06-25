@@ -5286,6 +5286,30 @@ export async function openPagesPanel(page: Page): Promise<void> {
   });
 }
 
+export async function expectPagesPanelDefaultAfterWorkflowNavigation(page: Page): Promise<void> {
+  await test.step('Navigate from an active workflow to the first page', async () => {
+    const button = page.locator(SEL.pagesPanelButton).first();
+    await expect(button, 'Pages sidebar button should be visible after opening Workflows').toBeVisible({ timeout: 15_000 });
+
+    await button.click({ timeout: 5_000 }).catch(async () => {
+      await button.click({ force: true, timeout: 5_000 });
+    });
+
+    await expect(
+      page.locator(SEL.pageSearchbar).first(),
+      'Pages panel search should replace the active Workflow content after clicking Pages',
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.locator(SEL.pageRow).first(),
+      'Pages panel should show the first page after leaving Workflows',
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.locator(SEL.pageButtonsBlock).first(),
+      'the editor canvas should switch from Workflow content back to the first page',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
 export async function openApplicationSettingsFromSidebar(page: Page): Promise<void> {
   await test.step('Open application settings from the editor sidebar', async () => {
     const button = await firstVisibleLocator(page, SEL.appSettingsPanelButton, 'application settings sidebar button');

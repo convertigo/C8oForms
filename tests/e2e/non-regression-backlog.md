@@ -78,7 +78,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 47 deja co
 | [x] | [#1383](https://github.com/convertigo/C8oForms/issues/1383) | closed | bug, QC-Passed, Auto QA Test | Page renaming shows “Page name already exists” when the field is empty | Auto QA Test<br>e2e/issue-1383.spec.ts |
 | [x] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed, Auto QA Test | Chart component height field does not allow entering “auto” although the UI suggests it | Auto QA Test<br>e2e/issue-1382.spec.ts |
 | [ ] | [#1381](https://github.com/convertigo/C8oForms/issues/1381) | closed | bug, QC-Passed | Visibility condition value picker does not save selected grid fields |  |
-| [ ] | [#1380](https://github.com/convertigo/C8oForms/issues/1380) | closed | bug, QC-Passed | Vertical bar buttons do not reset to their default section when switching between Workflows, Pages, and Palette |  |
+| [x] | [#1380](https://github.com/convertigo/C8oForms/issues/1380) | closed | bug, QC-Passed, Auto QA Test | Vertical bar buttons do not reset to their default section when switching between Workflows, Pages, and Palette | Auto QA Test<br>e2e/issue-1380.spec.ts |
 | [ ] | [#1379](https://github.com/convertigo/C8oForms/issues/1379) | closed | enhancement, QC-Passed | Dragging components inside Group or Horizontal Layout shows no indication of the target component type |  |
 | [ ] | [#1378](https://github.com/convertigo/C8oForms/issues/1378) | closed | enhancement | Add a flow action to reset fields by scope while preserving default values and computed values |  |
 | [ ] | [#1377](https://github.com/convertigo/C8oForms/issues/1377) | closed | bug, QC-Passed | Chips preview display differs from chips configuration in Text mode |  |
