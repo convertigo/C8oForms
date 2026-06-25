@@ -20,6 +20,9 @@ componentScriptContent:
         	public chunkRecoveryListenerBound = false;
         	public pwaControllerRefreshing = false;
         	public pwaControllerChangeListenerBound = false;
+        	public agentResourceUrlSanitizer: DomSanitizer;
+        	public agentAssistantSafeUrlValue = '''';
+        	public agentAssistantSafeUrl: any = null;
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
         		// get preference log level from local storage
@@ -52,6 +55,7 @@ componentScriptContent:
         		}
         		/*End_c8o_AppSettings*/
         /*Begin_c8o_AppConstructor*/
+        		this.agentResourceUrlSanitizer = sanitizer;
         		this.bindChunkRecoveryHandlers();
         		this.getOriginImg();
         		/*End_c8o_AppConstructor*/
@@ -78,6 +82,104 @@ componentScriptContent:
         				this.monitorDEVPwaUpdates();
         				/*End_c8o_AppInitialization*/
         /*Begin_c8o_AppFunction*/
+        	public getConvertigoServerEndpoint(): string {
+        		const normalizeServerEndpoint = (candidate: any): string => {
+        			const value = String(candidate == null ? '''' : candidate).replace(/\/$/, '''');
+        			if (value === '''') {
+        				return '''';
+        			}
+        			if (!environment.production && value.startsWith(window.location.origin)) {
+        				return '''';
+        			}
+        			return value;
+        		};
+        
+        		const endpointConvertigo = normalizeServerEndpoint(this.c8o?.endpointConvertigo);
+        		if (endpointConvertigo !== '''') {
+        			return endpointConvertigo;
+        		}
+        
+        		const endpoint = this.c8o?.endpoint;
+        		if (endpoint != undefined && endpoint !== '''') {
+        			const endpointValue = String(endpoint).replace(/\/$/, '''');
+        			const projectsIndex = endpointValue.indexOf(''/projects/'');
+        			const serverEndpoint = normalizeServerEndpoint(projectsIndex !== -1 ? endpointValue.substring(0, projectsIndex) : endpointValue);
+        			if (serverEndpoint !== '''') {
+        				return serverEndpoint;
+        			}
+        		}
+        
+        		const currentUrl = window.location.href;
+        		const projectsMarker = ''/convertigo/projects/'';
+        		const projectsMarkerIndex = currentUrl.indexOf(projectsMarker);
+        		if (projectsMarkerIndex !== -1) {
+        			return currentUrl.substring(0, projectsMarkerIndex + ''/convertigo''.length).replace(/\/$/, '''');
+        		}
+        
+        		if (!environment.production && window.location.hostname === ''localhost'') {
+        			return ''http://localhost:18082/convertigo'';
+        		}
+        
+        		return '''';
+        	}
+        
+        	public getAgentAssistantUserId(): string {
+        		const candidates = [
+        			this.global?.user,
+        			this.global?.email,
+        			this.global?.login,
+        			this.global?.settings?.mail,
+        			this.global?.settings?.email,
+        			this.global?.settings?.login,
+        			this.global?.settings?.name,
+        			this.c8o?.session?.user?.name
+        		];
+        		for (const candidate of candidates) {
+        			const value = String(candidate == null ? '''' : candidate).trim();
+        			const lower = value.toLowerCase();
+        			if (value !== '''' && lower !== ''unknown user'' && lower !== ''anonymous'' && lower !== ''undefined'' && lower !== ''null'') {
+        				return value;
+        			}
+        		}
+        		return ''anonymous'';
+        	}
+        
+        	public getAgentAssistantUrl(): string {
+        		const endpoint = this.getConvertigoServerEndpoint();
+        		if (endpoint === '''') {
+        			return '''';
+        		}
+        		const params = new URLSearchParams();
+        		params.set(''agentBridge'', ''1'');
+        		params.set(''assistantMode'', ''agent'');
+        		params.set(''assistantSurface'', ''nocode'');
+        		params.set(''assistantContext'', ''nocode'');
+        		params.set(''agentProfile'', ''nocode'');
+        		params.set(''skillProfile'', ''nocode'');
+        		params.set(''targetProject'', ''C8Oforms'');
+        		params.set(''projectName'', ''C8Oforms'');
+        		params.set(''userId'', this.getAgentAssistantUserId());
+        		params.set(''codexHomeScope'', ''user'');
+        		params.set(''vibeHomeScope'', ''user'');
+        		params.set(''homeScope'', ''user'');
+        		return endpoint + ''/projects/ConvertigoAssistant/DisplayObjects/mobile/path-to-agent/%3Athreadid?'' + params.toString();
+        	}
+        
+        	public getAgentAssistantSafeUrl(): any {
+        		if (this.global?.isAgentMenuOpen !== true || this.agentResourceUrlSanitizer == undefined) {
+        			return null;
+        		}
+        		const url = this.getAgentAssistantUrl();
+        		if (url === '''') {
+        			return null;
+        		}
+        		if (this.agentAssistantSafeUrl == null || this.agentAssistantSafeUrlValue !== url) {
+        			this.agentAssistantSafeUrlValue = url;
+        			this.agentAssistantSafeUrl = this.agentResourceUrlSanitizer.bypassSecurityTrustResourceUrl(url);
+        		}
+        		return this.agentAssistantSafeUrl;
+        	}
+        
         	public getStandalonePwaId(): string {
         		const pathParts = window.location.pathname.split("/");
         		const pwasIndex = pathParts.indexOf("pwas");
@@ -1748,12 +1850,13 @@ componentScriptContent:
         		/*End_c8o_function:CTS1765360727798*/
         '
 isPWA: true
-splitPaneLayout: 'this.global?.pwa === true ? (this.global?.__pwaMenuUserOpened === true && this.global?.isMenuOpen === true) : this.global?.isMenuOpen'
+splitPaneLayout: 'this.global?.pwa === true ? (this.global?.__pwaMenuUserOpened === true && this.global?.isMenuOpen === true) : (this.global?.isMenuOpen === true || this.global?.isAgentMenuOpen === true)'
 tplProjectName: C8Oforms
 useClickForTap: true
 ↓Menu [ngx.components.UIDynamicMenu-1500890597895]: 🗏 mobileMenus/Menu.yaml
 ↓MenuLogin [ngx.components.UIDynamicMenu-1543518219237]: 🗏 mobileMenus/MenuLogin.yaml
 ↓MenuSelector [ngx.components.UIDynamicMenu-1543518260629]: 🗏 mobileMenus/MenuSelector.yaml
+↓AgentMenu [ngx.components.UIDynamicMenu-1782381046498]: 🗏 mobileMenus/AgentMenu.yaml
 ↓updateState [ngx.components.UIActionStack-1554989913269]: 🗏 mobileSharedActions/updateState.yaml
 ↓getTranslate [ngx.components.UIActionStack-1554994860699]: 🗏 mobileSharedActions/getTranslate.yaml
 ↓tickAction [ngx.components.UIActionStack-1554994873907]: 🗏 mobileSharedActions/tickAction.yaml
@@ -8213,4 +8316,101 @@ useClickForTap: true
           }
           .monaco-editor .codicon {
           font-family: codicon !important;
+          }'
+↓AgentDrawerStyle [ngx.components.UIStyle-1782381120600]: 
+  comment: Right drawer reserved for the integrated AI agent.
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          'ion-split-pane.split-pane-visible ion-menu[menu-id="MenuSelector"]:not(.menu-selector-open),
+          ion-split-pane.split-pane-visible ion-menu[menu-id="AgentMenu"]:not(.agent-drawer-open) {
+            --width: 0px !important;
+            --min-width: 0px !important;
+            --max-width: 0px !important;
+            display: none !important;
+            min-width: 0 !important;
+            width: 0 !important;
+          }
+          
+          ion-menu#agentMenu,
+          ion-menu[menu-id="AgentMenu"] {
+            --width: min(420px, 42vw) !important;
+            --min-width: 360px !important;
+            --max-width: 520px !important;
+            --background: var(--sidebar, #ffffff);
+            --box-shadow: -12px 0 32px rgba(15, 23, 42, 0.12);
+            border-left: 1px solid var(--sidebar-border, #ededed);
+          }
+          
+          @media (max-width: 700px) {
+            ion-menu#agentMenu,
+            ion-menu[menu-id="AgentMenu"] {
+              --width: 100vw !important;
+              --min-width: 100vw !important;
+              --max-width: 100vw !important;
+            }
+          }
+          
+          .agent-drawer-header {
+            align-items: center;
+            background: var(--sidebar, #ffffff);
+            border-bottom: 1px solid var(--sidebar-border, #ededed);
+            color: var(--sidebar-foreground, #1f2937);
+            display: flex;
+            height: 56px;
+            justify-content: space-between;
+            padding: 0 16px;
+          }
+          
+          .agent-drawer-title {
+            align-items: center;
+            color: var(--ion-color-primary, #326df7);
+            display: flex;
+            font-size: 16px;
+            font-weight: 700;
+            gap: 10px;
+          }
+          
+          .agent-drawer-title ion-icon {
+            font-size: 20px;
+          }
+          
+          .agent-drawer-close,
+          .agent-drawer-toggle {
+            --border-radius: 999px;
+            --padding-start: 8px;
+            --padding-end: 8px;
+            color: var(--sidebar-foreground, #1f2937);
+            height: 36px;
+            width: 36px;
+          }
+          
+          .agent-drawer-toggle ion-icon,
+          .agent-drawer-close ion-icon {
+            font-size: 20px;
+          }
+          
+          ion-menu[menu-id="AgentMenu"] ion-content {
+            --padding-bottom: 0;
+            --padding-end: 0;
+            --padding-start: 0;
+            --padding-top: 0;
+          }
+          
+          .agent-drawer-shell {
+            background: var(--sidebar, #ffffff);
+            color: var(--sidebar-foreground, #1f2937);
+            height: 100%;
+            padding: 0;
+          }
+          
+          .agent-assistant-frame {
+            background: var(--sidebar, #ffffff);
+            border: 0;
+            display: block;
+            height: 100%;
+            min-height: 100%;
+            width: 100%;
           }'
