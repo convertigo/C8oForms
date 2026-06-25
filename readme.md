@@ -416,6 +416,7 @@ For more technical informations : [documentation](./project.md)
         - [itemAddRowToLocalGridActionViewer](#itemaddrowtolocalgridactionviewer)
         - [itemBarcodeSelector](#itembarcodeselector)
         - [itemBarcodeViewver](#itembarcodeviewver)
+        - [ItemBoxStyleEditor](#itemboxstyleeditor)
         - [itemButtonEditor](#itembuttoneditor)
         - [itemButtonViewer](#itembuttonviewer)
         - [itemCameraSelector](#itemcameraselector)
@@ -6916,6 +6917,27 @@ Display an apex chart comp. or an ag-grid comp.
 </tr>
 <tr>
 <td>redList</td><td>this.redList[item['name']]</td>
+</tr>
+</table>
+#### ItemBoxStyleEditor
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>form</td><td></td>
+</tr>
+<tr>
+<td>idForm</td><td></td>
+</tr>
+<tr>
+<td>isChild</td><td></td>
+</tr>
+<tr>
+<td>item</td><td></td>
 </tr>
 </table>
 #### itemButtonEditor

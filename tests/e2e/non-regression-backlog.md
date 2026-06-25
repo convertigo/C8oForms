@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 45 deja couverts; 173 a couvrir (28 ouverts, 145 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 47 deja couverts; 171 a couvrir (28 ouverts, 143 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -74,11 +74,11 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 45 deja co
 | [ ] | [#1388](https://github.com/convertigo/C8oForms/issues/1388) | closed | bug, QC-Passed | Copy to page alert is not migrated to the new design |  |
 | [ ] | [#1387](https://github.com/convertigo/C8oForms/issues/1387) | closed | bug, QC-Passed | Side button labels are too short and unclear |  |
 | [ ] | [#1385](https://github.com/convertigo/C8oForms/issues/1385) | closed | bug, QC-Passed | ‘+’ button to add a new Page is not visible enough and hard to find |  |
-| [ ] | [#1384](https://github.com/convertigo/C8oForms/issues/1384) | closed | bug, QC-Passed | Add collaborators modal proposes CSV import but no button is available |  |
+| [x] | [#1384](https://github.com/convertigo/C8oForms/issues/1384) | closed | bug, QC-Passed, Auto QA Test | Add collaborators modal proposes CSV import but no button is available | Auto QA Test<br>e2e/issue-1384.spec.ts |
 | [x] | [#1383](https://github.com/convertigo/C8oForms/issues/1383) | closed | bug, QC-Passed, Auto QA Test | Page renaming shows “Page name already exists” when the field is empty | Auto QA Test<br>e2e/issue-1383.spec.ts |
 | [x] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed, Auto QA Test | Chart component height field does not allow entering “auto” although the UI suggests it | Auto QA Test<br>e2e/issue-1382.spec.ts |
 | [ ] | [#1381](https://github.com/convertigo/C8oForms/issues/1381) | closed | bug, QC-Passed | Visibility condition value picker does not save selected grid fields |  |
-| [ ] | [#1380](https://github.com/convertigo/C8oForms/issues/1380) | closed | bug, QC-Passed | Vertical bar buttons do not reset to their default section when switching between Workflows, Pages, and Palette |  |
+| [x] | [#1380](https://github.com/convertigo/C8oForms/issues/1380) | closed | bug, QC-Passed, Auto QA Test | Vertical bar buttons do not reset to their default section when switching between Workflows, Pages, and Palette | Auto QA Test<br>e2e/issue-1380.spec.ts |
 | [ ] | [#1379](https://github.com/convertigo/C8oForms/issues/1379) | closed | enhancement, QC-Passed | Dragging components inside Group or Horizontal Layout shows no indication of the target component type |  |
 | [ ] | [#1378](https://github.com/convertigo/C8oForms/issues/1378) | closed | enhancement | Add a flow action to reset fields by scope while preserving default values and computed values |  |
 | [ ] | [#1377](https://github.com/convertigo/C8oForms/issues/1377) | closed | bug, QC-Passed | Chips preview display differs from chips configuration in Text mode |  |
@@ -112,9 +112,9 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 45 deja co
 | [ ] | [#1345](https://github.com/convertigo/C8oForms/issues/1345) | closed | bug, QC-Passed | Flow continues executing after leaving Preview mode and even on the Studio home page |  |
 | [ ] | [#1344](https://github.com/convertigo/C8oForms/issues/1344) | closed | bug, QC-Passed | User search filter should only be visible to administrators |  |
 | [ ] | [#1343](https://github.com/convertigo/C8oForms/issues/1343) | closed | bug, QC-Passed | Add‑row action: added columns cannot be deleted (no delete button) |  |
-| [ ] | [#1342](https://github.com/convertigo/C8oForms/issues/1342) | closed | bug, QC-Passed | Map component: “From a data source” button does not open the source selection panel |  |
+| [x] | [#1342](https://github.com/convertigo/C8oForms/issues/1342) | closed | bug, QC-Passed, Auto QA Test | Map component: “From a data source” button does not open the source selection panel | Auto QA Test<br>e2e/issue-1342.spec.ts |
 | [ ] | [#1341](https://github.com/convertigo/C8oForms/issues/1341) | closed | bug, QC-Passed | i18n translations missing for the “Chart” component |  |
-| [ ] | [#1340](https://github.com/convertigo/C8oForms/issues/1340) | closed | bug, QC-Passed | Search bar is accent‑case‑sensitive in both directions (uppercase ↔ lowercase), causing applications not to be found |  |
+| [x] | [#1340](https://github.com/convertigo/C8oForms/issues/1340) | closed | bug, QC-Passed, Auto QA Test | Search bar is accent‑case‑sensitive in both directions (uppercase ↔ lowercase), causing applications not to be found | Auto QA Test<br>e2e/issue-1340.spec.ts |
 | [ ] | [#1339](https://github.com/convertigo/C8oForms/issues/1339) | closed | bug, QC-Passed | Visibility tab: condition is deleted when switching options or cancelling dialog |  |
 | [ ] | [#1338](https://github.com/convertigo/C8oForms/issues/1338) | closed | bug, QC-Passed | Search by username does not work on the selector page |  |
 | [x] | [#1337](https://github.com/convertigo/C8oForms/issues/1337) | closed | bug, QC-Passed, Auto QA Test | Create Folder button still looks disabled after entering a folder name | Auto QA Test<br>e2e/issue-1337.spec.ts |

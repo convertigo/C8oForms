@@ -7,7 +7,8 @@ import { Locator, Page, expect, test } from '@playwright/test';
  */
 export const SEL = {
   // loginPage.yaml
-  loginReveal: '.class1757337975297', // SubmitButton1
+  loginReveal: '.class1757337975297, .class1770718494991', // SubmitButton1, plus legacy beta107 login button
+  loginPageRoot: 'page-loginpage',
   emailInput: '.class1757337975207 input', // email > TextInput
   passwordInput: '.class1757337975249 input', // password > TextInput
   // settingsPage.yaml — MCP tokens section
@@ -142,6 +143,7 @@ export const SEL = {
     'c8oforms-datasourcebutton button.class1775848361410, c8oforms-datasourcebutton button.c8o-btn',
   dataSourceConfigureButton:
     'c8oforms-datasourceconfigurebutton button.class1776013870072, c8oforms-datasourceconfigurebutton button.c8o-btn',
+  mapSourceModeRow: 'ion-row.class1777130000001',
   publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
   publishedApplicationsTab: 'ion-button.class1761754757348',
   selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
@@ -151,10 +153,18 @@ export const SEL = {
   cardMenuButton: 'ion-button.class1606574763560',
   selectorCollaboratorsMenuItem:
     'ion-item.class1594313281739, ion-item:has(ion-icon.class1603730321735)',
+  editorMoreActionsButton: '#more-actions-menu-editor, ion-button.class1757346419354',
+  editorMoreActionsPopover: 'ion-popover:not(.overlay-hidden):visible',
+  editorMoreActionsCollaboratorsMenuItem:
+    'ion-item.class1773329574106, ion-item:has(ion-icon[src*="user-plus.svg"]), ion-item:has(img[src*="user-plus.svg"]), ion-item',
+  editorToolbarCollaboratorsButton:
+    'page-editorpage .class1650456634183 ion-button, page-editorpage ion-button:has(ion-icon[src*="user-plus.svg"])',
   collaboratorsModal: 'ion-modal.show-modal page-manageaccessrights',
   collaboratorSearchInput: 'c8oforms-ngxtaginputcustomc8oforms ng-select input[role="combobox"], tag-input input',
   collaboratorAutocompleteOption: 'ng-dropdown-panel .ng-option, tag-input-dropdown .ng2-menu-item, ng2-dropdown-menu .ng2-menu-item',
   collaboratorsSaveButton: 'ion-footer ion-button.class1779974149500',
+  collaboratorsCsvInput: 'input#manageAccessCsvCollabInput[type="file"][accept*=".csv"]',
+  collaboratorsCsvButton: 'div:has(> input#manageAccessCsvCollabInput[type="file"]) > ion-button',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
@@ -294,15 +304,17 @@ const DEFAULT_SOURCE_PALETTE_SECTIONS: SourcePaletteSection[] = [
 ];
 
 const ROUTE = {
-  selector: /\/selector(?:\/|$)/,
-  editor: /\/editor\//,
-  viewer: /\/viewer\//,
+  selector: /(?:\/selector(?:\/|$)|\/selectorPage(?:\/|$))/,
+  editor: /(?:\/editor\/|\/editorPage(?:\/|$))/,
+  viewer: /(?:\/viewer\/|\/viewerPage(?:\/|$))/,
   settings: /\/settings(?:\/|$)/,
 } as const;
 
 const SELECTOR_EMPTY_FORM_LIST_RE =
   /(?:No applications found|Aucune application trouvée|No se encontraron aplicaciones|Nessuna applicazione trovata)/i;
 const SELECTOR_RESULT_COUNT_RE = /(\d+)\s*(?:result\(s\)|résultat\(s\)|resultado\(s\)|risultato \(i\))/i;
+
+const SELECTOR_AUTH_GUARD_SETTLE_MS = 5_000;
 
 async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
   await expect(page).toHaveURL(route, { timeout });
@@ -505,7 +517,7 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
   }
   await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
   for (let attempt = 0; attempt < 4; attempt++) {
-    if (await selectorIsReady(page, attempt === 0 ? 3_000 : 1_000)) {
+    if (await selectorIsReadyAfterAuthGuard(page, attempt === 0 ? 8_000 : 1_000)) {
       return;
     }
     const attemptSucceeded = await loginOnce(page, user, password).catch(() => false);
@@ -514,7 +526,12 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
     }
     await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
   }
-  await expectRoute(page, ROUTE.selector, 30_000);
+  await expect
+    .poll(() => selectorIsReady(page, 1_000), {
+      message: 'selector page should be ready after login',
+      timeout: 30_000,
+    })
+    .toBe(true);
 }
 
 async function loginOnce(page: Page, user: string, password: string): Promise<boolean> {
@@ -533,7 +550,46 @@ async function loginOnce(page: Page, user: string, password: string): Promise<bo
 }
 
 async function selectorIsReady(page: Page, timeout: number): Promise<boolean> {
-  if (await expectRoute(page, ROUTE.selector, timeout).then(() => true).catch(() => false)) {
+  if (await loginPageIsVisible(page, 500)) {
+    return false;
+  }
+  return selectorCandidateIsReady(page, timeout);
+}
+
+async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number): Promise<boolean> {
+  const startedAt = Date.now();
+  let readySince: number | null = null;
+  do {
+    if (await loginPageIsVisible(page, 250)) {
+      return false;
+    }
+
+    if (await selectorCandidateIsReady(page, 250)) {
+      readySince ??= Date.now();
+      if (Date.now() - readySince >= SELECTOR_AUTH_GUARD_SETTLE_MS) {
+        return true;
+      }
+    } else {
+      readySince = null;
+    }
+    await page.waitForTimeout(250);
+  } while (Date.now() - startedAt < timeout);
+
+  return false;
+}
+
+async function loginPageIsVisible(page: Page, timeout: number): Promise<boolean> {
+  if (await firstVisibleLocatorOrNull(page, SEL.loginReveal, timeout)) {
+    return true;
+  }
+  return page.locator(`${SEL.loginPageRoot}:visible`).first().isVisible({ timeout: 500 }).catch(() => false);
+}
+
+async function selectorCandidateIsReady(page: Page, timeout: number): Promise<boolean> {
+  if (
+    (await expectRoute(page, ROUTE.selector, timeout).then(() => true).catch(() => false)) &&
+    (await page.locator(SEL.selectorPageRoot).first().isVisible({ timeout: 1_000 }).catch(() => false))
+  ) {
     return true;
   }
   return firstVisibleLocatorOrNull(page, SEL.blankFormCard, timeout).then(Boolean).catch(() => false);
@@ -641,6 +697,18 @@ export async function openViewer(page: Page, formId: string, mode = ':edit', res
   await page.goto(`./viewer/${formId}/${mode}/${response}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expectRoute(page, ROUTE.viewer, 60_000);
   await page.locator('page-viewerpage').waitFor({ state: 'attached', timeout: 60_000 });
+}
+
+export async function openPublishedViewer(page: Page, formId: string, waitForSelector = SEL.viewerPage): Promise<void> {
+  const publishedId = formId.startsWith('published_') ? formId : `published_${formId}`;
+  await test.step(`Open published viewer ${publishedId}`, async () => {
+    const pwa = await getPwaDocument(page, publishedId);
+    const targetId = typeof pwa?.targetId === 'string' && pwa.targetId ? pwa.targetId : publishedId;
+    await page.goto(`../pwas/${targetId}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await page.locator(SEL.viewerPage).waitFor({ state: 'attached', timeout: 60_000 });
+    await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 60_000 });
+    await page.waitForTimeout(2_000);
+  });
 }
 
 /**
@@ -1132,6 +1200,102 @@ export async function returnToSelectorFromEditor(page: Page): Promise<void> {
   await expectRoute(page, ROUTE.selector);
 }
 
+export async function openEditorCollaboratorsModal(page: Page): Promise<Locator> {
+  return test.step('Open the editor collaborators modal', async () => {
+    await expectRoute(page, ROUTE.editor);
+    await dismissVisiblePopovers(page);
+
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    if (await clickEditorMoreActionsCollaborators(page, modal)) {
+      return modal;
+    }
+
+    const toolbarButton = page.locator(SEL.editorToolbarCollaboratorsButton).first();
+    await expect(toolbarButton, 'editor toolbar collaborators button should be available').toBeVisible({
+      timeout: 10_000,
+    });
+    await toolbarButton.click({ timeout: 5_000 }).catch(async () => toolbarButton.dispatchEvent('click'));
+    await expect(modal, 'the collaborators modal should open from the editor toolbar').toBeVisible({
+      timeout: 30_000,
+    });
+    return modal;
+  });
+}
+
+export async function expectCollaboratorsCsvImportAvailable(page: Page): Promise<void> {
+  await test.step('Assert collaborators CSV import opens the file picker', async () => {
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    await expect(modal, 'the collaborators modal should be visible before checking CSV import').toBeVisible({
+      timeout: 30_000,
+    });
+
+    const input = modal.locator(SEL.collaboratorsCsvInput).first();
+    await expect(input, 'CSV import should expose a .csv file input in the collaborators modal').toBeAttached({
+      timeout: 10_000,
+    });
+
+    const button = modal.locator(SEL.collaboratorsCsvButton).first();
+    await expect(button, 'CSV import should expose a visible button associated with the file input').toBeVisible({
+      timeout: 10_000,
+    });
+
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 10_000 });
+    await button.click({ timeout: 5_000 }).catch(async () => button.dispatchEvent('click'));
+    const fileChooser = await fileChooserPromise;
+    expect(fileChooser.isMultiple(), 'the collaborators CSV import should choose a single CSV file').toBe(false);
+  });
+}
+
+async function clickEditorMoreActionsCollaborators(page: Page, modal: Locator): Promise<boolean> {
+  const moreActions = page.locator(SEL.editorMoreActionsButton).first();
+  if (!(await moreActions.isVisible({ timeout: 3_000 }).catch(() => false))) {
+    return false;
+  }
+
+  await moreActions.click({ timeout: 5_000 }).catch(async () => moreActions.dispatchEvent('click'));
+  const popover = page.locator(SEL.editorMoreActionsPopover).last();
+  if (!(await popover.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.editorMoreActionsCollaboratorsMenuItem).first();
+  if (await item.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await item.click({ timeout: 5_000 }).catch(async () => item.dispatchEvent('click'));
+  } else {
+    const clicked = await page.evaluate(() => {
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden)')]
+        .filter(isVisible)
+        .reverse();
+      for (const root of popovers) {
+        const items = [...root.querySelectorAll('ion-item')].filter(isVisible);
+        const match = (items.find(
+          (candidate) =>
+            (candidate.classList.contains('class1773329574106') ||
+              !!candidate.querySelector('ion-icon[src*="user-plus.svg"], img[src*="user-plus.svg"]')),
+        ) ?? items[0]) as HTMLElement | undefined;
+        if (match) {
+          match.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!clicked) {
+      return false;
+    }
+  }
+
+  return modal
+    .waitFor({ state: 'visible', timeout: 30_000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
 export async function searchSelectorApplicationsByName(page: Page, query: string): Promise<void> {
   await expectRoute(page, ROUTE.selector);
   const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
@@ -1544,6 +1708,22 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await expectRoute(page, ROUTE.viewer);
   await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_000);
+}
+
+export async function visibleDataGridRow(page: Page, text: string, timeout = 45_000): Promise<Locator> {
+  const row = page.locator('.ag-center-cols-container .ag-row').filter({ hasText: text }).first();
+  await expect(row, `the Data Grid row ${text} should render`).toBeVisible({ timeout });
+  await expect
+    .poll(() => normalizedLocatorText(row), {
+      message: `the Data Grid row ${text} should expose its visible cell text`,
+      timeout: 15_000,
+    })
+    .toContain(text);
+  return row;
+}
+
+export async function normalizedLocatorText(locator: Locator): Promise<string> {
+  return (await locator.innerText()).replace(/\s+/g, ' ').trim();
 }
 
 export async function submitViewerForm(page: Page): Promise<void> {
@@ -1980,6 +2160,19 @@ export async function closeComponentConfig(page: Page): Promise<void> {
     .toBe(0);
 }
 
+export async function deleteOpenComponent(page: Page): Promise<void> {
+  await test.step('Delete the currently opened component through the configuration panel', async () => {
+    const del = page.locator(`${SEL.componentDeleteButton}:visible`).first();
+    await expect(del, 'component delete button should be visible').toBeVisible({ timeout: 10_000 });
+    await del.click({ timeout: 5_000 }).catch(async () => del.dispatchEvent('click'));
+
+    const confirm = page.locator(SEL.confirmDeleteYesButton).last();
+    await expect(confirm, 'component delete confirmation should be visible').toBeVisible({ timeout: 10_000 });
+    await confirm.click({ timeout: 5_000 }).catch(async () => confirm.dispatchEvent('click'));
+    await page.waitForTimeout(1_500);
+  });
+}
+
 export async function acceptRgpdIfVisible(page: Page, timeout = 2_000): Promise<void> {
   await page.waitForTimeout(300);
   const toast = page.locator('ion-toast:visible').last();
@@ -2039,7 +2232,14 @@ export async function configureGridBaserowSource(page: Page, source: BaserowGrid
 
   await activateDataSourceMode(page);
   await selectDataSourceEntry(page, pickerTimeout, 'getData');
+  await configureGridBaserowTable(page, source, pickerTimeout);
+}
 
+export async function configureGridBaserowTable(
+  page: Page,
+  source: BaserowGridSourceOptions,
+  pickerTimeout = 60_000,
+): Promise<void> {
   await openConfigTabById(page, 'tab_selector_conf_source');
   await acceptRgpdIfVisible(page);
   await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Baserow table configure button', pickerTimeout, true);
@@ -2086,6 +2286,39 @@ export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<v
       page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`).first(),
       'the data source configuration actions should be visible',
     ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function openMapDataSourcePicker(page: Page): Promise<Locator> {
+  return test.step('Open the Map data source picker', async () => {
+    await openConfigurationSection(page);
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await activateMapDataSourceMode(page);
+
+    const sourceButton = await firstVisibleLocator(page, SEL.dataSourceSelectButton, 'Map data source selection button', 15_000);
+    await sourceButton.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await sourceButton.click({ timeout: 10_000 }).catch(async () => sourceButton.dispatchEvent('click'));
+
+    const sourcePicker = page.locator('ion-modal:visible').last();
+    await expect(sourcePicker, 'Map source selection panel should open').toBeVisible({ timeout: 15_000 });
+    return sourcePicker;
+  });
+}
+
+async function activateMapDataSourceMode(page: Page): Promise<void> {
+  const sourceModeButtons = page.locator(`${SEL.mapSourceModeRow}:visible button.c8o-btn:visible`);
+  await expect(sourceModeButtons.first(), 'Map source mode toggle should be visible').toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => sourceModeButtons.count(), {
+      message: 'Map source mode toggle should expose local and data-source choices',
+      timeout: 15_000,
+    })
+    .toBeGreaterThanOrEqual(2);
+
+  const dataSourceButton = sourceModeButtons.nth(1);
+  await dataSourceButton.click({ timeout: 10_000 }).catch(async () => dataSourceButton.dispatchEvent('click'));
+  await expect(dataSourceButton, 'Map source mode should switch to data source').toHaveClass(/c8o-btn-selected/, {
+    timeout: 10_000,
   });
 }
 
@@ -3501,21 +3734,49 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
   await save.click({ timeout: 10_000 });
 
   if (!(await expectRoute(page, ROUTE.editor, 60_000).then(() => true).catch(() => false))) {
-    const createdInSelector = await page.getByText(title, { exact: true }).first().isVisible({ timeout: 2_000 }).catch(() => false);
-    throw new Error(
-      createdInSelector
-        ? `form "${title}" was created but the application did not automatically switch to the editor; current URL is ${page.url()}`
-        : `form "${title}" was not opened in the editor after creation; current URL is ${page.url()}`,
-    );
+    if (!(await openCreatedFormFromSelector(page, title))) {
+      const createdInSelector = await page.getByText(title, { exact: true }).first().isVisible({ timeout: 2_000 }).catch(() => false);
+      throw new Error(
+        createdInSelector
+          ? `form "${title}" was created but could not be opened in the editor; current URL is ${page.url()}`
+          : `form "${title}" was not opened in the editor after creation; current URL is ${page.url()}`,
+      );
+    }
   }
 
-  const id = page.url().match(/editor\/(\d+)/)?.[1];
+  const id = editorFormId(page.url());
   if (!id) throw new Error('could not read the new form id from the editor URL');
   // Wait for the editor to be interactive (palette rendered) before returning,
   // otherwise a follow-up addComponent fires before the canvas can accept it.
   await page.locator('[draggable="true"]').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_500);
   return id;
+}
+
+async function openCreatedFormFromSelector(page: Page, title: string): Promise<boolean> {
+  if (!(await selectorIsReady(page, 2_000))) {
+    await login(page);
+  }
+
+  await waitForSelectorHomeReadyForCreate(page);
+  const cards = page.locator('[id^="idcard"]:not([id^="idcardO"])');
+  let card = cards.filter({ hasText: title }).first();
+  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
+    card = cards.filter({ hasText: title.slice(0, 29) }).first();
+  }
+  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
+    return false;
+  }
+
+  await card.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+  await card.click({ timeout: 10_000 }).catch(async () => card.dispatchEvent('click'));
+  return expectRoute(page, ROUTE.editor, 60_000)
+    .then(() => true)
+    .catch(() => false);
+}
+
+function editorFormId(url: string): string | null {
+  return url.match(/\/editor\/([^/?#]+)/)?.[1] ?? url.match(/\/login\/([^/?#]+)\/editorPage(?:\/|$)/)?.[1] ?? null;
 }
 
 async function openCreateFormPrompt(page: Page): Promise<Locator> {
@@ -3532,7 +3793,12 @@ async function openCreateFormPrompt(page: Page): Promise<Locator> {
 }
 
 async function waitForSelectorHomeReadyForCreate(page: Page): Promise<void> {
-  await expectRoute(page, ROUTE.selector, 30_000);
+  await expect
+    .poll(() => selectorIsReady(page, 1_000), {
+      message: 'selector page should be ready before creating a form',
+      timeout: 30_000,
+    })
+    .toBe(true);
   await waitForIonicLoading(page, 10_000);
   await waitForSelectorFormListLoaded(page);
 }
@@ -3547,11 +3813,22 @@ async function waitForSelectorFormListLoaded(page: Page): Promise<void> {
 }
 
 async function selectorFormListState(page: Page): Promise<string> {
-  const root = page.locator(SEL.selectorPageRoot).first();
+  const root = await selectorPageRoot(page);
   const text = await root.innerText({ timeout: 500 }).catch(() => '');
   const count = selectorResultCount(text);
   const skeletonCount = await root.locator('ion-skeleton-text:visible').count().catch(() => 0);
   if (skeletonCount > 0 || count == null) {
+    if (skeletonCount === 0) {
+      const hasLegacyCreateCard = await root.locator(SEL.blankFormCard).first().isVisible({ timeout: 500 }).catch(() => false);
+      const hasLegacyApplicationCard = await root
+        .locator(`${SEL.selectorCardTitle}, ${SEL.selectorListTitle}, [id^="idcard"]:not([id^="idcardO"])`)
+        .first()
+        .isVisible({ timeout: 500 })
+        .catch(() => false);
+      if (hasLegacyCreateCard || hasLegacyApplicationCard) {
+        return hasLegacyApplicationCard ? 'ready:legacy-cards' : 'ready:legacy-create';
+      }
+    }
     return `loading:count=${count ?? 'unset'} skeletons=${skeletonCount}`;
   }
 
@@ -3570,6 +3847,14 @@ function selectorResultCount(text: string): number | null {
 
 async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
   await waitForPresentedPromptInput(alert, 'create form prompt should be presented and editable');
+}
+
+async function selectorPageRoot(page: Page): Promise<Locator> {
+  const root = page.locator(SEL.selectorPageRoot).first();
+  if (await root.isVisible({ timeout: 500 }).catch(() => false)) {
+    return root;
+  }
+  return page.locator('body');
 }
 
 async function waitForPresentedPromptInput(alert: Locator, message: string): Promise<void> {
@@ -5001,6 +5286,30 @@ export async function openPagesPanel(page: Page): Promise<void> {
   });
 }
 
+export async function expectPagesPanelDefaultAfterWorkflowNavigation(page: Page): Promise<void> {
+  await test.step('Navigate from an active workflow to the first page', async () => {
+    const button = page.locator(SEL.pagesPanelButton).first();
+    await expect(button, 'Pages sidebar button should be visible after opening Workflows').toBeVisible({ timeout: 15_000 });
+
+    await button.click({ timeout: 5_000 }).catch(async () => {
+      await button.click({ force: true, timeout: 5_000 });
+    });
+
+    await expect(
+      page.locator(SEL.pageSearchbar).first(),
+      'Pages panel search should replace the active Workflow content after clicking Pages',
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.locator(SEL.pageRow).first(),
+      'Pages panel should show the first page after leaving Workflows',
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.locator(SEL.pageButtonsBlock).first(),
+      'the editor canvas should switch from Workflow content back to the first page',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
 export async function openApplicationSettingsFromSidebar(page: Page): Promise<void> {
   await test.step('Open application settings from the editor sidebar', async () => {
     const button = await firstVisibleLocator(page, SEL.appSettingsPanelButton, 'application settings sidebar button');
@@ -5264,20 +5573,76 @@ async function waitForLayoutChildCount(children: Locator, expected: number, time
     .catch(() => false);
 }
 
+// Helpers for opening a nested layout child's own editor across UI variants.
+async function visibleLayoutChildOpenButtonForCard(
+  page: Page,
+  card: Locator,
+  cardBox: { x: number; y: number; width: number; height: number },
+): Promise<Locator | null> {
+  const scoped = card.locator(SEL.layoutChildOpenButton).first();
+  if (await scoped.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    return scoped;
+  }
+
+  const visibleButtons = page.locator(`${SEL.layoutChildOpenButton}:visible`);
+  const count = await visibleButtons.count();
+  for (let i = 0; i < count; i++) {
+    const candidate = visibleButtons.nth(i);
+    const box = await candidate.boundingBox().catch(() => null);
+    if (!box) continue;
+
+    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    if (
+      center.x >= cardBox.x &&
+      center.x <= cardBox.x + cardBox.width &&
+      center.y >= cardBox.y &&
+      center.y <= cardBox.y + cardBox.height
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+async function openLayoutChildEditor(
+  page: Page,
+  card: Locator,
+  box: { x: number; y: number; width: number; height: number },
+  index: number,
+): Promise<void> {
+  const childEditorOpened = () =>
+    page.locator(`${SEL.componentDeleteButton}:visible`).first().isVisible({ timeout: 1_000 }).catch(() => false);
+  const clickBoxCenter = async (targetBox: { x: number; y: number; width: number; height: number } | null) => {
+    if (!targetBox) return false;
+    await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+    return childEditorOpened();
+  };
+
+  const openButton = await visibleLayoutChildOpenButtonForCard(page, card, box);
+  if (openButton) {
+    // The hover overlay can sit below the draggable child root. A locator click
+    // waits for pointer-events; use the observed point, then dispatch bounded.
+    if (await clickBoxCenter(await openButton.boundingBox().catch(() => null))) return;
+    await openButton.dispatchEvent('click').catch(() => undefined);
+    if (await childEditorOpened()) return;
+  }
+
+  // Old UI, and fallback for builds where the whole child card is the affordance.
+  if (await clickBoxCenter(box)) return;
+  await card.dispatchEvent('click').catch(() => undefined);
+  if (await childEditorOpened()) return;
+
+  throw new Error(`Could not open editor for layout child #${index}`);
+}
+
 /**
- * Delete a child nested inside a Horizontal layout, then confirm the
- * "Voulez-vous supprimer cet élément ?" dialog. `index` selects which nested
- * child (0-based, canvas order).
+ * Delete a child nested inside a Horizontal layout, then confirm the dialog.
+ * `index` selects which nested child (0-based, canvas order).
  *
- * The layout-child UI was refactored after #1363 was fixed, so the gesture to
- * reach the child's delete differs by version and both are handled:
- *   - new UI (e.g. beta233): hovering the child reveals a button that opens the
- *     child's own editor, whose "Supprimer" deletes just that child;
- *   - old UI (e.g. beta151, where the bug lives): clicking the child opens its
- *     config panel, whose trash — wrongly bound to the parent — deletes the whole
- *     layout (the bug).
- * Both end on the same `componentDeleteButton` + danger-styled "Oui" confirm, so
- * the spec's assertion (does the layout survive?) is what distinguishes them.
+ * The layout-child UI differs by version: newer builds expose a hovered child
+ * editor affordance, while the old buggy build opens a config panel from the
+ * child card. Both paths converge on the same delete button and confirmation.
  */
 export async function deleteLayoutChild(page: Page, index = 0): Promise<void> {
   const card = page.locator(SEL.layoutChildCard).nth(index);
@@ -5289,19 +5654,12 @@ export async function deleteLayoutChild(page: Page, index = 0): Promise<void> {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
   await page.waitForTimeout(600);
 
-  const openButton = page.locator(SEL.layoutChildOpenButton).first();
-  if (await openButton.count()) {
-    // new UI: open the child's own editor
-    await openButton.click();
-  } else {
-    // old UI: click the child to open its config panel
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  }
+  await openLayoutChildEditor(page, card, box, index);
 
   const del = page.locator(`${SEL.componentDeleteButton}:visible`).first();
-  await del.waitFor({ state: 'visible', timeout: 10_000 });
-  await del.click();
-  await page.locator('ion-alert').first().waitFor({ state: 'visible', timeout: 8_000 });
-  await page.locator(SEL.confirmDeleteYesButton).first().click();
+  await del.waitFor({ state: 'visible', timeout: 5_000 });
+  await del.click({ timeout: 5_000 }).catch(async () => del.dispatchEvent('click'));
+  await page.locator('ion-alert').first().waitFor({ state: 'visible', timeout: 5_000 });
+  await page.locator(SEL.confirmDeleteYesButton).first().click({ timeout: 5_000 });
   await page.waitForTimeout(1_500);
 }
