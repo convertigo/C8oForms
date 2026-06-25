@@ -6648,6 +6648,8 @@ scriptContent:
         		let margin = this.getViewerBoxCssValue(boxStyle, "margin");
         		let padding = this.getViewerBoxCssValue(boxStyle, "padding");
         		let backgroundColor = this.getViewerBoxCssValue(boxStyle, "backgroundColor");
+        		let textColor = this.getViewerResolvedTextColor(boxStyle, backgroundColor);
+        		let textColorMode = textColor.toLowerCase();
         		if (margin != "") {
         			style["margin"] = margin;
         		}
@@ -6656,6 +6658,9 @@ scriptContent:
         		}
         		if (backgroundColor != "") {
         			style["background-color"] = backgroundColor;
+        		}
+        		if (textColor != "" && textColorMode != "none" && textColorMode != "unset") {
+        			this.applyViewerTextColor(style, textColorMode == "auto" ? this.getViewerAutomaticTextColor(backgroundColor || style["background-color"]) : textColor);
         		}
         		let border = this.getViewerBorderValue(boxStyle);
         		let borderRadius = this.getViewerBoxCssValue(boxStyle, "borderRadius");
@@ -6951,6 +6956,139 @@ scriptContent:
         			return "";
         		}
         		return ("" + value).replace(/\s*!important\s*/ig, "").trim();
+        	}
+        
+        	private getViewerResolvedTextColor(boxStyle: any, backgroundColor: any): string {
+        		let textColor = this.getViewerBoxCssValue(boxStyle, "textColor");
+        		const mode = this.cleanViewerCssValue(boxStyle?.["textColorMode"]).toLowerCase();
+        		if (mode == "none" || mode == "unset" || mode == "default") {
+        			return "";
+        		}
+        		if (mode == "auto" && textColor == "") {
+        			return "auto";
+        		}
+        		if (mode == "" && this.isViewerLegacyDefaultTextColor(textColor, backgroundColor)) {
+        			return "";
+        		}
+        		return textColor;
+        	}
+        
+        	private isViewerLegacyDefaultTextColor(textColor: any, backgroundColor: any): boolean {
+        		const value = this.cleanViewerCssValue(textColor).toLowerCase().replace(/\s+/g, "");
+        		if (value != "#ffffff" && value != "#fff" && value != "rgb(255,255,255)") {
+        			return false;
+        		}
+        		return this.cleanViewerCssValue(backgroundColor) == "";
+        	}
+        
+        	private applyViewerTextColor(style: any, color: any): void {
+        		let value = this.cleanViewerCssValue(color);
+        		if (value == "") {
+        			return;
+        		}
+        		style["color"] = value;
+        		style["--color"] = value;
+        		style["--ion-text-color"] = value;
+        		style["--c8o-box-text-color"] = value;
+        	}
+        
+        	public getViewerQuestionLabelBoxStyle(item: any): any {
+        		let style = this.getViewerItemPartBoxStyle(item, "question");
+        		if (!this.hasViewerTextColorStyle(style)) {
+        			style = this.mergeViewerTextColorStyle(style, this.getViewerInheritedContainerBoxStyle(item));
+        		}
+        		return style;
+        	}
+        
+        	private hasViewerTextColorStyle(style: any): boolean {
+        		if (style == null || typeof style != "object") {
+        			return false;
+        		}
+        		const keys = ["color", "--color", "--ion-text-color", "--c8o-box-text-color", "--placeholder-color", "--border-color"];
+        		for (let i = 0; i < keys.length; i++) {
+        			if (this.cleanViewerCssValue(style[keys[i]]) != "") {
+        				return true;
+        			}
+        		}
+        		return false;
+        	}
+        
+        	private mergeViewerTextColorStyle(baseStyle: any, sourceStyle: any): any {
+        		let style: any = {};
+        		if (baseStyle != null && typeof baseStyle == "object") {
+        			Object.keys(baseStyle).forEach((key) => {
+        				style[key] = baseStyle[key];
+        			});
+        		}
+        		if (sourceStyle == null || typeof sourceStyle != "object") {
+        			return style;
+        		}
+        		const keys = ["color", "--color", "--ion-text-color", "--c8o-box-text-color", "--placeholder-color", "--border-color"];
+        		for (let i = 0; i < keys.length; i++) {
+        			const value = this.cleanViewerCssValue(sourceStyle[keys[i]]);
+        			if (value != "") {
+        				style[keys[i]] = value;
+        			}
+        		}
+        		return style;
+        	}
+        
+        	private getViewerInheritedContainerBoxStyle(item: any): any {
+        		let style: any = {};
+        		style = this.applyViewerGlobalPartBoxStyle(item, "container", style);
+        		style = this.applyViewerInheritedPartBoxStyle(item, "container", style);
+        		return this.getViewerItemBoxStyleRaw(item, style);
+        	}
+        
+        	private getViewerAutomaticTextColor(backgroundColor: any): string {
+        		let rgb = this.getViewerRgbFromCssColor(backgroundColor);
+        		if (rgb == null) {
+        			return "#000000";
+        		}
+        		let r = this.getViewerLinearRgbChannel(rgb.r);
+        		let g = this.getViewerLinearRgbChannel(rgb.g);
+        		let b = this.getViewerLinearRgbChannel(rgb.b);
+        		let luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+        		let blackContrast = (luminance + 0.05) / 0.05;
+        		let whiteContrast = 1.05 / (luminance + 0.05);
+        		return blackContrast >= whiteContrast ? "#000000" : "#FFFFFF";
+        	}
+        
+        	private getViewerRgbFromCssColor(value: any): any {
+        		let color = this.cleanViewerCssValue(value).toLowerCase();
+        		if (color == "" || color == "transparent") {
+        			return {r: 255, g: 255, b: 255};
+        		}
+        		let match = color.match(/^#([0-9a-f]{3})$/i);
+        		if (match != null) {
+        			return {
+        				r: parseInt(match[1].charAt(0) + match[1].charAt(0), 16),
+        				g: parseInt(match[1].charAt(1) + match[1].charAt(1), 16),
+        				b: parseInt(match[1].charAt(2) + match[1].charAt(2), 16)
+        			};
+        		}
+        		match = color.match(/^#([0-9a-f]{6})$/i);
+        		if (match != null) {
+        			return {
+        				r: parseInt(match[1].substring(0, 2), 16),
+        				g: parseInt(match[1].substring(2, 4), 16),
+        				b: parseInt(match[1].substring(4, 6), 16)
+        			};
+        		}
+        		match = color.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+        		if (match != null) {
+        			return {
+        				r: Math.max(0, Math.min(255, parseFloat(match[1]))),
+        				g: Math.max(0, Math.min(255, parseFloat(match[2]))),
+        				b: Math.max(0, Math.min(255, parseFloat(match[3])))
+        			};
+        		}
+        		return null;
+        	}
+        
+        	private getViewerLinearRgbChannel(value: any): number {
+        		let channel = Math.max(0, Math.min(255, parseFloat("" + value))) / 255;
+        		return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
         	}
         
         	private getGoToPageIfConditions(item: any): any {
@@ -12300,6 +12438,184 @@ title: Visualisateur
                 			font-size: var(--base-font-size-viewer);
                 			// font--size for checkbox
                 			--size: var(--base-font-size-viewer);
+                		}
+                		[style*="--c8o-box-text-color"] ion-input,
+                		ion-input[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-textarea,
+                		ion-textarea[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-select,
+                		ion-select[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-checkbox,
+                		ion-checkbox[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-radio,
+                		ion-radio[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-range,
+                		ion-range[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-datetime,
+                		ion-datetime[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-toggle,
+                		ion-toggle[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-button,
+                		ion-button[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-searchbar,
+                		ion-searchbar[style*="--c8o-box-text-color"] {
+                			--color: var(--ion-text-color);
+                			--placeholder-color: var(--ion-text-color);
+                			--highlight-color: var(--ion-text-color);
+                			--border-color: var(--ion-text-color);
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-item,
+                		ion-item[style*="--c8o-box-text-color"] {
+                			--background: transparent !important;
+                			--ion-item-background: transparent !important;
+                			--color: var(--ion-text-color) !important;
+                			background: transparent !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-item::part(native),
+                		ion-item[style*="--c8o-box-text-color"]::part(native) {
+                			background: transparent !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-button,
+                		ion-button[style*="--c8o-box-text-color"] {
+                			--background: transparent;
+                			--background-hover: color-mix(in srgb, var(--ion-text-color) 12%, transparent);
+                			--background-activated: color-mix(in srgb, var(--ion-text-color) 18%, transparent);
+                			--border-color: color-mix(in srgb, var(--ion-text-color) 30%, transparent);
+                		}
+                		[style*="--c8o-box-text-color"] ion-button::part(native),
+                		ion-button[style*="--c8o-box-text-color"]::part(native) {
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-buttons {
+                			--ion-text-color: inherit !important;
+                			--c8o-box-text-color: inherit !important;
+                			--color: var(--ion-text-color) !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-buttons ion-button,
+                		[style*="--c8o-box-text-color"] ion-button.ion-color {
+                			--ion-color-base: color-mix(in srgb, var(--ion-text-color) 12%, transparent) !important;
+                			--ion-color-contrast: var(--ion-text-color) !important;
+                			--ion-color-shade: color-mix(in srgb, var(--ion-text-color) 20%, transparent) !important;
+                			--ion-color-tint: color-mix(in srgb, var(--ion-text-color) 18%, transparent) !important;
+                			--color: var(--ion-text-color) !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] .signature-pad--icon-bar ion-button::part(native),
+                		[style*="--c8o-box-text-color"] ion-buttons ion-button::part(native) {
+                			background: color-mix(in srgb, var(--ion-text-color) 10%, transparent) !important;
+                			border: 1px solid color-mix(in srgb, var(--ion-text-color) 24%, transparent) !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-icon,
+                		ion-icon[style*="--c8o-box-text-color"],
+                		[style*="--c8o-box-text-color"] ion-icon.ion-color,
+                		[style*="--c8o-box-text-color"] ion-icon.ion-color-primary,
+                		[style*="--c8o-box-text-color"] .mat-icon,
+                		[style*="--c8o-box-text-color"] i[class*="fa"],
+                		[style*="--c8o-box-text-color"] svg {
+                			--ion-color-base: var(--ion-text-color) !important;
+                			--ion-color-contrast: var(--ion-text-color) !important;
+                			color: var(--ion-text-color) !important;
+                			fill: currentColor;
+                			stroke: currentColor;
+                		}
+                		[style*="--c8o-box-text-color"] c8o-signature .signature-pad--icon-bar ion-button {
+                			--ion-color-base: #f8fafc !important;
+                			--ion-color-contrast: #111827 !important;
+                			--color: #111827 !important;
+                			color: #111827 !important;
+                		}
+                		[style*="--c8o-box-text-color"] c8o-signature .signature-pad--icon-bar ion-button::part(native) {
+                			background: #f8fafc !important;
+                			border: 1px solid #d1d5db !important;
+                			color: #111827 !important;
+                		}
+                		[style*="--c8o-box-text-color"] c8o-signature .signature-pad--icon-bar ion-icon {
+                			--ion-color-base: #111827 !important;
+                			--ion-color-contrast: #111827 !important;
+                			color: #111827 !important;
+                			fill: currentColor;
+                			stroke: currentColor;
+                		}
+                		[style*="--c8o-box-text-color"] c8oforms-itembarcodeviewver ion-item {
+                			--inner-border-width: 0 !important;
+                			--highlight-height: 0 !important;
+                		}
+                		[style*="--c8o-box-text-color"] c8oforms-itembarcodeviewver ion-item::part(native) {
+                			box-shadow: none !important;
+                		}
+                		[style*="--c8o-box-text-color"] c8oforms-itembarcodeviewver ion-button::part(native) {
+                			border: 0 !important;
+                			background: transparent !important;
+                		}
+                		[style*="--c8o-box-text-color"] c8oforms-itemradiogroupviewver div {
+                			background-color: transparent !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-radio,
+                		ion-radio[style*="--c8o-box-text-color"] {
+                			--color-checked: var(--ion-text-color);
+                			--border-color-checked: var(--ion-text-color);
+                		}
+                		[style*="--c8o-box-text-color"] ion-checkbox,
+                		ion-checkbox[style*="--c8o-box-text-color"] {
+                			--checkmark-color: var(--ion-text-color);
+                			--border-color-checked: var(--ion-text-color);
+                		}
+                		[style*="--c8o-box-text-color"] ion-input .native-input,
+                		ion-input[style*="--c8o-box-text-color"] .native-input,
+                		[style*="--c8o-box-text-color"] ion-textarea .native-textarea,
+                		ion-textarea[style*="--c8o-box-text-color"] .native-textarea,
+                		[style*="--c8o-box-text-color"] ion-searchbar input,
+                		ion-searchbar[style*="--c8o-box-text-color"] input {
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] ion-input .native-input::placeholder,
+                		ion-input[style*="--c8o-box-text-color"] .native-input::placeholder,
+                		[style*="--c8o-box-text-color"] ion-textarea .native-textarea::placeholder,
+                		ion-textarea[style*="--c8o-box-text-color"] .native-textarea::placeholder,
+                		[style*="--c8o-box-text-color"] ion-searchbar input::placeholder,
+                		ion-searchbar[style*="--c8o-box-text-color"] input::placeholder {
+                			color: var(--ion-text-color) !important;
+                			opacity: 1;
+                		}
+                		[style*="--c8o-box-text-color"] ag-grid-angular,
+                		[style*="--c8o-box-text-color"] .ag-root-wrapper,
+                		[style*="--c8o-box-text-color"] .ag-root,
+                		[style*="--c8o-box-text-color"] .ag-header,
+                		[style*="--c8o-box-text-color"] .ag-row,
+                		[style*="--c8o-box-text-color"] .ag-cell,
+                		[style*="--c8o-box-text-color"] .ag-paging-panel {
+                			--ag-foreground-color: var(--ion-text-color);
+                			--ag-data-color: var(--ion-text-color);
+                			--ag-header-foreground-color: var(--ion-text-color);
+                			--ag-background-color: transparent;
+                			--ag-header-background-color: transparent;
+                			--ag-odd-row-background-color: color-mix(in srgb, var(--ion-text-color) 5%, transparent);
+                			--ag-row-hover-color: color-mix(in srgb, var(--ion-text-color) 10%, transparent);
+                			--ag-border-color: color-mix(in srgb, var(--ion-text-color) 22%, transparent);
+                			background: transparent !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] .ag-root-wrapper,
+                		[style*="--c8o-box-text-color"] .ag-header,
+                		[style*="--c8o-box-text-color"] .ag-row,
+                		[style*="--c8o-box-text-color"] .ag-cell,
+                		[style*="--c8o-box-text-color"] .ag-paging-panel {
+                			border-color: color-mix(in srgb, var(--ion-text-color) 22%, transparent) !important;
+                		}
+                		[style*="--c8o-box-text-color"] .c8o-gallery-card {
+                			background: color-mix(in srgb, var(--ion-text-color) 8%, transparent) !important;
+                			border-color: color-mix(in srgb, var(--ion-text-color) 25%, transparent) !important;
+                			color: var(--ion-text-color) !important;
+                		}
+                		[style*="--c8o-box-text-color"] .c8o-gallery-card,
+                		[style*="--c8o-box-text-color"] .c8o-gallery-card * {
+                			color: var(--ion-text-color) !important;
                 		}
                 		ion-radio{
                 			&::part(container) {

@@ -110,12 +110,94 @@ scriptContent:
         		}
         		return ("" + value).replace(/\s*!important\s*/ig, "").trim();
         	}
+        	applyLayoutTextColor(style: any, color: any): void {
+        		const value = this.cleanLayoutCssValue(color);
+        		if (value == "") {
+        			return;
+        		}
+        		style["color"] = value;
+        		style["--color"] = value;
+        		style["--ion-text-color"] = value;
+        		style["--c8o-box-text-color"] = value;
+        	}
+        	isLayoutLegacyDefaultTextColor(textColor: any, backgroundColor: any): boolean {
+        		const value = this.cleanLayoutCssValue(textColor).toLowerCase().replace(/\s+/g, "");
+        		if (value != "#ffffff" && value != "#fff" && value != "rgb(255,255,255)") {
+        			return false;
+        		}
+        		return this.cleanLayoutCssValue(backgroundColor) == "";
+        	}
+        	getLayoutAutomaticTextColor(backgroundColor: any): string {
+        		const rgb = this.getLayoutRgbFromCssColor(backgroundColor);
+        		if (rgb == null) {
+        			return "#000000";
+        		}
+        		const r = this.getLayoutLinearRgbChannel(rgb.r);
+        		const g = this.getLayoutLinearRgbChannel(rgb.g);
+        		const b = this.getLayoutLinearRgbChannel(rgb.b);
+        		const luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+        		const blackContrast = (luminance + 0.05) / 0.05;
+        		const whiteContrast = 1.05 / (luminance + 0.05);
+        		return blackContrast >= whiteContrast ? "#000000" : "#FFFFFF";
+        	}
+        	getLayoutRgbFromCssColor(value: any): any {
+        		const color = this.cleanLayoutCssValue(value).toLowerCase();
+        		if (color == "" || color == "transparent") {
+        			return {r: 255, g: 255, b: 255};
+        		}
+        		let match = color.match(/^#([0-9a-f]{3})$/i);
+        		if (match != null) {
+        			return {
+        				r: parseInt(match[1].charAt(0) + match[1].charAt(0), 16),
+        				g: parseInt(match[1].charAt(1) + match[1].charAt(1), 16),
+        				b: parseInt(match[1].charAt(2) + match[1].charAt(2), 16)
+        			};
+        		}
+        		match = color.match(/^#([0-9a-f]{6})$/i);
+        		if (match != null) {
+        			return {
+        				r: parseInt(match[1].substring(0, 2), 16),
+        				g: parseInt(match[1].substring(2, 4), 16),
+        				b: parseInt(match[1].substring(4, 6), 16)
+        			};
+        		}
+        		match = color.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+        		if (match != null) {
+        			return {
+        				r: Math.max(0, Math.min(255, parseFloat(match[1]))),
+        				g: Math.max(0, Math.min(255, parseFloat(match[2]))),
+        				b: Math.max(0, Math.min(255, parseFloat(match[3])))
+        			};
+        		}
+        		return null;
+        	}
+        	getLayoutLinearRgbChannel(value: any): number {
+        		const channel = Math.max(0, Math.min(255, parseFloat("" + value))) / 255;
+        		return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+        	}
         	getLayoutChildBaseSpacingValue(property: string): string {
         		const defaults: any = {
         			margin: "0 10px 10px 0",
-        			padding: "20px 27px"
+        			padding: "20px 27px",
+        			verticalAlign: "stretch"
         		};
         		return defaults[property] || "";
+        	}
+        	normalizeLayoutVerticalAlign(value: any): string {
+        		const normalized = this.cleanLayoutCssValue(value).toLowerCase();
+        		if (normalized == "top" || normalized == "start" || normalized == "flex-start") {
+        			return "start";
+        		}
+        		if (normalized == "bottom" || normalized == "end" || normalized == "flex-end") {
+        			return "end";
+        		}
+        		if (normalized == "center" || normalized == "middle") {
+        			return "center";
+        		}
+        		if (normalized == "stretch" || normalized == "fill") {
+        			return "stretch";
+        		}
+        		return "";
         	}
         	getLayoutSpacingMap(value: any): any {
         		const normalized = this.cleanLayoutCssValue(value);
@@ -287,8 +369,23 @@ scriptContent:
         	}
         	applyLayoutChildExplicitStyle(style: any, index: number): void {
         		const backgroundColor = this.getLayoutChildExplicitStyleValue(index, "backgroundColor");
+        		let textColor = this.getLayoutChildExplicitStyleValue(index, "textColor");
+        		const textColorModeFlag = this.getLayoutChildExplicitStyleValue(index, "textColorMode").toLowerCase();
+        		if (textColorModeFlag == "none" || textColorModeFlag == "unset" || textColorModeFlag == "default") {
+        			textColor = "";
+        		}
+        		else if (textColorModeFlag == "auto" && textColor == "") {
+        			textColor = "auto";
+        		}
+        		else if (textColorModeFlag == "" && this.isLayoutLegacyDefaultTextColor(textColor, backgroundColor)) {
+        			textColor = "";
+        		}
+        		const textColorMode = textColor.toLowerCase();
         		if (backgroundColor != "") {
         			style["background-color"] = backgroundColor;
+        		}
+        		if (textColor != "" && textColorMode != "none" && textColorMode != "unset") {
+        			this.applyLayoutTextColor(style, textColorMode == "auto" ? this.getLayoutAutomaticTextColor(backgroundColor || style["background-color"]) : textColor);
         		}
         		const border = this.getLayoutChildBorderValue(index);
         		if (border != "") {
@@ -318,11 +415,83 @@ scriptContent:
         		}
         		return this.pageOwner.getViewerItemBoxStyle(item) || {};
         	}
+        	getLayoutChildParentVerticalAlignValue(index: number): string {
+        		const value = this.normalizeLayoutVerticalAlign(this.getLayoutChildExplicitStyleValue(index, "verticalAlign"));
+        		return value != "" ? value : "stretch";
+        	}
+        	getLayoutChildLocalVerticalAlignValue(child: any): string {
+        		const item = this.pageOwner?.getItemById?.(child);
+        		return this.normalizeLayoutVerticalAlign(item?.config?.boxStyle?.verticalAlign);
+        	}
+        	getLayoutChildVerticalAlignValue(child: any, index: number): string {
+        		const childValue = this.getLayoutChildLocalVerticalAlignValue(child);
+        		if (childValue != "") {
+        			return childValue;
+        		}
+        		return this.getLayoutChildParentVerticalAlignValue(index);
+        	}
         	getLayoutChildColumnStyle(child: any, index: number): any {
-        		return {};
+        		const align = this.getLayoutChildVerticalAlignValue(child, index);
+        		const style: any = {
+        			display: "flex",
+        			"flex-direction": "column",
+        			"align-self": "stretch",
+        			"align-items": "stretch",
+        			"min-width": "0"
+        		};
+        		if (align == "center") {
+        			style["justify-content"] = "center";
+        		}
+        		else if (align == "end") {
+        			style["justify-content"] = "flex-end";
+        		}
+        		else if (align == "start") {
+        			style["justify-content"] = "flex-start";
+        		}
+        		else {
+        			style["justify-content"] = "flex-start";
+        		}
+        		return style;
+        	}
+        	getLayoutChildFieldsetStyle(child: any, index: number): any {
+        		const align = this.getLayoutChildVerticalAlignValue(child, index);
+        		const style: any = {
+        			display: "flex",
+        			"flex-direction": "column",
+        			width: "100%",
+        			"min-width": "0",
+        			"align-items": "stretch",
+        			border: "0",
+        			margin: "0",
+        			padding: "0"
+        		};
+        		if (align == "stretch") {
+        			style["height"] = "100%";
+        			style["flex"] = "1 1 auto";
+        		}
+        		else {
+        			style["height"] = "auto";
+        			style["flex"] = "0 0 auto";
+        		}
+        		return style;
         	}
         	getLayoutChildCardStyle(child: any, index: number): any {
         		const style: any = {};
+        		const align = this.getLayoutChildVerticalAlignValue(child, index);
+        		style["box-sizing"] = "border-box";
+        		style["display"] = "flex";
+        		style["flex-direction"] = "column";
+        		style["align-self"] = "stretch";
+        		style["width"] = "auto";
+        		style["height"] = "auto";
+        		if (align == "stretch") {
+        			style["flex"] = "1 1 auto";
+        			style["min-height"] = "0";
+        		}
+        		else {
+        			style["flex"] = "0 0 auto";
+        			style["min-height"] = "0";
+        		}
         		const margin = this.getLayoutChildSpacingValue(index, "margin");
         		const padding = this.getLayoutChildSpacingValue(index, "padding");
         		if (margin != "") {
@@ -333,7 +502,7 @@ scriptContent:
         		}
         		this.applyLayoutChildExplicitStyle(style, index);
         		const childStyle = this.getViewerBoxStyleForChild(child);
-        		const keys = ["margin", "padding", "background-color", "border", "border-radius", "border-top", "border-right", "border-bottom", "border-left"];
+        		const keys = ["margin", "padding", "background-color", "color", "--color", "--ion-text-color", "--c8o-box-text-color", "border", "border-radius", "border-top", "border-right", "border-bottom", "border-left"];
         		for (let i = 0; i < keys.length; i++) {
         			const key = keys[i];
         			if (childStyle[key] != null) {
@@ -360,6 +529,14 @@ scriptContent:
   ↓GridRow [ngx.components.UIDynamicElement-1730985366682]: 
     beanData: '{"ionBean":"GridRow"}'
     tagName: ion-row
+    ↓StyleRowStretch [ngx.components.UIStyle-1782410200022]: 
+      styleContent: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              'align-items: stretch;
+              '
     ↓Directive22 [ngx.components.UIControlDirective-1730985366685]: 
       directiveExpression: trackBy:trackByObj
       directiveIndexName: j
@@ -417,6 +594,12 @@ scriptContent:
                   '
         ↓Tag [ngx.components.UIElement-1730984742520]: 
           tagName: fieldset
+          ↓AttrFieldsetStyle [ngx.components.UIAttribute-1782410200021]: 
+            attrName: '[ngStyle]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.getLayoutChildFieldsetStyle(child, j)
           ↓DivCard [ngx.components.UIDynamicElement-1730984742529]: 
             beanData: '{"ionBean":"DivTag"}'
             tagName: div
@@ -451,6 +634,11 @@ scriptContent:
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
                         'height: 100%;
+                        display: flex;
+                        flex-direction: column;
+                        flex: 1 1 auto;
+                        width: 100%;
+                        min-height: 0;
                         '
               ↓UseSharedComponent [ngx.components.UIUseShared-1730985400784]: 
                 sharedcomponent: C8Oforms.MobileApplication.Application.itemLayoutViewer_Elem
