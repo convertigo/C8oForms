@@ -153,10 +153,18 @@ export const SEL = {
   cardMenuButton: 'ion-button.class1606574763560',
   selectorCollaboratorsMenuItem:
     'ion-item.class1594313281739, ion-item:has(ion-icon.class1603730321735)',
+  editorMoreActionsButton: '#more-actions-menu-editor, ion-button.class1757346419354',
+  editorMoreActionsPopover: 'ion-popover:not(.overlay-hidden):visible',
+  editorMoreActionsCollaboratorsMenuItem:
+    'ion-item.class1773329574106, ion-item:has(ion-icon[src*="user-plus.svg"]), ion-item:has(img[src*="user-plus.svg"]), ion-item',
+  editorToolbarCollaboratorsButton:
+    'page-editorpage .class1650456634183 ion-button, page-editorpage ion-button:has(ion-icon[src*="user-plus.svg"])',
   collaboratorsModal: 'ion-modal.show-modal page-manageaccessrights',
   collaboratorSearchInput: 'c8oforms-ngxtaginputcustomc8oforms ng-select input[role="combobox"], tag-input input',
   collaboratorAutocompleteOption: 'ng-dropdown-panel .ng-option, tag-input-dropdown .ng2-menu-item, ng2-dropdown-menu .ng2-menu-item',
   collaboratorsSaveButton: 'ion-footer ion-button.class1779974149500',
+  collaboratorsCsvInput: 'input#manageAccessCsvCollabInput[type="file"][accept*=".csv"]',
+  collaboratorsCsvButton: 'div:has(> input#manageAccessCsvCollabInput[type="file"]) > ion-button',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
@@ -1190,6 +1198,102 @@ export async function returnToSelectorFromEditor(page: Page): Promise<void> {
   }
   await page.locator(SEL.editorHomeButton).first().click();
   await expectRoute(page, ROUTE.selector);
+}
+
+export async function openEditorCollaboratorsModal(page: Page): Promise<Locator> {
+  return test.step('Open the editor collaborators modal', async () => {
+    await expectRoute(page, ROUTE.editor);
+    await dismissVisiblePopovers(page);
+
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    if (await clickEditorMoreActionsCollaborators(page, modal)) {
+      return modal;
+    }
+
+    const toolbarButton = page.locator(SEL.editorToolbarCollaboratorsButton).first();
+    await expect(toolbarButton, 'editor toolbar collaborators button should be available').toBeVisible({
+      timeout: 10_000,
+    });
+    await toolbarButton.click({ timeout: 5_000 }).catch(async () => toolbarButton.dispatchEvent('click'));
+    await expect(modal, 'the collaborators modal should open from the editor toolbar').toBeVisible({
+      timeout: 30_000,
+    });
+    return modal;
+  });
+}
+
+export async function expectCollaboratorsCsvImportAvailable(page: Page): Promise<void> {
+  await test.step('Assert collaborators CSV import opens the file picker', async () => {
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    await expect(modal, 'the collaborators modal should be visible before checking CSV import').toBeVisible({
+      timeout: 30_000,
+    });
+
+    const input = modal.locator(SEL.collaboratorsCsvInput).first();
+    await expect(input, 'CSV import should expose a .csv file input in the collaborators modal').toBeAttached({
+      timeout: 10_000,
+    });
+
+    const button = modal.locator(SEL.collaboratorsCsvButton).first();
+    await expect(button, 'CSV import should expose a visible button associated with the file input').toBeVisible({
+      timeout: 10_000,
+    });
+
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 10_000 });
+    await button.click({ timeout: 5_000 }).catch(async () => button.dispatchEvent('click'));
+    const fileChooser = await fileChooserPromise;
+    expect(fileChooser.isMultiple(), 'the collaborators CSV import should choose a single CSV file').toBe(false);
+  });
+}
+
+async function clickEditorMoreActionsCollaborators(page: Page, modal: Locator): Promise<boolean> {
+  const moreActions = page.locator(SEL.editorMoreActionsButton).first();
+  if (!(await moreActions.isVisible({ timeout: 3_000 }).catch(() => false))) {
+    return false;
+  }
+
+  await moreActions.click({ timeout: 5_000 }).catch(async () => moreActions.dispatchEvent('click'));
+  const popover = page.locator(SEL.editorMoreActionsPopover).last();
+  if (!(await popover.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.editorMoreActionsCollaboratorsMenuItem).first();
+  if (await item.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await item.click({ timeout: 5_000 }).catch(async () => item.dispatchEvent('click'));
+  } else {
+    const clicked = await page.evaluate(() => {
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden)')]
+        .filter(isVisible)
+        .reverse();
+      for (const root of popovers) {
+        const items = [...root.querySelectorAll('ion-item')].filter(isVisible);
+        const match = (items.find(
+          (candidate) =>
+            (candidate.classList.contains('class1773329574106') ||
+              !!candidate.querySelector('ion-icon[src*="user-plus.svg"], img[src*="user-plus.svg"]')),
+        ) ?? items[0]) as HTMLElement | undefined;
+        if (match) {
+          match.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!clicked) {
+      return false;
+    }
+  }
+
+  return modal
+    .waitFor({ state: 'visible', timeout: 30_000 })
+    .then(() => true)
+    .catch(() => false);
 }
 
 export async function searchSelectorApplicationsByName(page: Page, query: string): Promise<void> {

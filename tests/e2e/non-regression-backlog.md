@@ -74,7 +74,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 47 deja co
 | [ ] | [#1388](https://github.com/convertigo/C8oForms/issues/1388) | closed | bug, QC-Passed | Copy to page alert is not migrated to the new design |  |
 | [ ] | [#1387](https://github.com/convertigo/C8oForms/issues/1387) | closed | bug, QC-Passed | Side button labels are too short and unclear |  |
 | [ ] | [#1385](https://github.com/convertigo/C8oForms/issues/1385) | closed | bug, QC-Passed | ‘+’ button to add a new Page is not visible enough and hard to find |  |
-| [ ] | [#1384](https://github.com/convertigo/C8oForms/issues/1384) | closed | bug, QC-Passed | Add collaborators modal proposes CSV import but no button is available |  |
+| [x] | [#1384](https://github.com/convertigo/C8oForms/issues/1384) | closed | bug, QC-Passed, Auto QA Test | Add collaborators modal proposes CSV import but no button is available | Auto QA Test<br>e2e/issue-1384.spec.ts |
 | [x] | [#1383](https://github.com/convertigo/C8oForms/issues/1383) | closed | bug, QC-Passed, Auto QA Test | Page renaming shows “Page name already exists” when the field is empty | Auto QA Test<br>e2e/issue-1383.spec.ts |
 | [x] | [#1382](https://github.com/convertigo/C8oForms/issues/1382) | closed | bug, QC-Passed, Auto QA Test | Chart component height field does not allow entering “auto” although the UI suggests it | Auto QA Test<br>e2e/issue-1382.spec.ts |
 | [ ] | [#1381](https://github.com/convertigo/C8oForms/issues/1381) | closed | bug, QC-Passed | Visibility condition value picker does not save selected grid fields |  |
