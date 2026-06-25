@@ -1155,6 +1155,337 @@ scriptContent:
         	  return conf;
         	}
         	
+        	isChartConfiguration(): boolean {
+        	  let type = this.navParams != null && this.navParams.data != null ? this.navParams.data.type : "";
+        	  if ((type == null || type == "") && this.local != null) {
+        		type = this.local.txt_i18n || this.local.type || "";
+        	  }
+        	  return type == "chart";
+        	}
+        	
+        	getChartConfigurationType(): string {
+        	  let type = this.navParams != null && this.navParams.data != null ? this.navParams.data.chartType : "";
+        	  if ((type == null || type == "") && this.local != null) {
+        		type = this.local.chartType || "";
+        	  }
+        	  return type != null ? "" + type : "";
+        	}
+        	
+        	isPieLikeChartConfiguration(): boolean {
+        	  let type = this.getChartConfigurationType();
+        	  return type == "pie" || type == "donut" || type == "radar";
+        	}
+        	
+        	getChartRoleKey(role: string): string {
+        	  if (role == "category") {
+        		return "chartCategoryColumn";
+        	  }
+        	  if (role == "value") {
+        		return "chartValueColumn";
+        	  }
+        	  return "";
+        	}
+        	
+        	getChartStoredCategoryField(): string {
+        	  if (this.local == null) {
+        		return "";
+        	  }
+        	  return this.local.chartCategoryColumn || "";
+        	}
+        	
+        	getChartStoredValueFields(): Array<string> {
+        	  if (this.local == null) {
+        		return [];
+        	  }
+        	  let values = this.local.chartValueColumns;
+        	  if (Array.isArray(values)) {
+        		return values.filter((value) => value != null && value != "").map((value) => "" + value);
+        	  }
+        	  if (values != null && values != "") {
+        		return ["" + values];
+        	  }
+        	  return [];
+        	}
+        	
+        	setChartStoredCategoryField(value: any): void {
+        	  if (this.local == null) {
+        		return;
+        	  }
+        	  this.local.chartCategoryColumn = value != null ? "" + value : "";
+        	}
+        	
+        	setChartStoredValueField(columnName: any, selected: boolean): void {
+        	  if (this.local == null) {
+        		return;
+        	  }
+        	  columnName = columnName != null ? "" + columnName : "";
+        	  let values = this.getChartStoredValueFields();
+        	  if (selected === true) {
+        		if (this.isPieLikeChartConfiguration()) {
+        		  this.local.chartValueColumns = columnName != "" ? [columnName] : [];
+        		  return;
+        		}
+        		if (columnName != "" && values.indexOf(columnName) == -1) {
+        		  values.push(columnName);
+        		}
+        	  }
+        	  else {
+        		values = values.filter((value) => value != columnName);
+        	  }
+        	  this.local.chartValueColumns = values;
+        	}
+        	
+        	hasChartConfigurationColumn(name: any): boolean {
+        	  name = name != null ? "" + name : "";
+        	  return name != "" && this.getMapConfigurationColumns().indexOf(name) != -1;
+        	}
+        	
+        	getChartColumnRole(column: any, role: string): boolean {
+        	  let columnName = this.getMapColumnName(column);
+        	  let key = this.getChartRoleKey(role);
+        	  if (!this.isChartConfiguration() || columnName == "" || key == "") {
+        		return false;
+        	  }
+        	
+        	  if (column != null && typeof column == "object" && column[key] === true) {
+        		return true;
+        	  }
+        	
+        	  let selected = this.local != null ? this.local.selectedColumns : null;
+        	  if (Array.isArray(selected)) {
+        		let match = selected.find((item) => this.getMapColumnName(item) == columnName);
+        		if (match != null && match[key] === true) {
+        		  return true;
+        		}
+        	  }
+        	  else if (selected != null && typeof selected == "object") {
+        		let match = selected[columnName];
+        		if (match != null && match[key] === true) {
+        		  return true;
+        		}
+        	  }
+        	
+        	  if (role == "category") {
+        		return this.getChartStoredCategoryField() == columnName;
+        	  }
+        	  if (role == "value") {
+        		return this.getChartStoredValueFields().indexOf(columnName) != -1;
+        	  }
+        	  return false;
+        	}
+        	
+        	hasChartSelectedRole(item: any): boolean {
+        	  return item != null && (item.chartCategoryColumn === true || item.chartValueColumn === true);
+        	}
+        	
+        	applyChartRoleToCollection(source: any, key: string, columnName: string, value: boolean, multiple: boolean): void {
+        	  if (source == null || key == "" || columnName == "") {
+        		return;
+        	  }
+        	
+        	  let updateItem = (item: any, itemName: string) => {
+        		if (item == null || itemName == "") {
+        		  return;
+        		}
+        		let isCurrent = itemName == columnName;
+        		if (value === true) {
+        		  if (multiple === true) {
+        			if (isCurrent) {
+        			  item[key] = true;
+        			  item.selected = true;
+        			}
+        		  }
+        		  else {
+        			item[key] = isCurrent;
+        			if (isCurrent) {
+        			  item.selected = true;
+        			}
+        			else {
+        			  item.selected = this.hasChartSelectedRole(item);
+        			}
+        		  }
+        		}
+        		else if (isCurrent) {
+        		  item[key] = false;
+        		  item.selected = this.hasChartSelectedRole(item);
+        		}
+        	  };
+        	
+        	  if (Array.isArray(source)) {
+        		source.forEach((item) => {
+        		  updateItem(item, this.getMapColumnName(item));
+        		});
+        	  }
+        	  else if (typeof source == "object") {
+        		Object.keys(source).forEach((name) => {
+        		  if (!/^\d+$/.test(name)) {
+        			updateItem(source[name], source[name] != null && source[name].name != null ? source[name].name : name);
+        		  }
+        		});
+        	  }
+        	}
+        	
+        	setChartColumnRole(role: string, column: any, checked: any): void {
+        	  let columnName = this.getMapColumnName(column);
+        	  let key = this.getChartRoleKey(role);
+        	  if (!this.isChartConfiguration() || this.local == null || columnName == "" || key == "") {
+        		return;
+        	  }
+        	
+        	  let value = checked;
+        	  if (value != null && typeof value == "object" && value.detail != null) {
+        		value = value.detail.checked;
+        	  }
+        	  if (value != null && typeof value == "object" && value.target != null) {
+        		value = value.target.checked;
+        	  }
+        	  value = value === true;
+        	
+        	  let multiple = role == "value" && !this.isPieLikeChartConfiguration();
+        	  this.applyChartRoleToCollection(this.local.selectedColumns, key, columnName, value, multiple);
+        	  this.applyChartRoleToCollection(this.local.filteredColumns, key, columnName, value, multiple);
+        	
+        	  if (role == "category") {
+        		if (value) {
+        		  this.setChartStoredCategoryField(columnName);
+        		  this.applyChartRoleToCollection(this.local.selectedColumns, this.getChartRoleKey("value"), columnName, false, true);
+        		  this.applyChartRoleToCollection(this.local.filteredColumns, this.getChartRoleKey("value"), columnName, false, true);
+        		  this.setChartStoredValueField(columnName, false);
+        		}
+        		else if (this.getChartStoredCategoryField() == columnName) {
+        		  this.setChartStoredCategoryField("");
+        		}
+        	  }
+        	  else if (role == "value") {
+        		if (value) {
+        		  this.applyChartRoleToCollection(this.local.selectedColumns, this.getChartRoleKey("category"), columnName, false, false);
+        		  this.applyChartRoleToCollection(this.local.filteredColumns, this.getChartRoleKey("category"), columnName, false, false);
+        		  if (this.getChartStoredCategoryField() == columnName) {
+        			this.setChartStoredCategoryField("");
+        		  }
+        		}
+        		this.setChartStoredValueField(columnName, value);
+        	  }
+        	}
+        	
+        	applyStoredChartRoles(): void {
+        	  if (!this.isChartConfiguration()) {
+        		return;
+        	  }
+        	  let category = this.getChartStoredCategoryField();
+        	  if (category != "") {
+        		this.setChartColumnRole("category", category, true);
+        	  }
+        	  let values = this.getChartStoredValueFields();
+        	  if (this.isPieLikeChartConfiguration() && values.length > 1) {
+        		values = [values[0]];
+        	  }
+        	  values.forEach((value) => {
+        		this.setChartColumnRole("value", value, true);
+        	  });
+        	}
+        	
+        	findChartRoleField(role: string): string {
+        	  let key = this.getChartRoleKey(role);
+        	  if (key == "") {
+        		return "";
+        	  }
+        	
+        	  let selected = this.local != null ? this.local.selectedColumns : null;
+        	  if (Array.isArray(selected)) {
+        		let match = selected.find((item) => item != null && item[key] === true);
+        		if (match != null) {
+        		  return this.getMapColumnName(match);
+        		}
+        	  }
+        	  else if (selected != null && typeof selected == "object") {
+        		let names = Object.keys(selected);
+        		for (let name of names) {
+        		  if (!/^\d+$/.test(name) && selected[name] != null && selected[name][key] === true) {
+        			return selected[name].name != null ? selected[name].name : name;
+        		  }
+        		}
+        	  }
+        	
+        	  if (role == "category") {
+        		let stored = this.getChartStoredCategoryField();
+        		return this.hasChartConfigurationColumn(stored) ? stored : "";
+        	  }
+        	  return "";
+        	}
+        	
+        	findChartValueFields(): Array<string> {
+        	  let key = this.getChartRoleKey("value");
+        	  let values: Array<string> = [];
+        	  let addValue = (name: any) => {
+        		name = name != null ? "" + name : "";
+        		if (name != "" && values.indexOf(name) == -1) {
+        		  values.push(name);
+        		}
+        	  };
+        	
+        	  let selected = this.local != null ? this.local.selectedColumns : null;
+        	  if (Array.isArray(selected)) {
+        		selected.forEach((item) => {
+        		  if (item != null && item[key] === true) {
+        			addValue(this.getMapColumnName(item));
+        		  }
+        		});
+        	  }
+        	  else if (selected != null && typeof selected == "object") {
+        		Object.keys(selected).forEach((name) => {
+        		  if (!/^\d+$/.test(name) && selected[name] != null && selected[name][key] === true) {
+        			addValue(selected[name].name != null ? selected[name].name : name);
+        		  }
+        		});
+        	  }
+        	
+        	  if (values.length == 0) {
+        		this.getChartStoredValueFields().forEach((value) => {
+        		  if (this.hasChartConfigurationColumn(value)) {
+        			addValue(value);
+        		  }
+        		});
+        	  }
+        	
+        	  return this.isPieLikeChartConfiguration() && values.length > 1 ? [values[0]] : values;
+        	}
+        	
+        	applyChartConfigurationToConf(conf: any): any {
+        	  if (!this.isChartConfiguration() || conf == null) {
+        		return conf;
+        	  }
+        	  if (!Array.isArray(conf.columns)) {
+        		conf.columns = [];
+        	  }
+        	
+        	  delete conf.categoryField;
+        	  delete conf.valueField;
+        	  delete conf.chartCategoryField;
+        	  delete conf.chartValueField;
+        	
+        	  let currentColumns = conf.columns.filter((column) => column != null && column != "");
+        	  let orderedColumns = [];
+        	  let addColumn = function(column: any) {
+        		if (column == null || column == "" || orderedColumns.indexOf(column) != -1) {
+        		  return;
+        		}
+        		orderedColumns.push(column);
+        	  };
+        	
+        	  addColumn(this.findChartRoleField("category") || currentColumns[0] || "");
+        	  let valueColumns = this.findChartValueFields();
+        	  if (valueColumns.length == 0) {
+        		valueColumns = currentColumns.slice(1);
+        	  }
+        	  if (this.isPieLikeChartConfiguration() && valueColumns.length > 1) {
+        		valueColumns = [valueColumns[0]];
+        	  }
+        	  valueColumns.forEach((column) => addColumn(column));
+        	  conf.columns = orderedColumns;
+        	  return conf;
+        	}
+        	
         	getNormalizedColumnType(column: any): string {
         	  let type: string = column?.type || column?.cType || column?.ctype || "";
         	  if (column?.name === "id" && (type == null || type === "")) {
@@ -1911,6 +2242,7 @@ title: Title for modalConfigure
                                         		page.local.searchRightPanel = "";
                                         		page.refreshFilteredColumns();
                                         		page.applyStoredMapRoles();
+                                        		page.applyStoredChartRoles();
                                         		page.refreshFilteredColumns();
                                         		resolve();
                                         '
@@ -3638,7 +3970,7 @@ title: Title for modalConfigure
                   attrValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: plain:this.local?.type == 'table' && this.local?.target != 'actions' && !isMapConfiguration()
+                      - MobileSmartSourceType: plain:this.local?.type == 'table' && this.local?.target != 'actions' && !isMapConfiguration() && !isChartConfiguration()
               ↓Div3 [ngx.components.UIDynamicElement-1776330480162]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -3716,6 +4048,16 @@ title: Title for modalConfigure
                     </div>
                     <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;height:20px;align-items:center;justify-content:center;">
                       <ion-text style="color:#18181B;font-size:14px;font-weight:400;line-height:20px;white-space:nowrap;">Libellé</ion-text>
+                    </div>
+                  </ng-container>
+              ↓ChartRoleHeaderCells [ngx.components.UICustom-1782401600300]: 
+                htmlTemplate: |
+                  <ng-container *ngIf="isChartConfiguration()">
+                    <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;height:20px;align-items:center;justify-content:center;">
+                      <ion-text style="color:#18181B;font-size:14px;font-weight:400;line-height:20px;white-space:nowrap;">Catégorie</ion-text>
+                    </div>
+                    <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;height:20px;align-items:center;justify-content:center;">
+                      <ion-text style="color:#18181B;font-size:14px;font-weight:400;line-height:20px;white-space:nowrap;">Valeur</ion-text>
                     </div>
                   </ng-container>
               ↓Div4 [ngx.components.UIDynamicElement-1776352045230]: 
@@ -5133,7 +5475,7 @@ title: Title for modalConfigure
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:this.local?.type == 'table' && this.local?.target != 'actions' && !isMapConfiguration()
+                            - MobileSmartSourceType: plain:this.local?.type == 'table' && this.local?.target != 'actions' && !isMapConfiguration() && !isChartConfiguration()
                     ↓Div3 [ngx.components.UIDynamicElement-1776331018464]: 
                       beanData: '{"ionBean":"DivTag"}'
                       tagName: div
@@ -5417,6 +5759,16 @@ title: Title for modalConfigure
                           </div>
                           <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;justify-content:center;height:30px;align-items:center;">
                             <ion-checkbox mode="ios" label-placement="stacked" alignment="center" class="form-checkbox--small" style="display:block;width:100%;height:30px;margin:0;padding:0;--size:18px;" [ngModel]="getMapColumnRole(column, 'title')" (ngModelChange)="setMapColumnRole('title', column, $event)"></ion-checkbox>
+                          </div>
+                        </ng-container>
+                    ↓ChartRoleCells [ngx.components.UICustom-1782401600301]: 
+                      htmlTemplate: |
+                        <ng-container *ngIf="isChartConfiguration()">
+                          <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;justify-content:center;height:30px;align-items:center;">
+                            <ion-checkbox mode="ios" label-placement="stacked" alignment="center" class="form-checkbox--small" style="display:block;width:100%;height:30px;margin:0;padding:0;--size:18px;" [ngModel]="getChartColumnRole(column, 'category')" (ngModelChange)="setChartColumnRole('category', column, $event)"></ion-checkbox>
+                          </div>
+                          <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;justify-content:center;height:30px;align-items:center;">
+                            <ion-checkbox mode="ios" label-placement="stacked" alignment="center" class="form-checkbox--small" style="display:block;width:100%;height:30px;margin:0;padding:0;--size:18px;" [ngModel]="getChartColumnRole(column, 'value')" (ngModelChange)="setChartColumnRole('value', column, $event)"></ion-checkbox>
                           </div>
                         </ng-container>
                     ↓Div4 [ngx.components.UIDynamicElement-1776352255508]: 
@@ -13347,7 +13699,7 @@ title: Title for modalConfigure
                     attrValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: plain:!isMapConfiguration()
+                        - MobileSmartSourceType: plain:!isMapConfiguration() && !isChartConfiguration()
                   ↓Icon [ngx.components.UIDynamicElement-1776347132208]: 
                     beanData: |
                       '{
@@ -13461,6 +13813,16 @@ title: Title for modalConfigure
                     </div>
                     <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;height:20px;align-items:center;justify-content:center;">
                       <ion-text style="color:#18181B;font-size:14px;font-weight:400;line-height:20px;white-space:nowrap;">Libellé</ion-text>
+                    </div>
+                  </ng-container>
+              ↓ChartRoleHeaderCells [ngx.components.UICustom-1782401600310]: 
+                htmlTemplate: |
+                  <ng-container *ngIf="isChartConfiguration()">
+                    <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;height:20px;align-items:center;justify-content:center;">
+                      <ion-text style="color:#18181B;font-size:14px;font-weight:400;line-height:20px;white-space:nowrap;">Catégorie</ion-text>
+                    </div>
+                    <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;height:20px;align-items:center;justify-content:center;">
+                      <ion-text style="color:#18181B;font-size:14px;font-weight:400;line-height:20px;white-space:nowrap;">Valeur</ion-text>
                     </div>
                   </ng-container>
               ↓Div [ngx.components.UIDynamicElement-1776347132244]: 
@@ -14598,7 +14960,7 @@ title: Title for modalConfigure
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:!isMapConfiguration()
+                              - MobileSmartSourceType: plain:!isMapConfiguration() && !isChartConfiguration()
                         ↓Icon [ngx.components.UIDynamicElement-1776347132658]: 
                           beanData: |
                             '{
@@ -14813,6 +15175,16 @@ title: Title for modalConfigure
                             </div>
                             <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;justify-content:center;height:30px;align-items:center;">
                               <ion-checkbox mode="ios" label-placement="stacked" alignment="center" class="form-checkbox--small" style="display:block;width:100%;height:30px;margin:0;padding:0;--size:18px;" [ngModel]="getMapColumnRole(column, 'title')" (ngModelChange)="setMapColumnRole('title', column, $event)"></ion-checkbox>
+                            </div>
+                          </ng-container>
+                      ↓ChartRoleCells [ngx.components.UICustom-1782401600311]: 
+                        htmlTemplate: |
+                          <ng-container *ngIf="isChartConfiguration()">
+                            <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;justify-content:center;height:30px;align-items:center;">
+                              <ion-checkbox mode="ios" label-placement="stacked" alignment="center" class="form-checkbox--small" style="display:block;width:100%;height:30px;margin:0;padding:0;--size:18px;" [ngModel]="getChartColumnRole(column, 'category')" (ngModelChange)="setChartColumnRole('category', column, $event)"></ion-checkbox>
+                            </div>
+                            <div style="display:flex;width:100px;min-width:100px;flex:0 0 100px;justify-content:center;height:30px;align-items:center;">
+                              <ion-checkbox mode="ios" label-placement="stacked" alignment="center" class="form-checkbox--small" style="display:block;width:100%;height:30px;margin:0;padding:0;--size:18px;" [ngModel]="getChartColumnRole(column, 'value')" (ngModelChange)="setChartColumnRole('value', column, $event)"></ion-checkbox>
                             </div>
                           </ng-container>
                       ↓Button [ngx.components.UIDynamicElement-1776347132760]: 
@@ -15734,6 +16106,11 @@ title: Title for modalConfigure
               				page.local.mapTitleColumn = output.mapTitleColumn;
               				page.local.mapLatitudeColumn = output.mapLatitudeColumn;
               				page.local.mapLongitudeColumn = output.mapLongitudeColumn;
+              				output.chartCategoryColumn = mapColumns[0] || "";
+              				output.chartValueColumns = mapColumns.slice(1);
+              				page.local.chartCategoryColumn = output.chartCategoryColumn;
+              				page.local.chartValueColumns = output.chartValueColumns;
+              				page.local.chartType = page.navParams != null && page.navParams.data != null ? page.navParams.data.chartType : "";
               			}
               			catch (e) {
               //				console.error(e);
@@ -15868,6 +16245,7 @@ title: Title for modalConfigure
                       		page.local.searchRightPanel = "";
                       		page.refreshFilteredColumns();
                       		page.applyStoredMapRoles();
+                      		page.applyStoredChartRoles();
                       		page.refreshFilteredColumns();
                       		resolve();
                       '
@@ -15910,6 +16288,10 @@ title: Title for modalConfigure
             				page.local.type = "table";
             				if(page.navParams.data.type == "maps_markers" || page.navParams.data.type == "maps_circles" || page.navParams.data.type == "maps_polygons"){
             					page.local.txt_i18n = page.navParams.data.type;
+            				}
+            				else if(page.navParams.data.type == "chart"){
+            					page.local.txt_i18n = page.navParams.data.type;
+            					page.local.chartType = page.navParams.data.chartType;
             				}
             				page.local.target = page.navParams.data.target;
             			}
@@ -16131,6 +16513,7 @@ title: Title for modalConfigure
                     				}*/
                     			}
                                 conf = page.applyMapConfigurationToConf(conf);
+                                conf = page.applyChartConfigurationToConf(conf);
                     //			console.log("conf", conf);
                     			conf = await page.callParentFunction("setConfigurationData", JSON.stringify(conf));
                     			return conf;
@@ -16345,6 +16728,7 @@ title: Title for modalConfigure
                     				}*/
                     			}
                                 conf = page.applyMapConfigurationToConf(conf);
+                                conf = page.applyChartConfigurationToConf(conf);
                     //			console.log("conf", conf);
                     			conf = await page.callParentFunction("setConfigurationData", JSON.stringify(conf));
                     //			console.log(conf);
