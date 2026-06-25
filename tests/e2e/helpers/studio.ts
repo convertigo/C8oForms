@@ -7,7 +7,8 @@ import { Locator, Page, expect, test } from '@playwright/test';
  */
 export const SEL = {
   // loginPage.yaml
-  loginReveal: '.class1757337975297', // SubmitButton1
+  loginReveal: '.class1757337975297, .class1770718494991', // SubmitButton1, plus legacy beta107 login button
+  loginPageRoot: 'page-loginpage',
   emailInput: '.class1757337975207 input', // email > TextInput
   passwordInput: '.class1757337975249 input', // password > TextInput
   // settingsPage.yaml — MCP tokens section
@@ -295,15 +296,17 @@ const DEFAULT_SOURCE_PALETTE_SECTIONS: SourcePaletteSection[] = [
 ];
 
 const ROUTE = {
-  selector: /\/selector(?:\/|$)/,
-  editor: /\/editor\//,
-  viewer: /\/viewer\//,
+  selector: /(?:\/selector(?:\/|$)|\/selectorPage(?:\/|$))/,
+  editor: /(?:\/editor\/|\/editorPage(?:\/|$))/,
+  viewer: /(?:\/viewer\/|\/viewerPage(?:\/|$))/,
   settings: /\/settings(?:\/|$)/,
 } as const;
 
 const SELECTOR_EMPTY_FORM_LIST_RE =
   /(?:No applications found|Aucune application trouvée|No se encontraron aplicaciones|Nessuna applicazione trovata)/i;
 const SELECTOR_RESULT_COUNT_RE = /(\d+)\s*(?:result\(s\)|résultat\(s\)|resultado\(s\)|risultato \(i\))/i;
+
+const SELECTOR_AUTH_GUARD_SETTLE_MS = 5_000;
 
 async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
   await expect(page).toHaveURL(route, { timeout });
@@ -506,7 +509,7 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
   }
   await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
   for (let attempt = 0; attempt < 4; attempt++) {
-    if (await selectorIsReady(page, attempt === 0 ? 3_000 : 1_000)) {
+    if (await selectorIsReadyAfterAuthGuard(page, attempt === 0 ? 8_000 : 1_000)) {
       return;
     }
     const attemptSucceeded = await loginOnce(page, user, password).catch(() => false);
@@ -515,7 +518,12 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
     }
     await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
   }
-  await expectRoute(page, ROUTE.selector, 30_000);
+  await expect
+    .poll(() => selectorIsReady(page, 1_000), {
+      message: 'selector page should be ready after login',
+      timeout: 30_000,
+    })
+    .toBe(true);
 }
 
 async function loginOnce(page: Page, user: string, password: string): Promise<boolean> {
@@ -534,7 +542,46 @@ async function loginOnce(page: Page, user: string, password: string): Promise<bo
 }
 
 async function selectorIsReady(page: Page, timeout: number): Promise<boolean> {
-  if (await expectRoute(page, ROUTE.selector, timeout).then(() => true).catch(() => false)) {
+  if (await loginPageIsVisible(page, 500)) {
+    return false;
+  }
+  return selectorCandidateIsReady(page, timeout);
+}
+
+async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number): Promise<boolean> {
+  const startedAt = Date.now();
+  let readySince: number | null = null;
+  do {
+    if (await loginPageIsVisible(page, 250)) {
+      return false;
+    }
+
+    if (await selectorCandidateIsReady(page, 250)) {
+      readySince ??= Date.now();
+      if (Date.now() - readySince >= SELECTOR_AUTH_GUARD_SETTLE_MS) {
+        return true;
+      }
+    } else {
+      readySince = null;
+    }
+    await page.waitForTimeout(250);
+  } while (Date.now() - startedAt < timeout);
+
+  return false;
+}
+
+async function loginPageIsVisible(page: Page, timeout: number): Promise<boolean> {
+  if (await firstVisibleLocatorOrNull(page, SEL.loginReveal, timeout)) {
+    return true;
+  }
+  return page.locator(`${SEL.loginPageRoot}:visible`).first().isVisible({ timeout: 500 }).catch(() => false);
+}
+
+async function selectorCandidateIsReady(page: Page, timeout: number): Promise<boolean> {
+  if (
+    (await expectRoute(page, ROUTE.selector, timeout).then(() => true).catch(() => false)) &&
+    (await page.locator(SEL.selectorPageRoot).first().isVisible({ timeout: 1_000 }).catch(() => false))
+  ) {
     return true;
   }
   return firstVisibleLocatorOrNull(page, SEL.blankFormCard, timeout).then(Boolean).catch(() => false);
@@ -3535,21 +3582,49 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
   await save.click({ timeout: 10_000 });
 
   if (!(await expectRoute(page, ROUTE.editor, 60_000).then(() => true).catch(() => false))) {
-    const createdInSelector = await page.getByText(title, { exact: true }).first().isVisible({ timeout: 2_000 }).catch(() => false);
-    throw new Error(
-      createdInSelector
-        ? `form "${title}" was created but the application did not automatically switch to the editor; current URL is ${page.url()}`
-        : `form "${title}" was not opened in the editor after creation; current URL is ${page.url()}`,
-    );
+    if (!(await openCreatedFormFromSelector(page, title))) {
+      const createdInSelector = await page.getByText(title, { exact: true }).first().isVisible({ timeout: 2_000 }).catch(() => false);
+      throw new Error(
+        createdInSelector
+          ? `form "${title}" was created but could not be opened in the editor; current URL is ${page.url()}`
+          : `form "${title}" was not opened in the editor after creation; current URL is ${page.url()}`,
+      );
+    }
   }
 
-  const id = page.url().match(/editor\/(\d+)/)?.[1];
+  const id = editorFormId(page.url());
   if (!id) throw new Error('could not read the new form id from the editor URL');
   // Wait for the editor to be interactive (palette rendered) before returning,
   // otherwise a follow-up addComponent fires before the canvas can accept it.
   await page.locator('[draggable="true"]').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_500);
   return id;
+}
+
+async function openCreatedFormFromSelector(page: Page, title: string): Promise<boolean> {
+  if (!(await selectorIsReady(page, 2_000))) {
+    await login(page);
+  }
+
+  await waitForSelectorHomeReadyForCreate(page);
+  const cards = page.locator('[id^="idcard"]:not([id^="idcardO"])');
+  let card = cards.filter({ hasText: title }).first();
+  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
+    card = cards.filter({ hasText: title.slice(0, 29) }).first();
+  }
+  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
+    return false;
+  }
+
+  await card.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+  await card.click({ timeout: 10_000 }).catch(async () => card.dispatchEvent('click'));
+  return expectRoute(page, ROUTE.editor, 60_000)
+    .then(() => true)
+    .catch(() => false);
+}
+
+function editorFormId(url: string): string | null {
+  return url.match(/\/editor\/([^/?#]+)/)?.[1] ?? url.match(/\/login\/([^/?#]+)\/editorPage(?:\/|$)/)?.[1] ?? null;
 }
 
 async function openCreateFormPrompt(page: Page): Promise<Locator> {
@@ -3566,7 +3641,12 @@ async function openCreateFormPrompt(page: Page): Promise<Locator> {
 }
 
 async function waitForSelectorHomeReadyForCreate(page: Page): Promise<void> {
-  await expectRoute(page, ROUTE.selector, 30_000);
+  await expect
+    .poll(() => selectorIsReady(page, 1_000), {
+      message: 'selector page should be ready before creating a form',
+      timeout: 30_000,
+    })
+    .toBe(true);
   await waitForIonicLoading(page, 10_000);
   await waitForSelectorFormListLoaded(page);
 }
@@ -3581,11 +3661,22 @@ async function waitForSelectorFormListLoaded(page: Page): Promise<void> {
 }
 
 async function selectorFormListState(page: Page): Promise<string> {
-  const root = page.locator(SEL.selectorPageRoot).first();
+  const root = await selectorPageRoot(page);
   const text = await root.innerText({ timeout: 500 }).catch(() => '');
   const count = selectorResultCount(text);
   const skeletonCount = await root.locator('ion-skeleton-text:visible').count().catch(() => 0);
   if (skeletonCount > 0 || count == null) {
+    if (skeletonCount === 0) {
+      const hasLegacyCreateCard = await root.locator(SEL.blankFormCard).first().isVisible({ timeout: 500 }).catch(() => false);
+      const hasLegacyApplicationCard = await root
+        .locator(`${SEL.selectorCardTitle}, ${SEL.selectorListTitle}, [id^="idcard"]:not([id^="idcardO"])`)
+        .first()
+        .isVisible({ timeout: 500 })
+        .catch(() => false);
+      if (hasLegacyCreateCard || hasLegacyApplicationCard) {
+        return hasLegacyApplicationCard ? 'ready:legacy-cards' : 'ready:legacy-create';
+      }
+    }
     return `loading:count=${count ?? 'unset'} skeletons=${skeletonCount}`;
   }
 
@@ -3604,6 +3695,14 @@ function selectorResultCount(text: string): number | null {
 
 async function waitForPresentedCreateFormAlert(alert: Locator): Promise<void> {
   await waitForPresentedPromptInput(alert, 'create form prompt should be presented and editable');
+}
+
+async function selectorPageRoot(page: Page): Promise<Locator> {
+  const root = page.locator(SEL.selectorPageRoot).first();
+  if (await root.isVisible({ timeout: 500 }).catch(() => false)) {
+    return root;
+  }
+  return page.locator('body');
 }
 
 async function waitForPresentedPromptInput(alert: Locator, message: string): Promise<void> {
