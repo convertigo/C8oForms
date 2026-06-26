@@ -61,6 +61,45 @@ scriptContent:
         		return str;
         	}
         
+        	public async buildFilters() {
+        		try {
+        			this.local.compl = null;
+        			this.local.keyName = null;
+        			this.local.keyNameSort = null;
+        			this.local.complByName = null;
+        			this.local.typeByName = null;
+        			this.local.done = false;
+        			this.local.processed = false;
+        			this.local.errored = false;
+        			this.local.jsonDefaultVars = null;
+        			if (this.pageOwner == null || this.pageOwner.getTypeByActions == null || this.pageOwner.getEnabled == null) {
+        				return;
+        			}
+        			if (this.pageOwner.getTypeByActions(this.sources, this.isSource) != "filter") {
+        				return;
+        			}
+        			let req = this.pageOwner.getEnabled(this.sources);
+        			if (req == null || this.sources == null || this.sources[req] == null || this.sources[req].vars == null) {
+        				return;
+        			}
+        			let defaultVars = {};
+        			let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/;
+        			try {
+        				defaultVars = Object.keys(this.sources[req].vars).map((x) => {
+        					return { key: x, value: this.sources[req].vars[x].str != undefined ? this.sources[req].vars[x].str.replace(regex, "") : "" };
+        				}).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
+        			}
+        			catch (e) {
+        			}
+        			let res = await this.c8o.callJsonObject(req, { model: true, ...defaultVars }).async();
+        			if (res.data && res.data[0]) {
+        				this.local.compl = Object.keys(res.data[0]);
+        			}
+        		}
+        		catch (e) {
+        		}
+        	}
+        
         	
         	private onCompare(_left: KeyValue<any, any>, _right: KeyValue<any, any>): number {
         		return -1;
@@ -2081,7 +2120,7 @@ scriptContent:
                                   	        let configure = page.currentMeta.substring(10)
                                            let type = page.explicitTarget ?? page.item.type;
                                            let target = undefined;
-                                           let isMapConfiguration = type == "maps_markers" || type == "maps_circles" || type == "maps_polygons";
+                                           let isMapConfiguration = type == "maps_markers" || type == "maps_circles" || type == "maps_polygons" || type == "maps_default_location";
                                            let isChartConfiguration = type == "chart";
                                            let currentSource = page.sources != null ? page.pageOwner.getEnabled(page.sources) : null;
                                            let isFieldValuesConfiguration = currentSource == "lib_BaseRow.formssource_GetFieldValues";
@@ -7386,7 +7425,7 @@ scriptContent:
                                   	        let configure = page.currentMeta.substring(10)
                                            let type = page.explicitTarget ?? page.item.type;
                                            let target = undefined;
-                                           let isMapConfiguration = type == "maps_markers" || type == "maps_circles" || type == "maps_polygons";
+                                           let isMapConfiguration = type == "maps_markers" || type == "maps_circles" || type == "maps_polygons" || type == "maps_default_location";
                                            let isChartConfiguration = type == "chart";
                                            let currentSource = page.sources != null ? page.pageOwner.getEnabled(page.sources) : null;
                                            let isFieldValuesConfiguration = currentSource == "lib_BaseRow.formssource_GetFieldValues";
@@ -11582,15 +11621,16 @@ scriptContent:
             				let structure = { "compl": {}, "builtin": {} };
             				try {
             					// if its a sourced elem
-            					if (currentElem.sources != undefined) {
-            						for (let source in currentElem.sources) {
-            							if (currentElem.sources[source].enabled) {
+            					let sourceContainer = page.sources != null ? page.sources : currentElem.sources;
+            					if (sourceContainer != undefined) {
+            						for (let source in sourceContainer) {
+            							if (sourceContainer[source].enabled) {
             
             								//try to compute default vars values
             								let defaultVars: any = {};
             								let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/
             								try {
-            									defaultVars = page.pageOwner.getConfigurableVarNames(currentElem.sources[source].vars).map((x => { return { key: x, value: currentElem.sources[source].vars[x].str != undefined ? currentElem.sources[source].vars[x].str.replace(regex, "") : "" } })).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
+            									defaultVars = page.pageOwner.getConfigurableVarNames(sourceContainer[source].vars).map((x => { return { key: x, value: sourceContainer[source].vars[x].str != undefined ? sourceContainer[source].vars[x].str.replace(regex, "") : "" } })).reduce((obj, item) => Object.assign(obj, { [item.key]: item.value }), {});
             
             								}
             								catch (e) {
@@ -11598,7 +11638,7 @@ scriptContent:
             								}
             								let modelMode: any = true;
             								let modelDefaultVars = defaultVars;
-            								if (page.type == "filter" && currentElem?.type == "chart") {
+            								if (page.type == "filter" && source == "lib_BaseRow.formssource_GetTableData") {
             									modelMode = "all_columns";
             								}
             								let modelDefaultVarsSignature = JSON.stringify({
@@ -11608,6 +11648,9 @@ scriptContent:
             									model: modelMode,
             									vars: modelDefaultVars
             								});
+            								if (page.local.keyName == null && page.local.done == true && page.local.processed != true && modelDefaultVarsSignature == page.local.jsonDefaultVars) {
+            									page.local.done = false;
+            								}
             								if ((page.local.keyName == null && page.local.done != true) || page.local.errored == true || modelDefaultVarsSignature != page.local.jsonDefaultVars) {
             									page.local.done = true;
             									page.local.processed = false;
@@ -14008,7 +14051,7 @@ scriptContent:
                                   	        let configure = page.currentMeta.substring(10)
                                            let type = page.explicitTarget ?? page.item.type;
                                            let target = undefined;
-                                           let isMapConfiguration = type == "maps_markers" || type == "maps_circles" || type == "maps_polygons";
+                                           let isMapConfiguration = type == "maps_markers" || type == "maps_circles" || type == "maps_polygons" || type == "maps_default_location";
                                            let isChartConfiguration = type == "chart";
                                            let currentSource = page.sources != null ? page.pageOwner.getEnabled(page.sources) : null;
                                            let isFieldValuesConfiguration = currentSource == "lib_BaseRow.formssource_GetFieldValues";
