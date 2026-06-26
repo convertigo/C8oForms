@@ -6534,7 +6534,7 @@ scriptContent:
         					break;
         			}
         		}
-        		return jsString;
+        		return jsString == "" && bool == null ? "true" : jsString;
         	}
         
         	private getLegacyAwareConditions(itemOrConditions: any): any {
@@ -6547,13 +6547,14 @@ scriptContent:
         			return null;
         		}
         
-        		if (conditions.visibleIf != undefined || conditions.goToPageIf != undefined) {
+        		if (conditions.visibleIf != undefined || conditions.goToPageIf != undefined || conditions.buttonStateIf != undefined) {
         			return conditions;
         		}
         
         		if (
         			conditions.type == "visibleIf" ||
         			conditions.type == "goToPageIf" ||
+        			conditions.type == "buttonStateIf" ||
         			conditions.conds != undefined ||
         			conditions.condVisible != undefined ||
         			conditions.groups != undefined
@@ -6562,16 +6563,20 @@ scriptContent:
         			if (conditions.type == "goToPageIf") {
         				wrapped.goToPageIf = conditions;
         			}
+        			else if (conditions.type == "buttonStateIf") {
+        				wrapped.buttonStateIf = conditions;
+        			}
         			else {
         				wrapped.visibleIf = conditions;
         			}
         			return wrapped;
         		}
         
-        		if (itemOrConditions.visibleIf != undefined || itemOrConditions.goToPageIf != undefined) {
+        		if (itemOrConditions.visibleIf != undefined || itemOrConditions.goToPageIf != undefined || itemOrConditions.buttonStateIf != undefined) {
         			return {
         				visibleIf: itemOrConditions.visibleIf,
-        				goToPageIf: itemOrConditions.goToPageIf
+        				goToPageIf: itemOrConditions.goToPageIf,
+        				buttonStateIf: itemOrConditions.buttonStateIf
         			};
         		}
         
@@ -6583,42 +6588,81 @@ scriptContent:
         		if (conditions == null || conditions.visibleIf == null) {
         			return true;
         		}
-        		const evaluateVisibleGroup = (group: any): boolean => {
-        			if (group == null || typeof group != "object") {
-        				return true;
+        		return this.evaluateConditionGroup(conditions.visibleIf);
+        	}
+        
+        	public evaluateConditionGroup(group: any): boolean {
+        		if (group == null || typeof group != "object") {
+        			return true;
+        		}
+        		let operator = (group.condVisible != null ? "" + group.condVisible : "and").toLowerCase();
+        		let results: Array<boolean> = [];
+        		for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
+        			try {
+        				if (this.isAfieldSimpleOrMultiple(cond) || this.isAFile(cond) || this.isACamSign(cond)) {
+        					results.push(!!this.compute(cond));
+        				}
+        				else if (this.isAform(cond)) {
+        					results.push(!!this.eval("" + this.generateJsVisibleIfForm(cond)));
+        				}
+        				else if (this.isANeverVisible(cond)) {
+        					results.push(false);
+        				}
         			}
-        			let operator = (group.condVisible != null ? "" + group.condVisible : "and").toLowerCase();
-        			let results: Array<boolean> = [];
-        			for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
-        				try {
-        					if (this.isAfieldSimpleOrMultiple(cond) || this.isAFile(cond) || this.isACamSign(cond)) {
-        						results.push(!!this.compute(cond));
-        					}
-        					else if (this.isAform(cond)) {
-        						results.push(!!this.eval("" + this.generateJsVisibleIfForm(cond)));
-        					}
-        					else if (this.isANeverVisible(cond)) {
-        						results.push(false);
-        					}
-        				}
-        				catch (e) {
-        					// Ignore malformed conditions and continue evaluation
-        				}
+        			catch (e) {
+        				// Ignore malformed conditions and continue evaluation
+        			}
+        		}
+        		for (let childGroup of (Array.isArray(group.groups) ? group.groups : [])) {
+        			try {
+        				results.push(this.evaluateConditionGroup(childGroup));
+        			}
+        			catch (e) {
+        				// Ignore malformed nested groups and continue evaluation
+        			}
+        		}
+        		if (results.length == 0) {
+        			return true;
+        		}
+        		return operator == "or" ? results.some((value) => value === true) : results.every((value) => value === true);
+        	}
+        
+        	private hasConditionGroupRules(group: any): boolean {
+        		try {
+        			if (group == null || typeof group != "object") {
+        				return false;
+        			}
+        			if ((Array.isArray(group.conds) && group.conds.length > 0) || (Array.isArray(group.__legacyConds) && group.__legacyConds.length > 0)) {
+        				return true;
         			}
         			for (let childGroup of (Array.isArray(group.groups) ? group.groups : [])) {
-        				try {
-        					results.push(evaluateVisibleGroup(childGroup));
-        				}
-        				catch (e) {
-        					// Ignore malformed nested groups and continue evaluation
+        				if (this.hasConditionGroupRules(childGroup)) {
+        					return true;
         				}
         			}
-        			if (results.length == 0) {
-        				return true;
-        			}
-        			return operator == "or" ? results.some((value) => value === true) : results.every((value) => value === true);
-        		};
-        		return evaluateVisibleGroup(conditions.visibleIf);
+        		}
+        		catch (e) {
+        		}
+        		return false;
+        	}
+        
+        	public evaluateButtonEnabledState(item: any): boolean {
+        		let conditions = this.getLegacyAwareConditions(item);
+        		if (conditions == null || conditions.buttonStateIf == null) {
+        			return true;
+        		}
+        		let group = conditions.buttonStateIf;
+        		if (!this.hasConditionGroupRules(group)) {
+        			return true;
+        		}
+        		let mode = group.__uiMode != null && group.__uiMode !== "" ? "" + group.__uiMode : "button_state_enabled_when_condition";
+        		if (mode == "button_state_disabled_when_condition") {
+        			return this.evaluateConditionGroup(group) != true;
+        		}
+        		if (mode == "button_state_enabled_when_condition") {
+        			return this.evaluateConditionGroup(group) == true;
+        		}
+        		return true;
         	}
         
         	public getViewerItemStyle(item: any): any {
