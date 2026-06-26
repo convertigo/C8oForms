@@ -23,6 +23,9 @@ componentScriptContent:
         	public agentResourceUrlSanitizer: DomSanitizer;
         	public agentAssistantSafeUrlValue = '''';
         	public agentAssistantSafeUrl: any = null;
+        	public agentAssistantContextTimer: any = null;
+        	public agentAssistantLastPostedContext = '''';
+        	public agentAssistantLastPostedUrl = '''';
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
         		// get preference log level from local storage
@@ -124,24 +127,194 @@ componentScriptContent:
         	}
         
         	public getAgentAssistantUserId(): string {
+        		const normalizeUserValue = (candidate: any): string => {
+        			const value = String(candidate == null ? '''' : candidate).trim();
+        			const lower = value.toLowerCase();
+        			return value !== '''' && lower !== ''unknown user'' && lower !== ''anonymous'' && lower !== ''undefined'' && lower !== ''null'' ? value : '''';
+        		};
+        
         		const candidates = [
-        			this.global?.user,
-        			this.global?.email,
-        			this.global?.login,
         			this.global?.settings?.mail,
         			this.global?.settings?.email,
         			this.global?.settings?.login,
-        			this.global?.settings?.name,
-        			this.c8o?.session?.user?.name
+        			this.global?.settings?.[''~c8oAcl''],
+        			this.c8o?.session?.user?.name,
+        			(this.c8o?.session?.user as any)?.authenticatedUserID,
+        			(this.c8o?.session?.user as any)?.email,
+        			(this.c8o?.session?.user as any)?.mail,
+        			(this.c8o?.session?.user as any)?.login,
+        			(this.c8o?.session?.user as any)?.id,
+        			this.c8o?.session?.user?.hash,
+        			this.global?.authenticatedUser,
+        			this.global?.authenticatedUserID,
+        			this.global?.userId,
+        			this.global?.mail,
+        			this.global?.email,
+        			this.global?.login,
+        			this.global?.user
         		];
         		for (const candidate of candidates) {
-        			const value = String(candidate == null ? '''' : candidate).trim();
-        			const lower = value.toLowerCase();
-        			if (value !== '''' && lower !== ''unknown user'' && lower !== ''anonymous'' && lower !== ''undefined'' && lower !== ''null'') {
+        			const value = normalizeUserValue(candidate);
+        			if (value !== '''') {
         				return value;
         			}
         		}
+        
+        		try {
+        			const sessionInfo = window.sessionStorage.getItem(''loggedInOffline'');
+        			if (sessionInfo != null) {
+        				const parsed = JSON.parse(sessionInfo);
+        				const value = normalizeUserValue(parsed?.email || parsed?.user || parsed?.login);
+        				if (value !== '''') {
+        					return value;
+        				}
+        			}
+        		} catch (e) {}
+        
         		return ''anonymous'';
+        	}
+        
+        	public getAgentAssistantCurrentUrl(): string {
+        		try {
+        			return window.location.href || '''';
+        		} catch (e) {
+        			return '''';
+        		}
+        	}
+        
+        	public getAgentAssistantCurrentRoute(): string {
+        		try {
+        			return (window.location.pathname || '''') + (window.location.search || '''') + (window.location.hash || '''');
+        		} catch (e) {
+        			return '''';
+        		}
+        	}
+        
+        	public getAgentAssistantCurrentFormId(): string {
+        		try {
+        			const pathParts = (window.location.pathname || '''').split(''/'').filter((part) => part !== '''');
+        			const editorIndex = pathParts.indexOf(''editor'');
+        			if (editorIndex !== -1 && pathParts[editorIndex + 1]) {
+        				return decodeURIComponent(pathParts[editorIndex + 1]);
+        			}
+        
+        			const candidates = [''formId'', ''documentId'', ''docid'', ''applicationId'', ''id''];
+        			const searchParams = new URLSearchParams(window.location.search || '''');
+        			for (const key of candidates) {
+        				const value = searchParams.get(key);
+        				if (value != null && value !== '''' && value.indexOf('':'') !== 0) {
+        					return value;
+        				}
+        			}
+        
+        			const hash = window.location.hash || '''';
+        			const hashQueryIndex = hash.indexOf(''?'');
+        			if (hashQueryIndex !== -1) {
+        				const hashParams = new URLSearchParams(hash.substring(hashQueryIndex + 1));
+        				for (const key of candidates) {
+        					const value = hashParams.get(key);
+        					if (value != null && value !== '''' && value.indexOf('':'') !== 0) {
+        						return value;
+        					}
+        				}
+        			}
+        		} catch (e) {}
+        		return '''';
+        	}
+        
+        	public getAgentAssistantCurrentPage(): string {
+        		try {
+        			const params = new URLSearchParams(window.location.search || '''');
+        			const page = params.get(''page'');
+        			return page != null && page.indexOf('':'') !== 0 ? page : '''';
+        		} catch (e) {
+        			return '''';
+        		}
+        	}
+        
+        	public getAgentAssistantContext(): any {
+        		const currentUrl = this.getAgentAssistantCurrentUrl();
+        		const currentRoute = this.getAgentAssistantCurrentRoute();
+        		const currentFormId = this.getAgentAssistantCurrentFormId();
+        		const currentPage = this.getAgentAssistantCurrentPage();
+        		return {
+        			assistantSurface: ''nocode'',
+        			assistantContext: ''nocode'',
+        			agentProfile: ''nocode'',
+        			skillProfile: ''nocode'',
+        			projectContext: ''optional'',
+        			defaultProject: ''none'',
+        			projectScope: ''conversation'',
+        			userId: this.getAgentAssistantUserId(),
+        			codexHomeScope: ''user'',
+        			vibeHomeScope: ''user'',
+        			homeScope: ''user'',
+        			currentUrl: currentUrl,
+        			nocodeCurrentUrl: currentUrl,
+        			currentRoute: currentRoute,
+        			nocodeCurrentRoute: currentRoute,
+        			currentFormId: currentFormId,
+        			nocodeCurrentFormId: currentFormId,
+        			currentPage: currentPage
+        		};
+        	}
+        
+        	public getAgentAssistantTargetOrigin(url?: string): string {
+        		try {
+        			const value = url || this.agentAssistantSafeUrlValue || this.getAgentAssistantUrl();
+        			return value !== '''' ? new URL(value, window.location.href).origin : window.location.origin;
+        		} catch (e) {
+        			return window.location.origin || ''*'';
+        		}
+        	}
+        
+        	public postAgentAssistantContext(force: boolean = false): void {
+        		try {
+        			if (this.global?.isAgentMenuOpen !== true) {
+        				return;
+        			}
+        			const context = this.getAgentAssistantContext();
+        			const serialized = JSON.stringify(context);
+        			if (!force && serialized === this.agentAssistantLastPostedContext && this.agentAssistantLastPostedUrl === this.agentAssistantSafeUrlValue) {
+        				return;
+        			}
+        			const targetOrigin = this.getAgentAssistantTargetOrigin();
+        			const frames = Array.prototype.slice.call(document.querySelectorAll(''iframe''));
+        			for (const frame of frames) {
+        				const src = String(frame.getAttribute(''src'') || frame.src || '''');
+        				if (src.indexOf(''ConvertigoAssistant'') === -1 && src.indexOf(''path-to-agent'') === -1) {
+        					continue;
+        				}
+        				if (frame.contentWindow) {
+        					frame.contentWindow.postMessage({ type: ''ConvertigoAssistant.context'', payload: context }, targetOrigin);
+        				}
+        			}
+        			this.agentAssistantLastPostedContext = serialized;
+        			this.agentAssistantLastPostedUrl = this.agentAssistantSafeUrlValue;
+        		} catch (e) {}
+        	}
+        
+        	public bindAgentAssistantContextPublisher(): void {
+        		try {
+        			if (this.agentAssistantContextTimer != null) {
+        				return;
+        			}
+        			this.agentAssistantContextTimer = setInterval(() => {
+        				if (this.global?.isAgentMenuOpen === true) {
+        					this.postAgentAssistantContext(false);
+        				}
+        			}, 1500);
+        			window.addEventListener(''popstate'', () => this.postAgentAssistantContext(true));
+        			window.addEventListener(''hashchange'', () => this.postAgentAssistantContext(true));
+        			window.addEventListener(''message'', (event) => {
+        				try {
+        					const data = event && event.data ? event.data : null;
+        					if (data && data.type === ''ConvertigoAssistant.context.request'') {
+        						this.postAgentAssistantContext(true);
+        					}
+        				} catch (e) {}
+        			});
+        		} catch (e) {}
         	}
         
         	public getAgentAssistantUrl(): string {
@@ -167,9 +340,13 @@ componentScriptContent:
         	}
         
         	public getAgentAssistantSafeUrl(): any {
+        		this.bindAgentDrawerBrevoOffset();
+        		this.bindAgentAssistantContextPublisher();
         		if (this.global?.isAgentMenuOpen !== true || this.agentResourceUrlSanitizer == undefined) {
+        			this.updateBrevoOffsetForAgentDrawer(false);
         			return null;
         		}
+        		this.updateBrevoOffsetForAgentDrawer(true);
         		const url = this.getAgentAssistantUrl();
         		if (url === '''') {
         			return null;
@@ -177,8 +354,50 @@ componentScriptContent:
         		if (this.agentAssistantSafeUrl == null || this.agentAssistantSafeUrlValue !== url) {
         			this.agentAssistantSafeUrlValue = url;
         			this.agentAssistantSafeUrl = this.agentResourceUrlSanitizer.bypassSecurityTrustResourceUrl(url);
+        			setTimeout(() => this.postAgentAssistantContext(true), 250);
+        			setTimeout(() => this.postAgentAssistantContext(true), 1000);
         		}
+        		this.postAgentAssistantContext(false);
         		return this.agentAssistantSafeUrl;
+        	}
+        
+        	public bindAgentDrawerBrevoOffset(): void {
+        		try {
+        			const menu: any = document.querySelector(''ion-menu[menu-id="AgentMenu"]'');
+        			if (menu == null || menu.__c8oBrevoAgentOffsetBound === true) {
+        				return;
+        			}
+        			menu.__c8oBrevoAgentOffsetBound = true;
+        			menu.addEventListener(''ionWillOpen'', () => this.updateBrevoOffsetForAgentDrawer(true));
+        			menu.addEventListener(''ionDidOpen'', () => this.updateBrevoOffsetForAgentDrawer(true));
+        			menu.addEventListener(''ionWillClose'', () => this.updateBrevoOffsetForAgentDrawer(false));
+        			menu.addEventListener(''ionDidClose'', () => this.updateBrevoOffsetForAgentDrawer(false));
+        		} catch (e) {}
+        	}
+        
+        	public updateBrevoOffsetForAgentDrawer(open?: boolean): void {
+        		try {
+        			const brevo = document.getElementById("brevo-conversations") as HTMLElement;
+        			if (brevo == null) {
+        				return;
+        			}
+        			const isOpen = open == null ? this.global?.isAgentMenuOpen === true : open === true;
+        			if (!isOpen) {
+        				brevo.style.right = "10px";
+        				brevo.style.transform = "";
+        				return;
+        			}
+        			const menu = document.querySelector(''ion-menu[menu-id="AgentMenu"]'') as HTMLElement;
+        			let width = 420;
+        			if (menu != null) {
+        				const rect = menu.getBoundingClientRect();
+        				if (rect && rect.width > 0) {
+        					width = Math.round(rect.width);
+        				}
+        			}
+        			brevo.style.right = (width + 16) + "px";
+        			brevo.style.transform = "";
+        		} catch (e) {}
         	}
         
         	public getStandalonePwaId(): string {
@@ -1789,6 +2008,8 @@ componentScriptContent:
         				let showBrevo = ()=>{
         					try{
         						document.getElementById("brevo-conversations").style.display = "block";
+        						page.bindAgentDrawerBrevoOffset();
+        						page.updateBrevoOffsetForAgentDrawer();
         					}
         					catch (e) {
         
@@ -4515,6 +4736,8 @@ useClickForTap: true
               				let showBrevo = ()=>{
               					try{
               						document.getElementById("brevo-conversations").style.display = "block";
+              						page.bindAgentDrawerBrevoOffset();
+              						page.updateBrevoOffsetForAgentDrawer();
               					}
               					catch (e) {
               
