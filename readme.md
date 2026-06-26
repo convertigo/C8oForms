@@ -6995,6 +6995,9 @@ Display an apex chart comp. or an ag-grid comp.
 <td>model</td><td>this.formsSubmit[item['name']]</td>
 </tr>
 <tr>
+<td>previewDisabledAsEnabled</td><td></td>
+</tr>
+<tr>
 <td>redList</td><td>this.redList[item['name']]</td>
 </tr>
 </table>
