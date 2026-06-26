@@ -700,9 +700,53 @@ scriptContent:
         			__legacyConds: []
         		};
         	}
+        	public createEmptyButtonStateIfGroup(){
+        		let group: any = this.createEmptyVisibleIfGroup();
+        		group.__uiMode = "button_state_always_enabled";
+        		return group;
+        	}
+        	public isButtonStateTab(){
+        		return this.tabselected === "button_state_tab_selector";
+        	}
+        	public isButtonStateConditionMode(mode: string){
+        		return mode === "button_state_enabled_when_condition" || mode === "button_state_disabled_when_condition";
+        	}
+        	public getConditionWhenLabel(){
+        		return this.isButtonStateTab() ? this.translate.instant("button_state_when") : this.translate.instant("visible_when");
+        	}
+        	public getConditionWhenOptions(){
+        		return this.isButtonStateTab()
+        			? ["button_state_always_enabled", "button_state_enabled_when_condition", "button_state_disabled_when_condition"]
+        			: ["visible_when_always", "visible_when_never", "visible_when_auth_required", "visible_when_no_auth_required", "visible_when_condition"];
+        	}
+        	public shouldShowCurrentConditionEditor(){
+        		let mode = this.getVisibleWhenMode(this.local != null ? this.local.visibleIf : null);
+        		return this.isButtonStateTab() ? this.isButtonStateConditionMode(mode) : mode == "visible_when_condition";
+        	}
+        	public shouldWarnBeforeClearingConditionMode(currentMode: string, nextMode: string){
+        		if(currentMode == nextMode){
+        			return false;
+        		}
+        		if(this.isButtonStateTab()){
+        			return this.isButtonStateConditionMode(currentMode) && !this.isButtonStateConditionMode(nextMode);
+        		}
+        		return currentMode == "visible_when_condition" && nextMode != "visible_when_condition";
+        	}
         	public getVisibleWhenMode(group: any){
         		try{
         			let current: any = group != null && typeof(group) == "object" ? group : this.createEmptyVisibleIfGroup();
+        			if(this.isButtonStateTab()){
+        				if(this.isButtonStateConditionMode(current.__uiMode)){
+        					return current.__uiMode;
+        				}
+        				let conds = Array.isArray(current.conds) ? current.conds : [];
+        				let groups = Array.isArray(current.groups) ? current.groups : [];
+        				let legacyConds = Array.isArray(current.__legacyConds) ? current.__legacyConds : [];
+        				if(conds.length > 0 || groups.length > 0 || legacyConds.length > 0){
+        					return "button_state_enabled_when_condition";
+        				}
+        				return "button_state_always_enabled";
+        			}
         			if(current.__uiMode == "visible_when_condition"){
         				return "visible_when_condition";
         			}
@@ -740,6 +784,25 @@ scriptContent:
         		return "visible_when_condition";
         	}
         	public applyVisibleWhenMode(mode: string){
+        		if(this.isButtonStateTab()){
+        			let buttonStateIf: any = this.isButtonStateConditionMode(mode) && this.local != null && this.local.visibleIf != null
+        				? this.local.visibleIf
+        				: this.createEmptyVisibleIfGroup();
+        			buttonStateIf.__uiMode = this.isButtonStateConditionMode(mode) ? mode : "button_state_always_enabled";
+        			this.local.buttonStateIf = buttonStateIf;
+        			this.local.visibleIf = buttonStateIf;
+        			this.local.visible = buttonStateIf.conds;
+        			this.local.condVisible = buttonStateIf.condVisible;
+        			this.local.cptTotalyFilled = 0;
+        			this.local.visiblePaletteCollapsed = this.isButtonStateConditionMode(mode) ? false : true;
+        			this.local.visiblePaletteTarget = null;
+        			this.local.visiblePaletteMonaco = false;
+        			this.local.visiblePaletteType = "text";
+        			if(this.local != null && this.local.commitButtonStateIf != null){
+        				this.local.commitButtonStateIf();
+        			}
+        			return;
+        		}
         		let visibleIf: any = this.createEmptyVisibleIfGroup();
         		switch(mode){
         			case "visible_when_never":
@@ -1368,7 +1431,7 @@ scriptContent:
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: plain:this.local.visible != undefined && this.tabselected === 'visibility_tab_selector'
+            - MobileSmartSourceType: plain:this.local.visible != undefined && (this.tabselected === 'visibility_tab_selector' || this.tabselected === 'button_state_tab_selector')
       ↓UseSharedComponentVisibleWhen [ngx.components.UIUseShared-1776039301001]: 
         sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
         ↓AttrHostStyle [ngx.components.UIAttribute-1776039301002]: 
@@ -1381,12 +1444,12 @@ scriptContent:
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.translate.instant('visible_when')
+              - MobileSmartSourceType: script:this.getConditionWhenLabel()
         ↓options [ngx.components.UIUseVariable-1776039301004]: 
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:['visible_when_always', 'visible_when_never', 'visible_when_auth_required', 'visible_when_no_auth_required', 'visible_when_condition']
+              - MobileSmartSourceType: script:this.getConditionWhenOptions()
         ↓model [ngx.components.UIUseVariable-1776039301005]: 
           varValue: 
             - xmlizable: 
@@ -1411,11 +1474,11 @@ scriptContent:
                     				page.ref.detectChanges();
                     				return false;
                     			}
-                    			if(currentMode == "visible_when_condition" && nextMode != "visible_when_condition" && currentMode != nextMode && page.hasVisibleWhenConditions(page.local.visibleIf)){
+                    			if(page.shouldWarnBeforeClearingConditionMode(currentMode, nextMode) && page.hasVisibleWhenConditions(page.local.visibleIf)){
                     				let alertController = page.getInstance(AlertController);
                     				const alert = await alertController.create({
                     					header: page.translate.instant("header_pwamsg"),
-                    					message: page.translate.instant("visible_when_switch_confirm"),
+                    					message: page.translate.instant(page.isButtonStateTab() ? "button_state_switch_confirm" : "visible_when_switch_confirm"),
                     					buttons: [
                     						{
                     							text: page.translate.instant("cancel_pwamsg"),
@@ -1461,7 +1524,7 @@ scriptContent:
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.getVisibleWhenMode(this.local.visibleIf) == 'visible_when_condition'
+              - MobileSmartSourceType: plain:this.shouldShowCurrentConditionEditor()
         ↓Style [ngx.components.UIStyle-1775822465873]: 
           styleContent: 
             - xmlizable: 
@@ -1505,7 +1568,7 @@ scriptContent:
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: plain:this.getVisibleWhenMode(this.local.visibleIf) == 'visible_when_condition'
+              - MobileSmartSourceType: plain:this.shouldShowCurrentConditionEditor()
         ↓Style [ngx.components.UIStyle-1776036400001]: 
           styleContent: 
             - xmlizable: 
@@ -3997,6 +4060,20 @@ scriptContent:
             		        normalized.type = ''visibleIf'';
             		        return normalized;
             		    };
+            		    const ensureButtonStateIfStructure = (item) => {
+            		        if (item.conditions == null) {
+            		            item.conditions = {};
+            		        }
+            		        if (item.conditions.buttonStateIf == null) {
+            		            item.conditions.buttonStateIf = item.buttonStateIf != null ? item.buttonStateIf : page.createEmptyButtonStateIfGroup();
+            		        }
+            		        const normalized: any = normalizeVisibleGroup(item.conditions.buttonStateIf);
+            		        normalized.type = ''visibleIf'';
+            		        if (normalized.__uiMode == null || normalized.__uiMode === "") {
+            		            normalized.__uiMode = page.getVisibleWhenMode(normalized);
+            		        }
+            		        return normalized;
+            		    };
             		    const recountVisible = () => {
             		        let cpt = 0;
             		        const walk = (group) => {
@@ -4013,7 +4090,42 @@ scriptContent:
             		        walk(page.local.visibleIf);
             		        page.local.cptTotalyFilled = cpt;
             		    };
+            		    page.local.commitButtonStateIf = function() {
+            		        if (page.local.item == null || typeof(page.local.item) != ''object'') {
+            		            return;
+            		        }
+            		        const uiMode = page.local.visibleIf != null ? page.local.visibleIf.__uiMode : null;
+            		        page.local.buttonStateIf = cleanupVisibleGroup(page.local.visibleIf);
+            		        const serialized = serializeVisibleGroup(page.local.buttonStateIf);
+            		        let targetItem: any = page.local.item;
+            		        if (page.pageOwner != null && page.pageOwner.getElementById != null && page.local.item != null && page.local.item.id != null) {
+            		            let runtimeItem = page.pageOwner.getElementById(page.local.item.id);
+            		            if (runtimeItem != null) {
+            		                targetItem = runtimeItem;
+            		                page.local.item = runtimeItem;
+            		            }
+            		        }
+            		        page.ensureLegacyAwareConditionContainers(targetItem);
+            		        targetItem.conditions.buttonStateIf = serialized;
+            		        if (targetItem.buttonStateIf != null) {
+            		            targetItem.buttonStateIf = serialized;
+            		        }
+            		        page.local.buttonStateIf = targetItem.conditions.buttonStateIf;
+            		        if (uiMode != null && uiMode != "") {
+            		            page.local.buttonStateIf.__uiMode = uiMode;
+            		        }
+            		        page.local.visibleIf = page.local.buttonStateIf;
+            		        page.local.visible = targetItem.conditions.buttonStateIf.conds;
+            		        page.local.condVisible = targetItem.conditions.buttonStateIf.condVisible;
+            		        recountVisible();
+            		    };
             		    page.local.commitVisibleIf = function() {
+            		        if (page.isButtonStateTab != null && page.isButtonStateTab()) {
+            		            if (page.local.commitButtonStateIf != null) {
+            		                page.local.commitButtonStateIf();
+            		            }
+            		            return;
+            		        }
             		        if (page.local.item == null || typeof(page.local.item) != ''object'') {
             		            return;
             		        }
@@ -4068,7 +4180,13 @@ scriptContent:
             		    page.ensureLegacyAwareConditionContainers(item);
             		    buildVisibleEditorConfig();
             		    buildGoToEditorConfig();
-            		    page.local.visibleIf = ensureVisibleIfStructure(item);
+            		    if (page.isButtonStateTab != null && page.isButtonStateTab()) {
+            		        page.local.buttonStateIf = ensureButtonStateIfStructure(item);
+            		        page.local.visibleIf = page.local.buttonStateIf;
+            		    }
+            		    else {
+            		        page.local.visibleIf = ensureVisibleIfStructure(item);
+            		    }
             		    page.local.condVisible = page.local.visibleIf.condVisible;
             		    page.local.visible = page.local.visibleIf.conds;
             		    page.local.val2Visible = [];
