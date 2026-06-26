@@ -711,6 +711,78 @@ scriptContent:
         	public isButtonStateConditionMode(mode: string){
         		return mode === "button_state_enabled_when_condition" || mode === "button_state_disabled_when_condition";
         	}
+        	public inferButtonStateWhenMode(group: any){
+        		let current: any = group != null && typeof(group) == "object" ? group : {};
+        		if(this.isButtonStateConditionMode(current.__uiMode)){
+        			return current.__uiMode;
+        		}
+        		let conds = Array.isArray(current.conds) ? current.conds : [];
+        		let groups = Array.isArray(current.groups) ? current.groups : [];
+        		let legacyConds = Array.isArray(current.__legacyConds) ? current.__legacyConds : [];
+        		if(conds.length > 0 || groups.length > 0 || legacyConds.length > 0){
+        			return "button_state_enabled_when_condition";
+        		}
+        		return "button_state_always_enabled";
+        	}
+        	public getConditionEditorContextKey(){
+        		let item = this.local != null ? this.local.item : null;
+        		let itemId = item != null && item.id != null ? "" + item.id : "";
+        		return itemId + ":" + (this.isButtonStateTab() ? "buttonStateIf" : "visibleIf");
+        	}
+        	public syncActiveConditionEditorContext(force: boolean = false){
+        		try{
+        			if(this.local == null){
+        				return null;
+        			}
+        			let item: any = this.local.item;
+        			if(item == null || typeof(item) != "object"){
+        				return this.local.visibleIf;
+        			}
+        			let contextKey = this.getConditionEditorContextKey();
+        			if(force !== true && this.local.conditionEditorContextKey == contextKey && this.local.visibleIf != null){
+        				return this.local.visibleIf;
+        			}
+        			this.ensureLegacyAwareConditionContainers(item);
+        			let group: any = null;
+        			if(this.isButtonStateTab()){
+        				if(item.conditions.buttonStateIf == null){
+        					item.conditions.buttonStateIf = item.buttonStateIf != null ? item.buttonStateIf : this.createEmptyButtonStateIfGroup();
+        				}
+        				group = item.conditions.buttonStateIf;
+        				if(group.__uiMode == null || group.__uiMode === ""){
+        					group.__uiMode = this.inferButtonStateWhenMode(group);
+        				}
+        				this.local.buttonStateIf = group;
+        			}
+        			else{
+        				if(item.conditions.visibleIf == null){
+        					item.conditions.visibleIf = this.createEmptyVisibleIfGroup();
+        				}
+        				group = item.conditions.visibleIf;
+        			}
+        			if(group.condVisible == null || group.condVisible === ""){
+        				group.condVisible = "and";
+        			}
+        			if(Array.isArray(group.conds) == false){
+        				group.conds = [];
+        			}
+        			if(Array.isArray(group.groups) == false){
+        				group.groups = [];
+        			}
+        			this.local.visibleIf = group;
+        			this.local.visible = group.conds;
+        			this.local.condVisible = group.condVisible;
+        			this.local.conditionEditorContextKey = contextKey;
+        			this.local.visiblePaletteTarget = null;
+        			this.local.visiblePaletteMonaco = false;
+        			this.local.visiblePaletteType = "text";
+        			return group;
+        		}
+        		catch(e){
+        			console.error(e);
+        		}
+        		return this.local != null ? this.local.visibleIf : null;
+        	}
         	public getConditionWhenLabel(){
         		return this.isButtonStateTab() ? this.translate.instant("button_state_when") : this.translate.instant("visible_when");
         	}
@@ -720,7 +792,7 @@ scriptContent:
         			: ["visible_when_always", "visible_when_never", "visible_when_auth_required", "visible_when_no_auth_required", "visible_when_condition"];
         	}
         	public shouldShowCurrentConditionEditor(){
-        		let mode = this.getVisibleWhenMode(this.local != null ? this.local.visibleIf : null);
+        		let mode = this.getVisibleWhenMode(this.syncActiveConditionEditorContext());
         		return this.isButtonStateTab() ? this.isButtonStateConditionMode(mode) : mode == "visible_when_condition";
         	}
         	public shouldWarnBeforeClearingConditionMode(currentMode: string, nextMode: string){
@@ -736,16 +808,13 @@ scriptContent:
         		try{
         			let current: any = group != null && typeof(group) == "object" ? group : this.createEmptyVisibleIfGroup();
         			if(this.isButtonStateTab()){
-        				if(this.isButtonStateConditionMode(current.__uiMode)){
-        					return current.__uiMode;
+        				if(this.local != null && (this.local.conditionEditorContextKey != this.getConditionEditorContextKey() || this.local.visibleIf == null)){
+        					current = this.syncActiveConditionEditorContext();
         				}
-        				let conds = Array.isArray(current.conds) ? current.conds : [];
-        				let groups = Array.isArray(current.groups) ? current.groups : [];
-        				let legacyConds = Array.isArray(current.__legacyConds) ? current.__legacyConds : [];
-        				if(conds.length > 0 || groups.length > 0 || legacyConds.length > 0){
-        					return "button_state_enabled_when_condition";
+        				else if(this.local != null && this.local.buttonStateIf != null){
+        					current = this.local.buttonStateIf;
         				}
-        				return "button_state_always_enabled";
+        				return this.inferButtonStateWhenMode(current);
         			}
         			if(current.__uiMode == "visible_when_condition"){
         				return "visible_when_condition";
@@ -784,15 +853,17 @@ scriptContent:
         		return "visible_when_condition";
         	}
         	public applyVisibleWhenMode(mode: string){
+        		this.syncActiveConditionEditorContext();
         		if(this.isButtonStateTab()){
-        			let buttonStateIf: any = this.isButtonStateConditionMode(mode) && this.local != null && this.local.visibleIf != null
-        				? this.local.visibleIf
+        			let buttonStateIf: any = this.isButtonStateConditionMode(mode) && this.local != null && this.local.buttonStateIf != null
+        				? this.local.buttonStateIf
         				: this.createEmptyVisibleIfGroup();
         			buttonStateIf.__uiMode = this.isButtonStateConditionMode(mode) ? mode : "button_state_always_enabled";
         			this.local.buttonStateIf = buttonStateIf;
         			this.local.visibleIf = buttonStateIf;
         			this.local.visible = buttonStateIf.conds;
         			this.local.condVisible = buttonStateIf.condVisible;
+        			this.local.conditionEditorContextKey = this.getConditionEditorContextKey();
         			this.local.cptTotalyFilled = 0;
         			this.local.visiblePaletteCollapsed = this.isButtonStateConditionMode(mode) ? false : true;
         			this.local.visiblePaletteTarget = null;
@@ -1465,6 +1536,9 @@ scriptContent:
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
                     '		try {
+                    			if(page.syncActiveConditionEditorContext != null){
+                    				page.syncActiveConditionEditorContext();
+                    			}
                     			let currentMode = page.getVisibleWhenMode(page.local.visibleIf);
                     			let nextMode = event.out;
                     			if(currentMode == nextMode){
@@ -4094,6 +4168,9 @@ scriptContent:
             		        if (page.local.item == null || typeof(page.local.item) != ''object'') {
             		            return;
             		        }
+            		        if (page.syncActiveConditionEditorContext != null) {
+            		            page.syncActiveConditionEditorContext();
+            		        }
             		        const uiMode = page.local.visibleIf != null ? page.local.visibleIf.__uiMode : null;
             		        page.local.buttonStateIf = cleanupVisibleGroup(page.local.visibleIf);
             		        const serialized = serializeVisibleGroup(page.local.buttonStateIf);
@@ -4128,6 +4205,9 @@ scriptContent:
             		        }
             		        if (page.local.item == null || typeof(page.local.item) != ''object'') {
             		            return;
+            		        }
+            		        if (page.syncActiveConditionEditorContext != null) {
+            		            page.syncActiveConditionEditorContext();
             		        }
             		        const uiMode = page.local.visibleIf != null ? page.local.visibleIf.__uiMode : null;
             		        page.local.visibleIf = cleanupVisibleGroup(page.local.visibleIf);
@@ -4186,6 +4266,9 @@ scriptContent:
             		    }
             		    else {
             		        page.local.visibleIf = ensureVisibleIfStructure(item);
+            		    }
+            		    if (page.getConditionEditorContextKey != null) {
+            		        page.local.conditionEditorContextKey = page.getConditionEditorContextKey();
             		    }
             		    page.local.condVisible = page.local.visibleIf.condVisible;
             		    page.local.visible = page.local.visibleIf.conds;
