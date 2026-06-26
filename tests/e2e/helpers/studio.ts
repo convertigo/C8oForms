@@ -508,6 +508,10 @@ export interface AlertValidationButtonState {
   filter: string;
 }
 
+export interface AddComponentOptions {
+  allowEditorApiFallback?: boolean;
+}
+
 export async function login(page: Page, credentials: LoginCredentials = CURRENT_TEST_CREDENTIALS): Promise<void> {
   const user = credentials.user;
   const password = credentials.password ?? user;
@@ -1818,6 +1822,48 @@ export async function expectFileComponentHasNoNavigationConfigTab(page: Page): P
       visibleTabCount,
       'Import file should expose Data & Interactions, File/Image submissions, and Visibility only',
     ).toBe(3);
+  });
+}
+
+export async function expectImportFilePreviewOpensDedicatedUploadModal(page: Page): Promise<void> {
+  await test.step('Assert Import file preview opens the dedicated upload modal', async () => {
+    const modal = await openImportFileUploadModalFromPreview(page);
+
+    const classList = await expect
+      .poll(
+        () =>
+          modal.evaluate((element) => {
+            return [...(element as HTMLElement).classList];
+          }),
+        {
+          message: 'Import file preview should open the dedicated file upload modal, not the application import modal',
+          timeout: 15_000,
+        },
+      )
+      .toContain('modal-custom-import-file')
+      .then(() => modal.evaluate((element) => [...(element as HTMLElement).classList]));
+
+    expect(classList, 'Import file preview must not use the fullscreen application import modal class').not.toContain(
+      'alwaysFullScreen',
+    );
+
+    const input = modal.locator('input[type="file"]').first();
+    await expect(input, 'Import file modal should expose a file chooser input').toBeAttached({ timeout: 10_000 });
+    const fileInput = await input.evaluate((element) => {
+      const inputElement = element as HTMLInputElement;
+      return {
+        accept: inputElement.getAttribute('accept') ?? '',
+        multiple: inputElement.multiple,
+      };
+    });
+    expect(fileInput.accept, 'Import file modal should not restrict uploads to .c8oforms projects').not.toContain(
+      '.c8oforms',
+    );
+
+    const modalText = normalizeWhitespace(await modal.innerText({ timeout: 10_000 })).toLowerCase();
+    expect(modalText, 'Import file modal should not display .c8oforms project import wording').not.toContain(
+      '.c8oforms',
+    );
   });
 }
 
@@ -4032,7 +4078,7 @@ async function closeBusinessLogicFormulaConfig(page: Page): Promise<void> {
   await page.waitForTimeout(800);
 }
 
-export async function addComponent(page: Page, icon: string): Promise<void> {
+export async function addComponent(page: Page, icon: string, options: AddComponentOptions = {}): Promise<void> {
   const before = await countComponents(page);
   for (let attempt = 0; attempt < 3; attempt++) {
     await acceptRgpdIfVisible(page);
@@ -4051,6 +4097,9 @@ export async function addComponent(page: Page, icon: string): Promise<void> {
       // selected but not added — try again
     }
   }
+  if (options.allowEditorApiFallback === false) {
+    throw new Error(`component with icon ${icon} was not added to the page through the palette UI`);
+  }
   const type = PALETTE_TYPE_BY_ICON[icon];
   if (type) {
     const added = await addComponentThroughEditorApi(page, type);
@@ -4060,6 +4109,28 @@ export async function addComponent(page: Page, icon: string): Promise<void> {
     }
   }
   throw new Error(`component with icon ${icon} was not added to the page`);
+}
+
+async function openImportFileUploadModalFromPreview(page: Page): Promise<Locator> {
+  return test.step('Open Import file upload modal from preview', async () => {
+    await expectRoute(page, ROUTE.viewer);
+    const component = page.locator(`${SEL.fileComponent}:visible`).first();
+    await expect(component, 'Import file component should be visible in preview before opening the modal').toBeVisible({
+      timeout: 30_000,
+    });
+    await component.scrollIntoViewIfNeeded();
+
+    const button = component.locator('ion-button:visible, button:visible').first();
+    await expect(button, 'Import file preview should expose a visible add-file button').toBeVisible({ timeout: 10_000 });
+    await button.click({ timeout: 10_000 }).catch(async () => component.click({ timeout: 10_000 }));
+
+    const modal = page.locator('ion-modal:not(.overlay-hidden)').last();
+    await expect(modal, 'Import file click should open a modal').toBeVisible({ timeout: 30_000 });
+    await expect(modal.locator('input[type="file"]').first(), 'Import file modal should contain a file input').toBeAttached({
+      timeout: 30_000,
+    });
+    return modal;
+  });
 }
 
 async function addComponentThroughEditorApi(page: Page, type: string): Promise<boolean> {
