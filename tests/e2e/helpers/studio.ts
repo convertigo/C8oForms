@@ -68,6 +68,7 @@ export const SEL = {
   gridPaginationSetting: '.class1782121400010',
   gridRowsPerPageSetting: '.class1782121400030',
   chartComponent: 'c8oforms-itemchartviewer',
+  fileComponent: 'c8oforms-itemfileviewver',
   chartHeightModeToggle: '.class1780577000001',
   chartPersonalizedHeightInput: '.class1776605300014 input',
   choiceOptionInput:
@@ -1800,6 +1801,24 @@ export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
   ).toHaveCount(2);
   await expect(tabs.first(), 'button visual style section should remain accessible').toBeVisible();
   await expect(tabs.nth(1), 'button icon style section should remain accessible').toBeVisible();
+}
+
+export async function expectFileComponentHasNoNavigationConfigTab(page: Page): Promise<void> {
+  await test.step('Assert Import file configuration does not expose Navigation', async () => {
+    await openConfigurationSection(page);
+    const tabs = await visibleConfigTabs(page);
+    await expect(tabs.first(), 'Import file configuration tabs should be visible').toBeVisible({ timeout: 15_000 });
+
+    const visibleTabCount = await tabs.count();
+    expect(
+      await configTabIndexById(page, 'navigation_tab_selector'),
+      `Import file should not expose the empty Navigation tab; visible config tab count is ${visibleTabCount}`,
+    ).toBeNull();
+    expect(
+      visibleTabCount,
+      'Import file should expose Data & Interactions, File/Image submissions, and Visibility only',
+    ).toBe(3);
+  });
 }
 
 export async function expectButtonStyleTabsTranslatedToEnglish(page: Page): Promise<void> {
