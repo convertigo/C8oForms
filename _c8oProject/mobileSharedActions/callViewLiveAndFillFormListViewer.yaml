@@ -95,6 +95,85 @@
           					return null;
           				}
           			}
+          			let normalizeViewerDisabledComponents = (doc: any) => {
+          				if (doc == null) {
+          					return doc;
+          				}
+          				let disabledIds = {};
+          				let markDisabled = (item: any) => {
+          					if (item == null) {
+          						return;
+          					}
+          					if (item.id != undefined) {
+          						disabledIds["" + item.id] = true;
+          					}
+          					if (Array.isArray(item.children)) {
+          						for (let child of item.children) {
+          							markDisabled(child);
+          						}
+          					}
+          				};
+          				let collectDisabled = (list: any, parentDisabled = false) => {
+          					if (!Array.isArray(list)) {
+          						return;
+          					}
+          					for (let item of list) {
+          						if (item == null) {
+          							continue;
+          						}
+          						let disabled = parentDisabled || item?.config?.componentDisabled === true || (item.parentRef != undefined && disabledIds["" + item.parentRef] === true);
+          						if (disabled) {
+          							markDisabled(item);
+          						}
+          						collectDisabled(item.children, disabled);
+          					}
+          				};
+          				let filterDisabled = (list: any, parentDisabled = false) => {
+          					if (!Array.isArray(list)) {
+          						return [];
+          					}
+          					let filtered = [];
+          					for (let item of list) {
+          						if (item == null) {
+          							continue;
+          						}
+          						let disabled = parentDisabled || item?.config?.componentDisabled === true || (item.parentRef != undefined && disabledIds["" + item.parentRef] === true);
+          						if (disabled) {
+          							markDisabled(item);
+          							continue;
+          						}
+          						if (Array.isArray(item.children)) {
+          							item.children = filterDisabled(item.children, false);
+          						}
+          						if (Array.isArray(item.childrenRefs)) {
+          							item.childrenRefs = item.childrenRefs.filter((ref) => disabledIds["" + ref] !== true);
+          						}
+          						filtered.push(item);
+          					}
+          					return filtered;
+          				};
+          				collectDisabled(doc.formulaire, false);
+          				collectDisabled(doc.actions, false);
+          				if (Array.isArray(doc.flows)) {
+          					for (let flow of doc.flows) {
+          						collectDisabled(flow?.elements, false);
+          					}
+          				}
+          				if (Array.isArray(doc.formulaire)) {
+          					doc.formulaire = filterDisabled(doc.formulaire, false);
+          				}
+          				if (Array.isArray(doc.actions)) {
+          					doc.actions = filterDisabled(doc.actions, false);
+          				}
+          				if (Array.isArray(doc.flows)) {
+          					for (let flow of doc.flows) {
+          						if (Array.isArray(flow?.elements)) {
+          							flow.elements = filterDisabled(flow.elements, false);
+          						}
+          					}
+          				}
+          				return doc;
+          			};
           			page.local.callEndInitC8o = async (response, newHash) => {
           				page.local.canRespond = true;				
           				await runNonBlockingInitStep("checkCanRespond", async () => {
@@ -407,6 +486,9 @@
           					else {
           						cond = false;
           					}
+          				}
+          				if (normalizedRows[0]?.value?.doc != null) {
+          					normalizeViewerDisabledComponents(normalizedRows[0].value.doc);
           				}
           				let newHash: any = undefined;
           				try {

@@ -833,6 +833,9 @@ scriptContent:
         		if (!this.isFlowExecutionActive(executionToken)) {
         			return;
         		}
+        		if (this.isItemComponentEnabledInHierarchy(step) != true) {
+        			return;
+        		}
         		this.fillActionsVars([step]);
         		await this.fillActions([step], false, executionToken);
         	}
@@ -1144,6 +1147,9 @@ scriptContent:
         
         	public async executeStep(step, submitActions, executeSubmit, __id = null, executionToken = null) {
         		if (!this.isFlowExecutionActive(executionToken)) {
+        			return false;
+        		}
+        		if (step == null || this.isItemComponentEnabledInHierarchy(step) != true) {
         			return false;
         		}
         		let submit = false;
@@ -1930,6 +1936,11 @@ scriptContent:
         		page.local.subKeyD = page.local.subKeyD == null ? "," : page.local.subKeyD;
         		try {
         			for (let item of list) {
+        				if (this.isItemComponentEnabledInHierarchy(item) != true) {
+        					delete redList[item["name"]];
+        					delete formSubmit[item["name"]];
+        					continue;
+        				}
         				if (item["type"] == "ion-card" && item.children != undefined) {
         					redList[item["name"]] = {};
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "children": {}, "label": item["config"]["title"]["text"], "labelHtml": item["config"]["title"]["personalized"] ? item["config"]["title"]["html"] : item["config"]["title"]["text"] };
@@ -2179,6 +2190,9 @@ scriptContent:
         				if (!page.isFlowExecutionActive(executionToken)) {
         					break;
         				}
+        				if (page.isItemComponentEnabledInHierarchy(item) != true) {
+        					continue;
+        				}
         				if (item["type"] == "business_logic") {
         					let sources: any = page["searchForSources"](item, "sources", true);
         					let findVars = sources.findVars;
@@ -2187,6 +2201,9 @@ scriptContent:
         					let variables = {};
         					this.functionsById[sha] = async () => {
         						if (!page.isFlowExecutionActive(executionToken)) {
+        							return;
+        						}
+        						if (page.isItemComponentEnabledInHierarchy(item) != true) {
         							return;
         						}
         						await page["computeVariable"](findVars, variables, item);
@@ -2793,6 +2810,9 @@ scriptContent:
         		try {
         			// Iterating over each item if list
         			for (let item of list) {
+        				if (this.isItemComponentEnabledInHierarchy(item) != true) {
+        					continue;
+        				}
         				// if item is a card, recursively call
         				if (item["type"] == "ion-card" && item["children"] != undefined) {
         					let interIDs = await this.fillSources(item["children"], redList[item["name"]]["children"], formSubmit[item["name"]]["children"]);
@@ -5995,6 +6015,9 @@ scriptContent:
         	public fillActionsVars(list): void {
         		let page = this;
         		for (let elem of list) {
+        			if (page.isItemComponentEnabledInHierarchy(elem) != true) {
+        				continue;
+        			}
         			//			if (elem["type"] == "business_logic") {
         			page["actions"][elem["name"]] = { "name": elem["name"], "type": elem["type"], "value": "" };
         
@@ -6024,6 +6047,22 @@ scriptContent:
         			return item?.config?.page == undefined || item?.config?.page == currentPageTechName;
         		});
         	}
+        
+        	public isFunctionTargetEnabled(functionId: any): boolean {
+        		try {
+        			for (let itemId in (this as any).shaById) {
+        				if ((this as any).shaById[itemId] == functionId) {
+        					let elem = this.getItemById(itemId);
+        					if (elem != null && this.isItemComponentEnabledInHierarchy(elem) != true) {
+        						return false;
+        					}
+        				}
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return true;
+        	}
         	
         	public triggerSourceIds(idsToCall): void {
         		let page = this;
@@ -6033,6 +6072,9 @@ scriptContent:
         		let execIdToCall = async () => {
         			for (let id of idsToCall) {
         				try {
+        					if (page.isFunctionTargetEnabled(id) != true || page["functionsById"][id] == undefined) {
+        						continue;
+        					}
         					page["functionsById"][id](true)
         					.finally(() => {
         						if (page.local.fromResponse) {
@@ -6102,6 +6144,10 @@ scriptContent:
         			return null;
         		}
         		let fieldName = "" + name;
+        		let formItem = this.getItemByName(fieldName);
+        		if (formItem != null && this.isItemComponentEnabledInHierarchy(formItem) != true) {
+        			return null;
+        		}
         		if (this.formsSubmit != null && this.formsSubmit[fieldName] !== undefined) {
         			return { container: this.formsSubmit, key: fieldName, item: this.formsSubmit[fieldName] };
         		}
@@ -6139,6 +6185,10 @@ scriptContent:
         	public notifyRuntimeFieldChange(item: any): void {
         		try {
         			if (item == null || item.id == undefined || this.local?.functionsToBeCalled == undefined) {
+        				return;
+        			}
+        			let formItem = item.id != undefined ? this.getItemById(item.id) : (item.name != undefined ? this.getItemByName(item.name) : null);
+        			if (formItem != null && this.isItemComponentEnabledInHierarchy(formItem) != true) {
         				return;
         			}
         			let dependencies = this.local.functionsToBeCalled[item.id];
@@ -6583,7 +6633,35 @@ scriptContent:
         		return null;
         	}
         
+        	public isItemComponentEnabled(item: any): boolean {
+        		return item?.config?.componentDisabled !== true;
+        	}
+        
+        	public isItemComponentEnabledInHierarchy(item: any): boolean {
+        		if (this.isItemComponentEnabled(item) != true) {
+        			return false;
+        		}
+        		let current = item;
+        		let guard = 0;
+        		while (current?.parentRef != undefined && current.parentRef !== "" && guard < 1000) {
+        			current = this.getItemById(current.parentRef);
+        			if (current != null && this.isItemComponentEnabled(current) != true) {
+        				return false;
+        			}
+        			guard++;
+        		}
+        		return true;
+        	}
+        
+        	public isItemComponentEnabledByName(name: any): boolean {
+        		let item = this.getItemByName(name);
+        		return item == null || this.isItemComponentEnabledInHierarchy(item) == true;
+        	}
+        
         	public evaluateItemVisibility(item: any): boolean {
+        		if (this.isItemComponentEnabledInHierarchy(item) != true) {
+        			return false;
+        		}
         		let conditions = this.getLegacyAwareConditions(item);
         		if (conditions == null || conditions.visibleIf == null) {
         			return true;
@@ -8573,6 +8651,45 @@ scriptContent:
         		return null;
         	}
         
+        	public getItemByName(name: any, search: any[] = this.formsList): object | null {
+        		if (name == undefined || name == null) {
+        			return null;
+        		}
+        		let fieldName = "" + name;
+        		let searchArray = Array.isArray(search) ? search : [];
+        		for (let obj of searchArray) {
+        			if (obj == null) {
+        				continue;
+        			}
+        			if (obj.name != undefined && fieldName === "" + obj.name) {
+        				return obj;
+        			}
+        			if (obj.children != undefined && Array.isArray(obj.children)) {
+        				const val = this.getItemByName(fieldName, obj.children);
+        				if (val !== null) {
+        					return val;
+        				}
+        			}
+        		}
+        		if (search === this.formsList) {
+        			if (this.form?.actions != undefined && Array.isArray(this.form.actions)) {
+        				const action = this.getItemByName(fieldName, this.form.actions);
+        				if (action !== null) {
+        					return action;
+        				}
+        			}
+        			if (this.form?.flows != undefined && Array.isArray(this.form.flows)) {
+        				for (let flow of this.form.flows) {
+        					const flowItem = this.getItemByName(fieldName, flow?.elements);
+        					if (flowItem !== null) {
+        						return flowItem;
+        					}
+        				}
+        			}
+        		}
+        		return null;
+        	}
+        
         	/**
         	 * Search for an element by its ID in the given object.
         	 * @param id - The ID of the current target.
@@ -8624,6 +8741,9 @@ scriptContent:
         	 */
         	public getFormCheckboxValueByName(name: string): string[] {
         		const arrayStr: string[] = [];
+        		if (this.isItemComponentEnabledByName(name) != true) {
+        			return arrayStr;
+        		}
         
         		for (let key of Object.keys(this.formsSubmit)) {
         			if (key === name) {
@@ -8655,6 +8775,9 @@ scriptContent:
         	 */
         	public getFormRadioGroupValueByName(name: string): string[] {
         		const arrayStr: string[] = [];
+        		if (this.isItemComponentEnabledByName(name) != true) {
+        			return arrayStr;
+        		}
         
         		for (let key of Object.keys(this.formsSubmit)) {
         			if (key === name) {
@@ -8686,6 +8809,9 @@ scriptContent:
         	 */
         	public getFormCheckboxGroupValueByName(name: string): string[] {
         		const arrayStr: string[] = [];
+        		if (this.isItemComponentEnabledByName(name) != true) {
+        			return arrayStr;
+        		}
         
         		for (let key of Object.keys(this.formsSubmit)) {
         			if (key === name) {
@@ -8726,6 +8852,10 @@ scriptContent:
         					id = +id;
         				}
         				if (typeof id == "number") {
+        					let item = this.getItemById(id);
+        					if (item != null && this.isItemComponentEnabledInHierarchy(item) != true) {
+        						return "";
+        					}
         					const meta: any = {
         						c8otype: "path",
         						c8opath: val.c8opath,
@@ -8748,6 +8878,9 @@ scriptContent:
         		catch (e) {
         		}
         		const name = this.getConditionSourceFieldName(val);
+        		if (this.isItemComponentEnabledByName(name) != true) {
+        			return "";
+        		}
         		return this.getFormElementValueByName(name);
         	}
         
@@ -11296,7 +11429,7 @@ title: Visualisateur
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: 'plain:(item.type == ''ion-card'' || item.type == ''videoCall'' || item.type == ''layout'') ? false : true;'
+                            - MobileSmartSourceType: 'plain:this.isItemComponentEnabled(item) && ((item.type == ''ion-card'' || item.type == ''videoCall'' || item.type == ''layout'') ? false : true);'
                       ↓Attr1 [ngx.components.UIAttribute-1670941207193]: 
                         attrName: '[ngStyle]'
                         attrValue: 
@@ -12018,8 +12151,7 @@ title: Visualisateur
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:this.evaluateItemVisibility(item)
-                          isEnabled: false
+                              - MobileSmartSourceType: plain:this.isItemComponentEnabled(item)
                         ↓Attr1 [ngx.components.UIAttribute-1670941607108]: 
                           attrName: '[ngStyle]'
                           attrValue: 
@@ -12066,8 +12198,7 @@ title: Visualisateur
                           attrValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:this.evaluateItemVisibility(item)
-                          isEnabled: false
+                              - MobileSmartSourceType: plain:this.isItemComponentEnabled(item)
                         ↓Attr1 [ngx.components.UIAttribute-1730985061068]: 
                           attrName: '[ngStyle]'
                           attrValue: 
