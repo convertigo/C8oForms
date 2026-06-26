@@ -368,6 +368,7 @@ For more technical informations : [documentation](./project.md)
         - [addUserToGroupForm](#addusertogroupform)
         - [adminHelpCenter](#adminhelpcenter)
         - [BarcodeDataInteractionsEditor](#barcodedatainteractionseditor)
+        - [BoxSettingLabel](#boxsettinglabel)
         - [button_variable](#button_variable)
         - [CameraAppearanceEditor](#cameraappearanceeditor)
         - [CameraDataInteractionsEditor](#cameradatainteractionseditor)
@@ -5679,6 +5680,24 @@ Update the state of a field
 <td>item</td><td></td>
 </tr>
 </table>
+#### BoxSettingLabel
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>showColon</td><td></td>
+</tr>
+<tr>
+<td>variant</td><td></td>
+</tr>
+</table>
 #### button_variable
 
 **variables**
@@ -9816,6 +9835,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>style</td><td></td>
+</tr>
+<tr>
+<td>tooltipAlwaysVisible</td><td></td>
 </tr>
 <tr>
 <td>tooltipContent</td><td></td>
