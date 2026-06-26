@@ -2268,6 +2268,13 @@ export interface BaserowSelectSourceOptions extends BaserowGridSourceOptions {
   valueColumn: string;
 }
 
+export type DataSourceSortOrder = 'asc' | 'desc';
+
+export interface DataSourceSortOptions {
+  column: string;
+  order?: DataSourceSortOrder;
+}
+
 export interface BaserowAddRowActionOptions extends BaserowGridSourceOptions {
   flowName?: string | RegExp;
   mappings: Array<{
@@ -2289,6 +2296,11 @@ const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
 const DATA_SOURCE_EDITOR_ACTION_BUTTON = 'button.class1775995541940';
 const DATA_SOURCE_SORT_ACTION_INDEX = 2;
+const DATA_SOURCE_SORT_ADD_FIELD_BUTTON = 'ion-button.class1758273392231';
+const DATA_SOURCE_SORT_ASC_BUTTON = '.class1758275049219';
+const DATA_SOURCE_SORT_DESC_BUTTON = '.class1758275831002';
+const SOURCE_SELECT_TRIGGER = 'ion-item.class1648542300891';
+const SOURCE_SELECT_DROPDOWN = '.class1599133954837';
 
 export async function configureGridBaserowSource(page: Page, source: BaserowGridSourceOptions): Promise<void> {
   const pickerTimeout = 60_000;
@@ -2495,6 +2507,37 @@ export async function openDataSourceSortPanel(page: Page): Promise<void> {
   });
 }
 
+export async function configureDataSourceSort(page: Page, options: DataSourceSortOptions): Promise<void> {
+  await test.step(`Configure data source sort by ${options.column}`, async () => {
+    await openDataSourceSortPanel(page);
+
+    const addSortField = page.locator(`${DATA_SOURCE_SORT_ADD_FIELD_BUTTON}:visible`).last();
+    await expect(addSortField, 'the data source Sort add-field button should be visible').toBeVisible({ timeout: 15_000 });
+    await addSortField.click({ timeout: 10_000 }).catch(async () => addSortField.dispatchEvent('click'));
+
+    const popover = page.locator('ion-popover:not(.overlay-hidden)').last();
+    await expect(popover, 'the sort column picker should open').toBeVisible({ timeout: 15_000 });
+    await popover.locator('ion-searchbar input').fill(options.column);
+
+    const columnOption = popover.locator('ion-item').filter({ hasText: options.column }).first();
+    await expect(columnOption, `the sort column ${options.column} should be listed`).toBeVisible({ timeout: 15_000 });
+    await columnOption.click({ timeout: 10_000 }).catch(async () => columnOption.dispatchEvent('click'));
+
+    await expect
+      .poll(() => visibleInputValues(page), {
+        message: `the data source Sort panel should keep ${options.column}`,
+        timeout: 15_000,
+      })
+      .toContain(options.column);
+
+    const orderButtonSelector = (options.order ?? 'asc') === 'desc' ? DATA_SOURCE_SORT_DESC_BUTTON : DATA_SOURCE_SORT_ASC_BUTTON;
+    const orderButton = page.locator(`${orderButtonSelector}:visible`).first();
+    await expect(orderButton, 'the data source Sort order button should be visible').toBeVisible({ timeout: 15_000 });
+    await orderButton.click({ timeout: 10_000 }).catch(async () => orderButton.dispatchEvent('click'));
+    await page.waitForTimeout(1_000);
+  });
+}
+
 export async function expectDataSourceSortMissingConfigResolved(page: Page): Promise<void> {
   const progress = page.locator('c8oforms-datasourceeditor ion-progress-bar:visible');
   await expect(
@@ -2506,6 +2549,63 @@ export async function expectDataSourceSortMissingConfigResolved(page: Page): Pro
     page.locator('c8oforms-datasourceeditor p:visible').first(),
     'Sort should render a visible missing-configuration message.',
   ).toBeVisible({ timeout: 15_000 });
+}
+
+export async function sourceSelectVisibleOptions(page: Page, expectedOptions: string[]): Promise<string[]> {
+  return test.step('Read visible source Select options', async () => {
+    if (expectedOptions.length === 0) {
+      throw new Error('sourceSelectVisibleOptions needs at least one expected option');
+    }
+
+    const select = page.locator(SEL.selectComponent).first();
+    await expect(select, 'the source Select should render in Preview').toBeVisible({ timeout: 30_000 });
+
+    const trigger = select.locator(`${SOURCE_SELECT_TRIGGER}, button`).first();
+    await expect(trigger, 'the source Select trigger should be visible').toBeVisible({ timeout: 15_000 });
+    await clickLocatorCenterWithMouse(page, trigger, 'source Select trigger');
+
+    const dropdown = page
+      .locator(`${SOURCE_SELECT_DROPDOWN}:visible, cdk-virtual-scroll-viewport:visible`)
+      .filter({ hasText: expectedOptions[0] })
+      .last();
+    await expect(dropdown, 'the source Select dropdown should open with source data').toBeVisible({ timeout: 30_000 });
+    for (const option of expectedOptions) {
+      await expect(dropdown, `the source Select dropdown should include ${option}`).toContainText(option, { timeout: 30_000 });
+    }
+
+    return dropdown.evaluate((root, expected) => {
+      const expectedSet = new Set(expected as string[]);
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const element of root.querySelectorAll<HTMLElement>('ion-item, [role="option"], button, div')) {
+        const text = (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim();
+        if (expectedSet.has(text) && !seen.has(text)) {
+          seen.add(text);
+          out.push(text);
+        }
+      }
+      return out;
+    }, expectedOptions);
+  });
+}
+
+async function visibleInputValues(page: Page): Promise<string[]> {
+  return page
+    .locator('input:visible')
+    .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value || '').filter(Boolean));
+}
+
+async function clickLocatorCenterWithMouse(page: Page, locator: Locator, description: string): Promise<void> {
+  await locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+  const box = await locator.boundingBox();
+  expect(box, `${description} should have a clickable box`).not.toBeNull();
+
+  const x = box!.x + box!.width / 2;
+  const y = box!.y + box!.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.waitForTimeout(150);
+  await page.mouse.up();
 }
 
 export async function configureSelectBaserowSource(page: Page, source: BaserowSelectSourceOptions): Promise<void> {

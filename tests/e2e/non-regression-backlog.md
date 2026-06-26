@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 51 deja couverts; 173 a couvrir (24 ouverts, 149 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 52 deja couverts; 172 a couvrir (24 ouverts, 148 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 51 deja co
 | [x] | [#1434](https://github.com/convertigo/C8oForms/issues/1434) | closed | bug, QC-Passed, Auto QA Test | Import file component displays an empty Navigation category | Auto QA Test<br>e2e/issue-1434.spec.ts |
 | [ ] | [#1432](https://github.com/convertigo/C8oForms/issues/1432) | closed | enhancement, QC-Passed | Allow selecting category and value fields when configuring chart data sources |  |
 | [ ] | [#1431](https://github.com/convertigo/C8oForms/issues/1431) | closed | enhancement, QC-Passed | Add a TinyMCE editing mode for the Button component |  |
-| [ ] | [#1430](https://github.com/convertigo/C8oForms/issues/1430) | closed | bug, QC-Passed | Baserow source fails when sorting by a hidden field |  |
+| [x] | [#1430](https://github.com/convertigo/C8oForms/issues/1430) | closed | bug, QC-Passed, Auto QA Test | Baserow source fails when sorting by a hidden field | Auto QA Test<br>e2e/issue-1430.spec.ts |
 | [x] | [#1429](https://github.com/convertigo/C8oForms/issues/1429) | closed | bug, QC-Passed, Auto QA Test | Import File component opens an oversized modal with incorrect .c8oforms project import wording | Auto QA Test<br>e2e/issue-1429.spec.ts |
 | [ ] | [#1428](https://github.com/convertigo/C8oForms/issues/1428) | closed | enhancement, QC-Passed | The condition action (If) does not use the modernized interface for condition modes (Fields, Aa, JS) |  |
 | [x] | [#1426](https://github.com/convertigo/C8oForms/issues/1426) | closed | bug, QC-Passed, Auto QA Test | Setting server symbol **C8Oforms.customHeaderLogo** causes oversized logo after submitting a response | Auto QA Test<br>e2e/issue-1426.spec.ts |
