@@ -716,6 +716,11 @@ scriptContent:
         		if(this.isButtonStateConditionMode(current.__uiMode)){
         			return current.__uiMode;
         		}
+        		let type = current.type != null ? "" + current.type : "";
+        		let str = current.str != null ? ("" + current.str).trim() : "";
+        		if((type == "text" || type == "ts") && str != ""){
+        			return "button_state_enabled_when_condition";
+        		}
         		let conds = Array.isArray(current.conds) ? current.conds : [];
         		let groups = Array.isArray(current.groups) ? current.groups : [];
         		let legacyConds = Array.isArray(current.__legacyConds) ? current.__legacyConds : [];
@@ -783,6 +788,65 @@ scriptContent:
         		}
         		return this.local != null ? this.local.visibleIf : null;
         	}
+        	public getActiveConditionEditorObject(){
+        		let group: any = this.syncActiveConditionEditorContext();
+        		if(group != null && typeof(group) == "object"){
+        			if(group.type == null || group.type == "" || group.type == "visibleIf" || group.type == "buttonStateIf"){
+        				group.type = "condition";
+        			}
+        		}
+        		return group;
+        	}
+        	public applyConditionEditorSave(event: any): void{
+        		try{
+        			let group: any = this.getActiveConditionEditorObject();
+        			if(group == null || typeof(group) != "object"){
+        				return;
+        			}
+        			let props: any = null;
+        			if(event != null && event.props != null){
+        				props = event.props;
+        			}
+        			else if(event != null && event.out != null && event.out.props != null){
+        				props = event.out.props;
+        			}
+        			else if(event != null && typeof(event) == "object" && event.type != null){
+        				props = event;
+        			}
+        			if(props != null && typeof(props) == "object"){
+        				for(let key of Object.keys(props)){
+        					group[key] = props[key];
+        				}
+        			}
+        			if(group.type == null || group.type == "" || group.type == "visibleIf" || group.type == "buttonStateIf"){
+        				group.type = "condition";
+        			}
+        			if(group.condVisible == null || group.condVisible == ""){
+        				group.condVisible = "and";
+        			}
+        			if(Array.isArray(group.conds) == false){
+        				group.conds = [];
+        			}
+        			if(Array.isArray(group.groups) == false){
+        				group.groups = [];
+        			}
+        			this.local.visibleIf = group;
+        			this.local.visible = group.conds;
+        			this.local.condVisible = group.condVisible;
+        			if(this.isButtonStateTab()){
+        				this.local.buttonStateIf = group;
+        				if(this.local.commitButtonStateIf != null){
+        					this.local.commitButtonStateIf();
+        				}
+        			}
+        			else if(this.local.commitVisibleIf != null){
+        				this.local.commitVisibleIf();
+        			}
+        		}
+        		catch(e){
+        			console.error(e);
+        		}
+        	}
         	public getConditionWhenLabel(){
         		return this.isButtonStateTab() ? this.translate.instant("button_state_when") : this.translate.instant("visible_when");
         	}
@@ -815,6 +879,10 @@ scriptContent:
         					current = this.local.buttonStateIf;
         				}
         				return this.inferButtonStateWhenMode(current);
+        			}
+        			let currentType = current.type != null ? "" + current.type : "";
+        			if(currentType == "condition" || currentType == "text" || currentType == "ts"){
+        				return "visible_when_condition";
         			}
         			if(current.__uiMode == "visible_when_condition"){
         				return "visible_when_condition";
@@ -924,6 +992,11 @@ scriptContent:
         			let current: any = group != null && typeof(group) == "object" ? group : null;
         			if(current == null){
         				return false;
+        			}
+        			let type = current.type != null ? "" + current.type : "";
+        			let str = current.str != null ? ("" + current.str).trim() : "";
+        			if((type == "text" || type == "ts") && str != ""){
+        				return true;
         			}
         			let conds = Array.isArray(current.conds) ? current.conds : [];
         			let groups = Array.isArray(current.groups) ? current.groups : [];
@@ -1525,7 +1598,7 @@ scriptContent:
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.getVisibleWhenMode(this.local.visibleIf)
+              - MobileSmartSourceType: script:this.getVisibleWhenMode(this.syncActiveConditionEditorContext())
         ↓Event [ngx.components.UIControlEvent-1776039301006]: 
           attrName: (modelChanged)
           eventName: modelChanged
@@ -1651,7 +1724,8 @@ scriptContent:
                 →: |
                   'position: relative;
                   display: flex;
-                  flex-direction: row;
+                  flex-direction: column;
+                  align-items: stretch;
                   flex: 1 1 auto;
                   min-width: 0;
                   min-height: 0;
@@ -1660,6 +1734,7 @@ scriptContent:
                   '
         ↓DivPaletteRail [ngx.components.UIDynamicElement-1776036400003]: 
           beanData: '{"ionBean":"DivTag"}'
+          isEnabled: false
           tagName: div
           ↓Style [ngx.components.UIStyle-1776036400004]: 
             styleContent: 
@@ -1795,6 +1870,7 @@ scriptContent:
                   - MobileSmartSourceType: script:'show_palette' | translate
         ↓DivPalettePanel [ngx.components.UIDynamicElement-1776036400013]: 
           beanData: '{"ionBean":"DivTag"}'
+          isEnabled: false
           tagName: div
           ↓Style [ngx.components.UIStyle-1776036400014]: 
             styleContent: 
@@ -1853,8 +1929,115 @@ scriptContent:
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: 'script:''display: block;flex: 1 1 auto;min-height: 0;min-width: 0;overflow: hidden;'''
+        ↓ConditionInputHelp [ngx.components.UIDynamicElement-1893101100001]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓AttrIf [ngx.components.UIAttribute-1893101100002]: 
+            attrName: '*ngIf'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:this.getActiveConditionEditorObject()?.type != 'condition'
+          ↓AttrClass [ngx.components.UIAttribute-1893101100003]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:condition-help
+          ↓Icon [ngx.components.UIDynamicElement-1893101100004]: 
+            beanData: '{"ionBean":"Icon","IconName":"plain:information-circle-outline"}'
+            tagName: ion-icon
+          ↓DivText [ngx.components.UIDynamicElement-1893101100005]: 
+            beanData: '{"ionBean":"DivTag"}'
+            tagName: div
+            ↓Title [ngx.components.UIElement-1893101100006]: 
+              tagName: span
+              ↓Attr [ngx.components.UIAttribute-1893101100007]: 
+                attrName: class
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:condition-help-title
+              ↓Text [ngx.components.UIText-1893101100008]: 
+                i18n: true
+                textValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:condition_source_expected_title
+            ↓Description [ngx.components.UIElement-1893101100009]: 
+              tagName: span
+              ↓Attr [ngx.components.UIAttribute-1893101100010]: 
+                attrName: class
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:condition-help-text
+              ↓Text [ngx.components.UIText-1893101100011]: 
+                i18n: true
+                textValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:condition_source_expected_hint
+        ↓UseSharedComponentConditionEditor [ngx.components.UIUseShared-1893101000001]: 
+          sharedcomponent: C8Oforms.MobileApplication.Application.dataSourceEditor
+          ↓AttrHostStyle [ngx.components.UIAttribute-1893101000002]: 
+            attrName: '[style]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:display:block;flex:1 1 auto;height:100%;max-height:100%;min-height:0;width:100%;min-width:0;overflow:visible;
+          ↓isSource [ngx.components.UIUseVariable-1893101000003]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓currentObject [ngx.components.UIUseVariable-1893101000004]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.getActiveConditionEditorObject()
+          ↓dragging [ngx.components.UIUseVariable-1893101000005]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:false
+          ↓height [ngx.components.UIUseVariable-1893101000006]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'100%'
+          ↓type [ngx.components.UIUseVariable-1893101000007]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'condition'
+          ↓item [ngx.components.UIUseVariable-1893101000008]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.local.item
+          ↓EventSave [ngx.components.UIControlEvent-1893101000009]: 
+            attrName: (save)
+            eventName: save
+            ↓HandleSave [ngx.components.UICustomAction-1893101000010]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                              try {
+                                  this.applyConditionEditorSave(event);
+                              }
+                              catch (e) {
+                                  console.error(e);
+                              }
+                              resolve();
+              ↓saveVisibleConditionsAuto [ngx.components.UIDynamicInvoke-1893101000011]: 
+                beanData: '{"ionBean":"InvokeAction"}'
+                stack: C8Oforms.MobileApplication.Application.updateState
         ↓DivConditionsScroll [ngx.components.UIDynamicElement-1776036500001]: 
           beanData: '{"ionBean":"DivTag"}'
+          isEnabled: false
           tagName: div
           ↓Style [ngx.components.UIStyle-1776036500002]: 
             styleContent: 
@@ -3603,6 +3786,36 @@ scriptContent:
                 min-height: 0;
                 max-height: 100%;
                 overflow: visible;
+                .condition-help {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                width: 100%;
+                padding: 10px 12px;
+                box-sizing: border-box;
+                border: 1px solid rgba(var(--ion-color-primary-rgb), 0.22);
+                border-radius: 8px;
+                background: rgba(var(--ion-color-primary-rgb), 0.06);
+                color: var(--ion-color-medium-shade);
+                font-size: 13px;
+                line-height: 1.35;
+                margin-bottom: 10px;
+                }
+                .condition-help ion-icon {
+                flex: 0 0 auto;
+                margin-top: 1px;
+                color: var(--ion-color-primary);
+                font-size: 18px;
+                }
+                .condition-help-title {
+                display: block;
+                margin-bottom: 2px;
+                color: var(--ion-color-dark);
+                font-weight: 600;
+                }
+                .condition-help-text {
+                display: block;
+                }
                 '
 ↓SharedComponent_Event [ngx.components.UISharedComponentEvent-1775823729922]: 
   componentEvent: onInit
@@ -4072,6 +4285,15 @@ scriptContent:
             		            groups: [],
             		            __legacyConds: Array.isArray(current.__legacyConds) ? current.__legacyConds.concat([]) : []
             		        };
+            		        if (current.str != null) {
+            		            normalized.str = current.str;
+            		        }
+            		        if (current.html != null) {
+            		            normalized.html = current.html;
+            		        }
+            		        if (current.__uiMode != null) {
+            		            normalized.__uiMode = current.__uiMode;
+            		        }
             		        for (let cond of (Array.isArray(current.conds) ? current.conds : [])) {
             		            if (cond != null && cond.subject != null && cond.subject != '''' && cond.subject != ''field'') {
             		                normalized.__legacyConds.push(cond);
@@ -4088,7 +4310,9 @@ scriptContent:
             		        }
             		        group.conds = (Array.isArray(group.conds) ? group.conds : []).filter((cond) => cond != null);
             		        group.groups = (Array.isArray(group.groups) ? group.groups : []).map((child) => cleanupVisibleGroup(child)).filter((child) => {
-            		            return (Array.isArray(child.conds) && child.conds.length > 0) || (Array.isArray(child.groups) && child.groups.length > 0) || (Array.isArray(child.__legacyConds) && child.__legacyConds.length > 0);
+            		            const childType = child != null && child.type != null ? "" + child.type : "";
+            		            const childStr = child != null && child.str != null ? ("" + child.str).trim() : "";
+            		            return (childType == "text" || childType == "ts") && childStr != "" || (Array.isArray(child.conds) && child.conds.length > 0) || (Array.isArray(child.groups) && child.groups.length > 0) || (Array.isArray(child.__legacyConds) && child.__legacyConds.length > 0);
             		        });
             		        return group;
             		    };
@@ -4111,12 +4335,23 @@ scriptContent:
             		    };
             		    const serializeVisibleGroup = (group) => {
             		        const cleaned: any = cleanupVisibleGroup(group);
-            		        return {
-            		            type: ''visibleIf'',
-            		            condVisible: cleaned.condVisible != null && cleaned.condVisible != '''' ? cleaned.condVisible : ''and'',
-            		            conds: [].concat(Array.isArray(cleaned.conds) ? cleaned.conds.map((cond) => serializeVisibleCondition(cond)).filter((cond) => cond != null) : [], Array.isArray(cleaned.__legacyConds) ? cleaned.__legacyConds : []),
-            		            groups: (Array.isArray(cleaned.groups) ? cleaned.groups.map((child) => serializeVisibleGroup(child)) : [])
-            		        };
+            					const editorType = cleaned.type != null && cleaned.type !== '''' && cleaned.type !== ''visibleIf'' && cleaned.type !== ''buttonStateIf'' ? cleaned.type : ''condition'';
+            					let serialized: any = {
+            						type: editorType,
+            						condVisible: cleaned.condVisible != null && cleaned.condVisible != '''' ? cleaned.condVisible : ''and'',
+            						conds: [].concat(Array.isArray(cleaned.conds) ? cleaned.conds.map((cond) => serializeVisibleCondition(cond)).filter((cond) => cond != null) : [], Array.isArray(cleaned.__legacyConds) ? cleaned.__legacyConds : []),
+            						groups: (Array.isArray(cleaned.groups) ? cleaned.groups.map((child) => serializeVisibleGroup(child)) : [])
+            					};
+            					if (cleaned.str != null) {
+            						serialized.str = cleaned.str;
+            					}
+            					if (cleaned.html != null) {
+            						serialized.html = cleaned.html;
+            					}
+            					if (cleaned.__uiMode != null) {
+            						serialized.__uiMode = cleaned.__uiMode;
+            					}
+            					return serialized;
             		    };
             		    const ensureVisibleIfStructure = (item) => {
             		        if (item.conditions == null) {
@@ -4131,7 +4366,6 @@ scriptContent:
             		            };
             		        }
             		        const normalized: any = normalizeVisibleGroup(item.conditions.visibleIf);
-            		        normalized.type = ''visibleIf'';
             		        return normalized;
             		    };
             		    const ensureButtonStateIfStructure = (item) => {
@@ -4142,7 +4376,6 @@ scriptContent:
             		            item.conditions.buttonStateIf = item.buttonStateIf != null ? item.buttonStateIf : page.createEmptyButtonStateIfGroup();
             		        }
             		        const normalized: any = normalizeVisibleGroup(item.conditions.buttonStateIf);
-            		        normalized.type = ''visibleIf'';
             		        if (normalized.__uiMode == null || normalized.__uiMode === "") {
             		            normalized.__uiMode = page.getVisibleWhenMode(normalized);
             		        }

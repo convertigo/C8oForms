@@ -6565,12 +6565,17 @@ scriptContent:
         		for (let conds of Object.keys(conditions)) {
         			switch (conds) {
         				case "visibleIf":
-        					jsString += this.detectSubjectAndComplete(
-        						conditions[conds]["conds"],
-        						conditions[conds]["condVisible"],
-        						null,
-        						conditions[conds]["groups"]
-        					);
+        					if (this.isConditionExpressionGroup(conditions[conds])) {
+        						jsString += this.evaluateConditionGroup(conditions[conds]) ? "true" : "false";
+        					}
+        					else {
+        						jsString += this.detectSubjectAndComplete(
+        							conditions[conds]["conds"],
+        							conditions[conds]["condVisible"],
+        							null,
+        							conditions[conds]["groups"]
+        						);
+        					}
         					break;
         				case "goToPageIf":
         					if (bool) {
@@ -6669,9 +6674,84 @@ scriptContent:
         		return this.evaluateConditionGroup(conditions.visibleIf);
         	}
         
+        	private isConditionExpressionGroup(group: any): boolean {
+        		let type = group != null && group.type != null ? "" + group.type : "";
+        		return type == "text" || type == "ts";
+        	}
+        
+        	private normalizeConditionExpressionResult(value: any, defaultValue: boolean = true): boolean {
+        		if (value != null && typeof(value.then) == "function") {
+        			return defaultValue;
+        		}
+        		if (typeof(value) == "boolean") {
+        			return value;
+        		}
+        		if (typeof(value) == "number") {
+        			return value != 0;
+        		}
+        		if (value == null) {
+        			return defaultValue;
+        		}
+        		let normalized = ("" + value).replace(/<[^>]*>/g, "").trim().toLowerCase();
+        		if (normalized == "") {
+        			return defaultValue;
+        		}
+        		if (normalized == "true" || normalized == "1" || normalized == "yes" || normalized == "oui" || normalized == "vrai") {
+        			return true;
+        		}
+        		if (normalized == "false" || normalized == "0" || normalized == "no" || normalized == "non" || normalized == "faux") {
+        			return false;
+        		}
+        		return !!value;
+        	}
+        
+        	private extractSyncReturnExpression(code: string): string {
+        		let source = code != null ? ("" + code).trim() : "";
+        		let match = source.match(/^\(?\s*async\s*\(\s*\)\s*=>\s*\{\s*return\s+([\s\S]*?);?\s*\}\s*\)\s*\(\s*\)\s*;?$/);
+        		if (match != null && match[1] != null && match[1].indexOf("await ") == -1) {
+        			return match[1];
+        		}
+        		return "";
+        	}
+        
+        	private evaluateConditionExpression(group: any): boolean {
+        		let type = group != null && group.type != null ? "" + group.type : "";
+        		let source = group != null && group.str != null ? "" + group.str : "";
+        		if (source.trim() == "") {
+        			return true;
+        		}
+        		try {
+        			if (type == "ts") {
+        				let value = this.eval(source);
+        				if (value != null && typeof(value.then) == "function") {
+        					let syncReturn = this.extractSyncReturnExpression(source);
+        					if (syncReturn != "") {
+        						return this.normalizeConditionExpressionResult(this.eval(syncReturn), false);
+        					}
+        					return false;
+        				}
+        				return this.normalizeConditionExpressionResult(value, false);
+        			}
+        			let text = source.replace(/<[^>]*>/g, "").trim();
+        			if (text == "") {
+        				return true;
+        			}
+        			if (/^(true|false|1|0|yes|no|vrai|faux|oui|non)$/i.test(text)) {
+        				return this.normalizeConditionExpressionResult(text, false);
+        			}
+        			return this.normalizeConditionExpressionResult(this.eval(text), false);
+        		}
+        		catch (e) {
+        			return false;
+        		}
+        	}
+        
         	public evaluateConditionGroup(group: any): boolean {
         		if (group == null || typeof group != "object") {
         			return true;
+        		}
+        		if (this.isConditionExpressionGroup(group)) {
+        			return this.evaluateConditionExpression(group);
         		}
         		let operator = (group.condVisible != null ? "" + group.condVisible : "and").toLowerCase();
         		let results: Array<boolean> = [];
@@ -6709,6 +6789,9 @@ scriptContent:
         		try {
         			if (group == null || typeof group != "object") {
         				return false;
+        			}
+        			if (this.isConditionExpressionGroup(group) && group.str != null && ("" + group.str).trim() != "") {
+        				return true;
         			}
         			if ((Array.isArray(group.conds) && group.conds.length > 0) || (Array.isArray(group.__legacyConds) && group.__legacyConds.length > 0)) {
         				return true;
