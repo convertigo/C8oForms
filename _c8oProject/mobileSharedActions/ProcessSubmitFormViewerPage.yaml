@@ -113,6 +113,59 @@
           			};
           			indexAllItems(page["formsList"]);
           			let visibilityCache: any = {};
+          			const isComponentEnabled = (element) => {
+          				return element?.config?.componentDisabled !== true;
+          			};
+          			const isComponentDisabledInHierarchy = (element) => {
+          				if (!isComponentEnabled(element)) {
+          					return true;
+          				}
+          				let parentRef = element?.parentRef;
+          				let guard = 0;
+          				while (parentRef != undefined && parentRef !== "" && guard < 1000) {
+          					const parent = itemsIndex[parentRef];
+          					if (parent == null) {
+          						return false;
+          					}
+          					if (!isComponentEnabled(parent)) {
+          						return true;
+          					}
+          					parentRef = parent.parentRef;
+          					guard++;
+          				}
+          				return false;
+          			};
+          			const cloneSubmitWithoutDisabledComponents = (formSubmit, formList) => {
+          				let cloned = JSON.parse(JSON.stringify(formSubmit || {}));
+          				const removeDisabled = (list, container, parentDisabled) => {
+          					if (!Array.isArray(list) || container == null) {
+          						return;
+          					}
+          					for (let element of list) {
+          						if (element == null) {
+          							continue;
+          						}
+          						let disabled = parentDisabled || isComponentDisabledInHierarchy(element);
+          						let name = element.name;
+          						if (disabled) {
+          							if (name != null) {
+          								delete container[name];
+          								delete cloned[name];
+          							}
+          							continue;
+          						}
+          						if (Array.isArray(element.children)) {
+          							let childContainer = container;
+          							if (name != null && container[name]?.children != null) {
+          								childContainer = container[name].children;
+          							}
+          							removeDisabled(element.children, childContainer, disabled);
+          						}
+          					}
+          				};
+          				removeDisabled(formList, cloned, false);
+          				return cloned;
+          			};
           			const computeVisibility = (element) => {
           				if (!element) {
           					return true;
@@ -120,6 +173,12 @@
           				const cacheKey = element.id != null ? element.id : undefined;
           				if (cacheKey != null && Object.prototype.hasOwnProperty.call(visibilityCache, cacheKey)) {
           					return visibilityCache[cacheKey];
+          				}
+          				if (isComponentDisabledInHierarchy(element)) {
+          					if (cacheKey != null) {
+          						visibilityCache[cacheKey] = false;
+          					}
+          					return false;
           				}
           				let visible = true;
           				try {
@@ -141,6 +200,12 @@
           			};
           			const checkMandatoryAndJustOnebyColumn = (currentList: any, formsSubmit, pages, currentIndex) => {
           				for (let item in currentList) {
+          					if (isComponentDisabledInHierarchy(currentList[item])) {
+          						continue;
+          					}
+          					if (formsSubmit == null || formsSubmit[currentList[item]["name"]] == undefined) {
+          						continue;
+          					}
           					// Reassign each value as virgin
           					page["redList"][currentList[item]["name"]] = false;
           					let doThis = false;
@@ -313,7 +378,13 @@
           						}
           						else if (elem["cat"] == "action" && elem["type"] == "business_logic") {
           							try {
-          								page["local"]["submitActions"][elem["type"]] = page["actions"].filter((x) => x.type == "business_logic");
+          								page["local"]["submitActions"][elem["type"]] = page["actions"].filter((x) => {
+          									if (x.type != "business_logic") {
+          										return false;
+          									}
+          									let sourceAction = page["getItemByName"] != undefined ? page["getItemByName"](x.name) : null;
+          									return sourceAction == null || isComponentDisabledInHierarchy(sourceAction) != true;
+          								});
           							}
           							catch (e) {
           
@@ -415,6 +486,9 @@
                 			        for(let item in page.local.objAtt){					
                 						const name = page.local.objAtt[item]["name"];
                 						let index = page["getElementByNameIntoFormSubmit"](item);
+                						if(index == null){
+                							continue;
+                						}
                 						if(index.length == 1){
                 							page["formsSubmit"][index[0]]["value"] = name;
                 							page["formsSubmit"][index[0]]["att_type"] = true;
@@ -643,8 +717,11 @@
                     
                     					
                     					const name = page.local.objAtt[item]["name"];
-                    					page.local.filesToSeq.push(blob);
                     					let index = page["getElementByNameIntoFormSubmit"](item);
+                    					if(index == null){
+                    						continue;
+                    					}
+                    					page.local.filesToSeq.push(blob);
                     	                page.local.filesInfoToSeq.push({
                     	                    "docid":page.local.myId,
                                             "name": page.local.objAtt[item]["name"],
@@ -674,6 +751,38 @@
                                  processSingature();
                                  
                     			 
+                    			 const cloneSubmitWithoutDisabledComponents = (formSubmit, formList) => {
+                    			 	let cloned = JSON.parse(JSON.stringify(formSubmit || {}));
+                    			 	const removeDisabled = (list, container, parentDisabled) => {
+                    			 		if (!Array.isArray(list) || container == null) {
+                    			 			return;
+                    			 		}
+                    			 		for (let element of list) {
+                    			 			if (element == null) {
+                    			 				continue;
+                    			 			}
+                    			 			let disabled = parentDisabled || element?.config?.componentDisabled === true;
+                    			 			let name = element.name;
+                    			 			if (disabled) {
+                    			 				if (name != null) {
+                    			 					delete container[name];
+                    			 					delete cloned[name];
+                    			 				}
+                    			 				continue;
+                    			 			}
+                    			 			if (Array.isArray(element.children)) {
+                    			 				let childContainer = container;
+                    			 				if (name != null && container[name]?.children != null) {
+                    			 					childContainer = container[name].children;
+                    			 				}
+                    			 				removeDisabled(element.children, childContainer, disabled);
+                    			 			}
+                    			 		}
+                    			 	};
+                    			 	removeDisabled(formList, cloned, false);
+                    			 	return cloned;
+                    			 };
+                    			 const enabledFormsSubmit = cloneSubmitWithoutDisabledComponents(page["formsSubmit"], page["formsList"]);
                     			 try{
                     				page.local["submitActions"]?.submit?.forEach((item)=>{
                     				    if(item.type == "submit"){
@@ -682,7 +791,7 @@
                     				                let parsed = JSON.parse(item.actions[key_action].vars["forms_freeVars"]);
                     				                for(let item in parsed){
                     				                    if (parsed[item]["type"] == "signature" || parsed[item]["type"] == "img" || parsed[item]["type"] == "file") {
-                    				                        parsed[item] = page["formsSubmit"][parsed[item].name];
+                    				                        parsed[item] = enabledFormsSubmit[parsed[item].name];
                     				                    }
                     				                }
                     				                item.actions[key_action].vars["forms_freeVars"] = JSON.stringify(parsed);
@@ -694,7 +803,7 @@
                     			catch(e){
                     				
                     			}
-                    			page.local.formsSubmit2 = JSON.stringify(page["formsSubmit"]);
+                    			page.local.formsSubmit2 = JSON.stringify(enabledFormsSubmit);
                     			page.local.filesInfoToSeq = JSON.stringify(page.local.filesInfoToSeq);
                     			page.local.submitActions2 = JSON.stringify(page.local["submitActions"]);
                     			 
@@ -923,6 +1032,9 @@
                             			// prepare to submit images and signatures
                             			if(page.local["objAtt"] != undefined){
                             				for(let index in page.local["objAtt"]){
+                            					if(page["getElementByNameIntoFormSubmit"](index) == null){
+                            						continue;
+                            					}
                             					let item = page.local["objAtt"][index];
                             					item["docid"] = ids;
                             					
@@ -1024,6 +1136,38 @@
                                                             }
                                                         }
                                                     }
+                            						const cloneSubmitWithoutDisabledComponents = (formSubmit, formList) => {
+                            							let cloned = JSON.parse(JSON.stringify(formSubmit || {}));
+                            							const removeDisabled = (list, container, parentDisabled) => {
+                            								if (!Array.isArray(list) || container == null) {
+                            									return;
+                            								}
+                            								for (let element of list) {
+                            									if (element == null) {
+                            										continue;
+                            									}
+                            									let disabled = parentDisabled || element?.config?.componentDisabled === true;
+                            									let name = element.name;
+                            									if (disabled) {
+                            										if (name != null) {
+                            											delete container[name];
+                            											delete cloned[name];
+                            										}
+                            										continue;
+                            									}
+                            									if (Array.isArray(element.children)) {
+                            										let childContainer = container;
+                            										if (name != null && container[name]?.children != null) {
+                            											childContainer = container[name].children;
+                            										}
+                            										removeDisabled(element.children, childContainer, disabled);
+                            									}
+                            								}
+                            							};
+                            							removeDisabled(formList, cloned, false);
+                            							return cloned;
+                            						};
+                            						const enabledFormsSubmit = cloneSubmitWithoutDisabledComponents(page["formsSubmit"], page["formsList"]);
                             						try{
                             							res.actions?.submit?.forEach((item)=>{
                             							    if(item.type == "submit"){
@@ -1032,7 +1176,7 @@
                             							                let parsed = JSON.parse(item.actions[key_action].vars["forms_freeVars"]);
                             							                for(let item in parsed){
                             							                    if (parsed[item]["type"] == "signature" || parsed[item]["type"] == "img" || parsed[item]["type"] == "file") {
-                            							                        parsed[item] = page["formsSubmit"][parsed[item].name];
+                            							                        parsed[item] = enabledFormsSubmit[parsed[item].name];
                             							                    }
                             							                }
                             							                item.actions[key_action].vars["forms_freeVars"] = JSON.stringify(parsed);
@@ -1044,7 +1188,7 @@
                             						catch(e){
                             							
                             						}
-                                                    page.c8o.callJson("fs://c8oforms_response_fs.post", "_id",page.local.myId,"_use_policy","merge", "resp", page["formsSubmit"], "actions", res.actions,  "finished", true)
+                                                    page.c8o.callJson("fs://c8oforms_response_fs.post", "_id",page.local.myId,"_use_policy","merge", "resp", enabledFormsSubmit, "actions", res.actions,  "finished", true)
                                                     .then((res)=>{
                             							page.c8o.log.debug("post to "+ page.local.myId + " to validate files upload");
                                                         return null;

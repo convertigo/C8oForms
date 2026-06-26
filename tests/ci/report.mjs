@@ -116,6 +116,26 @@ const formatDuration = (ms) => {
   return minutes ? `${minutes}m ${String(rest).padStart(2, '0')}s` : `${rest}s`;
 };
 
+// Collapse per-browser runs of the same test (same spec file + title) into one
+// distinct test. Failure wins across browsers so a chromium-pass/firefox-fail
+// still counts (and colours the badge) as a failure.
+function dedupeByTest(items) {
+  const byKey = new Map();
+  for (const item of items) {
+    const key = `${item.file}::${item.title}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { ...item });
+      continue;
+    }
+    existing.failed = existing.failed || item.failed;
+    existing.flaky = existing.flaky || item.flaky;
+    existing.durationMs = Math.max(existing.durationMs || 0, item.durationMs || 0);
+    if (!existing.action && item.action) existing.action = item.action;
+  }
+  return [...byKey.values()];
+}
+
 function aggregateSpecTimings(items) {
   const byFile = new Map();
   for (const item of items) {
@@ -142,14 +162,23 @@ const resultsPaths = findResultsJsons(join(testsDir, 'test-results'));
 const missingResults = resultsPaths.length === 0;
 const partialResults = expectedResultShards > 0 && resultsPaths.length > 0 && resultsPaths.length < expectedResultShards;
 
-const tests = (missingResults
+const rawTests = (missingResults
   ? []
   : resultsPaths.flatMap((resultsPath) => collectTests(JSON.parse(readFileSync(resultsPath, 'utf8'))))).map((t) => {
   const m = manifestFor(t);
   const issue = (t.title.match(/#(\d+)/) || [])[1] || '';
   return { ...t, issue, kind: m?.entry.kind || (issue ? 'regression' : 'smoke'), entry: m?.entry };
 });
-const specTimings = aggregateSpecTimings(tests);
+// Spec timings stay per-browser on purpose: sharding (shard-specs.mjs) balances
+// per-browser run cost, so every browser's run is kept here.
+const specTimings = aggregateSpecTimings(rawTests);
+
+// Every spec runs once per browser (chromium + firefox), so the same test shows
+// up once per browser across the shard reports. Collapse to distinct tests for
+// the pass/fail counts, report table and badge — otherwise the totals (and the
+// badge "N/M passed") double the real test count. A distinct test is failed when
+// it failed on ANY browser, and flaky when flaky on any browser.
+const tests = dedupeByTest(rawTests);
 
 // ── Optional issue automation for failed issue-backed tests ──────────────────
 const reopened = [];
