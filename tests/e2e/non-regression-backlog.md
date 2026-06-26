@@ -1,6 +1,6 @@
 # Backlog des tests de non-regression
 
-Derniere mise a jour: 2026-06-24
+Derniere mise a jour: 2026-06-26
 
 Source: issues GitHub `convertigo/C8oForms`, etat ouvert ou ferme, limitees au milestone `2.2.0` (milestone 2.2).
 
@@ -10,16 +10,12 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 47 deja couverts; 171 a couvrir (28 ouverts, 143 fermes); 4 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 51 deja couverts; 173 a couvrir (24 ouverts, 149 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | [#1428](https://github.com/convertigo/C8oForms/issues/1428) | open | enhancement | The condition action (If) does not use the modernized interface for condition modes (Fields, Aa, JS) |  |
-| [ ] | [#1415](https://github.com/convertigo/C8oForms/issues/1415) | open | enhancement | Reload button and menu button in a published app do not use the theme |  |
 | [ ] | [#1411](https://github.com/convertigo/C8oForms/issues/1411) | open | enhancement | Allow per-component border, margin, and padding customization |  |
 | [ ] | [#1409](https://github.com/convertigo/C8oForms/issues/1409) | open | enhancement | Use configured column names and column width mode in grid editor preview |  |
-| [ ] | [#1408](https://github.com/convertigo/C8oForms/issues/1408) | open | enhancement | Allow selecting latitude and longitude fields when configuring map data sources |  |
-| [ ] | [#1400](https://github.com/convertigo/C8oForms/issues/1400) | open | enhancement | Add a dedicated Gallery component for data-driven visual item selection |  |
 | [ ] | [#1393](https://github.com/convertigo/C8oForms/issues/1393) | open | enhancement | Add more tooltips in configuration labels to improve clarity of settings and component options |  |
 | [ ] | [#1390](https://github.com/convertigo/C8oForms/issues/1390) | open | enhancement | Tabs buttons configuration should support Wrap/Scroll in Header/Footer and allow vertical placement (Left/Right) |  |
 | [ ] | [#1386](https://github.com/convertigo/C8oForms/issues/1386) | open | enhancement | Buttons configuration can only be set per Page; no option to configure buttons globally for the whole application |  |
@@ -42,6 +38,12 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 47 deja co
 | [ ] | [#1043](https://github.com/convertigo/C8oForms/issues/1043) | open | enhancement | Possibilty to download the PDF attachment file in an application |  |
 | [ ] | [#606](https://github.com/convertigo/C8oForms/issues/606) | open | enhancement | Capability to decide what attachment is sent in the Send Mail action |  |
 | [ ] | [#75](https://github.com/convertigo/C8oForms/issues/75) | open | major, task | Gestion du multilangue |  |
+| [x] | [#1434](https://github.com/convertigo/C8oForms/issues/1434) | closed | bug, QC-Passed, Auto QA Test | Import file component displays an empty Navigation category | Auto QA Test<br>e2e/issue-1434.spec.ts |
+| [ ] | [#1432](https://github.com/convertigo/C8oForms/issues/1432) | closed | enhancement, QC-Passed | Allow selecting category and value fields when configuring chart data sources |  |
+| [ ] | [#1431](https://github.com/convertigo/C8oForms/issues/1431) | closed | enhancement, QC-Passed | Add a TinyMCE editing mode for the Button component |  |
+| [ ] | [#1430](https://github.com/convertigo/C8oForms/issues/1430) | closed | bug, QC-Passed | Baserow source fails when sorting by a hidden field |  |
+| [x] | [#1429](https://github.com/convertigo/C8oForms/issues/1429) | closed | bug, QC-Passed, Auto QA Test | Import File component opens an oversized modal with incorrect .c8oforms project import wording | Auto QA Test<br>e2e/issue-1429.spec.ts |
+| [ ] | [#1428](https://github.com/convertigo/C8oForms/issues/1428) | closed | enhancement, QC-Passed | The condition action (If) does not use the modernized interface for condition modes (Fields, Aa, JS) |  |
 | [x] | [#1426](https://github.com/convertigo/C8oForms/issues/1426) | closed | bug, QC-Passed, Auto QA Test | Setting server symbol **C8Oforms.customHeaderLogo** causes oversized logo after submitting a response | Auto QA Test<br>e2e/issue-1426.spec.ts |
 | [x] | [#1425](https://github.com/convertigo/C8oForms/issues/1425) | closed | bug, QC-Passed, Auto QA Test | Palette button is half hidden in Flow actions configuration | Auto QA Test<br>e2e/issue-1425.spec.ts |
 | [x] | [#1424](https://github.com/convertigo/C8oForms/issues/1424) | closed | bug, Auto QA Test | Baserow datetime values shifted by one hour in the data grid (default timezone Europe/Paris instead of UTC) | Auto QA Test<br>e2e/issue-1416.spec.ts |
@@ -52,9 +54,12 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 47 deja co
 | [ ] | [#1418](https://github.com/convertigo/C8oForms/issues/1418) | closed | enhancement, Testing | End-to-end regression testing framework (ticket-driven, version-verified) |  |
 | [ ] | [#1417](https://github.com/convertigo/C8oForms/issues/1417) | closed | bug | BaseRow config validation should use the current form document instead of the editor form |  |
 | [x] | [#1416](https://github.com/convertigo/C8oForms/issues/1416) | closed | bug, QC-Passed, Auto QA Test | Baserow data source does not return dates in the correct format | Auto QA Test<br>e2e/issue-1416.spec.ts |
+| [ ] | [#1415](https://github.com/convertigo/C8oForms/issues/1415) | closed | enhancement, QC-Passed | Reload button and menu button in a published app do not use the theme |  |
+| [ ] | [#1414](https://github.com/convertigo/C8oForms/issues/1414) | closed | enhancement, QC-Passed | No-Code Database date columns set to European format are displayed as `yyyy/mm/dd` in the Grid component |  |
 | [x] | [#1413](https://github.com/convertigo/C8oForms/issues/1413) | closed | bug, QC-Passed, Auto QA Test | Description component breaks when using a Grid Palette value whose column name contains a single quote | Auto QA Test<br>e2e/issue-1413.spec.ts |
 | [x] | [#1412](https://github.com/convertigo/C8oForms/issues/1412) | closed | bug, QC-Passed, Auto QA Test | Map height breaks after opening Data & Interactions | Auto QA Test<br>e2e/issue-1412.spec.ts<br>e2e/issue-1412-reopened.spec.ts |
 | [x] | [#1410](https://github.com/convertigo/C8oForms/issues/1410) | closed | enhancement, QC-Passed, Auto QA Test | Add grid footer and pagination display settings | Auto QA Test<br>e2e/issue-1410.spec.ts |
+| [ ] | [#1408](https://github.com/convertigo/C8oForms/issues/1408) | closed | enhancement, QC-Passed | Allow selecting latitude and longitude fields when configuring map data sources |  |
 | [x] | [#1407](https://github.com/convertigo/C8oForms/issues/1407) | closed | bug, QC-Passed, Auto QA Test | Cannot switch PWA access from anonymous back to authenticated | Auto QA Test<br>e2e/issue-1407.spec.ts |
 | [ ] | [#1406](https://github.com/convertigo/C8oForms/issues/1406) | closed | bug | Fix response viewer action label according to user permissions |  |
 | [x] | [#1405](https://github.com/convertigo/C8oForms/issues/1405) | closed | bug, QC-Passed, Auto QA Test | Grid columns are incorrectly sized when the grid becomes visible after being hidden | Auto QA Test<br>e2e/issue-1405.spec.ts |
@@ -62,6 +67,7 @@ Resume: 222 tickets dans le milestone `2.2.0`; 218 tickets candidats; 47 deja co
 | [ ] | [#1403](https://github.com/convertigo/C8oForms/issues/1403) | closed | bug | Viewer computeVariable should preserve empty string expressions while resolving runtime scopes |  |
 | [x] | [#1402](https://github.com/convertigo/C8oForms/issues/1402) | closed | bug, QC-Passed, Auto QA Test | Select component from a data source shows a large empty zone at the end of the data list | Auto QA Test<br>e2e/issue-1402.spec.ts |
 | [x] | [#1401](https://github.com/convertigo/C8oForms/issues/1401) | closed | bug, QC-Passed, Auto QA Test | Database Connector configuration shows 404 icons, and Select data source always re‑selects two columns instead of one | Auto QA Test<br>e2e/issue-1401.spec.ts |
+| [ ] | [#1400](https://github.com/convertigo/C8oForms/issues/1400) | closed | enhancement, QC-Passed | Add a dedicated Gallery component for data-driven visual item selection |  |
 | [x] | [#1399](https://github.com/convertigo/C8oForms/issues/1399) | closed | bug, QC-Passed, Auto QA Test | Viewer expressions using api.* no longer resolve correctly | Auto QA Test<br>e2e/issue-1399.spec.ts |
 | [ ] | [#1398](https://github.com/convertigo/C8oForms/issues/1398) | closed | enhancement, QC-Passed | Select data sources cannot filter on columns different from display/value columns |  |
 | [ ] | [#1397](https://github.com/convertigo/C8oForms/issues/1397) | closed | bug | performSubmitAction can duplicate datasource-backed option children for checkbox, select, and radio fields |  |
