@@ -170,46 +170,137 @@ scriptContent:
         			
         	}
         	
+        	public getGridSourceConfig() {
+        		try {
+        			if (this.item?.config?.sourceEnabled === false) {
+        				return null;
+        			}
+        			const sources = this.item?.sources;
+        			if (sources == null) {
+        				return null;
+        			}
+        			let source = null;
+        			if (this.pageOwner?.getEnabled != null) {
+        				const enabled = this.pageOwner.getEnabled(sources);
+        				source = enabled != null ? sources[enabled] : null;
+        			}
+        			if (source == null) {
+        				for (let name in sources) {
+        					if (sources[name]?.enabled == true) {
+        						source = sources[name];
+        						break;
+        					}
+        				}
+        			}
+        			if (source == null) {
+        				for (let name in sources) {
+        					if (sources[name]?.vars?.forms_config != null || sources[name]?.vars?.formsConfig != null) {
+        						source = sources[name];
+        						break;
+        					}
+        				}
+        			}
+        			let raw = source?.vars?.forms_config != null ? source.vars.forms_config : source?.vars?.formsConfig;
+        			if (raw != null && raw.str != undefined) {
+        				raw = raw.str;
+        			}
+        			if (typeof raw == "string" && raw.trim() != "") {
+        				return JSON.parse(raw);
+        			}
+        			if (raw != null && typeof raw == "object") {
+        				return raw;
+        			}
+        		}
+        		catch (e) {
+        		}
+        		return null;
+        	}
+        	
+        	public getGridColumnField(column) {
+        		if (column == null) {
+        			return "";
+        		}
+        		if (typeof column == "string") {
+        			return column;
+        		}
+        		return column.field || column.name || column.headerName || column.technicalName || "";
+        	}
+        	
+        	public getGridColumnHeader(column) {
+        		if (column == null) {
+        			return "";
+        		}
+        		if (typeof column == "string") {
+        			return column;
+        		}
+        		return column.headerName || column.label || column.displayName || column.name || column.field || column.technicalName || "";
+        	}
+        	
+        	public pushGridColumnDef(columns, seen, column, hiddenColumns) {
+        		const field = this.getGridColumnField(column);
+        		if (field == null || ("" + field).trim() == "") {
+        			return;
+        		}
+        		const key = "" + field;
+        		if (seen[key] == true) {
+        			return;
+        		}
+        		seen[key] = true;
+        		const headerName = this.getGridColumnHeader(column) || key;
+        		const columnDef: any = { field: key, headerName: headerName };
+        		if (Array.isArray(hiddenColumns) && hiddenColumns.indexOf(key) != -1) {
+        			columnDef["hide"] = true;
+        		}
+        		columns.push(columnDef);
+        	}
+        	
+        	public getGridConfiguredColumnDefs(includeDefault) {
+        		const columns = [];
+        		const seen = {};
+        		const sourceConfig = this.getGridSourceConfig();
+        		const hiddenColumns = Array.isArray(sourceConfig?.hidden) ? sourceConfig.hidden.map((column) => "" + column) : [];
+        		if (Array.isArray(sourceConfig?.columns)) {
+        			sourceConfig.columns.forEach((column) => this.pushGridColumnDef(columns, seen, column, hiddenColumns));
+        		}
+        		if (columns.length == 0 && Array.isArray(this.item?.config?.columns)) {
+        			this.item.config.columns.forEach((column) => this.pushGridColumnDef(columns, seen, column, []));
+        		}
+        		if (columns.length == 0 && includeDefault === true) {
+        			this.pushGridColumnDef(columns, seen, { field: "make", headerName: "Make" }, []);
+        			this.pushGridColumnDef(columns, seen, { field: "model", headerName: "Model" }, []);
+        			this.pushGridColumnDef(columns, seen, { field: "price", headerName: "Price" }, []);
+        		}
+        		return columns;
+        	}
+        	
         	public checkColumnDefs(colDef) {
         		let columns = Array.isArray(colDef) ? colDef : [];
-        		let formsConfig = null;
-        		try {
-        			if (this.item?.sources && this.item.sources["lib_BaseRow.formssource_GetTableData"] && this.item.sources["lib_BaseRow.formssource_GetTableData"]?.vars
-        				&& this.item.sources["lib_BaseRow.formssource_GetTableData"].vars?.forms_config &&
-        				this.item.sources["lib_BaseRow.formssource_GetTableData"].vars?.forms_config?.str &&
-        				this.item.sources["lib_BaseRow.formssource_GetTableData"].vars.forms_config.str.length > 0
-        			) {
-        				formsConfig = JSON.parse(this.item.sources["lib_BaseRow.formssource_GetTableData"].vars.forms_config.str);
-        			}
-        		} catch (e) {
-        			formsConfig = null;
-        		}
-        
-        		const configuredColumns = Array.isArray(formsConfig?.columns) ? formsConfig.columns : [];
-        		const hidden = Array.isArray(formsConfig?.hidden) ? formsConfig.hidden : [];
+        		const configuredColumns = this.getGridConfiguredColumnDefs(false);
         		if (columns.length == 0 && configuredColumns.length > 0) {
-        			columns = configuredColumns.map((field) => ({
-        				field: field,
-        				headerName: field
-        			}));
+        			columns = configuredColumns;
         		}
         		else if (columns.length > 0 && configuredColumns.length > 0) {
         			const consumedColumnIndexes = new Set<number>();
         			const orderedColumns = [];
-        			const matchesConfiguredField = (column, field) => {
-        				return column?.field == field || column?.headerName == field || column?.technicalName == field;
+        			const matchesConfiguredField = (column, configuredColumn) => {
+        				return column?.field == configuredColumn.field || column?.headerName == configuredColumn.headerName || column?.headerName == configuredColumn.field || column?.technicalName == configuredColumn.field;
         			};
-        			configuredColumns.forEach((field) => {
-        				const columnIndex = columns.findIndex((column, index) => !consumedColumnIndexes.has(index) && matchesConfiguredField(column, field));
+        			configuredColumns.forEach((configuredColumn) => {
+        				const columnIndex = columns.findIndex((column, index) => !consumedColumnIndexes.has(index) && matchesConfiguredField(column, configuredColumn));
         				if (columnIndex != -1) {
-        					orderedColumns.push(columns[columnIndex]);
+        					const orderedColumn = Object.assign({}, columns[columnIndex]);
+        					orderedColumn.headerName = configuredColumn.headerName;
+        					if (orderedColumn.field == null || orderedColumn.field == "") {
+        						orderedColumn.field = configuredColumn.field;
+        					}
+        					if (configuredColumn.hide === true) {
+        						orderedColumn.hide = true;
+        					}
+        					orderedColumns.push(orderedColumn);
         					consumedColumnIndexes.add(columnIndex);
         				}
         				else {
-        					orderedColumns.push({
-        						field: field,
-        						headerName: field
-        					});
+        					orderedColumns.push(configuredColumn);
         				}
         			});
         			columns.forEach((column, index) => {
@@ -223,9 +314,6 @@ scriptContent:
         		if (columns.length > 0) {
         			const normalizedColumns = columns.map((column) => {
         				const nextColumn = Object.assign({}, column);
-        				if (hidden.includes(nextColumn.field)) {
-        					nextColumn.hide = true;
-        				}
         				return nextColumn;
         			});
         			const signature = JSON.stringify(normalizedColumns);
@@ -236,6 +324,34 @@ scriptContent:
         		}
         			
         		return (this.local?.colDef && this.local.colDef.length > 0 ? this.local.colDef : columns);
+        	}
+        	
+        	public getGridPreviewColumns() {
+        		let columns = this.checkColumnDefs(this.model?.colDef != undefined ? this.model.colDef : []);
+        		if (columns.length > 0) {
+        			return columns;
+        		}
+        		return this.getGridConfiguredColumnDefs(true);
+        	}
+        	
+        	public getGridColumns() {
+        		return this.disabled == true ? this.getGridPreviewColumns() : this.checkColumnDefs(this.model?.colDef != undefined ? this.model.colDef : []);
+        	}
+        	
+        	public getGridPreviewRows() {
+        		const columns = this.getGridPreviewColumns().filter((column) => column?.hide !== true);
+        		const rows = [];
+        		for (let index = 0; index < 3; index++) {
+        			const row = {};
+        			columns.forEach((column) => {
+        				const key = column.field || column.headerName;
+        				if (key != null && key != "") {
+        					row[key] = (column.headerName || key) + " " + (index + 1);
+        				}
+        			});
+        			rows.push(row);
+        		}
+        		return rows;
         	}
             public isGridPaginationEnabled() {
                 return this.item?.config?.gridPaginationEnabled !== false;
@@ -670,13 +786,13 @@ scriptContent:
         varValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: 'script:this.checkColumnDefs(this.model?.colDef != undefined ? this.model.colDef : this.disabled == true ? [{ field: ''make'' },{ field: ''model'' },{ field: ''price'' }]:[])'
+            - MobileSmartSourceType: script:this.getGridColumns()
       ↓rowData [ngx.components.UIUseVariable-1608287020791]: 
         comment: 'Array of row { fieldName1: ''value1'', fieldName2: ''value2'', fieldName3: true, ...} objects'
         varValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: 'script:this.disabled == true ? [{ make: ''Manufacturer 1'', model: ''Model A'', price: 35000 },{ make: ''Manufacturer 2'', model: ''Model B'', price: 32000 },{ make: ''Manufacturer 3'', model: ''Model C'', price: 72000 }] : this.model.data'
+            - MobileSmartSourceType: 'script:this.disabled == true ? this.getGridPreviewRows() : this.model.data'
       ↓width [ngx.components.UIUseVariable-1608287020793]: 
         comment: width value in % or px
         varValue: 
