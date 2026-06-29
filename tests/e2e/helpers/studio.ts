@@ -2551,6 +2551,68 @@ export async function expectDataSourceSortMissingConfigResolved(page: Page): Pro
   ).toBeVisible({ timeout: 15_000 });
 }
 
+export async function setGridReturnedValueToRowSelected(page: Page): Promise<void> {
+  await test.step('Set Data Grid returned value to selected row', async () => {
+    await openConfigTabById(page, 'data_interactions');
+    const returnedValue = page.locator('.class1775842589999');
+    const select = returnedValue.locator('ion-select').first();
+    if (await select.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      const optionIndex = await select.evaluate((el) =>
+        Array.from(el.querySelectorAll('ion-select-option')).findIndex(
+          (option) => (option as HTMLOptionElement & { value?: string }).value === 'row_selected',
+        ),
+      );
+      expect(optionIndex, 'row_selected option should exist').toBeGreaterThanOrEqual(0);
+      await select.click();
+      await page.locator('ion-select-popover ion-item').nth(optionIndex).click();
+      await expect
+        .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+          message: 'grid returned value should be row_selected',
+          timeout: 10_000,
+        })
+        .toBe('row_selected');
+      return;
+    }
+
+    const returnedValueButtons = returnedValue.locator('button:visible, ion-button:visible');
+    await expect
+      .poll(() => returnedValueButtons.count(), {
+        message: 'grid returned value buttons should be visible',
+        timeout: 10_000,
+      })
+      .toBeGreaterThanOrEqual(3);
+    const rowSelectedButton = returnedValueButtons.nth(2);
+    await rowSelectedButton.click({ timeout: 10_000 }).catch(async () => rowSelectedButton.dispatchEvent('click'));
+    await page.waitForTimeout(750);
+  });
+}
+
+export async function selectTinyMcePathBadgeTreeValue(page: Page, label: string, expectedPath: string): Promise<void> {
+  await test.step(`Select ${label} from the TinyMCE path badge tree`, async () => {
+    await clickTinyMcePathBadgeEditButton(page);
+
+    const treeview = page.locator('ion-modal.modalCSV').last();
+    await expect(treeview, 'source tree modal should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(treeview.getByText(label, { exact: true }), `source tree label ${label} should be visible`).toBeVisible({
+      timeout: 45_000,
+    });
+
+    await clickChooseButtonForTreeLabel(page, label);
+    await acceptRgpdIfVisible(page, 500);
+    await expect(treeview, 'source tree modal should close after choosing a value').toBeHidden({ timeout: 15_000 });
+    await expectTinyMcePathBadge(page, expectedPath);
+  });
+}
+
+export async function expectTinyMcePathBadge(page: Page, expectedPath: string): Promise<void> {
+  await expect
+    .poll(() => tinyMcePathBadgePaths(page), {
+      message: `TinyMCE editor should contain path badge ${expectedPath}`,
+      timeout: 10_000,
+    })
+    .toContain(expectedPath);
+}
+
 export async function sourceSelectVisibleOptions(page: Page, expectedOptions: string[]): Promise<string[]> {
   return test.step('Read visible source Select options', async () => {
     if (expectedOptions.length === 0) {
@@ -5320,6 +5382,76 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
   await expect(inlineEditor, 'a TinyMCE editor should be visible').toBeVisible({ timeout: 10_000 });
   return inlineEditor;
+}
+
+async function clickTinyMcePathBadgeEditButton(page: Page): Promise<void> {
+  const frameBadge = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('svg[id^="clickable-"]').first();
+  if (await frameBadge.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await frameBadge.click();
+    return;
+  }
+
+  const inlineBadge = page.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').last();
+  await expect(inlineBadge, 'TinyMCE path badge edit button should be visible').toBeVisible({ timeout: 10_000 });
+  await inlineBadge.click();
+}
+
+async function tinyMcePathBadgePaths(page: Page): Promise<string[]> {
+  const frameBody = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('body');
+  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    return frameBody.evaluate((body) =>
+      Array.from(body.querySelectorAll<HTMLElement>('[c8opath]'))
+        .map((element) => element.getAttribute('c8opath') ?? '')
+        .filter(Boolean),
+    );
+  }
+
+  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(inlineEditor, 'TinyMCE editor should be visible before reading path badges').toBeVisible({ timeout: 10_000 });
+  return inlineEditor.evaluate((body) =>
+    Array.from(body.querySelectorAll<HTMLElement>('[c8opath]'))
+      .map((element) => element.getAttribute('c8opath') ?? '')
+      .filter(Boolean),
+  );
+}
+
+async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise<void> {
+  const center = await page.evaluate((wantedLabel) => {
+    const visible = (el: Element) => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
+    };
+    const modal = [...document.querySelectorAll('ion-modal.modalCSV')].filter(visible).pop();
+    if (!modal) return null;
+
+    const labelEl = [...modal.querySelectorAll('ion-label, p, span, div')]
+      .filter(visible)
+      .find((el) => (el.textContent ?? '').trim() === wantedLabel);
+    if (!labelEl) return null;
+
+    const labelBox = (labelEl as HTMLElement).getBoundingClientRect();
+    const labelY = labelBox.y + labelBox.height / 2;
+    const buttons = [...modal.querySelectorAll('ion-button, button')]
+      .filter(visible)
+      .filter((el) => !(el as HTMLButtonElement).disabled);
+
+    let best: DOMRect | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const button of buttons) {
+      const box = (button as HTMLElement).getBoundingClientRect();
+      if (box.x < labelBox.x) continue;
+      const score = Math.abs(box.y + box.height / 2 - labelY) + Math.max(0, box.x - labelBox.x - 500);
+      if (score < bestScore) {
+        bestScore = score;
+        best = box;
+      }
+    }
+    return best ? { x: best.x + best.width / 2, y: best.y + best.height / 2 } : null;
+  }, label);
+
+  expect(center, `could not find a choose-value button for ${label}`).not.toBeNull();
+  await page.mouse.click(center!.x, center!.y);
 }
 
 async function fireActiveTinyMceChange(page: Page): Promise<void> {
