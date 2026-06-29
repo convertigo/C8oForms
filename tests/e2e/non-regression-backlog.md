@@ -121,7 +121,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 53 deja co
 | [x] | [#1342](https://github.com/convertigo/C8oForms/issues/1342) | closed | bug, QC-Passed, Auto QA Test | Map component: “From a data source” button does not open the source selection panel | Auto QA Test<br>e2e/issue-1342.spec.ts |
 | [ ] | [#1341](https://github.com/convertigo/C8oForms/issues/1341) | closed | bug, QC-Passed | i18n translations missing for the “Chart” component |  |
 | [x] | [#1340](https://github.com/convertigo/C8oForms/issues/1340) | closed | bug, QC-Passed, Auto QA Test | Search bar is accent‑case‑sensitive in both directions (uppercase ↔ lowercase), causing applications not to be found | Auto QA Test<br>e2e/issue-1340.spec.ts |
-| [ ] | [#1339](https://github.com/convertigo/C8oForms/issues/1339) | closed | bug, QC-Passed | Visibility tab: condition is deleted when switching options or cancelling dialog |  |
+| [x] | [#1339](https://github.com/convertigo/C8oForms/issues/1339) | closed | bug, QC-Passed, Auto QA Test | Visibility tab: condition is deleted when switching options or cancelling dialog | Auto QA Test<br>e2e/issue-1339.spec.ts |
 | [ ] | [#1338](https://github.com/convertigo/C8oForms/issues/1338) | closed | bug, QC-Passed | Search by username does not work on the selector page |  |
 | [x] | [#1337](https://github.com/convertigo/C8oForms/issues/1337) | closed | bug, QC-Passed, Auto QA Test | Create Folder button still looks disabled after entering a folder name | Auto QA Test<br>e2e/issue-1337.spec.ts |
 | [ ] | [#1336](https://github.com/convertigo/C8oForms/issues/1336) | closed | bug, QC-Passed | Fix QR button tooltip and toggle label on selector page |  |

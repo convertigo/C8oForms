@@ -244,6 +244,7 @@ type MainEditorConfigTab =
 type ChartHeightMode = 'auto' | 'personalized';
 type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
+export type VisibilityMode = 'always' | 'never' | 'auth_required' | 'no_auth_required' | 'condition';
 
 export async function setStudioLanguageBeforeLoad(page: Page, lang: StudioLanguage): Promise<void> {
   await page.addInitScript((value) => {
@@ -3282,15 +3283,72 @@ async function activateDataSourceMode(page: Page): Promise<void> {
 }
 
 async function activateVisibilityConditionMode(page: Page): Promise<void> {
-  const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
-  if ((await modeButtons.count()) > 0) {
-    await modeButtons.last().click();
-    await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'visibility condition add button should be visible').toBeVisible({
-      timeout: 10_000,
-    });
-    return;
+  await selectVisibilityMode(page, 'condition');
+  await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'visibility condition add button should be visible').toBeVisible({
+    timeout: 10_000,
+  });
+}
+
+function visibilityModeButtonIndex(mode: VisibilityMode): number {
+  switch (mode) {
+    case 'always':
+      return 0;
+    case 'never':
+      return 1;
+    case 'auth_required':
+      return 2;
+    case 'no_auth_required':
+      return 3;
+    case 'condition':
+      return 4;
   }
-  throw new Error('visibility condition mode toggle is not available');
+}
+
+async function visibilityModeButton(page: Page, mode: VisibilityMode): Promise<Locator> {
+  const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
+  const count = await modeButtons.count();
+  if (count < 5) {
+    throw new Error(`visibility mode toggle should expose 5 buttons, found ${count}`);
+  }
+
+  // Other ToggleSwitch instances can share this button class; the Visibility
+  // group is the five-button group whose last entry is condition mode.
+  return modeButtons.nth(count - 5 + visibilityModeButtonIndex(mode));
+}
+
+export async function selectVisibilityMode(page: Page, mode: VisibilityMode): Promise<void> {
+  const button = await visibilityModeButton(page, mode);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await page.waitForTimeout(500);
+}
+
+export async function expectVisibilityModeSelected(page: Page, mode: VisibilityMode): Promise<void> {
+  const button = await visibilityModeButton(page, mode);
+  await expect
+    .poll(async () => (await button.getAttribute('class')) ?? '', {
+      message: `Visibility mode should stay selected: ${mode}`,
+      timeout: 10_000,
+    })
+    .toContain('c8o-btn-selected');
+}
+
+export async function cancelVisibilityModeSwitch(page: Page, targetMode: VisibilityMode): Promise<void> {
+  await selectVisibilityMode(page, targetMode);
+
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  await expect(alert, 'switching away from conditional Visibility should ask for confirmation').toBeVisible({
+    timeout: 10_000,
+  });
+
+  const cancel = alert.locator('button.alert-button-role-cancel').first();
+  await expect(cancel, 'Visibility mode switch confirmation should expose a cancel button').toBeVisible({
+    timeout: 10_000,
+  });
+  await cancel.click({ timeout: 5_000 }).catch(async () => cancel.dispatchEvent('click'));
+  await expect(alert, 'Visibility mode switch confirmation should close after Cancel').toBeHidden({
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(800);
 }
 
 async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getData' | 'getSelectData'): Promise<void> {
@@ -5000,6 +5058,33 @@ export async function setVisibilityOperator(page: Page, operator: VisibilityOper
 export async function configureVisibilityEqualsField(page: Page, fieldTechnicalId: string): Promise<void> {
   await startVisibilityCondition(page, fieldTechnicalId);
   await setVisibilityOperator(page, 'equals');
+}
+
+export async function expectVisibilityConditionConfigured(
+  page: Page,
+  fieldTechnicalId: string,
+  operator: VisibilityOperator,
+  value?: string,
+): Promise<void> {
+  await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'visibility condition controls should remain visible').toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.locator(SEL.conditionFieldInput).first(), 'visibility condition field should remain configured').toHaveValue(
+    fieldTechnicalId,
+    { timeout: 10_000 },
+  );
+
+  const select = page.locator(SEL.conditionOperatorSelect).first();
+  await expect
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: `visibility operator should remain ${operator}`,
+      timeout: 10_000,
+    })
+    .toBe(operator);
+
+  if (value != null) {
+    await expectVisibilityValueTextEditorToContain(page, value);
+  }
 }
 
 export async function fillVisibilityTagValue(page: Page, value: string): Promise<void> {
