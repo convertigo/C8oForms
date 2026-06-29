@@ -5759,19 +5759,23 @@ export async function recordedToasts(page: Page): Promise<string[]> {
  * wait for the tile, then retry once if the layout did not get added.
  */
 export async function addHorizontalLayout(page: Page): Promise<void> {
-  const tile = await paletteTileForIcon(page, PALETTE_ICON.layout, 'Horizontal layout palette tile');
   const layout = page.locator(SEL.layoutViewer);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    await page.waitForTimeout(1_200);
-    await tile.dblclick();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await acceptRgpdIfVisible(page);
+    const tile = await paletteTileForIcon(page, PALETTE_ICON.layout, 'Horizontal layout palette tile');
+    await page.waitForTimeout(1_000);
+    await tile.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await tile.dblclick({ delay: 75, timeout: 5_000 }).catch(async () => {
+      await page.waitForTimeout(500);
+    });
     try {
-      await expect(layout).toHaveCount(1, { timeout: 8_000 });
+      await expect(layout).toHaveCount(1, { timeout: 10_000 });
       return;
     } catch {
-      // editor was not interactive yet; retry once
+      // editor was not interactive yet; retry
     }
   }
-  await expect(layout, 'the Horizontal layout was not added to the page').toHaveCount(1, { timeout: 5_000 });
+  await expect(layout, 'the Horizontal layout was not added to the page').toHaveCount(1, { timeout: 10_000 });
 }
 
 /**
@@ -5893,6 +5897,163 @@ async function waitForLayoutChildCount(children: Locator, expected: number, time
     .toBe(expected)
     .then(() => true)
     .catch(() => false);
+}
+
+const LAYOUT_CHILD_COMPONENT_SELECTORS = [
+  { type: 'text', selector: `${SEL.textComponent}, c8oforms-itemtexteditor` },
+  { type: 'description', selector: `${SEL.descriptionComponent}, c8oforms-itemdescriptioneditor` },
+  { type: 'checkbox', selector: `${SEL.checkboxComponent}, c8oforms-itemcheckboxeditor` },
+  { type: 'button', selector: `${SEL.buttonComponent}, c8oforms-itembuttoneditor` },
+] as const;
+
+export async function layoutChildComponentTypes(page: Page): Promise<string[]> {
+  return page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).evaluateAll((children, candidates) => {
+    return children.map((child) => {
+      const element = child as Element;
+      for (const candidate of candidates) {
+        if (element.querySelector(candidate.selector)) {
+          return candidate.type;
+        }
+      }
+
+      const itemTag = Array.from(element.querySelectorAll('*'))
+        .map((descendant) => descendant.tagName.toLowerCase())
+        .find((tag) => tag.startsWith('c8oforms-item') && !tag.includes('layouteditor'));
+      return itemTag ?? 'unknown';
+    });
+  }, LAYOUT_CHILD_COMPONENT_SELECTORS);
+}
+
+/**
+ * Reorder a child already nested in a Horizontal layout by dragging it to the
+ * final layout child drop zone. The caller must assert the final DOM order; the
+ * helper only performs the user gesture.
+ */
+export async function moveLayoutChildToEnd(page: Page, fromIndex = 0): Promise<void> {
+  await enableNativeDropDeliveryForLayoutDropZones(page);
+
+  await selectAnotherLayoutChild(page, fromIndex);
+  const sourceChild = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).nth(fromIndex);
+  const source = sourceChild.locator(SEL.layoutChildCard).first();
+  await dragLayoutChildToEndWithPointer(page, source, fromIndex);
+}
+
+/**
+ * Drag an existing nested child to the leading layout drop zone. This is the
+ * #1364-sensitive path: beta151 lacks a usable before/between-child drop zone,
+ * so the DOM order remains unchanged.
+ */
+export async function moveLayoutChildToStart(page: Page, fromIndex: number): Promise<void> {
+  await enableNativeDropDeliveryForLayoutDropZones(page);
+
+  await selectAnotherLayoutChild(page, fromIndex);
+  const sourceChild = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).nth(fromIndex);
+  const source = sourceChild.locator(SEL.layoutChildCard).first();
+  await dragLayoutChildToStartWithPointer(page, source, fromIndex);
+}
+
+async function selectAnotherLayoutChild(page: Page, fromIndex: number): Promise<void> {
+  const children = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`);
+  const count = await children.count();
+  if (count < 2) return;
+
+  const otherIndex = fromIndex === 0 ? 1 : 0;
+  const other = children.nth(otherIndex);
+  const card = other.locator(SEL.layoutChildCard).first();
+  const box = (await card.boundingBox().catch(() => null)) ?? (await other.boundingBox().catch(() => null));
+  if (!box) return;
+
+  await page.mouse.move(5, 5);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(800);
+
+  if (await page.locator(`${SEL.configClose}:visible`).first().isVisible({ timeout: 1_500 }).catch(() => false)) {
+    await closeComponentConfig(page);
+    await expect(page.locator(SEL.layoutViewer), 'the Horizontal layout should be visible after closing child editor').toBeVisible({
+      timeout: 10_000,
+    });
+  }
+}
+
+async function dragLayoutChildToEndWithPointer(page: Page, source: Locator, fromIndex: number): Promise<void> {
+  await source.scrollIntoViewIfNeeded();
+  await expect(source, `layout child #${fromIndex} should be visible before dragging`).toBeVisible({ timeout: 10_000 });
+
+  const sourceBox = await source.boundingBox();
+  if (!sourceBox) throw new Error(`layout child #${fromIndex} has no bounding box`);
+
+  await page.mouse.move(5, 5);
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2, { steps: 8 });
+  await page.mouse.down();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 14, sourceBox.y + sourceBox.height / 2 + 10, {
+    steps: 8,
+  });
+
+  const layout = page.locator(SEL.layoutViewer).first();
+  const layoutBox = await layout.boundingBox();
+  if (!layoutBox) throw new Error('Horizontal layout has no bounding box');
+
+  await page.mouse.move(layoutBox.x + layoutBox.width - 12, layoutBox.y + layoutBox.height / 2, { steps: 25 });
+  await page.waitForTimeout(500);
+
+  const zone = await layoutChildDropZoneLocator(page, 1_000);
+  const zoneBox = zone ? await zone.boundingBox() : null;
+  if (zoneBox) {
+    await page.mouse.move(zoneBox.x + zoneBox.width / 2, zoneBox.y + zoneBox.height / 2, { steps: 8 });
+  }
+
+  await page.waitForTimeout(250);
+  await page.mouse.up();
+  await page.waitForTimeout(1_500);
+}
+
+async function dragLayoutChildToStartWithPointer(page: Page, source: Locator, fromIndex: number): Promise<void> {
+  await source.scrollIntoViewIfNeeded();
+  await expect(source, `layout child #${fromIndex} should be visible before dragging`).toBeVisible({ timeout: 10_000 });
+
+  const sourceBox = await source.boundingBox();
+  if (!sourceBox) throw new Error(`layout child #${fromIndex} has no bounding box`);
+
+  await page.mouse.move(5, 5);
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2, { steps: 8 });
+  await page.mouse.down();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2 - 14, sourceBox.y + sourceBox.height / 2 + 10, {
+    steps: 8,
+  });
+
+  const layout = page.locator(SEL.layoutViewer).first();
+  const layoutBox = await layout.boundingBox();
+  if (!layoutBox) throw new Error('Horizontal layout has no bounding box');
+
+  await page.mouse.move(layoutBox.x + 12, layoutBox.y + layoutBox.height / 2, { steps: 25 });
+  await page.waitForTimeout(500);
+
+  const zone = await layoutChildLeadingDropZoneLocator(page, 1_000);
+  const zoneBox = zone ? await zone.boundingBox() : null;
+  if (zoneBox) {
+    await page.mouse.move(zoneBox.x + zoneBox.width / 2, zoneBox.y + zoneBox.height / 2, { steps: 8 });
+  }
+
+  await page.waitForTimeout(250);
+  await page.mouse.up();
+  await page.waitForTimeout(1_500);
+}
+
+async function layoutChildDropZoneLocator(page: Page, timeout: number): Promise<Locator | null> {
+  const selector = [
+    `${SEL.layoutViewer} c8oforms-shareddropindicator`,
+    `${SEL.layoutViewer} [id*="afterItem"]`,
+    `${SEL.layoutViewer} ${SEL.containerInitialDropZone}`,
+  ].join(', ');
+  return lastVisibleLocator(page, selector, 'layout child reorder drop zone', timeout).catch(() => null);
+}
+
+async function layoutChildLeadingDropZoneLocator(page: Page, timeout: number): Promise<Locator | null> {
+  const selector = [
+    `${SEL.layoutViewer} .class1780324100000 c8oforms-shareddropindicator`,
+    `${SEL.layoutViewer} [id*="beforeItem"]`,
+  ].join(', ');
+  return firstVisibleLocator(page, selector, 'layout child leading drop zone', timeout).catch(() => null);
 }
 
 // Helpers for opening a nested layout child's own editor across UI variants.
