@@ -692,17 +692,112 @@ scriptContent:
         			catch (e) { }
         			// [INFO] clear custom markers if no error occured : see issue 1160 for more details
         			this.clearMonacoParseErrorMarkers();
+        			// [INFO] clear monacoToastError for the current component and the current monaco editor
+        			this.clearMonacoToastErrorsForCurrentEditor();
+        			console.log(this.pageOwner.monacoToastErrors);
         			return workingB;
         		}
         		catch (e) {
         			console.error("an error occured while pasing", e);
+        			console.log(this.pageOwner)
         			// [INFO] set custom marker if an error occured in the code parse action : see issue 1160 for more details
         			this.setMonacoParseErrorMarker(e);
+        			// [INFO] set error in monacoToastErrors property of the pageOwner, this would be useful when we want to display a toast error after the save action
+        			this.syncMonacoToastErrorsForCurrentEditor();
         			// [INFO] previous code below that display toast error on each parse for each blur event triggered : see issue 1160 for more details
         //			this.presentToast(this.translate.instant("error_computing", { err: e.name + " : " + e.message }), ''toastError'', "c8oforms-monaco-parse-error-toast").catch((toastError) => console.error(toastError));
         			throw e;
         		}
         
+        	}
+        	
+        	private syncMonacoToastErrorsForCurrentEditor(): void {
+        		const model = this.monacoEditorInstance?.getModel?.();
+        
+        		if (!model || typeof monaco === "undefined") {
+        			return;
+        		}
+        
+        		const componentId = this.pageOwner.idselected;
+        		const editorId = this.monacoEditorInstance.getId();
+        		const owner = "c8oforms-monaco-parse";
+        
+        		const markers = monaco.editor.getModelMarkers({
+        			resource: model.uri
+        		});
+        
+        		const currentMarkers = markers
+        			.filter((marker: any) => marker.owner === owner)
+        			.map((marker: any) => ({
+        				owner: marker.owner,
+        				message: marker.message,
+        				line: marker.startLineNumber,
+        				column: marker.startColumn,
+        				severity: marker.severity
+        			}));
+        
+        		if (!this.pageOwner.monacoToastErrors) {
+        			this.pageOwner.monacoToastErrors = {};
+        		}
+        
+        		if (!this.pageOwner.monacoToastErrors[componentId]) {
+        			this.pageOwner.monacoToastErrors[componentId] = {};
+        		}
+        
+        		// Si l’éditeur n’a plus d’erreur, on le supprime de la registry
+        		if (currentMarkers.length === 0) {
+        			delete this.pageOwner.monacoToastErrors[componentId][editorId];
+        
+        			if (Object.keys(this.pageOwner.monacoToastErrors[componentId]).length === 0) {
+        				delete this.pageOwner.monacoToastErrors[componentId];
+        			}
+        
+        			return;
+        		}
+        
+        		// Sinon, on remplace complètement les erreurs de cet editor
+        		this.pageOwner.monacoToastErrors[componentId][editorId] = currentMarkers;
+        	}
+        	
+        	private normalizeMonacoMarkers(markers: any[]): any[] {
+        		const uniqueMarkers = new Map<string, any>();
+        
+        		for (const marker of markers) {
+        			const normalizedMarker = {
+        				owner: marker.owner,
+        				message: marker.message,
+        				line: marker.startLineNumber,
+        				column: marker.startColumn,
+        				severity: marker.severity
+        			};
+        
+        			const signature = [
+        				normalizedMarker.owner,
+        				normalizedMarker.message,
+        				normalizedMarker.line,
+        				normalizedMarker.column,
+        				normalizedMarker.severity
+        			].join("|");
+        
+        			uniqueMarkers.set(signature, normalizedMarker);
+        		}
+        
+        		return Array.from(uniqueMarkers.values());
+        	}
+        	
+        	private clearMonacoToastErrorsForCurrentEditor(): void {
+        		const componentId = this.pageOwner.idselected;
+        		const editorId = this.monacoEditorInstance?.getId?.();
+        
+        		if (!componentId || !editorId || !this.pageOwner.monacoToastErrors?.[componentId]) {
+        			return;
+        		}
+        
+        		delete this.pageOwner.monacoToastErrors[componentId][editorId];
+        
+        		if (Object.keys(this.pageOwner.monacoToastErrors[componentId]).length === 0) {
+        			delete this.pageOwner.monacoToastErrors[componentId];
+        		}
         	}
         	
         	private clearMonacoParseErrorMarkers(): void {
@@ -711,22 +806,22 @@ scriptContent:
         		if (!model || typeof monaco === "undefined") {
         			return;
         		}
-        		
-        		if (model && typeof monaco !== "undefined") {
-        			const markers = monaco.editor.getModelMarkers({
-        				resource: model.uri
-        			});
-        
-        			console.table(
-        				markers.map((marker: any) => ({
-        					owner: marker.owner,
-        					message: marker.message,
-        					line: marker.startLineNumber,
-        					column: marker.startColumn,
-        					severity: marker.severity
-        				}))
-        			);
-        		}
+        		// [TEST] see issue 1160 for more details
+        //		if (model && typeof monaco !== "undefined") {
+        //			const markers = monaco.editor.getModelMarkers({
+        //				resource: model.uri
+        //			});
+        //
+        //			console.table(
+        //				markers.map((marker: any) => ({
+        //					owner: marker.owner,
+        //					message: marker.message,
+        //					line: marker.startLineNumber,
+        //					column: marker.startColumn,
+        //					severity: marker.severity
+        //				}))
+        //			);
+        //		}
         
         		monaco.editor.setModelMarkers(
         			model,
@@ -760,21 +855,22 @@ scriptContent:
         			return;
         		}
         		
-        		if (model && typeof monaco !== "undefined") {
-        			const markers = monaco.editor.getModelMarkers({
-        				resource: model.uri
-        			});
-        
-        			console.table(
-        				markers.map((marker: any) => ({
-        					owner: marker.owner,
-        					message: marker.message,
-        					line: marker.startLineNumber,
-        					column: marker.startColumn,
-        					severity: marker.severity
-        				}))
-        			);
-        		}
+        		// [TEST] see issue 1160 for more details
+        //		if (model && typeof monaco !== "undefined") {
+        //			const markers = monaco.editor.getModelMarkers({
+        //				resource: model.uri
+        //			});
+        //
+        //			console.table(
+        //				markers.map((marker: any) => ({
+        //					owner: marker.owner,
+        //					message: marker.message,
+        //					line: marker.startLineNumber,
+        //					column: marker.startColumn,
+        //					severity: marker.severity
+        //				}))
+        //			);
+        //		}
         
         		const errorInfo = this.getMonacoSaveErrorInfo(e);
         
