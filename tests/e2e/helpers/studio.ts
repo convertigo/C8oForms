@@ -149,6 +149,12 @@ export const SEL = {
   publishedApplicationsTab: 'ion-button.class1761754757348',
   selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
   selectorSearchByNameInput: 'page-selectorpage input',
+  selectorFilterInlineToggleButton: 'ion-button.class1772117859505',
+  selectorFilterPopoverButton: 'ion-button.class1750686602638',
+  selectorFiltersPopover: 'ion-popover:not(.overlay-hidden)',
+  selectorHideFoldersButton: 'ion-button.class1761751296593',
+  selectorHideFoldersCheckbox: 'ion-checkbox.class1750693290583',
+  selectorApplyFiltersButton: 'ion-button.class1750693491899',
   selectorCardTitle: '.class1603968061706',
   selectorListTitle: '.class1780484375240',
   cardMenuButton: 'ion-button.class1606574763560',
@@ -3962,6 +3968,86 @@ export async function openCreateFolderPrompt(page: Page): Promise<Locator> {
   return alert;
 }
 
+export async function createSelectorFolder(page: Page, title: string): Promise<void> {
+  await test.step(`Create selector folder ${title}`, async () => {
+    await setSelectorHideFoldersFilter(page, false);
+    const alert = await openCreateFolderPrompt(page);
+
+    const input = alert.locator(SEL.createFolderTitleInput).first();
+    await expect(input, 'create folder title input should be visible').toBeVisible({ timeout: 15_000 });
+    await input.fill(title, { timeout: 15_000 });
+    await expect(input, 'create folder title should be filled before saving').toHaveValue(title, { timeout: 10_000 });
+
+    const save = alert.locator(SEL.createFolderSaveButton).first();
+    await expect(save, 'create folder save button should be visible').toBeVisible({ timeout: 10_000 });
+    await expect
+      .poll(() => locatorCanBeClicked(save), {
+        message: 'create folder save button should be enabled before clicking',
+        timeout: 10_000,
+      })
+      .toBe(true);
+
+    await save.click({ timeout: 10_000 }).catch(async () => save.dispatchEvent('click'));
+    await expect(alert, 'create folder prompt should close after saving').toBeHidden({ timeout: 15_000 });
+    await waitForIonicLoading(page, 10_000);
+    await expectSelectorFolderVisible(page, title);
+  });
+}
+
+export async function setSelectorHideFoldersFilter(page: Page, enabled: boolean): Promise<void> {
+  await test.step(`${enabled ? 'Enable' : 'Disable'} Hide folders selector filter`, async () => {
+    await expectRoute(page, ROUTE.selector);
+    await waitForSelectorHomeReadyForCreate(page);
+
+    let button = await firstVisibleLocatorOrNull(page, SEL.selectorHideFoldersButton, 1_500);
+    if (!button) {
+      await openSelectorInlineFiltersIfAvailable(page);
+      button = await firstVisibleLocatorOrNull(page, SEL.selectorHideFoldersButton, 5_000);
+    }
+
+    if (button) {
+      await button.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+      if ((await selectorHideFoldersQuickFilterEnabled(page)) !== enabled) {
+        await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+      }
+
+      await expect
+        .poll(() => selectorHideFoldersQuickFilterEnabled(page), {
+          message: `Hide folders quick filter should be ${enabled ? 'enabled' : 'disabled'}`,
+          timeout: 10_000,
+        })
+        .toBe(enabled);
+    } else {
+      await setSelectorHideFoldersFilterViaPopover(page, enabled);
+    }
+
+    await waitForIonicLoading(page, 10_000);
+    await waitForSelectorFormListLoaded(page);
+  });
+}
+
+export async function expectSelectorFolderVisible(page: Page, title: string): Promise<void> {
+  await test.step(`Assert selector folder ${title} is visible`, async () => {
+    await expect
+      .poll(() => selectorFolderVisible(page, title), {
+        message: `selector folder "${title}" should be visible`,
+        timeout: 30_000,
+      })
+      .toBe(true);
+  });
+}
+
+export async function expectSelectorFolderHidden(page: Page, title: string): Promise<void> {
+  await test.step(`Assert selector folder ${title} is hidden`, async () => {
+    await expect
+      .poll(() => selectorFolderVisible(page, title), {
+        message: `selector folder "${title}" should be hidden`,
+        timeout: 30_000,
+      })
+      .toBe(false);
+  });
+}
+
 export async function alertValidationButtonState(
   alert: Locator,
   buttonSelector: string,
@@ -3982,6 +4068,93 @@ export async function alertValidationButtonState(
       filter: style.filter,
     };
   });
+}
+
+async function locatorCanBeClicked(locator: Locator): Promise<boolean> {
+  if (!(await locator.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+  return locator.evaluate((el) => {
+    const element = el as HTMLElement & { disabled?: boolean };
+    const style = window.getComputedStyle(element);
+    return element.disabled !== true && element.getAttribute('aria-disabled') !== 'true' && style.pointerEvents !== 'none';
+  });
+}
+
+async function selectorHideFoldersQuickFilterEnabled(page: Page): Promise<boolean> {
+  return page.locator(SEL.selectorHideFoldersButton).evaluateAll((buttons) => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const button = buttons.find(visible);
+    return !!button?.classList.contains('btn--allfolders');
+  });
+}
+
+async function openSelectorInlineFiltersIfAvailable(page: Page): Promise<void> {
+  const toggle = await firstVisibleLocatorOrNull(page, SEL.selectorFilterInlineToggleButton, 1_000);
+  if (!toggle) {
+    return;
+  }
+  await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
+}
+
+async function setSelectorHideFoldersFilterViaPopover(page: Page, enabled: boolean): Promise<void> {
+  const openButton = await firstVisibleLocator(page, SEL.selectorFilterPopoverButton, 'selector filters popover button', 15_000);
+  await openButton.click({ timeout: 10_000 }).catch(async () => openButton.dispatchEvent('click'));
+
+  const popover = page.locator(SEL.selectorFiltersPopover).last();
+  await expect(popover, 'selector filters popover should open').toBeVisible({ timeout: 15_000 });
+
+  const checkbox = popover.locator(SEL.selectorHideFoldersCheckbox).first();
+  await expect(checkbox, 'Hide folders checkbox should be visible in filters popover').toBeVisible({ timeout: 10_000 });
+  if ((await ionCheckboxChecked(checkbox)) !== enabled) {
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+  }
+  await expect
+    .poll(() => ionCheckboxChecked(checkbox), {
+      message: `Hide folders checkbox should be ${enabled ? 'checked' : 'unchecked'}`,
+      timeout: 10_000,
+    })
+    .toBe(enabled);
+
+  const apply = popover.locator(SEL.selectorApplyFiltersButton).first();
+  await expect(apply, 'filters popover apply button should be visible').toBeVisible({ timeout: 10_000 });
+  await apply.click({ timeout: 10_000 }).catch(async () => apply.dispatchEvent('click'));
+  await expect(popover, 'selector filters popover should close after applying').toBeHidden({ timeout: 15_000 });
+}
+
+async function ionCheckboxChecked(checkbox: Locator): Promise<boolean> {
+  return checkbox.evaluate((el) => {
+    const host = el as HTMLElement & { checked?: boolean };
+    const input = host.shadowRoot?.querySelector('input') as HTMLInputElement | null;
+    return (
+      host.checked === true ||
+      input?.checked === true ||
+      host.classList.contains('checkbox-checked') ||
+      host.getAttribute('aria-checked') === 'true'
+    );
+  });
+}
+
+async function selectorFolderVisible(page: Page, title: string): Promise<boolean> {
+  return page.evaluate((expectedTitle) => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const isFolderCard = (card: HTMLElement) =>
+      card.classList.contains('card-container--folder') ||
+      !!card.querySelector('ion-icon[src*="folder.svg"], ion-icon[src*="folder-open.svg"], img[src*="folder.svg"], img[src*="folder-open.svg"]');
+
+    return [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')]
+      .filter(visible)
+      .some((card) => isFolderCard(card) && normalize(card.innerText).includes(expectedTitle));
+  }, title);
 }
 
 /**

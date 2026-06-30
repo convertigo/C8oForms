@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 53 deja couverts; 171 a couvrir (24 ouverts, 147 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja couverts; 170 a couvrir (24 ouverts, 146 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -109,7 +109,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 53 deja co
 | [x] | [#1355](https://github.com/convertigo/C8oForms/issues/1355) | closed | bug, QC-Passed, Auto QA Test | "Style du bouton" and "Icone du bouton" sections are not translated in other languages than French | Auto QA Test<br>e2e/issue-1355.spec.ts |
 | [x] | [#1354](https://github.com/convertigo/C8oForms/issues/1354) | closed | bug, QC-Passed, Auto QA Test | Remove the “Question” section from Button components (misleading, CSS is configured in “Style”) | Auto QA Test<br>e2e/issue-1354.spec.ts |
 | [x] | [#1353](https://github.com/convertigo/C8oForms/issues/1353) | closed | bug, QC-Passed, Auto QA Test | “Sort” filter shows infinite progress bar when Data source is not configured | Auto QA Test<br>e2e/issue-1353.spec.ts |
-| [ ] | [#1352](https://github.com/convertigo/C8oForms/issues/1352) | closed | bug, QC-Passed | Hidden folders filter only applies after changing view |  |
+| [x] | [#1352](https://github.com/convertigo/C8oForms/issues/1352) | closed | bug, QC-Passed, Auto QA Test | Hidden folders filter only applies after changing view | Auto QA Test<br>e2e/issue-1352.spec.ts |
 | [ ] | [#1351](https://github.com/convertigo/C8oForms/issues/1351) | closed | bug, QC-Passed | Limit Baserow table data scan to 1000 rows by default |  |
 | [ ] | [#1349](https://github.com/convertigo/C8oForms/issues/1349) | closed | bug, QC-Passed | User search bar shows “undefined” when a user has no display name |  |
 | [ ] | [#1348](https://github.com/convertigo/C8oForms/issues/1348) | closed | bug, QC-Passed | "My applications" filter does not work and becomes persistent after reload |  |
