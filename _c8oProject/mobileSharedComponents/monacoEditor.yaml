@@ -691,7 +691,7 @@ scriptContent:
         				console.log(workingB);
         				try {
         				// [INFO] clear custom markers if no error occured : see issue 1160 for more details
-        				this.clearMonacoParseErrorMarkers();
+        //				this.clearMonacoParseErrorMarkers();
         				// [INFO] clear monacoToastError for the current component and the current monaco editor
         				this.clearMonacoToastErrorsForCurrentEditor();
         				}
@@ -710,9 +710,75 @@ scriptContent:
         			console.log(this.pageOwner)
         			try {
         				// [INFO] set custom marker if an error occured in the code parse action : see issue 1160 for more details
-        				this.setMonacoParseErrorMarker(e);
+        //				this.setMonacoParseErrorMarker(e);
         				// [INFO] set error in monacoToastErrors property of the pageOwner, this would be useful when we want to display a toast error after the save action
-        				this.syncMonacoToastErrorsForCurrentEditor();				
+        //				this.syncMonacoToastErrorsForCurrentEditor(e);
+        
+        				const model = this.monacoEditorInstance?.getModel?.();
+        				
+        				if (!model || typeof monaco === "undefined") {
+        					return;
+        				}
+        
+        				const errorInfo = this.getMonacoSaveErrorInfo(e);
+        				
+        				let message = this.translate.instant(
+        					errorInfo.i18nKey,
+        					errorInfo.params
+        				);
+        				
+        				if (errorInfo.params?.line && errorInfo.params?.column) {
+        					message += " " + this.translate.instant("monaco_error_location", {
+        						line: errorInfo.params.line,
+        						column: errorInfo.params.column
+        					});
+        				}
+        				
+        				const rawLine = e?.loc?.line || 1;
+        				const rawColumn = e?.loc?.column !== undefined ? e.loc.column + 1 : 1;
+        				
+        				
+        				if (this.hasDefaultMonacoMarkerAt(rawLine, rawColumn)) {
+        					this.clearMonacoParseErrorMarkers();
+        					return;
+        				}
+        				
+        				const line = Math.min(
+        					Math.max(rawLine, 1),
+        					model.getLineCount()
+        				);
+        				
+        				const maxColumn = model.getLineMaxColumn(line);
+        				
+        				const startColumn = Math.min(
+        					Math.max(rawColumn, 1),
+        					maxColumn
+        				);
+        				
+        				const endColumn = Math.min(
+        					startColumn + 1,
+        					maxColumn
+        				);
+        				
+        				if (!this.pageOwner.monacoToastErrors) {
+        					this.pageOwner.monacoToastErrors = {};
+        				}
+        				
+        				if (!this.pageOwner.monacoToastErrors[this.pageOwner.idselected]) {
+        					this.pageOwner.monacoToastErrors[this.pageOwner.idselected] = {};
+        				}
+        				
+        				this.pageOwner.monacoToastErrors[this.pageOwner.idselected][this.monacoEditorInstance.getId()].push(
+        					{
+        						startLineNumber: line,
+        						startColumn,
+        						endLineNumber: line,
+        						endColumn,
+        						severity: monaco.MarkerSeverity.Error,
+        						message
+        					}
+        				);	
+        				console.log(this.pageOwner.monacoToastErrors[this.pageOwner.idselected][this.monacoEditorInstance.getId()])
         			}
         			catch (uiError) {
         				this.pageOwner?.c8o?.log?.warn?.(
@@ -726,7 +792,7 @@ scriptContent:
         
         	}
         	
-        	private syncMonacoToastErrorsForCurrentEditor(): void {
+        	private syncMonacoToastErrorsForCurrentEditor(e): void {
         		const model = this.monacoEditorInstance?.getModel?.();
         
         		if (!model || typeof monaco === "undefined") {
@@ -941,6 +1007,8 @@ scriptContent:
         				}
         			]
         		);
+        		
+        		
         	}
         	
         	private getMonacoSaveErrorInfo(e: any): {
@@ -948,53 +1016,63 @@ scriptContent:
         		i18nKey: string;
         		params?: any;
         	} {
-        		
         		const MONACO_SAVE_ERROR_DESCRIPTIONS = {
         			JS_UNEXPECTED_TOKEN: {
-        				i18nKey: "monaco_error_unexpected_token",
-        				defaultMessage: "La formule contient une erreur de syntaxe JavaScript. Vérifiez que le code est complet avant de sauvegarder."
+        				i18nKey: "monaco_error_unexpected_token"
         			},
         			JS_UNEXPECTED_END: {
-        				i18nKey: "monaco_error_unexpected_end",
-        				defaultMessage: "La formule semble incomplète. Vérifiez qu’une parenthèse, accolade ou instruction n’est pas restée ouverte."
+        				i18nKey: "monaco_error_unexpected_end"
         			},
         			JS_UNTERMINATED_STRING: {
-        				i18nKey: "monaco_error_unterminated_string",
-        				defaultMessage: "Une chaîne de caractères n’est pas fermée. Vérifiez les guillemets simples, doubles ou backticks."
+        				i18nKey: "monaco_error_unterminated_string"
+        			},
+        			JS_UNTERMINATED_TEMPLATE: {
+        				i18nKey: "monaco_error_unterminated_template"
+        			},
+        			JS_UNTERMINATED_REGEX: {
+        				i18nKey: "monaco_error_unterminated_regex"
+        			},
+        			JS_INVALID_REGEX: {
+        				i18nKey: "monaco_error_invalid_regex"
         			},
         			JS_RESERVED_WORD: {
-        				i18nKey: "monaco_error_reserved_word",
-        				defaultMessage: "La formule utilise un mot réservé JavaScript à un endroit non autorisé."
+        				i18nKey: "monaco_error_reserved_word"
         			},
         			JS_DUPLICATE_IDENTIFIER: {
-        				i18nKey: "monaco_error_duplicate_identifier",
-        				defaultMessage: "Une variable semble être déclarée plusieurs fois avec le même nom."
+        				i18nKey: "monaco_error_duplicate_identifier"
         			},
         			JS_RETURN_OUTSIDE_FUNCTION: {
-        				i18nKey: "monaco_error_return_outside_function",
-        				defaultMessage: "L’instruction return est utilisée en dehors d’une fonction valide."
+        				i18nKey: "monaco_error_return_outside_function"
         			},
-        			JS_REFERENCE_ERROR: {
-        				i18nKey: "monaco_error_reference_error",
-        				defaultMessage: "La formule utilise une variable ou un composant qui n’existe pas."
+        			JS_AWAIT_OUTSIDE_ASYNC: {
+        				i18nKey: "monaco_error_await_outside_async"
         			},
-        			JS_TYPE_ERROR: {
-        				i18nKey: "monaco_error_type_error",
-        				defaultMessage: "La formule tente d’utiliser une valeur avec un type incorrect."
+        			JS_IMPORT_EXPORT_ERROR: {
+        				i18nKey: "monaco_error_import_export"
         			},
-        			JS_RANGE_ERROR: {
-        				i18nKey: "monaco_error_range_error",
-        				defaultMessage: "La formule produit une valeur hors limites ou une opération récursive trop importante."
+        			JS_INVALID_ASSIGNMENT: {
+        				i18nKey: "monaco_error_invalid_assignment"
+        			},
+        			JS_INVALID_ESCAPE: {
+        				i18nKey: "monaco_error_invalid_escape"
         			},
         			JS_SYNTAX_ERROR: {
-        				i18nKey: "monaco_error_syntax_error",
-        				defaultMessage: "La formule contient une erreur de syntaxe JavaScript."
+        				i18nKey: "monaco_error_syntax_error"
+        			},
+        			JS_REFERENCE_ERROR: {
+        				i18nKey: "monaco_error_reference_error"
+        			},
+        			JS_TYPE_ERROR: {
+        				i18nKey: "monaco_error_type_error"
+        			},
+        			JS_RANGE_ERROR: {
+        				i18nKey: "monaco_error_range_error"
         			},
         			JS_UNKNOWN_ERROR: {
-        				i18nKey: "monaco_error_unknown_error",
-        				defaultMessage: "Une erreur est survenue lors de la sauvegarde de la formule."
+        				i18nKey: "monaco_error_unknown_error"
         			}
         		};
+        
         		const name = e?.name || "Error";
         		const rawMessage = e?.message || "";
         		const line = e?.loc?.line;
@@ -1008,22 +1086,6 @@ scriptContent:
         		};
         
         		if (name === "SyntaxError") {
-        			if (/Unexpected end of input/i.test(rawMessage)) {
-        				return {
-        					code: "JS_UNEXPECTED_END",
-        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNEXPECTED_END.i18nKey,
-        					params
-        				};
-        			}
-        
-        			if (/Unexpected token/i.test(rawMessage)) {
-        				return {
-        					code: "JS_UNEXPECTED_TOKEN",
-        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNEXPECTED_TOKEN.i18nKey,
-        					params
-        				};
-        			}
-        
         			if (/Unterminated string/i.test(rawMessage)) {
         				return {
         					code: "JS_UNTERMINATED_STRING",
@@ -1032,10 +1094,34 @@ scriptContent:
         				};
         			}
         
-        			if (/Unexpected reserved word/i.test(rawMessage)) {
+        			if (/Unterminated template/i.test(rawMessage) || /Unterminated template literal/i.test(rawMessage)) {
         				return {
-        					code: "JS_RESERVED_WORD",
-        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_RESERVED_WORD.i18nKey,
+        					code: "JS_UNTERMINATED_TEMPLATE",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNTERMINATED_TEMPLATE.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Unterminated regular expression/i.test(rawMessage) || /Unterminated regexp/i.test(rawMessage)) {
+        				return {
+        					code: "JS_UNTERMINATED_REGEX",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNTERMINATED_REGEX.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Invalid regular expression/i.test(rawMessage)) {
+        				return {
+        					code: "JS_INVALID_REGEX",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_INVALID_REGEX.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Unexpected end of input/i.test(rawMessage)) {
+        				return {
+        					code: "JS_UNEXPECTED_END",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNEXPECTED_END.i18nKey,
         					params
         				};
         			}
@@ -1052,6 +1138,54 @@ scriptContent:
         				return {
         					code: "JS_RETURN_OUTSIDE_FUNCTION",
         					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_RETURN_OUTSIDE_FUNCTION.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/await.*outside/i.test(rawMessage) || /Cannot use keyword ''await''/i.test(rawMessage)) {
+        				return {
+        					code: "JS_AWAIT_OUTSIDE_ASYNC",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_AWAIT_OUTSIDE_ASYNC.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/import.*export/i.test(rawMessage) || /''import'' and ''export''/i.test(rawMessage) || /Cannot use import statement/i.test(rawMessage)) {
+        				return {
+        					code: "JS_IMPORT_EXPORT_ERROR",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_IMPORT_EXPORT_ERROR.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Assigning to rvalue/i.test(rawMessage) || /Invalid left-hand side/i.test(rawMessage)) {
+        				return {
+        					code: "JS_INVALID_ASSIGNMENT",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_INVALID_ASSIGNMENT.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Bad escape/i.test(rawMessage) || /Invalid escape/i.test(rawMessage) || /Escape sequence/i.test(rawMessage)) {
+        				return {
+        					code: "JS_INVALID_ESCAPE",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_INVALID_ESCAPE.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Unexpected reserved word/i.test(rawMessage)) {
+        				return {
+        					code: "JS_RESERVED_WORD",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_RESERVED_WORD.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Unexpected token/i.test(rawMessage)) {
+        				return {
+        					code: "JS_UNEXPECTED_TOKEN",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNEXPECTED_TOKEN.i18nKey,
         					params
         				};
         			}
@@ -3204,7 +3338,7 @@ scriptContent:
         	         }
         	
         	private initMonaco() {
-        		// [INFO] disable javascript markers : see issue 1160 for more details
+        //		// [INFO] disable javascript markers : see issue 1160 for more details
         //		monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
         //			noSyntaxValidation: true,
         //			noSemanticValidation: true,
