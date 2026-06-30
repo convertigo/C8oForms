@@ -2795,6 +2795,78 @@ export async function expectBaserowAddRowColumnMappingDeletable(page: Page, colu
   });
 }
 
+export async function setBaserowAddRowColumnMappingJavaScriptReturn(
+  page: Page,
+  column: string,
+  returnExpression: string,
+): Promise<void> {
+  await test.step(`Set Baserow Add Row mapping ${column} JavaScript value`, async () => {
+    await selectBaserowActionVariable(page, column);
+    await openBaserowActionVariableJavaScriptMode(page, column);
+    await replaceVisibleMonacoReturn(page, returnExpression, `Baserow Add Row mapping ${column}`);
+  });
+}
+
+export async function expectBaserowAddRowColumnMappingJavaScriptContains(
+  page: Page,
+  column: string,
+  expected: string,
+): Promise<void> {
+  await test.step(`Assert Baserow Add Row mapping ${column} JavaScript contains ${expected}`, async () => {
+    await selectBaserowActionVariable(page, column);
+    await openBaserowActionVariableJavaScriptMode(page, column);
+    const editor = await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
+    await expect(editor, `Baserow Add Row mapping ${column} JavaScript should contain ${expected}`).toContainText(expected, {
+      timeout: 10_000,
+    });
+  });
+}
+
+export async function expectBaserowAddRowColumnMappingJavaScriptNotContains(
+  page: Page,
+  column: string,
+  forbidden: string,
+): Promise<void> {
+  await test.step(`Assert Baserow Add Row mapping ${column} JavaScript does not contain ${forbidden}`, async () => {
+    await selectBaserowActionVariable(page, column);
+    await openBaserowActionVariableJavaScriptMode(page, column);
+    const editor = await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
+    await expect(editor, `Baserow Add Row mapping ${column} JavaScript should not reuse ${forbidden}`).not.toContainText(
+      forbidden,
+      { timeout: 5_000 },
+    );
+  });
+}
+
+async function openBaserowActionVariableJavaScriptMode(page: Page, column: string): Promise<void> {
+  await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, `Baserow action variable ${column} JavaScript mode`, 10_000, true);
+  await confirmAlertIfVisible(page);
+  await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
+}
+
+async function visibleMonacoEditor(page: Page, description: string): Promise<Locator> {
+  const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+  await expect(editor, description).toBeVisible({ timeout: 15_000 });
+  return editor;
+}
+
+async function replaceVisibleMonacoReturn(page: Page, returnExpression: string, description: string): Promise<void> {
+  const editor = await visibleMonacoEditor(page, `${description} JavaScript editor`);
+  const expectedLine = `return ${returnExpression};`;
+  const code = `(async ()=>{\n\t${expectedLine}\n})();`;
+  await editor.click();
+  await expect(editor, `${description} JavaScript editor should expose a return statement`).toContainText('return', {
+    timeout: 10_000,
+  });
+  await page.keyboard.press('Control+A');
+  await page.keyboard.insertText(code);
+  await page.keyboard.press('Tab');
+  await expect(editor, `${description} JavaScript editor should contain ${expectedLine}`).toContainText(expectedLine, {
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(1_000);
+}
+
 async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
   const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();

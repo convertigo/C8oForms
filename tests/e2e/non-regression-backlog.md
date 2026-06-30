@@ -128,7 +128,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja co
 | [x] | [#1335](https://github.com/convertigo/C8oForms/issues/1335) | closed | bug, QC-Passed, Auto QA Test | Then/Else sections are empty and cannot be configured in “If” condition action | Auto QA Test<br>e2e/issue-1335.spec.ts |
 | [x] | [#1334](https://github.com/convertigo/C8oForms/issues/1334) | closed | bug, QC-Passed, Auto QA Test | Fields in “If condition” action show no operator (empty box) | Auto QA Test<br>e2e/issue-1334.spec.ts |
 | [ ] | [#1332](https://github.com/convertigo/C8oForms/issues/1332) | closed | enhancement, QC-Passed | Page loads twice on first execution of a published app, with brief “insufficient permissions” message |  |
-| [ ] | [#1331](https://github.com/convertigo/C8oForms/issues/1331) | closed | bug, QC-Passed | Add/update row action: all columns share the same configuration |  |
+| [x] | [#1331](https://github.com/convertigo/C8oForms/issues/1331) | closed | bug, QC-Passed, Auto QA Test | Add/update row action: all columns share the same configuration | Auto QA Test<br>e2e/issue-1331.spec.ts |
 | [ ] | [#1330](https://github.com/convertigo/C8oForms/issues/1330) | closed | bug, QC-Passed | TechnicalID field cannot be selected with the mouse in Firefox (drag action triggered) |  |
 | [x] | [#1329](https://github.com/convertigo/C8oForms/issues/1329) | closed | bug, QC-Passed, Auto QA Test | Loop action sections “Loop” and “Actions” are empty and cannot be configured | Auto QA Test<br>e2e/issue-1329.spec.ts |
 | [ ] | [#1328](https://github.com/convertigo/C8oForms/issues/1328) | closed | enhancement, QC-Passed | Rework UI of “Add or update a row in a no‑code database” actions |  |
