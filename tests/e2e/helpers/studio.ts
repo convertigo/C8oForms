@@ -56,6 +56,7 @@ export const SEL = {
   checkboxGroupComponent: 'c8oforms-itemcheckboxgroupviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
+  buttonLabelInput: 'c8oforms-textinputsetting.class1776707403149 input, .class1776707403149 input',
   buttonIconNameInput: '.class1776709887054 input',
   buttonIconClearButton: 'ion-icon.class1780311333214, .class1780311333214',
   buttonRenderedIcon: 'c8oforms-itembuttonviewer ion-button ion-icon',
@@ -1942,6 +1943,58 @@ export async function expectButtonStyleTabsTranslatedToEnglish(page: Page): Prom
     expect(tabTexts, 'Button icon tab should not keep the French hardcoded label').not.toContain('Icone du bouton');
     expect(tabTexts, 'Button icon tab should not keep the French hardcoded label').not.toContain('Icône du bouton');
   });
+}
+
+export async function setButtonLabel(page: Page, value: string): Promise<void> {
+  await test.step(`Set Button label to ${value}`, async () => {
+    await openButtonStyleLabelSection(page);
+    const input = page.locator(SEL.buttonLabelInput).first();
+    await expect(input, 'button label input should be visible').toBeVisible({ timeout: 15_000 });
+    await input.fill(value);
+    await input.blur();
+    await expect(input, 'button label input should keep the typed value').toHaveValue(value, { timeout: 10_000 });
+    await page.waitForTimeout(1_500);
+  });
+}
+
+export async function expectButtonRenderedLabel(page: Page, expected: string, surface: 'editor' | 'viewer'): Promise<void> {
+  await test.step(`Assert Button label in ${surface}`, async () => {
+    const component = page.locator(`${SEL.buttonComponent}:visible`).first();
+    await expect(component, `Button component should be visible in ${surface}`).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => renderedButtonText(component), {
+        message: `${surface}: Button should render label ${expected}`,
+        timeout: 15_000,
+      })
+      .toContain(expected);
+  });
+}
+
+async function openButtonStyleLabelSection(page: Page): Promise<void> {
+  await openStyleSection(page);
+  const input = page.locator(SEL.buttonLabelInput).first();
+  if (await input.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    return;
+  }
+
+  const tabs = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`);
+  await expect(tabs.first(), 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
+  const count = await tabs.count();
+  for (let i = 0; i < count; i++) {
+    const tab = tabs.nth(i);
+    await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+    if (await input.isVisible({ timeout: 1_500 }).catch(() => false)) {
+      return;
+    }
+  }
+
+  throw new Error(
+    `Button label style section did not expose the label input. Visible style tabs: ${(await visibleTexts(page, SEL.styleTab)).join(' | ')}`,
+  );
+}
+
+async function renderedButtonText(component: Locator): Promise<string> {
+  return normalizeWhitespace(await component.innerText({ timeout: 2_000 }).catch(() => ''));
 }
 
 export async function openButtonIconStyleSection(page: Page): Promise<void> {

@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja couverts; 170 a couvrir (24 ouverts, 146 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 62 deja couverts; 162 a couvrir (24 ouverts, 138 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -184,7 +184,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja co
 | [ ] | [#1276](https://github.com/convertigo/C8oForms/issues/1276) | closed | task | Investigate ghost components after copying components between pages |  |
 | [ ] | [#1275](https://github.com/convertigo/C8oForms/issues/1275) | closed | bug, QC-Passed | Table multi-row selection checkboxes are displayed incorrectly |  |
 | [ ] | [#1274](https://github.com/convertigo/C8oForms/issues/1274) | closed | bug, QC-Passed | Radio group alignment issue between columns and rows |  |
-| [ ] | [#1273](https://github.com/convertigo/C8oForms/issues/1273) | closed | bug, QC-Passed | Button label cannot be renamed |  |
+| [x] | [#1273](https://github.com/convertigo/C8oForms/issues/1273) | closed | bug, QC-Passed, Auto QA Test | Button label cannot be renamed | Auto QA Test<br>e2e/issue-1273.spec.ts |
 | [ ] | [#1272](https://github.com/convertigo/C8oForms/issues/1272) | closed | bug, QC-Passed | Slider element options are not displayed in most browsers |  |
 | [ ] | [#1271](https://github.com/convertigo/C8oForms/issues/1271) | closed | bug, QC-Passed | Missing tooltips on sidebar buttons |  |
 | [ ] | [#1270](https://github.com/convertigo/C8oForms/issues/1270) | closed | bug, QC-Passed | Grid source configuration: column summary counts become inconsistent when “Include” is unchecked |  |
