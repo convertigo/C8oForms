@@ -152,6 +152,8 @@ export const SEL = {
   selectorFilterInlineToggleButton: 'ion-button.class1772117859505',
   selectorFilterPopoverButton: 'ion-button.class1750686602638',
   selectorFiltersPopover: 'ion-popover:not(.overlay-hidden)',
+  selectorMyApplicationsButton: 'ion-button.class1761746283533',
+  selectorMyApplicationsCheckbox: 'ion-checkbox.class1750693244025',
   selectorHideFoldersButton: 'ion-button.class1761751296593',
   selectorHideFoldersCheckbox: 'ion-checkbox.class1750693290583',
   selectorApplyFiltersButton: 'ion-button.class1750693491899',
@@ -4174,6 +4176,77 @@ export async function setSelectorHideFoldersFilter(page: Page, enabled: boolean)
   });
 }
 
+export async function setSelectorMyApplicationsFilter(page: Page, enabled: boolean): Promise<void> {
+  await test.step(`${enabled ? 'Enable' : 'Disable'} My applications selector filter`, async () => {
+    await expectRoute(page, ROUTE.selector);
+    await waitForSelectorHomeReadyForCreate(page);
+
+    let button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 1_500);
+    if (!button) {
+      await openSelectorInlineFiltersIfAvailable(page);
+      button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 5_000);
+    }
+
+    if (button) {
+      await button.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+      if ((await selectorMyApplicationsQuickFilterEnabled(page)) !== enabled) {
+        await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+      }
+      await expectSelectorMyApplicationsFilterEnabled(page, enabled);
+    } else {
+      await setSelectorMyApplicationsFilterViaPopover(page, enabled);
+    }
+
+    await waitForIonicLoading(page, 10_000);
+    await waitForSelectorFormListLoaded(page);
+  });
+}
+
+export async function expectSelectorMyApplicationsFilterEnabled(page: Page, enabled: boolean): Promise<void> {
+  await test.step(`Assert My applications selector filter is ${enabled ? 'enabled' : 'disabled'}`, async () => {
+    let button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 1_500);
+    if (!button) {
+      await openSelectorInlineFiltersIfAvailable(page);
+      button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 5_000);
+    }
+
+    if (button) {
+      await expect
+        .poll(() => selectorMyApplicationsQuickFilterEnabled(page), {
+          message: `My applications quick filter should be ${enabled ? 'enabled' : 'disabled'}`,
+          timeout: 10_000,
+        })
+        .toBe(enabled);
+      return;
+    }
+
+    await expectSelectorMyApplicationsFilterViaPopover(page, enabled);
+  });
+}
+
+export async function reloadSelectorPage(page: Page): Promise<void> {
+  await test.step('Reload the selector page', async () => {
+    await expectRoute(page, ROUTE.selector);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expectRoute(page, ROUTE.selector);
+    await expect(page.locator(SEL.selectorPageRoot).first(), 'selector page should be visible after reload').toBeVisible({
+      timeout: 30_000,
+    });
+    await waitForSelectorHomeReadyForCreate(page);
+  });
+}
+
+export async function expectSelectorApplicationVisible(page: Page, title: string): Promise<void> {
+  await test.step(`Assert selector application ${title} is visible`, async () => {
+    await expect
+      .poll(() => selectorApplicationVisible(page, title), {
+        message: `selector application "${title}" should be visible`,
+        timeout: 30_000,
+      })
+      .toBe(true);
+  });
+}
+
 export async function expectSelectorFolderVisible(page: Page, title: string): Promise<void> {
   await test.step(`Assert selector folder ${title} is visible`, async () => {
     await expect
@@ -4241,6 +4314,18 @@ async function selectorHideFoldersQuickFilterEnabled(page: Page): Promise<boolea
   });
 }
 
+async function selectorMyApplicationsQuickFilterEnabled(page: Page): Promise<boolean> {
+  return page.locator(SEL.selectorMyApplicationsButton).evaluateAll((buttons) => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const button = buttons.find(visible);
+    return !!button?.classList.contains('btn--myapps');
+  });
+}
+
 async function openSelectorInlineFiltersIfAvailable(page: Page): Promise<void> {
   const toggle = await firstVisibleLocatorOrNull(page, SEL.selectorFilterInlineToggleButton, 1_000);
   if (!toggle) {
@@ -4274,6 +4359,52 @@ async function setSelectorHideFoldersFilterViaPopover(page: Page, enabled: boole
   await expect(popover, 'selector filters popover should close after applying').toBeHidden({ timeout: 15_000 });
 }
 
+async function expectSelectorMyApplicationsFilterViaPopover(page: Page, enabled: boolean): Promise<void> {
+  const openButton = await firstVisibleLocator(page, SEL.selectorFilterPopoverButton, 'selector filters popover button', 15_000);
+  await openButton.click({ timeout: 10_000 }).catch(async () => openButton.dispatchEvent('click'));
+
+  const popover = page.locator(SEL.selectorFiltersPopover).last();
+  await expect(popover, 'selector filters popover should open').toBeVisible({ timeout: 15_000 });
+
+  const checkbox = popover.locator(SEL.selectorMyApplicationsCheckbox).first();
+  await expect(checkbox, 'My applications checkbox should be visible in filters popover').toBeVisible({ timeout: 10_000 });
+  await expect
+    .poll(() => ionCheckboxChecked(checkbox), {
+      message: `My applications checkbox should be ${enabled ? 'checked' : 'unchecked'}`,
+      timeout: 10_000,
+    })
+    .toBe(enabled);
+
+  const apply = popover.locator(SEL.selectorApplyFiltersButton).first();
+  await apply.click({ timeout: 10_000 }).catch(async () => apply.dispatchEvent('click'));
+  await expect(popover, 'selector filters popover should close after applying').toBeHidden({ timeout: 15_000 });
+}
+
+async function setSelectorMyApplicationsFilterViaPopover(page: Page, enabled: boolean): Promise<void> {
+  const openButton = await firstVisibleLocator(page, SEL.selectorFilterPopoverButton, 'selector filters popover button', 15_000);
+  await openButton.click({ timeout: 10_000 }).catch(async () => openButton.dispatchEvent('click'));
+
+  const popover = page.locator(SEL.selectorFiltersPopover).last();
+  await expect(popover, 'selector filters popover should open').toBeVisible({ timeout: 15_000 });
+
+  const checkbox = popover.locator(SEL.selectorMyApplicationsCheckbox).first();
+  await expect(checkbox, 'My applications checkbox should be visible in filters popover').toBeVisible({ timeout: 10_000 });
+  if ((await ionCheckboxChecked(checkbox)) !== enabled) {
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+  }
+  await expect
+    .poll(() => ionCheckboxChecked(checkbox), {
+      message: `My applications checkbox should be ${enabled ? 'checked' : 'unchecked'}`,
+      timeout: 10_000,
+    })
+    .toBe(enabled);
+
+  const apply = popover.locator(SEL.selectorApplyFiltersButton).first();
+  await expect(apply, 'filters popover apply button should be visible').toBeVisible({ timeout: 10_000 });
+  await apply.click({ timeout: 10_000 }).catch(async () => apply.dispatchEvent('click'));
+  await expect(popover, 'selector filters popover should close after applying').toBeHidden({ timeout: 15_000 });
+}
+
 async function ionCheckboxChecked(checkbox: Locator): Promise<boolean> {
   return checkbox.evaluate((el) => {
     const host = el as HTMLElement & { checked?: boolean };
@@ -4285,6 +4416,24 @@ async function ionCheckboxChecked(checkbox: Locator): Promise<boolean> {
       host.getAttribute('aria-checked') === 'true'
     );
   });
+}
+
+async function selectorApplicationVisible(page: Page, title: string): Promise<boolean> {
+  return page.evaluate(({ expectedTitle }) => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const isFolderCard = (card: HTMLElement) =>
+      card.classList.contains('card-container--folder') ||
+      !!card.querySelector('ion-icon[src*="folder.svg"], ion-icon[src*="folder-open.svg"], img[src*="folder.svg"], img[src*="folder-open.svg"]');
+
+    return [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')]
+      .filter(visible)
+      .some((card) => !isFolderCard(card as HTMLElement) && normalize((card as HTMLElement).innerText).includes(expectedTitle));
+  }, { expectedTitle: title });
 }
 
 async function selectorFolderVisible(page: Page, title: string): Promise<boolean> {

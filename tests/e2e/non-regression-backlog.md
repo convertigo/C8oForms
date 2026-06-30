@@ -112,7 +112,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja co
 | [x] | [#1352](https://github.com/convertigo/C8oForms/issues/1352) | closed | bug, QC-Passed, Auto QA Test | Hidden folders filter only applies after changing view | Auto QA Test<br>e2e/issue-1352.spec.ts |
 | [ ] | [#1351](https://github.com/convertigo/C8oForms/issues/1351) | closed | bug, QC-Passed | Limit Baserow table data scan to 1000 rows by default |  |
 | [ ] | [#1349](https://github.com/convertigo/C8oForms/issues/1349) | closed | bug, QC-Passed | User search bar shows “undefined” when a user has no display name |  |
-| [ ] | [#1348](https://github.com/convertigo/C8oForms/issues/1348) | closed | bug, QC-Passed | "My applications" filter does not work and becomes persistent after reload |  |
+| [x] | [#1348](https://github.com/convertigo/C8oForms/issues/1348) | closed | bug, QC-Passed, Auto QA Test | "My applications" filter does not work and becomes persistent after reload | Auto QA Test<br>e2e/issue-1348.spec.ts |
 | [ ] | [#1347](https://github.com/convertigo/C8oForms/issues/1347) | closed | bug, QC-Passed | Share and collaboration icons are not positioned correctly |  |
 | [ ] | [#1346](https://github.com/convertigo/C8oForms/issues/1346) | closed | bug, QC-Passed | Missing padding under QR code labels on selector page |  |
 | [ ] | [#1345](https://github.com/convertigo/C8oForms/issues/1345) | closed | bug, QC-Passed | Flow continues executing after leaving Preview mode and even on the Studio home page |  |
