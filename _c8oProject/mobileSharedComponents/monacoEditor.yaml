@@ -687,23 +687,38 @@ scriptContent:
         
         			const ts = this.transform$toTsMonaco(workingB);
         			try {
-        				await this.toastController.dismiss(undefined, undefined, "c8oforms-monaco-parse-error-toast");
+        //				await this.toastController.dismiss(undefined, undefined, "c8oforms-monaco-parse-error-toast");
+        				console.log(workingB);
+        				try {
+        				// [INFO] clear custom markers if no error occured : see issue 1160 for more details
+        				this.clearMonacoParseErrorMarkers();
+        				// [INFO] clear monacoToastError for the current component and the current monaco editor
+        				this.clearMonacoToastErrorsForCurrentEditor();
+        				}
+        				catch (uiError) {
+        					this.pageOwner?.c8o?.log?.warn?.(
+        						"[Monaco] failed to clear markers/toast errors " + (uiError?.message || JSON.stringify(uiError))
+        					);
+        				}
+        				console.log(this.pageOwner.monacoToastErrors);
         			}
-        			catch (e) { }
-        			// [INFO] clear custom markers if no error occured : see issue 1160 for more details
-        			this.clearMonacoParseErrorMarkers();
-        			// [INFO] clear monacoToastError for the current component and the current monaco editor
-        			this.clearMonacoToastErrorsForCurrentEditor();
-        			console.log(this.pageOwner.monacoToastErrors);
+        			catch (e) {console.error(e) }
         			return workingB;
         		}
         		catch (e) {
         			console.error("an error occured while pasing", e);
         			console.log(this.pageOwner)
-        			// [INFO] set custom marker if an error occured in the code parse action : see issue 1160 for more details
-        			this.setMonacoParseErrorMarker(e);
-        			// [INFO] set error in monacoToastErrors property of the pageOwner, this would be useful when we want to display a toast error after the save action
-        			this.syncMonacoToastErrorsForCurrentEditor();
+        			try {
+        				// [INFO] set custom marker if an error occured in the code parse action : see issue 1160 for more details
+        				this.setMonacoParseErrorMarker(e);
+        				// [INFO] set error in monacoToastErrors property of the pageOwner, this would be useful when we want to display a toast error after the save action
+        				this.syncMonacoToastErrorsForCurrentEditor();				
+        			}
+        			catch (uiError) {
+        				this.pageOwner?.c8o?.log?.warn?.(
+        					"[Monaco] failed to sync parse error UI " + (uiError?.message || JSON.stringify(uiError))
+        				);
+        			}
         			// [INFO] previous code below that display toast error on each parse for each blur event triggered : see issue 1160 for more details
         //			this.presentToast(this.translate.instant("error_computing", { err: e.name + " : " + e.message }), ''toastError'', "c8oforms-monaco-parse-error-toast").catch((toastError) => console.error(toastError));
         			throw e;
@@ -1208,11 +1223,12 @@ scriptContent:
         			monacoDomNode?.removeEventListener("dragend", nativeDragEndHandler, true);
         			monacoDomNode?.removeEventListener("dragleave", nativeDragEndHandler, true);
         		});
-        		editor.onDidBlurEditorText(async () => {
+        		editor.onDidBlurEditorText(async () => {			
         			const rawValue = editor.getValue();
         			this.code = rawValue;
         			let evt = C8oCafUtils.merge({ "object": this, "target": this["elRef"].nativeElement }, { code: this.code })
         			this.onBlur.emit(evt);
+        			console.log(evt)
         			try {
         				const parsedValue = await this.parse(rawValue);
         				if (parsedValue !== rawValue) {
@@ -3189,17 +3205,17 @@ scriptContent:
         	
         	private initMonaco() {
         		// [INFO] disable javascript markers : see issue 1160 for more details
-        		monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-        			noSyntaxValidation: true,
-        			noSemanticValidation: true,
-        			noSuggestionDiagnostics: true
-        		});
-        		// [INFO] disable typescript markers : see issue 1160 for more details
-        		monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-        			noSyntaxValidation: true,
-        			noSemanticValidation: true,
-        			noSuggestionDiagnostics: true
-        		});
+        //		monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        //			noSyntaxValidation: true,
+        //			noSemanticValidation: true,
+        //			noSuggestionDiagnostics: true
+        //		});
+        //		// [INFO] disable typescript markers : see issue 1160 for more details
+        //		monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+        //			noSyntaxValidation: true,
+        //			noSemanticValidation: true,
+        //			noSuggestionDiagnostics: true
+        //		});
         	  const container = this.monacoEditor?.nativeElement;
         
         	  if (!container) {
@@ -3220,7 +3236,7 @@ scriptContent:
         		language: ''typescript'',
         	    theme: ''vs'',
         	    automaticLayout: true,
-        		renderValidationDecorations: "on",
+        //		renderValidationDecorations: "on",
         		scrollBeyondLastLine: false,
         	    minimap: { enabled: false }
         	  });
