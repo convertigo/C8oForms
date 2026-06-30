@@ -23,6 +23,7 @@ scriptContent:
         	public monacoRenderTries: number;
         	private monacoExtraLib: any = null;
         	private editor!: monaco.editor.IStandaloneCodeEditor;
+        	private readonly MONACO_PARSE_MARKER_OWNER = "c8oforms-monaco-parse";
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.toastController = this.getInstance(ToastController);
@@ -689,14 +690,297 @@ scriptContent:
         				await this.toastController.dismiss(undefined, undefined, "c8oforms-monaco-parse-error-toast");
         			}
         			catch (e) { }
+        			// clear custom markers if no error occured
+        			this.clearMonacoParseErrorMarkers();
         			return workingB;
         		}
         		catch (e) {
         			console.error("an error occured while pasing", e);
-        			this.presentToast(this.translate.instant("error_computing", { err: e.name + " : " + e.message }), ''toastError'', "c8oforms-monaco-parse-error-toast").catch((toastError) => console.error(toastError));
+        			// [INFO] set custom marker if an error occured in the code parsing action
+        			this.setMonacoParseErrorMarker(e);
+        			// [INFO] previous code below that display toast error on each parse for each blur event triggered : see issue 1160 for more details
+        //			this.presentToast(this.translate.instant("error_computing", { err: e.name + " : " + e.message }), ''toastError'', "c8oforms-monaco-parse-error-toast").catch((toastError) => console.error(toastError));
         			throw e;
         		}
         
+        	}
+        	
+        	private clearMonacoParseErrorMarkers(): void {
+        		const model = this.monacoEditorInstance?.getModel?.();
+        
+        		if (!model || typeof monaco === "undefined") {
+        			return;
+        		}
+        		
+        		if (model && typeof monaco !== "undefined") {
+        			const markers = monaco.editor.getModelMarkers({
+        				resource: model.uri
+        			});
+        
+        			console.table(
+        				markers.map((marker: any) => ({
+        					owner: marker.owner,
+        					message: marker.message,
+        					line: marker.startLineNumber,
+        					column: marker.startColumn,
+        					severity: marker.severity
+        				}))
+        			);
+        		}
+        
+        		monaco.editor.setModelMarkers(
+        			model,
+        			"c8oforms-monaco-parse",
+        			[]
+        		);
+        	}
+        	
+        	private hasDefaultMonacoMarkerAt(line: number, column: number): boolean {
+        		const model = this.monacoEditorInstance?.getModel?.();
+        
+        		if (!model || typeof monaco === "undefined") {
+        			return false;
+        		}
+        
+        		const markers = monaco.editor.getModelMarkers({
+        			resource: model.uri
+        		});
+        
+        		return markers.some((marker: any) => {
+        			return marker.owner === "typescript"
+        				&& marker.startLineNumber === line
+        				&& Math.abs(marker.startColumn - column) <= 3;
+        		});
+        	}
+        
+        	private setMonacoParseErrorMarker(e: any): void {
+        		const model = this.monacoEditorInstance?.getModel?.();
+        
+        		if (!model || typeof monaco === "undefined") {
+        			return;
+        		}
+        		
+        		if (model && typeof monaco !== "undefined") {
+        			const markers = monaco.editor.getModelMarkers({
+        				resource: model.uri
+        			});
+        
+        			console.table(
+        				markers.map((marker: any) => ({
+        					owner: marker.owner,
+        					message: marker.message,
+        					line: marker.startLineNumber,
+        					column: marker.startColumn,
+        					severity: marker.severity
+        				}))
+        			);
+        		}
+        
+        		const errorInfo = this.getMonacoSaveErrorInfo(e);
+        
+        		let message = this.translate.instant(
+        			errorInfo.i18nKey,
+        			errorInfo.params
+        		);
+        
+        		if (errorInfo.params?.line && errorInfo.params?.column) {
+        			message += " " + this.translate.instant("monaco_error_location", {
+        				line: errorInfo.params.line,
+        				column: errorInfo.params.column
+        			});
+        		}
+        
+        		const rawLine = e?.loc?.line || 1;
+        		const rawColumn = e?.loc?.column !== undefined ? e.loc.column + 1 : 1;
+        		
+        
+        		if (this.hasDefaultMonacoMarkerAt(rawLine, rawColumn)) {
+        			this.clearMonacoParseErrorMarkers();
+        			return;
+        		}
+        
+        		const line = Math.min(
+        			Math.max(rawLine, 1),
+        			model.getLineCount()
+        		);
+        
+        		const maxColumn = model.getLineMaxColumn(line);
+        
+        		const startColumn = Math.min(
+        			Math.max(rawColumn, 1),
+        			maxColumn
+        		);
+        
+        		const endColumn = Math.min(
+        			startColumn + 1,
+        			maxColumn
+        		);
+        
+        		monaco.editor.setModelMarkers(
+        			model,
+        			"c8oforms-monaco-parse",
+        			[
+        				{
+        					startLineNumber: line,
+        					startColumn,
+        					endLineNumber: line,
+        					endColumn,
+        					severity: monaco.MarkerSeverity.Error,
+        					message
+        				}
+        			]
+        		);
+        	}
+        	
+        	private getMonacoSaveErrorInfo(e: any): {
+        		code: string;
+        		i18nKey: string;
+        		params?: any;
+        	} {
+        		
+        		const MONACO_SAVE_ERROR_DESCRIPTIONS = {
+        			JS_UNEXPECTED_TOKEN: {
+        				i18nKey: "monaco_error_unexpected_token",
+        				defaultMessage: "La formule contient une erreur de syntaxe JavaScript. Vérifiez que le code est complet avant de sauvegarder."
+        			},
+        			JS_UNEXPECTED_END: {
+        				i18nKey: "monaco_error_unexpected_end",
+        				defaultMessage: "La formule semble incomplète. Vérifiez qu’une parenthèse, accolade ou instruction n’est pas restée ouverte."
+        			},
+        			JS_UNTERMINATED_STRING: {
+        				i18nKey: "monaco_error_unterminated_string",
+        				defaultMessage: "Une chaîne de caractères n’est pas fermée. Vérifiez les guillemets simples, doubles ou backticks."
+        			},
+        			JS_RESERVED_WORD: {
+        				i18nKey: "monaco_error_reserved_word",
+        				defaultMessage: "La formule utilise un mot réservé JavaScript à un endroit non autorisé."
+        			},
+        			JS_DUPLICATE_IDENTIFIER: {
+        				i18nKey: "monaco_error_duplicate_identifier",
+        				defaultMessage: "Une variable semble être déclarée plusieurs fois avec le même nom."
+        			},
+        			JS_RETURN_OUTSIDE_FUNCTION: {
+        				i18nKey: "monaco_error_return_outside_function",
+        				defaultMessage: "L’instruction return est utilisée en dehors d’une fonction valide."
+        			},
+        			JS_REFERENCE_ERROR: {
+        				i18nKey: "monaco_error_reference_error",
+        				defaultMessage: "La formule utilise une variable ou un composant qui n’existe pas."
+        			},
+        			JS_TYPE_ERROR: {
+        				i18nKey: "monaco_error_type_error",
+        				defaultMessage: "La formule tente d’utiliser une valeur avec un type incorrect."
+        			},
+        			JS_RANGE_ERROR: {
+        				i18nKey: "monaco_error_range_error",
+        				defaultMessage: "La formule produit une valeur hors limites ou une opération récursive trop importante."
+        			},
+        			JS_SYNTAX_ERROR: {
+        				i18nKey: "monaco_error_syntax_error",
+        				defaultMessage: "La formule contient une erreur de syntaxe JavaScript."
+        			},
+        			JS_UNKNOWN_ERROR: {
+        				i18nKey: "monaco_error_unknown_error",
+        				defaultMessage: "Une erreur est survenue lors de la sauvegarde de la formule."
+        			}
+        		};
+        		const name = e?.name || "Error";
+        		const rawMessage = e?.message || "";
+        		const line = e?.loc?.line;
+        		const column = e?.loc?.column !== undefined ? e.loc.column + 1 : undefined;
+        
+        		const params = {
+        			line,
+        			column,
+        			errorName: name,
+        			errorMessage: rawMessage
+        		};
+        
+        		if (name === "SyntaxError") {
+        			if (/Unexpected end of input/i.test(rawMessage)) {
+        				return {
+        					code: "JS_UNEXPECTED_END",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNEXPECTED_END.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Unexpected token/i.test(rawMessage)) {
+        				return {
+        					code: "JS_UNEXPECTED_TOKEN",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNEXPECTED_TOKEN.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Unterminated string/i.test(rawMessage)) {
+        				return {
+        					code: "JS_UNTERMINATED_STRING",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNTERMINATED_STRING.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Unexpected reserved word/i.test(rawMessage)) {
+        				return {
+        					code: "JS_RESERVED_WORD",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_RESERVED_WORD.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/Identifier .* has already been declared/i.test(rawMessage)) {
+        				return {
+        					code: "JS_DUPLICATE_IDENTIFIER",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_DUPLICATE_IDENTIFIER.i18nKey,
+        					params
+        				};
+        			}
+        
+        			if (/return.*outside/i.test(rawMessage)) {
+        				return {
+        					code: "JS_RETURN_OUTSIDE_FUNCTION",
+        					i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_RETURN_OUTSIDE_FUNCTION.i18nKey,
+        					params
+        				};
+        			}
+        
+        			return {
+        				code: "JS_SYNTAX_ERROR",
+        				i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_SYNTAX_ERROR.i18nKey,
+        				params
+        			};
+        		}
+        
+        		if (name === "ReferenceError") {
+        			return {
+        				code: "JS_REFERENCE_ERROR",
+        				i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_REFERENCE_ERROR.i18nKey,
+        				params
+        			};
+        		}
+        
+        		if (name === "TypeError") {
+        			return {
+        				code: "JS_TYPE_ERROR",
+        				i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_TYPE_ERROR.i18nKey,
+        				params
+        			};
+        		}
+        
+        		if (name === "RangeError") {
+        			return {
+        				code: "JS_RANGE_ERROR",
+        				i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_RANGE_ERROR.i18nKey,
+        				params
+        			};
+        		}
+        
+        		return {
+        			code: "JS_UNKNOWN_ERROR",
+        			i18nKey: MONACO_SAVE_ERROR_DESCRIPTIONS.JS_UNKNOWN_ERROR.i18nKey,
+        			params
+        		};
         	}
         	
         //	public async onMonacoInit(editor) {
@@ -729,6 +1013,15 @@ scriptContent:
         //	 }
         
         	public async onMonacoInit(editor) {
+        //		monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        //			noSyntaxValidation: true,
+        //			noSemanticValidation: true
+        //		});
+        //
+        //		monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+        //			noSyntaxValidation: true,
+        //			noSemanticValidation: true
+        //		});
         		this.monacoEditorInstance = editor;
         		const monacoDomNode = editor.getDomNode();
         		const nativeDragOverHandler = (event: any) => {
@@ -2799,6 +3092,18 @@ scriptContent:
         	         }
         	
         	private initMonaco() {
+        		// [INFO] disable javascript markers : see issue 1160 for more details
+        		monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        			noSyntaxValidation: true,
+        			noSemanticValidation: true,
+        			noSuggestionDiagnostics: true
+        		});
+        		// [INFO] disable typescript markers : see issue 1160 for more details
+        		monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+        			noSyntaxValidation: true,
+        			noSemanticValidation: true,
+        			noSuggestionDiagnostics: true
+        		});
         	  const container = this.monacoEditor?.nativeElement;
         
         	  if (!container) {
@@ -2819,6 +3124,7 @@ scriptContent:
         		language: ''typescript'',
         	    theme: ''vs'',
         	    automaticLayout: true,
+        		renderValidationDecorations: "on",
         		scrollBeyondLastLine: false,
         	    minimap: { enabled: false }
         	  });
