@@ -147,6 +147,7 @@ export const SEL = {
   mapSourceModeRow: 'ion-row.class1777130000001',
   publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
   publishedApplicationsTab: 'ion-button.class1761754757348',
+  publishedQrButton: 'page-selectorpage ion-button.class1761581105514',
   selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
   selectorSearchByNameInput: 'page-selectorpage input',
   selectorFilterInlineToggleButton: 'ion-button.class1772117859505',
@@ -1545,6 +1546,55 @@ async function selectorSearchSummary(
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function publishedQrButton(page: Page): Promise<Locator> {
+  await expectRoute(page, ROUTE.selector);
+  return firstVisibleLocator(page, SEL.publishedQrButton, 'Published Applications QR button', 15_000);
+}
+
+async function publishedQrButtonText(button: Locator): Promise<string> {
+  return normalizeWhitespace(await button.innerText({ timeout: 2_000 }).catch(() => ''));
+}
+
+async function readPublishedQrTooltipMessage(page: Page, button: Locator): Promise<string> {
+  const reflected = await button
+    .evaluate((el) => {
+      const host = el as HTMLElement;
+      const values = [
+        host.getAttribute('ng-reflect-message'),
+        host.getAttribute('mattooltip'),
+        host.getAttribute('title'),
+      ];
+      return values.find((value) => value?.trim()) ?? '';
+    })
+    .catch(() => '');
+
+  if (reflected.trim()) {
+    return normalizeWhitespace(reflected);
+  }
+
+  await button.hover({ timeout: 5_000 }).catch(() => undefined);
+  await page.waitForTimeout(600);
+  const tooltip = normalizeWhitespace(await visibleTooltipText(page));
+  await page.mouse.move(5, 5).catch(() => undefined);
+  return tooltip;
+}
+
+async function visibleTooltipText(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const tooltipSelectors = ['.mat-tooltip', 'mat-tooltip-component', '.mdc-tooltip__surface', '[role="tooltip"]'];
+    return tooltipSelectors
+      .flatMap((selector) => [...document.querySelectorAll(selector)])
+      .filter(visible)
+      .map((el) => (el as HTMLElement).innerText || el.textContent || '')
+      .join(' ');
+  });
 }
 
 export type SelectorHighlightedTitleLayout = {
@@ -3871,6 +3921,19 @@ function escapeRegExp(value: string): string {
 }
 
 type PwaAccessMode = 'authenticated' | 'anonymous';
+type PublishedQrButtonMode = 'show' | 'hide';
+
+const PUBLISHED_QR_LABEL_RE: Record<PublishedQrButtonMode, RegExp> = {
+  show: /^(?:Voir|View|Ver|Vedi)\s+QR$/i,
+  hide: /^(?:Masquer|Hide|Ocultar|Nascondi)\s+QR$/i,
+};
+
+const PUBLISHED_QR_TOOLTIP_RE: Record<PublishedQrButtonMode, RegExp> = {
+  show: /(?:Afficher|Display|Muestra|Visualizza).*QR/i,
+  hide: /(?:Masquer|Hide|Oculta|Nascondi).*QR/i,
+};
+
+const PUBLISHED_QR_IMPORT_TOOLTIP_RE = /(?:Importer|Import|Importar|Importa).*(?:application|aplicaci|applicazione)/i;
 
 function pwaAccessButtonIndex(mode: PwaAccessMode): number {
   return mode === 'authenticated' ? 0 : 1;
@@ -3921,6 +3984,55 @@ async function clickVisiblePwaAccessButton(modal: Locator, mode: PwaAccessMode):
     button.click();
     return true;
   }, pwaAccessButtonIndex(mode));
+}
+
+export async function openPublishedApplicationsTab(page: Page): Promise<void> {
+  await test.step('open the Published Applications selector tab', async () => {
+    await returnToSelectorFromEditor(page);
+    await dismissVisiblePopovers(page);
+    const tab = await firstVisibleLocator(page, SEL.publishedApplicationsTab, 'Published Applications tab', 15_000);
+    await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+    await waitForIonicLoading(page, 10_000);
+    await waitForSelectorFormListLoaded(page);
+  });
+}
+
+export async function expectPublishedQrButtonMode(page: Page, mode: PublishedQrButtonMode): Promise<void> {
+  await test.step(`assert the published QR button is in ${mode} mode`, async () => {
+    const button = await publishedQrButton(page);
+    await expect
+      .poll(() => publishedQrButtonText(button), {
+        message: `published QR button label should match ${PUBLISHED_QR_LABEL_RE[mode]}`,
+        timeout: 10_000,
+      })
+      .toMatch(PUBLISHED_QR_LABEL_RE[mode]);
+  });
+}
+
+export async function expectPublishedQrTooltipMode(page: Page, mode: PublishedQrButtonMode): Promise<void> {
+  await test.step(`assert the published QR tooltip is in ${mode} mode`, async () => {
+    const button = await publishedQrButton(page);
+    await expect
+      .poll(() => readPublishedQrTooltipMessage(page, button), {
+        message: `published QR tooltip should match ${PUBLISHED_QR_TOOLTIP_RE[mode]}`,
+        timeout: 10_000,
+      })
+      .toMatch(PUBLISHED_QR_TOOLTIP_RE[mode]);
+
+    const tooltip = await readPublishedQrTooltipMessage(page, button);
+    expect(tooltip, 'published QR tooltip should not reuse the Import application tooltip').not.toMatch(
+      PUBLISHED_QR_IMPORT_TOOLTIP_RE,
+    );
+  });
+}
+
+export async function clickPublishedQrButton(page: Page): Promise<void> {
+  await test.step('click the published QR button', async () => {
+    const button = await publishedQrButton(page);
+    await button.scrollIntoViewIfNeeded();
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+    await waitForIonicLoading(page, 10_000);
+  });
 }
 
 export async function openPublishedPwaEditor(page: Page, title: string): Promise<void> {

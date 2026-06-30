@@ -124,7 +124,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja co
 | [x] | [#1339](https://github.com/convertigo/C8oForms/issues/1339) | closed | bug, QC-Passed, Auto QA Test | Visibility tab: condition is deleted when switching options or cancelling dialog | Auto QA Test<br>e2e/issue-1339.spec.ts |
 | [ ] | [#1338](https://github.com/convertigo/C8oForms/issues/1338) | closed | bug, QC-Passed | Search by username does not work on the selector page |  |
 | [x] | [#1337](https://github.com/convertigo/C8oForms/issues/1337) | closed | bug, QC-Passed, Auto QA Test | Create Folder button still looks disabled after entering a folder name | Auto QA Test<br>e2e/issue-1337.spec.ts |
-| [ ] | [#1336](https://github.com/convertigo/C8oForms/issues/1336) | closed | bug, QC-Passed | Fix QR button tooltip and toggle label on selector page |  |
+| [x] | [#1336](https://github.com/convertigo/C8oForms/issues/1336) | closed | bug, QC-Passed, Auto QA Test | Fix QR button tooltip and toggle label on selector page | Auto QA Test<br>e2e/issue-1336.spec.ts |
 | [x] | [#1335](https://github.com/convertigo/C8oForms/issues/1335) | closed | bug, QC-Passed, Auto QA Test | Then/Else sections are empty and cannot be configured in “If” condition action | Auto QA Test<br>e2e/issue-1335.spec.ts |
 | [x] | [#1334](https://github.com/convertigo/C8oForms/issues/1334) | closed | bug, QC-Passed, Auto QA Test | Fields in “If condition” action show no operator (empty box) | Auto QA Test<br>e2e/issue-1334.spec.ts |
 | [ ] | [#1332](https://github.com/convertigo/C8oForms/issues/1332) | closed | enhancement, QC-Passed | Page loads twice on first execution of a published app, with brief “insufficient permissions” message |  |
