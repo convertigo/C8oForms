@@ -117,7 +117,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja co
 | [ ] | [#1346](https://github.com/convertigo/C8oForms/issues/1346) | closed | bug, QC-Passed | Missing padding under QR code labels on selector page |  |
 | [ ] | [#1345](https://github.com/convertigo/C8oForms/issues/1345) | closed | bug, QC-Passed | Flow continues executing after leaving Preview mode and even on the Studio home page |  |
 | [ ] | [#1344](https://github.com/convertigo/C8oForms/issues/1344) | closed | bug, QC-Passed | User search filter should only be visible to administrators |  |
-| [ ] | [#1343](https://github.com/convertigo/C8oForms/issues/1343) | closed | bug, QC-Passed | Add‑row action: added columns cannot be deleted (no delete button) |  |
+| [x] | [#1343](https://github.com/convertigo/C8oForms/issues/1343) | closed | bug, QC-Passed, Auto QA Test | Add‑row action: added columns cannot be deleted (no delete button) | Auto QA Test<br>e2e/issue-1343.spec.ts |
 | [x] | [#1342](https://github.com/convertigo/C8oForms/issues/1342) | closed | bug, QC-Passed, Auto QA Test | Map component: “From a data source” button does not open the source selection panel | Auto QA Test<br>e2e/issue-1342.spec.ts |
 | [ ] | [#1341](https://github.com/convertigo/C8oForms/issues/1341) | closed | bug, QC-Passed | i18n translations missing for the “Chart” component |  |
 | [x] | [#1340](https://github.com/convertigo/C8oForms/issues/1340) | closed | bug, QC-Passed, Auto QA Test | Search bar is accent‑case‑sensitive in both directions (uppercase ↔ lowercase), causing applications not to be found | Auto QA Test<br>e2e/issue-1340.spec.ts |

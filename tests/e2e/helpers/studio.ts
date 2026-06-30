@@ -2282,8 +2282,11 @@ export interface DataSourceSortOptions {
   order?: DataSourceSortOrder;
 }
 
-export interface BaserowAddRowActionOptions extends BaserowGridSourceOptions {
+export interface BaserowAddRowActionConfigOptions extends BaserowGridSourceOptions {
   flowName?: string | RegExp;
+}
+
+export interface BaserowAddRowActionOptions extends BaserowAddRowActionConfigOptions {
   mappings: Array<{
     column: string;
     sourceSection?: SourcePaletteSection;
@@ -2734,6 +2737,64 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
   await configureButtonFlowBaserowAddRowOnce(page, source);
 }
 
+export async function openButtonFlowBaserowAddRowConfiguration(
+  page: Page,
+  source: BaserowAddRowActionConfigOptions,
+): Promise<void> {
+  await test.step('Open the Button workflow Add Row action configuration', async () => {
+    await openButtonFlowBaserowAddRowConfigurationOnce(page, source);
+  });
+}
+
+export async function openButtonFlowBaserowAddRowActionConfiguration(
+  page: Page,
+  flowName?: string | RegExp,
+): Promise<void> {
+  await test.step('Open the Button workflow Add Row action configuration', async () => {
+    await openButtonFlowBaserowAddRowActionConfigurationOnce(page, flowName);
+  });
+}
+
+export async function addBaserowAddRowColumnMapping(page: Page, column: string): Promise<void> {
+  await test.step(`Add Baserow Add Row mapping for ${column}`, async () => {
+    await ensureBaserowActionVariableRow(page, column);
+  });
+}
+
+export async function expectBaserowAddRowColumnMappingDeletable(page: Page, column: string): Promise<void> {
+  await test.step(`Delete Baserow Add Row mapping for ${column}`, async () => {
+    await selectBaserowActionVariable(page, column);
+    const rowButton = baserowActionVariableButton(page, column);
+    const deleteAction = rowButton.locator('.figma-button__action').first();
+    await expect(deleteAction, `Baserow Add Row mapping ${column} should expose a delete action`).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const before = await page.locator(BASEROW_ACTION_VARIABLE_BUTTON).count();
+    await deleteAction.click({ timeout: 5_000 }).catch(async () => deleteAction.dispatchEvent('click'));
+
+    const alert = page.locator('ion-alert').last();
+    await expect(alert, `Baserow Add Row mapping ${column} delete confirmation should open`).toBeVisible({
+      timeout: 10_000,
+    });
+    await alert.locator('button').last().click({ timeout: 5_000 });
+    await expect(alert).toBeHidden({ timeout: 10_000 });
+
+    await expect
+      .poll(() => isBaserowActionColumnMapped(page, column), {
+        message: `Baserow Add Row mapping ${column} should be removed`,
+        timeout: 10_000,
+      })
+      .toBe(false);
+    await expect
+      .poll(() => page.locator(BASEROW_ACTION_VARIABLE_BUTTON).count(), {
+        message: 'Baserow Add Row mapping list should shrink after deletion',
+        timeout: 10_000,
+      })
+      .toBeLessThan(before);
+  });
+}
+
 async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
   const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();
@@ -2756,9 +2817,12 @@ function isButtonWorkflowLabelHint(flowName: string | RegExp): boolean {
   return /flow\s*button/i.test(value);
 }
 
-async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
+async function openButtonFlowBaserowAddRowActionConfigurationOnce(
+  page: Page,
+  flowName?: string | RegExp,
+): Promise<void> {
   const timeout = 60_000;
-  await openButtonWorkflow(page, source.flowName);
+  await openButtonWorkflow(page, flowName);
 
   await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
   const actionTile = await paletteTileForIcon(page, PALETTE_ICON.baserowAddRowFromData, 'Baserow Add Row action');
@@ -2785,8 +2849,20 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
     await openConfigTabById(page, 'tab_selector_conf_action');
   }
   await page.waitForTimeout(1_000);
+}
 
+async function openButtonFlowBaserowAddRowConfigurationOnce(
+  page: Page,
+  source: BaserowAddRowActionConfigOptions,
+): Promise<void> {
+  await openButtonFlowBaserowAddRowActionConfigurationOnce(page, source.flowName);
+
+  const timeout = 60_000;
   await selectBaserowTableFromCurrentAction(page, source, timeout);
+}
+
+async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
+  await openButtonFlowBaserowAddRowConfigurationOnce(page, source);
 
   for (const mapping of source.mappings) {
     await ensureBaserowActionVariableRow(page, mapping.column);
