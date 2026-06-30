@@ -133,7 +133,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 54 deja co
 | [x] | [#1329](https://github.com/convertigo/C8oForms/issues/1329) | closed | bug, QC-Passed, Auto QA Test | Loop action sections “Loop” and “Actions” are empty and cannot be configured | Auto QA Test<br>e2e/issue-1329.spec.ts |
 | [ ] | [#1328](https://github.com/convertigo/C8oForms/issues/1328) | closed | enhancement, QC-Passed | Rework UI of “Add or update a row in a no‑code database” actions |  |
 | [x] | [#1327](https://github.com/convertigo/C8oForms/issues/1327) | closed | bug, QC-Passed, Auto QA Test | Can’t switch between Aa and JS modes in Condition (if) action | Auto QA Test<br>e2e/issue-1327.spec.ts |
-| [ ] | [#1326](https://github.com/convertigo/C8oForms/issues/1326) | closed | bug, QC-Passed | Updating an existing PWA republishes a new application version |  |
+| [x] | [#1326](https://github.com/convertigo/C8oForms/issues/1326) | closed | bug, QC-Passed, Auto QA Test | Updating an existing PWA republishes a new application version | Auto QA Test<br>e2e/issue-1326.spec.ts |
 | [ ] | [#1325](https://github.com/convertigo/C8oForms/issues/1325) | closed | enhancement, QC-Passed | Improve PWA configuration modal UX and simplify publication flow |  |
 | [x] | [#1324](https://github.com/convertigo/C8oForms/issues/1324) | closed | bug, QC-Passed, Auto QA Test | Chart component shows “undefined” on hover for default values | Auto QA Test<br>e2e/issue-1324.spec.ts |
 | [ ] | [#1323](https://github.com/convertigo/C8oForms/issues/1323) | closed | bug, QC-Passed | Warn before replacing configured action or data source values |  |

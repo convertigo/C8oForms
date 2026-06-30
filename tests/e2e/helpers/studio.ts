@@ -183,7 +183,7 @@ export const SEL = {
   pwaIconEditor: '.icon-picker, .class1779811544755, .class1603800885985',
   pwaIconEditButton: 'ion-button.class1649864949366, ion-button.buttonEditIcon',
   pwaNameInput: 'ion-input.class1603802354868 input',
-  pwaShortNameInput: 'ion-input.class1603803008204 input',
+  pwaShortNameInput: 'ion-input.class1603803008204 input, ion-input.class1762428297567 input',
   pwaSaveButton: 'ion-button.class1762425668421, ion-button.class1649838959998',
   wallpaperModal: 'ion-modal.modal-custom--hw-100, ion-modal.modal-custom, ion-modal.modalCSV',
   wallpaperColorSegmentButton: 'ion-segment-button.class1774608193139, ion-segment-button.class1648553976686',
