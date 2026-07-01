@@ -2373,6 +2373,7 @@ export interface BaserowGridSourceOptions {
   database: string;
   table: string;
   expectedColumns?: string[];
+  allowLegacySourceSummaryMissing?: boolean;
 }
 
 export interface BaserowSelectSourceOptions extends BaserowGridSourceOptions {
@@ -2385,6 +2386,32 @@ export type DataSourceSortOrder = 'asc' | 'desc';
 export interface DataSourceSortOptions {
   column: string;
   order?: DataSourceSortOrder;
+}
+
+export type DataSourceFilterOperator =
+  | 'equal'
+  | 'not_equal'
+  | 'minus'
+  | 'minusequals'
+  | 'greater'
+  | 'greaterequals'
+  | 'among_following'
+  | 'out_following'
+  | 'contains'
+  | 'not_contains'
+  | 'is_empty'
+  | 'is_filled';
+
+export interface DataSourceFilterMonacoPaletteOptions {
+  column?: string;
+  operator?: DataSourceFilterOperator;
+  sourceSection: SourcePaletteSection;
+  sourceLabel: string;
+  expectedCode: string;
+}
+
+export interface MonacoDropPayload extends SourcePaletteDragPayload {
+  internalData: string;
 }
 
 export interface BaserowAddRowActionConfigOptions extends BaserowGridSourceOptions {
@@ -2410,6 +2437,11 @@ const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
 const DATA_SOURCE_EDITOR_ACTION_BUTTON = 'button.class1775995541940';
+const DATA_SOURCE_FILTER_ACTION_INDEX = 1;
+const DATA_SOURCE_FILTER_ADD_BUTTON = 'ion-button.class1758191882601';
+const DATA_SOURCE_FILTER_FIELD_INPUT = '.class1758189195703 input';
+const DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON = 'ion-button.class1758189195718';
+const DATA_SOURCE_FILTER_OPERATOR_SELECT = 'ion-select.class1758189195757';
 const DATA_SOURCE_SORT_ACTION_INDEX = 2;
 const DATA_SOURCE_SORT_ADD_FIELD_BUTTON = 'ion-button.class1758273392231';
 const DATA_SOURCE_SORT_ASC_BUTTON = '.class1758275049219';
@@ -2458,6 +2490,13 @@ export async function configureGridBaserowTable(
   await page.waitForTimeout(1_500);
 
   const sourceSummary = page.locator('.class1776013865512').first();
+  if (source.allowLegacySourceSummaryMissing && !(await sourceSummary.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    await expect(
+      page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`).first(),
+      'the legacy data source configuration should return to the action list after saving the table',
+    ).toBeVisible({ timeout: 15_000 });
+    return;
+  }
   await expect(sourceSummary).toContainText(source.table, { timeout: pickerTimeout });
   for (const column of source.expectedColumns ?? []) {
     await expect(sourceSummary, `Baserow source summary should contain ${column}`).toContainText(column, {
@@ -2620,6 +2659,104 @@ export async function openDataSourceSortPanel(page: Page): Promise<void> {
       timeout: 10_000,
     });
   });
+}
+
+export async function openDataSourceFilterPanel(page: Page): Promise<void> {
+  await test.step('Open the data source Filter panel', async () => {
+    const actions = page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`);
+    const filterAction = actions.nth(DATA_SOURCE_FILTER_ACTION_INDEX);
+    await expect(filterAction, 'the data source Filter action should be visible').toBeVisible({ timeout: 15_000 });
+    await filterAction.click({ timeout: 10_000 }).catch(async () => filterAction.dispatchEvent('click'));
+    await expect(filterAction, 'the data source Filter action should be selected').toHaveClass(/figma-button--selected/, {
+      timeout: 10_000,
+    });
+  });
+}
+
+export async function configureDataSourceFilterMonacoPaletteValue(
+  page: Page,
+  options: DataSourceFilterMonacoPaletteOptions,
+): Promise<MonacoDropPayload> {
+  const stepLabel = options.column
+    ? `Configure data source filter ${options.column} from the Source Palette`
+    : 'Configure a data source filter Monaco value from the Source Palette';
+  return test.step(stepLabel, async () => {
+    await openDataSourceFilterPanel(page);
+    await addDataSourceFilterRow(page);
+    if (options.column) {
+      await selectDataSourceFilterField(page, options.column);
+      await setDataSourceFilterOperator(page, options.operator ?? 'equal');
+    }
+    await switchDataSourceFilterValueToJavaScript(page);
+    return dropSourcePaletteEntryIntoVisibleMonaco(page, options.sourceSection, options.sourceLabel, options.expectedCode);
+  });
+}
+
+async function addDataSourceFilterRow(page: Page): Promise<void> {
+  const addFilter = page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_ADD_BUTTON}:visible`).last();
+  await expect(addFilter, 'the data source Filter add-row button should be visible').toBeVisible({ timeout: 15_000 });
+  await addFilter.click({ timeout: 10_000 }).catch(async () => addFilter.dispatchEvent('click'));
+  await expect(
+    page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON}:visible`).last(),
+    'the data source Filter field picker button should appear',
+  ).toBeVisible({ timeout: 15_000 });
+}
+
+async function selectDataSourceFilterField(page: Page, column: string): Promise<void> {
+  const fieldButton = page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON}:visible`).last();
+  await expect(fieldButton, 'the data source Filter field picker button should be visible').toBeVisible({ timeout: 15_000 });
+  await fieldButton.click({ timeout: 10_000 }).catch(async () => fieldButton.dispatchEvent('click'));
+
+  const popover = sourceCompletionPopover(page);
+  await expect(popover, 'the data source Filter field picker should open').toBeVisible({ timeout: 15_000 });
+  const option = popover.locator('ion-item').filter({ hasText: column }).first();
+  await expect(option, `the data source Filter field ${column} should be selectable`).toBeVisible({ timeout: 15_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+
+  await expect(
+    page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_INPUT}:visible`).last(),
+    `the data source Filter field should be ${column}`,
+  ).toHaveValue(column, { timeout: 15_000 });
+}
+
+async function setDataSourceFilterOperator(page: Page, operator: DataSourceFilterOperator): Promise<void> {
+  const select = page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_OPERATOR_SELECT}:visible`).last();
+  await expect(select, 'the data source Filter operator selector should be visible').toBeVisible({ timeout: 15_000 });
+  const optionState = await select.evaluate((el, op) => {
+    const values = Array.from(el.querySelectorAll('ion-select-option')).map((option) =>
+      String((option as HTMLOptionElement & { value?: string }).value ?? ''),
+    );
+    return { index: values.indexOf(op), values };
+  }, operator);
+  if (optionState.index < 0) {
+    throw new Error(`unknown data source Filter operator ${operator}; available operators: ${optionState.values.join(', ')}`);
+  }
+
+  await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
+  const items = page.locator('ion-select-popover ion-item');
+  await items.first().waitFor({ state: 'visible', timeout: 10_000 });
+  await items.nth(optionState.index).click({ timeout: 10_000 }).catch(async () => items.nth(optionState.index).dispatchEvent('click'));
+  await expect
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: `data source Filter operator should be ${operator}`,
+      timeout: 10_000,
+    })
+    .toBe(operator);
+}
+
+async function switchDataSourceFilterValueToJavaScript(page: Page): Promise<void> {
+  const jsButton = page
+    .locator('c8oforms-datasourceeditor ion-button:visible')
+    .filter({ has: page.locator('ion-icon[name="logo-javascript"]') })
+    .last();
+  await expect(jsButton, 'the data source Filter JavaScript value button should be visible').toBeVisible({ timeout: 15_000 });
+  await jsButton.click({ timeout: 10_000 }).catch(async () => jsButton.dispatchEvent('click'));
+
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  if (await alert.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await alert.locator('button').last().click({ timeout: 10_000 }).catch(async () => alert.locator('button').last().dispatchEvent('click'));
+  }
+  await visibleMonacoEditor(page, 'data source Filter JavaScript value editor');
 }
 
 export async function configureDataSourceSort(page: Page, options: DataSourceSortOptions): Promise<void> {
@@ -5964,6 +6101,66 @@ export async function sourcePaletteEntryDragPayload(
       typeData: dataTransfer.getData('type'),
     };
   });
+}
+
+export async function dropSourcePaletteEntryIntoVisibleMonaco(
+  page: Page,
+  section: SourcePaletteSection,
+  label: string,
+  expectedText: string,
+): Promise<MonacoDropPayload> {
+  await ensureSourcePaletteSectionExpanded(page, section, label);
+  const editor = await visibleMonacoEditor(page, 'Monaco editor receiving a Source Palette drop');
+  const tile = sourcePaletteEntryLocator(page, label);
+  await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
+
+  const payload = await page.evaluate((entryLabel) => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el as HTMLElement);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+
+    const source = [...document.querySelectorAll('[draggable="true"]')]
+      .filter(visible)
+      .filter((el) => (el.textContent ?? '').includes(entryLabel))
+      .pop();
+    const target = [...document.querySelectorAll('c8oforms-monacoeditor .monaco-editor')].filter(visible).pop();
+    if (!source || !target) {
+      throw new Error(`missing Source Palette entry or Monaco editor: source=${!!source} target=${!!target}`);
+    }
+
+    const box = target.getBoundingClientRect();
+    const dataTransfer = new DataTransfer();
+    const eventInit = {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer,
+      clientX: box.left + box.width * 0.4,
+      clientY: box.top + box.height * 0.45,
+    };
+
+    source.dispatchEvent(new DragEvent('dragstart', eventInit));
+    const out = {
+      types: Array.from(dataTransfer.types),
+      textData: dataTransfer.getData('text'),
+      plainData: dataTransfer.getData('text/plain'),
+      htmlData: dataTransfer.getData('text/html'),
+      typeData: dataTransfer.getData('type'),
+      internalData: dataTransfer.getData('__c8oformsdrag_source'),
+    };
+    target.dispatchEvent(new DragEvent('dragover', eventInit));
+    target.dispatchEvent(new DragEvent('drop', eventInit));
+    return out;
+  }, label);
+
+  await expect
+    .poll(() => editor.innerText().then(normalizeVisibleText), {
+      message: `Source Palette drop should insert ${expectedText} into Monaco; payload=${JSON.stringify(payload)}`,
+      timeout: 15_000,
+    })
+    .toContain(expectedText);
+  return payload;
 }
 
 export async function dragSourcePaletteEntryToTinyMceStrict(

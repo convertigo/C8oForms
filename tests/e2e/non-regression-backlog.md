@@ -1,6 +1,6 @@
 # Backlog des tests de non-regression
 
-Derniere mise a jour: 2026-06-29
+Derniere mise a jour: 2026-06-30
 
 Source: issues GitHub `convertigo/C8oForms`, etat ouvert ou ferme, limitees au milestone `2.2.0` (milestone 2.2).
 
@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 62 deja couverts; 162 a couvrir (24 ouverts, 138 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 63 deja couverts; 161 a couvrir (24 ouverts, 137 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -178,7 +178,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 62 deja co
 | [ ] | [#1282](https://github.com/convertigo/C8oForms/issues/1282) | closed | bug, QC-Passed | Page buttons are displayed at the top of the form in editor mode |  |
 | [ ] | [#1281](https://github.com/convertigo/C8oForms/issues/1281) | closed | bug, QC-Passed | Viewer tabs no longer work as in 2.1.x |  |
 | [ ] | [#1280](https://github.com/convertigo/C8oForms/issues/1280) | closed | bug, QC-Passed | Unexpected icons displayed in page list |  |
-| [ ] | [#1279](https://github.com/convertigo/C8oForms/issues/1279) | closed | bug, QC-Passed | Dropped variables do not work in data source filter Monaco editors |  |
+| [x] | [#1279](https://github.com/convertigo/C8oForms/issues/1279) | closed | bug, QC-Passed, Auto QA Test | Dropped variables do not work in data source filter Monaco editors | Auto QA Test<br>e2e/issue-1279.spec.ts |
 | [ ] | [#1278](https://github.com/convertigo/C8oForms/issues/1278) | closed | bug, QC-Passed | Palette search placeholders should be left-aligned |  |
 | [ ] | [#1277](https://github.com/convertigo/C8oForms/issues/1277) | closed | bug, QC-Passed | Long table names overflow in modalConfigure data source table selection |  |
 | [ ] | [#1276](https://github.com/convertigo/C8oForms/issues/1276) | closed | task | Investigate ghost components after copying components between pages |  |
