@@ -2,6 +2,7 @@ import { test as base, expect, type BrowserContext } from '@playwright/test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { login } from './helpers/studio';
 
 /**
@@ -40,7 +41,7 @@ export const test = base.extend<Record<string, never>, WorkerFixtures>({
       await warmup.close();
       await use(context);
       await context.close();
-      rmSync(userDataDir, { recursive: true, force: true });
+      await removeUserDataDir(userDataDir);
     },
     { scope: 'worker' },
   ],
@@ -65,3 +66,22 @@ export { expect };
 // Re-export the common Playwright types so specs can import everything they need
 // from './fixtures' instead of '@playwright/test'.
 export type { Page, Locator, Browser, BrowserContext } from '@playwright/test';
+
+async function removeUserDataDir(userDataDir: string): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+      return;
+    } catch (error) {
+      if (!isTransientRemoveError(error) || attempt === 4) {
+        throw error;
+      }
+      await sleep(500 * (attempt + 1));
+    }
+  }
+}
+
+function isTransientRemoveError(error: unknown): boolean {
+  const code = (error as { code?: string } | undefined)?.code;
+  return code === 'EBUSY' || code === 'ENOTEMPTY' || code === 'EPERM';
+}
