@@ -253,6 +253,7 @@ type MainEditorConfigTab =
   | 'tab_selector_choice_action'
   | 'tab_selector_conf_action'
   | 'visibility_tab_selector'
+  | 'button_state_tab_selector'
   | 'navigation_tab_selector'
   | 'defaultvalue'
   | 'data_interactions';
@@ -261,6 +262,7 @@ type ChartHeightMode = 'auto' | 'personalized';
 type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
 export type VisibilityMode = 'always' | 'never' | 'auth_required' | 'no_auth_required' | 'condition';
+export type ButtonStateMode = 'always_enabled' | 'enabled_when_condition' | 'disabled_when_condition';
 
 export async function setStudioLanguageBeforeLoad(page: Page, lang: StudioLanguage): Promise<void> {
   await page.addInitScript((value) => {
@@ -1781,6 +1783,10 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await page.waitForTimeout(2_000);
 }
 
+export function viewerTextInput(page: Page, technicalId: string): Locator {
+  return page.locator(`ion-input#${technicalId} input, input#${technicalId}, [id="${technicalId}"] input`).first();
+}
+
 export async function visibleDataGridRow(page: Page, text: string, timeout = 45_000): Promise<Locator> {
   const row = page.locator('.ag-center-cols-container .ag-row').filter({ hasText: text }).first();
   await expect(row, `the Data Grid row ${text} should render`).toBeVisible({ timeout });
@@ -2125,6 +2131,32 @@ export async function expectButtonRenderedWithoutIcon(page: Page): Promise<void>
   });
 }
 
+export async function expectRenderedButtonEnabled(page: Page, enabled: boolean, surface = 'viewer'): Promise<void> {
+  const button = page.locator(`${SEL.buttonComponent}:visible ion-button:visible, ${SEL.buttonComponent}:visible [role="button"]:visible`).first();
+  await expect(button, `${surface} Button should remain visible`).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(() => renderedButtonDisabled(button), {
+      message: `${surface} Button should be ${enabled ? 'enabled' : 'disabled'}`,
+      timeout: 15_000,
+    })
+    .toBe(!enabled);
+}
+
+async function renderedButtonDisabled(button: Locator): Promise<boolean> {
+  return button.evaluate((element) => {
+    const host = element as HTMLElement & { disabled?: unknown; shadowRoot?: ShadowRoot | null };
+    const shadowButton = host.shadowRoot?.querySelector('button') as HTMLButtonElement | null;
+    return (
+      host.hasAttribute('disabled') ||
+      host.getAttribute('aria-disabled') === 'true' ||
+      host.classList.contains('button-disabled') ||
+      host.disabled === true ||
+      shadowButton?.disabled === true ||
+      shadowButton?.getAttribute('aria-disabled') === 'true'
+    );
+  });
+}
+
 async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
   const tabs = await visibleConfigTabs(page);
   const index = await configTabIndexById(page, tabId);
@@ -2151,6 +2183,7 @@ const CONFIG_TAB_FALLBACK_TEXT: Partial<Record<MainEditorConfigTab, string[]>> =
   defaultvalue: ['default value', 'valeur par defaut', 'valor por defecto', 'valore predefinito'],
   data_interactions: ['data & interactions', 'donnees & interactions', 'datos e interacciones', 'dati e interazioni'],
   visibility_tab_selector: ['visibility', 'visibilite', 'visibilidad', 'visibilita'],
+  button_state_tab_selector: ['state', 'etat', 'estado', 'stato'],
   navigation_tab_selector: ['navigation', 'navegacion', 'navigazione'],
 };
 
@@ -2219,6 +2252,8 @@ function fallbackConfigTabIndex(tabId: MainEditorConfigTab, visibleTabCount: num
     case 'data_interactions':
       if (visibleTabCount === 4) return 1;
       return hasSourceChoiceTab ? visibleTabCount - 3 : 0;
+    case 'button_state_tab_selector':
+      return visibleTabCount === 4 ? 1 : null;
     case 'visibility_tab_selector':
       return visibleTabCount > 1 ? visibleTabCount - 2 : null;
     case 'navigation_tab_selector':
@@ -3799,6 +3834,53 @@ export async function expectVisibilityModeSelected(page: Page, mode: VisibilityM
       timeout: 10_000,
     })
     .toContain('c8o-btn-selected');
+}
+
+function buttonStateModeButtonIndex(mode: ButtonStateMode): number {
+  switch (mode) {
+    case 'always_enabled':
+      return 0;
+    case 'enabled_when_condition':
+      return 1;
+    case 'disabled_when_condition':
+      return 2;
+  }
+}
+
+async function buttonStateModeButton(page: Page, mode: ButtonStateMode): Promise<Locator> {
+  const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
+  const count = await modeButtons.count();
+  if (count < 3) {
+    throw new Error(`button state toggle should expose 3 buttons, found ${count}`);
+  }
+
+  return modeButtons.nth(count - 3 + buttonStateModeButtonIndex(mode));
+}
+
+export async function selectButtonStateMode(page: Page, mode: ButtonStateMode): Promise<void> {
+  const button = await buttonStateModeButton(page, mode);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await page.waitForTimeout(500);
+}
+
+export async function expectButtonStateModeSelected(page: Page, mode: ButtonStateMode): Promise<void> {
+  const button = await buttonStateModeButton(page, mode);
+  await expect
+    .poll(async () => (await button.getAttribute('class')) ?? '', {
+      message: `Button state mode should stay selected: ${mode}`,
+      timeout: 10_000,
+    })
+    .toContain('c8o-btn-selected');
+}
+
+async function activateButtonStateConditionMode(
+  page: Page,
+  mode: Exclude<ButtonStateMode, 'always_enabled'> = 'enabled_when_condition',
+): Promise<void> {
+  await selectButtonStateMode(page, mode);
+  await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'button state condition add button should be visible').toBeVisible({
+    timeout: 10_000,
+  });
 }
 
 export async function cancelVisibilityModeSwitch(page: Page, targetMode: VisibilityMode): Promise<void> {
@@ -5756,6 +5838,11 @@ export async function openComponentVisibilityConfigBySelector(page: Page, compon
   await openConfigTabById(page, 'visibility_tab_selector');
 }
 
+export async function openButtonStateConfigBySelector(page: Page, componentTag = SEL.buttonComponent): Promise<void> {
+  await openComponentConfig(page, componentTag);
+  await openConfigTabById(page, 'button_state_tab_selector');
+}
+
 export interface SourceCompletionPopoverState {
   labels: string[];
   items: Array<{
@@ -5992,6 +6079,36 @@ export async function addVisibilityCondition(page: Page, spec: VisibilityConditi
   // settle so the operator/value persists before the caller closes the panel —
   // otherwise the last-authored condition can be lost (this bit is what made an
   // is_empty condition look like a viewer bug).
+  await page.waitForTimeout(1_000);
+}
+
+export interface ButtonStateConditionSpec extends VisibilityConditionSpec {
+  mode?: Exclude<ButtonStateMode, 'always_enabled'>;
+}
+
+export async function addButtonStateCondition(page: Page, spec: ButtonStateConditionSpec): Promise<void> {
+  await activateButtonStateConditionMode(page, spec.mode ?? 'enabled_when_condition');
+  await page.locator(SEL.visibilityAddConditionButton).first().click();
+  await page.locator(SEL.conditionFieldBrowseButton).first().click();
+  await page.locator('ion-popover ion-item').filter({ hasText: spec.field }).first().click();
+  await expect(page.locator(SEL.conditionFieldInput).first(), 'button state condition field should be configured').toHaveValue(
+    spec.field,
+    { timeout: 10_000 },
+  );
+
+  await setVisibilityOperator(page, spec.operator);
+
+  if (spec.operator !== 'is_filled' && spec.operator !== 'is_empty') {
+    await page.waitForTimeout(300);
+    const values = Array.isArray(spec.value) ? spec.value : spec.value != null ? [spec.value] : [];
+    const chipEditor = page.locator(SEL.conditionValueTagInput).first();
+    if (await chipEditor.isVisible({ timeout: 1_500 }).catch(() => false)) {
+      for (const value of values) await fillVisibilityTagValue(page, value);
+    } else if (values.length) {
+      await fillVisibilityValueTextEditor(page, values[0]);
+    }
+  }
+
   await page.waitForTimeout(1_000);
 }
 

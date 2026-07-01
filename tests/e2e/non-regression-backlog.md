@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 66 deja couverts; 158 a couvrir (24 ouverts, 134 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 67 deja couverts; 158 a couvrir (24 ouverts, 134 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -38,6 +38,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 66 deja co
 | [ ] | [#1043](https://github.com/convertigo/C8oForms/issues/1043) | open | enhancement | Possibilty to download the PDF attachment file in an application |  |
 | [ ] | [#606](https://github.com/convertigo/C8oForms/issues/606) | open | enhancement | Capability to decide what attachment is sent in the Send Mail action |  |
 | [ ] | [#75](https://github.com/convertigo/C8oForms/issues/75) | open | major, task | Gestion du multilangue |  |
+| [x] | [#1435](https://github.com/convertigo/C8oForms/issues/1435) | closed | enhancement, QC-Passed, Auto QA Test | Button component should support conditional enabled and disabled states | Auto QA Test<br>e2e/issue-1435.spec.ts |
 | [x] | [#1434](https://github.com/convertigo/C8oForms/issues/1434) | closed | bug, QC-Passed, Auto QA Test | Import file component displays an empty Navigation category | Auto QA Test<br>e2e/issue-1434.spec.ts |
 | [ ] | [#1432](https://github.com/convertigo/C8oForms/issues/1432) | closed | enhancement, QC-Passed | Allow selecting category and value fields when configuring chart data sources |  |
 | [ ] | [#1431](https://github.com/convertigo/C8oForms/issues/1431) | closed | enhancement, QC-Passed | Add a TinyMCE editing mode for the Button component |  |
