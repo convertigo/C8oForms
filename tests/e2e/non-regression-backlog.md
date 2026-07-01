@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 65 deja couverts; 159 a couvrir (24 ouverts, 135 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 66 deja couverts; 158 a couvrir (24 ouverts, 134 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -166,7 +166,7 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 65 deja co
 | [ ] | [#1295](https://github.com/convertigo/C8oForms/issues/1295) | closed | bug, QC-Passed | Display page title” setting is not applied in Preview or Published mode |  |
 | [ ] | [#1294](https://github.com/convertigo/C8oForms/issues/1294) | closed | bug, QC-Passed | Visibility condition “is_filled” is not applied for text inputs, radio buttons, or checkboxes |  |
 | [ ] | [#1293](https://github.com/convertigo/C8oForms/issues/1293) | closed | bug, QC-Passed | Page reordering breaks component visibility configuration |  |
-| [ ] | [#1292](https://github.com/convertigo/C8oForms/issues/1292) | closed | bug, QC-Passed | Slider component configuration: “Min Label” and “Max Label” fields are missing in Data & Interactions |  |
+| [x] | [#1292](https://github.com/convertigo/C8oForms/issues/1292) | closed | bug, QC-Passed, Auto QA Test | Slider component configuration: “Min Label” and “Max Label” fields are missing in Data & Interactions | Auto QA Test<br>e2e/issue-1292.spec.ts |
 | [ ] | [#1291](https://github.com/convertigo/C8oForms/issues/1291) | closed | bug, QC-Passed | Editor page is missing bottom padding under some components |  |
 | [ ] | [#1290](https://github.com/convertigo/C8oForms/issues/1290) | closed | bug, QC-Passed | In Firefox Navigation buttons have no hover decoration and do not indicate clickability |  |
 | [x] | [#1289](https://github.com/convertigo/C8oForms/issues/1289) | closed | bug, QC-Passed, Auto QA Test | Select component preview is broken: empty blue button on the right and options list partially hidden | Auto QA Test<br>e2e/issue-1289.spec.ts |

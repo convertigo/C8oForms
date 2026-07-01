@@ -66,6 +66,8 @@ export const SEL = {
   sliderComponent: 'c8oforms-itemsliderviewver',
   sliderMinValueInput: 'c8oforms-textinputsetting.class1776351300004 input, .class1776351300004 input',
   sliderMaxValueInput: 'c8oforms-textinputsetting.class1776351300013 input, .class1776351300013 input',
+  sliderMinLabelInput: 'c8oforms-textinputsetting.class1776351300031 input, .class1776351300031 input',
+  sliderMaxLabelInput: 'c8oforms-textinputsetting.class1776351300040 input, .class1776351300040 input',
   sliderStepInput: 'c8oforms-textinputsetting.class1776351300022 input, .class1776351300022 input',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
@@ -1909,6 +1911,39 @@ export async function expectSliderBoundsUseNumberInputs(page: Page): Promise<voi
         timeout: 15_000,
       });
     }
+  });
+}
+
+export async function setSliderBoundaryLabels(page: Page, labels: { min: string; max: string }): Promise<void> {
+  await test.step('Set Slider boundary labels', async () => {
+    await openConfigTabById(page, 'data_interactions');
+
+    const minLabel = page.locator(SEL.sliderMinLabelInput).first();
+    await expect(minLabel, 'Slider Data & Interactions should expose Min Label').toBeVisible({ timeout: 15_000 });
+    await minLabel.fill(labels.min);
+    await minLabel.blur();
+
+    const maxLabel = page.locator(SEL.sliderMaxLabelInput).first();
+    await expect(maxLabel, 'Slider Data & Interactions should expose Max Label').toBeVisible({ timeout: 15_000 });
+    await maxLabel.fill(labels.max);
+    await maxLabel.blur();
+
+    await expect(minLabel, 'Slider Min Label should keep the typed value').toHaveValue(labels.min, { timeout: 15_000 });
+    await expect(maxLabel, 'Slider Max Label should keep the typed value').toHaveValue(labels.max, { timeout: 15_000 });
+    await page.waitForTimeout(750);
+  });
+}
+
+export async function expectSliderBoundaryLabelsInConfig(page: Page, labels: { min: string; max: string }): Promise<void> {
+  await test.step('Assert Slider boundary labels are available in configuration', async () => {
+    await openConfigTabById(page, 'data_interactions');
+
+    await expect(page.locator(SEL.sliderMinLabelInput).first(), 'Slider Min Label should be present').toHaveValue(labels.min, {
+      timeout: 15_000,
+    });
+    await expect(page.locator(SEL.sliderMaxLabelInput).first(), 'Slider Max Label should be present').toHaveValue(labels.max, {
+      timeout: 15_000,
+    });
   });
 }
 
