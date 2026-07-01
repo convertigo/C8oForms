@@ -63,6 +63,10 @@ export const SEL = {
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
+  sliderComponent: 'c8oforms-itemsliderviewver',
+  sliderMinValueInput: 'c8oforms-textinputsetting.class1776351300004 input, .class1776351300004 input',
+  sliderMaxValueInput: 'c8oforms-textinputsetting.class1776351300013 input, .class1776351300013 input',
+  sliderStepInput: 'c8oforms-textinputsetting.class1776351300022 input, .class1776351300022 input',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
   gridFooterSetting: '.class1782121400000',
@@ -1882,6 +1886,29 @@ export async function expectFileComponentHasNoNavigationConfigTab(page: Page): P
       visibleTabCount,
       'Import file should expose Data & Interactions, File/Image submissions, and Visibility only',
     ).toBe(3);
+  });
+}
+
+export async function expectSliderBoundsUseNumberInputs(page: Page): Promise<void> {
+  await test.step('Assert Slider Min and Max settings use numeric inputs', async () => {
+    await openConfigTabById(page, 'data_interactions');
+
+    const step = page.locator(SEL.sliderStepInput).first();
+    await expect(step, 'Slider Data & Interactions should expose the Step setting').toBeVisible({ timeout: 15_000 });
+    await expect(step, 'Slider Step is the reference numeric setting').toHaveAttribute('type', 'number', {
+      timeout: 15_000,
+    });
+
+    for (const [name, selector] of [
+      ['Min value', SEL.sliderMinValueInput],
+      ['Max value', SEL.sliderMaxValueInput],
+    ] as const) {
+      const input = page.locator(selector).first();
+      await expect(input, `Slider Data & Interactions should expose ${name}`).toBeVisible({ timeout: 15_000 });
+      await expect(input, `Slider ${name} should be a native numeric input like Step`).toHaveAttribute('type', 'number', {
+        timeout: 15_000,
+      });
+    }
   });
 }
 

@@ -1,6 +1,6 @@
 # Backlog des tests de non-regression
 
-Derniere mise a jour: 2026-06-30
+Derniere mise a jour: 2026-07-01
 
 Source: issues GitHub `convertigo/C8oForms`, etat ouvert ou ferme, limitees au milestone `2.2.0` (milestone 2.2).
 
@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 63 deja couverts; 161 a couvrir (24 ouverts, 137 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 65 deja couverts; 159 a couvrir (24 ouverts, 135 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -169,10 +169,10 @@ Resume: 232 tickets dans le milestone `2.2.0`; 224 tickets candidats; 63 deja co
 | [ ] | [#1292](https://github.com/convertigo/C8oForms/issues/1292) | closed | bug, QC-Passed | Slider component configuration: “Min Label” and “Max Label” fields are missing in Data & Interactions |  |
 | [ ] | [#1291](https://github.com/convertigo/C8oForms/issues/1291) | closed | bug, QC-Passed | Editor page is missing bottom padding under some components |  |
 | [ ] | [#1290](https://github.com/convertigo/C8oForms/issues/1290) | closed | bug, QC-Passed | In Firefox Navigation buttons have no hover decoration and do not indicate clickability |  |
-| [ ] | [#1289](https://github.com/convertigo/C8oForms/issues/1289) | closed | bug, QC-Passed | Select component preview is broken: empty blue button on the right and options list partially hidden |  |
+| [x] | [#1289](https://github.com/convertigo/C8oForms/issues/1289) | closed | bug, QC-Passed, Auto QA Test | Select component preview is broken: empty blue button on the right and options list partially hidden | Auto QA Test<br>e2e/issue-1289.spec.ts |
 | [ ] | [#1288](https://github.com/convertigo/C8oForms/issues/1288) | closed | enhancement, QC-Passed | Grid source configuration: columns search bar requires ENTER instead of live search |  |
 | [ ] | [#1287](https://github.com/convertigo/C8oForms/issues/1287) | closed | bug, QC-Passed | Checkbox grid configuration allows multiple row/column selections in single-selection mode |  |
-| [ ] | [#1286](https://github.com/convertigo/C8oForms/issues/1286) | closed | bug, QC-Passed | Slider component: Min and Max fields are not numeric inputs |  |
+| [x] | [#1286](https://github.com/convertigo/C8oForms/issues/1286) | closed | bug, QC-Passed, Auto QA Test | Slider component: Min and Max fields are not numeric inputs | Auto QA Test<br>e2e/issue-1286.spec.ts |
 | [ ] | [#1285](https://github.com/convertigo/C8oForms/issues/1285) | closed | enhancement, QC-Passed | Add Line/Column buttons are not visible enough |  |
 | [ ] | [#1283](https://github.com/convertigo/C8oForms/issues/1283) | closed | QC-Passed, task | Page and app configuration UI is not migrated to the new design |  |
 | [ ] | [#1282](https://github.com/convertigo/C8oForms/issues/1282) | closed | bug, QC-Passed | Page buttons are displayed at the top of the form in editor mode |  |
