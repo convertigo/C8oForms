@@ -40,7 +40,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 67 deja co
 | [ ] | [#75](https://github.com/convertigo/C8oForms/issues/75) | open | major, task | Gestion du multilangue |  |
 | [x] | [#1435](https://github.com/convertigo/C8oForms/issues/1435) | closed | enhancement, QC-Passed, Auto QA Test | Button component should support conditional enabled and disabled states | Auto QA Test<br>e2e/issue-1435.spec.ts |
 | [x] | [#1434](https://github.com/convertigo/C8oForms/issues/1434) | closed | bug, QC-Passed, Auto QA Test | Import file component displays an empty Navigation category | Auto QA Test<br>e2e/issue-1434.spec.ts |
-| [ ] | [#1432](https://github.com/convertigo/C8oForms/issues/1432) | closed | enhancement, QC-Passed | Allow selecting category and value fields when configuring chart data sources |  |
+| [x] | [#1432](https://github.com/convertigo/C8oForms/issues/1432) | closed | enhancement, QC-Passed, Auto QA Test | Allow selecting category and value fields when configuring chart data sources | Auto QA Test<br>e2e/issue-1432.spec.ts |
 | [ ] | [#1431](https://github.com/convertigo/C8oForms/issues/1431) | closed | enhancement, QC-Passed | Add a TinyMCE editing mode for the Button component |  |
 | [x] | [#1430](https://github.com/convertigo/C8oForms/issues/1430) | closed | bug, QC-Passed, Auto QA Test | Baserow source fails when sorting by a hidden field | Auto QA Test<br>e2e/issue-1430.spec.ts |
 | [x] | [#1429](https://github.com/convertigo/C8oForms/issues/1429) | closed | bug, QC-Passed, Auto QA Test | Import File component opens an oversized modal with incorrect .c8oforms project import wording | Auto QA Test<br>e2e/issue-1429.spec.ts |

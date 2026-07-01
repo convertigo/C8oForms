@@ -2489,6 +2489,11 @@ export interface BaserowSelectSourceOptions extends BaserowGridSourceOptions {
   valueColumn: string;
 }
 
+export interface BaserowChartSourceOptions extends BaserowGridSourceOptions {
+  categoryColumn: string;
+  valueColumns: string[];
+}
+
 export type DataSourceSortOrder = 'asc' | 'desc';
 
 export interface DataSourceSortOptions {
@@ -2544,6 +2549,7 @@ const SOURCE_PALETTE_ROOT_VISIBLE = `${SEL.sourcePalette}:visible, .class1776003
 const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
+const CHART_SOURCE_ROLE_CHECKBOX = 'ion-checkbox.modal-configure-role-checkbox';
 const DATA_SOURCE_EDITOR_ACTION_BUTTON = 'button.class1775995541940';
 const DATA_SOURCE_FILTER_ACTION_INDEX = 1;
 const DATA_SOURCE_FILTER_ADD_BUTTON = 'ion-button.class1758191882601';
@@ -2611,6 +2617,97 @@ export async function configureGridBaserowTable(
       timeout: pickerTimeout,
     });
   }
+}
+
+export async function configureChartBaserowSource(page: Page, source: BaserowChartSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step(`Configure Chart Baserow source ${source.table}`, async () => {
+    await acceptRgpdIfVisible(page);
+    const configurationSection = page.locator('.class1775835275863').first();
+    if (await configurationSection.isVisible().catch(() => false)) {
+      await configurationSection.click();
+    }
+
+    await openConfigTabById(page, 'tab_selector_choice_source');
+    await selectDataSourceEntry(page, pickerTimeout, 'getData');
+
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Chart Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Chart Baserow table picker should be visible').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.workspace, { exact: true }).click();
+    await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.database, { exact: true }).click();
+    await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.table, { exact: true }).click();
+
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+    const columns = source.expectedColumns ?? [source.categoryColumn, ...source.valueColumns];
+    for (const column of columns) {
+      await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
+        column,
+        { timeout: pickerTimeout },
+      );
+    }
+
+    await setChartSourceColumnRole(tablePicker, 'category', source.categoryColumn, true);
+    for (const column of columns) {
+      await setChartSourceColumnRole(tablePicker, 'value', column, source.valueColumns.includes(column));
+    }
+
+    await expect
+      .poll(() => checkedChartBaserowColumns(tablePicker, columns), {
+        message: 'Chart Baserow roles should be selected through the Category/Value checkboxes',
+        timeout: 10_000,
+      })
+      .toEqual({ category: [source.categoryColumn], value: source.valueColumns });
+
+    await acceptRgpdIfVisible(page);
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_500);
+
+    const sourceSummary = page.locator('.class1776013865512').first();
+    await expect(sourceSummary).toContainText(source.table, { timeout: pickerTimeout });
+    for (const column of [source.categoryColumn, ...source.valueColumns]) {
+      await expect(sourceSummary, `Baserow source summary should contain ${column}`).toContainText(column, {
+        timeout: pickerTimeout,
+      });
+    }
+  });
+}
+
+export async function expectChartBaserowSourceRoles(page: Page, source: BaserowChartSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step('Assert Chart Baserow Category/Value roles persist', async () => {
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Chart Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Chart Baserow table picker should reopen').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+
+    const columns = source.expectedColumns ?? [source.categoryColumn, ...source.valueColumns];
+    for (const column of columns) {
+      await expect(selectSourceColumnRow(tablePicker, column), `Baserow column ${column} should be visible on reopen`).toBeVisible({
+        timeout: 15_000,
+      });
+    }
+    await expect
+      .poll(() => checkedChartBaserowColumns(tablePicker, columns), {
+        message: 'reopened Chart source should keep the selected Category/Value roles',
+        timeout: 10_000,
+      })
+      .toEqual({ category: [source.categoryColumn], value: source.valueColumns });
+
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_000);
+  });
 }
 
 export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<void> {
@@ -4208,6 +4305,19 @@ async function checkedSelectBaserowColumns(modal: Locator, checkboxSelector: str
   return checked;
 }
 
+async function checkedChartBaserowColumns(modal: Locator, candidates: string[]): Promise<{ category: string[]; value: string[] }> {
+  const checked = { category: [] as string[], value: [] as string[] };
+  for (const name of candidates) {
+    const row = selectSourceColumnRow(modal, name);
+    if ((await row.count()) === 0) continue;
+    const roleCheckboxes = row.locator(CHART_SOURCE_ROLE_CHECKBOX);
+    if ((await roleCheckboxes.count()) < 2) continue;
+    if ((await roleCheckboxes.nth(0).getAttribute('aria-checked')) === 'true') checked.category.push(name);
+    if ((await roleCheckboxes.nth(1).getAttribute('aria-checked')) === 'true') checked.value.push(name);
+  }
+  return checked;
+}
+
 async function settledSelectBaserowColumns(read: () => Promise<string[]>): Promise<string[]> {
   const startedAt = Date.now();
   let stableSince = startedAt;
@@ -4229,6 +4339,30 @@ async function settledSelectBaserowColumns(read: () => Promise<string[]>): Promi
   }
 
   return JSON.parse(previous) as string[];
+}
+
+async function setChartSourceColumnRole(
+  modal: Locator,
+  role: 'category' | 'value',
+  targetColumn: string,
+  checked: boolean,
+): Promise<void> {
+  const row = selectSourceColumnRow(modal, targetColumn);
+  await expect(row, `Baserow column ${targetColumn} should be available for Chart ${role}`).toBeVisible({ timeout: 15_000 });
+
+  const checkbox = row.locator(CHART_SOURCE_ROLE_CHECKBOX).nth(role === 'category' ? 0 : 1);
+  await expect(checkbox, `Chart ${role} checkbox for ${targetColumn} should be visible`).toBeVisible({ timeout: 15_000 });
+  const current = (await checkbox.getAttribute('aria-checked')) === 'true';
+  if (current !== checked) {
+    await checkbox.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+    await expect
+      .poll(() => checkbox.getAttribute('aria-checked'), {
+        message: `Chart ${role} checkbox for ${targetColumn} should become ${checked}`,
+        timeout: 5_000,
+      })
+      .toBe(checked ? 'true' : 'false');
+  }
 }
 
 async function setSingleSelectSourceColumn(modal: Locator, checkboxSelector: string, targetColumn: string): Promise<void> {
