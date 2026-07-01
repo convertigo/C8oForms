@@ -18,7 +18,9 @@ import {
  * Root cause: buttonMainEditorStyleTabs still included the shared
  * tab_selector_grid_question entry and selected it by default, so Button style
  * configuration exposed the irrelevant generic Question section before the
- * button_style and button_icon sections.
+ * button_style and button_icon sections. Later button-specific or shared style
+ * tabs are allowed; the regression guard is the absence of the generic
+ * tab_selector_grid_question tab.
  *
  * The C8oForms form is built only through Studio UI: create a blank form, add a
  * Button component, and open its configuration panel. No form document writes or
@@ -27,7 +29,7 @@ import {
 
 test.setTimeout(180_000);
 
-test('#1354 - Button style panel exposes only button-specific sections', async ({ page }) => {
+test('#1354 - Button style panel does not expose the generic Question section', async ({ page }) => {
   await test.step('Log in to C8oForms', async () => {
     await login(page);
   });

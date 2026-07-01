@@ -274,7 +274,7 @@ export async function reloadStudioWithLanguage(page: Page, lang: StudioLanguage)
       window.localStorage.setItem('lang', value);
     }, lang);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForURL('**/selector/**', { timeout: 30_000 });
+    await expectRoute(page, ROUTE.selector, 30_000);
     await expect(page.locator(SEL.blankFormCard), 'selector page should be ready after language reload').toBeVisible({
       timeout: 30_000,
     });
@@ -1865,12 +1865,23 @@ export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
   await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
 
   const tabs = container.locator(`${SEL.styleTab}:visible`);
-  await expect(
-    tabs,
-    'Button style tabs should expose only the two button-specific sections; the generic Question tab must be absent.',
-  ).toHaveCount(2);
-  await expect(tabs.first(), 'button visual style section should remain accessible').toBeVisible();
-  await expect(tabs.nth(1), 'button icon style section should remain accessible').toBeVisible();
+  await expect(tabs.first(), 'at least one button style tab should be visible').toBeVisible({ timeout: 15_000 });
+
+  const tabTexts = (await visibleTexts(page, `${SEL.styleTabsContainer} ${SEL.styleTab}`)).map(searchableVisibleText);
+  for (const genericQuestionLabel of ['question', 'pregunta', 'domanda']) {
+    expect(tabTexts, 'Button style tabs must not expose the generic Question section').not.toContain(
+      genericQuestionLabel,
+    );
+  }
+
+  await openButtonStyleLabelSection(page);
+  await expect(page.locator(SEL.buttonLabelInput).first(), 'button visual style section should remain accessible').toBeVisible({
+    timeout: 15_000,
+  });
+  await openButtonIconStyleSection(page);
+  await expect(page.locator(SEL.buttonIconNameInput).first(), 'button icon style section should remain accessible').toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 export async function expectFileComponentHasNoNavigationConfigTab(page: Page): Promise<void> {
@@ -2585,7 +2596,7 @@ export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<v
 export async function openMapDataSourcePicker(page: Page): Promise<Locator> {
   return test.step('Open the Map data source picker', async () => {
     await openConfigurationSection(page);
-    await openConfigTabById(page, 'tab_selector_conf_source');
+    await openConfigTabById(page, 'tab_selector_choice_source');
     await activateMapDataSourceMode(page);
 
     const sourceButton = await firstVisibleLocator(page, SEL.dataSourceSelectButton, 'Map data source selection button', 15_000);
