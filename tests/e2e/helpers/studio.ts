@@ -47,6 +47,11 @@ export const SEL = {
     'page-viewerpage ion-footer [role="tab"]',
   ].join(', '),
   // responseCompleted.yaml — post-submit transition page
+  publishedToolbar: 'page-viewerpage c8oforms-toolbarcomponentui div.toolbar, c8oforms-toolbarcomponentui div.toolbar',
+  publishedToolbarMenuButton:
+    'page-viewerpage c8oforms-toolbarcomponentui div.left-section ion-button.class1757346419324, c8oforms-toolbarcomponentui div.left-section ion-button.class1757346419324, c8oforms-toolbarcomponentui div.left-section ion-button:has(ion-icon[src$="menu.svg"])',
+  publishedToolbarReloadButton:
+    'page-viewerpage c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button:has(ion-icon[src$="refresh-ccw.svg"])',
   responseCompletedPage: 'page-responsecompleted',
   responseCompletedLogo: 'page-responsecompleted img.class1684922008750',
   // editor canvas wrapper of a map component
@@ -266,6 +271,27 @@ type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
 export type VisibilityMode = 'always' | 'never' | 'auth_required' | 'no_auth_required' | 'condition';
 export type ButtonStateMode = 'always_enabled' | 'enabled_when_condition' | 'disabled_when_condition';
+
+export interface PublishedToolbarButtonThemeState {
+  color: string;
+  iconColor: string;
+  cssColor: string;
+  background: string;
+  hoverBackground: string;
+  boxShadow: string;
+  visibility: string;
+  nativeBackgroundColor: string;
+  nativeColor: string;
+  className: string;
+}
+
+export interface PublishedToolbarThemeState {
+  toolbarColor: string;
+  toolbarBackgroundColor: string;
+  toolbarVisibility: string;
+  menu: PublishedToolbarButtonThemeState;
+  reload: PublishedToolbarButtonThemeState;
+}
 
 export async function setStudioLanguageBeforeLoad(page: Page, lang: StudioLanguage): Promise<void> {
   await page.addInitScript((value) => {
@@ -729,12 +755,109 @@ export async function openViewer(page: Page, formId: string, mode = ':edit', res
 export async function openPublishedViewer(page: Page, formId: string, waitForSelector = SEL.viewerPage): Promise<void> {
   const publishedId = formId.startsWith('published_') ? formId : `published_${formId}`;
   await test.step(`Open published viewer ${publishedId}`, async () => {
-    const pwa = await getPwaDocument(page, publishedId);
-    const targetId = typeof pwa?.targetId === 'string' && pwa.targetId ? pwa.targetId : publishedId;
-    await page.goto(`../pwas/${targetId}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    let targetId = '';
+    await expect
+      .poll(
+        async () => {
+          const pwa = await getPwaDocument(page, publishedId);
+          targetId = publishedViewerTargetId(pwa, publishedId);
+          return targetId;
+        },
+        {
+          message: `published PWA document ${publishedId}_pwa_document should be ready`,
+          timeout: 60_000,
+        },
+      )
+      .not.toBe('');
+
+    const pwaPath = `../pwas/${targetId}/index.html`;
+    await waitForPublishedPwaRoute(page, pwaPath);
+    await page.goto(pwaPath, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.locator(SEL.viewerPage).waitFor({ state: 'attached', timeout: 60_000 });
     await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 60_000 });
     await page.waitForTimeout(2_000);
+  });
+}
+
+function publishedViewerTargetId(pwa: JsonRecord | null, fallbackPublishedId: string): string {
+  if (!pwa) {
+    return '';
+  }
+  if (typeof pwa.targetId === 'string' && pwa.targetId) {
+    return pwa.targetId;
+  }
+  if (typeof pwa.anonymousKey === 'string' && pwa.anonymousKey) {
+    return pwa.anonymousKey;
+  }
+  return fallbackPublishedId;
+}
+
+async function waitForPublishedPwaRoute(page: Page, relativePath: string): Promise<void> {
+  const absoluteUrl = new URL(relativePath, page.url()).toString();
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get(absoluteUrl, { failOnStatusCode: false, timeout: 10_000 });
+        return response.status();
+      },
+      {
+        message: `published PWA route should be available at ${absoluteUrl}`,
+        timeout: 90_000,
+      },
+    )
+    .toBe(200);
+}
+
+export async function publishedViewerToolbarThemeState(page: Page): Promise<PublishedToolbarThemeState> {
+  return test.step('Read published viewer toolbar theme styles', async () => {
+    const toolbar = page.locator(SEL.publishedToolbar).first();
+    const menuButton = page.locator(SEL.publishedToolbarMenuButton).first();
+    const reloadButton = page.locator(SEL.publishedToolbarReloadButton).first();
+
+    await expect(toolbar, 'published viewer toolbar should be visible').toBeVisible({ timeout: 30_000 });
+    await expect(menuButton, 'published viewer menu button should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(reloadButton, 'published viewer reload button should be visible').toBeVisible({ timeout: 15_000 });
+
+    const toolbarState = await toolbar.evaluate((el) => {
+      const style = window.getComputedStyle(el as HTMLElement);
+      return {
+        color: style.color,
+        backgroundColor: style.backgroundColor,
+        visibility: style.visibility,
+      };
+    });
+
+    return {
+      toolbarColor: toolbarState.color,
+      toolbarBackgroundColor: toolbarState.backgroundColor,
+      toolbarVisibility: toolbarState.visibility,
+      menu: await readToolbarButtonThemeState(menuButton),
+      reload: await readToolbarButtonThemeState(reloadButton),
+    };
+  });
+}
+
+async function readToolbarButtonThemeState(button: Locator): Promise<PublishedToolbarButtonThemeState> {
+  return button.evaluate((el) => {
+    const host = el as HTMLElement;
+    const style = window.getComputedStyle(host);
+    const icon = host.querySelector('ion-icon');
+    const iconStyle = icon ? window.getComputedStyle(icon as HTMLElement) : null;
+    const native = host.shadowRoot?.querySelector('[part="native"]') as HTMLElement | null;
+    const nativeStyle = native ? window.getComputedStyle(native) : null;
+
+    return {
+      color: style.color,
+      iconColor: iconStyle?.color ?? '',
+      cssColor: style.getPropertyValue('--color').trim(),
+      background: style.getPropertyValue('--background').trim(),
+      hoverBackground: style.getPropertyValue('--toolbar-button-hover-background').trim(),
+      boxShadow: style.getPropertyValue('--box-shadow').trim(),
+      visibility: style.visibility,
+      nativeBackgroundColor: nativeStyle?.backgroundColor ?? '',
+      nativeColor: nativeStyle?.color ?? '',
+      className: host.className,
+    };
   });
 }
 
@@ -2606,6 +2729,12 @@ export interface BaserowChartSourceOptions extends BaserowGridSourceOptions {
   valueColumns: string[];
 }
 
+export interface BaserowMapSourceOptions extends BaserowGridSourceOptions {
+  titleColumn: string;
+  latitudeColumn: string;
+  longitudeColumn: string;
+}
+
 export type DataSourceSortOrder = 'asc' | 'desc';
 
 export interface DataSourceSortOptions {
@@ -2668,6 +2797,7 @@ const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
 const CHART_SOURCE_ROLE_CHECKBOX = 'ion-checkbox.modal-configure-role-checkbox';
+const MAP_SOURCE_ROLE_CHECKBOX = 'ion-checkbox.modal-configure-role-checkbox';
 const DATA_SOURCE_EDITOR_ACTION_BUTTON = 'button.class1775995541940';
 const DATA_SOURCE_FILTER_ACTION_INDEX = 1;
 const DATA_SOURCE_FILTER_ADD_BUTTON = 'ion-button.class1758191882601';
@@ -2826,6 +2956,116 @@ export async function expectChartBaserowSourceRoles(page: Page, source: BaserowC
     await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
     await page.waitForTimeout(1_000);
   });
+}
+
+export async function configureMapBaserowSource(page: Page, source: BaserowMapSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step(`Configure Map Baserow source ${source.table}`, async () => {
+    await openConfigurationSection(page);
+    const hasDedicatedSourceSelectionTab = await tryOpenConfigTabById(page, 'tab_selector_choice_source');
+    if (!hasDedicatedSourceSelectionTab) {
+      await openConfigTabById(page, 'tab_selector_conf_source');
+    }
+    await activateMapDataSourceMode(page);
+    await selectDataSourceEntry(page, pickerTimeout, 'getData');
+
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Map Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Map Baserow table picker should be visible').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.workspace, { exact: true }).click();
+    await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.database, { exact: true }).click();
+    await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.table, { exact: true }).click();
+
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+    const columns = source.expectedColumns ?? [source.titleColumn, source.latitudeColumn, source.longitudeColumn];
+    for (const column of columns) {
+      await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
+        column,
+        { timeout: pickerTimeout },
+      );
+    }
+
+    await setMapSourceColumnRole(tablePicker, 'title', source.titleColumn, true);
+    await setMapSourceColumnRole(tablePicker, 'latitude', source.latitudeColumn, true);
+    await setMapSourceColumnRole(tablePicker, 'longitude', source.longitudeColumn, true);
+
+    await expect
+      .poll(() => checkedMapBaserowColumns(tablePicker, columns), {
+        message: 'Map Baserow roles should be selected through the Latitude/Longitude/Label checkboxes',
+        timeout: 10_000,
+      })
+      .toEqual({
+        title: [source.titleColumn],
+        latitude: [source.latitudeColumn],
+        longitude: [source.longitudeColumn],
+      });
+
+    await acceptRgpdIfVisible(page);
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_500);
+
+    const sourceSummary = page.locator('.class1776013865512').first();
+    await expect(sourceSummary).toContainText(source.table, { timeout: pickerTimeout });
+    for (const column of [source.titleColumn, source.latitudeColumn, source.longitudeColumn]) {
+      await expect(sourceSummary, `Map Baserow source summary should contain ${column}`).toContainText(column, {
+        timeout: pickerTimeout,
+      });
+    }
+  });
+}
+
+export async function expectMapBaserowSourceRoles(page: Page, source: BaserowMapSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step('Assert Map Baserow Latitude/Longitude roles persist', async () => {
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Map Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Map Baserow table picker should reopen').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+
+    const columns = source.expectedColumns ?? [source.titleColumn, source.latitudeColumn, source.longitudeColumn];
+    for (const column of columns) {
+      await expect(selectSourceColumnRow(tablePicker, column), `Baserow column ${column} should be visible on reopen`).toBeVisible({
+        timeout: 15_000,
+      });
+    }
+
+    await expect
+      .poll(() => checkedMapBaserowColumns(tablePicker, columns), {
+        message: 'reopened Map source should keep the selected Latitude/Longitude/Label roles',
+        timeout: 10_000,
+      })
+      .toEqual({
+        title: [source.titleColumn],
+        latitude: [source.latitudeColumn],
+        longitude: [source.longitudeColumn],
+      });
+
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_000);
+  });
+}
+
+async function tryOpenConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
+  try {
+    await openConfigTabById(page, tabId);
+    return true;
+  } catch (error) {
+    if (String((error as Error | undefined)?.message ?? error).includes('No visible config tab matches id')) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<void> {
@@ -4459,6 +4699,23 @@ async function checkedChartBaserowColumns(modal: Locator, candidates: string[]):
   return checked;
 }
 
+async function checkedMapBaserowColumns(
+  modal: Locator,
+  candidates: string[],
+): Promise<{ title: string[]; latitude: string[]; longitude: string[] }> {
+  const checked = { title: [] as string[], latitude: [] as string[], longitude: [] as string[] };
+  for (const name of candidates) {
+    const row = selectSourceColumnRow(modal, name);
+    if ((await row.count()) === 0) continue;
+    const roleCheckboxes = row.locator(MAP_SOURCE_ROLE_CHECKBOX);
+    if ((await roleCheckboxes.count()) < 3) continue;
+    if ((await roleCheckboxes.nth(0).getAttribute('aria-checked')) === 'true') checked.latitude.push(name);
+    if ((await roleCheckboxes.nth(1).getAttribute('aria-checked')) === 'true') checked.longitude.push(name);
+    if ((await roleCheckboxes.nth(2).getAttribute('aria-checked')) === 'true') checked.title.push(name);
+  }
+  return checked;
+}
+
 async function settledSelectBaserowColumns(read: () => Promise<string[]>): Promise<string[]> {
   const startedAt = Date.now();
   let stableSince = startedAt;
@@ -4500,6 +4757,31 @@ async function setChartSourceColumnRole(
     await expect
       .poll(() => checkbox.getAttribute('aria-checked'), {
         message: `Chart ${role} checkbox for ${targetColumn} should become ${checked}`,
+        timeout: 5_000,
+      })
+      .toBe(checked ? 'true' : 'false');
+  }
+}
+
+async function setMapSourceColumnRole(
+  modal: Locator,
+  role: 'title' | 'latitude' | 'longitude',
+  targetColumn: string,
+  checked: boolean,
+): Promise<void> {
+  const row = selectSourceColumnRow(modal, targetColumn);
+  await expect(row, `Baserow column ${targetColumn} should be available for Map ${role}`).toBeVisible({ timeout: 15_000 });
+
+  const roleIndex = role === 'latitude' ? 0 : role === 'longitude' ? 1 : 2;
+  const checkbox = row.locator(MAP_SOURCE_ROLE_CHECKBOX).nth(roleIndex);
+  await expect(checkbox, `Map ${role} checkbox for ${targetColumn} should be visible`).toBeVisible({ timeout: 15_000 });
+  const current = (await checkbox.getAttribute('aria-checked')) === 'true';
+  if (current !== checked) {
+    await checkbox.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+    await expect
+      .poll(() => checkbox.getAttribute('aria-checked'), {
+        message: `Map ${role} checkbox for ${targetColumn} should become ${checked}`,
         timeout: 5_000,
       })
       .toBe(checked ? 'true' : 'false');

@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 69 deja couverts; 156 a couvrir (24 ouverts, 132 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja couverts; 154 a couvrir (24 ouverts, 130 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -55,12 +55,12 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 69 deja co
 | [ ] | [#1418](https://github.com/convertigo/C8oForms/issues/1418) | closed | enhancement, Testing | End-to-end regression testing framework (ticket-driven, version-verified) |  |
 | [ ] | [#1417](https://github.com/convertigo/C8oForms/issues/1417) | closed | bug | BaseRow config validation should use the current form document instead of the editor form |  |
 | [x] | [#1416](https://github.com/convertigo/C8oForms/issues/1416) | closed | bug, QC-Passed, Auto QA Test | Baserow data source does not return dates in the correct format | Auto QA Test<br>e2e/issue-1416.spec.ts |
-| [ ] | [#1415](https://github.com/convertigo/C8oForms/issues/1415) | closed | enhancement, QC-Passed | Reload button and menu button in a published app do not use the theme |  |
+| [x] | [#1415](https://github.com/convertigo/C8oForms/issues/1415) | closed | enhancement, QC-Passed, Auto QA Test | Reload button and menu button in a published app do not use the theme | Auto QA Test<br>e2e/issue-1415.spec.ts |
 | [ ] | [#1414](https://github.com/convertigo/C8oForms/issues/1414) | closed | enhancement, QC-Passed | No-Code Database date columns set to European format are displayed as `yyyy/mm/dd` in the Grid component |  |
 | [x] | [#1413](https://github.com/convertigo/C8oForms/issues/1413) | closed | bug, QC-Passed, Auto QA Test | Description component breaks when using a Grid Palette value whose column name contains a single quote | Auto QA Test<br>e2e/issue-1413.spec.ts |
 | [x] | [#1412](https://github.com/convertigo/C8oForms/issues/1412) | closed | bug, QC-Passed, Auto QA Test | Map height breaks after opening Data & Interactions | Auto QA Test<br>e2e/issue-1412.spec.ts<br>e2e/issue-1412-reopened.spec.ts |
 | [x] | [#1410](https://github.com/convertigo/C8oForms/issues/1410) | closed | enhancement, QC-Passed, Auto QA Test | Add grid footer and pagination display settings | Auto QA Test<br>e2e/issue-1410.spec.ts |
-| [ ] | [#1408](https://github.com/convertigo/C8oForms/issues/1408) | closed | enhancement, QC-Passed | Allow selecting latitude and longitude fields when configuring map data sources |  |
+| [x] | [#1408](https://github.com/convertigo/C8oForms/issues/1408) | closed | enhancement, QC-Passed, Auto QA Test | Allow selecting latitude and longitude fields when configuring map data sources | Auto QA Test<br>e2e/issue-1408.spec.ts |
 | [x] | [#1407](https://github.com/convertigo/C8oForms/issues/1407) | closed | bug, QC-Passed, Auto QA Test | Cannot switch PWA access from anonymous back to authenticated | Auto QA Test<br>e2e/issue-1407.spec.ts |
 | [ ] | [#1406](https://github.com/convertigo/C8oForms/issues/1406) | closed | bug | Fix response viewer action label according to user permissions |  |
 | [x] | [#1405](https://github.com/convertigo/C8oForms/issues/1405) | closed | bug, QC-Passed, Auto QA Test | Grid columns are incorrectly sized when the grid becomes visible after being hidden | Auto QA Test<br>e2e/issue-1405.spec.ts |
