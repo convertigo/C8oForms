@@ -2523,6 +2523,12 @@ export interface DataSourceFilterMonacoPaletteOptions {
   expectedCode: string;
 }
 
+export interface DataSourceFilterTextValueOptions {
+  column: string;
+  operator?: DataSourceFilterOperator;
+  value: string;
+}
+
 export interface MonacoDropPayload extends SourcePaletteDragPayload {
   internalData: string;
 }
@@ -2897,6 +2903,20 @@ export async function configureDataSourceFilterMonacoPaletteValue(
   });
 }
 
+export async function configureDataSourceFilterTextValue(
+  page: Page,
+  options: DataSourceFilterTextValueOptions,
+): Promise<void> {
+  await test.step(`Configure data source filter ${options.column} text value`, async () => {
+    await openDataSourceFilterPanel(page);
+    await addDataSourceFilterRow(page);
+    await selectDataSourceFilterField(page, options.column);
+    await setDataSourceFilterOperator(page, options.operator ?? 'equal');
+    await fillVisibilityValueTextEditor(page, options.value);
+    await expectVisibilityValueTextEditorToContain(page, options.value);
+  });
+}
+
 async function addDataSourceFilterRow(page: Page): Promise<void> {
   const addFilter = page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_ADD_BUTTON}:visible`).last();
   await expect(addFilter, 'the data source Filter add-row button should be visible').toBeVisible({ timeout: 15_000 });
@@ -3070,7 +3090,11 @@ export async function expectTinyMcePathBadge(page: Page, expectedPath: string): 
     .toContain(expectedPath);
 }
 
-export async function sourceSelectVisibleOptions(page: Page, expectedOptions: string[]): Promise<string[]> {
+export async function sourceSelectVisibleOptions(
+  page: Page,
+  expectedOptions: string[],
+  forbiddenOptions: string[] = [],
+): Promise<string[]> {
   return test.step('Read visible source Select options', async () => {
     if (expectedOptions.length === 0) {
       throw new Error('sourceSelectVisibleOptions needs at least one expected option');
@@ -3090,6 +3114,11 @@ export async function sourceSelectVisibleOptions(page: Page, expectedOptions: st
     await expect(dropdown, 'the source Select dropdown should open with source data').toBeVisible({ timeout: 30_000 });
     for (const option of expectedOptions) {
       await expect(dropdown, `the source Select dropdown should include ${option}`).toContainText(option, { timeout: 30_000 });
+    }
+    for (const option of forbiddenOptions) {
+      await expect(dropdown, `the source Select dropdown should not include ${option}`).not.toContainText(option, {
+        timeout: 5_000,
+      });
     }
 
     return dropdown.evaluate((root, expected) => {

@@ -10,7 +10,7 @@ Exclusions automatiques: `documentation`, `duplicate`, `invalid`, `question`, `w
 
 Colonne Test: `[x]` signifie que le ticket est reference dans `tests/e2e/regression-manifest.json`, dans un `alsoCovers`, dans un spec local `tests/e2e/issue-*.spec.ts`, ou porte le label GitHub `Auto QA Test`.
 
-Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 67 deja couverts; 158 a couvrir (24 ouverts, 134 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
+Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 68 deja couverts; 157 a couvrir (24 ouverts, 133 fermes); 8 exclus par label, absence de label candidat, ou exclusion explicite.
 
 | Test | Ticket | Etat | Labels | Titre | Preuve |
 | --- | --- | --- | --- | --- | --- |
@@ -70,7 +70,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 67 deja co
 | [x] | [#1401](https://github.com/convertigo/C8oForms/issues/1401) | closed | bug, QC-Passed, Auto QA Test | Database Connector configuration shows 404 icons, and Select data source always re‑selects two columns instead of one | Auto QA Test<br>e2e/issue-1401.spec.ts |
 | [ ] | [#1400](https://github.com/convertigo/C8oForms/issues/1400) | closed | enhancement, QC-Passed | Add a dedicated Gallery component for data-driven visual item selection |  |
 | [x] | [#1399](https://github.com/convertigo/C8oForms/issues/1399) | closed | bug, QC-Passed, Auto QA Test | Viewer expressions using api.* no longer resolve correctly | Auto QA Test<br>e2e/issue-1399.spec.ts |
-| [ ] | [#1398](https://github.com/convertigo/C8oForms/issues/1398) | closed | enhancement, QC-Passed | Select data sources cannot filter on columns different from display/value columns |  |
+| [x] | [#1398](https://github.com/convertigo/C8oForms/issues/1398) | closed | enhancement, QC-Passed, Auto QA Test | Select data sources cannot filter on columns different from display/value columns | Auto QA Test<br>e2e/issue-1398.spec.ts |
 | [ ] | [#1397](https://github.com/convertigo/C8oForms/issues/1397) | closed | bug | performSubmitAction can duplicate datasource-backed option children for checkbox, select, and radio fields |  |
 | [x] | [#1396](https://github.com/convertigo/C8oForms/issues/1396) | closed | bug, QC-Passed, Auto QA Test | Checkbox component values are not applied to a Baserow multiple‑selection column | Auto QA Test<br>e2e/issue-1396.spec.ts |
 | [x] | [#1395](https://github.com/convertigo/C8oForms/issues/1395) | closed | bug, QC-Passed, Auto QA Test | Using `fields[my_var]` instead of `fields["grid1"]` is replaced by `null` inside the Monaco Editor | Auto QA Test<br>e2e/issue-1395.spec.ts |
