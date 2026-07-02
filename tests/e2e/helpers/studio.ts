@@ -57,6 +57,9 @@ export const SEL = {
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
   buttonLabelInput: 'c8oforms-textinputsetting.class1776707403149 input, .class1776707403149 input',
+  buttonDisplayModeSwitch: '.class1782410200003',
+  buttonAdvancedTextEditor:
+    ':is(c8oforms-datasourceeditor.class1782410100001, c8oforms-datasourceeditor:has(.tox-tinymce))',
   buttonIconNameInput: '.class1776709887054 input',
   buttonIconClearButton: 'ion-icon.class1780311333214, .class1780311333214',
   buttonRenderedIcon: 'c8oforms-itembuttonviewer ion-button ion-icon',
@@ -2036,6 +2039,29 @@ export async function setButtonLabel(page: Page, value: string): Promise<void> {
   });
 }
 
+export async function setButtonAdvancedRichLabel(
+  page: Page,
+  content: { boldText: string; italicText: string },
+): Promise<void> {
+  await test.step('Set Button advanced rich label', async () => {
+    await openButtonStyleLabelSection(page);
+    await selectButtonDisplayMode(page, 'advanced');
+
+    const editorRoot = page.locator(`${SEL.buttonAdvancedTextEditor}:visible`).first();
+    await expect(editorRoot, 'Button advanced mode should expose a TinyMCE HTML editor').toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(
+      editorRoot.locator('.tox-tinymce, editor, textarea').first(),
+      'Button advanced HTML editor should be mounted',
+    ).toBeAttached({ timeout: 20_000 });
+
+    await typeVisibleTinyMceRichContent(page, editorRoot, content);
+    await page.keyboard.press('Tab').catch(() => undefined);
+    await page.waitForTimeout(1_500);
+  });
+}
+
 export async function expectButtonRenderedLabel(page: Page, expected: string, surface: 'editor' | 'viewer'): Promise<void> {
   await test.step(`Assert Button label in ${surface}`, async () => {
     const component = page.locator(`${SEL.buttonComponent}:visible`).first();
@@ -2049,10 +2075,41 @@ export async function expectButtonRenderedLabel(page: Page, expected: string, su
   });
 }
 
+export async function expectButtonRenderedHtmlLabel(
+  page: Page,
+  expected: { texts: string[]; htmlPattern: RegExp },
+  surface: 'editor' | 'viewer',
+): Promise<void> {
+  await test.step(`Assert Button advanced HTML label in ${surface}`, async () => {
+    const component = page.locator(`${SEL.buttonComponent}:visible`).first();
+    await expect(component, `Button component should be visible in ${surface}`).toBeVisible({ timeout: 30_000 });
+
+    for (const text of expected.texts) {
+      await expect
+        .poll(() => renderedButtonText(component), {
+          message: `${surface}: Button should render text ${text}`,
+          timeout: 20_000,
+        })
+        .toContain(text);
+    }
+
+    await expect
+      .poll(() => renderedButtonHtml(component), {
+        message: `${surface}: Button should render the rich HTML label`,
+        timeout: 20_000,
+      })
+      .toMatch(expected.htmlPattern);
+  });
+}
+
 async function openButtonStyleLabelSection(page: Page): Promise<void> {
   await openStyleSection(page);
   const input = page.locator(SEL.buttonLabelInput).first();
-  if (await input.isVisible({ timeout: 1_500 }).catch(() => false)) {
+  const displayModeSwitch = page.locator(`${SEL.buttonDisplayModeSwitch}:visible`).first();
+  if (
+    (await input.isVisible({ timeout: 1_500 }).catch(() => false)) ||
+    (await displayModeSwitch.isVisible({ timeout: 1_500 }).catch(() => false))
+  ) {
     return;
   }
 
@@ -2062,7 +2119,10 @@ async function openButtonStyleLabelSection(page: Page): Promise<void> {
   for (let i = 0; i < count; i++) {
     const tab = tabs.nth(i);
     await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
-    if (await input.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    if (
+      (await input.isVisible({ timeout: 1_500 }).catch(() => false)) ||
+      (await displayModeSwitch.isVisible({ timeout: 1_500 }).catch(() => false))
+    ) {
       return;
     }
   }
@@ -2072,8 +2132,60 @@ async function openButtonStyleLabelSection(page: Page): Promise<void> {
   );
 }
 
+async function selectButtonDisplayMode(page: Page, mode: 'normal' | 'advanced'): Promise<void> {
+  const switchRoot = page.locator(`${SEL.buttonDisplayModeSwitch}:visible`).first();
+  await expect(switchRoot, 'Button style should expose the display mode switch').toBeVisible({ timeout: 15_000 });
+
+  const button = switchRoot.locator('button.c8o-btn:visible').nth(mode === 'advanced' ? 1 : 0);
+  await expect(button, `Button display mode ${mode} option should be visible`).toBeVisible({ timeout: 10_000 });
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(button, `Button display mode should be ${mode}`).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
+  await page.waitForTimeout(800);
+}
+
+async function typeVisibleTinyMceRichContent(
+  page: Page,
+  editorRoot: Locator,
+  content: { boldText: string; italicText: string },
+): Promise<void> {
+  const body = editorRoot.frameLocator('iframe.tox-edit-area__iframe').locator('body');
+  await expect(body, 'TinyMCE editable iframe body should be visible').toBeVisible({ timeout: 20_000 });
+
+  await body.click({ timeout: 10_000 });
+  await page.keyboard.press('Control+A');
+  await page.keyboard.press('Backspace');
+
+  await page.keyboard.press('Control+B');
+  await page.keyboard.type(content.boldText);
+  await page.keyboard.press('Control+B');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.press('Control+I');
+  await page.keyboard.type(content.italicText);
+  await page.keyboard.press('Control+I');
+
+  for (const fragment of [content.boldText, content.italicText]) {
+    await expect
+      .poll(() => body.innerText().then(normalizeWhitespace), {
+        message: `TinyMCE should contain the typed fragment ${fragment}`,
+        timeout: 10_000,
+      })
+      .toContain(fragment);
+  }
+}
+
 async function renderedButtonText(component: Locator): Promise<string> {
   return normalizeWhitespace(await component.innerText({ timeout: 2_000 }).catch(() => ''));
+}
+
+async function renderedButtonHtml(component: Locator): Promise<string> {
+  return component.evaluate((root) => {
+    const button =
+      root.querySelector('[role="button"]') ??
+      root.querySelector('ion-button') ??
+      root.querySelector('button') ??
+      root;
+    return (button as HTMLElement).innerHTML;
+  });
 }
 
 export async function openButtonIconStyleSection(page: Page): Promise<void> {
