@@ -3416,16 +3416,18 @@ export async function setGridReturnedValueToRowSelected(page: Page): Promise<voi
       return;
     }
 
-    const returnedValueButtons = returnedValue.locator('button:visible, ion-button:visible');
-    await expect
-      .poll(() => returnedValueButtons.count(), {
-        message: 'grid returned value buttons should be visible',
-        timeout: 10_000,
-      })
-      .toBeGreaterThanOrEqual(3);
+    const returnedValueButtons = returnedValue.locator('button.class1776074264497:visible');
+    await expect(returnedValueButtons.nth(2), 'grid returned value row_selected button should be visible').toBeVisible({
+      timeout: 10_000,
+    });
     const rowSelectedButton = returnedValueButtons.nth(2);
     await rowSelectedButton.click({ timeout: 10_000 }).catch(async () => rowSelectedButton.dispatchEvent('click'));
-    await page.waitForTimeout(750);
+    await expect
+      .poll(() => rowSelectedButton.evaluate((el) => el.classList.contains('c8o-btn-selected')), {
+        message: 'grid returned value should be row_selected',
+        timeout: 10_000,
+      })
+      .toBe(true);
   });
 }
 
