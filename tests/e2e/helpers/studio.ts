@@ -132,7 +132,7 @@ export const SEL = {
     '[title^="Modifier la page"], [aria-label^="Modifier la page"], [title^="Edit page"], [aria-label^="Edit page"], .class1775140098599, .class1774949227812, .class1650357059474, .class1775140098605, .class1774948900804',
   pageDeleteAction:
     '.class1775140098632, .class1774949276438, [data-id="delete-action-pages"], ion-icon[src$="trash-2.svg"], img[src$="trash-2.svg"]',
-  pageAddButton: '.class1750084426535',
+  pageAddButton: '.class1750084426535, ion-button.class1780583331059, ion-button.class1773251124192',
   pageSearchbar: 'ion-searchbar.class1774460274462',
   pageSettingsCard: '.class1650357060215',
   pageSettingsCloseButton: '.c8o-btn-close',
@@ -7543,6 +7543,225 @@ export async function openPagesPanel(page: Page): Promise<void> {
     }
     throw new Error('Pages panel did not open after clicking the Pages menu.');
   });
+}
+
+export async function addPageThroughPagesPanel(page: Page): Promise<string> {
+  return test.step('Add a page through the Pages panel', async () => {
+    await openPagesPanel(page);
+    const pageRows = page.locator(SEL.pageRow);
+    const beforeNames = await visiblePageRowNames(pageRows);
+    const addPage = await firstVisibleLocator(page, SEL.pageAddButton, 'Pages add page button', 15_000);
+    await addPage.click({ timeout: 10_000 }).catch(async () => addPage.dispatchEvent('click'));
+    await expect
+      .poll(() => visiblePageRowNames(pageRows), {
+        message: 'adding a page should create a new page row',
+        timeout: 15_000,
+      })
+      .toHaveLength(beforeNames.length + 1);
+    const afterNames = await visiblePageRowNames(pageRows);
+    const newPageName = afterNames.find((name) => !beforeNames.includes(name));
+    if (!newPageName) {
+      throw new Error(`Could not identify the newly added page. Before: ${beforeNames.join(', ')}; after: ${afterNames.join(', ')}`);
+    }
+    await expect(pageRows.filter({ hasText: newPageName }).first(), `new page ${newPageName} should be listed`).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.waitForTimeout(1_000);
+    return newPageName;
+  });
+}
+
+async function visiblePageRowNames(pageRows: Locator): Promise<string[]> {
+  const names: string[] = [];
+  const count = await pageRows.count();
+  for (let index = 0; index < count; index++) {
+    const row = pageRows.nth(index);
+    if (!(await row.isVisible().catch(() => false))) {
+      continue;
+    }
+    const text = (await row.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+    const match = text.match(/\bPage\s+\d+\b/);
+    if (match && !names.includes(match[0])) {
+      names.push(match[0]);
+    }
+  }
+  return names;
+}
+
+export async function openComponentNavigationConfig(page: Page, componentSelector: string): Promise<void> {
+  await test.step('Open component Navigation configuration', async () => {
+    await openComponentConfig(page, componentSelector);
+    await openConfigTabById(page, 'navigation_tab_selector');
+    await expect(page.locator('c8oforms-filterbradd').first(), 'Navigation condition add controls should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+  });
+}
+
+export type NavigationFilterOperator = 'equals' | 'different' | 'contains' | 'not_contains' | 'equal' | 'not_equal';
+
+export interface NavigationFilterSpec {
+  field: string;
+  value: string;
+  operator?: NavigationFilterOperator;
+  action?: 'goTo' | 'authorize';
+  pageName?: string;
+}
+
+export async function configureComponentNavigationFilter(page: Page, spec: NavigationFilterSpec): Promise<void> {
+  await test.step(`Configure component Navigation filter ${spec.field} = ${spec.value}`, async () => {
+    await ensureNavigationFilterRow(page);
+    const currentField = await navigationFilterFieldInput(page).inputValue().catch(() => '');
+    if (currentField !== spec.field) {
+      await selectNavigationFilterField(page, spec.field);
+    }
+    await selectIonOptionByValue(page, navigationFilterOperatorSelect(page), spec.operator ?? 'equals', 'Navigation filter operator');
+    await expectNavigationFilterUsesTextValueEditor(page);
+    await fillVisibilityValueTextEditor(page, spec.value);
+    await expectVisibilityValueTextEditorToContain(page, spec.value);
+    if (spec.action) {
+      await selectIonOptionByValue(page, navigationFilterActionSelect(page), spec.action, 'Navigation filter action');
+    }
+    if (spec.pageName) {
+      await selectNavigationFilterTargetPage(page, spec.pageName);
+    }
+    await page.waitForTimeout(1_000);
+  });
+}
+
+export async function expectComponentNavigationFilter(page: Page, spec: NavigationFilterSpec): Promise<void> {
+  await test.step(`Assert component Navigation filter persisted ${spec.field} = ${spec.value}`, async () => {
+    const row = navigationFilterRow(page);
+    await expect(row, 'Navigation filter row should be visible after reopening').toBeVisible({ timeout: 15_000 });
+    await expect(navigationFilterFieldInput(page), 'Navigation filter field should persist').toHaveValue(spec.field, {
+      timeout: 10_000,
+    });
+    await expect
+      .poll(() => navigationFilterOperatorSelect(page).evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+        message: `Navigation filter operator should persist as ${spec.operator ?? 'equals'}`,
+        timeout: 10_000,
+      })
+      .toBe(spec.operator ?? 'equals');
+    await expectNavigationFilterUsesTextValueEditor(page);
+    await expectVisibilityValueTextEditorToContain(page, spec.value);
+    if (spec.action) {
+      await expect
+        .poll(() => navigationFilterActionSelect(page).evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+          message: `Navigation filter action should persist as ${spec.action}`,
+          timeout: 10_000,
+        })
+        .toBe(spec.action);
+    }
+    if (spec.pageName) {
+      await expect(navigationFilterTargetPageSelect(page), `Navigation filter target page should show ${spec.pageName}`).toContainText(
+        spec.pageName,
+        { timeout: 10_000 },
+      );
+    }
+  });
+}
+
+async function ensureNavigationFilterRow(page: Page): Promise<void> {
+  if (await navigationFilterRow(page).isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+  const addNavigationRule = page
+    .locator('c8oforms-filterbradd ion-button.class1758191882625:visible, c8oforms-filterbradd ion-button:has-text("Add navigation rule"):visible')
+    .first();
+  await expect(addNavigationRule, 'Navigation Add navigation rule button should be visible').toBeVisible({ timeout: 15_000 });
+  await addNavigationRule.click({ timeout: 10_000 }).catch(async () => addNavigationRule.dispatchEvent('click'));
+  await expect(navigationFilterRow(page), 'Navigation filter row should be added').toBeVisible({ timeout: 15_000 });
+}
+
+async function selectNavigationFilterField(page: Page, fieldTechnicalId: string): Promise<void> {
+  const browse = navigationFilterRow(page).locator('ion-button.class1758189195718').first();
+  await expect(browse, 'Navigation filter field browse button should be visible').toBeVisible({ timeout: 15_000 });
+  await browse.click({ timeout: 10_000 }).catch(async () => browse.dispatchEvent('click'));
+
+  const popover = page.locator('ion-popover:not(.overlay-hidden)').last();
+  await expect(popover, 'Navigation filter field picker should open').toBeVisible({ timeout: 15_000 });
+  const search = popover.locator('ion-searchbar input, input[type="search"], input').first();
+  if (await search.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await search.fill(fieldTechnicalId);
+    await page.waitForTimeout(300);
+  }
+  const option = popover.locator('ion-item, button, [role="option"]').filter({ hasText: fieldTechnicalId }).first();
+  await expect(option, `Navigation filter field ${fieldTechnicalId} should be selectable`).toBeVisible({ timeout: 15_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await expect(navigationFilterFieldInput(page), 'Navigation filter field should be configured').toHaveValue(fieldTechnicalId, {
+    timeout: 10_000,
+  });
+}
+
+async function selectNavigationFilterTargetPage(page: Page, pageName: string): Promise<void> {
+  const select = navigationFilterTargetPageSelect(page);
+  await expect(select, 'Navigation filter target page select should be visible').toBeVisible({ timeout: 15_000 });
+  await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
+  const items = page.locator('ion-select-popover ion-item');
+  await items.first().waitFor({ state: 'visible', timeout: 8_000 });
+  const option = items.filter({ hasText: pageName }).first();
+  await expect(option, `Navigation target page ${pageName} should be selectable`).toBeVisible({ timeout: 10_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await expect(select, `Navigation target page should display ${pageName}`).toContainText(pageName, { timeout: 10_000 });
+}
+
+async function selectIonOptionByValue(page: Page, select: Locator, value: string, description: string): Promise<void> {
+  await expect(select, `${description} select should be visible`).toBeVisible({ timeout: 15_000 });
+  const optionIndex = await select.evaluate(
+    (el, expectedValue) =>
+      Array.from(el.querySelectorAll('ion-select-option')).findIndex(
+        (option) => String((option as HTMLElement & { value?: unknown }).value ?? option.getAttribute('value') ?? '') === expectedValue,
+      ),
+    value,
+  );
+  if (optionIndex < 0) {
+    throw new Error(`${description} option ${value} should exist`);
+  }
+  await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
+  const items = page.locator('ion-select-popover ion-item');
+  await items.first().waitFor({ state: 'visible', timeout: 8_000 });
+  await items.nth(optionIndex).click({ timeout: 10_000 }).catch(async () => items.nth(optionIndex).dispatchEvent('click'));
+  await expect
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: `${description} should be ${value}`,
+      timeout: 10_000,
+    })
+    .toBe(value);
+}
+
+async function expectNavigationFilterUsesTextValueEditor(page: Page): Promise<void> {
+  await expect(
+    page.locator('c8oforms-filterbr:visible tag-input input:visible'),
+    'Select page Navigation filters should use the simple text value editor, not the chip editor',
+  ).toHaveCount(0, { timeout: 2_000 });
+  await expect(
+    page.locator('c8oforms-filterbr:visible .tox-edit-area, c8oforms-filterbr:visible [contenteditable="true"].mce-content-body').last(),
+    'Navigation filter text value editor should be visible',
+  ).toBeVisible({ timeout: 15_000 });
+}
+
+function navigationFilterRow(page: Page): Locator {
+  return page.locator('c8oforms-filterbr:visible').first();
+}
+
+function navigationFilterFieldInput(page: Page): Locator {
+  return navigationFilterRow(page).locator('ion-input.class1758189195706 input, .class1758189195706 input').first();
+}
+
+function navigationFilterOperatorSelect(page: Page): Locator {
+  return navigationFilterRow(page).locator('ion-select.class1758189195757').first();
+}
+
+function navigationFilterActionSelect(page: Page): Locator {
+  return navigationFilterGroup(page).locator('ion-select.class1776120500008').first();
+}
+
+function navigationFilterTargetPageSelect(page: Page): Locator {
+  return navigationFilterGroup(page).locator('ion-select.class1776120500019').first();
+}
+
+function navigationFilterGroup(page: Page): Locator {
+  return page.locator('c8oforms-visibleifgroupeditor:visible').first();
 }
 
 export async function expectPagesPanelDefaultAfterWorkflowNavigation(page: Page): Promise<void> {

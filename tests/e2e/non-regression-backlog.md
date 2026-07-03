@@ -145,7 +145,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja co
 | [ ] | [#1318](https://github.com/convertigo/C8oForms/issues/1318) | closed | bug, QC-Passed | Share the application modal no longer offers to send an email notification to users or groups |  |
 | [x] | [#1317](https://github.com/convertigo/C8oForms/issues/1317) | closed | bug, QC-Passed, Auto QA Test | Send mail action: “form summary” checkbox becomes checked after returning from action selection | Auto QA Test<br>e2e/issue-1317.spec.ts |
 | [ ] | [#1316](https://github.com/convertigo/C8oForms/issues/1316) | closed | bug, QC-Passed | Sub-PWA layout and branding regressions |  |
-| [ ] | [#1315](https://github.com/convertigo/C8oForms/issues/1315) | closed | bug, QC-Passed | Page navigation filter text field is not saved and chip mode is unclear |  |
+| [x] | [#1315](https://github.com/convertigo/C8oForms/issues/1315) | closed | bug, QC-Passed, Auto QA Test | Page navigation filter text field is not saved and chip mode is unclear | Auto QA Test<br>e2e/issue-1315.spec.ts |
 | [ ] | [#1314](https://github.com/convertigo/C8oForms/issues/1314) | closed | bug, QC-Passed | PWA builds can miss env.json, making generated PWAs inaccessible |  |
 | [ ] | [#1313](https://github.com/convertigo/C8oForms/issues/1313) | closed | bug, QC-Passed | Improve action configuration editors layout and usability |  |
 | [ ] | [#1312](https://github.com/convertigo/C8oForms/issues/1312) | closed | bug, QC-Passed | Icons Aa, JS and trash are too small and misaligned (Grid Filters, Sort, Formula, etc.) |  |
