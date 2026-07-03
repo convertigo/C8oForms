@@ -401,6 +401,7 @@ export const PALETTE_ICON = {
   forLoop: 'icn_for_loop.svg',
   conditionAction: 'icn_if_else.svg',
   submitAction: 'icn_submit.svg',
+  mailAction: 'forms_notify_response_simple_by_mail_simple.svg',
   baserowAddRowFromData: 'forms_AddRowFromData.svg',
 } as const;
 
@@ -435,6 +436,7 @@ const PALETTE_SEARCH_TERM_BY_ICON: Record<string, string> = {
   [PALETTE_ICON.forLoop]: 'for_loop',
   [PALETTE_ICON.conditionAction]: 'if_else',
   [PALETTE_ICON.submitAction]: 'submit',
+  [PALETTE_ICON.mailAction]: 'mail',
 };
 
 export interface LoginCredentials {
@@ -2786,11 +2788,22 @@ export interface BaserowAddRowActionOptions extends BaserowAddRowActionConfigOpt
   }>;
 }
 
+export type MailActionVariable = 'to' | 'subject' | 'body' | 'summary';
+
 const SELECT_SOURCE_TABLE_PICKER_BUTTON = SEL.dataSourceConfigureButton;
 const BASEROW_ACTION_VARIABLE_ROW = 'ion-item.class1743090805947';
 const BASEROW_ACTION_VARIABLE_INPUT = `${BASEROW_ACTION_VARIABLE_ROW} input`;
 const BASEROW_ACTION_VARIABLE_BUTTON = 'c8oforms-button_variable.class1775996201011 button.class1775995541940';
 const BASEROW_ACTION_SOURCE_PALETTE_BUTTON = 'ion-button.class1776001071909';
+const MAIL_ACTION_VARIABLE_BUTTON = 'button.figma-button.class1775995541940';
+const MAIL_ACTION_VARIABLE_INDEX: Record<MailActionVariable, number> = {
+  to: 0,
+  subject: 4,
+  body: 5,
+  summary: 7,
+};
+const MAIL_ACTION_SUMMARY_CHECKBOX = 'ion-checkbox.class1734434873771';
+const MAIL_ACTION_PICKER_BUTTON = `c8oforms-datasourcebutton:has(img[src*="${PALETTE_ICON.mailAction}"])`;
 const SOURCE_PALETTE_ROOT = `${SEL.sourcePalette}, .class1776003235786`;
 const SOURCE_PALETTE_ROOT_VISIBLE = `${SEL.sourcePalette}:visible, .class1776003235786:visible`;
 const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
@@ -3697,8 +3710,7 @@ async function replaceVisibleMonacoReturn(page: Page, returnExpression: string, 
 
 async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
-  const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();
-  let flow = buttonFlow;
+  let flow = await defaultButtonWorkflowLocator(page);
   if (flowName) {
     const namedFlow = page.locator(SEL.workflowEntry).filter({ hasText: flowName }).first();
     if (await namedFlow.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -3710,6 +3722,34 @@ async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promi
   await expect(flow, 'button flow should be available in Workflows').toBeVisible({ timeout: 30_000 });
   await flow.click({ timeout: 10_000 }).catch(async () => flow.dispatchEvent('click'));
   await page.waitForTimeout(1_000);
+}
+
+async function defaultButtonWorkflowLocator(page: Page): Promise<Locator> {
+  const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();
+  if (await buttonFlow.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    const label = normalizeVisibleText(await buttonFlow.innerText().catch(() => ''));
+    if (!/^(Formulas|Triggered on Submission)$/i.test(label)) {
+      return buttonFlow;
+    }
+  }
+
+  const flowEntries = page.locator(SEL.workflowEntry);
+  const count = await flowEntries.count();
+  for (let i = count - 1; i >= 0; i--) {
+    const candidate = flowEntries.nth(i);
+    if (!(await candidate.isVisible({ timeout: 500 }).catch(() => false))) {
+      continue;
+    }
+    const label = normalizeVisibleText(await candidate.innerText().catch(() => ''));
+    if (/flow\s*button/i.test(label)) {
+      return candidate;
+    }
+  }
+
+  if (count > 2) {
+    return flowEntries.last();
+  }
+  return buttonFlow;
 }
 
 function isButtonWorkflowLabelHint(flowName: string | RegExp): boolean {
@@ -3956,6 +3996,208 @@ export async function openButtonFlowToastActionConfig(page: Page, flowName?: str
     actionCardSelector: SEL.flowToastActionCard,
     actionName: 'Toast',
   });
+}
+
+export async function openButtonFlowMailActionConfig(page: Page, flowName?: string | RegExp): Promise<void> {
+  await openButtonFlowActionConfig(page, {
+    flowName,
+    icon: PALETTE_ICON.mailAction,
+    actionCardSelector: SEL.flowSubmitActionCard,
+    actionName: 'Send mail',
+  });
+  await openConfigTabById(page, 'tab_selector_conf_action');
+  await expectMailActionVariableButtons(page);
+}
+
+export async function setMailActionTextVariable(page: Page, variable: Extract<MailActionVariable, 'to'>, value: string): Promise<void> {
+  await test.step(`Set Mail action ${variable} text value`, async () => {
+    await selectMailActionVariable(page, variable);
+    const textMode = await firstVisibleLocatorOrNull(page, SEL.defaultValueTextButton, 1_500);
+    if (textMode) {
+      await textMode.click({ timeout: 5_000 }).catch(async () => textMode.dispatchEvent('click'));
+      await confirmAlertIfVisible(page);
+    }
+    await fillVisibleTinyMceText(page, value, `Mail action ${variable} text editor`);
+  });
+}
+
+export async function setMailActionSubjectJavaScriptReturn(page: Page, returnExpression: string): Promise<void> {
+  await test.step('Set Mail action subject JavaScript value', async () => {
+    await selectMailActionVariable(page, 'subject');
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Mail action subject JavaScript mode', 10_000, true);
+    await confirmAlertIfVisible(page);
+    await replaceVisibleMonacoReturn(page, returnExpression, 'Mail action subject');
+  });
+}
+
+export async function setMailActionBodyTextWithUserName(page: Page, text: string): Promise<void> {
+  await test.step('Set Mail action body with text and current user name token', async () => {
+    await selectMailActionVariable(page, 'body');
+    await fillVisibleTinyMceText(page, text, 'Mail action body editor');
+    await ensureActionSourcePaletteVisible(page);
+    await dragUserNamePaletteToTinyMce(page);
+
+    const content = await tinyMceEditorContent(page);
+    expect(content.text, 'Mail action body should keep the typed text').toContain(text);
+    expect(
+      content.chipCount > 0 || normalizeVisibleText(content.text).toLowerCase().includes('name'),
+      'Mail action body should contain the dragged current user name token',
+    ).toBe(true);
+  });
+}
+
+export async function ensureMailActionSummaryChecked(page: Page): Promise<void> {
+  await test.step('Ensure Mail action Form summary is checked', async () => {
+    await selectMailActionVariable(page, 'summary');
+    const checkbox = await mailActionSummaryCheckbox(page);
+    if (!(await mailActionSummaryChecked(checkbox))) {
+      await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+    }
+    await expect
+      .poll(() => mailActionSummaryChecked(checkbox), {
+        message: 'Mail action Form summary checkbox should be checked',
+        timeout: 10_000,
+      })
+      .toBe(true);
+    await page.waitForTimeout(700);
+  });
+}
+
+export async function reselectMailActionFromActionSelection(page: Page): Promise<void> {
+  await test.step('Return to Action selection and reselect the Mail action', async () => {
+    await openConfigTabById(page, 'tab_selector_choice_action');
+    await clickFirstVisible(page, SEL.dataSourceSelectButton, 'Mail action select button', 15_000, true);
+
+    const actionPicker = page.locator('ion-modal:visible').last();
+    await expect(actionPicker, 'Mail action picker should be visible').toBeVisible({ timeout: 15_000 });
+    const mailAction = actionPicker.locator(MAIL_ACTION_PICKER_BUTTON).first();
+    await expect(mailAction, 'Mail action should be available in the action picker').toBeVisible({ timeout: 30_000 });
+    await mailAction.click({ timeout: 10_000 }).catch(async () => mailAction.dispatchEvent('click'));
+
+    await actionPicker.locator('ion-footer ion-button').last().click({ timeout: 10_000 });
+    await cancelOverwriteAlertIfVisible(page);
+    const closedAfterValidation = await actionPicker.waitFor({ state: 'hidden', timeout: 5_000 }).then(
+      () => true,
+      () => false,
+    );
+    if (!closedAfterValidation) {
+      const cancelButton = actionPicker.locator('ion-footer ion-button').first();
+      await cancelButton.click({ timeout: 5_000, force: true }).catch(async () => cancelButton.dispatchEvent('click'));
+      await expect(actionPicker, 'Mail action picker should close after cancelling overwrite').toBeHidden({ timeout: 15_000 });
+    }
+
+    await openConfigTabById(page, 'tab_selector_conf_action');
+    await expectMailActionVariableButtons(page);
+  });
+}
+
+export async function expectMailActionTextVariableContains(
+  page: Page,
+  variable: Extract<MailActionVariable, 'to'>,
+  expected: string,
+): Promise<void> {
+  await test.step(`Assert Mail action ${variable} text value is preserved`, async () => {
+    await selectMailActionVariable(page, variable);
+    await expect
+      .poll(async () => (await tinyMceEditorContent(page)).text, {
+        message: `Mail action ${variable} should contain ${expected}`,
+        timeout: 10_000,
+      })
+      .toContain(expected);
+  });
+}
+
+export async function expectMailActionSubjectJavaScriptContains(page: Page, returnExpression: string): Promise<void> {
+  await test.step('Assert Mail action subject JavaScript value is preserved', async () => {
+    await selectMailActionVariable(page, 'subject');
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Mail action subject JavaScript mode', 10_000, true);
+    await confirmAlertIfVisible(page);
+    const editor = await visibleMonacoEditor(page, 'Mail action subject JavaScript editor');
+    await expect(editor, 'Mail action subject JavaScript should keep the configured return expression').toContainText(
+      `return ${returnExpression};`,
+      { timeout: 10_000 },
+    );
+  });
+}
+
+export async function expectMailActionBodyContainsUserName(page: Page, text: string): Promise<void> {
+  await test.step('Assert Mail action body text and current user name token are preserved', async () => {
+    await selectMailActionVariable(page, 'body');
+    const content = await tinyMceEditorContent(page);
+    expect(content.text, 'Mail action body should keep the typed text').toContain(text);
+    expect(
+      content.chipCount > 0 || normalizeVisibleText(content.text).toLowerCase().includes('name'),
+      'Mail action body should keep the current user name token',
+    ).toBe(true);
+  });
+}
+
+export async function expectMailActionSummaryChecked(page: Page): Promise<void> {
+  await test.step('Assert Mail action Form summary remains checked', async () => {
+    await selectMailActionVariable(page, 'summary');
+    const checkbox = await mailActionSummaryCheckbox(page);
+    await expect
+      .poll(() => mailActionSummaryChecked(checkbox), {
+        message: 'Mail action Form summary checkbox should remain checked',
+        timeout: 10_000,
+      })
+      .toBe(true);
+  });
+}
+
+async function expectMailActionVariableButtons(page: Page): Promise<void> {
+  await expect
+    .poll(() => page.locator(MAIL_ACTION_VARIABLE_BUTTON).count(), {
+      message: 'Mail action configuration should expose all expected variables',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(MAIL_ACTION_VARIABLE_INDEX.summary);
+}
+
+async function selectMailActionVariable(page: Page, variable: MailActionVariable): Promise<void> {
+  await expectMailActionVariableButtons(page);
+  const button = page.locator(MAIL_ACTION_VARIABLE_BUTTON).nth(MAIL_ACTION_VARIABLE_INDEX[variable]);
+  await expect(button, `Mail action ${variable} variable should be visible`).toBeVisible({ timeout: 10_000 });
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(button, `Mail action ${variable} variable should be selected`).toHaveClass(/figma-button--selected/, {
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(500);
+}
+
+async function mailActionSummaryCheckbox(page: Page): Promise<Locator> {
+  const checkbox = page.locator(MAIL_ACTION_SUMMARY_CHECKBOX).last();
+  await expect(checkbox, 'Mail action Form summary checkbox should be visible').toBeVisible({ timeout: 10_000 });
+  return checkbox;
+}
+
+async function mailActionSummaryChecked(checkbox: Locator): Promise<boolean> {
+  return checkbox.evaluate((el) => {
+    const input = el as HTMLElement & { checked?: boolean };
+    return input.checked === true || input.getAttribute('aria-checked') === 'true';
+  });
+}
+
+async function cancelOverwriteAlertIfVisible(page: Page): Promise<void> {
+  const alert = page.locator('ion-alert').last();
+  if (!(await alert.isVisible({ timeout: 1_500 }).catch(() => false))) {
+    return;
+  }
+  const cancelButton = alert.locator('button.btn--info, button.alert-button-role-cancel, button.alert-button').first();
+  await expect(cancelButton, 'overwrite alert should expose a cancel button').toBeVisible({ timeout: 5_000 });
+  await cancelButton.click({ timeout: 5_000 });
+  await alert.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
+}
+
+async function ensureActionSourcePaletteVisible(page: Page): Promise<void> {
+  if (await firstVisibleLocatorOrNull(page, SOURCE_PALETTE_ROOT_VISIBLE, 1_500)) {
+    return;
+  }
+  const paletteButton = await firstVisibleLocatorOrNull(page, BASEROW_ACTION_SOURCE_PALETTE_BUTTON, 5_000);
+  if (paletteButton) {
+    await paletteButton.click({ timeout: 5_000 }).catch(async () => paletteButton.dispatchEvent('click'));
+  }
+  await firstVisibleLocator(page, SOURCE_PALETTE_ROOT_VISIBLE, 'action Source Palette', 10_000);
 }
 
 export async function openToastActionMessageEditor(page: Page): Promise<void> {
@@ -6194,6 +6436,20 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
   }
   await page.keyboard.press('Tab');
   await fireActiveTinyMceChange(page);
+  const currentText = await editorBody.innerText().catch(() => '');
+  if (!normalizeVisibleText(currentText).includes(value)) {
+    await editorBody.click();
+    await editorBody.evaluate((element, text) => {
+      const holder = document.createElement('div');
+      holder.textContent = text;
+      element.innerHTML = holder.innerHTML;
+      element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, data: text, inputType: 'insertText' }));
+      element.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+      element.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
+    }, value);
+    await page.keyboard.press('Tab');
+    await fireActiveTinyMceChange(page);
+  }
   await expect
     .poll(() => editorBody.innerText(), {
       message: `${description} should contain ${value}`,
@@ -6818,6 +7074,21 @@ async function receivesPointerEvents(locator: Locator): Promise<boolean> {
 
 export async function dragUserEmailPaletteToTinyMce(page: Page): Promise<void> {
   await dragSourcePaletteEntryToTinyMce(page, 'user', 'email');
+}
+
+export async function dragUserNamePaletteToTinyMce(page: Page): Promise<void> {
+  const labels = ['name', 'nom', 'nombre', 'nome'];
+  await ensureSourcePaletteSectionExpanded(page, 'user');
+
+  const visibleEntries = await page
+    .locator(`${SOURCE_PALETTE_SECTION.user.body} [draggable="true"]:visible`)
+    .evaluateAll((elements) => elements.map((element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim()));
+  const label =
+    labels.find((candidate) => visibleEntries.some((entry) => entry.toLowerCase() === candidate.toLowerCase())) ??
+    labels.find((candidate) => visibleEntries.some((entry) => entry.toLowerCase().includes(candidate.toLowerCase()))) ??
+    'name';
+
+  await dragSourcePaletteEntryToTinyMceStrict(page, 'user', label);
 }
 
 export async function dragSourcePaletteEntryToTinyMce(
