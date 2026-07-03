@@ -3,7 +3,7 @@ scriptContent:
     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
-        /*Begin_c8o_PageImport*/
+        '/*Begin_c8o_PageImport*/
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
         	/*End_c8o_PageDeclaration*/
@@ -14,8 +14,61 @@ scriptContent:
         	public encodeURIComponent(e){
         	    return encodeURIComponent(e);
         	}
+        	public normalizeCsvFileName(value, maxLength = 80){
+        		let fileName = value == null ? "" : "" + value;
+        		try {
+        			fileName = fileName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        		}
+        		catch(e) {
+        		}
+        		fileName = fileName.replace(/[^\x20-\x7E]/g, "");
+        		fileName = fileName.replace(/[<>:"\/\\|?*\x00-\x1F]/g, " ");
+        		fileName = fileName.replace(/[^A-Za-z0-9._ -]+/g, " ");
+        		fileName = fileName.replace(/\s+/g, " ").trim();
+        		fileName = fileName.replace(/^[. ]+|[. ]+$/g, "");
+        		if(fileName === ""){
+        			fileName = "export_csv";
+        		}
+        		if(fileName.length > maxLength){
+        			fileName = fileName.substring(0, maxLength).replace(/[. _-]+$/g, "");
+        		}
+        		return fileName !== "" ? fileName : "export_csv";
+        	}
+        	public getCsvExportUrl(name = this.local.name, withKey = false){
+        		const MAX_URL_LENGTH = 254;
+        		const buildUrl = (fileName)=>{
+        			let url = this.c8o.endpoint + "/.bin?__sequence=APIV2_csv"+
+        		        "&f="+ encodeURIComponent(this.local.id) +
+        		        "&n=" + encodeURIComponent(fileName) +
+        		        "&o=" + encodeURIComponent(this.local.offset) +
+        		        "&e=" + encodeURIComponent(this.local.csvSettings.character_set) +
+        		        "&s=" + encodeURIComponent(this.local.csvSettings.separated_by) +
+        		        "&se=" + encodeURIComponent(this.local.csvSettings.character_string_separator) +
+        		        "&c=" + encodeURIComponent(this.local.csvSettings.column_name) +
+        		        "&v=" + encodeURIComponent(this.local.version) +
+        				"&l=" + encodeURIComponent(this.local.langex) +
+        				"&p=" + encodeURIComponent(this.local.csvSettings.privacy);
+        			if(withKey && this.local.key != null && this.local.key !== ""){
+        				url += "&k=" + encodeURIComponent(this.local.key);
+        			}
+        			return url;
+        		};
+        		let safeName = this.normalizeCsvFileName(name);
+        		let url = buildUrl(safeName);
+        		while(url.length > MAX_URL_LENGTH && safeName.length > "export_csv".length){
+        			safeName = safeName.substring(0, safeName.length - 1).replace(/[. _-]+$/g, "");
+        			if(safeName === ""){
+        				safeName = "export_csv";
+        			}
+        			url = buildUrl(safeName);
+        		}
+        		if(url.length > MAX_URL_LENGTH && safeName !== "export_csv"){
+        			url = buildUrl("export_csv");
+        		}
+        		return url;
+        	}
         	/*End_c8o_PageFunction*/
-        
+        '
 segment: path-to-exportcsvpage
 title: Title for exportCsvPage
 ↓Header_old [ngx.components.UIDynamicElement-1602171269083]: 
@@ -994,58 +1047,20 @@ title: Title for exportCsvPage
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '		    /*let url = this.c8o.endpoint + ''/.bin?__sequence=BuildCsvByFormId''+
-                    	        ''&formId=''+ encodeURIComponent(this.local.id) +
-                    	        ''&name='' + encodeURIComponent(this.local.name) +
-                    	        ''&offset='' + encodeURIComponent(this.local.offset) +
-                    	        ''&encoding='' + encodeURIComponent(this.local.csvSettings.character_set) +
-                    	        ''&separator='' + encodeURIComponent(this.local.csvSettings.separated_by) + 
-                    	        ''&string_separator='' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
-                    	        ''&column_name='' + encodeURIComponent(this.local.csvSettings.column_name) +
-                    	        ''&version='' + encodeURIComponent(this.local.version) +
-                    			''&lang='' + encodeURIComponent(this.local.langex) +
-                    			''&privacy='' + encodeURIComponent(this.local.csvSettings.privacy);*/
-                    				
-                    			// ensure that url doesn''t exeed 254 chars
-                    			const getUrl = (name = this.local.name)=>{
-                    				return this.c8o.endpoint + ''/.bin?__sequence=APIV2_csv''+
-                    		        ''&f=''+ encodeURIComponent(this.local.id) +
-                    		        ''&n='' + encodeURIComponent(name) +
-                    		        ''&o='' + encodeURIComponent(this.local.offset) +
-                    		        ''&e='' + encodeURIComponent(this.local.csvSettings.character_set) +
-                    		        ''&s='' + encodeURIComponent(this.local.csvSettings.separated_by) + 
-                    		        ''&se='' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
-                    		        ''&c='' + encodeURIComponent(this.local.csvSettings.column_name) +
-                    		        ''&v='' + encodeURIComponent(this.local.version) +
-                    				''&l='' + encodeURIComponent(this.local.langex) +
-                    				''&p='' + encodeURIComponent(this.local.csvSettings.privacy) +
-                    				''&k='' + encodeURIComponent(this.local.key);
-                    			}
-                    			let url = getUrl();
-                    			
-                    			const MAX_LENGTH = 254;
-                    			let length = url.length
-                    			if(length > MAX_LENGTH){
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, we will shorten name'')
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, old url: ''+url);
-                    				/*let name = encodeURIComponent(this.local.name)
-                    				let lengthName = name.length;
-                    				let diffLength = length - lengthName;
-                    				let newName = name.substring(0, MAX_LENGTH - diffLength);
-                    				url = getUrl(newName);*/
-                    				let rawName = this.local.name;
-                    				let newName = encodeURIComponent(rawName);
-                    
-                    				while (getUrl(newName).length > MAX_LENGTH) {
-                    				  rawName = rawName.slice(0, -1);
-                    				  newName = encodeURIComponent(rawName);
-                    				}
-                    
-                    				url = getUrl(newName);
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, newUrl url: ''+url);
-                    			}
+                    		    /*let url = this.c8o.endpoint + '/.bin?__sequence=BuildCsvByFormId'+
+                    	        '&formId='+ encodeURIComponent(this.local.id) +
+                    	        '&name=' + encodeURIComponent(this.local.name) +
+                    	        '&offset=' + encodeURIComponent(this.local.offset) +
+                    	        '&encoding=' + encodeURIComponent(this.local.csvSettings.character_set) +
+                    	        '&separator=' + encodeURIComponent(this.local.csvSettings.separated_by) + 
+                    	        '&string_separator=' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
+                    	        '&column_name=' + encodeURIComponent(this.local.csvSettings.column_name) +
+                    	        '&version=' + encodeURIComponent(this.local.version) +
+                    			'&lang=' + encodeURIComponent(this.local.langex) +
+                    			'&privacy=' + encodeURIComponent(this.local.csvSettings.privacy);*/
+                    			let url = page.getCsvExportUrl(this.local.name, true);
                     		    resolve(url);
-                    '
+                    
             ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1759309353400]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.CopyLinkToClipBoard
@@ -1106,57 +1121,20 @@ title: Title for exportCsvPage
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '		    /*let url = this.c8o.endpoint + ''/.bin?__sequence=BuildCsvByFormId''+
-                    	        ''&formId=''+ encodeURIComponent(this.local.id) +
-                    	        ''&name='' + encodeURIComponent(this.local.name) +
-                    	        ''&offset='' + encodeURIComponent(this.local.offset) +
-                    	        ''&encoding='' + encodeURIComponent(this.local.csvSettings.character_set) +
-                    	        ''&separator='' + encodeURIComponent(this.local.csvSettings.separated_by) + 
-                    	        ''&string_separator='' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
-                    	        ''&column_name='' + encodeURIComponent(this.local.csvSettings.column_name) +
-                    	        ''&version='' + encodeURIComponent(this.local.version) +
-                    			''&lang='' + encodeURIComponent(this.local.langex) +
-                    			''&privacy='' + encodeURIComponent(this.local.csvSettings.privacy);*/
-                    				
-                    			// ensure that url doesn''t exeed 254 chars
-                    			const getUrl = (name = this.local.name)=>{
-                    				return this.c8o.endpoint + ''/.bin?__sequence=APIV2_csv''+
-                    		        ''&f=''+ encodeURIComponent(this.local.id) +
-                    		        ''&n='' + encodeURIComponent(name) +
-                    		        ''&o='' + encodeURIComponent(this.local.offset) +
-                    		        ''&e='' + encodeURIComponent(this.local.csvSettings.character_set) +
-                    		        ''&s='' + encodeURIComponent(this.local.csvSettings.separated_by) + 
-                    		        ''&se='' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
-                    		        ''&c='' + encodeURIComponent(this.local.csvSettings.column_name) +
-                    		        ''&v='' + encodeURIComponent(this.local.version) +
-                    				''&l='' + encodeURIComponent(this.local.langex) +
-                    				''&p='' + encodeURIComponent(this.local.csvSettings.privacy);
-                    			}
-                    			let url = getUrl();
-                    			
-                    			const MAX_LENGTH = 254;
-                    			let length = url.length
-                    			if(length > MAX_LENGTH){
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, we will shorten name'')
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, old url: ''+url);
-                    				/*let name = encodeURIComponent(this.local.name)
-                    				let lengthName = name.length;
-                    				let diffLength = length - lengthName;
-                    				let newName = name.substring(0, MAX_LENGTH - diffLength);
-                    				url = getUrl(newName);*/
-                    				let rawName = this.local.name;
-                    				let newName = encodeURIComponent(rawName);
-                    
-                    				while (getUrl(newName).length > MAX_LENGTH) {
-                    				  rawName = rawName.slice(0, -1);
-                    				  newName = encodeURIComponent(rawName);
-                    				}
-                    
-                    				url = getUrl(newName);
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, newUrl url: ''+url);
-                    			}
+                    		    /*let url = this.c8o.endpoint + '/.bin?__sequence=BuildCsvByFormId'+
+                    	        '&formId='+ encodeURIComponent(this.local.id) +
+                    	        '&name=' + encodeURIComponent(this.local.name) +
+                    	        '&offset=' + encodeURIComponent(this.local.offset) +
+                    	        '&encoding=' + encodeURIComponent(this.local.csvSettings.character_set) +
+                    	        '&separator=' + encodeURIComponent(this.local.csvSettings.separated_by) + 
+                    	        '&string_separator=' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
+                    	        '&column_name=' + encodeURIComponent(this.local.csvSettings.column_name) +
+                    	        '&version=' + encodeURIComponent(this.local.version) +
+                    			'&lang=' + encodeURIComponent(this.local.langex) +
+                    			'&privacy=' + encodeURIComponent(this.local.csvSettings.privacy);*/
+                    			let url = page.getCsvExportUrl(this.local.name, false);
                     		    resolve(url);
-                    '
+                    
             ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1707217825812]: 
               beanData: '{"ionBean":"InvokeAction"}'
               stack: C8Oforms.MobileApplication.Application.CopyLinkToClipBoard
@@ -1224,58 +1202,21 @@ title: Title for exportCsvPage
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                   →: |
-                    '		    /*let url = this.c8o.endpoint + ''/.bin?__sequence=BuildCsvByFormId''+ 
-                    	        ''&formId=''+ encodeURIComponent(this.local.id) +
-                    	        ''&name='' + encodeURIComponent(this.local.name) +
-                    	        ''&offset='' + encodeURIComponent(this.local.offset) +
-                    	        ''&encoding='' + encodeURIComponent(this.local.csvSettings.character_set) +
-                    	        ''&separator='' + encodeURIComponent(this.local.csvSettings.separated_by) + 
-                    	        ''&string_separator='' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
-                    	        ''&column_name='' + encodeURIComponent(this.local.csvSettings.column_name) +
-                    	        ''&version='' + encodeURIComponent(this.local.version) +
-                    			''&lang='' + encodeURIComponent(this.local.langex) +
-                    			''&privacy='' + encodeURIComponent(this.local.csvSettings.privacy);*/
-                    			
-                    			// ensure that url doesn''t exeed 254 chars
-                    			const getUrl = (name = this.local.name)=>{
-                    				return this.c8o.endpoint + ''/.bin?__sequence=APIV2_csv''+
-                    		        ''&f=''+ encodeURIComponent(this.local.id) +
-                    		        ''&n='' + encodeURIComponent(name) +
-                    		        ''&o='' + encodeURIComponent(this.local.offset) +
-                    		        ''&e='' + encodeURIComponent(this.local.csvSettings.character_set) +
-                    		        ''&s='' + encodeURIComponent(this.local.csvSettings.separated_by) + 
-                    		        ''&se='' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
-                    		        ''&c='' + encodeURIComponent(this.local.csvSettings.column_name) +
-                    		        ''&v='' + encodeURIComponent(this.local.version) +
-                    				''&l='' + encodeURIComponent(this.local.langex) +
-                    				''&p='' + encodeURIComponent(this.local.csvSettings.privacy);
-                    			}
-                    			let url = getUrl();
-                    			
-                    			const MAX_LENGTH = 254;
-                    			let length = url.length
-                    			if(length > MAX_LENGTH){
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, we will shorten name'')
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, old url: ''+url);
-                    				/*let name = encodeURIComponent(this.local.name)
-                    				let lengthName = name.length;
-                    				let diffLength = length - lengthName;
-                    				let newName = name.substring(0, MAX_LENGTH - diffLength);
-                    				url = getUrl(newName);*/
-                    				let rawName = this.local.name;
-                    				let newName = encodeURIComponent(rawName);
-                    
-                    				while (getUrl(newName).length > MAX_LENGTH) {
-                    				  rawName = rawName.slice(0, -1);
-                    				  newName = encodeURIComponent(rawName);
-                    				}
-                    
-                    				url = getUrl(newName);
-                    				page.c8o.log.debug(''CSV URL exceed 254 chars, newUrl url: ''+url);
-                    			}
+                    		    /*let url = this.c8o.endpoint + '/.bin?__sequence=BuildCsvByFormId'+ 
+                    	        '&formId='+ encodeURIComponent(this.local.id) +
+                    	        '&name=' + encodeURIComponent(this.local.name) +
+                    	        '&offset=' + encodeURIComponent(this.local.offset) +
+                    	        '&encoding=' + encodeURIComponent(this.local.csvSettings.character_set) +
+                    	        '&separator=' + encodeURIComponent(this.local.csvSettings.separated_by) + 
+                    	        '&string_separator=' + encodeURIComponent(this.local.csvSettings.character_string_separator) + 
+                    	        '&column_name=' + encodeURIComponent(this.local.csvSettings.column_name) +
+                    	        '&version=' + encodeURIComponent(this.local.version) +
+                    			'&lang=' + encodeURIComponent(this.local.langex) +
+                    			'&privacy=' + encodeURIComponent(this.local.csvSettings.privacy);*/
+                    			let url = page.getCsvExportUrl(this.local.name, false);
                     		    window.open(url);
                     		    resolve();
-                    '
+                    
             ↓CloseModal [ngx.components.UIDynamicAction-1602257711582]: 
               beanData: '{"ionBean":"CloseModalAction"}'
         ↓Style [ngx.components.UIStyle-1646921947230]: 
@@ -1306,7 +1247,7 @@ title: Title for exportCsvPage
               				default_privacy = props.stack.CallSequence.out.privacy;
               			}
               		    page.local.id = page["navParams"].get("id");
-              		    page.local.name = page["navParams"].get("name");
+              		    page.local.name = page.normalizeCsvFileName(page["navParams"].get("name"));
               		    page.local.offset = page["navParams"].get("offset");
               		    page.local.version = page["navParams"].get("version");
               		    page.local.versionA = [];
