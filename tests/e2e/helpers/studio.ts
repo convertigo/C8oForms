@@ -7369,6 +7369,40 @@ export async function expectViewerTextInputValue(page: Page, index: number, expe
   });
 }
 
+export async function fillViewerTextInput(page: Page, technicalId: string, value: string): Promise<void> {
+  const root = page.locator(`#${technicalId}`).first();
+  await expect(root, `viewer Text input ${technicalId} should be visible`).toBeVisible({ timeout: 30_000 });
+  const input = root.locator('ion-input input, input, textarea').first();
+  await expect(input, `viewer Text input ${technicalId} should expose an editable input`).toBeVisible({
+    timeout: 10_000,
+  });
+  await input.fill(value);
+  await input.dispatchEvent('input');
+  await input.dispatchEvent('change');
+  await input.blur();
+  await expect.poll(() => input.inputValue(), { timeout: 10_000 }).toBe(value);
+}
+
+export async function selectViewerRadioOption(page: Page, technicalId: string, option: string): Promise<void> {
+  await clickViewerChoiceOption(page, technicalId, option, 'radio');
+  await expect
+    .poll(() => viewerChoiceValueByTechnicalId(page, technicalId, 'radio'), {
+      message: `viewer Radio ${technicalId} should select ${option}`,
+      timeout: 10_000,
+    })
+    .toBe(option);
+}
+
+export async function checkViewerCheckboxOption(page: Page, technicalId: string, option: string): Promise<void> {
+  await clickViewerChoiceOption(page, technicalId, option, 'checkbox');
+  await expect
+    .poll(() => viewerChoiceValueByTechnicalId(page, technicalId, 'checkbox'), {
+      message: `viewer Checkbox ${technicalId} should include ${option}`,
+      timeout: 10_000,
+    })
+    .toContain(option);
+}
+
 async function fillVisibleTinyMceText(page: Page, value: string, description: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click();
@@ -7411,6 +7445,55 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
     })
     .toContain(value);
   await page.waitForTimeout(1_000);
+}
+
+async function clickViewerChoiceOption(
+  page: Page,
+  technicalId: string,
+  option: string,
+  kind: Extract<ChoiceViewerKind, 'radio' | 'checkbox'>,
+): Promise<void> {
+  const root = page.locator(`#${technicalId}`).first();
+  await expect(root, `viewer ${kind} ${technicalId} should be visible`).toBeVisible({ timeout: 30_000 });
+  const item = root.locator('ion-item').filter({ hasText: option }).first();
+  if (await item.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await item.click();
+    return;
+  }
+
+  const label = root.getByText(option, { exact: true }).first();
+  await expect(label, `viewer ${kind} option ${option} should be visible`).toBeVisible({ timeout: 10_000 });
+  await label.click();
+}
+
+async function viewerChoiceValueByTechnicalId(
+  page: Page,
+  technicalId: string,
+  kind: Extract<ChoiceViewerKind, 'radio' | 'checkbox'>,
+): Promise<string | string[]> {
+  return page.locator(`#${technicalId}`).first().evaluate((root, choiceKind) => {
+    const isVisible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+
+    if (choiceKind === 'radio') {
+      const radioGroup = [...root.querySelectorAll('ion-radio-group')].find(isVisible) as
+        | (HTMLElement & { value?: unknown })
+        | undefined;
+      const rawValue = radioGroup?.value;
+      return typeof rawValue === 'string' ? rawValue : rawValue == null ? '' : String(rawValue);
+    }
+
+    return [...root.querySelectorAll('ion-checkbox')]
+      .filter((checkbox) => {
+        const cb = checkbox as HTMLElement & { checked?: boolean };
+        return isVisible(cb) && (cb.checked === true || cb.getAttribute('aria-checked') === 'true');
+      })
+      .map((checkbox) => ((checkbox.closest('ion-item') ?? checkbox.parentElement ?? checkbox).textContent ?? '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+  }, kind);
 }
 
 export async function fillToastMessageText(page: Page, value: string): Promise<void> {
@@ -7766,11 +7849,11 @@ export async function startVisibilityCondition(page: Page, fieldTechnicalId: str
 /** Pick the condition operator by its stable value (not its i18n label). */
 export async function setVisibilityOperator(page: Page, operator: VisibilityOperator): Promise<void> {
   const select = page.locator(SEL.conditionOperatorSelect).first();
-  const index = await select.evaluate(
-    (el, op) => Array.from(el.querySelectorAll('ion-select-option')).findIndex((o) => (o as HTMLOptionElement & { value?: string }).value === op),
-    operator,
+  const optionValues = await select.evaluate((el) =>
+    Array.from(el.querySelectorAll('ion-select-option')).map((option) => (option as HTMLOptionElement & { value?: string }).value ?? ''),
   );
-  if (index < 0) throw new Error(`unknown visibility operator: ${operator}`);
+  expect(optionValues, `visibility operator ${operator} should be available for the selected field`).toContain(operator);
+  const index = optionValues.indexOf(operator);
   await acceptRgpdIfVisible(page, 500);
   await select.click();
   await acceptRgpdIfVisible(page, 500);
