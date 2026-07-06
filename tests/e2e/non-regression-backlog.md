@@ -155,7 +155,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja co
 | [ ] | [#1308](https://github.com/convertigo/C8oForms/issues/1308) | closed | bug, QC-Passed | Page reordering: no visual indicator and pages can only be dragged upward (not downward) |  |
 | [ ] | [#1307](https://github.com/convertigo/C8oForms/issues/1307) | closed | bug, QC-Passed | Form publishing: icon selection step shows image overlapping its cards and page layout |  |
 | [ ] | [#1306](https://github.com/convertigo/C8oForms/issues/1306) | closed | bug | Persist and rebuild PWA when authentication mode changes from Manage Access Rights |  |
-| [ ] | [#1305](https://github.com/convertigo/C8oForms/issues/1305) | closed | bug, QC-Passed | Fix QR code label for unauthenticated share links |  |
+| [x] | [#1305](https://github.com/convertigo/C8oForms/issues/1305) | closed | bug, QC-Passed, Auto QA Test | Fix QR code label for unauthenticated share links | Auto QA Test<br>e2e/issue-1305.spec.ts |
 | [ ] | [#1304](https://github.com/convertigo/C8oForms/issues/1304) | closed | bug, QC-Passed | Hidden Baserow columns lose hidden flag when cell value is null |  |
 | [ ] | [#1303](https://github.com/convertigo/C8oForms/issues/1303) | closed | bug, QC-Passed | Firefox: text selection impossible in JS Monaco editor |  |
 | [ ] | [#1302](https://github.com/convertigo/C8oForms/issues/1302) | closed | bug, QC-Passed | Double-encoded characters when resubmitting a non-looping form |  |

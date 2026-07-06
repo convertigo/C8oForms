@@ -189,12 +189,17 @@ export const SEL = {
   collaboratorsModal: 'ion-modal.show-modal page-manageaccessrights',
   collaboratorSearchInput: 'c8oforms-ngxtaginputcustomc8oforms ng-select input[role="combobox"], tag-input input',
   collaboratorAutocompleteOption: 'ng-dropdown-panel .ng-option, tag-input-dropdown .ng2-menu-item, ng2-dropdown-menu .ng2-menu-item',
-  collaboratorsSaveButton: 'ion-footer ion-button.class1779974149500',
+  collaboratorsSaveButton:
+    'ion-footer ion-button.class1779974149500, ion-footer ion-button.class1779974149590, ion-footer ion-button.class1591882841533',
   collaboratorsCsvInput: 'input#manageAccessCsvCollabInput[type="file"][accept*=".csv"]',
   collaboratorsCsvButton: 'div:has(> input#manageAccessCsvCollabInput[type="file"]) > ion-button',
   publishedShareMenuItem:
     'ion-popover ion-item.class1578663445209, ion-popover ion-item:has(ion-icon.class1603730319967), ion-popover ion-item:has(ion-icon[src*="share.svg"])',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
+  shareAnonymousToggleSwitch: 'c8oforms-toggleswitch.class1779971800000, .class1779971800000',
+  shareAnonymousLegacyToggle: 'ion-toggle.class1706176223747, ion-toggle.class1762164887460',
+  shareQrLabel:
+    'ion-text.class1762364265345, ion-text.class1762365028957, .class1762364265345, .class1762365028957',
   shareNotificationToggle: 'c8oforms-toggleswitch.class1762249213239, .class1762249213239',
   shareNotificationToggleButton: 'button.class1775840591959, button.c8o-btn',
   shareSubjectInput:
@@ -1541,6 +1546,158 @@ export async function openPublishedShareApplicationModal(page: Page, title: stri
       { timeout: 15_000 },
     );
   });
+}
+
+const SHARE_YES_OPTION_RE = /^(Oui|Yes|Si|S\u00ed|S\u00ec)$/i;
+const SHARE_SAVE_BUTTON_RE = /^(Save(?: settings)?|Enregistrer.*|Sauvegarder.*|Guardar.*|Salva.*)$/i;
+const SHARE_ANONYMOUS_LINK_RE = /(?:lien anonyme|anonymous link|enlace an[o\u00f3]nimo|collegamento anonimo)/i;
+const SHARE_PUBLIC_QR_LABEL_RE =
+  /(?:QR Code|C[o\u00f3]digo QR)\s*-\s*(?:Lien public|Public link|Enlace p[\u00fa]blico|Link pubblico)/i;
+
+export async function configurePublishedApplicationPublicLinkAndAssertQrLabel(
+  page: Page,
+  title: string,
+): Promise<void> {
+  await test.step(`Enable the public share link and verify its QR label for ${title}`, async () => {
+    await openPublishedShareApplicationModal(page, title);
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    await expect(modal, 'Share application access-rights modal should be visible').toBeVisible({ timeout: 30_000 });
+
+    const publicLinkToggleWasAvailable = await enableShareApplicationAnonymousPublicLink(page, modal);
+    await expectShareApplicationPublicQrLabel(modal);
+    if (!publicLinkToggleWasAvailable) {
+      return;
+    }
+    await saveShareApplicationModal(page, modal);
+
+    await openPublishedShareApplicationModal(page, title);
+    const reopened = page.locator(SEL.collaboratorsModal).last();
+    await expect(reopened, 'Share application access-rights modal should reopen').toBeVisible({ timeout: 30_000 });
+    await expectShareApplicationAnonymousPublicLinkEnabled(reopened);
+    await expectShareApplicationPublicQrLabel(reopened);
+    await saveShareApplicationModal(page, reopened);
+  });
+}
+
+async function enableShareApplicationAnonymousPublicLink(page: Page, modal: Locator): Promise<boolean> {
+  const modernToggle = await shareApplicationAnonymousToggleSwitch(modal);
+  if (modernToggle) {
+    const yesButton = await shareApplicationYesButton(modernToggle);
+    const selected = await yesButton.evaluate((el) => el.classList.contains('c8o-btn-selected')).catch(() => false);
+    if (!selected) {
+      await yesButton.click({ timeout: 10_000 }).catch(async () => yesButton.dispatchEvent('click'));
+    }
+    await expect(yesButton, 'anonymous/public share link should be set to Yes/Oui').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+    return true;
+  }
+
+  const legacyToggle = await firstVisibleChildOrNull(modal, SEL.shareAnonymousLegacyToggle, 15_000);
+  if (!legacyToggle) {
+    return false;
+  }
+
+  if (!(await isIonToggleChecked(legacyToggle))) {
+    await legacyToggle.click({ timeout: 10_000 }).catch(async () => legacyToggle.click({ force: true, timeout: 5_000 }));
+  }
+  await waitForIonicLoading(page, 15_000);
+  await expect.poll(() => isIonToggleChecked(legacyToggle), { timeout: 10_000 }).toBe(true);
+  return true;
+}
+
+async function expectShareApplicationAnonymousPublicLinkEnabled(modal: Locator): Promise<void> {
+  const modernToggle = await shareApplicationAnonymousToggleSwitch(modal);
+  if (modernToggle) {
+    const yesButton = await shareApplicationYesButton(modernToggle);
+    await expect(yesButton, 'anonymous/public share link should still be set to Yes/Oui after reopening').toHaveClass(
+      /c8o-btn-selected/,
+      { timeout: 10_000 },
+    );
+    return;
+  }
+
+  const legacyToggle = await firstVisibleChildOrNull(modal, SEL.shareAnonymousLegacyToggle, 15_000);
+  if (!legacyToggle) {
+    throw new Error('Share application modal did not expose an anonymous/public link toggle after reopening');
+  }
+  await expect
+    .poll(() => isIonToggleChecked(legacyToggle), {
+      message: 'anonymous/public share link should still be enabled after reopening',
+      timeout: 10_000,
+    })
+    .toBe(true);
+}
+
+async function expectShareApplicationPublicQrLabel(modal: Locator): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const labels = await visibleShareApplicationQrLabels(modal);
+        return labels.find((label) => SHARE_PUBLIC_QR_LABEL_RE.test(label)) ?? labels.join(' | ');
+      },
+      {
+        message: 'the anonymous/public share QR code should use the public-link label',
+        timeout: 20_000,
+      },
+    )
+    .toMatch(SHARE_PUBLIC_QR_LABEL_RE);
+}
+
+async function shareApplicationAnonymousToggleSwitch(modal: Locator): Promise<Locator | null> {
+  const labelled = modal.locator(SEL.shareAnonymousToggleSwitch).filter({ hasText: SHARE_ANONYMOUS_LINK_RE }).first();
+  if (await labelled.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return labelled;
+  }
+  return firstVisibleChildOrNull(modal, SEL.shareAnonymousToggleSwitch, 3_000);
+}
+
+async function shareApplicationYesButton(toggle: Locator): Promise<Locator> {
+  const buttons = toggle.locator(SEL.shareNotificationToggleButton);
+  const byText = buttons.filter({ hasText: SHARE_YES_OPTION_RE }).first();
+  const button = (await byText.isVisible({ timeout: 1_000 }).catch(() => false)) ? byText : buttons.first();
+  await expect(button, 'the toggle should expose a Yes/Oui option').toBeVisible({ timeout: 10_000 });
+  return button;
+}
+
+async function visibleShareApplicationQrLabels(modal: Locator): Promise<string[]> {
+  return modal.evaluate((root, labelSelector) => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const isVisible = (el: Element): el is HTMLElement => {
+      const element = el as HTMLElement;
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+
+    const classCandidates = [...root.querySelectorAll(labelSelector)].filter(isVisible);
+    const broadCandidates = [...root.querySelectorAll('ion-text, span, div, p')].filter(isVisible);
+    const candidates = classCandidates.length > 0 ? classCandidates : broadCandidates;
+    const labels: string[] = [];
+    for (const candidate of candidates) {
+      const text = normalize(candidate.innerText || candidate.textContent || '');
+      if (!/(?:QR Code|C[o\u00f3]digo QR)/i.test(text) || !/(?:Lien|link|Enlace|Link)/i.test(text)) {
+        continue;
+      }
+      if (!labels.includes(text)) {
+        labels.push(text);
+      }
+    }
+    return labels;
+  }, SEL.shareQrLabel);
+}
+
+async function saveShareApplicationModal(page: Page, modal: Locator): Promise<void> {
+  const selectorButton = await firstVisibleChildOrNull(modal, SEL.collaboratorsSaveButton, 5_000);
+  const namedButton = modal.getByRole('button', { name: SHARE_SAVE_BUTTON_RE }).last();
+  const button = selectorButton ?? ((await namedButton.isVisible({ timeout: 2_000 }).catch(() => false)) ? namedButton : null);
+  if (!button) {
+    throw new Error('Share application modal did not expose a Save button');
+  }
+
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(modal, 'Share application modal should close after saving').toBeHidden({ timeout: 30_000 });
+  await waitForIonicLoading(page, 15_000);
 }
 
 async function selectFirstShareApplicationRecipient(page: Page, modal: Locator, query: string): Promise<string> {
@@ -5936,6 +6093,17 @@ async function isIonCheckboxChecked(checkbox: Locator): Promise<boolean> {
   });
 }
 
+async function isIonToggleChecked(toggle: Locator): Promise<boolean> {
+  const ariaChecked = await toggle.getAttribute('aria-checked').catch(() => null);
+  if (ariaChecked != null) {
+    return ariaChecked === 'true';
+  }
+  return toggle.evaluate((el) => {
+    const input = el as HTMLInputElement;
+    return input.checked === true || el.classList.contains('toggle-checked') || el.getAttribute('ng-reflect-checked') === 'true';
+  });
+}
+
 async function confirmPwaAnonymousWarningIfVisible(page: Page): Promise<void> {
   const confirmButton = page.locator('ion-alert button.alert-button-role-confirm').last();
   if (await confirmButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
@@ -7012,6 +7180,32 @@ async function firstVisibleLocatorOrNull(page: Page, selector: string, timeout: 
     await page.waitForTimeout(100);
   } while (Date.now() - startedAt < timeout);
 
+  const count = await elements.count();
+  for (let i = 0; i < count; i++) {
+    if (await elements.nth(i).isVisible().catch(() => false)) {
+      return elements.nth(i);
+    }
+  }
+  return null;
+}
+
+async function firstVisibleChildOrNull(root: Locator, selector: string, timeout: number): Promise<Locator | null> {
+  const startedAt = Date.now();
+  do {
+    const elements = root.locator(selector);
+    const count = await elements.count();
+    for (let i = 0; i < count; i++) {
+      if (await elements.nth(i).isVisible().catch(() => false)) {
+        return elements.nth(i);
+      }
+    }
+    if (timeout <= 0) {
+      return null;
+    }
+    await root.page().waitForTimeout(100);
+  } while (Date.now() - startedAt < timeout);
+
+  const elements = root.locator(selector);
   const count = await elements.count();
   for (let i = 0; i < count; i++) {
     if (await elements.nth(i).isVisible().catch(() => false)) {
