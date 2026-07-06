@@ -42,6 +42,7 @@ export const SEL = {
   previewButton: '.class1773331718985',
   // viewerPage.yaml — rendered viewer and default submit button
   viewerPage: 'page-viewerpage',
+  viewerPageTitleHeading: 'page-viewerpage [role="heading"][aria-level="1"].ion-text-wrap',
   viewerSubmitButton: [
     'page-viewerpage ion-button.class1543865084771',
     'page-viewerpage ion-tab-button.class1664274551545',
@@ -140,6 +141,9 @@ export const SEL = {
   pageSettingsCloseButton: '.c8o-btn-close',
   // page settings "Nom de la page" input (TextInputSetting)
   pageNameInput: '.class1776265600007 input, ion-input.class1775119427737 input, .class1775119427737 input',
+  // page settings "Display page title" control: modern ToggleSwitch + legacy beta111 checkbox
+  pageDisplayTitleToggle: 'c8oforms-toggleswitch.class1779359000042, .class1779359000042',
+  pageDisplayTitleLegacyCheckbox: 'ion-checkbox.class1775133492560',
   editorHomeButton: 'ion-button.class1774605933364',
   visibilityModeButton: 'button.class1775840591959',
   visibilityAddConditionButton: 'ion-button.class1758191882601',
@@ -2556,6 +2560,26 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await expectRoute(page, ROUTE.viewer);
   await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_000);
+}
+
+export async function expectViewerPageTitleVisible(page: Page, title: string): Promise<void> {
+  await test.step(`Assert viewer page title "${title}" is visible`, async () => {
+    await expect(viewerPageTitleHeading(page, title), `viewer page title ${title} should be visible`).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
+
+export async function expectViewerPageTitleHidden(page: Page, title: string): Promise<void> {
+  await test.step(`Assert viewer page title "${title}" is hidden`, async () => {
+    await expect(viewerPageTitleHeading(page, title), `viewer page title ${title} should be hidden`).toBeHidden({
+      timeout: 30_000,
+    });
+  });
+}
+
+function viewerPageTitleHeading(page: Page, title: string): Locator {
+  return page.locator(SEL.viewerPageTitleHeading).filter({ hasText: title }).first();
 }
 
 export function viewerTextInput(page: Page, technicalId: string): Locator {
@@ -7369,6 +7393,40 @@ export async function expectViewerTextInputValue(page: Page, index: number, expe
   });
 }
 
+export async function fillViewerTextInput(page: Page, technicalId: string, value: string): Promise<void> {
+  const root = page.locator(`#${technicalId}`).first();
+  await expect(root, `viewer Text input ${technicalId} should be visible`).toBeVisible({ timeout: 30_000 });
+  const input = root.locator('ion-input input, input, textarea').first();
+  await expect(input, `viewer Text input ${technicalId} should expose an editable input`).toBeVisible({
+    timeout: 10_000,
+  });
+  await input.fill(value);
+  await input.dispatchEvent('input');
+  await input.dispatchEvent('change');
+  await input.blur();
+  await expect.poll(() => input.inputValue(), { timeout: 10_000 }).toBe(value);
+}
+
+export async function selectViewerRadioOption(page: Page, technicalId: string, option: string): Promise<void> {
+  await clickViewerChoiceOption(page, technicalId, option, 'radio');
+  await expect
+    .poll(() => viewerChoiceValueByTechnicalId(page, technicalId, 'radio'), {
+      message: `viewer Radio ${technicalId} should select ${option}`,
+      timeout: 10_000,
+    })
+    .toBe(option);
+}
+
+export async function checkViewerCheckboxOption(page: Page, technicalId: string, option: string): Promise<void> {
+  await clickViewerChoiceOption(page, technicalId, option, 'checkbox');
+  await expect
+    .poll(() => viewerChoiceValueByTechnicalId(page, technicalId, 'checkbox'), {
+      message: `viewer Checkbox ${technicalId} should include ${option}`,
+      timeout: 10_000,
+    })
+    .toContain(option);
+}
+
 async function fillVisibleTinyMceText(page: Page, value: string, description: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click();
@@ -7411,6 +7469,55 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
     })
     .toContain(value);
   await page.waitForTimeout(1_000);
+}
+
+async function clickViewerChoiceOption(
+  page: Page,
+  technicalId: string,
+  option: string,
+  kind: Extract<ChoiceViewerKind, 'radio' | 'checkbox'>,
+): Promise<void> {
+  const root = page.locator(`#${technicalId}`).first();
+  await expect(root, `viewer ${kind} ${technicalId} should be visible`).toBeVisible({ timeout: 30_000 });
+  const item = root.locator('ion-item').filter({ hasText: option }).first();
+  if (await item.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await item.click();
+    return;
+  }
+
+  const label = root.getByText(option, { exact: true }).first();
+  await expect(label, `viewer ${kind} option ${option} should be visible`).toBeVisible({ timeout: 10_000 });
+  await label.click();
+}
+
+async function viewerChoiceValueByTechnicalId(
+  page: Page,
+  technicalId: string,
+  kind: Extract<ChoiceViewerKind, 'radio' | 'checkbox'>,
+): Promise<string | string[]> {
+  return page.locator(`#${technicalId}`).first().evaluate((root, choiceKind) => {
+    const isVisible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+
+    if (choiceKind === 'radio') {
+      const radioGroup = [...root.querySelectorAll('ion-radio-group')].find(isVisible) as
+        | (HTMLElement & { value?: unknown })
+        | undefined;
+      const rawValue = radioGroup?.value;
+      return typeof rawValue === 'string' ? rawValue : rawValue == null ? '' : String(rawValue);
+    }
+
+    return [...root.querySelectorAll('ion-checkbox')]
+      .filter((checkbox) => {
+        const cb = checkbox as HTMLElement & { checked?: boolean };
+        return isVisible(cb) && (cb.checked === true || cb.getAttribute('aria-checked') === 'true');
+      })
+      .map((checkbox) => ((checkbox.closest('ion-item') ?? checkbox.parentElement ?? checkbox).textContent ?? '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+  }, kind);
 }
 
 export async function fillToastMessageText(page: Page, value: string): Promise<void> {
@@ -7766,11 +7873,11 @@ export async function startVisibilityCondition(page: Page, fieldTechnicalId: str
 /** Pick the condition operator by its stable value (not its i18n label). */
 export async function setVisibilityOperator(page: Page, operator: VisibilityOperator): Promise<void> {
   const select = page.locator(SEL.conditionOperatorSelect).first();
-  const index = await select.evaluate(
-    (el, op) => Array.from(el.querySelectorAll('ion-select-option')).findIndex((o) => (o as HTMLOptionElement & { value?: string }).value === op),
-    operator,
+  const optionValues = await select.evaluate((el) =>
+    Array.from(el.querySelectorAll('ion-select-option')).map((option) => (option as HTMLOptionElement & { value?: string }).value ?? ''),
   );
-  if (index < 0) throw new Error(`unknown visibility operator: ${operator}`);
+  expect(optionValues, `visibility operator ${operator} should be available for the selected field`).toContain(operator);
+  const index = optionValues.indexOf(operator);
   await acceptRgpdIfVisible(page, 500);
   await select.click();
   await acceptRgpdIfVisible(page, 500);
@@ -7830,17 +7937,58 @@ export async function fillVisibilityTagValue(page: Page, value: string): Promise
 
 /** Set a Description component's visible content through its main TinyMCE editor. */
 export async function setDescriptionText(page: Page, text: string): Promise<void> {
-  const frame = page.frameLocator('iframe.tox-edit-area__iframe').first().locator('body');
-  if (await frame.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await frame.click();
-    await frame.fill(text);
+  if (await setTinyMceContentThroughApi(page, text)) {
     return;
   }
-  const inline = page.locator('[contenteditable="true"].mce-content-body').first();
-  await expect(inline, 'description should expose a TinyMCE content editor').toBeVisible({ timeout: 10_000 });
-  await inline.click();
-  await page.keyboard.press('Control+A');
-  await page.keyboard.type(text);
+  await fillVisibleTinyMceText(page, text, 'description text editor');
+}
+
+async function setTinyMceContentThroughApi(page: Page, text: string): Promise<boolean> {
+  const hasEditor = await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const tinymce = (window as any).tinymce;
+          const rawEditors = tinymce?.editors;
+          const editors = Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+          return editors.length;
+        }),
+      {
+        message: 'TinyMCE editor instance should be registered',
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThan(0)
+    .then(() => true)
+    .catch(() => false);
+  if (!hasEditor) {
+    return false;
+  }
+
+  const applied = await page.evaluate((value) => {
+    const tinymce = (window as any).tinymce;
+    const rawEditors = tinymce?.editors;
+    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
+    const active = tinymce?.activeEditor;
+    const editor = active && !active.removed ? active : editors.filter((candidate) => candidate && !candidate.removed).pop();
+    if (!editor) {
+      return false;
+    }
+
+    const holder = document.createElement('div');
+    holder.textContent = value;
+    editor.setContent(holder.innerHTML);
+    editor.fire('input');
+    editor.fire('change');
+    editor.fire('blur');
+    return String(editor.getContent({ format: 'text' }) ?? '').includes(value);
+  }, text);
+
+  if (applied) {
+    await fireActiveTinyMceChange(page);
+    await page.waitForTimeout(1_000);
+  }
+  return applied;
 }
 
 export interface VisibilityConditionSpec {
@@ -8294,9 +8442,21 @@ async function editorContainsPaletteEntry(editorBody: Locator, label: string, pr
 }
 
 async function visibleTinyMceBody(page: Page): Promise<Locator> {
-  const frameBody = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('body');
-  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    return frameBody;
+  for (const selector of [
+    'iframe[title="Rich Text Area"]',
+    'iframe.tox-edit-area__iframe',
+    '.tox-edit-area iframe',
+    '.tox-tinymce iframe',
+    'iframe',
+  ]) {
+    const frame = page.locator(selector).last();
+    if (!(await frame.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      continue;
+    }
+    const frameBody = page.frameLocator(selector).last().locator('body');
+    if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      return frameBody;
+    }
   }
 
   const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
@@ -8432,9 +8592,22 @@ export async function openPageButtonsConfig(page: Page): Promise<void> {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.locator(SEL.pageButtonsHoverOverlay).first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  // Context guard: the page settings must have opened (both section toggles render).
-  await expect(page.locator(SEL.pageSettingsGeneralTab).first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator(SEL.pageSettingsNavigationTab).first()).toBeVisible({ timeout: 15_000 });
+  // Context guard: the page settings must have opened. Newer versions expose
+  // General/Navigation toggles; older beta111 exposes the legacy checkbox only.
+  const ready = await firstVisibleLocatorOrNull(
+    page,
+    [
+      SEL.pageSettingsGeneralTab,
+      SEL.pageSettingsNavigationTab,
+      SEL.pageNameInput,
+      SEL.pageDisplayTitleToggle,
+      SEL.pageDisplayTitleLegacyCheckbox,
+    ].join(', '),
+    15_000,
+  );
+  if (!ready) {
+    throw new Error('page settings did not expose a known settings control after clicking the page navigation block');
+  }
 }
 
 /** Which page-settings section is active: 'general' | 'navigation' | 'unknown'. */
@@ -8486,7 +8659,10 @@ export async function openPageSettings(page: Page): Promise<void> {
   }
 
   // Path 2: the Pages panel → hover the page row → click its edit pencil.
-  await page.locator(SEL.pagesPanelButton).first().click();
+  const pagesPanelButton = page.locator(SEL.pagesPanelButton).first();
+  await pagesPanelButton.click({ timeout: 5_000 }).catch(async () => {
+    await pagesPanelButton.click({ force: true, timeout: 5_000 }).catch(() => undefined);
+  });
   const row = page.locator(SEL.pageRow).first();
   if (await row.count()) {
     await row.hover().catch(() => {});
@@ -8496,6 +8672,77 @@ export async function openPageSettings(page: Page): Promise<void> {
   if (await ensureGeneralName(8_000)) return;
 
   throw new Error('Could not open the page settings: the page name field never became visible.');
+}
+
+export async function closePageSettings(page: Page): Promise<void> {
+  const closeButton = await firstVisibleLocatorOrNull(page, SEL.pageSettingsCloseButton, 3_000);
+  if (!closeButton) {
+    return;
+  }
+  await closeButton.click({ timeout: 10_000 }).catch(async () => closeButton.dispatchEvent('click'));
+  await page.waitForTimeout(500);
+}
+
+export async function setPageTitleDisplayed(page: Page, displayed: boolean): Promise<void> {
+  await test.step(`Set page title display to ${displayed ? 'visible' : 'hidden'}`, async () => {
+    await openPageTitleDisplaySettings(page);
+
+    const modernToggle = page.locator(SEL.pageDisplayTitleToggle).first();
+    if (await modernToggle.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await setPageTitleDisplayedWithModernToggle(modernToggle, displayed);
+      await page.waitForTimeout(1_000);
+      return;
+    }
+
+    const legacyCheckbox = page.locator(SEL.pageDisplayTitleLegacyCheckbox).first();
+    await expect(legacyCheckbox, 'legacy Display page title checkbox should be visible').toBeVisible({ timeout: 15_000 });
+    if ((await ionCheckboxChecked(legacyCheckbox)) !== displayed) {
+      await legacyCheckbox.click({ timeout: 10_000 }).catch(async () => legacyCheckbox.dispatchEvent('click'));
+    }
+    await expect
+      .poll(() => ionCheckboxChecked(legacyCheckbox), {
+        message: `legacy Display page title checkbox should be ${displayed ? 'checked' : 'unchecked'}`,
+        timeout: 10_000,
+      })
+      .toBe(displayed);
+    await page.waitForTimeout(1_000);
+  });
+}
+
+async function openPageTitleDisplaySettings(page: Page): Promise<void> {
+  if (await page.locator(SEL.pageDisplayTitleToggle).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+  if (await page.locator(SEL.pageDisplayTitleLegacyCheckbox).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+
+  await openPageButtonsConfig(page).catch(() => undefined);
+  if (await page.locator(SEL.pageDisplayTitleToggle).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+  if (await page.locator(SEL.pageDisplayTitleLegacyCheckbox).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+
+  await openPageSettings(page);
+}
+
+async function setPageTitleDisplayedWithModernToggle(toggle: Locator, displayed: boolean): Promise<void> {
+  const optionIndex = displayed ? 0 : 1;
+  const buttons = toggle.locator('button.c8o-btn:visible');
+  const button = buttons.nth(optionIndex);
+  await expect(button, `Display page title ${displayed ? 'Yes' : 'No'} button should be visible`).toBeVisible({
+    timeout: 10_000,
+  });
+
+  const classes = (await button.getAttribute('class')) ?? '';
+  if (!classes.includes('c8o-btn-selected')) {
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  }
+  await expect(button, `Display page title should be ${displayed ? 'Yes' : 'No'}`).toHaveClass(/c8o-btn-selected/, {
+    timeout: 10_000,
+  });
 }
 
 export async function openPagesPanel(page: Page): Promise<void> {

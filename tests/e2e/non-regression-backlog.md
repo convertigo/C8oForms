@@ -164,8 +164,8 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja co
 | [ ] | [#1298](https://github.com/convertigo/C8oForms/issues/1298) | closed | enhancement, QC-Passed | Duplicate button gives no visual feedback that the component was duplicated |  |
 | [ ] | [#1297](https://github.com/convertigo/C8oForms/issues/1297) | closed | bug, QC-Passed | Multiple icon picker modals can open when clicking rapidly on page icon fields |  |
 | [x] | [#1296](https://github.com/convertigo/C8oForms/issues/1296) | closed | bug, QC-Passed, Auto QA Test | Visibility condition placeholder incorrectly shows “Column” instead of a generic term | Auto QA Test<br>e2e/issue-1296.spec.ts |
-| [ ] | [#1295](https://github.com/convertigo/C8oForms/issues/1295) | closed | bug, QC-Passed | Display page title” setting is not applied in Preview or Published mode |  |
-| [ ] | [#1294](https://github.com/convertigo/C8oForms/issues/1294) | closed | bug, QC-Passed | Visibility condition “is_filled” is not applied for text inputs, radio buttons, or checkboxes |  |
+| [x] | [#1295](https://github.com/convertigo/C8oForms/issues/1295) | closed | bug, QC-Passed, Auto QA Test | Display page title” setting is not applied in Preview or Published mode | Auto QA Test<br>e2e/issue-1295.spec.ts |
+| [x] | [#1294](https://github.com/convertigo/C8oForms/issues/1294) | closed | bug, QC-Passed, Auto QA Test | Visibility condition “is_filled” is not applied for text inputs, radio buttons, or checkboxes | Auto QA Test<br>e2e/issue-1294.spec.ts |
 | [ ] | [#1293](https://github.com/convertigo/C8oForms/issues/1293) | closed | bug, QC-Passed | Page reordering breaks component visibility configuration |  |
 | [x] | [#1292](https://github.com/convertigo/C8oForms/issues/1292) | closed | bug, QC-Passed, Auto QA Test | Slider component configuration: “Min Label” and “Max Label” fields are missing in Data & Interactions | Auto QA Test<br>e2e/issue-1292.spec.ts |
 | [ ] | [#1291](https://github.com/convertigo/C8oForms/issues/1291) | closed | bug, QC-Passed | Editor page is missing bottom padding under some components |  |
