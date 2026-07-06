@@ -163,7 +163,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja co
 | [ ] | [#1299](https://github.com/convertigo/C8oForms/issues/1299) | closed | enhancement, QC-Passed | Lazy load icons in the icon picker modal |  |
 | [ ] | [#1298](https://github.com/convertigo/C8oForms/issues/1298) | closed | enhancement, QC-Passed | Duplicate button gives no visual feedback that the component was duplicated |  |
 | [ ] | [#1297](https://github.com/convertigo/C8oForms/issues/1297) | closed | bug, QC-Passed | Multiple icon picker modals can open when clicking rapidly on page icon fields |  |
-| [ ] | [#1296](https://github.com/convertigo/C8oForms/issues/1296) | closed | bug, QC-Passed | Visibility condition placeholder incorrectly shows “Column” instead of a generic term |  |
+| [x] | [#1296](https://github.com/convertigo/C8oForms/issues/1296) | closed | bug, QC-Passed, Auto QA Test | Visibility condition placeholder incorrectly shows “Column” instead of a generic term | Auto QA Test<br>e2e/issue-1296.spec.ts |
 | [ ] | [#1295](https://github.com/convertigo/C8oForms/issues/1295) | closed | bug, QC-Passed | Display page title” setting is not applied in Preview or Published mode |  |
 | [ ] | [#1294](https://github.com/convertigo/C8oForms/issues/1294) | closed | bug, QC-Passed | Visibility condition “is_filled” is not applied for text inputs, radio buttons, or checkboxes |  |
 | [ ] | [#1293](https://github.com/convertigo/C8oForms/issues/1293) | closed | bug, QC-Passed | Page reordering breaks component visibility configuration |  |

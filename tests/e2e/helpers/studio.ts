@@ -7631,6 +7631,37 @@ export async function openVisibilityConditionFieldPicker(page: Page): Promise<vo
   await sourceCompletionPopover(page).waitFor({ state: 'visible', timeout: 10_000 });
 }
 
+const VISIBILITY_CONDITION_ELEMENT_PLACEHOLDER_RE =
+  /^(Element|L['\u2019]\u00e9l\u00e9ment|El elemento|L['\u2019]elemento)$/i;
+const VISIBILITY_CONDITION_COLUMN_PLACEHOLDER_RE = /^(Column|La colonne|La columna|La colonna)$/i;
+
+export async function addVisibilityConditionAndExpectGenericElementPlaceholder(page: Page): Promise<void> {
+  await test.step('Add a Visibility condition and assert the left field placeholder is generic', async () => {
+    await activateVisibilityConditionMode(page);
+    await page.locator(SEL.visibilityAddConditionButton).first().click();
+
+    const fieldInput = page.locator(SEL.conditionFieldInput).first();
+    await expect(fieldInput, 'the left-hand Visibility condition field should be visible').toBeVisible({
+      timeout: 10_000,
+    });
+
+    await expect
+      .poll(
+        async () => normalizeWhitespace((await fieldInput.getAttribute('placeholder')) ?? ''),
+        {
+          message: 'Visibility condition field placeholder should describe a generic element, not a grid column',
+          timeout: 10_000,
+        },
+      )
+      .toMatch(VISIBILITY_CONDITION_ELEMENT_PLACEHOLDER_RE);
+
+    const placeholder = normalizeWhitespace((await fieldInput.getAttribute('placeholder')) ?? '');
+    expect(placeholder, 'Visibility condition field placeholder should not reuse the Grid column wording').not.toMatch(
+      VISIBILITY_CONDITION_COLUMN_PLACEHOLDER_RE,
+    );
+  });
+}
+
 export function sourceCompletionPopover(page: Page): Locator {
   return page.locator('ion-popover.C8Oforms_PopOverSourceCompletionCSS, ion-popover:has(ion-searchbar)').last();
 }
