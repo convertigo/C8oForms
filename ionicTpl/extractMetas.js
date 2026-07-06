@@ -1,7 +1,115 @@
-const yamlFilePath = '../../_c8oProject/mobilePages/editorPage.yaml';
-const PaletteFile = '../../DisplayObjects/mobile/assets/components/Palette.json';
-let fileOutput = '../../DisplayObjects/mobile/assets/components/AllTypes.json';
 const fs = require('fs');
+const path = require('path');
+
+function findProjectRoot(fromDir) {
+  let current = path.resolve(fromDir);
+  while (current !== path.dirname(current)) {
+    if (
+      fs.existsSync(path.join(current, 'c8oProject.yaml')) &&
+      fs.existsSync(path.join(current, '_c8oProject'))
+    ) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  return path.resolve(fromDir, '..');
+}
+
+const projectRoot = findProjectRoot(__dirname);
+const yamlFilePath = path.join(projectRoot, '_c8oProject/mobilePages/editorPage.yaml');
+const PaletteFile = path.join(projectRoot, 'DisplayObjects/mobile/assets/components/Palette.json');
+let fileOutput = path.join(projectRoot, 'DisplayObjects/mobile/assets/components/AllTypes.json');
+
+const boxStyleShape = {
+  margin: "",
+  padding: "",
+  backgroundColor: "",
+  textColor: "",
+  textColorMode: "",
+  border: "",
+  borderWidth: "",
+  borderStyle: "",
+  borderColor: "",
+  borderRadius: "",
+  borderTop: "",
+  borderRight: "",
+  borderBottom: "",
+  borderLeft: "",
+  verticalAlign: ""
+};
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function hasOwn(value, key) {
+  return value != null && Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function ensureObject(target, key, defaults) {
+  if (target[key] == null || typeof target[key] !== "object" || Array.isArray(target[key])) {
+    target[key] = clone(defaults);
+    return;
+  }
+  for (const defaultKey of Object.keys(defaults)) {
+    if (!hasOwn(target[key], defaultKey)) {
+      target[key][defaultKey] = clone(defaults[defaultKey]);
+    }
+  }
+}
+
+function emptyVisibleIfGroup(type) {
+  return {
+    type: type,
+    condVisible: "and",
+    conds: [],
+    groups: []
+  };
+}
+
+function emptyConditions() {
+  const buttonStateIf = emptyVisibleIfGroup("visibleIf");
+  buttonStateIf.__uiMode = "button_state_always_enabled";
+  buttonStateIf.__legacyConds = [];
+  const visibleIf = emptyVisibleIfGroup("visibleIf");
+  visibleIf.__legacyConds = [];
+  return {
+    visibleIf: visibleIf,
+    goToPageIf: emptyVisibleIfGroup("goToPageIf"),
+    buttonStateIf: buttonStateIf
+  };
+}
+
+function isFormComponent(topic, objToInsert) {
+  const topicType = topic == null ? "" : topic.type;
+  return objToInsert != null && objToInsert.cat !== "action" && topicType !== "actions" && topicType !== "background_process";
+}
+
+function enrichFormComponentContract(objToInsert, topic) {
+  if (!isFormComponent(topic, objToInsert)) {
+    return objToInsert;
+  }
+  if (objToInsert.config == null || typeof objToInsert.config !== "object" || Array.isArray(objToInsert.config)) {
+    objToInsert.config = {};
+  }
+  if (!hasOwn(objToInsert.config, "componentDisabled")) {
+    objToInsert.config.componentDisabled = false;
+  }
+  ensureObject(objToInsert.config, "boxStyle", boxStyleShape);
+  if (objToInsert.type !== "button" && objToInsert.type !== "description") {
+    ensureObject(objToInsert.config, "questionBoxStyle", boxStyleShape);
+    ensureObject(objToInsert.config, "componentBoxStyle", boxStyleShape);
+  }
+  if (objToInsert.type === "layout" || objToInsert.type === "ion-card") {
+    ensureObject(objToInsert.config, "layoutChildrenStyle", {
+      default: clone(boxStyleShape),
+      first: clone(boxStyleShape),
+      last: clone(boxStyleShape)
+    });
+  }
+  ensureObject(objToInsert, "conditions", emptyConditions());
+  return objToInsert;
+}
 
 function extractFunction(filename, functionName) {
 
@@ -79,7 +187,7 @@ function PerformAnalysis() {
               continue;
             }
             typesDone.push(components.type);
-            allTypes.push(obj.getObjToInsert(components.type, new Date().getTime(), "PAGE1"));
+            allTypes.push(enrichFormComponentContract(obj.getObjToInsert(components.type, new Date().getTime(), "PAGE1"), elem));
             
           }
         }
