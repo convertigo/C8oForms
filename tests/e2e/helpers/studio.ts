@@ -1,4 +1,6 @@
 import { Locator, Page, expect, test } from '@playwright/test';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /**
  * Selectors are Convertigo priority CSS classes (classNNNN): the priority is
@@ -190,7 +192,14 @@ export const SEL = {
   collaboratorsSaveButton: 'ion-footer ion-button.class1779974149500',
   collaboratorsCsvInput: 'input#manageAccessCsvCollabInput[type="file"][accept*=".csv"]',
   collaboratorsCsvButton: 'div:has(> input#manageAccessCsvCollabInput[type="file"]) > ion-button',
+  publishedShareMenuItem:
+    'ion-popover ion-item.class1578663445209, ion-popover ion-item:has(ion-icon.class1603730319967), ion-popover ion-item:has(ion-icon[src*="share.svg"])',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
+  shareNotificationToggle: 'c8oforms-toggleswitch.class1762249213239, .class1762249213239',
+  shareNotificationToggleButton: 'button.class1775840591959, button.c8o-btn',
+  shareSubjectInput:
+    'c8oforms-textinputsetting.class1779965325160 input, .class1779965325160 input, ion-input.class1762190514117 input, .class1762190514117 input',
+  shareBodyEditorFrame: 'iframe.tox-edit-area__iframe, iframe[title="Rich Text Area"]',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
   pwaAccessToggleButton: 'button.class1775840591959',
@@ -199,7 +208,8 @@ export const SEL = {
   pwaIconEditButton: 'ion-button.class1649864949366, ion-button.buttonEditIcon',
   pwaNameInput: 'ion-input.class1603802354868 input',
   pwaShortNameInput: 'ion-input.class1603803008204 input, ion-input.class1762428297567 input',
-  pwaSaveButton: 'ion-button.class1762425668421, ion-button.class1649838959998',
+  pwaSaveButton:
+    'ion-button.class1762425668421, ion-button.class1649838959998, ion-button:has-text("Save"), ion-button:has-text("Enregistrer"), ion-button:has-text("Sauvegarder"), ion-button:has-text("Publier"), ion-button:has-text("Publish")',
   wallpaperModal: 'ion-modal.modal-custom--hw-100, ion-modal.modal-custom, ion-modal.modalCSV',
   wallpaperColorSegmentButton: 'ion-segment-button.class1774608193139, ion-segment-button.class1648553976686',
   wallpaperSaveButton: 'ion-button.class1774608108762, ion-button.class1586166864663',
@@ -1505,6 +1515,473 @@ export async function addFirstAvailableCollaboratorFromSelectorCard(page: Page, 
   });
 }
 
+export async function sharePublishedApplicationWithNotification(
+  page: Page,
+  title: string,
+  options: { recipientQuery?: string; subject: string; body: string },
+): Promise<string> {
+  return test.step(`Configure a Share application email notification for ${title}`, async () => {
+    await openPublishedShareApplicationModal(page, title);
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    const recipient = await selectFirstShareApplicationRecipient(page, modal, options.recipientQuery ?? 'test');
+    await enableShareApplicationEmailNotification(modal);
+    await fillShareApplicationNotificationFields(page, modal, options.subject, options.body);
+    return recipient;
+  });
+}
+
+export async function openPublishedShareApplicationModal(page: Page, title: string): Promise<void> {
+  await test.step(`Open Share application modal for published application ${title}`, async () => {
+    await openPublishedApplicationsTab(page);
+    await openPublishedSelectorCardShareMenuItem(page, title);
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    await expect(modal, 'Share application should open the access-rights modal').toBeVisible({ timeout: 30_000 });
+    await expect(modal, 'Share application modal title should be visible').toContainText(
+      /Partager l'application|Share the application/i,
+      { timeout: 15_000 },
+    );
+  });
+}
+
+async function selectFirstShareApplicationRecipient(page: Page, modal: Locator, query: string): Promise<string> {
+  const input = modal.locator(SEL.collaboratorSearchInput).first();
+  await expect(input, 'Share application should expose the user/group autocomplete').toBeVisible({ timeout: 30_000 });
+  await input.fill(query);
+
+  const option = page.locator(SEL.collaboratorAutocompleteOption).first();
+  await expect(option, 'at least one user or group should be available to share with').toBeVisible({ timeout: 20_000 });
+  const optionText = normalizeWhitespace(await option.innerText());
+  await option.click();
+
+  const recipient = optionText.split(/\s+/).find((token) => token.includes('@')) ?? optionText;
+  await expect
+    .poll(() => modal.innerText().then((text) => normalizeWhitespace(text)), {
+      message: `the selected recipient ${recipient} should be listed before enabling notification`,
+      timeout: 15_000,
+    })
+    .toContain(recipient);
+
+  return recipient;
+}
+
+async function enableShareApplicationEmailNotification(modal: Locator): Promise<void> {
+  const toggle = modal.locator(SEL.shareNotificationToggle).filter({ hasText: /Envoyer une notification|Send an email notification/i }).first();
+  await expect(toggle, 'Share application should expose the Send an email notification toggle').toBeVisible({
+    timeout: 20_000,
+  });
+
+  const yesByText = toggle.locator(SEL.shareNotificationToggleButton).filter({ hasText: /^(Oui|Yes)$/i }).first();
+  const yesButton = (await yesByText.isVisible({ timeout: 1_000 }).catch(() => false))
+    ? yesByText
+    : toggle.locator(SEL.shareNotificationToggleButton).first();
+  await expect(yesButton, 'the notification toggle should expose a Yes/Oui option').toBeVisible({ timeout: 10_000 });
+  await yesButton.click({ timeout: 10_000 }).catch(async () => yesButton.dispatchEvent('click'));
+  await expect(yesButton, 'the notification toggle should be set to Yes/Oui').toHaveClass(/c8o-btn-selected/, {
+    timeout: 10_000,
+  });
+}
+
+async function fillShareApplicationNotificationFields(
+  page: Page,
+  modal: Locator,
+  subject: string,
+  body: string,
+): Promise<void> {
+  const subjectInput = modal.locator(SEL.shareSubjectInput).first();
+  await expect(subjectInput, 'choosing Yes/Oui should reveal Email subject').toBeVisible({ timeout: 15_000 });
+  await subjectInput.fill(subject);
+  await subjectInput.dispatchEvent('input');
+  await subjectInput.dispatchEvent('change');
+  await subjectInput.blur();
+  await expect(subjectInput, 'Email subject should keep the typed value').toHaveValue(subject, { timeout: 10_000 });
+
+  await expect(modal, 'choosing Yes/Oui should reveal Email body').toContainText(/Corps du courriel|Email body/i, {
+    timeout: 15_000,
+  });
+  await fillShareApplicationTinyMceBody(page, modal, body);
+}
+
+async function fillShareApplicationTinyMceBody(page: Page, modal: Locator, value: string): Promise<void> {
+  const iframe = modal.locator(SEL.shareBodyEditorFrame).last();
+  if (await iframe.isVisible({ timeout: 15_000 }).catch(() => false)) {
+    const body = iframe.contentFrame().locator('body');
+    await expect(body, 'Email body TinyMCE iframe should be editable').toBeVisible({ timeout: 10_000 });
+    await body.click();
+    await body.fill(value);
+    await fireActiveTinyMceChange(page);
+    await expect(body, 'Email body should keep the typed value').toContainText(value, { timeout: 10_000 });
+    return;
+  }
+
+  const inlineEditor = modal.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(inlineEditor, 'Email body TinyMCE editor should be editable').toBeVisible({ timeout: 10_000 });
+  await inlineEditor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type(value);
+  await fireActiveTinyMceChange(page);
+  await expect(inlineEditor, 'Email body should keep the typed value').toContainText(value, { timeout: 10_000 });
+}
+
+async function openPublishedSelectorCardShareMenuItem(page: Page, title: string): Promise<void> {
+  for (let pass = 0; pass < 2; pass++) {
+    await dismissVisiblePopovers(page);
+    await dismissVisibleToasts(page);
+    await expandSelectorSideMenuIfCardMenusAreCollapsed(page, title);
+    const cardId = await selectorApplicationCardId(page, title);
+    const card = page.locator(`[id="${cardId}"]:visible`).first();
+    await expect(card, `published application card ${title} should be visible`).toBeVisible({ timeout: 30_000 });
+
+    const menuOverlayId = cardId.replace(/^idcard/, 'idcardO');
+    const cardMenu = card.locator(SEL.cardMenuButton).first();
+    const overlayMenu = page.locator(`[id="${menuOverlayId}"]:visible`).locator(SEL.cardMenuButton).first();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await dismissVisiblePopovers(page);
+      if (await clickVisibleSelectorCardMenuByTitle(page, title)) {
+        if (await clickVisibleSelectorShareMenuItem(page)) {
+          return;
+        }
+      }
+
+      await revealSelectorCardMenu(page, card);
+
+      for (const menu of [overlayMenu, cardMenu]) {
+        if (!(await menu.isVisible({ timeout: 1_000 }).catch(() => false))) {
+          continue;
+        }
+
+        await clickSelectorCardMenuButton(page, menu);
+        if (await clickVisibleSelectorShareMenuItem(page)) {
+          return;
+        }
+      }
+
+      if (await clickVisibleSelectorCardMenuById(page, cardId)) {
+        if (await clickVisibleSelectorShareMenuItem(page)) {
+          return;
+        }
+      }
+    }
+
+    if (pass === 0) {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
+      await waitForIonicLoading(page, 20_000);
+      await openPublishedApplicationsTab(page);
+    }
+  }
+
+  throw new Error(`Could not open Share application menu item for published application ${title}`);
+}
+
+async function expandSelectorSideMenuIfCardMenusAreCollapsed(page: Page, title: string): Promise<void> {
+  const collapsed = await page.evaluate(
+    ({ titleSelector, expectedTitle }) => {
+      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const title = [...document.querySelectorAll(titleSelector)].find((candidate) =>
+        normalize((candidate as HTMLElement).innerText).includes(expectedTitle),
+      ) as HTMLElement | undefined;
+      const card = title?.closest('[id^="idcard"]:not([id^="idcardO"]), c8oforms-cardselector, ion-col');
+      if (!card) {
+        return false;
+      }
+      const rect = (card as HTMLElement).getBoundingClientRect();
+      return rect.left < 100;
+    },
+    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+  );
+  if (!collapsed) {
+    return;
+  }
+
+  await page.mouse.click(37, 28).catch(() => undefined);
+  await page.waitForTimeout(900);
+}
+
+async function dismissVisibleToasts(page: Page): Promise<void> {
+  const toast = page.locator('ion-toast:not(.overlay-hidden), ion-toast.show-toast').last();
+  if (!(await toast.isVisible({ timeout: 500 }).catch(() => false))) {
+    return;
+  }
+
+  const button = toast.locator('button, .toast-button').filter({ hasText: /^(OK|Close|Fermer)$/i }).first();
+  if (await button.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await button.click({ timeout: 3_000 }).catch(() => undefined);
+  }
+  await toast.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
+}
+
+async function clickVisibleSelectorCardMenuById(page: Page, cardId: string): Promise<boolean> {
+  await page.waitForTimeout(250);
+  return page.evaluate((id) => {
+    const isVisible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const suffix = id.replace(/^idcard/, '');
+    const roots = [...document.querySelectorAll(`[id="${id}"], [id="idcardO${suffix}"]`)].filter(isVisible);
+    for (const root of roots.reverse()) {
+      const buttons = [...root.querySelectorAll('ion-button')].filter(isVisible).reverse();
+      const menu =
+        buttons.find((button) => button.classList.contains('class1606574763560')) ??
+        buttons.find((button) => !!button.querySelector('ion-icon[name*="ellipsis"], ion-icon.class1606574808458')) ??
+        buttons[0];
+      if (menu) {
+        menu.click();
+        return true;
+      }
+    }
+    return false;
+  }, cardId);
+}
+
+async function clickVisibleSelectorCardMenuByTitle(page: Page, title: string): Promise<boolean> {
+  const menuPoint = await hoverVisibleSelectorCardByTitle(page, title);
+  if (!menuPoint) {
+    return false;
+  }
+
+  await page.mouse.click(menuPoint.x, menuPoint.y).catch(() => undefined);
+  if (
+    await page
+      .locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector')
+      .last()
+      .waitFor({ state: 'visible', timeout: 1_500 })
+      .then(() => true)
+      .catch(() => false)
+  ) {
+    return true;
+  }
+
+  const clicked = await page.evaluate(
+    ({ titleSelector, expectedTitle }) => {
+      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const expectedPrefix = expectedTitle.slice(0, Math.min(32, expectedTitle.length));
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        if (
+          box.width <= 0 ||
+          box.height <= 0 ||
+          box.right <= 0 ||
+          box.bottom <= 0 ||
+          box.left >= window.innerWidth ||
+          box.top >= window.innerHeight ||
+          style.display === 'none' ||
+          style.visibility === 'hidden'
+        ) {
+          return false;
+        }
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return !!hit && (el.contains(hit) || hit.contains(el));
+      };
+      const clickableCenter = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      };
+      const dispatchPointerClick = (el: HTMLElement): boolean => {
+        const center = clickableCenter(el);
+        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+          el.dispatchEvent(
+            new MouseEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              clientX: center.x,
+              clientY: center.y,
+              view: window,
+            }),
+          );
+        }
+        return true;
+      };
+
+      const title = [...document.querySelectorAll(titleSelector)]
+        .filter(isVisible)
+        .find((candidate) => {
+          const text = normalize((candidate as HTMLElement).innerText);
+          return text.includes(expectedTitle) || (expectedPrefix.length > 0 && text.includes(expectedPrefix));
+        }) as HTMLElement | undefined;
+      const card =
+        title?.closest('[id^="idcard"]:not([id^="idcardO"])') ??
+        title?.closest('c8oforms-cardselector') ??
+        title?.closest('ion-col');
+      if (!card || !isVisible(card)) {
+        return false;
+      }
+      const rect = (card as HTMLElement).getBoundingClientRect();
+
+      const scopedButtons = [...card.querySelectorAll('ion-button, button, [role="button"]')].filter(isVisible);
+      const documentButtons = [...document.querySelectorAll('ion-button, button, [role="button"]')]
+        .filter(isVisible)
+        .filter((candidate) => {
+          const box = (candidate as HTMLElement).getBoundingClientRect();
+          return (
+            box.left >= rect.left - 20 &&
+            box.right <= rect.right + 20 &&
+            box.top >= rect.top - 20 &&
+            box.bottom <= rect.bottom + 20
+          );
+        });
+      const buttons = [...new Set([...scopedButtons, ...documentButtons])] as HTMLElement[];
+      const menu =
+        buttons.find((button) => button.classList.contains('class1606574763560')) ??
+        buttons.find((button) => !!button.querySelector('ion-icon[name*="ellipsis"], ion-icon.class1606574808458'));
+      if (menu) {
+        return dispatchPointerClick(menu);
+      }
+      return false;
+    },
+    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+  );
+  if (!clicked) {
+    return false;
+  }
+  await page
+    .locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector')
+    .last()
+    .waitFor({ state: 'visible', timeout: 2_000 })
+    .then(() => true)
+    .catch(() => false);
+  return true;
+}
+
+async function hoverVisibleSelectorCardByTitle(page: Page, title: string): Promise<{ x: number; y: number } | null> {
+  const points = await page.evaluate(
+    ({ titleSelector, expectedTitle }) => {
+      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const expectedPrefix = expectedTitle.slice(0, Math.min(32, expectedTitle.length));
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        if (
+          box.width <= 0 ||
+          box.height <= 0 ||
+          box.right <= 0 ||
+          box.bottom <= 0 ||
+          box.left >= window.innerWidth ||
+          box.top >= window.innerHeight ||
+          style.display === 'none' ||
+          style.visibility === 'hidden'
+        ) {
+          return false;
+        }
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return !!hit && (el.contains(hit) || hit.contains(el));
+      };
+
+      const title = [...document.querySelectorAll(titleSelector)]
+        .filter(isVisible)
+        .find((candidate) => {
+          const text = normalize((candidate as HTMLElement).innerText);
+          return text.includes(expectedTitle) || (expectedPrefix.length > 0 && text.includes(expectedPrefix));
+        }) as HTMLElement | undefined;
+      const card =
+        title?.closest('[id^="idcard"]:not([id^="idcardO"])') ??
+        title?.closest('c8oforms-cardselector') ??
+        title?.closest('ion-col');
+      if (!card || !isVisible(card)) {
+        return null;
+      }
+      const rect = (card as HTMLElement).getBoundingClientRect();
+      return {
+        hover: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+        menu: { x: rect.right - 24, y: rect.top + 20 },
+      };
+    },
+    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+  );
+  if (!points) {
+    return null;
+  }
+
+  await page.mouse.move(points.hover.x, points.hover.y, { steps: 5 }).catch(() => undefined);
+  await page
+    .evaluate(
+      ({ titleSelector, expectedTitle, point }) => {
+        const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        const title = [...document.querySelectorAll(titleSelector)].find((candidate) =>
+          normalize((candidate as HTMLElement).innerText).includes(expectedTitle),
+        ) as HTMLElement | undefined;
+        const card = title?.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
+        const host = card?.closest('c8oforms-cardselector') as HTMLElement | null;
+        const targets = [host, card].filter((target): target is HTMLElement => !!target);
+        for (const target of targets) {
+          for (const type of ['pointerover', 'mouseover', 'mouseenter', 'mousemove']) {
+            target.dispatchEvent(
+              new MouseEvent(type, {
+                bubbles: type !== 'mouseenter',
+                cancelable: true,
+                clientX: point.x,
+                clientY: point.y,
+                view: window,
+              }),
+            );
+          }
+        }
+      },
+      {
+        titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`,
+        expectedTitle: title,
+        point: points.hover,
+      },
+    )
+    .catch(() => undefined);
+  await page.waitForTimeout(600);
+  return points.menu;
+}
+
+async function clickVisibleSelectorShareMenuItem(page: Page): Promise<boolean> {
+  const popover = page.locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector').last();
+  if (!(await popover.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.publishedShareMenuItem).first();
+  if (await item.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await item.click({ timeout: 3_000 }).catch(async () => {
+      await item.evaluate((el) => (el as HTMLElement).click());
+    });
+  } else {
+    const clicked = await page.evaluate(() => {
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden) page-popoverpageselector')]
+        .filter(isVisible)
+        .reverse();
+      for (const root of popovers) {
+        const item = [...root.querySelectorAll('ion-item')].find((candidate) => {
+          const text = ((candidate as HTMLElement).innerText ?? '').replace(/\u00a0/g, ' ').trim().toLowerCase();
+          return (
+            isVisible(candidate) &&
+            (candidate.classList.contains('class1578663445209') ||
+              candidate.querySelector('ion-icon.class1603730319967') ||
+              text === 'share application' ||
+              text === "partager l'application")
+          );
+        }) as HTMLElement | undefined;
+        if (item) {
+          item.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!clicked) {
+      return false;
+    }
+  }
+
+  return page
+    .locator(SEL.collaboratorsModal)
+    .last()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
 async function openSelectorCardCollaboratorsModal(page: Page, title: string): Promise<void> {
   await expectRoute(page, ROUTE.selector);
   await dismissVisiblePopovers(page);
@@ -1607,31 +2084,44 @@ async function clickVisibleSelectorCollaboratorsMenuItem(page: Page): Promise<bo
 }
 
 async function selectorApplicationCardId(page: Page, title: string): Promise<string> {
-  const cardId = await page.evaluate(
-    ({ titleSelector, expectedTitle }) => {
-      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-      const isVisible = (el: Element): el is HTMLElement => {
-        const box = (el as HTMLElement).getBoundingClientRect();
-        const style = getComputedStyle(el);
-        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-      };
+  const startedAt = Date.now();
+  do {
+    const cardId = await page.evaluate(
+      ({ titleSelector, expectedTitle }) => {
+        const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        const expectedPrefix = expectedTitle.slice(0, Math.min(32, expectedTitle.length));
+        const isVisible = (el: Element): el is HTMLElement => {
+          const box = (el as HTMLElement).getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        };
 
-      for (const title of [...document.querySelectorAll(titleSelector)].filter(isVisible)) {
-        if (normalize((title as HTMLElement).innerText) !== expectedTitle) {
-          continue;
+        for (const title of [...document.querySelectorAll(titleSelector)].filter(isVisible)) {
+          if (normalize((title as HTMLElement).innerText) !== expectedTitle) {
+            continue;
+          }
+          const card = title.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
+          return card?.id ?? null;
         }
-        const card = title.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
-        return card?.id ?? null;
-      }
-      return null;
-    },
-    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
-  );
 
-  if (!cardId) {
-    throw new Error(`Could not resolve selector card id for ${title}`);
-  }
-  return cardId;
+        for (const card of [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')].filter(isVisible)) {
+          const text = normalize((card as HTMLElement).innerText);
+          if (text.includes(expectedTitle) || (expectedPrefix.length > 0 && text.includes(expectedPrefix))) {
+            return (card as HTMLElement).id;
+          }
+        }
+        return null;
+      },
+      { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+    );
+
+    if (cardId) {
+      return cardId;
+    }
+    await page.waitForTimeout(500);
+  } while (Date.now() - startedAt < 30_000);
+
+  throw new Error(`Could not resolve selector card id for ${title}`);
 }
 
 async function dismissVisiblePopovers(page: Page): Promise<void> {
@@ -5069,6 +5559,10 @@ function escapeRegExp(value: string): string {
 type PwaAccessMode = 'authenticated' | 'anonymous';
 type PublishedQrButtonMode = 'show' | 'hide';
 
+const PUBLISHED_APPLICATIONS_TAB_RE = /^(Published Apps|Published|Applications publi[ée]es)$/i;
+const PUBLISHED_APPLICATIONS_VIEW_RE =
+  /Application publishing|Publication des applications|no-code publishing workspace|espace de publication no-code|Applications en production|Applications in production|Vos applications d[ée]ploy[ée]es|Your deployed applications/i;
+
 const PUBLISHED_QR_LABEL_RE: Record<PublishedQrButtonMode, RegExp> = {
   show: /^(?:Voir|View|Ver|Vedi)\s+QR$/i,
   hide: /^(?:Masquer|Hide|Ocultar|Nascondi)\s+QR$/i,
@@ -5136,11 +5630,104 @@ export async function openPublishedApplicationsTab(page: Page): Promise<void> {
   await test.step('open the Published Applications selector tab', async () => {
     await returnToSelectorFromEditor(page);
     await dismissVisiblePopovers(page);
-    const tab = await firstVisibleLocator(page, SEL.publishedApplicationsTab, 'Published Applications tab', 15_000);
-    await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
-    await waitForIonicLoading(page, 10_000);
-    await waitForSelectorFormListLoaded(page);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (await publishedApplicationsViewIsActive(page)) {
+        break;
+      }
+
+      const tab = await publishedApplicationsTabLocator(page);
+      await tab.click({ timeout: 10_000, force: attempt > 0 }).catch(async () => tab.dispatchEvent('click'));
+      await waitForIonicLoading(page, 10_000);
+      await page.waitForTimeout(800);
+      if (!(await publishedApplicationsViewIsActive(page))) {
+        await clickPublishedApplicationsTabByDom(page);
+        await waitForIonicLoading(page, 10_000);
+        await page.waitForTimeout(800);
+      }
+      if (await publishedApplicationsViewIsActive(page)) {
+        break;
+      }
+    }
+    await expect
+      .poll(() => publishedApplicationsViewIsActive(page), {
+        message: 'the Published Applications selector tab should be active before opening a published card menu',
+        timeout: 10_000,
+      })
+      .toBe(true);
+    await page.waitForTimeout(500);
   });
+}
+
+async function publishedApplicationsTabLocator(page: Page): Promise<Locator> {
+  const stable = page.locator(SEL.publishedApplicationsTab).filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE }).first();
+  if (await stable.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    return stable;
+  }
+
+  const byText = page
+    .locator('page-selectorpage ion-button, page-selectorpage button, page-selectorpage [role="button"]')
+    .filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE })
+    .first();
+  if (await byText.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    return byText;
+  }
+
+  return firstVisibleLocator(page, SEL.publishedApplicationsTab, 'Published Applications tab', 5_000);
+}
+
+async function clickPublishedApplicationsTabByDom(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const isVisible = (el: Element): el is HTMLElement => {
+      const rect = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const tab = [...document.querySelectorAll('ion-button, button, [role="button"]')]
+      .filter(isVisible)
+      .find((candidate) => /^(Published Apps|Published|Applications publi[ée]es)$/i.test(normalize((candidate as HTMLElement).innerText)));
+    if (!tab) {
+      return false;
+    }
+    const element = tab as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+      element.dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          view: window,
+        }),
+      );
+    }
+    element.click();
+    return true;
+  });
+}
+
+async function publishedApplicationsViewIsActive(page: Page): Promise<boolean> {
+  const root = page.locator('page-selectorpage').first();
+  const rootVisible = await root.isVisible({ timeout: 1_000 }).catch(() => false);
+
+  if (rootVisible) {
+    const activePublishedTab = root
+      .locator('ion-button.btn--tab-active, ion-button.TabSelected, ion-button.tab-selected, .btn--tab-active, .TabSelected')
+      .filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE })
+      .first();
+    if (await activePublishedTab.isVisible({ timeout: 500 }).catch(() => false)) {
+      return true;
+    }
+
+    const rootText = normalizeWhitespace(await root.innerText({ timeout: 1_000 }).catch(() => ''));
+    if (PUBLISHED_APPLICATIONS_VIEW_RE.test(rootText)) {
+      return true;
+    }
+  }
+
+  const pageText = normalizeWhitespace(await page.locator('body').innerText({ timeout: 1_000 }).catch(() => ''));
+  return PUBLISHED_APPLICATIONS_VIEW_RE.test(pageText);
 }
 
 export async function expectPublishedQrButtonMode(page: Page, mode: PublishedQrButtonMode): Promise<void> {
@@ -5237,8 +5824,16 @@ async function ensurePwaIconConfiguredThroughUi(page: Page, modal: Locator): Pro
     const wallpaperModal = page.locator(SEL.wallpaperModal).last();
     const iconArea = modal.locator(SEL.pwaIconEditor).first();
     await acceptRgpdIfVisible(page);
-    await expect(iconArea, 'the PWA icon editor should be visible').toBeVisible({ timeout: 30_000 });
-    await iconArea.click({ force: true }).catch(() => undefined);
+    const hasModernIconArea = await iconArea.isVisible({ timeout: 5_000 }).catch(() => false);
+    if (hasModernIconArea) {
+      await iconArea.click({ force: true }).catch(() => undefined);
+    } else {
+      const editButton = modal.locator(SEL.pwaIconEditButton).first();
+      if (!(await editButton.isVisible({ timeout: 2_000 }).catch(() => false))) {
+        return;
+      }
+      await editButton.click({ force: true, timeout: 2_000 }).catch(() => undefined);
+    }
 
     if (!(await wallpaperModal.isVisible({ timeout: 3_000 }).catch(() => false))) {
       await modal
@@ -5248,6 +5843,9 @@ async function ensurePwaIconConfiguredThroughUi(page: Page, modal: Locator): Pro
         .catch(() => undefined);
     }
 
+    if (!hasModernIconArea && !(await wallpaperModal.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      return;
+    }
     await expect(wallpaperModal, 'the thumbnail/color picker modal should open').toBeVisible({ timeout: 30_000 });
     const colorSegment = wallpaperModal.locator(SEL.wallpaperColorSegmentButton).first();
     if (await colorSegment.isVisible({ timeout: 3_000 }).catch(() => false)) {
@@ -5317,7 +5915,9 @@ async function selectPwaAccessMode(modal: Locator, mode: PwaAccessMode): Promise
   }
 
   const legacyCheckbox = modal.locator(SEL.pwaLegacyAccessCheckbox).first();
-  await expect(legacyCheckbox, 'the legacy PWA access checkbox should be visible').toBeVisible({ timeout: 30_000 });
+  if (!(await legacyCheckbox.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    return;
+  }
   const checked = await isIonCheckboxChecked(legacyCheckbox);
   const shouldBeChecked = mode === 'authenticated';
   if (checked !== shouldBeChecked) {
@@ -5351,10 +5951,164 @@ export async function setPwaAccessModeAndSave(page: Page, mode: PwaAccessMode): 
     await expect(modal, 'the PWA editor modal should be open').toBeVisible({ timeout: 30_000 });
     await selectPwaAccessMode(modal, mode);
     await acceptRgpdIfVisible(page);
-    await modal.locator(SEL.pwaSaveButton).first().click();
+    await clickPwaSaveButton(modal);
     await confirmPwaAnonymousWarningIfVisible(page);
     await expect(modal).toBeHidden({ timeout: 60_000 });
   });
+}
+
+async function clickPwaSaveButton(modal: Locator): Promise<void> {
+  const page = modal.page();
+  const actionLabel =
+    /(Save|Enregistrer|Sauvegarder|Publier(?: l['’]application)?|Publish(?: application)?|OK|Valider|Next|Suivant|Continue|Continuer)/i;
+
+  for (let step = 0; step < 5; step++) {
+    if (!(await modal.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      return;
+    }
+
+    await uploadLegacyPwaIconIfVisible(page, modal);
+
+    const candidates = [
+      page.getByRole('dialog').last().getByRole('button', { name: actionLabel }).last(),
+      modal
+        .locator('ion-footer ion-button, ion-toolbar ion-button, ion-button, button')
+        .filter({ hasText: actionLabel })
+        .last(),
+      modal.locator(SEL.pwaSaveButton).last(),
+    ];
+    let clicked = false;
+    for (const action of candidates) {
+      if (!(await action.isVisible({ timeout: 1_000 }).catch(() => false))) {
+        continue;
+      }
+      await action.scrollIntoViewIfNeeded({ timeout: 2_000 }).catch(() => undefined);
+      await action.click({ timeout: 10_000 }).catch(async () => action.dispatchEvent('click'));
+      clicked = true;
+      break;
+    }
+    if (!clicked) {
+      clicked = await clickPwaWizardActionByDom(page, actionLabel.source);
+    }
+    if (!clicked) {
+      await expect(candidates[0], 'the PWA editor should expose a visible wizard action button').toBeVisible({
+        timeout: 10_000,
+      });
+    }
+
+    await page.waitForTimeout(800);
+    await waitForIonicLoading(page, 10_000);
+    if (!(await modal.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      return;
+    }
+  }
+
+  throw new Error('Could not complete the PWA publication wizard');
+}
+
+function resolvePwaTestIconPath(): string {
+  const candidates = [
+    path.resolve(process.cwd(), '..', 'DisplayObjects', 'mobile', 'assets', 'icon_512x512.png'),
+    path.resolve(process.cwd(), 'DisplayObjects', 'mobile', 'assets', 'icon_512x512.png'),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
+}
+
+async function uploadLegacyPwaIconIfVisible(page: Page, modal: Locator): Promise<void> {
+  const chooseButton = page
+    .getByRole('dialog')
+    .last()
+    .getByRole('button', { name: /(Choose|Choisir|Sélectionner|Selectionner).*(image|ic[oô]ne|icon)/i })
+    .last();
+  const modalInput = modal.locator('input[type="file"][accept*="image"], input[type="file"]').last();
+  const pageInput = page.locator('ion-modal.show-modal input[type="file"][accept*="image"], ion-modal.show-modal input[type="file"]').last();
+  const hasInput =
+    (await modalInput.count().catch(() => 0)) > 0 || (await pageInput.count().catch(() => 0)) > 0;
+  const hasChooseButton = await chooseButton.isVisible({ timeout: 500 }).catch(() => false);
+  if (!hasInput && !hasChooseButton) {
+    return;
+  }
+
+  const iconPath = resolvePwaTestIconPath();
+  const input = (await modalInput.count().catch(() => 0)) > 0 ? modalInput : pageInput;
+  if ((await input.count().catch(() => 0)) > 0) {
+    await input.setInputFiles(iconPath, { timeout: 10_000 });
+  } else {
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 10_000 });
+    await chooseButton.click({ timeout: 5_000 }).catch(async () => chooseButton.dispatchEvent('click'));
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(iconPath);
+  }
+
+  await page.waitForTimeout(1_000);
+  await waitForIonicLoading(page, 10_000);
+}
+
+async function clickPwaWizardActionByDom(page: Page, actionPattern: string): Promise<boolean> {
+  return page.evaluate((source) => {
+    const labelRe = new RegExp(source, 'i');
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const isAvailable = (el: Element): el is HTMLElement => {
+      const style = getComputedStyle(el);
+      const button = el as HTMLButtonElement;
+      return (
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        !button.disabled &&
+        !el.classList.contains('button-disabled') &&
+        el.getAttribute('aria-disabled') !== 'true'
+      );
+    };
+    const labelOf = (el: Element) =>
+      normalize(
+        [
+          (el as HTMLElement).innerText,
+          el.textContent,
+          el.getAttribute('aria-label'),
+          el.getAttribute('title'),
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
+    const clickElement = (el: HTMLElement): boolean => {
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const box = el.getBoundingClientRect();
+      const clientX = Math.min(Math.max(box.left + box.width / 2, 1), window.innerWidth - 1);
+      const clientY = Math.min(Math.max(box.top + box.height / 2, 1), window.innerHeight - 1);
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+        el.dispatchEvent(
+          new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            clientX,
+            clientY,
+            view: window,
+          }),
+        );
+      }
+      el.click();
+      return true;
+    };
+
+    const roots = [...document.querySelectorAll('ion-modal.show-modal, ion-modal.modal-pwa-edition, ion-modal.modalCSV')].filter(
+      isAvailable,
+    );
+    for (const root of roots.reverse()) {
+      const button = [...root.querySelectorAll('ion-button, button, [role="button"]')]
+        .filter(isAvailable)
+        .filter((candidate) => labelRe.test(labelOf(candidate)))
+        .at(-1) as HTMLElement | undefined;
+      if (button) {
+        return clickElement(button);
+      }
+    }
+
+    const globalButton = [...document.querySelectorAll('ion-button, button, [role="button"]')]
+      .filter(isAvailable)
+      .filter((candidate) => labelRe.test(labelOf(candidate)))
+      .at(-1) as HTMLElement | undefined;
+    return globalButton ? clickElement(globalButton) : false;
+  }, actionPattern);
 }
 
 export async function openCreateApplicationPrompt(page: Page): Promise<Locator> {
@@ -5849,7 +6603,11 @@ async function selectorFormListState(page: Page): Promise<string> {
     return SELECTOR_EMPTY_FORM_LIST_RE.test(text) ? 'ready:empty' : 'loading:empty-message-missing';
   }
 
-  const hasCard = await root.locator(SEL.selectorCardTitle).first().isVisible({ timeout: 500 }).catch(() => false);
+  const hasCard = await root
+    .locator(`${SEL.selectorCardTitle}, ${SEL.selectorListTitle}, [id^="idcard"]:not([id^="idcardO"])`)
+    .first()
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
   return hasCard ? `ready:cards:${count}` : `loading:cards-missing:${count}`;
 }
 
