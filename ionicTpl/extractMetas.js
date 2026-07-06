@@ -1,7 +1,21 @@
 const fs = require('fs');
 const path = require('path');
 
-const projectRoot = path.resolve(__dirname, '..');
+function findProjectRoot(fromDir) {
+  let current = path.resolve(fromDir);
+  while (current !== path.dirname(current)) {
+    if (
+      fs.existsSync(path.join(current, 'c8oProject.yaml')) &&
+      fs.existsSync(path.join(current, '_c8oProject'))
+    ) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  return path.resolve(fromDir, '..');
+}
+
+const projectRoot = findProjectRoot(__dirname);
 const yamlFilePath = path.join(projectRoot, '_c8oProject/mobilePages/editorPage.yaml');
 const PaletteFile = path.join(projectRoot, 'DisplayObjects/mobile/assets/components/Palette.json');
 let fileOutput = path.join(projectRoot, 'DisplayObjects/mobile/assets/components/AllTypes.json');
