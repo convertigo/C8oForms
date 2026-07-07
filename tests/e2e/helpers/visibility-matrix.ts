@@ -64,7 +64,7 @@ export const TYPE_BATCH_A: TargetType[] = [
 export const TYPE_BATCH_B: TargetType[] = [
   'camera', 'grid', 'chart', 'map', 'barcode', 'file', 'signature', 'location', 'button',
 ];
-export const TYPE_BATCH_B1: TargetType[] = ['camera', 'grid', 'chart'];
+export const TYPE_BATCH_B1: TargetType[] = ['camera', 'grid'];
 export const TYPE_BATCH_B2: TargetType[] = ['map', 'barcode', 'file'];
 export const TYPE_BATCH_B3: TargetType[] = ['signature', 'location', 'button'];
 
@@ -145,11 +145,12 @@ async function addCheckboxSource(
   await closeComponentConfig(page);
 }
 
-async function addTarget(page: Page, testCase: TargetCase, index: number): Promise<void> {
+async function addTarget(page: Page, testCase: TargetCase): Promise<void> {
   const { icon, tag } = TARGET_TYPES[testCase.type];
+  const attachedIndex = await page.locator(tag).count();
   await addComponent(page, icon);
-  await page.locator(`${tag}:visible`).nth(index).waitFor({ state: 'visible', timeout: 30_000 });
-  await openComponentConfigAt(page, tag, index);
+  const visibleIndex = await waitForVisibleIndexByAttachedIndex(page, tag, attachedIndex);
+  await openComponentConfigAt(page, tag, visibleIndex);
   await setTechnicalId(page, testCase.id);
   // A Description has no technical-id element in the viewer, so stamp its content
   // with the id to locate it there.
@@ -158,6 +159,50 @@ async function addTarget(page: Page, testCase: TargetCase, index: number): Promi
   await openConfigTabById(page, 'visibility_tab_selector');
   await addVisibilityCondition(page, testCase.condition);
   await closeComponentConfig(page);
+}
+
+async function waitForVisibleIndexByAttachedIndex(
+  page: Page,
+  tag: string,
+  attachedIndex: number,
+  timeout = 30_000,
+): Promise<number> {
+  await expect
+    .poll(() => page.locator(tag).count(), {
+      message: `${tag} should be attached after adding the component`,
+      timeout,
+    })
+    .toBeGreaterThan(attachedIndex);
+
+  const deadline = Date.now() + timeout;
+  let lastState = '';
+  while (Date.now() < deadline) {
+    const state = await page.evaluate(
+      ({ componentTag, targetIndex }) => {
+        const visible = (el: Element) => {
+          const rect = (el as HTMLElement).getBoundingClientRect();
+          const style = getComputedStyle(el as HTMLElement);
+          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        };
+        const all = [...document.querySelectorAll(componentTag)];
+        const target = all[targetIndex];
+        const visibleElements = all.filter(visible);
+        return {
+          attachedCount: all.length,
+          visibleCount: visibleElements.length,
+          visibleIndex: target ? visibleElements.indexOf(target) : -1,
+        };
+      },
+      { componentTag: tag, targetIndex: attachedIndex },
+    );
+    lastState = JSON.stringify(state);
+    if (state.visibleIndex >= 0) {
+      return state.visibleIndex;
+    }
+    await page.waitForTimeout(250);
+  }
+
+  throw new Error(`${tag} at attached index ${attachedIndex} did not become visible before configuration; last state=${lastState}`);
 }
 
 async function addSources(page: Page, sources: SourceSpec[], nextIndex: (tag: string) => number): Promise<void> {
@@ -193,11 +238,10 @@ export async function runVisibilityCases(
   const nextIndex = indexer();
   await addSources(page, sources, nextIndex);
   for (const testCase of cases) {
-    await addTarget(page, testCase, nextIndex(TARGET_TYPES[testCase.type].tag));
+    await addTarget(page, testCase);
   }
 
   await openViewer(page, id);
-  await page.locator('page-viewerpage').waitFor({ state: 'attached', timeout: 30_000 });
 
   for (const testCase of cases) {
     const locator =
@@ -232,11 +276,10 @@ export async function runTypeVisibility(page: Page, title: string, types: Target
     { id: `${type}Hid`, type, condition: { field: 'inputAlpha', operator: 'equals', value: 'Nope' }, visible: false },
   ]);
   for (const testCase of cases) {
-    await addTarget(page, testCase, nextIndex(TARGET_TYPES[testCase.type].tag));
+    await addTarget(page, testCase);
   }
 
   await openViewer(page, id);
-  await page.locator('page-viewerpage').waitFor({ state: 'attached', timeout: 30_000 });
 
   const textTag = TARGET_TYPES.text.tag;
   for (const type of types) {
@@ -247,4 +290,32 @@ export async function runTypeVisibility(page: Page, title: string, types: Target
       `${type}: exactly the shown instance should be visible (hidden one must collapse/remove)`,
     ).toHaveCount(expectedVisible, { timeout: 30_000 });
   }
+}
+
+export async function runSingleTypeVisibility(
+  page: Page,
+  title: string,
+  type: TargetType,
+  visible: boolean,
+): Promise<void> {
+  await login(page);
+  const id = await createBlankForm(page, `${title} ${Date.now()}`);
+  await acceptRgpdIfVisible(page);
+
+  const nextIndex = indexer();
+  await addSourceField(page, nextIndex(SEL.textComponent), 'inputAlpha', 'Alpha');
+  await addTarget(page, {
+    id: `${type}${visible ? 'Vis' : 'Hid'}`,
+    type,
+    condition: { field: 'inputAlpha', operator: 'equals', value: visible ? 'Alpha' : 'Nope' },
+    visible,
+  });
+
+  await openViewer(page, id);
+
+  const tag = TARGET_TYPES[type].tag;
+  await expect(
+    page.locator(`${tag}:visible`),
+    `${type}: single ${visible ? 'shown' : 'hidden'} instance should ${visible ? 'be visible' : 'collapse/remove'}`,
+  ).toHaveCount(visible ? 1 : 0, { timeout: 30_000 });
 }
