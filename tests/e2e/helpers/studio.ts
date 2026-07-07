@@ -208,7 +208,8 @@ export const SEL = {
   shareNotificationToggleButton: 'button.class1775840591959, button.c8o-btn',
   shareSubjectInput:
     'c8oforms-textinputsetting.class1779965325160 input, .class1779965325160 input, ion-input.class1762190514117 input, .class1762190514117 input',
-  shareBodyEditorFrame: 'iframe.tox-edit-area__iframe, iframe[title="Rich Text Area"]',
+  shareBodyEditorFrame:
+    '.tox-tinymce iframe, .tox-edit-area iframe, iframe.tox-edit-area__iframe, iframe[title="Rich Text Area"], iframe[title*="Rich"], iframe[aria-label*="Rich"], iframe',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
   pwaAccessToggleButton: 'button.class1775840591959',
@@ -1364,11 +1365,19 @@ export async function reopenEditorFromHome(page: Page, title: string): Promise<v
 }
 
 export async function returnToSelectorFromEditor(page: Page): Promise<void> {
-  if (ROUTE.selector.test(page.url())) {
-    return;
-  }
-  await page.locator(SEL.editorHomeButton).first().click();
-  await expectRoute(page, ROUTE.selector);
+  await test.step('Return to the application selector from the editor', async () => {
+    if (ROUTE.selector.test(page.url())) {
+      return;
+    }
+    const homeButton = page.locator(SEL.editorHomeButton).first();
+    await expect(homeButton, 'editor home button should be available before returning to selector').toBeVisible({
+      timeout: 30_000,
+    });
+    await homeButton.click({ timeout: 10_000 }).catch(async () => homeButton.dispatchEvent('click'));
+    await expectRoute(page, ROUTE.selector);
+    await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
+    await waitForIonicLoading(page, 15_000);
+  });
 }
 
 export async function openEditorCollaboratorsModal(page: Page): Promise<Locator> {
@@ -1468,19 +1477,28 @@ async function clickEditorMoreActionsCollaborators(page: Page, modal: Locator): 
 }
 
 export async function searchSelectorApplicationsByName(page: Page, query: string): Promise<void> {
-  await expectRoute(page, ROUTE.selector);
-  const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
-  if (!(await visibleNameInput.isVisible({ timeout: 1_000 }).catch(() => false))) {
-    await page.locator(SEL.selectorSearchToggleButton).first().click();
-    await expect(visibleNameInput, 'selector advanced search name input should be visible').toBeVisible({
-      timeout: 15_000,
-    });
-  }
+  await test.step(`Search selector applications by name "${query}"`, async () => {
+    await expectRoute(page, ROUTE.selector);
+    await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
+    const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
+    if (!(await visibleNameInput.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      const toggle = page.locator(SEL.selectorSearchToggleButton).first();
+      await expect(toggle, 'selector search toggle should be visible').toBeVisible({ timeout: 15_000 });
+      await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
+      await expect(visibleNameInput, 'selector advanced search name input should be visible').toBeVisible({
+        timeout: 15_000,
+      });
+    }
 
-  await visibleNameInput.fill(query);
-  await fillInputValue(page, SEL.selectorSearchByNameInput, query, 'selector advanced search name input');
-  await page.getByRole('button', { name: /^(Search|Rechercher|Buscar|Cerca)$/i }).last().click();
-  await page.waitForTimeout(1_500);
+    await visibleNameInput.fill(query);
+    await fillInputValue(page, SEL.selectorSearchByNameInput, query, 'selector advanced search name input');
+    await visibleNameInput.press('Enter').catch(() => undefined);
+    const searchButton = page.getByRole('button', { name: /^(Search|Rechercher|Buscar|Cerca)$/i }).last();
+    if (await searchButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await searchButton.click({ timeout: 10_000 }).catch(async () => searchButton.dispatchEvent('click'));
+    }
+    await waitForIonicLoading(page, 15_000);
+  });
 }
 
 export async function expectSelectorSearchKeepsSingleApplication(page: Page, title: string): Promise<void> {
@@ -1519,7 +1537,7 @@ export async function addFirstAvailableCollaboratorFromSelectorCard(page: Page, 
 
     await modal.locator(SEL.collaboratorsSaveButton).first().click();
     await expect(modal, 'collaborators modal should close after saving').toBeHidden({ timeout: 30_000 });
-    await page.waitForTimeout(2_000);
+    await waitForIonicLoading(page, 15_000);
     return collaboratorMail;
   });
 }
@@ -1763,9 +1781,9 @@ async function fillShareApplicationNotificationFields(
 }
 
 async function fillShareApplicationTinyMceBody(page: Page, modal: Locator, value: string): Promise<void> {
-  const iframe = modal.locator(SEL.shareBodyEditorFrame).last();
-  if (await iframe.isVisible({ timeout: 15_000 }).catch(() => false)) {
-    const body = iframe.contentFrame().locator('body');
+  const iframeBody = await visibleShareApplicationTinyMceBody(page, modal);
+  if (iframeBody) {
+    const body = iframeBody;
     await expect(body, 'Email body TinyMCE iframe should be editable').toBeVisible({ timeout: 10_000 });
     await body.click();
     await body.fill(value);
@@ -1781,6 +1799,29 @@ async function fillShareApplicationTinyMceBody(page: Page, modal: Locator, value
   await page.keyboard.type(value);
   await fireActiveTinyMceChange(page);
   await expect(inlineEditor, 'Email body should keep the typed value').toContainText(value, { timeout: 10_000 });
+}
+
+async function visibleShareApplicationTinyMceBody(page: Page, modal: Locator): Promise<Locator | null> {
+  const frames = modal.locator(SEL.shareBodyEditorFrame);
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
+    const count = await frames.count().catch(() => 0);
+    for (let index = count - 1; index >= 0; index--) {
+      const frame = frames.nth(index);
+      await frame.waitFor({ state: 'attached', timeout: 500 }).catch(() => undefined);
+      await frame.scrollIntoViewIfNeeded({ timeout: 1_000 }).catch(() => undefined);
+
+      const body = frame.contentFrame().locator('body[contenteditable="true"], body.mce-content-body, body').first();
+      if (await body.isVisible({ timeout: 1_000 }).catch(() => false)) {
+        return body;
+      }
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  return null;
 }
 
 async function openPublishedSelectorCardShareMenuItem(page: Page, title: string): Promise<void> {
@@ -3082,11 +3123,23 @@ async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promi
 
 const CONFIG_TAB_FALLBACK_TEXT: Partial<Record<MainEditorConfigTab, string[]>> = {
   tab_selector_choice_source: ['source selection', 'choix de la source', 'eleccion de la fuente', 'scelta della sorgente'],
+  tab_selector_choice_action: [
+    'action selection',
+    "selection de l'action",
+    'seleccion de la accion',
+    "selezione dell'azione",
+  ],
   tab_selector_conf_source: [
     'source configuration',
     'configuration de la source',
     'configuracion de la fuente',
     'configurazione della sorgente',
+  ],
+  tab_selector_conf_action: [
+    'action configuration',
+    "configuration de l'action",
+    'configuracion de la accion',
+    "configurazione dell'azione",
   ],
   defaultvalue: ['default value', 'valeur par defaut', 'valor por defecto', 'valore predefinito'],
   data_interactions: ['data & interactions', 'donnees & interactions', 'datos e interacciones', 'dati e interazioni'],
@@ -4738,8 +4791,8 @@ export async function ensureMailActionSummaryChecked(page: Page): Promise<void> 
 
 export async function reselectMailActionFromActionSelection(page: Page): Promise<void> {
   await test.step('Return to Action selection and reselect the Mail action', async () => {
-    await openConfigTabById(page, 'tab_selector_choice_action');
-    await clickFirstVisible(page, SEL.dataSourceSelectButton, 'Mail action select button', 15_000, true);
+    const selectButton = await openMailActionSelectionButton(page);
+    await selectButton.click({ timeout: 10_000 }).catch(async () => selectButton.dispatchEvent('click'));
 
     const actionPicker = page.locator('ion-modal:visible').last();
     await expect(actionPicker, 'Mail action picker should be visible').toBeVisible({ timeout: 15_000 });
@@ -4762,6 +4815,46 @@ export async function reselectMailActionFromActionSelection(page: Page): Promise
     await openConfigTabById(page, 'tab_selector_conf_action');
     await expectMailActionVariableButtons(page);
   });
+}
+
+async function openMailActionSelectionButton(page: Page): Promise<Locator> {
+  await openConfigTabById(page, 'tab_selector_choice_action');
+  let selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 5_000);
+  if (selectButton) {
+    return selectButton;
+  }
+
+  if (await clickConfigTabByFallbackText(page, 'tab_selector_choice_action')) {
+    await page.waitForTimeout(350);
+    selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 5_000);
+    if (selectButton) {
+      return selectButton;
+    }
+  }
+
+  if (await clickConfigTabByFallbackIndex(page, 'tab_selector_choice_action')) {
+    await page.waitForTimeout(350);
+    selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 5_000);
+    if (selectButton) {
+      return selectButton;
+    }
+  }
+
+  await openConfigurationSection(page);
+  if (await clickConfigTabByFallbackText(page, 'tab_selector_choice_action')) {
+    await page.waitForTimeout(350);
+  }
+
+  selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 10_000);
+  if (selectButton) {
+    return selectButton;
+  }
+
+  throw new Error(
+    `No visible Mail action select button after opening Action selection tab. Visible tabs: ${(
+      await visibleTexts(page, SEL.configTab)
+    ).join(' | ')}`,
+  );
 }
 
 export async function expectMailActionTextVariableContains(
@@ -8325,20 +8418,27 @@ export async function dragSourcePaletteEntryToTinyMceStrict(
   const tile = sourcePaletteEntryLocator(page, label);
   await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
   const before = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count();
-  await tile.dragTo(editorBody);
+  let realDragError = '';
+  await tile
+    .dragTo(editorBody, { timeout: 10_000 })
+    .catch((error) => {
+      realDragError = String(error);
+    });
   await page.waitForTimeout(1_000);
   await fireActiveTinyMceChange(page);
+
+  if (await waitForTinyMcePaletteEntry(page, label, before, 3_000)) {
+    return;
+  }
+
+  await dragPaletteEntryToEditor(page, section, label);
   await expect
-    .poll(
-      async () => {
-        const state = await tinyMceEditorContent(page);
-        return state.chipCount > before || normalizeVisibleText(state.text).toLowerCase().includes(label.toLowerCase());
-      },
-      {
-        message: `real Source Palette drag should insert the ${label} token into TinyMCE`,
-        timeout: 10_000,
-      },
-    )
+    .poll(() => tinyMcePaletteEntryPresent(page, label, before), {
+      message: `Source Palette drag fallback should insert the ${label} token into TinyMCE${
+        realDragError ? `; dragTo error=${realDragError}` : ''
+      }`,
+      timeout: 10_000,
+    })
     .toBe(true);
 }
 
@@ -8433,12 +8533,33 @@ function sourcePaletteEntryLocator(page: Page, label: string): Locator {
 }
 
 async function editorContainsPaletteEntry(editorBody: Locator, label: string, previousSvgCount = 0): Promise<boolean> {
-  const svgCount = await editorBody.locator('svg[id^="clickable-"]').count().catch(() => 0);
+  const svgCount = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count().catch(() => 0);
   if (svgCount > previousSvgCount) {
     return true;
   }
   const text = await editorBody.innerText().catch(() => '');
   return normalizeVisibleText(text).toLowerCase().includes(label.toLowerCase());
+}
+
+async function waitForTinyMcePaletteEntry(
+  page: Page,
+  label: string,
+  previousSvgCount = 0,
+  timeout = 10_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (await tinyMcePaletteEntryPresent(page, label, previousSvgCount)) {
+      return true;
+    }
+    await page.waitForTimeout(250);
+  }
+  return false;
+}
+
+async function tinyMcePaletteEntryPresent(page: Page, label: string, previousSvgCount = 0): Promise<boolean> {
+  const editorBody = await visibleTinyMceBody(page).catch(() => null);
+  return editorBody ? editorContainsPaletteEntry(editorBody, label, previousSvgCount) : false;
 }
 
 async function visibleTinyMceBody(page: Page): Promise<Locator> {

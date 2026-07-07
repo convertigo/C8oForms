@@ -64,6 +64,9 @@ export const TYPE_BATCH_A: TargetType[] = [
 export const TYPE_BATCH_B: TargetType[] = [
   'camera', 'grid', 'chart', 'map', 'barcode', 'file', 'signature', 'location', 'button',
 ];
+export const TYPE_BATCH_B1: TargetType[] = ['camera', 'grid', 'chart'];
+export const TYPE_BATCH_B2: TargetType[] = ['map', 'barcode', 'file'];
+export const TYPE_BATCH_B3: TargetType[] = ['signature', 'location', 'button'];
 
 export interface TargetCase {
   id: string;
