@@ -28,6 +28,7 @@ const WEIGHTS = {
   'visibility-types-b.spec.ts': 2,
   'visibility-types-b2.spec.ts': 2,
   'visibility-types-b3.spec.ts': 2,
+  'visibility-types-b4.spec.ts': 2,
   'journeys.spec.ts': 4,
   'issue-1357.spec.ts': 3,
   'issue-1363.spec.ts': 2,
