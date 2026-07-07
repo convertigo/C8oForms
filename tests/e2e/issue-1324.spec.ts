@@ -19,6 +19,21 @@ import { PALETTE_ICON, SEL, addComponent, createBlankForm, login } from './helpe
 
 test.setTimeout(120_000);
 
+const EXPECTED_PLACEHOLDER_LABELS = [
+  'Label1',
+  'Label2',
+  'Label3',
+  'Label4',
+  'Label5',
+  'Label6',
+  'Label7',
+  'Label8',
+  'Label9',
+  'Label10',
+  'Label11',
+  'Label12',
+];
+
 test('#1324 - Chart placeholder labels cover every default value in Edition mode', async ({ page }) => {
   await test.step('Create a blank form with a Chart component', async () => {
     await login(page);
@@ -32,20 +47,9 @@ test('#1324 - Chart placeholder labels cover every default value in Edition mode
   await test.step('Assert Chart placeholder labels cover all sample values', async () => {
     const labels = await chartPlaceholderXAxisLabels(page);
     expect(labels, `Chart placeholder labels should not contain undefined: ${JSON.stringify(labels)}`).not.toContain('undefined');
-    expect(labels, `Chart placeholder should render one fallback label for each of its 12 sample values`).toEqual([
-      'Label1',
-      'Label2',
-      'Label3',
-      'Label4',
-      'Label5',
-      'Label6',
-      'Label7',
-      'Label8',
-      'Label9',
-      'Label10',
-      'Label11',
-      'Label12',
-    ]);
+    expect(labels, `Chart placeholder should render one fallback label for each of its 12 sample values`).toEqual(
+      EXPECTED_PLACEHOLDER_LABELS,
+    );
   });
 });
 
@@ -54,14 +58,18 @@ async function chartPlaceholderXAxisLabels(page: Page): Promise<string[]> {
   await expect(chart, 'Chart component should be visible before reading its placeholder labels').toBeVisible({ timeout: 30_000 });
   await expect(chart.locator('.apexcharts-canvas').first(), 'ApexCharts canvas should be rendered').toBeVisible({ timeout: 30_000 });
 
+  let labels: string[] = [];
   await expect
-    .poll(() => readChartXAxisLabels(page), {
+    .poll(async () => {
+      labels = await readChartXAxisLabels(page);
+      return labels;
+    }, {
       message: 'Chart placeholder should render all fallback x-axis labels',
       timeout: 30_000,
     })
-    .toHaveLength(12);
+    .toEqual(EXPECTED_PLACEHOLDER_LABELS);
 
-  return readChartXAxisLabels(page);
+  return labels;
 }
 
 async function readChartXAxisLabels(page: Page): Promise<string[]> {
