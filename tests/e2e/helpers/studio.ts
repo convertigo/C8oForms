@@ -1504,7 +1504,7 @@ export async function searchSelectorApplicationsByName(page: Page, query: string
 export async function expectSelectorSearchKeepsSingleApplication(page: Page, title: string): Promise<void> {
   await test.step(`Assert selector search is still filtered to ${title}`, async () => {
     await expect
-      .poll(async () => selectorSearchSummary(page, title), {
+      .poll(async () => selectorSearchSummaryStable(page, title), {
         message: `selector results should stay filtered to only "${title}"`,
         timeout: 30_000,
       })
@@ -2369,6 +2369,35 @@ async function selectorSearchSummary(
     return {
       hasSingleResultSummary: /(?:^|\n)\s*1\s+(?:results?\(s\)|r[ée]sultat\(s\)|resultado\(s\)|risultato\s*\(i\))/i.test(text),
       hasSearchTerm: text.includes(expectedTitle),
+    };
+  }, title);
+}
+
+async function selectorSearchSummaryStable(
+  page: Page,
+  title: string,
+): Promise<{ hasSingleResultSummary: boolean; hasSearchTerm: boolean }> {
+  return page.locator('page-selectorpage').evaluate((root, expectedTitle) => {
+    const visible = (el: Element) => {
+      const rect = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el as HTMLElement);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const normalized = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const text = (root as HTMLElement).innerText.replace(/\u00a0/g, ' ');
+    const visibleApplicationTitles = [
+      ...(root as HTMLElement).querySelectorAll('.class1603968061706, .class1780484375240'),
+    ]
+      .filter(visible)
+      .map((element) => normalized((element as HTMLElement).innerText))
+      .filter(Boolean);
+    const matchingVisibleTitles = visibleApplicationTitles.filter((candidate) => candidate === expectedTitle);
+
+    return {
+      hasSingleResultSummary:
+        /(?:^|\n)\s*1\s+(?:results?\(s\)|r(?:e|\u00e9)sultat\(s\)|resultado\(s\)|risultato\s*\(i\))/i.test(text) ||
+        (matchingVisibleTitles.length === 1 && visibleApplicationTitles.length === 1),
+      hasSearchTerm: text.includes(expectedTitle) || matchingVisibleTitles.length === 1,
     };
   }, title);
 }
@@ -4262,14 +4291,8 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
   await openConfigTabById(page, 'tab_selector_conf_source');
   await acceptRgpdIfVisible(page);
   const tablePicker = await openSelectBaserowTablePicker(page);
-  await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: 20_000 });
-  await tablePicker.getByText(source.workspace, { exact: true }).click();
-  await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: 20_000 });
-  await tablePicker.getByText(source.database, { exact: true }).click();
-  await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: 20_000 });
-  await tablePicker.getByText(source.table, { exact: true }).click();
+  await selectBaserowTableInPicker(page, tablePicker, source, 60_000);
 
-  await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: 20_000 });
   for (const column of source.expectedColumns ?? []) {
     await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
       column,
@@ -4865,7 +4888,7 @@ export async function expectMailActionTextVariableContains(
   await test.step(`Assert Mail action ${variable} text value is preserved`, async () => {
     await selectMailActionVariable(page, variable);
     await expect
-      .poll(async () => (await tinyMceEditorContent(page)).text, {
+      .poll(async () => (await visibleTinyMceContents(page)).map((content) => content.text).join('\n'), {
         message: `Mail action ${variable} should contain ${expected}`,
         timeout: 10_000,
       })
@@ -4889,12 +4912,20 @@ export async function expectMailActionSubjectJavaScriptContains(page: Page, retu
 export async function expectMailActionBodyContainsUserName(page: Page, text: string): Promise<void> {
   await test.step('Assert Mail action body text and current user name token are preserved', async () => {
     await selectMailActionVariable(page, 'body');
-    const content = await tinyMceEditorContent(page);
-    expect(content.text, 'Mail action body should keep the typed text').toContain(text);
-    expect(
-      content.chipCount > 0 || normalizeVisibleText(content.text).toLowerCase().includes('name'),
-      'Mail action body should keep the current user name token',
-    ).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (await visibleTinyMceContents(page)).some(
+            (content) =>
+              content.text.includes(text) &&
+              (content.chipCount > 0 || normalizeVisibleText(content.text).toLowerCase().includes('name')),
+          ),
+        {
+          message: 'Mail action body should keep the typed text and current user name token',
+          timeout: 10_000,
+        },
+      )
+      .toBe(true);
   });
 }
 
@@ -5444,22 +5475,16 @@ async function clickBaserowPickerEntryUntil(
   throw new Error(`Baserow picker did not advance after selecting "${label}"${lastError ? `: ${lastError}` : ''}`);
 }
 
-async function selectBaserowTableFromCurrentAction(
+async function selectBaserowTableInPicker(
   page: Page,
+  tablePicker: Locator,
   source: BaserowGridSourceOptions,
   timeout: number,
 ): Promise<void> {
-  await acceptRgpdIfVisible(page);
-  await clickFirstVisible(page, SELECT_SOURCE_TABLE_PICKER_BUTTON, 'Baserow action table picker button', timeout, true);
-  const tablePicker = page.locator('ion-modal:visible').last();
-  await expect(tablePicker, 'Baserow action table picker should be visible').toBeVisible({ timeout });
-
   const summary = tablePicker.locator('.class1776246576145');
   const tableSelected = async (): Promise<boolean> =>
     ((await summary.first().textContent({ timeout: 2_000 }).catch(() => '')) ?? '').includes(source.table);
 
-  // Idempotent: on a reload-retry the action may already point at this table, so
-  // the picker opens straight into its column view with no breadcrumb to walk.
   if (!(await tableSelected())) {
     const databaseVisible = async (): Promise<boolean> =>
       tablePicker.getByText(source.database, { exact: true }).first().isVisible().catch(() => false);
@@ -5472,6 +5497,19 @@ async function selectBaserowTableFromCurrentAction(
   }
 
   await expect(summary).toContainText(source.table, { timeout });
+}
+
+async function selectBaserowTableFromCurrentAction(
+  page: Page,
+  source: BaserowGridSourceOptions,
+  timeout: number,
+): Promise<void> {
+  await acceptRgpdIfVisible(page);
+  await clickFirstVisible(page, SELECT_SOURCE_TABLE_PICKER_BUTTON, 'Baserow action table picker button', timeout, true);
+  const tablePicker = page.locator('ion-modal:visible').last();
+  await expect(tablePicker, 'Baserow action table picker should be visible').toBeVisible({ timeout });
+
+  await selectBaserowTableInPicker(page, tablePicker, source, timeout);
   for (const column of source.expectedColumns ?? []) {
     await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
       column,
@@ -7523,17 +7561,33 @@ export async function checkViewerCheckboxOption(page: Page, technicalId: string,
 async function fillVisibleTinyMceText(page: Page, value: string, description: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click();
-  const filledThroughTinyMce = await page.evaluate((text) => {
-    const tinymce = (window as any).tinymce;
-    const editor = tinymce?.activeEditor;
+  const filledThroughTinyMce = await editorBody.evaluate((body, text) => {
+    const frameWindow = body.ownerDocument.defaultView as any;
+    const tinymce = frameWindow?.parent?.tinymce ?? frameWindow?.tinymce;
+    const editors = Array.isArray(tinymce?.editors) ? tinymce.editors : Object.values(tinymce?.editors ?? {});
+    const frameElement = frameWindow?.frameElement;
+    const editor =
+      editors.find((candidate: any) => {
+        try {
+          return (
+            candidate?.getBody?.() === body ||
+            candidate?.iframeElement === frameElement ||
+            candidate?.iframeElement?.contentDocument?.body === body
+          );
+        } catch {
+          return false;
+        }
+      }) ?? (tinymce?.activeEditor?.getBody?.() === body ? tinymce.activeEditor : null);
     if (!editor) return false;
 
-    const holder = document.createElement('div');
+    const holder = body.ownerDocument.createElement('div');
     holder.textContent = text;
+    editor.focus?.();
     editor.setContent(holder.innerHTML);
-    editor.fire('input');
-    editor.fire('change');
-    editor.fire('blur');
+    editor.fire?.('input');
+    editor.fire?.('change');
+    editor.fire?.('blur');
+    editor.save?.();
     return true;
   }, value);
   if (!filledThroughTinyMce) {
@@ -7625,6 +7679,67 @@ export async function tinyMceEditorContent(page: Page): Promise<{ html: string; 
     text: await editorBody.innerText(),
     chipCount: await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count(),
   };
+}
+
+async function visibleTinyMceContents(page: Page): Promise<Array<{ html: string; text: string; chipCount: number }>> {
+  const frameSelectors = [
+    '.tox-tinymce iframe',
+    '.tox-edit-area iframe',
+    'iframe.tox-edit-area__iframe',
+    'iframe[title="Rich Text Area"]',
+    'iframe[title*="Rich"]',
+    'iframe[aria-label*="Rich"]',
+  ];
+  const contents: Array<{ html: string; text: string; chipCount: number }> = [];
+  const seenFrames = new Set<string>();
+
+  for (const selector of frameSelectors) {
+    const frames = page.locator(selector);
+    const count = await frames.count().catch(() => 0);
+    for (let index = 0; index < count; index++) {
+      const frame = frames.nth(index);
+      if (!(await frame.isVisible({ timeout: 300 }).catch(() => false))) {
+        continue;
+      }
+      const key = await frame
+        .evaluate((element) => {
+          const iframe = element as HTMLIFrameElement;
+          const rect = iframe.getBoundingClientRect();
+          return iframe.id || `${iframe.title}:${Math.round(rect.x)}:${Math.round(rect.y)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+        })
+        .catch(() => `${selector}:${index}`);
+      if (seenFrames.has(key)) {
+        continue;
+      }
+      seenFrames.add(key);
+
+      const body = frame.contentFrame().locator('body[contenteditable="true"], body.mce-content-body').first();
+      if (!(await body.isVisible({ timeout: 500 }).catch(() => false))) {
+        continue;
+      }
+      contents.push({
+        html: await body.innerHTML().catch(() => ''),
+        text: await body.innerText().catch(() => ''),
+        chipCount: await body.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count().catch(() => 0),
+      });
+    }
+  }
+
+  const inlineEditors = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]');
+  const inlineCount = await inlineEditors.count().catch(() => 0);
+  for (let index = 0; index < inlineCount; index++) {
+    const body = inlineEditors.nth(index);
+    if (!(await body.isVisible({ timeout: 300 }).catch(() => false))) {
+      continue;
+    }
+    contents.push({
+      html: await body.innerHTML().catch(() => ''),
+      text: await body.innerText().catch(() => ''),
+      chipCount: await body.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count().catch(() => 0),
+    });
+  }
+
+  return contents;
 }
 
 export async function setChoiceDefaultValueFromSourcePalette(
@@ -8563,21 +8678,34 @@ async function tinyMcePaletteEntryPresent(page: Page, label: string, previousSvg
 }
 
 async function visibleTinyMceBody(page: Page): Promise<Locator> {
-  for (const selector of [
-    'iframe[title="Rich Text Area"]',
-    'iframe.tox-edit-area__iframe',
-    '.tox-edit-area iframe',
+  const frameSelectors = [
     '.tox-tinymce iframe',
+    '.tox-edit-area iframe',
+    'iframe.tox-edit-area__iframe',
+    'iframe[title="Rich Text Area"]',
+    'iframe[title*="Rich"]',
+    'iframe[aria-label*="Rich"]',
     'iframe',
-  ]) {
-    const frame = page.locator(selector).last();
-    if (!(await frame.isVisible({ timeout: 1_000 }).catch(() => false))) {
-      continue;
+  ];
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
+    for (const selector of frameSelectors) {
+      const frames = page.locator(selector);
+      const count = await frames.count().catch(() => 0);
+      for (let index = count - 1; index >= 0; index--) {
+        const frame = frames.nth(index);
+        if (!(await frame.isVisible({ timeout: 300 }).catch(() => false))) {
+          continue;
+        }
+
+        const editorBody = frame.contentFrame().locator('body[contenteditable="true"], body.mce-content-body').first();
+        if (await editorBody.isVisible({ timeout: 700 }).catch(() => false)) {
+          return editorBody;
+        }
+      }
     }
-    const frameBody = page.frameLocator(selector).last().locator('body');
-    if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      return frameBody;
-    }
+    await page.waitForTimeout(250);
   }
 
   const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
