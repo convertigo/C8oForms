@@ -232,11 +232,50 @@ componentScriptContent:
         		}
         	}
         
+        	public getAgentAssistantLanguage(): string {
+        		const normalizeLanguage = (candidate: any): string => {
+        			const value = String(candidate == null ? '''' : candidate).trim().toLowerCase();
+        			if (value === '''') { return ''''; }
+        			if (value.indexOf(''fr'') === 0 || value === ''french'' || value === ''français'' || value === ''francais'') { return ''fr''; }
+        			if (value.indexOf(''it'') === 0 || value === ''italian'' || value === ''italiano'') { return ''it''; }
+        			if (value.indexOf(''es'') === 0 || value === ''spanish'' || value === ''español'' || value === ''espanol'') { return ''es''; }
+        			if (value.indexOf(''en'') === 0 || value === ''english'') { return ''en''; }
+        			return '''';
+        		};
+        
+        		const readStorage = (key: string): string => {
+        			try { return window.localStorage.getItem(key) || window.sessionStorage.getItem(key) || ''''; } catch (e) { return ''''; }
+        		};
+        
+        		const candidates = [
+        			this.translate?.currentLang,
+        			(window as any).__c8o__translate?.currentLang,
+        			this.global?.settings?.language,
+        			this.global?.settings?.lang,
+        			this.global?.language,
+        			this.global?.lang,
+        			document.documentElement?.lang,
+        			readStorage(''c8oforms_language''),
+        			readStorage(''c8oforms_lang''),
+        			readStorage(''language''),
+        			readStorage(''lang''),
+        			navigator.language
+        		];
+        		for (const candidate of candidates) {
+        			const language = normalizeLanguage(candidate);
+        			if (language !== '''') {
+        				return language;
+        			}
+        		}
+        		return ''en'';
+        	}
+        
         	public getAgentAssistantContext(): any {
         		const currentUrl = this.getAgentAssistantCurrentUrl();
         		const currentRoute = this.getAgentAssistantCurrentRoute();
         		const currentFormId = this.getAgentAssistantCurrentFormId();
         		const currentPage = this.getAgentAssistantCurrentPage();
+        		const language = this.getAgentAssistantLanguage();
         		return {
         			assistantSurface: ''nocode'',
         			assistantContext: ''nocode'',
@@ -249,6 +288,11 @@ componentScriptContent:
         			codexHomeScope: ''user'',
         			vibeHomeScope: ''user'',
         			homeScope: ''user'',
+        			language: language,
+        			locale: language,
+        			assistantLanguage: language,
+        			theme: ''light'',
+        			darkTheme: ''false'',
         			currentUrl: currentUrl,
         			nocodeCurrentUrl: currentUrl,
         			currentRoute: currentRoute,
@@ -322,6 +366,7 @@ componentScriptContent:
         		if (endpoint === '''') {
         			return '''';
         		}
+        		const language = this.getAgentAssistantLanguage();
         		const params = new URLSearchParams();
         		params.set(''agentBridge'', ''1'');
         		params.set(''assistantMode'', ''agent'');
@@ -336,12 +381,54 @@ componentScriptContent:
         		params.set(''codexHomeScope'', ''user'');
         		params.set(''vibeHomeScope'', ''user'');
         		params.set(''homeScope'', ''user'');
+        		params.set(''language'', language);
+        		params.set(''locale'', language);
+        		params.set(''assistantLanguage'', language);
+        		params.set(''theme'', ''light'');
+        		params.set(''dark-theme'', ''false'');
         		return endpoint + ''/projects/ConvertigoAssistant/DisplayObjects/mobile/path-to-agent/%3Athreadid?'' + params.toString();
+        	}
+        
+        	public isAgentAssistantAllowed(): boolean {
+        		try {
+        			const route = String(window.location.pathname || '''') + '' '' + String((this as any).router?.url || '''');
+        			if (/login/i.test(route)) {
+        				return false;
+        			}
+        			const userId = this.getAgentAssistantUserId();
+        			if (userId === '''' || userId === ''anonymous'') {
+        				return false;
+        			}
+        			try {
+        				const status = this.c8o?.session?.status;
+        				if (status != null && status !== C8oSessionStatus.Connected && status !== C8oSessionStatus.HasBeenConnected) {
+        					return false;
+        				}
+        			} catch (e) {}
+        			return true;
+        		} catch (e) {
+        			return false;
+        		}
         	}
         
         	public getAgentAssistantSafeUrl(): any {
         		this.bindAgentDrawerBrevoOffset();
         		this.bindAgentAssistantContextPublisher();
+        		if (!this.isAgentAssistantAllowed()) {
+        			if (this.global) {
+        				this.global.isAgentMenuOpen = false;
+        				this.global.agentDrawerCollapsed = true;
+        			}
+        			this.agentAssistantSafeUrl = null;
+        			this.agentAssistantSafeUrlValue = '''';
+        			this.agentAssistantLastPostedContext = '''';
+        			this.updateBrevoOffsetForAgentDrawer(false);
+        			try {
+        				const menu = document.querySelector(''ion-menu[menu-id="AgentMenu"]'') as any;
+        				if (menu && typeof menu.close === ''function'') { menu.close(); }
+        			} catch (e) {}
+        			return null;
+        		}
         		if (this.global?.isAgentMenuOpen !== true || this.agentResourceUrlSanitizer == undefined) {
         			this.updateBrevoOffsetForAgentDrawer(false);
         			return null;
@@ -2072,7 +2159,7 @@ componentScriptContent:
         		/*End_c8o_function:CTS1765360727798*/
         '
 isPWA: true
-splitPaneLayout: 'this.global?.pwa === true ? (this.global?.__pwaMenuUserOpened === true && this.global?.isMenuOpen === true) : (this.global?.isMenuOpen === true || this.global?.isAgentMenuOpen === true)'
+splitPaneLayout: 'this.global?.pwa === true ? (this.global?.__pwaMenuUserOpened === true && this.global?.isMenuOpen === true) : (this.global?.isMenuOpen === true || (this.global?.isAgentMenuOpen === true && this.isAgentAssistantAllowed()))'
 tplProjectName: C8Oforms
 useClickForTap: true
 ↓Menu [ngx.components.UIDynamicMenu-1500890597895]: 🗏 mobileMenus/Menu.yaml
@@ -3378,6 +3465,40 @@ useClickForTap: true
        "Property": "plain:isMenuOpen",
        "Value": "script:false"
       }'
+  ↓CloseAgentMenuFlag [ngx.components.UIDynamicAction-1782817226764]: 
+    beanData: |
+      '{
+       "ionBean": "SetGlobalAction",
+       "Property": "plain:isAgentMenuOpen",
+       "Value": "script:false"
+      }'
+  ↓CloseAgentMenuDom [ngx.components.UICustomAction-1782817310423]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		try {
+            			if (page.global) {
+            				page.global.isAgentMenuOpen = false;
+            				page.global.agentDrawerCollapsed = true;
+            			}
+            			try { if (page.updateBrevoOffsetForAgentDrawer) { page.updateBrevoOffsetForAgentDrawer(false); } } catch (eOffset) {}
+            			try {
+            				var menu = document.querySelector('ion-menu[menu-id="AgentMenu"]') as any;
+            				if (menu && typeof menu.close === 'function') {
+            					menu.close();
+            				}
+            			} catch (eMenu) {}
+            			try {
+            				page.agentAssistantSafeUrl = null;
+            				page.agentAssistantSafeUrlValue = '';
+            				page.agentAssistantLastPostedContext = '';
+            			} catch (eFrame) {}
+            			try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect) {}
+            		} catch (e) {}
+            		resolve();
+            
 ↓StyleRemoveScrollBarOnMobileDevices [ngx.components.UIStyle-1600364375227]: 
   styleContent: 
     - xmlizable: 
@@ -4924,6 +5045,194 @@ useClickForTap: true
        "Property": "plain:viewerHome",
        "Value": "script:true"
       }'
+  ↓AgentAssistantContextPatch [ngx.components.UICustomAction-1782817373426]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '		try {
+            			var app = page as any;
+            			if (app.__agentAssistantContextPatchApplied !== true) {
+            				app.__agentAssistantContextPatchApplied = true;
+            
+            				var normalizeLanguage = function(value) {
+            					var lang = ('''' + (value == null ? '''' : value)).replace(/^\s+|\s+$/g, '''').toLowerCase();
+            					if (lang.indexOf(''fr'') === 0 || lang === ''french'' || lang === ''français'' || lang === ''francais'') { return ''fr''; }
+            					if (lang.indexOf(''it'') === 0 || lang === ''italian'' || lang === ''italiano'') { return ''it''; }
+            					if (lang.indexOf(''es'') === 0 || lang === ''spanish'' || lang === ''espanol'' || lang === ''español'') { return ''es''; }
+            					if (lang.indexOf(''en'') === 0 || lang === ''english'') { return ''en''; }
+            					return '''';
+            				};
+            
+            				app.getAgentAssistantLanguage = function() {
+            					var candidates = [];
+            					try { candidates.push(page.global && page.global.settings && page.global.settings.language); } catch (e1) {}
+            					try { candidates.push(page.global && page.global.language); } catch (e2) {}
+            					try { candidates.push(page.translate && page.translate.currentLang); } catch (e3) {}
+            					try { candidates.push(window[''__c8o__translate''] && window[''__c8o__translate''].currentLang); } catch (e4) {}
+            					try { candidates.push(document.documentElement && document.documentElement.lang); } catch (e5) {}
+            					try { candidates.push(window.localStorage && (window.localStorage.getItem(''c8oforms_language'') || window.localStorage.getItem(''c8oforms_lang'') || window.localStorage.getItem(''language'') || window.localStorage.getItem(''lang''))); } catch (e6) {}
+            					try { candidates.push(navigator.language); } catch (e7) {}
+            					for (var i = 0; i < candidates.length; i++) {
+            						var normalized = normalizeLanguage(candidates[i]);
+            						if (normalized.length) {
+            							return normalized;
+            						}
+            					}
+            					return ''en'';
+            				};
+            
+            				var refreshAgentSafeUrl = function(force) {
+            					try {
+            						var nextUrl = app.getAgentAssistantUrl ? String(app.getAgentAssistantUrl() || '''') : '''';
+            						if (!nextUrl.length) {
+            							return;
+            						}
+            						if (force === true || app.agentAssistantSafeUrlValue !== nextUrl) {
+            							app.agentAssistantSafeUrl = null;
+            							app.agentAssistantSafeUrlValue = '''';
+            							app.agentAssistantLastPostedContext = '''';
+            							try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect1) {}
+            							try { if (app.ref && app.ref.detectChanges) { app.ref.detectChanges(); } } catch (eDetect2) {}
+            						}
+            					} catch (eRefresh) {}
+            				};
+            
+            				var originalContext = page.getAgentAssistantContext;
+            				app.getAgentAssistantContext = function() {
+            					var context: any = {};
+            					try { context = originalContext ? originalContext.call(page) : {}; } catch (eContext) { context = {}; }
+            					var language = app.getAgentAssistantLanguage ? app.getAgentAssistantLanguage() : ''en'';
+            					context.language = language;
+            					context.locale = language;
+            					context.assistantLanguage = language;
+            					context.theme = ''light'';
+            					context.darkTheme = ''false'';
+            					return context;
+            				};
+            
+            				var originalUrl = page.getAgentAssistantUrl;
+            				app.getAgentAssistantUrl = function() {
+            					var url = '''';
+            					try { url = originalUrl ? String(originalUrl.call(page) || '''') : ''''; } catch (eUrl) { url = ''''; }
+            					if (!url.length) {
+            						return url;
+            					}
+            					var language = app.getAgentAssistantLanguage ? app.getAgentAssistantLanguage() : ''en'';
+            					try {
+            						var parsed = new URL(url, window.location.href);
+            						parsed.searchParams.set(''language'', language);
+            						parsed.searchParams.set(''locale'', language);
+            						parsed.searchParams.set(''assistantLanguage'', language);
+            						parsed.searchParams.set(''theme'', ''light'');
+            						parsed.searchParams.set(''dark-theme'', ''false'');
+            						return parsed.toString();
+            					} catch (eParse) {
+            						var separator = url.indexOf(''?'') === -1 ? ''?'' : ''&'';
+            						return url + separator + ''language='' + encodeURIComponent(language) + ''&locale='' + encodeURIComponent(language) + ''&assistantLanguage='' + encodeURIComponent(language) + ''&theme=light&dark-theme=false'';
+            					}
+            				};
+            
+            				app.closeAgentAssistantIfLoggedOut = function() {
+            					try {
+            						var session = page.c8o && page.c8o.session ? page.c8o.session : null;
+            						var connected = false;
+            						try { connected = !!(session && (session.status == C8oSessionStatus.Connected || session.status == C8oSessionStatus.HasBeenConnected)); } catch (eConnected) {}
+            						var user = '''';
+            						try { user = '''' + ((page.global && page.global.settings && (page.global.settings.mail || page.global.settings.email || page.global.settings.login)) || (session && session.user && session.user.name) || ''''); } catch (eUser) {}
+            						var userLower = user.replace(/^\s+|\s+$/g, '''').toLowerCase();
+            						var loginPath = '''';
+            						try { loginPath = String(window.location.pathname || '''') + '' '' + String((app.router && app.router.url) || ''''); } catch (ePath) {}
+            						var onLogin = /login/i.test(loginPath);
+            						var invalidUser = !userLower.length || userLower === ''unknown user'' || userLower === ''anonymous'' || userLower === ''undefined'' || userLower === ''null'';
+            						if (onLogin || !connected || invalidUser) {
+            							if (page.global) {
+            								page.global.isAgentMenuOpen = false;
+            								page.global.agentDrawerCollapsed = true;
+            							}
+            							try { if (page.updateBrevoOffsetForAgentDrawer) { page.updateBrevoOffsetForAgentDrawer(false); } } catch (eOffset) {}
+            							try {
+            								var menu = document.querySelector(''ion-menu[menu-id="AgentMenu"]'') as any;
+            								if (menu && typeof menu.close === ''function'') { menu.close(); }
+            							} catch (eMenu) {}
+            							try {
+            								app.agentAssistantSafeUrl = null;
+            								app.agentAssistantSafeUrlValue = '''';
+            								app.agentAssistantLastPostedContext = '''';
+            							} catch (eFrame) {}
+            							try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect) {}
+            						} else if (page.global && page.global.isAgentMenuOpen === true) {
+            							refreshAgentSafeUrl(false);
+            						}
+            					} catch (eClose) {}
+            				};
+            
+            				refreshAgentSafeUrl(true);
+            				setInterval(function() { try { app.closeAgentAssistantIfLoggedOut(); } catch (eInterval) {} }, 1000);
+            				setTimeout(function() { try { app.closeAgentAssistantIfLoggedOut(); } catch (eTimeout) {} }, 100);
+            				setTimeout(function() { try { refreshAgentSafeUrl(true); } catch (eRefreshTimeout) {} }, 1500);
+            			}
+            		} catch (e) {}
+            		resolve();
+            '
+  ↓AgentAssistantLogoutGuard [ngx.components.UICustomAction-1782828384209]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		try {
+            			var app = page as any;
+            			if (app.__agentAssistantLogoutGuardBound !== true) {
+            				app.__agentAssistantLogoutGuardBound = true;
+            				var cleanupAgentDrawer = function() {
+            					try {
+            						var route = '';
+            						try { route = String(window.location.pathname || '') + ' ' + String(window.location.hash || '') + ' ' + String((app.router && app.router.url) || ''); } catch (eRoute) {}
+            						var onLogin = /login/i.test(route);
+            						if (!onLogin) {
+            							return;
+            						}
+            						if (page.global) {
+            							page.global.isAgentMenuOpen = false;
+            							page.global.agentDrawerCollapsed = true;
+            						}
+            						try { if (page.updateBrevoOffsetForAgentDrawer) { page.updateBrevoOffsetForAgentDrawer(false); } } catch (eOffset) {}
+            						try {
+            							app.agentAssistantSafeUrl = null;
+            							app.agentAssistantSafeUrlValue = '';
+            							app.agentAssistantLastPostedContext = '';
+            						} catch (eState) {}
+            						try {
+            							var frames = document.querySelectorAll('iframe.agent-assistant-frame, iframe[src*="ConvertigoAssistant"]');
+            							for (var i = 0; i < frames.length; i++) {
+            								var frame = frames[i] as any;
+            								try { frame.removeAttribute('src'); } catch (eRemove) {}
+            								try { frame.src = 'about:blank'; } catch (eBlank) {}
+            							}
+            						} catch (eFrames) {}
+            						try {
+            							var menu = document.querySelector('ion-menu[menu-id="AgentMenu"]') as any;
+            							if (menu && typeof menu.close === 'function') { menu.close(); }
+            						} catch (eMenu) {}
+            						try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect1) {}
+            						try { if (app.ref && app.ref.detectChanges) { app.ref.detectChanges(); } } catch (eDetect2) {}
+            					} catch (eCleanup) {}
+            				};
+            				var previousClose = app.closeAgentAssistantIfLoggedOut;
+            				app.closeAgentAssistantIfLoggedOut = function() {
+            					try { if (previousClose) { previousClose.call(app); } } catch (ePrevious) {}
+            					cleanupAgentDrawer();
+            				};
+            				cleanupAgentDrawer();
+            				setInterval(cleanupAgentDrawer, 500);
+            				window.addEventListener('popstate', cleanupAgentDrawer);
+            				window.addEventListener('hashchange', cleanupAgentDrawer);
+            			}
+            		} catch (e) {}
+            		resolve();
+            
 ↓StyleAlerts [ngx.components.UIStyle-1729787739205]: 
   styleContent: 
     - xmlizable: 
