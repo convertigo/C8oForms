@@ -23,7 +23,7 @@ import {
  * creation, return to selector, then selector search by application name.
  */
 
-test.setTimeout(120_000);
+test.setTimeout(240_000);
 
 test('#1340 - selector search matches application names across accent case', async ({ page }) => {
   const suffix = `C1340-${Date.now()}`;

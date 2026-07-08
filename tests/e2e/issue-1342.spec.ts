@@ -8,14 +8,15 @@ import { SEL, createFormWithMap, login, openComponentConfig, openMapDataSourcePi
  * Found in 2.2.0-beta138 and fixed by 703b2f89, first released and validated
  * OK in 2.2.0-beta142.
  *
- * Root cause: the shared datasource button row was only rendered for
- * tab_selector_choice_source. Map config uses tab_selector_conf_source for the
- * Markers/Circles/Polygons source settings, so switching a Map section to
- * "From a data source" left the user without a working source picker. The fix
- * added showSourceButtonInConfig for the Map editor.
+ * The current Map editor exposes four source sub-categories: Markers/Repères,
+ * Circles/Cercles, Polygons/Polygones, and Default location/Emplacement par
+ * défaut. The regression path is to open Source selection, keep the default
+ * Markers/Repères sub-category, switch it to Data source, then click the
+ * dedicated source picker button.
  *
  * The form fixture is built entirely through Studio UI: blank form, Map
- * component, configuration panel, then the Map source-mode toggle.
+ * component, configuration panel, Source selection, then the Markers data-source
+ * choice and source picker button.
  */
 
 test.setTimeout(120_000);

@@ -25,7 +25,10 @@ const e2eDir = join(here, '..', 'e2e');
 const WEIGHTS = {
   'visibility-operators.spec.ts': 5,
   'visibility-types-a.spec.ts': 6,
-  'visibility-types-b.spec.ts': 5,
+  'visibility-types-b.spec.ts': 2,
+  'visibility-types-b2.spec.ts': 2,
+  'visibility-types-b3.spec.ts': 2,
+  'visibility-types-b4.spec.ts': 2,
   'journeys.spec.ts': 4,
   'issue-1357.spec.ts': 3,
   'issue-1363.spec.ts': 2,

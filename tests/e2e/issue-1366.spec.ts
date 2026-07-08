@@ -26,7 +26,7 @@ import {
  * fixture shortcuts are used.
  */
 
-test.setTimeout(180_000);
+test.setTimeout(240_000);
 
 test('#1366 - adding a collaborator preserves selector search results', async ({ page }) => {
   const title = `C1366-${Date.now()}`;

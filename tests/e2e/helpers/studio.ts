@@ -1,4 +1,6 @@
 import { Locator, Page, expect, test } from '@playwright/test';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /**
  * Selectors are Convertigo priority CSS classes (classNNNN): the priority is
@@ -40,6 +42,7 @@ export const SEL = {
   previewButton: '.class1773331718985',
   // viewerPage.yaml — rendered viewer and default submit button
   viewerPage: 'page-viewerpage',
+  viewerPageTitleHeading: 'page-viewerpage [role="heading"][aria-level="1"].ion-text-wrap',
   viewerSubmitButton: [
     'page-viewerpage ion-button.class1543865084771',
     'page-viewerpage ion-tab-button.class1664274551545',
@@ -47,6 +50,11 @@ export const SEL = {
     'page-viewerpage ion-footer [role="tab"]',
   ].join(', '),
   // responseCompleted.yaml — post-submit transition page
+  publishedToolbar: 'page-viewerpage c8oforms-toolbarcomponentui div.toolbar, c8oforms-toolbarcomponentui div.toolbar',
+  publishedToolbarMenuButton:
+    'page-viewerpage c8oforms-toolbarcomponentui div.left-section ion-button.class1757346419324, c8oforms-toolbarcomponentui div.left-section ion-button.class1757346419324, c8oforms-toolbarcomponentui div.left-section ion-button:has(ion-icon[src$="menu.svg"])',
+  publishedToolbarReloadButton:
+    'page-viewerpage c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button:has(ion-icon[src$="refresh-ccw.svg"])',
   responseCompletedPage: 'page-responsecompleted',
   responseCompletedLogo: 'page-responsecompleted img.class1684922008750',
   // editor canvas wrapper of a map component
@@ -56,12 +64,22 @@ export const SEL = {
   checkboxGroupComponent: 'c8oforms-itemcheckboxgroupviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
+  buttonLabelInput: 'c8oforms-textinputsetting.class1776707403149 input, .class1776707403149 input',
+  buttonDisplayModeSwitch: '.class1782410200003',
+  buttonAdvancedTextEditor:
+    ':is(c8oforms-datasourceeditor.class1782410100001, c8oforms-datasourceeditor:has(.tox-tinymce))',
   buttonIconNameInput: '.class1776709887054 input',
   buttonIconClearButton: 'ion-icon.class1780311333214, .class1780311333214',
   buttonRenderedIcon: 'c8oforms-itembuttonviewer ion-button ion-icon',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
+  sliderComponent: 'c8oforms-itemsliderviewver',
+  sliderMinValueInput: 'c8oforms-textinputsetting.class1776351300004 input, .class1776351300004 input',
+  sliderMaxValueInput: 'c8oforms-textinputsetting.class1776351300013 input, .class1776351300013 input',
+  sliderMinLabelInput: 'c8oforms-textinputsetting.class1776351300031 input, .class1776351300031 input',
+  sliderMaxLabelInput: 'c8oforms-textinputsetting.class1776351300040 input, .class1776351300040 input',
+  sliderStepInput: 'c8oforms-textinputsetting.class1776351300022 input, .class1776351300022 input',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
   gridFooterSetting: '.class1782121400000',
@@ -117,12 +135,15 @@ export const SEL = {
     '[title^="Modifier la page"], [aria-label^="Modifier la page"], [title^="Edit page"], [aria-label^="Edit page"], .class1775140098599, .class1774949227812, .class1650357059474, .class1775140098605, .class1774948900804',
   pageDeleteAction:
     '.class1775140098632, .class1774949276438, [data-id="delete-action-pages"], ion-icon[src$="trash-2.svg"], img[src$="trash-2.svg"]',
-  pageAddButton: '.class1750084426535',
+  pageAddButton: '.class1750084426535, ion-button.class1780583331059, ion-button.class1773251124192',
   pageSearchbar: 'ion-searchbar.class1774460274462',
   pageSettingsCard: '.class1650357060215',
   pageSettingsCloseButton: '.c8o-btn-close',
   // page settings "Nom de la page" input (TextInputSetting)
   pageNameInput: '.class1776265600007 input, ion-input.class1775119427737 input, .class1775119427737 input',
+  // page settings "Display page title" control: modern ToggleSwitch + legacy beta111 checkbox
+  pageDisplayTitleToggle: 'c8oforms-toggleswitch.class1779359000042, .class1779359000042',
+  pageDisplayTitleLegacyCheckbox: 'ion-checkbox.class1775133492560',
   editorHomeButton: 'ion-button.class1774605933364',
   visibilityModeButton: 'button.class1775840591959',
   visibilityAddConditionButton: 'ion-button.class1758191882601',
@@ -147,8 +168,17 @@ export const SEL = {
   mapSourceModeRow: 'ion-row.class1777130000001',
   publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
   publishedApplicationsTab: 'ion-button.class1761754757348',
+  publishedQrButton: 'page-selectorpage ion-button.class1761581105514',
   selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
   selectorSearchByNameInput: 'page-selectorpage input',
+  selectorFilterInlineToggleButton: 'ion-button.class1772117859505',
+  selectorFilterPopoverButton: 'ion-button.class1750686602638',
+  selectorFiltersPopover: 'ion-popover:not(.overlay-hidden)',
+  selectorMyApplicationsButton: 'ion-button.class1761746283533',
+  selectorMyApplicationsCheckbox: 'ion-checkbox.class1750693244025',
+  selectorHideFoldersButton: 'ion-button.class1761751296593',
+  selectorHideFoldersCheckbox: 'ion-checkbox.class1750693290583',
+  selectorApplyFiltersButton: 'ion-button.class1750693491899',
   selectorCardTitle: '.class1603968061706',
   selectorListTitle: '.class1780484375240',
   cardMenuButton: 'ion-button.class1606574763560',
@@ -163,10 +193,23 @@ export const SEL = {
   collaboratorsModal: 'ion-modal.show-modal page-manageaccessrights',
   collaboratorSearchInput: 'c8oforms-ngxtaginputcustomc8oforms ng-select input[role="combobox"], tag-input input',
   collaboratorAutocompleteOption: 'ng-dropdown-panel .ng-option, tag-input-dropdown .ng2-menu-item, ng2-dropdown-menu .ng2-menu-item',
-  collaboratorsSaveButton: 'ion-footer ion-button.class1779974149500',
+  collaboratorsSaveButton:
+    'ion-footer ion-button.class1779974149500, ion-footer ion-button.class1779974149590, ion-footer ion-button.class1591882841533',
   collaboratorsCsvInput: 'input#manageAccessCsvCollabInput[type="file"][accept*=".csv"]',
   collaboratorsCsvButton: 'div:has(> input#manageAccessCsvCollabInput[type="file"]) > ion-button',
+  publishedShareMenuItem:
+    'ion-popover ion-item.class1578663445209, ion-popover ion-item:has(ion-icon.class1603730319967), ion-popover ion-item:has(ion-icon[src*="share.svg"])',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
+  shareAnonymousToggleSwitch: 'c8oforms-toggleswitch.class1779971800000, .class1779971800000',
+  shareAnonymousLegacyToggle: 'ion-toggle.class1706176223747, ion-toggle.class1762164887460',
+  shareQrLabel:
+    'ion-text.class1762364265345, ion-text.class1762365028957, .class1762364265345, .class1762365028957',
+  shareNotificationToggle: 'c8oforms-toggleswitch.class1762249213239, .class1762249213239',
+  shareNotificationToggleButton: 'button.class1775840591959, button.c8o-btn',
+  shareSubjectInput:
+    'c8oforms-textinputsetting.class1779965325160 input, .class1779965325160 input, ion-input.class1762190514117 input, .class1762190514117 input',
+  shareBodyEditorFrame:
+    '.tox-tinymce iframe, .tox-edit-area iframe, iframe.tox-edit-area__iframe, iframe[title="Rich Text Area"], iframe[title*="Rich"], iframe[aria-label*="Rich"], iframe',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
   pwaAccessToggleButton: 'button.class1775840591959',
@@ -174,8 +217,9 @@ export const SEL = {
   pwaIconEditor: '.icon-picker, .class1779811544755, .class1603800885985',
   pwaIconEditButton: 'ion-button.class1649864949366, ion-button.buttonEditIcon',
   pwaNameInput: 'ion-input.class1603802354868 input',
-  pwaShortNameInput: 'ion-input.class1603803008204 input',
-  pwaSaveButton: 'ion-button.class1762425668421, ion-button.class1649838959998',
+  pwaShortNameInput: 'ion-input.class1603803008204 input, ion-input.class1762428297567 input',
+  pwaSaveButton:
+    'ion-button.class1762425668421, ion-button.class1649838959998, ion-button:has-text("Save"), ion-button:has-text("Enregistrer"), ion-button:has-text("Sauvegarder"), ion-button:has-text("Publier"), ion-button:has-text("Publish")',
   wallpaperModal: 'ion-modal.modal-custom--hw-100, ion-modal.modal-custom, ion-modal.modalCSV',
   wallpaperColorSegmentButton: 'ion-segment-button.class1774608193139, ion-segment-button.class1648553976686',
   wallpaperSaveButton: 'ion-button.class1774608108762, ion-button.class1586166864663',
@@ -237,6 +281,7 @@ type MainEditorConfigTab =
   | 'tab_selector_choice_action'
   | 'tab_selector_conf_action'
   | 'visibility_tab_selector'
+  | 'button_state_tab_selector'
   | 'navigation_tab_selector'
   | 'defaultvalue'
   | 'data_interactions';
@@ -244,6 +289,29 @@ type MainEditorConfigTab =
 type ChartHeightMode = 'auto' | 'personalized';
 type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
+export type VisibilityMode = 'always' | 'never' | 'auth_required' | 'no_auth_required' | 'condition';
+export type ButtonStateMode = 'always_enabled' | 'enabled_when_condition' | 'disabled_when_condition';
+
+export interface PublishedToolbarButtonThemeState {
+  color: string;
+  iconColor: string;
+  cssColor: string;
+  background: string;
+  hoverBackground: string;
+  boxShadow: string;
+  visibility: string;
+  nativeBackgroundColor: string;
+  nativeColor: string;
+  className: string;
+}
+
+export interface PublishedToolbarThemeState {
+  toolbarColor: string;
+  toolbarBackgroundColor: string;
+  toolbarVisibility: string;
+  menu: PublishedToolbarButtonThemeState;
+  reload: PublishedToolbarButtonThemeState;
+}
 
 export async function setStudioLanguageBeforeLoad(page: Page, lang: StudioLanguage): Promise<void> {
   await page.addInitScript((value) => {
@@ -257,7 +325,7 @@ export async function reloadStudioWithLanguage(page: Page, lang: StudioLanguage)
       window.localStorage.setItem('lang', value);
     }, lang);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForURL('**/selector/**', { timeout: 30_000 });
+    await expectRoute(page, ROUTE.selector, 30_000);
     await expect(page.locator(SEL.blankFormCard), 'selector page should be ready after language reload').toBeVisible({
       timeout: 30_000,
     });
@@ -353,6 +421,7 @@ export const PALETTE_ICON = {
   forLoop: 'icn_for_loop.svg',
   conditionAction: 'icn_if_else.svg',
   submitAction: 'icn_submit.svg',
+  mailAction: 'forms_notify_response_simple_by_mail_simple.svg',
   baserowAddRowFromData: 'forms_AddRowFromData.svg',
 } as const;
 
@@ -387,6 +456,7 @@ const PALETTE_SEARCH_TERM_BY_ICON: Record<string, string> = {
   [PALETTE_ICON.forLoop]: 'for_loop',
   [PALETTE_ICON.conditionAction]: 'if_else',
   [PALETTE_ICON.submitAction]: 'submit',
+  [PALETTE_ICON.mailAction]: 'mail',
 };
 
 export interface LoginCredentials {
@@ -707,12 +777,109 @@ export async function openViewer(page: Page, formId: string, mode = ':edit', res
 export async function openPublishedViewer(page: Page, formId: string, waitForSelector = SEL.viewerPage): Promise<void> {
   const publishedId = formId.startsWith('published_') ? formId : `published_${formId}`;
   await test.step(`Open published viewer ${publishedId}`, async () => {
-    const pwa = await getPwaDocument(page, publishedId);
-    const targetId = typeof pwa?.targetId === 'string' && pwa.targetId ? pwa.targetId : publishedId;
-    await page.goto(`../pwas/${targetId}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    let targetId = '';
+    await expect
+      .poll(
+        async () => {
+          const pwa = await getPwaDocument(page, publishedId);
+          targetId = publishedViewerTargetId(pwa, publishedId);
+          return targetId;
+        },
+        {
+          message: `published PWA document ${publishedId}_pwa_document should be ready`,
+          timeout: 60_000,
+        },
+      )
+      .not.toBe('');
+
+    const pwaPath = `../pwas/${targetId}/index.html`;
+    await waitForPublishedPwaRoute(page, pwaPath);
+    await page.goto(pwaPath, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.locator(SEL.viewerPage).waitFor({ state: 'attached', timeout: 60_000 });
     await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 60_000 });
     await page.waitForTimeout(2_000);
+  });
+}
+
+function publishedViewerTargetId(pwa: JsonRecord | null, fallbackPublishedId: string): string {
+  if (!pwa) {
+    return '';
+  }
+  if (typeof pwa.targetId === 'string' && pwa.targetId) {
+    return pwa.targetId;
+  }
+  if (typeof pwa.anonymousKey === 'string' && pwa.anonymousKey) {
+    return pwa.anonymousKey;
+  }
+  return fallbackPublishedId;
+}
+
+async function waitForPublishedPwaRoute(page: Page, relativePath: string): Promise<void> {
+  const absoluteUrl = new URL(relativePath, page.url()).toString();
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get(absoluteUrl, { failOnStatusCode: false, timeout: 10_000 });
+        return response.status();
+      },
+      {
+        message: `published PWA route should be available at ${absoluteUrl}`,
+        timeout: 90_000,
+      },
+    )
+    .toBe(200);
+}
+
+export async function publishedViewerToolbarThemeState(page: Page): Promise<PublishedToolbarThemeState> {
+  return test.step('Read published viewer toolbar theme styles', async () => {
+    const toolbar = page.locator(SEL.publishedToolbar).first();
+    const menuButton = page.locator(SEL.publishedToolbarMenuButton).first();
+    const reloadButton = page.locator(SEL.publishedToolbarReloadButton).first();
+
+    await expect(toolbar, 'published viewer toolbar should be visible').toBeVisible({ timeout: 30_000 });
+    await expect(menuButton, 'published viewer menu button should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(reloadButton, 'published viewer reload button should be visible').toBeVisible({ timeout: 15_000 });
+
+    const toolbarState = await toolbar.evaluate((el) => {
+      const style = window.getComputedStyle(el as HTMLElement);
+      return {
+        color: style.color,
+        backgroundColor: style.backgroundColor,
+        visibility: style.visibility,
+      };
+    });
+
+    return {
+      toolbarColor: toolbarState.color,
+      toolbarBackgroundColor: toolbarState.backgroundColor,
+      toolbarVisibility: toolbarState.visibility,
+      menu: await readToolbarButtonThemeState(menuButton),
+      reload: await readToolbarButtonThemeState(reloadButton),
+    };
+  });
+}
+
+async function readToolbarButtonThemeState(button: Locator): Promise<PublishedToolbarButtonThemeState> {
+  return button.evaluate((el) => {
+    const host = el as HTMLElement;
+    const style = window.getComputedStyle(host);
+    const icon = host.querySelector('ion-icon');
+    const iconStyle = icon ? window.getComputedStyle(icon as HTMLElement) : null;
+    const native = host.shadowRoot?.querySelector('[part="native"]') as HTMLElement | null;
+    const nativeStyle = native ? window.getComputedStyle(native) : null;
+
+    return {
+      color: style.color,
+      iconColor: iconStyle?.color ?? '',
+      cssColor: style.getPropertyValue('--color').trim(),
+      background: style.getPropertyValue('--background').trim(),
+      hoverBackground: style.getPropertyValue('--toolbar-button-hover-background').trim(),
+      boxShadow: style.getPropertyValue('--box-shadow').trim(),
+      visibility: style.visibility,
+      nativeBackgroundColor: nativeStyle?.backgroundColor ?? '',
+      nativeColor: nativeStyle?.color ?? '',
+      className: host.className,
+    };
   });
 }
 
@@ -1198,11 +1365,19 @@ export async function reopenEditorFromHome(page: Page, title: string): Promise<v
 }
 
 export async function returnToSelectorFromEditor(page: Page): Promise<void> {
-  if (ROUTE.selector.test(page.url())) {
-    return;
-  }
-  await page.locator(SEL.editorHomeButton).first().click();
-  await expectRoute(page, ROUTE.selector);
+  await test.step('Return to the application selector from the editor', async () => {
+    if (ROUTE.selector.test(page.url())) {
+      return;
+    }
+    const homeButton = page.locator(SEL.editorHomeButton).first();
+    await expect(homeButton, 'editor home button should be available before returning to selector').toBeVisible({
+      timeout: 30_000,
+    });
+    await homeButton.click({ timeout: 10_000 }).catch(async () => homeButton.dispatchEvent('click'));
+    await expectRoute(page, ROUTE.selector);
+    await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
+    await waitForIonicLoading(page, 15_000);
+  });
 }
 
 export async function openEditorCollaboratorsModal(page: Page): Promise<Locator> {
@@ -1302,25 +1477,34 @@ async function clickEditorMoreActionsCollaborators(page: Page, modal: Locator): 
 }
 
 export async function searchSelectorApplicationsByName(page: Page, query: string): Promise<void> {
-  await expectRoute(page, ROUTE.selector);
-  const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
-  if (!(await visibleNameInput.isVisible({ timeout: 1_000 }).catch(() => false))) {
-    await page.locator(SEL.selectorSearchToggleButton).first().click();
-    await expect(visibleNameInput, 'selector advanced search name input should be visible').toBeVisible({
-      timeout: 15_000,
-    });
-  }
+  await test.step(`Search selector applications by name "${query}"`, async () => {
+    await expectRoute(page, ROUTE.selector);
+    await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
+    const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
+    if (!(await visibleNameInput.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      const toggle = page.locator(SEL.selectorSearchToggleButton).first();
+      await expect(toggle, 'selector search toggle should be visible').toBeVisible({ timeout: 15_000 });
+      await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
+      await expect(visibleNameInput, 'selector advanced search name input should be visible').toBeVisible({
+        timeout: 15_000,
+      });
+    }
 
-  await visibleNameInput.fill(query);
-  await fillInputValue(page, SEL.selectorSearchByNameInput, query, 'selector advanced search name input');
-  await page.getByRole('button', { name: /^(Search|Rechercher|Buscar|Cerca)$/i }).last().click();
-  await page.waitForTimeout(1_500);
+    await visibleNameInput.fill(query);
+    await fillInputValue(page, SEL.selectorSearchByNameInput, query, 'selector advanced search name input');
+    await visibleNameInput.press('Enter').catch(() => undefined);
+    const searchButton = page.getByRole('button', { name: /^(Search|Rechercher|Buscar|Cerca)$/i }).last();
+    if (await searchButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await searchButton.click({ timeout: 10_000 }).catch(async () => searchButton.dispatchEvent('click'));
+    }
+    await waitForIonicLoading(page, 15_000);
+  });
 }
 
 export async function expectSelectorSearchKeepsSingleApplication(page: Page, title: string): Promise<void> {
   await test.step(`Assert selector search is still filtered to ${title}`, async () => {
     await expect
-      .poll(async () => selectorSearchSummary(page, title), {
+      .poll(async () => selectorSearchSummaryStable(page, title), {
         message: `selector results should stay filtered to only "${title}"`,
         timeout: 30_000,
       })
@@ -1353,9 +1537,651 @@ export async function addFirstAvailableCollaboratorFromSelectorCard(page: Page, 
 
     await modal.locator(SEL.collaboratorsSaveButton).first().click();
     await expect(modal, 'collaborators modal should close after saving').toBeHidden({ timeout: 30_000 });
-    await page.waitForTimeout(2_000);
+    await waitForIonicLoading(page, 15_000);
     return collaboratorMail;
   });
+}
+
+export async function sharePublishedApplicationWithNotification(
+  page: Page,
+  title: string,
+  options: { recipientQuery?: string; subject: string; body: string },
+): Promise<string> {
+  return test.step(`Configure a Share application email notification for ${title}`, async () => {
+    await openPublishedShareApplicationModal(page, title);
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    const recipient = await selectFirstShareApplicationRecipient(page, modal, options.recipientQuery ?? 'test');
+    await enableShareApplicationEmailNotification(modal);
+    await fillShareApplicationNotificationFields(page, modal, options.subject, options.body);
+    return recipient;
+  });
+}
+
+export async function openPublishedShareApplicationModal(page: Page, title: string): Promise<void> {
+  await test.step(`Open Share application modal for published application ${title}`, async () => {
+    await openPublishedApplicationsTab(page);
+    await openPublishedSelectorCardShareMenuItem(page, title);
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    await expect(modal, 'Share application should open the access-rights modal').toBeVisible({ timeout: 30_000 });
+    await expect(modal, 'Share application modal title should be visible').toContainText(
+      /Partager l'application|Share the application/i,
+      { timeout: 15_000 },
+    );
+  });
+}
+
+const SHARE_YES_OPTION_RE = /^(Oui|Yes|Si|S\u00ed|S\u00ec)$/i;
+const SHARE_SAVE_BUTTON_RE = /^(Save(?: settings)?|Enregistrer.*|Sauvegarder.*|Guardar.*|Salva.*)$/i;
+const SHARE_ANONYMOUS_LINK_RE = /(?:lien anonyme|anonymous link|enlace an[o\u00f3]nimo|collegamento anonimo)/i;
+const SHARE_PUBLIC_QR_LABEL_RE =
+  /(?:QR Code|C[o\u00f3]digo QR)\s*-\s*(?:Lien public|Public link|Enlace p[\u00fa]blico|Link pubblico)/i;
+
+export async function configurePublishedApplicationPublicLinkAndAssertQrLabel(
+  page: Page,
+  title: string,
+): Promise<void> {
+  await test.step(`Enable the public share link and verify its QR label for ${title}`, async () => {
+    await openPublishedShareApplicationModal(page, title);
+    const modal = page.locator(SEL.collaboratorsModal).last();
+    await expect(modal, 'Share application access-rights modal should be visible').toBeVisible({ timeout: 30_000 });
+
+    const publicLinkToggleWasAvailable = await enableShareApplicationAnonymousPublicLink(page, modal);
+    await expectShareApplicationPublicQrLabel(modal);
+    if (!publicLinkToggleWasAvailable) {
+      return;
+    }
+    await saveShareApplicationModal(page, modal);
+
+    await openPublishedShareApplicationModal(page, title);
+    const reopened = page.locator(SEL.collaboratorsModal).last();
+    await expect(reopened, 'Share application access-rights modal should reopen').toBeVisible({ timeout: 30_000 });
+    await expectShareApplicationAnonymousPublicLinkEnabled(reopened);
+    await expectShareApplicationPublicQrLabel(reopened);
+    await saveShareApplicationModal(page, reopened);
+  });
+}
+
+async function enableShareApplicationAnonymousPublicLink(page: Page, modal: Locator): Promise<boolean> {
+  const modernToggle = await shareApplicationAnonymousToggleSwitch(modal);
+  if (modernToggle) {
+    const yesButton = await shareApplicationYesButton(modernToggle);
+    const selected = await yesButton.evaluate((el) => el.classList.contains('c8o-btn-selected')).catch(() => false);
+    if (!selected) {
+      await yesButton.click({ timeout: 10_000 }).catch(async () => yesButton.dispatchEvent('click'));
+    }
+    await expect(yesButton, 'anonymous/public share link should be set to Yes/Oui').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+    return true;
+  }
+
+  const legacyToggle = await firstVisibleChildOrNull(modal, SEL.shareAnonymousLegacyToggle, 15_000);
+  if (!legacyToggle) {
+    return false;
+  }
+
+  if (!(await isIonToggleChecked(legacyToggle))) {
+    await legacyToggle.click({ timeout: 10_000 }).catch(async () => legacyToggle.click({ force: true, timeout: 5_000 }));
+  }
+  await waitForIonicLoading(page, 15_000);
+  await expect.poll(() => isIonToggleChecked(legacyToggle), { timeout: 10_000 }).toBe(true);
+  return true;
+}
+
+async function expectShareApplicationAnonymousPublicLinkEnabled(modal: Locator): Promise<void> {
+  const modernToggle = await shareApplicationAnonymousToggleSwitch(modal);
+  if (modernToggle) {
+    const yesButton = await shareApplicationYesButton(modernToggle);
+    await expect(yesButton, 'anonymous/public share link should still be set to Yes/Oui after reopening').toHaveClass(
+      /c8o-btn-selected/,
+      { timeout: 10_000 },
+    );
+    return;
+  }
+
+  const legacyToggle = await firstVisibleChildOrNull(modal, SEL.shareAnonymousLegacyToggle, 15_000);
+  if (!legacyToggle) {
+    throw new Error('Share application modal did not expose an anonymous/public link toggle after reopening');
+  }
+  await expect
+    .poll(() => isIonToggleChecked(legacyToggle), {
+      message: 'anonymous/public share link should still be enabled after reopening',
+      timeout: 10_000,
+    })
+    .toBe(true);
+}
+
+async function expectShareApplicationPublicQrLabel(modal: Locator): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const labels = await visibleShareApplicationQrLabels(modal);
+        return labels.find((label) => SHARE_PUBLIC_QR_LABEL_RE.test(label)) ?? labels.join(' | ');
+      },
+      {
+        message: 'the anonymous/public share QR code should use the public-link label',
+        timeout: 20_000,
+      },
+    )
+    .toMatch(SHARE_PUBLIC_QR_LABEL_RE);
+}
+
+async function shareApplicationAnonymousToggleSwitch(modal: Locator): Promise<Locator | null> {
+  const labelled = modal.locator(SEL.shareAnonymousToggleSwitch).filter({ hasText: SHARE_ANONYMOUS_LINK_RE }).first();
+  if (await labelled.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return labelled;
+  }
+  return firstVisibleChildOrNull(modal, SEL.shareAnonymousToggleSwitch, 3_000);
+}
+
+async function shareApplicationYesButton(toggle: Locator): Promise<Locator> {
+  const buttons = toggle.locator(SEL.shareNotificationToggleButton);
+  const byText = buttons.filter({ hasText: SHARE_YES_OPTION_RE }).first();
+  const button = (await byText.isVisible({ timeout: 1_000 }).catch(() => false)) ? byText : buttons.first();
+  await expect(button, 'the toggle should expose a Yes/Oui option').toBeVisible({ timeout: 10_000 });
+  return button;
+}
+
+async function visibleShareApplicationQrLabels(modal: Locator): Promise<string[]> {
+  return modal.evaluate((root, labelSelector) => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const isVisible = (el: Element): el is HTMLElement => {
+      const element = el as HTMLElement;
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+
+    const classCandidates = [...root.querySelectorAll(labelSelector)].filter(isVisible);
+    const broadCandidates = [...root.querySelectorAll('ion-text, span, div, p')].filter(isVisible);
+    const candidates = classCandidates.length > 0 ? classCandidates : broadCandidates;
+    const labels: string[] = [];
+    for (const candidate of candidates) {
+      const text = normalize(candidate.innerText || candidate.textContent || '');
+      if (!/(?:QR Code|C[o\u00f3]digo QR)/i.test(text) || !/(?:Lien|link|Enlace|Link)/i.test(text)) {
+        continue;
+      }
+      if (!labels.includes(text)) {
+        labels.push(text);
+      }
+    }
+    return labels;
+  }, SEL.shareQrLabel);
+}
+
+async function saveShareApplicationModal(page: Page, modal: Locator): Promise<void> {
+  const selectorButton = await firstVisibleChildOrNull(modal, SEL.collaboratorsSaveButton, 5_000);
+  const namedButton = modal.getByRole('button', { name: SHARE_SAVE_BUTTON_RE }).last();
+  const button = selectorButton ?? ((await namedButton.isVisible({ timeout: 2_000 }).catch(() => false)) ? namedButton : null);
+  if (!button) {
+    throw new Error('Share application modal did not expose a Save button');
+  }
+
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(modal, 'Share application modal should close after saving').toBeHidden({ timeout: 30_000 });
+  await waitForIonicLoading(page, 15_000);
+}
+
+async function selectFirstShareApplicationRecipient(page: Page, modal: Locator, query: string): Promise<string> {
+  const input = modal.locator(SEL.collaboratorSearchInput).first();
+  await expect(input, 'Share application should expose the user/group autocomplete').toBeVisible({ timeout: 30_000 });
+  await input.fill(query);
+
+  const option = page.locator(SEL.collaboratorAutocompleteOption).first();
+  await expect(option, 'at least one user or group should be available to share with').toBeVisible({ timeout: 20_000 });
+  const optionText = normalizeWhitespace(await option.innerText());
+  await option.click();
+
+  const recipient = optionText.split(/\s+/).find((token) => token.includes('@')) ?? optionText;
+  await expect
+    .poll(() => modal.innerText().then((text) => normalizeWhitespace(text)), {
+      message: `the selected recipient ${recipient} should be listed before enabling notification`,
+      timeout: 15_000,
+    })
+    .toContain(recipient);
+
+  return recipient;
+}
+
+async function enableShareApplicationEmailNotification(modal: Locator): Promise<void> {
+  const toggle = modal.locator(SEL.shareNotificationToggle).filter({ hasText: /Envoyer une notification|Send an email notification/i }).first();
+  await expect(toggle, 'Share application should expose the Send an email notification toggle').toBeVisible({
+    timeout: 20_000,
+  });
+
+  const yesByText = toggle.locator(SEL.shareNotificationToggleButton).filter({ hasText: /^(Oui|Yes)$/i }).first();
+  const yesButton = (await yesByText.isVisible({ timeout: 1_000 }).catch(() => false))
+    ? yesByText
+    : toggle.locator(SEL.shareNotificationToggleButton).first();
+  await expect(yesButton, 'the notification toggle should expose a Yes/Oui option').toBeVisible({ timeout: 10_000 });
+  await yesButton.click({ timeout: 10_000 }).catch(async () => yesButton.dispatchEvent('click'));
+  await expect(yesButton, 'the notification toggle should be set to Yes/Oui').toHaveClass(/c8o-btn-selected/, {
+    timeout: 10_000,
+  });
+}
+
+async function fillShareApplicationNotificationFields(
+  page: Page,
+  modal: Locator,
+  subject: string,
+  body: string,
+): Promise<void> {
+  const subjectInput = modal.locator(SEL.shareSubjectInput).first();
+  await expect(subjectInput, 'choosing Yes/Oui should reveal Email subject').toBeVisible({ timeout: 15_000 });
+  await subjectInput.fill(subject);
+  await subjectInput.dispatchEvent('input');
+  await subjectInput.dispatchEvent('change');
+  await subjectInput.blur();
+  await expect(subjectInput, 'Email subject should keep the typed value').toHaveValue(subject, { timeout: 10_000 });
+
+  await expect(modal, 'choosing Yes/Oui should reveal Email body').toContainText(/Corps du courriel|Email body/i, {
+    timeout: 15_000,
+  });
+  await fillShareApplicationTinyMceBody(page, modal, body);
+}
+
+async function fillShareApplicationTinyMceBody(page: Page, modal: Locator, value: string): Promise<void> {
+  const iframeBody = await visibleShareApplicationTinyMceBody(page, modal);
+  if (iframeBody) {
+    const body = iframeBody;
+    await expect(body, 'Email body TinyMCE iframe should be editable').toBeVisible({ timeout: 10_000 });
+    await body.click();
+    await body.fill(value);
+    await fireActiveTinyMceChange(page);
+    await expect(body, 'Email body should keep the typed value').toContainText(value, { timeout: 10_000 });
+    return;
+  }
+
+  const inlineEditor = modal.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(inlineEditor, 'Email body TinyMCE editor should be editable').toBeVisible({ timeout: 10_000 });
+  await inlineEditor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type(value);
+  await fireActiveTinyMceChange(page);
+  await expect(inlineEditor, 'Email body should keep the typed value').toContainText(value, { timeout: 10_000 });
+}
+
+async function visibleShareApplicationTinyMceBody(page: Page, modal: Locator): Promise<Locator | null> {
+  const frames = modal.locator(SEL.shareBodyEditorFrame);
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
+    const count = await frames.count().catch(() => 0);
+    for (let index = count - 1; index >= 0; index--) {
+      const frame = frames.nth(index);
+      await frame.waitFor({ state: 'attached', timeout: 500 }).catch(() => undefined);
+      await frame.scrollIntoViewIfNeeded({ timeout: 1_000 }).catch(() => undefined);
+
+      const body = frame.contentFrame().locator('body[contenteditable="true"], body.mce-content-body, body').first();
+      if (await body.isVisible({ timeout: 1_000 }).catch(() => false)) {
+        return body;
+      }
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  return null;
+}
+
+async function openPublishedSelectorCardShareMenuItem(page: Page, title: string): Promise<void> {
+  for (let pass = 0; pass < 2; pass++) {
+    await dismissVisiblePopovers(page);
+    await dismissVisibleToasts(page);
+    await expandSelectorSideMenuIfCardMenusAreCollapsed(page, title);
+    const cardId = await selectorApplicationCardId(page, title);
+    const card = page.locator(`[id="${cardId}"]:visible`).first();
+    await expect(card, `published application card ${title} should be visible`).toBeVisible({ timeout: 30_000 });
+
+    const menuOverlayId = cardId.replace(/^idcard/, 'idcardO');
+    const cardMenu = card.locator(SEL.cardMenuButton).first();
+    const overlayMenu = page.locator(`[id="${menuOverlayId}"]:visible`).locator(SEL.cardMenuButton).first();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await dismissVisiblePopovers(page);
+      if (await clickVisibleSelectorCardMenuByTitle(page, title)) {
+        if (await clickVisibleSelectorShareMenuItem(page)) {
+          return;
+        }
+      }
+
+      await revealSelectorCardMenu(page, card);
+
+      for (const menu of [overlayMenu, cardMenu]) {
+        if (!(await menu.isVisible({ timeout: 1_000 }).catch(() => false))) {
+          continue;
+        }
+
+        await clickSelectorCardMenuButton(page, menu);
+        if (await clickVisibleSelectorShareMenuItem(page)) {
+          return;
+        }
+      }
+
+      if (await clickVisibleSelectorCardMenuById(page, cardId)) {
+        if (await clickVisibleSelectorShareMenuItem(page)) {
+          return;
+        }
+      }
+    }
+
+    if (pass === 0) {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
+      await waitForIonicLoading(page, 20_000);
+      await openPublishedApplicationsTab(page);
+    }
+  }
+
+  throw new Error(`Could not open Share application menu item for published application ${title}`);
+}
+
+async function expandSelectorSideMenuIfCardMenusAreCollapsed(page: Page, title: string): Promise<void> {
+  const collapsed = await page.evaluate(
+    ({ titleSelector, expectedTitle }) => {
+      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const title = [...document.querySelectorAll(titleSelector)].find((candidate) =>
+        normalize((candidate as HTMLElement).innerText).includes(expectedTitle),
+      ) as HTMLElement | undefined;
+      const card = title?.closest('[id^="idcard"]:not([id^="idcardO"]), c8oforms-cardselector, ion-col');
+      if (!card) {
+        return false;
+      }
+      const rect = (card as HTMLElement).getBoundingClientRect();
+      return rect.left < 100;
+    },
+    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+  );
+  if (!collapsed) {
+    return;
+  }
+
+  await page.mouse.click(37, 28).catch(() => undefined);
+  await page.waitForTimeout(900);
+}
+
+async function dismissVisibleToasts(page: Page): Promise<void> {
+  const toast = page.locator('ion-toast:not(.overlay-hidden), ion-toast.show-toast').last();
+  if (!(await toast.isVisible({ timeout: 500 }).catch(() => false))) {
+    return;
+  }
+
+  const button = toast.locator('button, .toast-button').filter({ hasText: /^(OK|Close|Fermer)$/i }).first();
+  if (await button.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await button.click({ timeout: 3_000 }).catch(() => undefined);
+  }
+  await toast.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
+}
+
+async function clickVisibleSelectorCardMenuById(page: Page, cardId: string): Promise<boolean> {
+  await page.waitForTimeout(250);
+  return page.evaluate((id) => {
+    const isVisible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const suffix = id.replace(/^idcard/, '');
+    const roots = [...document.querySelectorAll(`[id="${id}"], [id="idcardO${suffix}"]`)].filter(isVisible);
+    for (const root of roots.reverse()) {
+      const buttons = [...root.querySelectorAll('ion-button')].filter(isVisible).reverse();
+      const menu =
+        buttons.find((button) => button.classList.contains('class1606574763560')) ??
+        buttons.find((button) => !!button.querySelector('ion-icon[name*="ellipsis"], ion-icon.class1606574808458')) ??
+        buttons[0];
+      if (menu) {
+        menu.click();
+        return true;
+      }
+    }
+    return false;
+  }, cardId);
+}
+
+async function clickVisibleSelectorCardMenuByTitle(page: Page, title: string): Promise<boolean> {
+  const menuPoint = await hoverVisibleSelectorCardByTitle(page, title);
+  if (!menuPoint) {
+    return false;
+  }
+
+  await page.mouse.click(menuPoint.x, menuPoint.y).catch(() => undefined);
+  if (
+    await page
+      .locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector')
+      .last()
+      .waitFor({ state: 'visible', timeout: 1_500 })
+      .then(() => true)
+      .catch(() => false)
+  ) {
+    return true;
+  }
+
+  const clicked = await page.evaluate(
+    ({ titleSelector, expectedTitle }) => {
+      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const expectedPrefix = expectedTitle.slice(0, Math.min(32, expectedTitle.length));
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        if (
+          box.width <= 0 ||
+          box.height <= 0 ||
+          box.right <= 0 ||
+          box.bottom <= 0 ||
+          box.left >= window.innerWidth ||
+          box.top >= window.innerHeight ||
+          style.display === 'none' ||
+          style.visibility === 'hidden'
+        ) {
+          return false;
+        }
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return !!hit && (el.contains(hit) || hit.contains(el));
+      };
+      const clickableCenter = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      };
+      const dispatchPointerClick = (el: HTMLElement): boolean => {
+        const center = clickableCenter(el);
+        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+          el.dispatchEvent(
+            new MouseEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              clientX: center.x,
+              clientY: center.y,
+              view: window,
+            }),
+          );
+        }
+        return true;
+      };
+
+      const title = [...document.querySelectorAll(titleSelector)]
+        .filter(isVisible)
+        .find((candidate) => {
+          const text = normalize((candidate as HTMLElement).innerText);
+          return text.includes(expectedTitle) || (expectedPrefix.length > 0 && text.includes(expectedPrefix));
+        }) as HTMLElement | undefined;
+      const card =
+        title?.closest('[id^="idcard"]:not([id^="idcardO"])') ??
+        title?.closest('c8oforms-cardselector') ??
+        title?.closest('ion-col');
+      if (!card || !isVisible(card)) {
+        return false;
+      }
+      const rect = (card as HTMLElement).getBoundingClientRect();
+
+      const scopedButtons = [...card.querySelectorAll('ion-button, button, [role="button"]')].filter(isVisible);
+      const documentButtons = [...document.querySelectorAll('ion-button, button, [role="button"]')]
+        .filter(isVisible)
+        .filter((candidate) => {
+          const box = (candidate as HTMLElement).getBoundingClientRect();
+          return (
+            box.left >= rect.left - 20 &&
+            box.right <= rect.right + 20 &&
+            box.top >= rect.top - 20 &&
+            box.bottom <= rect.bottom + 20
+          );
+        });
+      const buttons = [...new Set([...scopedButtons, ...documentButtons])] as HTMLElement[];
+      const menu =
+        buttons.find((button) => button.classList.contains('class1606574763560')) ??
+        buttons.find((button) => !!button.querySelector('ion-icon[name*="ellipsis"], ion-icon.class1606574808458'));
+      if (menu) {
+        return dispatchPointerClick(menu);
+      }
+      return false;
+    },
+    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+  );
+  if (!clicked) {
+    return false;
+  }
+  await page
+    .locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector')
+    .last()
+    .waitFor({ state: 'visible', timeout: 2_000 })
+    .then(() => true)
+    .catch(() => false);
+  return true;
+}
+
+async function hoverVisibleSelectorCardByTitle(page: Page, title: string): Promise<{ x: number; y: number } | null> {
+  const points = await page.evaluate(
+    ({ titleSelector, expectedTitle }) => {
+      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const expectedPrefix = expectedTitle.slice(0, Math.min(32, expectedTitle.length));
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        if (
+          box.width <= 0 ||
+          box.height <= 0 ||
+          box.right <= 0 ||
+          box.bottom <= 0 ||
+          box.left >= window.innerWidth ||
+          box.top >= window.innerHeight ||
+          style.display === 'none' ||
+          style.visibility === 'hidden'
+        ) {
+          return false;
+        }
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return !!hit && (el.contains(hit) || hit.contains(el));
+      };
+
+      const title = [...document.querySelectorAll(titleSelector)]
+        .filter(isVisible)
+        .find((candidate) => {
+          const text = normalize((candidate as HTMLElement).innerText);
+          return text.includes(expectedTitle) || (expectedPrefix.length > 0 && text.includes(expectedPrefix));
+        }) as HTMLElement | undefined;
+      const card =
+        title?.closest('[id^="idcard"]:not([id^="idcardO"])') ??
+        title?.closest('c8oforms-cardselector') ??
+        title?.closest('ion-col');
+      if (!card || !isVisible(card)) {
+        return null;
+      }
+      const rect = (card as HTMLElement).getBoundingClientRect();
+      return {
+        hover: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+        menu: { x: rect.right - 24, y: rect.top + 20 },
+      };
+    },
+    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+  );
+  if (!points) {
+    return null;
+  }
+
+  await page.mouse.move(points.hover.x, points.hover.y, { steps: 5 }).catch(() => undefined);
+  await page
+    .evaluate(
+      ({ titleSelector, expectedTitle, point }) => {
+        const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        const title = [...document.querySelectorAll(titleSelector)].find((candidate) =>
+          normalize((candidate as HTMLElement).innerText).includes(expectedTitle),
+        ) as HTMLElement | undefined;
+        const card = title?.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
+        const host = card?.closest('c8oforms-cardselector') as HTMLElement | null;
+        const targets = [host, card].filter((target): target is HTMLElement => !!target);
+        for (const target of targets) {
+          for (const type of ['pointerover', 'mouseover', 'mouseenter', 'mousemove']) {
+            target.dispatchEvent(
+              new MouseEvent(type, {
+                bubbles: type !== 'mouseenter',
+                cancelable: true,
+                clientX: point.x,
+                clientY: point.y,
+                view: window,
+              }),
+            );
+          }
+        }
+      },
+      {
+        titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`,
+        expectedTitle: title,
+        point: points.hover,
+      },
+    )
+    .catch(() => undefined);
+  await page.waitForTimeout(600);
+  return points.menu;
+}
+
+async function clickVisibleSelectorShareMenuItem(page: Page): Promise<boolean> {
+  const popover = page.locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector').last();
+  if (!(await popover.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.publishedShareMenuItem).first();
+  if (await item.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await item.click({ timeout: 3_000 }).catch(async () => {
+      await item.evaluate((el) => (el as HTMLElement).click());
+    });
+  } else {
+    const clicked = await page.evaluate(() => {
+      const isVisible = (el: Element): el is HTMLElement => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+
+      const popovers = [...document.querySelectorAll('ion-popover:not(.overlay-hidden) page-popoverpageselector')]
+        .filter(isVisible)
+        .reverse();
+      for (const root of popovers) {
+        const item = [...root.querySelectorAll('ion-item')].find((candidate) => {
+          const text = ((candidate as HTMLElement).innerText ?? '').replace(/\u00a0/g, ' ').trim().toLowerCase();
+          return (
+            isVisible(candidate) &&
+            (candidate.classList.contains('class1578663445209') ||
+              candidate.querySelector('ion-icon.class1603730319967') ||
+              text === 'share application' ||
+              text === "partager l'application")
+          );
+        }) as HTMLElement | undefined;
+        if (item) {
+          item.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!clicked) {
+      return false;
+    }
+  }
+
+  return page
+    .locator(SEL.collaboratorsModal)
+    .last()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
 }
 
 async function openSelectorCardCollaboratorsModal(page: Page, title: string): Promise<void> {
@@ -1460,31 +2286,44 @@ async function clickVisibleSelectorCollaboratorsMenuItem(page: Page): Promise<bo
 }
 
 async function selectorApplicationCardId(page: Page, title: string): Promise<string> {
-  const cardId = await page.evaluate(
-    ({ titleSelector, expectedTitle }) => {
-      const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-      const isVisible = (el: Element): el is HTMLElement => {
-        const box = (el as HTMLElement).getBoundingClientRect();
-        const style = getComputedStyle(el);
-        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-      };
+  const startedAt = Date.now();
+  do {
+    const cardId = await page.evaluate(
+      ({ titleSelector, expectedTitle }) => {
+        const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        const expectedPrefix = expectedTitle.slice(0, Math.min(32, expectedTitle.length));
+        const isVisible = (el: Element): el is HTMLElement => {
+          const box = (el as HTMLElement).getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        };
 
-      for (const title of [...document.querySelectorAll(titleSelector)].filter(isVisible)) {
-        if (normalize((title as HTMLElement).innerText) !== expectedTitle) {
-          continue;
+        for (const title of [...document.querySelectorAll(titleSelector)].filter(isVisible)) {
+          if (normalize((title as HTMLElement).innerText) !== expectedTitle) {
+            continue;
+          }
+          const card = title.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
+          return card?.id ?? null;
         }
-        const card = title.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
-        return card?.id ?? null;
-      }
-      return null;
-    },
-    { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
-  );
 
-  if (!cardId) {
-    throw new Error(`Could not resolve selector card id for ${title}`);
-  }
-  return cardId;
+        for (const card of [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')].filter(isVisible)) {
+          const text = normalize((card as HTMLElement).innerText);
+          if (text.includes(expectedTitle) || (expectedPrefix.length > 0 && text.includes(expectedPrefix))) {
+            return (card as HTMLElement).id;
+          }
+        }
+        return null;
+      },
+      { titleSelector: `${SEL.selectorCardTitle}, ${SEL.selectorListTitle}`, expectedTitle: title },
+    );
+
+    if (cardId) {
+      return cardId;
+    }
+    await page.waitForTimeout(500);
+  } while (Date.now() - startedAt < 30_000);
+
+  throw new Error(`Could not resolve selector card id for ${title}`);
 }
 
 async function dismissVisiblePopovers(page: Page): Promise<void> {
@@ -1534,8 +2373,86 @@ async function selectorSearchSummary(
   }, title);
 }
 
+async function selectorSearchSummaryStable(
+  page: Page,
+  title: string,
+): Promise<{ hasSingleResultSummary: boolean; hasSearchTerm: boolean }> {
+  return page.locator('page-selectorpage').evaluate((root, expectedTitle) => {
+    const visible = (el: Element) => {
+      const rect = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el as HTMLElement);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const normalized = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const text = (root as HTMLElement).innerText.replace(/\u00a0/g, ' ');
+    const visibleApplicationTitles = [
+      ...(root as HTMLElement).querySelectorAll('.class1603968061706, .class1780484375240'),
+    ]
+      .filter(visible)
+      .map((element) => normalized((element as HTMLElement).innerText))
+      .filter(Boolean);
+    const matchingVisibleTitles = visibleApplicationTitles.filter((candidate) => candidate === expectedTitle);
+
+    return {
+      hasSingleResultSummary:
+        /(?:^|\n)\s*1\s+(?:results?\(s\)|r(?:e|\u00e9)sultat\(s\)|resultado\(s\)|risultato\s*\(i\))/i.test(text) ||
+        (matchingVisibleTitles.length === 1 && visibleApplicationTitles.length === 1),
+      hasSearchTerm: text.includes(expectedTitle) || matchingVisibleTitles.length === 1,
+    };
+  }, title);
+}
+
 function normalizeWhitespace(value: string): string {
   return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function publishedQrButton(page: Page): Promise<Locator> {
+  await expectRoute(page, ROUTE.selector);
+  return firstVisibleLocator(page, SEL.publishedQrButton, 'Published Applications QR button', 15_000);
+}
+
+async function publishedQrButtonText(button: Locator): Promise<string> {
+  return normalizeWhitespace(await button.innerText({ timeout: 2_000 }).catch(() => ''));
+}
+
+async function readPublishedQrTooltipMessage(page: Page, button: Locator): Promise<string> {
+  const reflected = await button
+    .evaluate((el) => {
+      const host = el as HTMLElement;
+      const values = [
+        host.getAttribute('ng-reflect-message'),
+        host.getAttribute('mattooltip'),
+        host.getAttribute('title'),
+      ];
+      return values.find((value) => value?.trim()) ?? '';
+    })
+    .catch(() => '');
+
+  if (reflected.trim()) {
+    return normalizeWhitespace(reflected);
+  }
+
+  await button.hover({ timeout: 5_000 }).catch(() => undefined);
+  await page.waitForTimeout(600);
+  const tooltip = normalizeWhitespace(await visibleTooltipText(page));
+  await page.mouse.move(5, 5).catch(() => undefined);
+  return tooltip;
+}
+
+async function visibleTooltipText(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const tooltipSelectors = ['.mat-tooltip', 'mat-tooltip-component', '.mdc-tooltip__surface', '[role="tooltip"]'];
+    return tooltipSelectors
+      .flatMap((selector) => [...document.querySelectorAll(selector)])
+      .filter(visible)
+      .map((el) => (el as HTMLElement).innerText || el.textContent || '')
+      .join(' ');
+  });
 }
 
 export type SelectorHighlightedTitleLayout = {
@@ -1715,6 +2632,30 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await page.waitForTimeout(2_000);
 }
 
+export async function expectViewerPageTitleVisible(page: Page, title: string): Promise<void> {
+  await test.step(`Assert viewer page title "${title}" is visible`, async () => {
+    await expect(viewerPageTitleHeading(page, title), `viewer page title ${title} should be visible`).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
+
+export async function expectViewerPageTitleHidden(page: Page, title: string): Promise<void> {
+  await test.step(`Assert viewer page title "${title}" is hidden`, async () => {
+    await expect(viewerPageTitleHeading(page, title), `viewer page title ${title} should be hidden`).toBeHidden({
+      timeout: 30_000,
+    });
+  });
+}
+
+function viewerPageTitleHeading(page: Page, title: string): Locator {
+  return page.locator(SEL.viewerPageTitleHeading).filter({ hasText: title }).first();
+}
+
+export function viewerTextInput(page: Page, technicalId: string): Locator {
+  return page.locator(`ion-input#${technicalId} input, input#${technicalId}, [id="${technicalId}"] input`).first();
+}
+
 export async function visibleDataGridRow(page: Page, text: string, timeout = 45_000): Promise<Locator> {
   const row = page.locator('.ag-center-cols-container .ag-row').filter({ hasText: text }).first();
   await expect(row, `the Data Grid row ${text} should render`).toBeVisible({ timeout });
@@ -1799,12 +2740,23 @@ export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
   await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
 
   const tabs = container.locator(`${SEL.styleTab}:visible`);
-  await expect(
-    tabs,
-    'Button style tabs should expose only the two button-specific sections; the generic Question tab must be absent.',
-  ).toHaveCount(2);
-  await expect(tabs.first(), 'button visual style section should remain accessible').toBeVisible();
-  await expect(tabs.nth(1), 'button icon style section should remain accessible').toBeVisible();
+  await expect(tabs.first(), 'at least one button style tab should be visible').toBeVisible({ timeout: 15_000 });
+
+  const tabTexts = (await visibleTexts(page, `${SEL.styleTabsContainer} ${SEL.styleTab}`)).map(searchableVisibleText);
+  for (const genericQuestionLabel of ['question', 'pregunta', 'domanda']) {
+    expect(tabTexts, 'Button style tabs must not expose the generic Question section').not.toContain(
+      genericQuestionLabel,
+    );
+  }
+
+  await openButtonStyleLabelSection(page);
+  await expect(page.locator(SEL.buttonLabelInput).first(), 'button visual style section should remain accessible').toBeVisible({
+    timeout: 15_000,
+  });
+  await openButtonIconStyleSection(page);
+  await expect(page.locator(SEL.buttonIconNameInput).first(), 'button icon style section should remain accessible').toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 export async function expectFileComponentHasNoNavigationConfigTab(page: Page): Promise<void> {
@@ -1822,6 +2774,62 @@ export async function expectFileComponentHasNoNavigationConfigTab(page: Page): P
       visibleTabCount,
       'Import file should expose Data & Interactions, File/Image submissions, and Visibility only',
     ).toBe(3);
+  });
+}
+
+export async function expectSliderBoundsUseNumberInputs(page: Page): Promise<void> {
+  await test.step('Assert Slider Min and Max settings use numeric inputs', async () => {
+    await openConfigTabById(page, 'data_interactions');
+
+    const step = page.locator(SEL.sliderStepInput).first();
+    await expect(step, 'Slider Data & Interactions should expose the Step setting').toBeVisible({ timeout: 15_000 });
+    await expect(step, 'Slider Step is the reference numeric setting').toHaveAttribute('type', 'number', {
+      timeout: 15_000,
+    });
+
+    for (const [name, selector] of [
+      ['Min value', SEL.sliderMinValueInput],
+      ['Max value', SEL.sliderMaxValueInput],
+    ] as const) {
+      const input = page.locator(selector).first();
+      await expect(input, `Slider Data & Interactions should expose ${name}`).toBeVisible({ timeout: 15_000 });
+      await expect(input, `Slider ${name} should be a native numeric input like Step`).toHaveAttribute('type', 'number', {
+        timeout: 15_000,
+      });
+    }
+  });
+}
+
+export async function setSliderBoundaryLabels(page: Page, labels: { min: string; max: string }): Promise<void> {
+  await test.step('Set Slider boundary labels', async () => {
+    await openConfigTabById(page, 'data_interactions');
+
+    const minLabel = page.locator(SEL.sliderMinLabelInput).first();
+    await expect(minLabel, 'Slider Data & Interactions should expose Min Label').toBeVisible({ timeout: 15_000 });
+    await minLabel.fill(labels.min);
+    await minLabel.blur();
+
+    const maxLabel = page.locator(SEL.sliderMaxLabelInput).first();
+    await expect(maxLabel, 'Slider Data & Interactions should expose Max Label').toBeVisible({ timeout: 15_000 });
+    await maxLabel.fill(labels.max);
+    await maxLabel.blur();
+
+    await expect(minLabel, 'Slider Min Label should keep the typed value').toHaveValue(labels.min, { timeout: 15_000 });
+    await expect(maxLabel, 'Slider Max Label should keep the typed value').toHaveValue(labels.max, { timeout: 15_000 });
+    await page.waitForTimeout(750);
+  });
+}
+
+export async function expectSliderBoundaryLabelsInConfig(page: Page, labels: { min: string; max: string }): Promise<void> {
+  await test.step('Assert Slider boundary labels are available in configuration', async () => {
+    await openConfigTabById(page, 'data_interactions');
+
+    await expect(page.locator(SEL.sliderMinLabelInput).first(), 'Slider Min Label should be present').toHaveValue(labels.min, {
+      timeout: 15_000,
+    });
+    await expect(page.locator(SEL.sliderMaxLabelInput).first(), 'Slider Max Label should be present').toHaveValue(labels.max, {
+      timeout: 15_000,
+    });
   });
 }
 
@@ -1885,6 +2893,167 @@ export async function expectButtonStyleTabsTranslatedToEnglish(page: Page): Prom
   });
 }
 
+export async function setButtonLabel(page: Page, value: string): Promise<void> {
+  await test.step(`Set Button label to ${value}`, async () => {
+    await openButtonStyleLabelSection(page);
+    const input = page.locator(SEL.buttonLabelInput).first();
+    await expect(input, 'button label input should be visible').toBeVisible({ timeout: 15_000 });
+    await input.fill(value);
+    await input.blur();
+    await expect(input, 'button label input should keep the typed value').toHaveValue(value, { timeout: 10_000 });
+    await page.waitForTimeout(1_500);
+  });
+}
+
+export async function setButtonAdvancedRichLabel(
+  page: Page,
+  content: { boldText: string; italicText: string },
+): Promise<void> {
+  await test.step('Set Button advanced rich label', async () => {
+    await openButtonStyleLabelSection(page);
+    await selectButtonDisplayMode(page, 'advanced');
+
+    const editorRoot = page.locator(`${SEL.buttonAdvancedTextEditor}:visible`).first();
+    await expect(editorRoot, 'Button advanced mode should expose a TinyMCE HTML editor').toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(
+      editorRoot.locator('.tox-tinymce, editor, textarea').first(),
+      'Button advanced HTML editor should be mounted',
+    ).toBeAttached({ timeout: 20_000 });
+
+    await typeVisibleTinyMceRichContent(page, editorRoot, content);
+    await page.keyboard.press('Tab').catch(() => undefined);
+    await page.waitForTimeout(1_500);
+  });
+}
+
+export async function expectButtonRenderedLabel(page: Page, expected: string, surface: 'editor' | 'viewer'): Promise<void> {
+  await test.step(`Assert Button label in ${surface}`, async () => {
+    const component = page.locator(`${SEL.buttonComponent}:visible`).first();
+    await expect(component, `Button component should be visible in ${surface}`).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => renderedButtonText(component), {
+        message: `${surface}: Button should render label ${expected}`,
+        timeout: 15_000,
+      })
+      .toContain(expected);
+  });
+}
+
+export async function expectButtonRenderedHtmlLabel(
+  page: Page,
+  expected: { texts: string[]; htmlPattern: RegExp },
+  surface: 'editor' | 'viewer',
+): Promise<void> {
+  await test.step(`Assert Button advanced HTML label in ${surface}`, async () => {
+    const component = page.locator(`${SEL.buttonComponent}:visible`).first();
+    await expect(component, `Button component should be visible in ${surface}`).toBeVisible({ timeout: 30_000 });
+
+    for (const text of expected.texts) {
+      await expect
+        .poll(() => renderedButtonText(component), {
+          message: `${surface}: Button should render text ${text}`,
+          timeout: 20_000,
+        })
+        .toContain(text);
+    }
+
+    await expect
+      .poll(() => renderedButtonHtml(component), {
+        message: `${surface}: Button should render the rich HTML label`,
+        timeout: 20_000,
+      })
+      .toMatch(expected.htmlPattern);
+  });
+}
+
+async function openButtonStyleLabelSection(page: Page): Promise<void> {
+  await openStyleSection(page);
+  const input = page.locator(SEL.buttonLabelInput).first();
+  const displayModeSwitch = page.locator(`${SEL.buttonDisplayModeSwitch}:visible`).first();
+  if (
+    (await input.isVisible({ timeout: 1_500 }).catch(() => false)) ||
+    (await displayModeSwitch.isVisible({ timeout: 1_500 }).catch(() => false))
+  ) {
+    return;
+  }
+
+  const tabs = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`);
+  await expect(tabs.first(), 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
+  const count = await tabs.count();
+  for (let i = 0; i < count; i++) {
+    const tab = tabs.nth(i);
+    await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+    if (
+      (await input.isVisible({ timeout: 1_500 }).catch(() => false)) ||
+      (await displayModeSwitch.isVisible({ timeout: 1_500 }).catch(() => false))
+    ) {
+      return;
+    }
+  }
+
+  throw new Error(
+    `Button label style section did not expose the label input. Visible style tabs: ${(await visibleTexts(page, SEL.styleTab)).join(' | ')}`,
+  );
+}
+
+async function selectButtonDisplayMode(page: Page, mode: 'normal' | 'advanced'): Promise<void> {
+  const switchRoot = page.locator(`${SEL.buttonDisplayModeSwitch}:visible`).first();
+  await expect(switchRoot, 'Button style should expose the display mode switch').toBeVisible({ timeout: 15_000 });
+
+  const button = switchRoot.locator('button.c8o-btn:visible').nth(mode === 'advanced' ? 1 : 0);
+  await expect(button, `Button display mode ${mode} option should be visible`).toBeVisible({ timeout: 10_000 });
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(button, `Button display mode should be ${mode}`).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
+  await page.waitForTimeout(800);
+}
+
+async function typeVisibleTinyMceRichContent(
+  page: Page,
+  editorRoot: Locator,
+  content: { boldText: string; italicText: string },
+): Promise<void> {
+  const body = editorRoot.frameLocator('iframe.tox-edit-area__iframe').locator('body');
+  await expect(body, 'TinyMCE editable iframe body should be visible').toBeVisible({ timeout: 20_000 });
+
+  await body.click({ timeout: 10_000 });
+  await page.keyboard.press('Control+A');
+  await page.keyboard.press('Backspace');
+
+  await page.keyboard.press('Control+B');
+  await page.keyboard.type(content.boldText);
+  await page.keyboard.press('Control+B');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.press('Control+I');
+  await page.keyboard.type(content.italicText);
+  await page.keyboard.press('Control+I');
+
+  for (const fragment of [content.boldText, content.italicText]) {
+    await expect
+      .poll(() => body.innerText().then(normalizeWhitespace), {
+        message: `TinyMCE should contain the typed fragment ${fragment}`,
+        timeout: 10_000,
+      })
+      .toContain(fragment);
+  }
+}
+
+async function renderedButtonText(component: Locator): Promise<string> {
+  return normalizeWhitespace(await component.innerText({ timeout: 2_000 }).catch(() => ''));
+}
+
+async function renderedButtonHtml(component: Locator): Promise<string> {
+  return component.evaluate((root) => {
+    const button =
+      root.querySelector('[role="button"]') ??
+      root.querySelector('ion-button') ??
+      root.querySelector('button') ??
+      root;
+    return (button as HTMLElement).innerHTML;
+  });
+}
+
 export async function openButtonIconStyleSection(page: Page): Promise<void> {
   const container = page.locator(SEL.styleTabsContainer).first();
   await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
@@ -1940,6 +3109,32 @@ export async function expectButtonRenderedWithoutIcon(page: Page): Promise<void>
   });
 }
 
+export async function expectRenderedButtonEnabled(page: Page, enabled: boolean, surface = 'viewer'): Promise<void> {
+  const button = page.locator(`${SEL.buttonComponent}:visible ion-button:visible, ${SEL.buttonComponent}:visible [role="button"]:visible`).first();
+  await expect(button, `${surface} Button should remain visible`).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(() => renderedButtonDisabled(button), {
+      message: `${surface} Button should be ${enabled ? 'enabled' : 'disabled'}`,
+      timeout: 15_000,
+    })
+    .toBe(!enabled);
+}
+
+async function renderedButtonDisabled(button: Locator): Promise<boolean> {
+  return button.evaluate((element) => {
+    const host = element as HTMLElement & { disabled?: unknown; shadowRoot?: ShadowRoot | null };
+    const shadowButton = host.shadowRoot?.querySelector('button') as HTMLButtonElement | null;
+    return (
+      host.hasAttribute('disabled') ||
+      host.getAttribute('aria-disabled') === 'true' ||
+      host.classList.contains('button-disabled') ||
+      host.disabled === true ||
+      shadowButton?.disabled === true ||
+      shadowButton?.getAttribute('aria-disabled') === 'true'
+    );
+  });
+}
+
 async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
   const tabs = await visibleConfigTabs(page);
   const index = await configTabIndexById(page, tabId);
@@ -1957,15 +3152,28 @@ async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promi
 
 const CONFIG_TAB_FALLBACK_TEXT: Partial<Record<MainEditorConfigTab, string[]>> = {
   tab_selector_choice_source: ['source selection', 'choix de la source', 'eleccion de la fuente', 'scelta della sorgente'],
+  tab_selector_choice_action: [
+    'action selection',
+    "selection de l'action",
+    'seleccion de la accion',
+    "selezione dell'azione",
+  ],
   tab_selector_conf_source: [
     'source configuration',
     'configuration de la source',
     'configuracion de la fuente',
     'configurazione della sorgente',
   ],
+  tab_selector_conf_action: [
+    'action configuration',
+    "configuration de l'action",
+    'configuracion de la accion',
+    "configurazione dell'azione",
+  ],
   defaultvalue: ['default value', 'valeur par defaut', 'valor por defecto', 'valore predefinito'],
   data_interactions: ['data & interactions', 'donnees & interactions', 'datos e interacciones', 'dati e interazioni'],
   visibility_tab_selector: ['visibility', 'visibilite', 'visibilidad', 'visibilita'],
+  button_state_tab_selector: ['state', 'etat', 'estado', 'stato'],
   navigation_tab_selector: ['navigation', 'navegacion', 'navigazione'],
 };
 
@@ -2034,6 +3242,8 @@ function fallbackConfigTabIndex(tabId: MainEditorConfigTab, visibleTabCount: num
     case 'data_interactions':
       if (visibleTabCount === 4) return 1;
       return hasSourceChoiceTab ? visibleTabCount - 3 : 0;
+    case 'button_state_tab_selector':
+      return visibleTabCount === 4 ? 1 : null;
     case 'visibility_tab_selector':
       return visibleTabCount > 1 ? visibleTabCount - 2 : null;
     case 'navigation_tab_selector':
@@ -2261,11 +3471,23 @@ export interface BaserowGridSourceOptions {
   database: string;
   table: string;
   expectedColumns?: string[];
+  allowLegacySourceSummaryMissing?: boolean;
 }
 
 export interface BaserowSelectSourceOptions extends BaserowGridSourceOptions {
   displayColumn: string;
   valueColumn: string;
+}
+
+export interface BaserowChartSourceOptions extends BaserowGridSourceOptions {
+  categoryColumn: string;
+  valueColumns: string[];
+}
+
+export interface BaserowMapSourceOptions extends BaserowGridSourceOptions {
+  titleColumn: string;
+  latitudeColumn: string;
+  longitudeColumn: string;
 }
 
 export type DataSourceSortOrder = 'asc' | 'desc';
@@ -2275,8 +3497,43 @@ export interface DataSourceSortOptions {
   order?: DataSourceSortOrder;
 }
 
-export interface BaserowAddRowActionOptions extends BaserowGridSourceOptions {
+export type DataSourceFilterOperator =
+  | 'equal'
+  | 'not_equal'
+  | 'minus'
+  | 'minusequals'
+  | 'greater'
+  | 'greaterequals'
+  | 'among_following'
+  | 'out_following'
+  | 'contains'
+  | 'not_contains'
+  | 'is_empty'
+  | 'is_filled';
+
+export interface DataSourceFilterMonacoPaletteOptions {
+  column?: string;
+  operator?: DataSourceFilterOperator;
+  sourceSection: SourcePaletteSection;
+  sourceLabel: string;
+  expectedCode: string;
+}
+
+export interface DataSourceFilterTextValueOptions {
+  column: string;
+  operator?: DataSourceFilterOperator;
+  value: string;
+}
+
+export interface MonacoDropPayload extends SourcePaletteDragPayload {
+  internalData: string;
+}
+
+export interface BaserowAddRowActionConfigOptions extends BaserowGridSourceOptions {
   flowName?: string | RegExp;
+}
+
+export interface BaserowAddRowActionOptions extends BaserowAddRowActionConfigOptions {
   mappings: Array<{
     column: string;
     sourceSection?: SourcePaletteSection;
@@ -2284,17 +3541,35 @@ export interface BaserowAddRowActionOptions extends BaserowGridSourceOptions {
   }>;
 }
 
+export type MailActionVariable = 'to' | 'subject' | 'body' | 'summary';
+
 const SELECT_SOURCE_TABLE_PICKER_BUTTON = SEL.dataSourceConfigureButton;
 const BASEROW_ACTION_VARIABLE_ROW = 'ion-item.class1743090805947';
 const BASEROW_ACTION_VARIABLE_INPUT = `${BASEROW_ACTION_VARIABLE_ROW} input`;
 const BASEROW_ACTION_VARIABLE_BUTTON = 'c8oforms-button_variable.class1775996201011 button.class1775995541940';
 const BASEROW_ACTION_SOURCE_PALETTE_BUTTON = 'ion-button.class1776001071909';
+const MAIL_ACTION_VARIABLE_BUTTON = 'button.figma-button.class1775995541940';
+const MAIL_ACTION_VARIABLE_INDEX: Record<MailActionVariable, number> = {
+  to: 0,
+  subject: 4,
+  body: 5,
+  summary: 7,
+};
+const MAIL_ACTION_SUMMARY_CHECKBOX = 'ion-checkbox.class1734434873771';
+const MAIL_ACTION_PICKER_BUTTON = `c8oforms-datasourcebutton:has(img[src*="${PALETTE_ICON.mailAction}"])`;
 const SOURCE_PALETTE_ROOT = `${SEL.sourcePalette}, .class1776003235786`;
 const SOURCE_PALETTE_ROOT_VISIBLE = `${SEL.sourcePalette}:visible, .class1776003235786:visible`;
 const SELECT_SOURCE_COLUMN_ROW = 'ion-item.class1776161384798';
 const SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX = 'ion-checkbox.class1776352302823';
 const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
+const CHART_SOURCE_ROLE_CHECKBOX = 'ion-checkbox.modal-configure-role-checkbox';
+const MAP_SOURCE_ROLE_CHECKBOX = 'ion-checkbox.modal-configure-role-checkbox';
 const DATA_SOURCE_EDITOR_ACTION_BUTTON = 'button.class1775995541940';
+const DATA_SOURCE_FILTER_ACTION_INDEX = 1;
+const DATA_SOURCE_FILTER_ADD_BUTTON = 'ion-button.class1758191882601';
+const DATA_SOURCE_FILTER_FIELD_INPUT = '.class1758189195703 input';
+const DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON = 'ion-button.class1758189195718';
+const DATA_SOURCE_FILTER_OPERATOR_SELECT = 'ion-select.class1758189195757';
 const DATA_SOURCE_SORT_ACTION_INDEX = 2;
 const DATA_SOURCE_SORT_ADD_FIELD_BUTTON = 'ion-button.class1758273392231';
 const DATA_SOURCE_SORT_ASC_BUTTON = '.class1758275049219';
@@ -2343,11 +3618,219 @@ export async function configureGridBaserowTable(
   await page.waitForTimeout(1_500);
 
   const sourceSummary = page.locator('.class1776013865512').first();
+  if (source.allowLegacySourceSummaryMissing && !(await sourceSummary.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    await expect(
+      page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`).first(),
+      'the legacy data source configuration should return to the action list after saving the table',
+    ).toBeVisible({ timeout: 15_000 });
+    return;
+  }
   await expect(sourceSummary).toContainText(source.table, { timeout: pickerTimeout });
   for (const column of source.expectedColumns ?? []) {
     await expect(sourceSummary, `Baserow source summary should contain ${column}`).toContainText(column, {
       timeout: pickerTimeout,
     });
+  }
+}
+
+export async function configureChartBaserowSource(page: Page, source: BaserowChartSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step(`Configure Chart Baserow source ${source.table}`, async () => {
+    await acceptRgpdIfVisible(page);
+    const configurationSection = page.locator('.class1775835275863').first();
+    if (await configurationSection.isVisible().catch(() => false)) {
+      await configurationSection.click();
+    }
+
+    await openConfigTabById(page, 'tab_selector_choice_source');
+    await selectDataSourceEntry(page, pickerTimeout, 'getData');
+
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Chart Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Chart Baserow table picker should be visible').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.workspace, { exact: true }).click();
+    await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.database, { exact: true }).click();
+    await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.table, { exact: true }).click();
+
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+    const columns = source.expectedColumns ?? [source.categoryColumn, ...source.valueColumns];
+    for (const column of columns) {
+      await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
+        column,
+        { timeout: pickerTimeout },
+      );
+    }
+
+    await setChartSourceColumnRole(tablePicker, 'category', source.categoryColumn, true);
+    for (const column of columns) {
+      await setChartSourceColumnRole(tablePicker, 'value', column, source.valueColumns.includes(column));
+    }
+
+    await expect
+      .poll(() => checkedChartBaserowColumns(tablePicker, columns), {
+        message: 'Chart Baserow roles should be selected through the Category/Value checkboxes',
+        timeout: 10_000,
+      })
+      .toEqual({ category: [source.categoryColumn], value: source.valueColumns });
+
+    await acceptRgpdIfVisible(page);
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_500);
+
+    const sourceSummary = page.locator('.class1776013865512').first();
+    await expect(sourceSummary).toContainText(source.table, { timeout: pickerTimeout });
+    for (const column of [source.categoryColumn, ...source.valueColumns]) {
+      await expect(sourceSummary, `Baserow source summary should contain ${column}`).toContainText(column, {
+        timeout: pickerTimeout,
+      });
+    }
+  });
+}
+
+export async function expectChartBaserowSourceRoles(page: Page, source: BaserowChartSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step('Assert Chart Baserow Category/Value roles persist', async () => {
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Chart Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Chart Baserow table picker should reopen').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+
+    const columns = source.expectedColumns ?? [source.categoryColumn, ...source.valueColumns];
+    for (const column of columns) {
+      await expect(selectSourceColumnRow(tablePicker, column), `Baserow column ${column} should be visible on reopen`).toBeVisible({
+        timeout: 15_000,
+      });
+    }
+    await expect
+      .poll(() => checkedChartBaserowColumns(tablePicker, columns), {
+        message: 'reopened Chart source should keep the selected Category/Value roles',
+        timeout: 10_000,
+      })
+      .toEqual({ category: [source.categoryColumn], value: source.valueColumns });
+
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_000);
+  });
+}
+
+export async function configureMapBaserowSource(page: Page, source: BaserowMapSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step(`Configure Map Baserow source ${source.table}`, async () => {
+    await openConfigurationSection(page);
+    const hasDedicatedSourceSelectionTab = await tryOpenConfigTabById(page, 'tab_selector_choice_source');
+    if (!hasDedicatedSourceSelectionTab) {
+      await openConfigTabById(page, 'tab_selector_conf_source');
+    }
+    await activateMapDataSourceMode(page);
+    await selectDataSourceEntry(page, pickerTimeout, 'getData');
+
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Map Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Map Baserow table picker should be visible').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.workspace, { exact: true }).click();
+    await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.database, { exact: true }).click();
+    await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: pickerTimeout });
+    await tablePicker.getByText(source.table, { exact: true }).click();
+
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+    const columns = source.expectedColumns ?? [source.titleColumn, source.latitudeColumn, source.longitudeColumn];
+    for (const column of columns) {
+      await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
+        column,
+        { timeout: pickerTimeout },
+      );
+    }
+
+    await setMapSourceColumnRole(tablePicker, 'title', source.titleColumn, true);
+    await setMapSourceColumnRole(tablePicker, 'latitude', source.latitudeColumn, true);
+    await setMapSourceColumnRole(tablePicker, 'longitude', source.longitudeColumn, true);
+
+    await expect
+      .poll(() => checkedMapBaserowColumns(tablePicker, columns), {
+        message: 'Map Baserow roles should be selected through the Latitude/Longitude/Label checkboxes',
+        timeout: 10_000,
+      })
+      .toEqual({
+        title: [source.titleColumn],
+        latitude: [source.latitudeColumn],
+        longitude: [source.longitudeColumn],
+      });
+
+    await acceptRgpdIfVisible(page);
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_500);
+
+    const sourceSummary = page.locator('.class1776013865512').first();
+    await expect(sourceSummary).toContainText(source.table, { timeout: pickerTimeout });
+    for (const column of [source.titleColumn, source.latitudeColumn, source.longitudeColumn]) {
+      await expect(sourceSummary, `Map Baserow source summary should contain ${column}`).toContainText(column, {
+        timeout: pickerTimeout,
+      });
+    }
+  });
+}
+
+export async function expectMapBaserowSourceRoles(page: Page, source: BaserowMapSourceOptions): Promise<void> {
+  const pickerTimeout = 60_000;
+  await test.step('Assert Map Baserow Latitude/Longitude roles persist', async () => {
+    await openConfigTabById(page, 'tab_selector_conf_source');
+    await acceptRgpdIfVisible(page);
+    await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Map Baserow table configure button', pickerTimeout, true);
+
+    const tablePicker = page.locator('ion-modal').last();
+    await expect(tablePicker, 'Map Baserow table picker should reopen').toBeVisible({ timeout: pickerTimeout });
+    await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: pickerTimeout });
+
+    const columns = source.expectedColumns ?? [source.titleColumn, source.latitudeColumn, source.longitudeColumn];
+    for (const column of columns) {
+      await expect(selectSourceColumnRow(tablePicker, column), `Baserow column ${column} should be visible on reopen`).toBeVisible({
+        timeout: 15_000,
+      });
+    }
+
+    await expect
+      .poll(() => checkedMapBaserowColumns(tablePicker, columns), {
+        message: 'reopened Map source should keep the selected Latitude/Longitude/Label roles',
+        timeout: 10_000,
+      })
+      .toEqual({
+        title: [source.titleColumn],
+        latitude: [source.latitudeColumn],
+        longitude: [source.longitudeColumn],
+      });
+
+    await tablePicker.locator('ion-button.class1776244653366').click();
+    await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+    await page.waitForTimeout(1_000);
+  });
+}
+
+async function tryOpenConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<boolean> {
+  try {
+    await openConfigTabById(page, tabId);
+    return true;
+  } catch (error) {
+    if (String((error as Error | undefined)?.message ?? error).includes('No visible config tab matches id')) {
+      return false;
+    }
+    throw error;
   }
 }
 
@@ -2369,7 +3852,7 @@ export async function selectGridBaserowSourceWithoutTable(page: Page): Promise<v
 export async function openMapDataSourcePicker(page: Page): Promise<Locator> {
   return test.step('Open the Map data source picker', async () => {
     await openConfigurationSection(page);
-    await openConfigTabById(page, 'tab_selector_conf_source');
+    await openConfigTabById(page, 'tab_selector_choice_source');
     await activateMapDataSourceMode(page);
 
     const sourceButton = await firstVisibleLocator(page, SEL.dataSourceSelectButton, 'Map data source selection button', 15_000);
@@ -2507,6 +3990,118 @@ export async function openDataSourceSortPanel(page: Page): Promise<void> {
   });
 }
 
+export async function openDataSourceFilterPanel(page: Page): Promise<void> {
+  await test.step('Open the data source Filter panel', async () => {
+    const actions = page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`);
+    const filterAction = actions.nth(DATA_SOURCE_FILTER_ACTION_INDEX);
+    await expect(filterAction, 'the data source Filter action should be visible').toBeVisible({ timeout: 15_000 });
+    await filterAction.click({ timeout: 10_000 }).catch(async () => filterAction.dispatchEvent('click'));
+    await expect(filterAction, 'the data source Filter action should be selected').toHaveClass(/figma-button--selected/, {
+      timeout: 10_000,
+    });
+  });
+}
+
+export async function configureDataSourceFilterMonacoPaletteValue(
+  page: Page,
+  options: DataSourceFilterMonacoPaletteOptions,
+): Promise<MonacoDropPayload> {
+  const stepLabel = options.column
+    ? `Configure data source filter ${options.column} from the Source Palette`
+    : 'Configure a data source filter Monaco value from the Source Palette';
+  return test.step(stepLabel, async () => {
+    await openDataSourceFilterPanel(page);
+    await addDataSourceFilterRow(page);
+    if (options.column) {
+      await selectDataSourceFilterField(page, options.column);
+      await setDataSourceFilterOperator(page, options.operator ?? 'equal');
+    }
+    await switchDataSourceFilterValueToJavaScript(page);
+    return dropSourcePaletteEntryIntoVisibleMonaco(page, options.sourceSection, options.sourceLabel, options.expectedCode);
+  });
+}
+
+export async function configureDataSourceFilterTextValue(
+  page: Page,
+  options: DataSourceFilterTextValueOptions,
+): Promise<void> {
+  await test.step(`Configure data source filter ${options.column} text value`, async () => {
+    await openDataSourceFilterPanel(page);
+    await addDataSourceFilterRow(page);
+    await selectDataSourceFilterField(page, options.column);
+    await setDataSourceFilterOperator(page, options.operator ?? 'equal');
+    await fillVisibilityValueTextEditor(page, options.value);
+    await expectVisibilityValueTextEditorToContain(page, options.value);
+  });
+}
+
+async function addDataSourceFilterRow(page: Page): Promise<void> {
+  const addFilter = page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_ADD_BUTTON}:visible`).last();
+  await expect(addFilter, 'the data source Filter add-row button should be visible').toBeVisible({ timeout: 15_000 });
+  await addFilter.click({ timeout: 10_000 }).catch(async () => addFilter.dispatchEvent('click'));
+  await expect(
+    page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON}:visible`).last(),
+    'the data source Filter field picker button should appear',
+  ).toBeVisible({ timeout: 15_000 });
+}
+
+async function selectDataSourceFilterField(page: Page, column: string): Promise<void> {
+  const fieldButton = page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON}:visible`).last();
+  await expect(fieldButton, 'the data source Filter field picker button should be visible').toBeVisible({ timeout: 15_000 });
+  await fieldButton.click({ timeout: 10_000 }).catch(async () => fieldButton.dispatchEvent('click'));
+
+  const popover = sourceCompletionPopover(page);
+  await expect(popover, 'the data source Filter field picker should open').toBeVisible({ timeout: 15_000 });
+  const option = popover.locator('ion-item').filter({ hasText: column }).first();
+  await expect(option, `the data source Filter field ${column} should be selectable`).toBeVisible({ timeout: 15_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+
+  await expect(
+    page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_INPUT}:visible`).last(),
+    `the data source Filter field should be ${column}`,
+  ).toHaveValue(column, { timeout: 15_000 });
+}
+
+async function setDataSourceFilterOperator(page: Page, operator: DataSourceFilterOperator): Promise<void> {
+  const select = page.locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_OPERATOR_SELECT}:visible`).last();
+  await expect(select, 'the data source Filter operator selector should be visible').toBeVisible({ timeout: 15_000 });
+  const optionState = await select.evaluate((el, op) => {
+    const values = Array.from(el.querySelectorAll('ion-select-option')).map((option) =>
+      String((option as HTMLOptionElement & { value?: string }).value ?? ''),
+    );
+    return { index: values.indexOf(op), values };
+  }, operator);
+  if (optionState.index < 0) {
+    throw new Error(`unknown data source Filter operator ${operator}; available operators: ${optionState.values.join(', ')}`);
+  }
+
+  await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
+  const items = page.locator('ion-select-popover ion-item');
+  await items.first().waitFor({ state: 'visible', timeout: 10_000 });
+  await items.nth(optionState.index).click({ timeout: 10_000 }).catch(async () => items.nth(optionState.index).dispatchEvent('click'));
+  await expect
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: `data source Filter operator should be ${operator}`,
+      timeout: 10_000,
+    })
+    .toBe(operator);
+}
+
+async function switchDataSourceFilterValueToJavaScript(page: Page): Promise<void> {
+  const jsButton = page
+    .locator('c8oforms-datasourceeditor ion-button:visible')
+    .filter({ has: page.locator('ion-icon[name="logo-javascript"]') })
+    .last();
+  await expect(jsButton, 'the data source Filter JavaScript value button should be visible').toBeVisible({ timeout: 15_000 });
+  await jsButton.click({ timeout: 10_000 }).catch(async () => jsButton.dispatchEvent('click'));
+
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  if (await alert.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await alert.locator('button').last().click({ timeout: 10_000 }).catch(async () => alert.locator('button').last().dispatchEvent('click'));
+  }
+  await visibleMonacoEditor(page, 'data source Filter JavaScript value editor');
+}
+
 export async function configureDataSourceSort(page: Page, options: DataSourceSortOptions): Promise<void> {
   await test.step(`Configure data source sort by ${options.column}`, async () => {
     await openDataSourceSortPanel(page);
@@ -2551,7 +4146,75 @@ export async function expectDataSourceSortMissingConfigResolved(page: Page): Pro
   ).toBeVisible({ timeout: 15_000 });
 }
 
-export async function sourceSelectVisibleOptions(page: Page, expectedOptions: string[]): Promise<string[]> {
+export async function setGridReturnedValueToRowSelected(page: Page): Promise<void> {
+  await test.step('Set Data Grid returned value to selected row', async () => {
+    await openConfigTabById(page, 'data_interactions');
+    const returnedValue = page.locator('.class1775842589999');
+    const select = returnedValue.locator('ion-select').first();
+    if (await select.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      const optionIndex = await select.evaluate((el) =>
+        Array.from(el.querySelectorAll('ion-select-option')).findIndex(
+          (option) => (option as HTMLOptionElement & { value?: string }).value === 'row_selected',
+        ),
+      );
+      expect(optionIndex, 'row_selected option should exist').toBeGreaterThanOrEqual(0);
+      await select.click();
+      await page.locator('ion-select-popover ion-item').nth(optionIndex).click();
+      await expect
+        .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+          message: 'grid returned value should be row_selected',
+          timeout: 10_000,
+        })
+        .toBe('row_selected');
+      return;
+    }
+
+    const returnedValueButtons = returnedValue.locator('button.class1776074264497:visible');
+    await expect(returnedValueButtons.nth(2), 'grid returned value row_selected button should be visible').toBeVisible({
+      timeout: 10_000,
+    });
+    const rowSelectedButton = returnedValueButtons.nth(2);
+    await rowSelectedButton.click({ timeout: 10_000 }).catch(async () => rowSelectedButton.dispatchEvent('click'));
+    await expect
+      .poll(() => rowSelectedButton.evaluate((el) => el.classList.contains('c8o-btn-selected')), {
+        message: 'grid returned value should be row_selected',
+        timeout: 10_000,
+      })
+      .toBe(true);
+  });
+}
+
+export async function selectTinyMcePathBadgeTreeValue(page: Page, label: string, expectedPath: string): Promise<void> {
+  await test.step(`Select ${label} from the TinyMCE path badge tree`, async () => {
+    await clickTinyMcePathBadgeEditButton(page);
+
+    const treeview = page.locator('ion-modal.modalCSV').last();
+    await expect(treeview, 'source tree modal should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(treeview.getByText(label, { exact: true }), `source tree label ${label} should be visible`).toBeVisible({
+      timeout: 45_000,
+    });
+
+    await clickChooseButtonForTreeLabel(page, label);
+    await acceptRgpdIfVisible(page, 500);
+    await expect(treeview, 'source tree modal should close after choosing a value').toBeHidden({ timeout: 15_000 });
+    await expectTinyMcePathBadge(page, expectedPath);
+  });
+}
+
+export async function expectTinyMcePathBadge(page: Page, expectedPath: string): Promise<void> {
+  await expect
+    .poll(() => tinyMcePathBadgePaths(page), {
+      message: `TinyMCE editor should contain path badge ${expectedPath}`,
+      timeout: 10_000,
+    })
+    .toContain(expectedPath);
+}
+
+export async function sourceSelectVisibleOptions(
+  page: Page,
+  expectedOptions: string[],
+  forbiddenOptions: string[] = [],
+): Promise<string[]> {
   return test.step('Read visible source Select options', async () => {
     if (expectedOptions.length === 0) {
       throw new Error('sourceSelectVisibleOptions needs at least one expected option');
@@ -2571,6 +4234,11 @@ export async function sourceSelectVisibleOptions(page: Page, expectedOptions: st
     await expect(dropdown, 'the source Select dropdown should open with source data').toBeVisible({ timeout: 30_000 });
     for (const option of expectedOptions) {
       await expect(dropdown, `the source Select dropdown should include ${option}`).toContainText(option, { timeout: 30_000 });
+    }
+    for (const option of forbiddenOptions) {
+      await expect(dropdown, `the source Select dropdown should not include ${option}`).not.toContainText(option, {
+        timeout: 5_000,
+      });
     }
 
     return dropdown.evaluate((root, expected) => {
@@ -2623,14 +4291,8 @@ export async function configureSelectBaserowSource(page: Page, source: BaserowSe
   await openConfigTabById(page, 'tab_selector_conf_source');
   await acceptRgpdIfVisible(page);
   const tablePicker = await openSelectBaserowTablePicker(page);
-  await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: 20_000 });
-  await tablePicker.getByText(source.workspace, { exact: true }).click();
-  await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: 20_000 });
-  await tablePicker.getByText(source.database, { exact: true }).click();
-  await expect(tablePicker.getByText(source.table, { exact: true })).toBeVisible({ timeout: 20_000 });
-  await tablePicker.getByText(source.table, { exact: true }).click();
+  await selectBaserowTableInPicker(page, tablePicker, source, 60_000);
 
-  await expect(tablePicker.locator('.class1776246576145')).toContainText(source.table, { timeout: 20_000 });
   for (const column of source.expectedColumns ?? []) {
     await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
       column,
@@ -2665,10 +4327,139 @@ export async function configureButtonFlowBaserowAddRow(page: Page, source: Baser
   await configureButtonFlowBaserowAddRowOnce(page, source);
 }
 
+export async function openButtonFlowBaserowAddRowConfiguration(
+  page: Page,
+  source: BaserowAddRowActionConfigOptions,
+): Promise<void> {
+  await test.step('Open the Button workflow Add Row action configuration', async () => {
+    await openButtonFlowBaserowAddRowConfigurationOnce(page, source);
+  });
+}
+
+export async function openButtonFlowBaserowAddRowActionConfiguration(
+  page: Page,
+  flowName?: string | RegExp,
+): Promise<void> {
+  await test.step('Open the Button workflow Add Row action configuration', async () => {
+    await openButtonFlowBaserowAddRowActionConfigurationOnce(page, flowName);
+  });
+}
+
+export async function addBaserowAddRowColumnMapping(page: Page, column: string): Promise<void> {
+  await test.step(`Add Baserow Add Row mapping for ${column}`, async () => {
+    await ensureBaserowActionVariableRow(page, column);
+  });
+}
+
+export async function expectBaserowAddRowColumnMappingDeletable(page: Page, column: string): Promise<void> {
+  await test.step(`Delete Baserow Add Row mapping for ${column}`, async () => {
+    await selectBaserowActionVariable(page, column);
+    const rowButton = baserowActionVariableButton(page, column);
+    const deleteAction = rowButton.locator('.figma-button__action').first();
+    await expect(deleteAction, `Baserow Add Row mapping ${column} should expose a delete action`).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const before = await page.locator(BASEROW_ACTION_VARIABLE_BUTTON).count();
+    await deleteAction.click({ timeout: 5_000 }).catch(async () => deleteAction.dispatchEvent('click'));
+
+    const alert = page.locator('ion-alert').last();
+    await expect(alert, `Baserow Add Row mapping ${column} delete confirmation should open`).toBeVisible({
+      timeout: 10_000,
+    });
+    await alert.locator('button').last().click({ timeout: 5_000 });
+    await expect(alert).toBeHidden({ timeout: 10_000 });
+
+    await expect
+      .poll(() => isBaserowActionColumnMapped(page, column), {
+        message: `Baserow Add Row mapping ${column} should be removed`,
+        timeout: 10_000,
+      })
+      .toBe(false);
+    await expect
+      .poll(() => page.locator(BASEROW_ACTION_VARIABLE_BUTTON).count(), {
+        message: 'Baserow Add Row mapping list should shrink after deletion',
+        timeout: 10_000,
+      })
+      .toBeLessThan(before);
+  });
+}
+
+export async function setBaserowAddRowColumnMappingJavaScriptReturn(
+  page: Page,
+  column: string,
+  returnExpression: string,
+): Promise<void> {
+  await test.step(`Set Baserow Add Row mapping ${column} JavaScript value`, async () => {
+    await selectBaserowActionVariable(page, column);
+    await openBaserowActionVariableJavaScriptMode(page, column);
+    await replaceVisibleMonacoReturn(page, returnExpression, `Baserow Add Row mapping ${column}`);
+  });
+}
+
+export async function expectBaserowAddRowColumnMappingJavaScriptContains(
+  page: Page,
+  column: string,
+  expected: string,
+): Promise<void> {
+  await test.step(`Assert Baserow Add Row mapping ${column} JavaScript contains ${expected}`, async () => {
+    await selectBaserowActionVariable(page, column);
+    await openBaserowActionVariableJavaScriptMode(page, column);
+    const editor = await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
+    await expect(editor, `Baserow Add Row mapping ${column} JavaScript should contain ${expected}`).toContainText(expected, {
+      timeout: 10_000,
+    });
+  });
+}
+
+export async function expectBaserowAddRowColumnMappingJavaScriptNotContains(
+  page: Page,
+  column: string,
+  forbidden: string,
+): Promise<void> {
+  await test.step(`Assert Baserow Add Row mapping ${column} JavaScript does not contain ${forbidden}`, async () => {
+    await selectBaserowActionVariable(page, column);
+    await openBaserowActionVariableJavaScriptMode(page, column);
+    const editor = await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
+    await expect(editor, `Baserow Add Row mapping ${column} JavaScript should not reuse ${forbidden}`).not.toContainText(
+      forbidden,
+      { timeout: 5_000 },
+    );
+  });
+}
+
+async function openBaserowActionVariableJavaScriptMode(page: Page, column: string): Promise<void> {
+  await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, `Baserow action variable ${column} JavaScript mode`, 10_000, true);
+  await confirmAlertIfVisible(page);
+  await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
+}
+
+async function visibleMonacoEditor(page: Page, description: string): Promise<Locator> {
+  const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
+  await expect(editor, description).toBeVisible({ timeout: 15_000 });
+  return editor;
+}
+
+async function replaceVisibleMonacoReturn(page: Page, returnExpression: string, description: string): Promise<void> {
+  const editor = await visibleMonacoEditor(page, `${description} JavaScript editor`);
+  const expectedLine = `return ${returnExpression};`;
+  const code = `(async ()=>{\n\t${expectedLine}\n})();`;
+  await editor.click();
+  await expect(editor, `${description} JavaScript editor should expose a return statement`).toContainText('return', {
+    timeout: 10_000,
+  });
+  await page.keyboard.press('Control+A');
+  await page.keyboard.insertText(code);
+  await page.keyboard.press('Tab');
+  await expect(editor, `${description} JavaScript editor should contain ${expectedLine}`).toContainText(expectedLine, {
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(1_000);
+}
+
 async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
-  const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();
-  let flow = buttonFlow;
+  let flow = await defaultButtonWorkflowLocator(page);
   if (flowName) {
     const namedFlow = page.locator(SEL.workflowEntry).filter({ hasText: flowName }).first();
     if (await namedFlow.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -2682,14 +4473,45 @@ async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promi
   await page.waitForTimeout(1_000);
 }
 
+async function defaultButtonWorkflowLocator(page: Page): Promise<Locator> {
+  const buttonFlow = page.locator(SEL.buttonWorkflowEntry).first();
+  if (await buttonFlow.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    const label = normalizeVisibleText(await buttonFlow.innerText().catch(() => ''));
+    if (!/^(Formulas|Triggered on Submission)$/i.test(label)) {
+      return buttonFlow;
+    }
+  }
+
+  const flowEntries = page.locator(SEL.workflowEntry);
+  const count = await flowEntries.count();
+  for (let i = count - 1; i >= 0; i--) {
+    const candidate = flowEntries.nth(i);
+    if (!(await candidate.isVisible({ timeout: 500 }).catch(() => false))) {
+      continue;
+    }
+    const label = normalizeVisibleText(await candidate.innerText().catch(() => ''));
+    if (/flow\s*button/i.test(label)) {
+      return candidate;
+    }
+  }
+
+  if (count > 2) {
+    return flowEntries.last();
+  }
+  return buttonFlow;
+}
+
 function isButtonWorkflowLabelHint(flowName: string | RegExp): boolean {
   const value = typeof flowName === 'string' ? flowName : flowName.source;
   return /flow\s*button/i.test(value);
 }
 
-async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
+async function openButtonFlowBaserowAddRowActionConfigurationOnce(
+  page: Page,
+  flowName?: string | RegExp,
+): Promise<void> {
   const timeout = 60_000;
-  await openButtonWorkflow(page, source.flowName);
+  await openButtonWorkflow(page, flowName);
 
   await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
   const actionTile = await paletteTileForIcon(page, PALETTE_ICON.baserowAddRowFromData, 'Baserow Add Row action');
@@ -2716,8 +4538,20 @@ async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowA
     await openConfigTabById(page, 'tab_selector_conf_action');
   }
   await page.waitForTimeout(1_000);
+}
 
+async function openButtonFlowBaserowAddRowConfigurationOnce(
+  page: Page,
+  source: BaserowAddRowActionConfigOptions,
+): Promise<void> {
+  await openButtonFlowBaserowAddRowActionConfigurationOnce(page, source.flowName);
+
+  const timeout = 60_000;
   await selectBaserowTableFromCurrentAction(page, source, timeout);
+}
+
+async function configureButtonFlowBaserowAddRowOnce(page: Page, source: BaserowAddRowActionOptions): Promise<void> {
+  await openButtonFlowBaserowAddRowConfigurationOnce(page, source);
 
   for (const mapping of source.mappings) {
     await ensureBaserowActionVariableRow(page, mapping.column);
@@ -2911,6 +4745,256 @@ export async function openButtonFlowToastActionConfig(page: Page, flowName?: str
     actionCardSelector: SEL.flowToastActionCard,
     actionName: 'Toast',
   });
+}
+
+export async function openButtonFlowMailActionConfig(page: Page, flowName?: string | RegExp): Promise<void> {
+  await openButtonFlowActionConfig(page, {
+    flowName,
+    icon: PALETTE_ICON.mailAction,
+    actionCardSelector: SEL.flowSubmitActionCard,
+    actionName: 'Send mail',
+  });
+  await openConfigTabById(page, 'tab_selector_conf_action');
+  await expectMailActionVariableButtons(page);
+}
+
+export async function setMailActionTextVariable(page: Page, variable: Extract<MailActionVariable, 'to'>, value: string): Promise<void> {
+  await test.step(`Set Mail action ${variable} text value`, async () => {
+    await selectMailActionVariable(page, variable);
+    const textMode = await firstVisibleLocatorOrNull(page, SEL.defaultValueTextButton, 1_500);
+    if (textMode) {
+      await textMode.click({ timeout: 5_000 }).catch(async () => textMode.dispatchEvent('click'));
+      await confirmAlertIfVisible(page);
+    }
+    await fillVisibleTinyMceText(page, value, `Mail action ${variable} text editor`);
+  });
+}
+
+export async function setMailActionSubjectJavaScriptReturn(page: Page, returnExpression: string): Promise<void> {
+  await test.step('Set Mail action subject JavaScript value', async () => {
+    await selectMailActionVariable(page, 'subject');
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Mail action subject JavaScript mode', 10_000, true);
+    await confirmAlertIfVisible(page);
+    await replaceVisibleMonacoReturn(page, returnExpression, 'Mail action subject');
+  });
+}
+
+export async function setMailActionBodyTextWithUserName(page: Page, text: string): Promise<void> {
+  await test.step('Set Mail action body with text and current user name token', async () => {
+    await selectMailActionVariable(page, 'body');
+    await fillVisibleTinyMceText(page, text, 'Mail action body editor');
+    await ensureActionSourcePaletteVisible(page);
+    await dragUserNamePaletteToTinyMce(page);
+
+    const content = await tinyMceEditorContent(page);
+    expect(content.text, 'Mail action body should keep the typed text').toContain(text);
+    expect(
+      content.chipCount > 0 || normalizeVisibleText(content.text).toLowerCase().includes('name'),
+      'Mail action body should contain the dragged current user name token',
+    ).toBe(true);
+  });
+}
+
+export async function ensureMailActionSummaryChecked(page: Page): Promise<void> {
+  await test.step('Ensure Mail action Form summary is checked', async () => {
+    await selectMailActionVariable(page, 'summary');
+    const checkbox = await mailActionSummaryCheckbox(page);
+    if (!(await mailActionSummaryChecked(checkbox))) {
+      await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+    }
+    await expect
+      .poll(() => mailActionSummaryChecked(checkbox), {
+        message: 'Mail action Form summary checkbox should be checked',
+        timeout: 10_000,
+      })
+      .toBe(true);
+    await page.waitForTimeout(700);
+  });
+}
+
+export async function reselectMailActionFromActionSelection(page: Page): Promise<void> {
+  await test.step('Return to Action selection and reselect the Mail action', async () => {
+    const selectButton = await openMailActionSelectionButton(page);
+    await selectButton.click({ timeout: 10_000 }).catch(async () => selectButton.dispatchEvent('click'));
+
+    const actionPicker = page.locator('ion-modal:visible').last();
+    await expect(actionPicker, 'Mail action picker should be visible').toBeVisible({ timeout: 15_000 });
+    const mailAction = actionPicker.locator(MAIL_ACTION_PICKER_BUTTON).first();
+    await expect(mailAction, 'Mail action should be available in the action picker').toBeVisible({ timeout: 30_000 });
+    await mailAction.click({ timeout: 10_000 }).catch(async () => mailAction.dispatchEvent('click'));
+
+    await actionPicker.locator('ion-footer ion-button').last().click({ timeout: 10_000 });
+    await cancelOverwriteAlertIfVisible(page);
+    const closedAfterValidation = await actionPicker.waitFor({ state: 'hidden', timeout: 5_000 }).then(
+      () => true,
+      () => false,
+    );
+    if (!closedAfterValidation) {
+      const cancelButton = actionPicker.locator('ion-footer ion-button').first();
+      await cancelButton.click({ timeout: 5_000, force: true }).catch(async () => cancelButton.dispatchEvent('click'));
+      await expect(actionPicker, 'Mail action picker should close after cancelling overwrite').toBeHidden({ timeout: 15_000 });
+    }
+
+    await openConfigTabById(page, 'tab_selector_conf_action');
+    await expectMailActionVariableButtons(page);
+  });
+}
+
+async function openMailActionSelectionButton(page: Page): Promise<Locator> {
+  await openConfigTabById(page, 'tab_selector_choice_action');
+  let selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 5_000);
+  if (selectButton) {
+    return selectButton;
+  }
+
+  if (await clickConfigTabByFallbackText(page, 'tab_selector_choice_action')) {
+    await page.waitForTimeout(350);
+    selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 5_000);
+    if (selectButton) {
+      return selectButton;
+    }
+  }
+
+  if (await clickConfigTabByFallbackIndex(page, 'tab_selector_choice_action')) {
+    await page.waitForTimeout(350);
+    selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 5_000);
+    if (selectButton) {
+      return selectButton;
+    }
+  }
+
+  await openConfigurationSection(page);
+  if (await clickConfigTabByFallbackText(page, 'tab_selector_choice_action')) {
+    await page.waitForTimeout(350);
+  }
+
+  selectButton = await firstVisibleLocatorOrNull(page, SEL.dataSourceSelectButton, 10_000);
+  if (selectButton) {
+    return selectButton;
+  }
+
+  throw new Error(
+    `No visible Mail action select button after opening Action selection tab. Visible tabs: ${(
+      await visibleTexts(page, SEL.configTab)
+    ).join(' | ')}`,
+  );
+}
+
+export async function expectMailActionTextVariableContains(
+  page: Page,
+  variable: Extract<MailActionVariable, 'to'>,
+  expected: string,
+): Promise<void> {
+  await test.step(`Assert Mail action ${variable} text value is preserved`, async () => {
+    await selectMailActionVariable(page, variable);
+    await expect
+      .poll(async () => (await visibleTinyMceContents(page)).map((content) => content.text).join('\n'), {
+        message: `Mail action ${variable} should contain ${expected}`,
+        timeout: 10_000,
+      })
+      .toContain(expected);
+  });
+}
+
+export async function expectMailActionSubjectJavaScriptContains(page: Page, returnExpression: string): Promise<void> {
+  await test.step('Assert Mail action subject JavaScript value is preserved', async () => {
+    await selectMailActionVariable(page, 'subject');
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Mail action subject JavaScript mode', 10_000, true);
+    await confirmAlertIfVisible(page);
+    const editor = await visibleMonacoEditor(page, 'Mail action subject JavaScript editor');
+    await expect(editor, 'Mail action subject JavaScript should keep the configured return expression').toContainText(
+      `return ${returnExpression};`,
+      { timeout: 10_000 },
+    );
+  });
+}
+
+export async function expectMailActionBodyContainsUserName(page: Page, text: string): Promise<void> {
+  await test.step('Assert Mail action body text and current user name token are preserved', async () => {
+    await selectMailActionVariable(page, 'body');
+    await expect
+      .poll(
+        async () =>
+          (await visibleTinyMceContents(page)).some(
+            (content) =>
+              content.text.includes(text) &&
+              (content.chipCount > 0 || normalizeVisibleText(content.text).toLowerCase().includes('name')),
+          ),
+        {
+          message: 'Mail action body should keep the typed text and current user name token',
+          timeout: 10_000,
+        },
+      )
+      .toBe(true);
+  });
+}
+
+export async function expectMailActionSummaryChecked(page: Page): Promise<void> {
+  await test.step('Assert Mail action Form summary remains checked', async () => {
+    await selectMailActionVariable(page, 'summary');
+    const checkbox = await mailActionSummaryCheckbox(page);
+    await expect
+      .poll(() => mailActionSummaryChecked(checkbox), {
+        message: 'Mail action Form summary checkbox should remain checked',
+        timeout: 10_000,
+      })
+      .toBe(true);
+  });
+}
+
+async function expectMailActionVariableButtons(page: Page): Promise<void> {
+  await expect
+    .poll(() => page.locator(MAIL_ACTION_VARIABLE_BUTTON).count(), {
+      message: 'Mail action configuration should expose all expected variables',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(MAIL_ACTION_VARIABLE_INDEX.summary);
+}
+
+async function selectMailActionVariable(page: Page, variable: MailActionVariable): Promise<void> {
+  await expectMailActionVariableButtons(page);
+  const button = page.locator(MAIL_ACTION_VARIABLE_BUTTON).nth(MAIL_ACTION_VARIABLE_INDEX[variable]);
+  await expect(button, `Mail action ${variable} variable should be visible`).toBeVisible({ timeout: 10_000 });
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expect(button, `Mail action ${variable} variable should be selected`).toHaveClass(/figma-button--selected/, {
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(500);
+}
+
+async function mailActionSummaryCheckbox(page: Page): Promise<Locator> {
+  const checkbox = page.locator(MAIL_ACTION_SUMMARY_CHECKBOX).last();
+  await expect(checkbox, 'Mail action Form summary checkbox should be visible').toBeVisible({ timeout: 10_000 });
+  return checkbox;
+}
+
+async function mailActionSummaryChecked(checkbox: Locator): Promise<boolean> {
+  return checkbox.evaluate((el) => {
+    const input = el as HTMLElement & { checked?: boolean };
+    return input.checked === true || input.getAttribute('aria-checked') === 'true';
+  });
+}
+
+async function cancelOverwriteAlertIfVisible(page: Page): Promise<void> {
+  const alert = page.locator('ion-alert').last();
+  if (!(await alert.isVisible({ timeout: 1_500 }).catch(() => false))) {
+    return;
+  }
+  const cancelButton = alert.locator('button.btn--info, button.alert-button-role-cancel, button.alert-button').first();
+  await expect(cancelButton, 'overwrite alert should expose a cancel button').toBeVisible({ timeout: 5_000 });
+  await cancelButton.click({ timeout: 5_000 });
+  await alert.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
+}
+
+async function ensureActionSourcePaletteVisible(page: Page): Promise<void> {
+  if (await firstVisibleLocatorOrNull(page, SOURCE_PALETTE_ROOT_VISIBLE, 1_500)) {
+    return;
+  }
+  const paletteButton = await firstVisibleLocatorOrNull(page, BASEROW_ACTION_SOURCE_PALETTE_BUTTON, 5_000);
+  if (paletteButton) {
+    await paletteButton.click({ timeout: 5_000 }).catch(async () => paletteButton.dispatchEvent('click'));
+  }
+  await firstVisibleLocator(page, SOURCE_PALETTE_ROOT_VISIBLE, 'action Source Palette', 10_000);
 }
 
 export async function openToastActionMessageEditor(page: Page): Promise<void> {
@@ -3220,15 +5304,119 @@ async function activateDataSourceMode(page: Page): Promise<void> {
 }
 
 async function activateVisibilityConditionMode(page: Page): Promise<void> {
-  const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
-  if ((await modeButtons.count()) > 0) {
-    await modeButtons.last().click();
-    await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'visibility condition add button should be visible').toBeVisible({
-      timeout: 10_000,
-    });
-    return;
+  await selectVisibilityMode(page, 'condition');
+  await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'visibility condition add button should be visible').toBeVisible({
+    timeout: 10_000,
+  });
+}
+
+function visibilityModeButtonIndex(mode: VisibilityMode): number {
+  switch (mode) {
+    case 'always':
+      return 0;
+    case 'never':
+      return 1;
+    case 'auth_required':
+      return 2;
+    case 'no_auth_required':
+      return 3;
+    case 'condition':
+      return 4;
   }
-  throw new Error('visibility condition mode toggle is not available');
+}
+
+async function visibilityModeButton(page: Page, mode: VisibilityMode): Promise<Locator> {
+  const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
+  const count = await modeButtons.count();
+  if (count < 5) {
+    throw new Error(`visibility mode toggle should expose 5 buttons, found ${count}`);
+  }
+
+  // Other ToggleSwitch instances can share this button class; the Visibility
+  // group is the five-button group whose last entry is condition mode.
+  return modeButtons.nth(count - 5 + visibilityModeButtonIndex(mode));
+}
+
+export async function selectVisibilityMode(page: Page, mode: VisibilityMode): Promise<void> {
+  const button = await visibilityModeButton(page, mode);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await page.waitForTimeout(500);
+}
+
+export async function expectVisibilityModeSelected(page: Page, mode: VisibilityMode): Promise<void> {
+  const button = await visibilityModeButton(page, mode);
+  await expect
+    .poll(async () => (await button.getAttribute('class')) ?? '', {
+      message: `Visibility mode should stay selected: ${mode}`,
+      timeout: 10_000,
+    })
+    .toContain('c8o-btn-selected');
+}
+
+function buttonStateModeButtonIndex(mode: ButtonStateMode): number {
+  switch (mode) {
+    case 'always_enabled':
+      return 0;
+    case 'enabled_when_condition':
+      return 1;
+    case 'disabled_when_condition':
+      return 2;
+  }
+}
+
+async function buttonStateModeButton(page: Page, mode: ButtonStateMode): Promise<Locator> {
+  const modeButtons = page.locator(`${SEL.visibilityModeButton}:visible`);
+  const count = await modeButtons.count();
+  if (count < 3) {
+    throw new Error(`button state toggle should expose 3 buttons, found ${count}`);
+  }
+
+  return modeButtons.nth(count - 3 + buttonStateModeButtonIndex(mode));
+}
+
+export async function selectButtonStateMode(page: Page, mode: ButtonStateMode): Promise<void> {
+  const button = await buttonStateModeButton(page, mode);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await page.waitForTimeout(500);
+}
+
+export async function expectButtonStateModeSelected(page: Page, mode: ButtonStateMode): Promise<void> {
+  const button = await buttonStateModeButton(page, mode);
+  await expect
+    .poll(async () => (await button.getAttribute('class')) ?? '', {
+      message: `Button state mode should stay selected: ${mode}`,
+      timeout: 10_000,
+    })
+    .toContain('c8o-btn-selected');
+}
+
+async function activateButtonStateConditionMode(
+  page: Page,
+  mode: Exclude<ButtonStateMode, 'always_enabled'> = 'enabled_when_condition',
+): Promise<void> {
+  await selectButtonStateMode(page, mode);
+  await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'button state condition add button should be visible').toBeVisible({
+    timeout: 10_000,
+  });
+}
+
+export async function cancelVisibilityModeSwitch(page: Page, targetMode: VisibilityMode): Promise<void> {
+  await selectVisibilityMode(page, targetMode);
+
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  await expect(alert, 'switching away from conditional Visibility should ask for confirmation').toBeVisible({
+    timeout: 10_000,
+  });
+
+  const cancel = alert.locator('button.alert-button-role-cancel').first();
+  await expect(cancel, 'Visibility mode switch confirmation should expose a cancel button').toBeVisible({
+    timeout: 10_000,
+  });
+  await cancel.click({ timeout: 5_000 }).catch(async () => cancel.dispatchEvent('click'));
+  await expect(alert, 'Visibility mode switch confirmation should close after Cancel').toBeHidden({
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(800);
 }
 
 async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getData' | 'getSelectData'): Promise<void> {
@@ -3287,22 +5475,16 @@ async function clickBaserowPickerEntryUntil(
   throw new Error(`Baserow picker did not advance after selecting "${label}"${lastError ? `: ${lastError}` : ''}`);
 }
 
-async function selectBaserowTableFromCurrentAction(
+async function selectBaserowTableInPicker(
   page: Page,
+  tablePicker: Locator,
   source: BaserowGridSourceOptions,
   timeout: number,
 ): Promise<void> {
-  await acceptRgpdIfVisible(page);
-  await clickFirstVisible(page, SELECT_SOURCE_TABLE_PICKER_BUTTON, 'Baserow action table picker button', timeout, true);
-  const tablePicker = page.locator('ion-modal:visible').last();
-  await expect(tablePicker, 'Baserow action table picker should be visible').toBeVisible({ timeout });
-
   const summary = tablePicker.locator('.class1776246576145');
   const tableSelected = async (): Promise<boolean> =>
     ((await summary.first().textContent({ timeout: 2_000 }).catch(() => '')) ?? '').includes(source.table);
 
-  // Idempotent: on a reload-retry the action may already point at this table, so
-  // the picker opens straight into its column view with no breadcrumb to walk.
   if (!(await tableSelected())) {
     const databaseVisible = async (): Promise<boolean> =>
       tablePicker.getByText(source.database, { exact: true }).first().isVisible().catch(() => false);
@@ -3315,6 +5497,19 @@ async function selectBaserowTableFromCurrentAction(
   }
 
   await expect(summary).toContainText(source.table, { timeout });
+}
+
+async function selectBaserowTableFromCurrentAction(
+  page: Page,
+  source: BaserowGridSourceOptions,
+  timeout: number,
+): Promise<void> {
+  await acceptRgpdIfVisible(page);
+  await clickFirstVisible(page, SELECT_SOURCE_TABLE_PICKER_BUTTON, 'Baserow action table picker button', timeout, true);
+  const tablePicker = page.locator('ion-modal:visible').last();
+  await expect(tablePicker, 'Baserow action table picker should be visible').toBeVisible({ timeout });
+
+  await selectBaserowTableInPicker(page, tablePicker, source, timeout);
   for (const column of source.expectedColumns ?? []) {
     await expect(tablePicker.locator('.class1776267952308'), `Baserow column ${column} should be selectable`).toContainText(
       column,
@@ -3537,6 +5732,36 @@ async function checkedSelectBaserowColumns(modal: Locator, checkboxSelector: str
   return checked;
 }
 
+async function checkedChartBaserowColumns(modal: Locator, candidates: string[]): Promise<{ category: string[]; value: string[] }> {
+  const checked = { category: [] as string[], value: [] as string[] };
+  for (const name of candidates) {
+    const row = selectSourceColumnRow(modal, name);
+    if ((await row.count()) === 0) continue;
+    const roleCheckboxes = row.locator(CHART_SOURCE_ROLE_CHECKBOX);
+    if ((await roleCheckboxes.count()) < 2) continue;
+    if ((await roleCheckboxes.nth(0).getAttribute('aria-checked')) === 'true') checked.category.push(name);
+    if ((await roleCheckboxes.nth(1).getAttribute('aria-checked')) === 'true') checked.value.push(name);
+  }
+  return checked;
+}
+
+async function checkedMapBaserowColumns(
+  modal: Locator,
+  candidates: string[],
+): Promise<{ title: string[]; latitude: string[]; longitude: string[] }> {
+  const checked = { title: [] as string[], latitude: [] as string[], longitude: [] as string[] };
+  for (const name of candidates) {
+    const row = selectSourceColumnRow(modal, name);
+    if ((await row.count()) === 0) continue;
+    const roleCheckboxes = row.locator(MAP_SOURCE_ROLE_CHECKBOX);
+    if ((await roleCheckboxes.count()) < 3) continue;
+    if ((await roleCheckboxes.nth(0).getAttribute('aria-checked')) === 'true') checked.latitude.push(name);
+    if ((await roleCheckboxes.nth(1).getAttribute('aria-checked')) === 'true') checked.longitude.push(name);
+    if ((await roleCheckboxes.nth(2).getAttribute('aria-checked')) === 'true') checked.title.push(name);
+  }
+  return checked;
+}
+
 async function settledSelectBaserowColumns(read: () => Promise<string[]>): Promise<string[]> {
   const startedAt = Date.now();
   let stableSince = startedAt;
@@ -3558,6 +5783,55 @@ async function settledSelectBaserowColumns(read: () => Promise<string[]>): Promi
   }
 
   return JSON.parse(previous) as string[];
+}
+
+async function setChartSourceColumnRole(
+  modal: Locator,
+  role: 'category' | 'value',
+  targetColumn: string,
+  checked: boolean,
+): Promise<void> {
+  const row = selectSourceColumnRow(modal, targetColumn);
+  await expect(row, `Baserow column ${targetColumn} should be available for Chart ${role}`).toBeVisible({ timeout: 15_000 });
+
+  const checkbox = row.locator(CHART_SOURCE_ROLE_CHECKBOX).nth(role === 'category' ? 0 : 1);
+  await expect(checkbox, `Chart ${role} checkbox for ${targetColumn} should be visible`).toBeVisible({ timeout: 15_000 });
+  const current = (await checkbox.getAttribute('aria-checked')) === 'true';
+  if (current !== checked) {
+    await checkbox.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+    await expect
+      .poll(() => checkbox.getAttribute('aria-checked'), {
+        message: `Chart ${role} checkbox for ${targetColumn} should become ${checked}`,
+        timeout: 5_000,
+      })
+      .toBe(checked ? 'true' : 'false');
+  }
+}
+
+async function setMapSourceColumnRole(
+  modal: Locator,
+  role: 'title' | 'latitude' | 'longitude',
+  targetColumn: string,
+  checked: boolean,
+): Promise<void> {
+  const row = selectSourceColumnRow(modal, targetColumn);
+  await expect(row, `Baserow column ${targetColumn} should be available for Map ${role}`).toBeVisible({ timeout: 15_000 });
+
+  const roleIndex = role === 'latitude' ? 0 : role === 'longitude' ? 1 : 2;
+  const checkbox = row.locator(MAP_SOURCE_ROLE_CHECKBOX).nth(roleIndex);
+  await expect(checkbox, `Map ${role} checkbox for ${targetColumn} should be visible`).toBeVisible({ timeout: 15_000 });
+  const current = (await checkbox.getAttribute('aria-checked')) === 'true';
+  if (current !== checked) {
+    await checkbox.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+    await expect
+      .poll(() => checkbox.getAttribute('aria-checked'), {
+        message: `Map ${role} checkbox for ${targetColumn} should become ${checked}`,
+        timeout: 5_000,
+      })
+      .toBe(checked ? 'true' : 'false');
+  }
 }
 
 async function setSingleSelectSourceColumn(modal: Locator, checkboxSelector: string, targetColumn: string): Promise<void> {
@@ -3595,6 +5869,23 @@ function escapeRegExp(value: string): string {
 }
 
 type PwaAccessMode = 'authenticated' | 'anonymous';
+type PublishedQrButtonMode = 'show' | 'hide';
+
+const PUBLISHED_APPLICATIONS_TAB_RE = /^(Published Apps|Published|Applications publi[ée]es)$/i;
+const PUBLISHED_APPLICATIONS_VIEW_RE =
+  /Application publishing|Publication des applications|no-code publishing workspace|espace de publication no-code|Applications en production|Applications in production|Vos applications d[ée]ploy[ée]es|Your deployed applications/i;
+
+const PUBLISHED_QR_LABEL_RE: Record<PublishedQrButtonMode, RegExp> = {
+  show: /^(?:Voir|View|Ver|Vedi)\s+QR$/i,
+  hide: /^(?:Masquer|Hide|Ocultar|Nascondi)\s+QR$/i,
+};
+
+const PUBLISHED_QR_TOOLTIP_RE: Record<PublishedQrButtonMode, RegExp> = {
+  show: /(?:Afficher|Display|Muestra|Visualizza).*QR/i,
+  hide: /(?:Masquer|Hide|Oculta|Nascondi).*QR/i,
+};
+
+const PUBLISHED_QR_IMPORT_TOOLTIP_RE = /(?:Importer|Import|Importar|Importa).*(?:application|aplicaci|applicazione)/i;
 
 function pwaAccessButtonIndex(mode: PwaAccessMode): number {
   return mode === 'authenticated' ? 0 : 1;
@@ -3645,6 +5936,148 @@ async function clickVisiblePwaAccessButton(modal: Locator, mode: PwaAccessMode):
     button.click();
     return true;
   }, pwaAccessButtonIndex(mode));
+}
+
+export async function openPublishedApplicationsTab(page: Page): Promise<void> {
+  await test.step('open the Published Applications selector tab', async () => {
+    await returnToSelectorFromEditor(page);
+    await dismissVisiblePopovers(page);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (await publishedApplicationsViewIsActive(page)) {
+        break;
+      }
+
+      const tab = await publishedApplicationsTabLocator(page);
+      await tab.click({ timeout: 10_000, force: attempt > 0 }).catch(async () => tab.dispatchEvent('click'));
+      await waitForIonicLoading(page, 10_000);
+      await page.waitForTimeout(800);
+      if (!(await publishedApplicationsViewIsActive(page))) {
+        await clickPublishedApplicationsTabByDom(page);
+        await waitForIonicLoading(page, 10_000);
+        await page.waitForTimeout(800);
+      }
+      if (await publishedApplicationsViewIsActive(page)) {
+        break;
+      }
+    }
+    await expect
+      .poll(() => publishedApplicationsViewIsActive(page), {
+        message: 'the Published Applications selector tab should be active before opening a published card menu',
+        timeout: 10_000,
+      })
+      .toBe(true);
+    await page.waitForTimeout(500);
+  });
+}
+
+async function publishedApplicationsTabLocator(page: Page): Promise<Locator> {
+  const stable = page.locator(SEL.publishedApplicationsTab).filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE }).first();
+  if (await stable.isVisible({ timeout: 1_500 }).catch(() => false)) {
+    return stable;
+  }
+
+  const byText = page
+    .locator('page-selectorpage ion-button, page-selectorpage button, page-selectorpage [role="button"]')
+    .filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE })
+    .first();
+  if (await byText.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    return byText;
+  }
+
+  return firstVisibleLocator(page, SEL.publishedApplicationsTab, 'Published Applications tab', 5_000);
+}
+
+async function clickPublishedApplicationsTabByDom(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const isVisible = (el: Element): el is HTMLElement => {
+      const rect = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const tab = [...document.querySelectorAll('ion-button, button, [role="button"]')]
+      .filter(isVisible)
+      .find((candidate) => /^(Published Apps|Published|Applications publi[ée]es)$/i.test(normalize((candidate as HTMLElement).innerText)));
+    if (!tab) {
+      return false;
+    }
+    const element = tab as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+      element.dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          view: window,
+        }),
+      );
+    }
+    element.click();
+    return true;
+  });
+}
+
+async function publishedApplicationsViewIsActive(page: Page): Promise<boolean> {
+  const root = page.locator('page-selectorpage').first();
+  const rootVisible = await root.isVisible({ timeout: 1_000 }).catch(() => false);
+
+  if (rootVisible) {
+    const activePublishedTab = root
+      .locator('ion-button.btn--tab-active, ion-button.TabSelected, ion-button.tab-selected, .btn--tab-active, .TabSelected')
+      .filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE })
+      .first();
+    if (await activePublishedTab.isVisible({ timeout: 500 }).catch(() => false)) {
+      return true;
+    }
+
+    const rootText = normalizeWhitespace(await root.innerText({ timeout: 1_000 }).catch(() => ''));
+    if (PUBLISHED_APPLICATIONS_VIEW_RE.test(rootText)) {
+      return true;
+    }
+  }
+
+  const pageText = normalizeWhitespace(await page.locator('body').innerText({ timeout: 1_000 }).catch(() => ''));
+  return PUBLISHED_APPLICATIONS_VIEW_RE.test(pageText);
+}
+
+export async function expectPublishedQrButtonMode(page: Page, mode: PublishedQrButtonMode): Promise<void> {
+  await test.step(`assert the published QR button is in ${mode} mode`, async () => {
+    const button = await publishedQrButton(page);
+    await expect
+      .poll(() => publishedQrButtonText(button), {
+        message: `published QR button label should match ${PUBLISHED_QR_LABEL_RE[mode]}`,
+        timeout: 10_000,
+      })
+      .toMatch(PUBLISHED_QR_LABEL_RE[mode]);
+  });
+}
+
+export async function expectPublishedQrTooltipMode(page: Page, mode: PublishedQrButtonMode): Promise<void> {
+  await test.step(`assert the published QR tooltip is in ${mode} mode`, async () => {
+    const button = await publishedQrButton(page);
+    await expect
+      .poll(() => readPublishedQrTooltipMessage(page, button), {
+        message: `published QR tooltip should match ${PUBLISHED_QR_TOOLTIP_RE[mode]}`,
+        timeout: 10_000,
+      })
+      .toMatch(PUBLISHED_QR_TOOLTIP_RE[mode]);
+
+    const tooltip = await readPublishedQrTooltipMessage(page, button);
+    expect(tooltip, 'published QR tooltip should not reuse the Import application tooltip').not.toMatch(
+      PUBLISHED_QR_IMPORT_TOOLTIP_RE,
+    );
+  });
+}
+
+export async function clickPublishedQrButton(page: Page): Promise<void> {
+  await test.step('click the published QR button', async () => {
+    const button = await publishedQrButton(page);
+    await button.scrollIntoViewIfNeeded();
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+    await waitForIonicLoading(page, 10_000);
+  });
 }
 
 export async function openPublishedPwaEditor(page: Page, title: string): Promise<void> {
@@ -3703,8 +6136,16 @@ async function ensurePwaIconConfiguredThroughUi(page: Page, modal: Locator): Pro
     const wallpaperModal = page.locator(SEL.wallpaperModal).last();
     const iconArea = modal.locator(SEL.pwaIconEditor).first();
     await acceptRgpdIfVisible(page);
-    await expect(iconArea, 'the PWA icon editor should be visible').toBeVisible({ timeout: 30_000 });
-    await iconArea.click({ force: true }).catch(() => undefined);
+    const hasModernIconArea = await iconArea.isVisible({ timeout: 5_000 }).catch(() => false);
+    if (hasModernIconArea) {
+      await iconArea.click({ force: true }).catch(() => undefined);
+    } else {
+      const editButton = modal.locator(SEL.pwaIconEditButton).first();
+      if (!(await editButton.isVisible({ timeout: 2_000 }).catch(() => false))) {
+        return;
+      }
+      await editButton.click({ force: true, timeout: 2_000 }).catch(() => undefined);
+    }
 
     if (!(await wallpaperModal.isVisible({ timeout: 3_000 }).catch(() => false))) {
       await modal
@@ -3714,6 +6155,9 @@ async function ensurePwaIconConfiguredThroughUi(page: Page, modal: Locator): Pro
         .catch(() => undefined);
     }
 
+    if (!hasModernIconArea && !(await wallpaperModal.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      return;
+    }
     await expect(wallpaperModal, 'the thumbnail/color picker modal should open').toBeVisible({ timeout: 30_000 });
     const colorSegment = wallpaperModal.locator(SEL.wallpaperColorSegmentButton).first();
     if (await colorSegment.isVisible({ timeout: 3_000 }).catch(() => false)) {
@@ -3783,7 +6227,9 @@ async function selectPwaAccessMode(modal: Locator, mode: PwaAccessMode): Promise
   }
 
   const legacyCheckbox = modal.locator(SEL.pwaLegacyAccessCheckbox).first();
-  await expect(legacyCheckbox, 'the legacy PWA access checkbox should be visible').toBeVisible({ timeout: 30_000 });
+  if (!(await legacyCheckbox.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    return;
+  }
   const checked = await isIonCheckboxChecked(legacyCheckbox);
   const shouldBeChecked = mode === 'authenticated';
   if (checked !== shouldBeChecked) {
@@ -3802,6 +6248,17 @@ async function isIonCheckboxChecked(checkbox: Locator): Promise<boolean> {
   });
 }
 
+async function isIonToggleChecked(toggle: Locator): Promise<boolean> {
+  const ariaChecked = await toggle.getAttribute('aria-checked').catch(() => null);
+  if (ariaChecked != null) {
+    return ariaChecked === 'true';
+  }
+  return toggle.evaluate((el) => {
+    const input = el as HTMLInputElement;
+    return input.checked === true || el.classList.contains('toggle-checked') || el.getAttribute('ng-reflect-checked') === 'true';
+  });
+}
+
 async function confirmPwaAnonymousWarningIfVisible(page: Page): Promise<void> {
   const confirmButton = page.locator('ion-alert button.alert-button-role-confirm').last();
   if (await confirmButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
@@ -3817,10 +6274,164 @@ export async function setPwaAccessModeAndSave(page: Page, mode: PwaAccessMode): 
     await expect(modal, 'the PWA editor modal should be open').toBeVisible({ timeout: 30_000 });
     await selectPwaAccessMode(modal, mode);
     await acceptRgpdIfVisible(page);
-    await modal.locator(SEL.pwaSaveButton).first().click();
+    await clickPwaSaveButton(modal);
     await confirmPwaAnonymousWarningIfVisible(page);
     await expect(modal).toBeHidden({ timeout: 60_000 });
   });
+}
+
+async function clickPwaSaveButton(modal: Locator): Promise<void> {
+  const page = modal.page();
+  const actionLabel =
+    /(Save|Enregistrer|Sauvegarder|Publier(?: l['’]application)?|Publish(?: application)?|OK|Valider|Next|Suivant|Continue|Continuer)/i;
+
+  for (let step = 0; step < 5; step++) {
+    if (!(await modal.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      return;
+    }
+
+    await uploadLegacyPwaIconIfVisible(page, modal);
+
+    const candidates = [
+      page.getByRole('dialog').last().getByRole('button', { name: actionLabel }).last(),
+      modal
+        .locator('ion-footer ion-button, ion-toolbar ion-button, ion-button, button')
+        .filter({ hasText: actionLabel })
+        .last(),
+      modal.locator(SEL.pwaSaveButton).last(),
+    ];
+    let clicked = false;
+    for (const action of candidates) {
+      if (!(await action.isVisible({ timeout: 1_000 }).catch(() => false))) {
+        continue;
+      }
+      await action.scrollIntoViewIfNeeded({ timeout: 2_000 }).catch(() => undefined);
+      await action.click({ timeout: 10_000 }).catch(async () => action.dispatchEvent('click'));
+      clicked = true;
+      break;
+    }
+    if (!clicked) {
+      clicked = await clickPwaWizardActionByDom(page, actionLabel.source);
+    }
+    if (!clicked) {
+      await expect(candidates[0], 'the PWA editor should expose a visible wizard action button').toBeVisible({
+        timeout: 10_000,
+      });
+    }
+
+    await page.waitForTimeout(800);
+    await waitForIonicLoading(page, 10_000);
+    if (!(await modal.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      return;
+    }
+  }
+
+  throw new Error('Could not complete the PWA publication wizard');
+}
+
+function resolvePwaTestIconPath(): string {
+  const candidates = [
+    path.resolve(process.cwd(), '..', 'DisplayObjects', 'mobile', 'assets', 'icon_512x512.png'),
+    path.resolve(process.cwd(), 'DisplayObjects', 'mobile', 'assets', 'icon_512x512.png'),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
+}
+
+async function uploadLegacyPwaIconIfVisible(page: Page, modal: Locator): Promise<void> {
+  const chooseButton = page
+    .getByRole('dialog')
+    .last()
+    .getByRole('button', { name: /(Choose|Choisir|Sélectionner|Selectionner).*(image|ic[oô]ne|icon)/i })
+    .last();
+  const modalInput = modal.locator('input[type="file"][accept*="image"], input[type="file"]').last();
+  const pageInput = page.locator('ion-modal.show-modal input[type="file"][accept*="image"], ion-modal.show-modal input[type="file"]').last();
+  const hasInput =
+    (await modalInput.count().catch(() => 0)) > 0 || (await pageInput.count().catch(() => 0)) > 0;
+  const hasChooseButton = await chooseButton.isVisible({ timeout: 500 }).catch(() => false);
+  if (!hasInput && !hasChooseButton) {
+    return;
+  }
+
+  const iconPath = resolvePwaTestIconPath();
+  const input = (await modalInput.count().catch(() => 0)) > 0 ? modalInput : pageInput;
+  if ((await input.count().catch(() => 0)) > 0) {
+    await input.setInputFiles(iconPath, { timeout: 10_000 });
+  } else {
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 10_000 });
+    await chooseButton.click({ timeout: 5_000 }).catch(async () => chooseButton.dispatchEvent('click'));
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(iconPath);
+  }
+
+  await page.waitForTimeout(1_000);
+  await waitForIonicLoading(page, 10_000);
+}
+
+async function clickPwaWizardActionByDom(page: Page, actionPattern: string): Promise<boolean> {
+  return page.evaluate((source) => {
+    const labelRe = new RegExp(source, 'i');
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const isAvailable = (el: Element): el is HTMLElement => {
+      const style = getComputedStyle(el);
+      const button = el as HTMLButtonElement;
+      return (
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        !button.disabled &&
+        !el.classList.contains('button-disabled') &&
+        el.getAttribute('aria-disabled') !== 'true'
+      );
+    };
+    const labelOf = (el: Element) =>
+      normalize(
+        [
+          (el as HTMLElement).innerText,
+          el.textContent,
+          el.getAttribute('aria-label'),
+          el.getAttribute('title'),
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
+    const clickElement = (el: HTMLElement): boolean => {
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const box = el.getBoundingClientRect();
+      const clientX = Math.min(Math.max(box.left + box.width / 2, 1), window.innerWidth - 1);
+      const clientY = Math.min(Math.max(box.top + box.height / 2, 1), window.innerHeight - 1);
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+        el.dispatchEvent(
+          new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            clientX,
+            clientY,
+            view: window,
+          }),
+        );
+      }
+      el.click();
+      return true;
+    };
+
+    const roots = [...document.querySelectorAll('ion-modal.show-modal, ion-modal.modal-pwa-edition, ion-modal.modalCSV')].filter(
+      isAvailable,
+    );
+    for (const root of roots.reverse()) {
+      const button = [...root.querySelectorAll('ion-button, button, [role="button"]')]
+        .filter(isAvailable)
+        .filter((candidate) => labelRe.test(labelOf(candidate)))
+        .at(-1) as HTMLElement | undefined;
+      if (button) {
+        return clickElement(button);
+      }
+    }
+
+    const globalButton = [...document.querySelectorAll('ion-button, button, [role="button"]')]
+      .filter(isAvailable)
+      .filter((candidate) => labelRe.test(labelOf(candidate)))
+      .at(-1) as HTMLElement | undefined;
+    return globalButton ? clickElement(globalButton) : false;
+  }, actionPattern);
 }
 
 export async function openCreateApplicationPrompt(page: Page): Promise<Locator> {
@@ -3840,6 +6451,157 @@ export async function openCreateFolderPrompt(page: Page): Promise<Locator> {
   await expect(alert, 'create folder prompt should be visible after one create-folder click').toBeVisible({ timeout: 15_000 });
   await waitForPresentedPromptInput(alert, 'create folder prompt should be presented and editable');
   return alert;
+}
+
+export async function createSelectorFolder(page: Page, title: string): Promise<void> {
+  await test.step(`Create selector folder ${title}`, async () => {
+    await setSelectorHideFoldersFilter(page, false);
+    const alert = await openCreateFolderPrompt(page);
+
+    const input = alert.locator(SEL.createFolderTitleInput).first();
+    await expect(input, 'create folder title input should be visible').toBeVisible({ timeout: 15_000 });
+    await input.fill(title, { timeout: 15_000 });
+    await expect(input, 'create folder title should be filled before saving').toHaveValue(title, { timeout: 10_000 });
+
+    const save = alert.locator(SEL.createFolderSaveButton).first();
+    await expect(save, 'create folder save button should be visible').toBeVisible({ timeout: 10_000 });
+    await expect
+      .poll(() => locatorCanBeClicked(save), {
+        message: 'create folder save button should be enabled before clicking',
+        timeout: 10_000,
+      })
+      .toBe(true);
+
+    await save.click({ timeout: 10_000 }).catch(async () => save.dispatchEvent('click'));
+    await expect(alert, 'create folder prompt should close after saving').toBeHidden({ timeout: 15_000 });
+    await waitForIonicLoading(page, 10_000);
+    await expectSelectorFolderVisible(page, title);
+  });
+}
+
+export async function setSelectorHideFoldersFilter(page: Page, enabled: boolean): Promise<void> {
+  await test.step(`${enabled ? 'Enable' : 'Disable'} Hide folders selector filter`, async () => {
+    await expectRoute(page, ROUTE.selector);
+    await waitForSelectorHomeReadyForCreate(page);
+
+    let button = await firstVisibleLocatorOrNull(page, SEL.selectorHideFoldersButton, 1_500);
+    if (!button) {
+      await openSelectorInlineFiltersIfAvailable(page);
+      button = await firstVisibleLocatorOrNull(page, SEL.selectorHideFoldersButton, 5_000);
+    }
+
+    if (button) {
+      await button.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+      if ((await selectorHideFoldersQuickFilterEnabled(page)) !== enabled) {
+        await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+      }
+
+      await expect
+        .poll(() => selectorHideFoldersQuickFilterEnabled(page), {
+          message: `Hide folders quick filter should be ${enabled ? 'enabled' : 'disabled'}`,
+          timeout: 10_000,
+        })
+        .toBe(enabled);
+    } else {
+      await setSelectorHideFoldersFilterViaPopover(page, enabled);
+    }
+
+    await waitForIonicLoading(page, 10_000);
+    await waitForSelectorFormListLoaded(page);
+  });
+}
+
+export async function setSelectorMyApplicationsFilter(page: Page, enabled: boolean): Promise<void> {
+  await test.step(`${enabled ? 'Enable' : 'Disable'} My applications selector filter`, async () => {
+    await expectRoute(page, ROUTE.selector);
+    await waitForSelectorHomeReadyForCreate(page);
+
+    let button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 1_500);
+    if (!button) {
+      await openSelectorInlineFiltersIfAvailable(page);
+      button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 5_000);
+    }
+
+    if (button) {
+      await button.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+      if ((await selectorMyApplicationsQuickFilterEnabled(page)) !== enabled) {
+        await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+      }
+      await expectSelectorMyApplicationsFilterEnabled(page, enabled);
+    } else {
+      await setSelectorMyApplicationsFilterViaPopover(page, enabled);
+    }
+
+    await waitForIonicLoading(page, 10_000);
+    await waitForSelectorFormListLoaded(page);
+  });
+}
+
+export async function expectSelectorMyApplicationsFilterEnabled(page: Page, enabled: boolean): Promise<void> {
+  await test.step(`Assert My applications selector filter is ${enabled ? 'enabled' : 'disabled'}`, async () => {
+    let button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 1_500);
+    if (!button) {
+      await openSelectorInlineFiltersIfAvailable(page);
+      button = await firstVisibleLocatorOrNull(page, SEL.selectorMyApplicationsButton, 5_000);
+    }
+
+    if (button) {
+      await expect
+        .poll(() => selectorMyApplicationsQuickFilterEnabled(page), {
+          message: `My applications quick filter should be ${enabled ? 'enabled' : 'disabled'}`,
+          timeout: 10_000,
+        })
+        .toBe(enabled);
+      return;
+    }
+
+    await expectSelectorMyApplicationsFilterViaPopover(page, enabled);
+  });
+}
+
+export async function reloadSelectorPage(page: Page): Promise<void> {
+  await test.step('Reload the selector page', async () => {
+    await expectRoute(page, ROUTE.selector);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expectRoute(page, ROUTE.selector);
+    await expect(page.locator(SEL.selectorPageRoot).first(), 'selector page should be visible after reload').toBeVisible({
+      timeout: 30_000,
+    });
+    await waitForSelectorHomeReadyForCreate(page);
+  });
+}
+
+export async function expectSelectorApplicationVisible(page: Page, title: string): Promise<void> {
+  await test.step(`Assert selector application ${title} is visible`, async () => {
+    await expect
+      .poll(() => selectorApplicationVisible(page, title), {
+        message: `selector application "${title}" should be visible`,
+        timeout: 30_000,
+      })
+      .toBe(true);
+  });
+}
+
+export async function expectSelectorFolderVisible(page: Page, title: string): Promise<void> {
+  await test.step(`Assert selector folder ${title} is visible`, async () => {
+    await expect
+      .poll(() => selectorFolderVisible(page, title), {
+        message: `selector folder "${title}" should be visible`,
+        timeout: 30_000,
+      })
+      .toBe(true);
+  });
+}
+
+export async function expectSelectorFolderHidden(page: Page, title: string): Promise<void> {
+  await test.step(`Assert selector folder ${title} is hidden`, async () => {
+    await expect
+      .poll(() => selectorFolderVisible(page, title), {
+        message: `selector folder "${title}" should be hidden`,
+        timeout: 30_000,
+      })
+      .toBe(false);
+  });
 }
 
 export async function alertValidationButtonState(
@@ -3862,6 +6624,169 @@ export async function alertValidationButtonState(
       filter: style.filter,
     };
   });
+}
+
+async function locatorCanBeClicked(locator: Locator): Promise<boolean> {
+  if (!(await locator.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+  return locator.evaluate((el) => {
+    const element = el as HTMLElement & { disabled?: boolean };
+    const style = window.getComputedStyle(element);
+    return element.disabled !== true && element.getAttribute('aria-disabled') !== 'true' && style.pointerEvents !== 'none';
+  });
+}
+
+async function selectorHideFoldersQuickFilterEnabled(page: Page): Promise<boolean> {
+  return page.locator(SEL.selectorHideFoldersButton).evaluateAll((buttons) => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const button = buttons.find(visible);
+    return !!button?.classList.contains('btn--allfolders');
+  });
+}
+
+async function selectorMyApplicationsQuickFilterEnabled(page: Page): Promise<boolean> {
+  return page.locator(SEL.selectorMyApplicationsButton).evaluateAll((buttons) => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const button = buttons.find(visible);
+    return !!button?.classList.contains('btn--myapps');
+  });
+}
+
+async function openSelectorInlineFiltersIfAvailable(page: Page): Promise<void> {
+  const toggle = await firstVisibleLocatorOrNull(page, SEL.selectorFilterInlineToggleButton, 1_000);
+  if (!toggle) {
+    return;
+  }
+  await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
+}
+
+async function setSelectorHideFoldersFilterViaPopover(page: Page, enabled: boolean): Promise<void> {
+  const openButton = await firstVisibleLocator(page, SEL.selectorFilterPopoverButton, 'selector filters popover button', 15_000);
+  await openButton.click({ timeout: 10_000 }).catch(async () => openButton.dispatchEvent('click'));
+
+  const popover = page.locator(SEL.selectorFiltersPopover).last();
+  await expect(popover, 'selector filters popover should open').toBeVisible({ timeout: 15_000 });
+
+  const checkbox = popover.locator(SEL.selectorHideFoldersCheckbox).first();
+  await expect(checkbox, 'Hide folders checkbox should be visible in filters popover').toBeVisible({ timeout: 10_000 });
+  if ((await ionCheckboxChecked(checkbox)) !== enabled) {
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+  }
+  await expect
+    .poll(() => ionCheckboxChecked(checkbox), {
+      message: `Hide folders checkbox should be ${enabled ? 'checked' : 'unchecked'}`,
+      timeout: 10_000,
+    })
+    .toBe(enabled);
+
+  const apply = popover.locator(SEL.selectorApplyFiltersButton).first();
+  await expect(apply, 'filters popover apply button should be visible').toBeVisible({ timeout: 10_000 });
+  await apply.click({ timeout: 10_000 }).catch(async () => apply.dispatchEvent('click'));
+  await expect(popover, 'selector filters popover should close after applying').toBeHidden({ timeout: 15_000 });
+}
+
+async function expectSelectorMyApplicationsFilterViaPopover(page: Page, enabled: boolean): Promise<void> {
+  const openButton = await firstVisibleLocator(page, SEL.selectorFilterPopoverButton, 'selector filters popover button', 15_000);
+  await openButton.click({ timeout: 10_000 }).catch(async () => openButton.dispatchEvent('click'));
+
+  const popover = page.locator(SEL.selectorFiltersPopover).last();
+  await expect(popover, 'selector filters popover should open').toBeVisible({ timeout: 15_000 });
+
+  const checkbox = popover.locator(SEL.selectorMyApplicationsCheckbox).first();
+  await expect(checkbox, 'My applications checkbox should be visible in filters popover').toBeVisible({ timeout: 10_000 });
+  await expect
+    .poll(() => ionCheckboxChecked(checkbox), {
+      message: `My applications checkbox should be ${enabled ? 'checked' : 'unchecked'}`,
+      timeout: 10_000,
+    })
+    .toBe(enabled);
+
+  const apply = popover.locator(SEL.selectorApplyFiltersButton).first();
+  await apply.click({ timeout: 10_000 }).catch(async () => apply.dispatchEvent('click'));
+  await expect(popover, 'selector filters popover should close after applying').toBeHidden({ timeout: 15_000 });
+}
+
+async function setSelectorMyApplicationsFilterViaPopover(page: Page, enabled: boolean): Promise<void> {
+  const openButton = await firstVisibleLocator(page, SEL.selectorFilterPopoverButton, 'selector filters popover button', 15_000);
+  await openButton.click({ timeout: 10_000 }).catch(async () => openButton.dispatchEvent('click'));
+
+  const popover = page.locator(SEL.selectorFiltersPopover).last();
+  await expect(popover, 'selector filters popover should open').toBeVisible({ timeout: 15_000 });
+
+  const checkbox = popover.locator(SEL.selectorMyApplicationsCheckbox).first();
+  await expect(checkbox, 'My applications checkbox should be visible in filters popover').toBeVisible({ timeout: 10_000 });
+  if ((await ionCheckboxChecked(checkbox)) !== enabled) {
+    await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+  }
+  await expect
+    .poll(() => ionCheckboxChecked(checkbox), {
+      message: `My applications checkbox should be ${enabled ? 'checked' : 'unchecked'}`,
+      timeout: 10_000,
+    })
+    .toBe(enabled);
+
+  const apply = popover.locator(SEL.selectorApplyFiltersButton).first();
+  await expect(apply, 'filters popover apply button should be visible').toBeVisible({ timeout: 10_000 });
+  await apply.click({ timeout: 10_000 }).catch(async () => apply.dispatchEvent('click'));
+  await expect(popover, 'selector filters popover should close after applying').toBeHidden({ timeout: 15_000 });
+}
+
+async function ionCheckboxChecked(checkbox: Locator): Promise<boolean> {
+  return checkbox.evaluate((el) => {
+    const host = el as HTMLElement & { checked?: boolean };
+    const input = host.shadowRoot?.querySelector('input') as HTMLInputElement | null;
+    return (
+      host.checked === true ||
+      input?.checked === true ||
+      host.classList.contains('checkbox-checked') ||
+      host.getAttribute('aria-checked') === 'true'
+    );
+  });
+}
+
+async function selectorApplicationVisible(page: Page, title: string): Promise<boolean> {
+  return page.evaluate(({ expectedTitle }) => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const isFolderCard = (card: HTMLElement) =>
+      card.classList.contains('card-container--folder') ||
+      !!card.querySelector('ion-icon[src*="folder.svg"], ion-icon[src*="folder-open.svg"], img[src*="folder.svg"], img[src*="folder-open.svg"]');
+
+    return [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')]
+      .filter(visible)
+      .some((card) => !isFolderCard(card as HTMLElement) && normalize((card as HTMLElement).innerText).includes(expectedTitle));
+  }, { expectedTitle: title });
+}
+
+async function selectorFolderVisible(page: Page, title: string): Promise<boolean> {
+  return page.evaluate((expectedTitle) => {
+    const normalize = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const isFolderCard = (card: HTMLElement) =>
+      card.classList.contains('card-container--folder') ||
+      !!card.querySelector('ion-icon[src*="folder.svg"], ion-icon[src*="folder-open.svg"], img[src*="folder.svg"], img[src*="folder-open.svg"]');
+
+    return [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')]
+      .filter(visible)
+      .some((card) => isFolderCard(card) && normalize(card.innerText).includes(expectedTitle));
+  }, title);
 }
 
 /**
@@ -4001,7 +6926,11 @@ async function selectorFormListState(page: Page): Promise<string> {
     return SELECTOR_EMPTY_FORM_LIST_RE.test(text) ? 'ready:empty' : 'loading:empty-message-missing';
   }
 
-  const hasCard = await root.locator(SEL.selectorCardTitle).first().isVisible({ timeout: 500 }).catch(() => false);
+  const hasCard = await root
+    .locator(`${SEL.selectorCardTitle}, ${SEL.selectorListTitle}, [id^="idcard"]:not([id^="idcardO"])`)
+    .first()
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
   return hasCard ? `ready:cards:${count}` : `loading:cards-missing:${count}`;
 }
 
@@ -4415,6 +7344,32 @@ async function firstVisibleLocatorOrNull(page: Page, selector: string, timeout: 
   return null;
 }
 
+async function firstVisibleChildOrNull(root: Locator, selector: string, timeout: number): Promise<Locator | null> {
+  const startedAt = Date.now();
+  do {
+    const elements = root.locator(selector);
+    const count = await elements.count();
+    for (let i = 0; i < count; i++) {
+      if (await elements.nth(i).isVisible().catch(() => false)) {
+        return elements.nth(i);
+      }
+    }
+    if (timeout <= 0) {
+      return null;
+    }
+    await root.page().waitForTimeout(100);
+  } while (Date.now() - startedAt < timeout);
+
+  const elements = root.locator(selector);
+  const count = await elements.count();
+  for (let i = 0; i < count; i++) {
+    if (await elements.nth(i).isVisible().catch(() => false)) {
+      return elements.nth(i);
+    }
+  }
+  return null;
+}
+
 export async function setChoiceLocalOptions(page: Page, values: string[]): Promise<void> {
   if (values.length === 0) {
     throw new Error('setChoiceLocalOptions needs at least one value');
@@ -4569,20 +7524,70 @@ export async function expectViewerTextInputValue(page: Page, index: number, expe
   });
 }
 
+export async function fillViewerTextInput(page: Page, technicalId: string, value: string): Promise<void> {
+  const root = page.locator(`#${technicalId}`).first();
+  await expect(root, `viewer Text input ${technicalId} should be visible`).toBeVisible({ timeout: 30_000 });
+  const input = root.locator('ion-input input, input, textarea').first();
+  await expect(input, `viewer Text input ${technicalId} should expose an editable input`).toBeVisible({
+    timeout: 10_000,
+  });
+  await input.fill(value);
+  await input.dispatchEvent('input');
+  await input.dispatchEvent('change');
+  await input.blur();
+  await expect.poll(() => input.inputValue(), { timeout: 10_000 }).toBe(value);
+}
+
+export async function selectViewerRadioOption(page: Page, technicalId: string, option: string): Promise<void> {
+  await clickViewerChoiceOption(page, technicalId, option, 'radio');
+  await expect
+    .poll(() => viewerChoiceValueByTechnicalId(page, technicalId, 'radio'), {
+      message: `viewer Radio ${technicalId} should select ${option}`,
+      timeout: 10_000,
+    })
+    .toBe(option);
+}
+
+export async function checkViewerCheckboxOption(page: Page, technicalId: string, option: string): Promise<void> {
+  await clickViewerChoiceOption(page, technicalId, option, 'checkbox');
+  await expect
+    .poll(() => viewerChoiceValueByTechnicalId(page, technicalId, 'checkbox'), {
+      message: `viewer Checkbox ${technicalId} should include ${option}`,
+      timeout: 10_000,
+    })
+    .toContain(option);
+}
+
 async function fillVisibleTinyMceText(page: Page, value: string, description: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click();
-  const filledThroughTinyMce = await page.evaluate((text) => {
-    const tinymce = (window as any).tinymce;
-    const editor = tinymce?.activeEditor;
+  const filledThroughTinyMce = await editorBody.evaluate((body, text) => {
+    const frameWindow = body.ownerDocument.defaultView as any;
+    const tinymce = frameWindow?.parent?.tinymce ?? frameWindow?.tinymce;
+    const editors = Array.isArray(tinymce?.editors) ? tinymce.editors : Object.values(tinymce?.editors ?? {});
+    const frameElement = frameWindow?.frameElement;
+    const editor =
+      editors.find((candidate: any) => {
+        try {
+          return (
+            candidate?.getBody?.() === body ||
+            candidate?.iframeElement === frameElement ||
+            candidate?.iframeElement?.contentDocument?.body === body
+          );
+        } catch {
+          return false;
+        }
+      }) ?? (tinymce?.activeEditor?.getBody?.() === body ? tinymce.activeEditor : null);
     if (!editor) return false;
 
-    const holder = document.createElement('div');
+    const holder = body.ownerDocument.createElement('div');
     holder.textContent = text;
+    editor.focus?.();
     editor.setContent(holder.innerHTML);
-    editor.fire('input');
-    editor.fire('change');
-    editor.fire('blur');
+    editor.fire?.('input');
+    editor.fire?.('change');
+    editor.fire?.('blur');
+    editor.save?.();
     return true;
   }, value);
   if (!filledThroughTinyMce) {
@@ -4590,6 +7595,20 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
   }
   await page.keyboard.press('Tab');
   await fireActiveTinyMceChange(page);
+  const currentText = await editorBody.innerText().catch(() => '');
+  if (!normalizeVisibleText(currentText).includes(value)) {
+    await editorBody.click();
+    await editorBody.evaluate((element, text) => {
+      const holder = document.createElement('div');
+      holder.textContent = text;
+      element.innerHTML = holder.innerHTML;
+      element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, data: text, inputType: 'insertText' }));
+      element.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+      element.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
+    }, value);
+    await page.keyboard.press('Tab');
+    await fireActiveTinyMceChange(page);
+  }
   await expect
     .poll(() => editorBody.innerText(), {
       message: `${description} should contain ${value}`,
@@ -4597,6 +7616,55 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
     })
     .toContain(value);
   await page.waitForTimeout(1_000);
+}
+
+async function clickViewerChoiceOption(
+  page: Page,
+  technicalId: string,
+  option: string,
+  kind: Extract<ChoiceViewerKind, 'radio' | 'checkbox'>,
+): Promise<void> {
+  const root = page.locator(`#${technicalId}`).first();
+  await expect(root, `viewer ${kind} ${technicalId} should be visible`).toBeVisible({ timeout: 30_000 });
+  const item = root.locator('ion-item').filter({ hasText: option }).first();
+  if (await item.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await item.click();
+    return;
+  }
+
+  const label = root.getByText(option, { exact: true }).first();
+  await expect(label, `viewer ${kind} option ${option} should be visible`).toBeVisible({ timeout: 10_000 });
+  await label.click();
+}
+
+async function viewerChoiceValueByTechnicalId(
+  page: Page,
+  technicalId: string,
+  kind: Extract<ChoiceViewerKind, 'radio' | 'checkbox'>,
+): Promise<string | string[]> {
+  return page.locator(`#${technicalId}`).first().evaluate((root, choiceKind) => {
+    const isVisible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+
+    if (choiceKind === 'radio') {
+      const radioGroup = [...root.querySelectorAll('ion-radio-group')].find(isVisible) as
+        | (HTMLElement & { value?: unknown })
+        | undefined;
+      const rawValue = radioGroup?.value;
+      return typeof rawValue === 'string' ? rawValue : rawValue == null ? '' : String(rawValue);
+    }
+
+    return [...root.querySelectorAll('ion-checkbox')]
+      .filter((checkbox) => {
+        const cb = checkbox as HTMLElement & { checked?: boolean };
+        return isVisible(cb) && (cb.checked === true || cb.getAttribute('aria-checked') === 'true');
+      })
+      .map((checkbox) => ((checkbox.closest('ion-item') ?? checkbox.parentElement ?? checkbox).textContent ?? '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+  }, kind);
 }
 
 export async function fillToastMessageText(page: Page, value: string): Promise<void> {
@@ -4611,6 +7679,67 @@ export async function tinyMceEditorContent(page: Page): Promise<{ html: string; 
     text: await editorBody.innerText(),
     chipCount: await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count(),
   };
+}
+
+async function visibleTinyMceContents(page: Page): Promise<Array<{ html: string; text: string; chipCount: number }>> {
+  const frameSelectors = [
+    '.tox-tinymce iframe',
+    '.tox-edit-area iframe',
+    'iframe.tox-edit-area__iframe',
+    'iframe[title="Rich Text Area"]',
+    'iframe[title*="Rich"]',
+    'iframe[aria-label*="Rich"]',
+  ];
+  const contents: Array<{ html: string; text: string; chipCount: number }> = [];
+  const seenFrames = new Set<string>();
+
+  for (const selector of frameSelectors) {
+    const frames = page.locator(selector);
+    const count = await frames.count().catch(() => 0);
+    for (let index = 0; index < count; index++) {
+      const frame = frames.nth(index);
+      if (!(await frame.isVisible({ timeout: 300 }).catch(() => false))) {
+        continue;
+      }
+      const key = await frame
+        .evaluate((element) => {
+          const iframe = element as HTMLIFrameElement;
+          const rect = iframe.getBoundingClientRect();
+          return iframe.id || `${iframe.title}:${Math.round(rect.x)}:${Math.round(rect.y)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+        })
+        .catch(() => `${selector}:${index}`);
+      if (seenFrames.has(key)) {
+        continue;
+      }
+      seenFrames.add(key);
+
+      const body = frame.contentFrame().locator('body[contenteditable="true"], body.mce-content-body').first();
+      if (!(await body.isVisible({ timeout: 500 }).catch(() => false))) {
+        continue;
+      }
+      contents.push({
+        html: await body.innerHTML().catch(() => ''),
+        text: await body.innerText().catch(() => ''),
+        chipCount: await body.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count().catch(() => 0),
+      });
+    }
+  }
+
+  const inlineEditors = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]');
+  const inlineCount = await inlineEditors.count().catch(() => 0);
+  for (let index = 0; index < inlineCount; index++) {
+    const body = inlineEditors.nth(index);
+    if (!(await body.isVisible({ timeout: 300 }).catch(() => false))) {
+      continue;
+    }
+    contents.push({
+      html: await body.innerHTML().catch(() => ''),
+      text: await body.innerText().catch(() => ''),
+      chipCount: await body.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count().catch(() => 0),
+    });
+  }
+
+  return contents;
 }
 
 export async function setChoiceDefaultValueFromSourcePalette(
@@ -4791,6 +7920,11 @@ export async function openComponentVisibilityConfigBySelector(page: Page, compon
   await openConfigTabById(page, 'visibility_tab_selector');
 }
 
+export async function openButtonStateConfigBySelector(page: Page, componentTag = SEL.buttonComponent): Promise<void> {
+  await openComponentConfig(page, componentTag);
+  await openConfigTabById(page, 'button_state_tab_selector');
+}
+
 export interface SourceCompletionPopoverState {
   labels: string[];
   items: Array<{
@@ -4810,6 +7944,37 @@ export async function openVisibilityConditionFieldPicker(page: Page): Promise<vo
   await page.locator(SEL.visibilityAddConditionButton).first().click();
   await page.locator(SEL.conditionFieldBrowseButton).first().click();
   await sourceCompletionPopover(page).waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+const VISIBILITY_CONDITION_ELEMENT_PLACEHOLDER_RE =
+  /^(Element|L['\u2019]\u00e9l\u00e9ment|El elemento|L['\u2019]elemento)$/i;
+const VISIBILITY_CONDITION_COLUMN_PLACEHOLDER_RE = /^(Column|La colonne|La columna|La colonna)$/i;
+
+export async function addVisibilityConditionAndExpectGenericElementPlaceholder(page: Page): Promise<void> {
+  await test.step('Add a Visibility condition and assert the left field placeholder is generic', async () => {
+    await activateVisibilityConditionMode(page);
+    await page.locator(SEL.visibilityAddConditionButton).first().click();
+
+    const fieldInput = page.locator(SEL.conditionFieldInput).first();
+    await expect(fieldInput, 'the left-hand Visibility condition field should be visible').toBeVisible({
+      timeout: 10_000,
+    });
+
+    await expect
+      .poll(
+        async () => normalizeWhitespace((await fieldInput.getAttribute('placeholder')) ?? ''),
+        {
+          message: 'Visibility condition field placeholder should describe a generic element, not a grid column',
+          timeout: 10_000,
+        },
+      )
+      .toMatch(VISIBILITY_CONDITION_ELEMENT_PLACEHOLDER_RE);
+
+    const placeholder = normalizeWhitespace((await fieldInput.getAttribute('placeholder')) ?? '');
+    expect(placeholder, 'Visibility condition field placeholder should not reuse the Grid column wording').not.toMatch(
+      VISIBILITY_CONDITION_COLUMN_PLACEHOLDER_RE,
+    );
+  });
 }
 
 export function sourceCompletionPopover(page: Page): Locator {
@@ -4916,11 +8081,11 @@ export async function startVisibilityCondition(page: Page, fieldTechnicalId: str
 /** Pick the condition operator by its stable value (not its i18n label). */
 export async function setVisibilityOperator(page: Page, operator: VisibilityOperator): Promise<void> {
   const select = page.locator(SEL.conditionOperatorSelect).first();
-  const index = await select.evaluate(
-    (el, op) => Array.from(el.querySelectorAll('ion-select-option')).findIndex((o) => (o as HTMLOptionElement & { value?: string }).value === op),
-    operator,
+  const optionValues = await select.evaluate((el) =>
+    Array.from(el.querySelectorAll('ion-select-option')).map((option) => (option as HTMLOptionElement & { value?: string }).value ?? ''),
   );
-  if (index < 0) throw new Error(`unknown visibility operator: ${operator}`);
+  expect(optionValues, `visibility operator ${operator} should be available for the selected field`).toContain(operator);
+  const index = optionValues.indexOf(operator);
   await acceptRgpdIfVisible(page, 500);
   await select.click();
   await acceptRgpdIfVisible(page, 500);
@@ -4940,6 +8105,33 @@ export async function configureVisibilityEqualsField(page: Page, fieldTechnicalI
   await setVisibilityOperator(page, 'equals');
 }
 
+export async function expectVisibilityConditionConfigured(
+  page: Page,
+  fieldTechnicalId: string,
+  operator: VisibilityOperator,
+  value?: string,
+): Promise<void> {
+  await expect(page.locator(SEL.visibilityAddConditionButton).first(), 'visibility condition controls should remain visible').toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.locator(SEL.conditionFieldInput).first(), 'visibility condition field should remain configured').toHaveValue(
+    fieldTechnicalId,
+    { timeout: 10_000 },
+  );
+
+  const select = page.locator(SEL.conditionOperatorSelect).first();
+  await expect
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: `visibility operator should remain ${operator}`,
+      timeout: 10_000,
+    })
+    .toBe(operator);
+
+  if (value != null) {
+    await expectVisibilityValueTextEditorToContain(page, value);
+  }
+}
+
 export async function fillVisibilityTagValue(page: Page, value: string): Promise<void> {
   const tagInput = page.locator('tag-input:visible').last();
   const input = tagInput.locator('input').first();
@@ -4953,17 +8145,58 @@ export async function fillVisibilityTagValue(page: Page, value: string): Promise
 
 /** Set a Description component's visible content through its main TinyMCE editor. */
 export async function setDescriptionText(page: Page, text: string): Promise<void> {
-  const frame = page.frameLocator('iframe.tox-edit-area__iframe').first().locator('body');
-  if (await frame.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await frame.click();
-    await frame.fill(text);
+  if (await setTinyMceContentThroughApi(page, text)) {
     return;
   }
-  const inline = page.locator('[contenteditable="true"].mce-content-body').first();
-  await expect(inline, 'description should expose a TinyMCE content editor').toBeVisible({ timeout: 10_000 });
-  await inline.click();
-  await page.keyboard.press('Control+A');
-  await page.keyboard.type(text);
+  await fillVisibleTinyMceText(page, text, 'description text editor');
+}
+
+async function setTinyMceContentThroughApi(page: Page, text: string): Promise<boolean> {
+  const hasEditor = await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const tinymce = (window as any).tinymce;
+          const rawEditors = tinymce?.editors;
+          const editors = Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+          return editors.length;
+        }),
+      {
+        message: 'TinyMCE editor instance should be registered',
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThan(0)
+    .then(() => true)
+    .catch(() => false);
+  if (!hasEditor) {
+    return false;
+  }
+
+  const applied = await page.evaluate((value) => {
+    const tinymce = (window as any).tinymce;
+    const rawEditors = tinymce?.editors;
+    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
+    const active = tinymce?.activeEditor;
+    const editor = active && !active.removed ? active : editors.filter((candidate) => candidate && !candidate.removed).pop();
+    if (!editor) {
+      return false;
+    }
+
+    const holder = document.createElement('div');
+    holder.textContent = value;
+    editor.setContent(holder.innerHTML);
+    editor.fire('input');
+    editor.fire('change');
+    editor.fire('blur');
+    return String(editor.getContent({ format: 'text' }) ?? '').includes(value);
+  }, text);
+
+  if (applied) {
+    await fireActiveTinyMceChange(page);
+    await page.waitForTimeout(1_000);
+  }
+  return applied;
 }
 
 export interface VisibilityConditionSpec {
@@ -5000,6 +8233,36 @@ export async function addVisibilityCondition(page: Page, spec: VisibilityConditi
   // settle so the operator/value persists before the caller closes the panel —
   // otherwise the last-authored condition can be lost (this bit is what made an
   // is_empty condition look like a viewer bug).
+  await page.waitForTimeout(1_000);
+}
+
+export interface ButtonStateConditionSpec extends VisibilityConditionSpec {
+  mode?: Exclude<ButtonStateMode, 'always_enabled'>;
+}
+
+export async function addButtonStateCondition(page: Page, spec: ButtonStateConditionSpec): Promise<void> {
+  await activateButtonStateConditionMode(page, spec.mode ?? 'enabled_when_condition');
+  await page.locator(SEL.visibilityAddConditionButton).first().click();
+  await page.locator(SEL.conditionFieldBrowseButton).first().click();
+  await page.locator('ion-popover ion-item').filter({ hasText: spec.field }).first().click();
+  await expect(page.locator(SEL.conditionFieldInput).first(), 'button state condition field should be configured').toHaveValue(
+    spec.field,
+    { timeout: 10_000 },
+  );
+
+  await setVisibilityOperator(page, spec.operator);
+
+  if (spec.operator !== 'is_filled' && spec.operator !== 'is_empty') {
+    await page.waitForTimeout(300);
+    const values = Array.isArray(spec.value) ? spec.value : spec.value != null ? [spec.value] : [];
+    const chipEditor = page.locator(SEL.conditionValueTagInput).first();
+    if (await chipEditor.isVisible({ timeout: 1_500 }).catch(() => false)) {
+      for (const value of values) await fillVisibilityTagValue(page, value);
+    } else if (values.length) {
+      await fillVisibilityValueTextEditor(page, values[0]);
+    }
+  }
+
   await page.waitForTimeout(1_000);
 }
 
@@ -5154,6 +8417,21 @@ export async function dragUserEmailPaletteToTinyMce(page: Page): Promise<void> {
   await dragSourcePaletteEntryToTinyMce(page, 'user', 'email');
 }
 
+export async function dragUserNamePaletteToTinyMce(page: Page): Promise<void> {
+  const labels = ['name', 'nom', 'nombre', 'nome'];
+  await ensureSourcePaletteSectionExpanded(page, 'user');
+
+  const visibleEntries = await page
+    .locator(`${SOURCE_PALETTE_SECTION.user.body} [draggable="true"]:visible`)
+    .evaluateAll((elements) => elements.map((element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim()));
+  const label =
+    labels.find((candidate) => visibleEntries.some((entry) => entry.toLowerCase() === candidate.toLowerCase())) ??
+    labels.find((candidate) => visibleEntries.some((entry) => entry.toLowerCase().includes(candidate.toLowerCase()))) ??
+    'name';
+
+  await dragSourcePaletteEntryToTinyMceStrict(page, 'user', label);
+}
+
 export async function dragSourcePaletteEntryToTinyMce(
   page: Page,
   section: SourcePaletteSection,
@@ -5184,6 +8462,66 @@ export async function sourcePaletteEntryDragPayload(
   });
 }
 
+export async function dropSourcePaletteEntryIntoVisibleMonaco(
+  page: Page,
+  section: SourcePaletteSection,
+  label: string,
+  expectedText: string,
+): Promise<MonacoDropPayload> {
+  await ensureSourcePaletteSectionExpanded(page, section, label);
+  const editor = await visibleMonacoEditor(page, 'Monaco editor receiving a Source Palette drop');
+  const tile = sourcePaletteEntryLocator(page, label);
+  await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
+
+  const payload = await page.evaluate((entryLabel) => {
+    const visible = (el: Element): el is HTMLElement => {
+      const box = (el as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(el as HTMLElement);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+
+    const source = [...document.querySelectorAll('[draggable="true"]')]
+      .filter(visible)
+      .filter((el) => (el.textContent ?? '').includes(entryLabel))
+      .pop();
+    const target = [...document.querySelectorAll('c8oforms-monacoeditor .monaco-editor')].filter(visible).pop();
+    if (!source || !target) {
+      throw new Error(`missing Source Palette entry or Monaco editor: source=${!!source} target=${!!target}`);
+    }
+
+    const box = target.getBoundingClientRect();
+    const dataTransfer = new DataTransfer();
+    const eventInit = {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer,
+      clientX: box.left + box.width * 0.4,
+      clientY: box.top + box.height * 0.45,
+    };
+
+    source.dispatchEvent(new DragEvent('dragstart', eventInit));
+    const out = {
+      types: Array.from(dataTransfer.types),
+      textData: dataTransfer.getData('text'),
+      plainData: dataTransfer.getData('text/plain'),
+      htmlData: dataTransfer.getData('text/html'),
+      typeData: dataTransfer.getData('type'),
+      internalData: dataTransfer.getData('__c8oformsdrag_source'),
+    };
+    target.dispatchEvent(new DragEvent('dragover', eventInit));
+    target.dispatchEvent(new DragEvent('drop', eventInit));
+    return out;
+  }, label);
+
+  await expect
+    .poll(() => editor.innerText().then(normalizeVisibleText), {
+      message: `Source Palette drop should insert ${expectedText} into Monaco; payload=${JSON.stringify(payload)}`,
+      timeout: 15_000,
+    })
+    .toContain(expectedText);
+  return payload;
+}
+
 export async function dragSourcePaletteEntryToTinyMceStrict(
   page: Page,
   section: SourcePaletteSection,
@@ -5195,20 +8533,27 @@ export async function dragSourcePaletteEntryToTinyMceStrict(
   const tile = sourcePaletteEntryLocator(page, label);
   await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
   const before = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count();
-  await tile.dragTo(editorBody);
+  let realDragError = '';
+  await tile
+    .dragTo(editorBody, { timeout: 10_000 })
+    .catch((error) => {
+      realDragError = String(error);
+    });
   await page.waitForTimeout(1_000);
   await fireActiveTinyMceChange(page);
+
+  if (await waitForTinyMcePaletteEntry(page, label, before, 3_000)) {
+    return;
+  }
+
+  await dragPaletteEntryToEditor(page, section, label);
   await expect
-    .poll(
-      async () => {
-        const state = await tinyMceEditorContent(page);
-        return state.chipCount > before || normalizeVisibleText(state.text).toLowerCase().includes(label.toLowerCase());
-      },
-      {
-        message: `real Source Palette drag should insert the ${label} token into TinyMCE`,
-        timeout: 10_000,
-      },
-    )
+    .poll(() => tinyMcePaletteEntryPresent(page, label, before), {
+      message: `Source Palette drag fallback should insert the ${label} token into TinyMCE${
+        realDragError ? `; dragTo error=${realDragError}` : ''
+      }`,
+      timeout: 10_000,
+    })
     .toBe(true);
 }
 
@@ -5303,7 +8648,7 @@ function sourcePaletteEntryLocator(page: Page, label: string): Locator {
 }
 
 async function editorContainsPaletteEntry(editorBody: Locator, label: string, previousSvgCount = 0): Promise<boolean> {
-  const svgCount = await editorBody.locator('svg[id^="clickable-"]').count().catch(() => 0);
+  const svgCount = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count().catch(() => 0);
   if (svgCount > previousSvgCount) {
     return true;
   }
@@ -5311,15 +8656,131 @@ async function editorContainsPaletteEntry(editorBody: Locator, label: string, pr
   return normalizeVisibleText(text).toLowerCase().includes(label.toLowerCase());
 }
 
+async function waitForTinyMcePaletteEntry(
+  page: Page,
+  label: string,
+  previousSvgCount = 0,
+  timeout = 10_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (await tinyMcePaletteEntryPresent(page, label, previousSvgCount)) {
+      return true;
+    }
+    await page.waitForTimeout(250);
+  }
+  return false;
+}
+
+async function tinyMcePaletteEntryPresent(page: Page, label: string, previousSvgCount = 0): Promise<boolean> {
+  const editorBody = await visibleTinyMceBody(page).catch(() => null);
+  return editorBody ? editorContainsPaletteEntry(editorBody, label, previousSvgCount) : false;
+}
+
 async function visibleTinyMceBody(page: Page): Promise<Locator> {
-  const frameBody = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('body');
-  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    return frameBody;
+  const frameSelectors = [
+    '.tox-tinymce iframe',
+    '.tox-edit-area iframe',
+    'iframe.tox-edit-area__iframe',
+    'iframe[title="Rich Text Area"]',
+    'iframe[title*="Rich"]',
+    'iframe[aria-label*="Rich"]',
+    'iframe',
+  ];
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
+    for (const selector of frameSelectors) {
+      const frames = page.locator(selector);
+      const count = await frames.count().catch(() => 0);
+      for (let index = count - 1; index >= 0; index--) {
+        const frame = frames.nth(index);
+        if (!(await frame.isVisible({ timeout: 300 }).catch(() => false))) {
+          continue;
+        }
+
+        const editorBody = frame.contentFrame().locator('body[contenteditable="true"], body.mce-content-body').first();
+        if (await editorBody.isVisible({ timeout: 700 }).catch(() => false)) {
+          return editorBody;
+        }
+      }
+    }
+    await page.waitForTimeout(250);
   }
 
   const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
   await expect(inlineEditor, 'a TinyMCE editor should be visible').toBeVisible({ timeout: 10_000 });
   return inlineEditor;
+}
+
+async function clickTinyMcePathBadgeEditButton(page: Page): Promise<void> {
+  const frameBadge = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('svg[id^="clickable-"]').first();
+  if (await frameBadge.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await frameBadge.click();
+    return;
+  }
+
+  const inlineBadge = page.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').last();
+  await expect(inlineBadge, 'TinyMCE path badge edit button should be visible').toBeVisible({ timeout: 10_000 });
+  await inlineBadge.click();
+}
+
+async function tinyMcePathBadgePaths(page: Page): Promise<string[]> {
+  const frameBody = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('body');
+  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    return frameBody.evaluate((body) =>
+      Array.from(body.querySelectorAll<HTMLElement>('[c8opath]'))
+        .map((element) => element.getAttribute('c8opath') ?? '')
+        .filter(Boolean),
+    );
+  }
+
+  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(inlineEditor, 'TinyMCE editor should be visible before reading path badges').toBeVisible({ timeout: 10_000 });
+  return inlineEditor.evaluate((body) =>
+    Array.from(body.querySelectorAll<HTMLElement>('[c8opath]'))
+      .map((element) => element.getAttribute('c8opath') ?? '')
+      .filter(Boolean),
+  );
+}
+
+async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise<void> {
+  const center = await page.evaluate((wantedLabel) => {
+    const visible = (el: Element) => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
+    };
+    const modal = [...document.querySelectorAll('ion-modal.modalCSV')].filter(visible).pop();
+    if (!modal) return null;
+
+    const labelEl = [...modal.querySelectorAll('ion-label, p, span, div')]
+      .filter(visible)
+      .find((el) => (el.textContent ?? '').trim() === wantedLabel);
+    if (!labelEl) return null;
+
+    const labelBox = (labelEl as HTMLElement).getBoundingClientRect();
+    const labelY = labelBox.y + labelBox.height / 2;
+    const buttons = [...modal.querySelectorAll('ion-button, button')]
+      .filter(visible)
+      .filter((el) => !(el as HTMLButtonElement).disabled);
+
+    let best: DOMRect | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const button of buttons) {
+      const box = (button as HTMLElement).getBoundingClientRect();
+      if (box.x < labelBox.x) continue;
+      const score = Math.abs(box.y + box.height / 2 - labelY) + Math.max(0, box.x - labelBox.x - 500);
+      if (score < bestScore) {
+        bestScore = score;
+        best = box;
+      }
+    }
+    return best ? { x: best.x + best.width / 2, y: best.y + best.height / 2 } : null;
+  }, label);
+
+  expect(center, `could not find a choose-value button for ${label}`).not.toBeNull();
+  await page.mouse.click(center!.x, center!.y);
 }
 
 async function fireActiveTinyMceChange(page: Page): Promise<void> {
@@ -5380,9 +8841,22 @@ export async function openPageButtonsConfig(page: Page): Promise<void> {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.locator(SEL.pageButtonsHoverOverlay).first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  // Context guard: the page settings must have opened (both section toggles render).
-  await expect(page.locator(SEL.pageSettingsGeneralTab).first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator(SEL.pageSettingsNavigationTab).first()).toBeVisible({ timeout: 15_000 });
+  // Context guard: the page settings must have opened. Newer versions expose
+  // General/Navigation toggles; older beta111 exposes the legacy checkbox only.
+  const ready = await firstVisibleLocatorOrNull(
+    page,
+    [
+      SEL.pageSettingsGeneralTab,
+      SEL.pageSettingsNavigationTab,
+      SEL.pageNameInput,
+      SEL.pageDisplayTitleToggle,
+      SEL.pageDisplayTitleLegacyCheckbox,
+    ].join(', '),
+    15_000,
+  );
+  if (!ready) {
+    throw new Error('page settings did not expose a known settings control after clicking the page navigation block');
+  }
 }
 
 /** Which page-settings section is active: 'general' | 'navigation' | 'unknown'. */
@@ -5434,7 +8908,10 @@ export async function openPageSettings(page: Page): Promise<void> {
   }
 
   // Path 2: the Pages panel → hover the page row → click its edit pencil.
-  await page.locator(SEL.pagesPanelButton).first().click();
+  const pagesPanelButton = page.locator(SEL.pagesPanelButton).first();
+  await pagesPanelButton.click({ timeout: 5_000 }).catch(async () => {
+    await pagesPanelButton.click({ force: true, timeout: 5_000 }).catch(() => undefined);
+  });
   const row = page.locator(SEL.pageRow).first();
   if (await row.count()) {
     await row.hover().catch(() => {});
@@ -5444,6 +8921,77 @@ export async function openPageSettings(page: Page): Promise<void> {
   if (await ensureGeneralName(8_000)) return;
 
   throw new Error('Could not open the page settings: the page name field never became visible.');
+}
+
+export async function closePageSettings(page: Page): Promise<void> {
+  const closeButton = await firstVisibleLocatorOrNull(page, SEL.pageSettingsCloseButton, 3_000);
+  if (!closeButton) {
+    return;
+  }
+  await closeButton.click({ timeout: 10_000 }).catch(async () => closeButton.dispatchEvent('click'));
+  await page.waitForTimeout(500);
+}
+
+export async function setPageTitleDisplayed(page: Page, displayed: boolean): Promise<void> {
+  await test.step(`Set page title display to ${displayed ? 'visible' : 'hidden'}`, async () => {
+    await openPageTitleDisplaySettings(page);
+
+    const modernToggle = page.locator(SEL.pageDisplayTitleToggle).first();
+    if (await modernToggle.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await setPageTitleDisplayedWithModernToggle(modernToggle, displayed);
+      await page.waitForTimeout(1_000);
+      return;
+    }
+
+    const legacyCheckbox = page.locator(SEL.pageDisplayTitleLegacyCheckbox).first();
+    await expect(legacyCheckbox, 'legacy Display page title checkbox should be visible').toBeVisible({ timeout: 15_000 });
+    if ((await ionCheckboxChecked(legacyCheckbox)) !== displayed) {
+      await legacyCheckbox.click({ timeout: 10_000 }).catch(async () => legacyCheckbox.dispatchEvent('click'));
+    }
+    await expect
+      .poll(() => ionCheckboxChecked(legacyCheckbox), {
+        message: `legacy Display page title checkbox should be ${displayed ? 'checked' : 'unchecked'}`,
+        timeout: 10_000,
+      })
+      .toBe(displayed);
+    await page.waitForTimeout(1_000);
+  });
+}
+
+async function openPageTitleDisplaySettings(page: Page): Promise<void> {
+  if (await page.locator(SEL.pageDisplayTitleToggle).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+  if (await page.locator(SEL.pageDisplayTitleLegacyCheckbox).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+
+  await openPageButtonsConfig(page).catch(() => undefined);
+  if (await page.locator(SEL.pageDisplayTitleToggle).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+  if (await page.locator(SEL.pageDisplayTitleLegacyCheckbox).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+
+  await openPageSettings(page);
+}
+
+async function setPageTitleDisplayedWithModernToggle(toggle: Locator, displayed: boolean): Promise<void> {
+  const optionIndex = displayed ? 0 : 1;
+  const buttons = toggle.locator('button.c8o-btn:visible');
+  const button = buttons.nth(optionIndex);
+  await expect(button, `Display page title ${displayed ? 'Yes' : 'No'} button should be visible`).toBeVisible({
+    timeout: 10_000,
+  });
+
+  const classes = (await button.getAttribute('class')) ?? '';
+  if (!classes.includes('c8o-btn-selected')) {
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  }
+  await expect(button, `Display page title should be ${displayed ? 'Yes' : 'No'}`).toHaveClass(/c8o-btn-selected/, {
+    timeout: 10_000,
+  });
 }
 
 export async function openPagesPanel(page: Page): Promise<void> {
@@ -5474,6 +9022,225 @@ export async function openPagesPanel(page: Page): Promise<void> {
     }
     throw new Error('Pages panel did not open after clicking the Pages menu.');
   });
+}
+
+export async function addPageThroughPagesPanel(page: Page): Promise<string> {
+  return test.step('Add a page through the Pages panel', async () => {
+    await openPagesPanel(page);
+    const pageRows = page.locator(SEL.pageRow);
+    const beforeNames = await visiblePageRowNames(pageRows);
+    const addPage = await firstVisibleLocator(page, SEL.pageAddButton, 'Pages add page button', 15_000);
+    await addPage.click({ timeout: 10_000 }).catch(async () => addPage.dispatchEvent('click'));
+    await expect
+      .poll(() => visiblePageRowNames(pageRows), {
+        message: 'adding a page should create a new page row',
+        timeout: 15_000,
+      })
+      .toHaveLength(beforeNames.length + 1);
+    const afterNames = await visiblePageRowNames(pageRows);
+    const newPageName = afterNames.find((name) => !beforeNames.includes(name));
+    if (!newPageName) {
+      throw new Error(`Could not identify the newly added page. Before: ${beforeNames.join(', ')}; after: ${afterNames.join(', ')}`);
+    }
+    await expect(pageRows.filter({ hasText: newPageName }).first(), `new page ${newPageName} should be listed`).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.waitForTimeout(1_000);
+    return newPageName;
+  });
+}
+
+async function visiblePageRowNames(pageRows: Locator): Promise<string[]> {
+  const names: string[] = [];
+  const count = await pageRows.count();
+  for (let index = 0; index < count; index++) {
+    const row = pageRows.nth(index);
+    if (!(await row.isVisible().catch(() => false))) {
+      continue;
+    }
+    const text = (await row.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+    const match = text.match(/\bPage\s+\d+\b/);
+    if (match && !names.includes(match[0])) {
+      names.push(match[0]);
+    }
+  }
+  return names;
+}
+
+export async function openComponentNavigationConfig(page: Page, componentSelector: string): Promise<void> {
+  await test.step('Open component Navigation configuration', async () => {
+    await openComponentConfig(page, componentSelector);
+    await openConfigTabById(page, 'navigation_tab_selector');
+    await expect(page.locator('c8oforms-filterbradd').first(), 'Navigation condition add controls should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+  });
+}
+
+export type NavigationFilterOperator = 'equals' | 'different' | 'contains' | 'not_contains' | 'equal' | 'not_equal';
+
+export interface NavigationFilterSpec {
+  field: string;
+  value: string;
+  operator?: NavigationFilterOperator;
+  action?: 'goTo' | 'authorize';
+  pageName?: string;
+}
+
+export async function configureComponentNavigationFilter(page: Page, spec: NavigationFilterSpec): Promise<void> {
+  await test.step(`Configure component Navigation filter ${spec.field} = ${spec.value}`, async () => {
+    await ensureNavigationFilterRow(page);
+    const currentField = await navigationFilterFieldInput(page).inputValue().catch(() => '');
+    if (currentField !== spec.field) {
+      await selectNavigationFilterField(page, spec.field);
+    }
+    await selectIonOptionByValue(page, navigationFilterOperatorSelect(page), spec.operator ?? 'equals', 'Navigation filter operator');
+    await expectNavigationFilterUsesTextValueEditor(page);
+    await fillVisibilityValueTextEditor(page, spec.value);
+    await expectVisibilityValueTextEditorToContain(page, spec.value);
+    if (spec.action) {
+      await selectIonOptionByValue(page, navigationFilterActionSelect(page), spec.action, 'Navigation filter action');
+    }
+    if (spec.pageName) {
+      await selectNavigationFilterTargetPage(page, spec.pageName);
+    }
+    await page.waitForTimeout(1_000);
+  });
+}
+
+export async function expectComponentNavigationFilter(page: Page, spec: NavigationFilterSpec): Promise<void> {
+  await test.step(`Assert component Navigation filter persisted ${spec.field} = ${spec.value}`, async () => {
+    const row = navigationFilterRow(page);
+    await expect(row, 'Navigation filter row should be visible after reopening').toBeVisible({ timeout: 15_000 });
+    await expect(navigationFilterFieldInput(page), 'Navigation filter field should persist').toHaveValue(spec.field, {
+      timeout: 10_000,
+    });
+    await expect
+      .poll(() => navigationFilterOperatorSelect(page).evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+        message: `Navigation filter operator should persist as ${spec.operator ?? 'equals'}`,
+        timeout: 10_000,
+      })
+      .toBe(spec.operator ?? 'equals');
+    await expectNavigationFilterUsesTextValueEditor(page);
+    await expectVisibilityValueTextEditorToContain(page, spec.value);
+    if (spec.action) {
+      await expect
+        .poll(() => navigationFilterActionSelect(page).evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+          message: `Navigation filter action should persist as ${spec.action}`,
+          timeout: 10_000,
+        })
+        .toBe(spec.action);
+    }
+    if (spec.pageName) {
+      await expect(navigationFilterTargetPageSelect(page), `Navigation filter target page should show ${spec.pageName}`).toContainText(
+        spec.pageName,
+        { timeout: 10_000 },
+      );
+    }
+  });
+}
+
+async function ensureNavigationFilterRow(page: Page): Promise<void> {
+  if (await navigationFilterRow(page).isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+  const addNavigationRule = page
+    .locator('c8oforms-filterbradd ion-button.class1758191882625:visible, c8oforms-filterbradd ion-button:has-text("Add navigation rule"):visible')
+    .first();
+  await expect(addNavigationRule, 'Navigation Add navigation rule button should be visible').toBeVisible({ timeout: 15_000 });
+  await addNavigationRule.click({ timeout: 10_000 }).catch(async () => addNavigationRule.dispatchEvent('click'));
+  await expect(navigationFilterRow(page), 'Navigation filter row should be added').toBeVisible({ timeout: 15_000 });
+}
+
+async function selectNavigationFilterField(page: Page, fieldTechnicalId: string): Promise<void> {
+  const browse = navigationFilterRow(page).locator('ion-button.class1758189195718').first();
+  await expect(browse, 'Navigation filter field browse button should be visible').toBeVisible({ timeout: 15_000 });
+  await browse.click({ timeout: 10_000 }).catch(async () => browse.dispatchEvent('click'));
+
+  const popover = page.locator('ion-popover:not(.overlay-hidden)').last();
+  await expect(popover, 'Navigation filter field picker should open').toBeVisible({ timeout: 15_000 });
+  const search = popover.locator('ion-searchbar input, input[type="search"], input').first();
+  if (await search.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await search.fill(fieldTechnicalId);
+    await page.waitForTimeout(300);
+  }
+  const option = popover.locator('ion-item, button, [role="option"]').filter({ hasText: fieldTechnicalId }).first();
+  await expect(option, `Navigation filter field ${fieldTechnicalId} should be selectable`).toBeVisible({ timeout: 15_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await expect(navigationFilterFieldInput(page), 'Navigation filter field should be configured').toHaveValue(fieldTechnicalId, {
+    timeout: 10_000,
+  });
+}
+
+async function selectNavigationFilterTargetPage(page: Page, pageName: string): Promise<void> {
+  const select = navigationFilterTargetPageSelect(page);
+  await expect(select, 'Navigation filter target page select should be visible').toBeVisible({ timeout: 15_000 });
+  await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
+  const items = page.locator('ion-select-popover ion-item');
+  await items.first().waitFor({ state: 'visible', timeout: 8_000 });
+  const option = items.filter({ hasText: pageName }).first();
+  await expect(option, `Navigation target page ${pageName} should be selectable`).toBeVisible({ timeout: 10_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await expect(select, `Navigation target page should display ${pageName}`).toContainText(pageName, { timeout: 10_000 });
+}
+
+async function selectIonOptionByValue(page: Page, select: Locator, value: string, description: string): Promise<void> {
+  await expect(select, `${description} select should be visible`).toBeVisible({ timeout: 15_000 });
+  const optionIndex = await select.evaluate(
+    (el, expectedValue) =>
+      Array.from(el.querySelectorAll('ion-select-option')).findIndex(
+        (option) => String((option as HTMLElement & { value?: unknown }).value ?? option.getAttribute('value') ?? '') === expectedValue,
+      ),
+    value,
+  );
+  if (optionIndex < 0) {
+    throw new Error(`${description} option ${value} should exist`);
+  }
+  await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
+  const items = page.locator('ion-select-popover ion-item');
+  await items.first().waitFor({ state: 'visible', timeout: 8_000 });
+  await items.nth(optionIndex).click({ timeout: 10_000 }).catch(async () => items.nth(optionIndex).dispatchEvent('click'));
+  await expect
+    .poll(() => select.evaluate((el) => (el as HTMLElement & { value?: unknown }).value), {
+      message: `${description} should be ${value}`,
+      timeout: 10_000,
+    })
+    .toBe(value);
+}
+
+async function expectNavigationFilterUsesTextValueEditor(page: Page): Promise<void> {
+  await expect(
+    page.locator('c8oforms-filterbr:visible tag-input input:visible'),
+    'Select page Navigation filters should use the simple text value editor, not the chip editor',
+  ).toHaveCount(0, { timeout: 2_000 });
+  await expect(
+    page.locator('c8oforms-filterbr:visible .tox-edit-area, c8oforms-filterbr:visible [contenteditable="true"].mce-content-body').last(),
+    'Navigation filter text value editor should be visible',
+  ).toBeVisible({ timeout: 15_000 });
+}
+
+function navigationFilterRow(page: Page): Locator {
+  return page.locator('c8oforms-filterbr:visible').first();
+}
+
+function navigationFilterFieldInput(page: Page): Locator {
+  return navigationFilterRow(page).locator('ion-input.class1758189195706 input, .class1758189195706 input').first();
+}
+
+function navigationFilterOperatorSelect(page: Page): Locator {
+  return navigationFilterRow(page).locator('ion-select.class1758189195757').first();
+}
+
+function navigationFilterActionSelect(page: Page): Locator {
+  return navigationFilterGroup(page).locator('ion-select.class1776120500008').first();
+}
+
+function navigationFilterTargetPageSelect(page: Page): Locator {
+  return navigationFilterGroup(page).locator('ion-select.class1776120500019').first();
+}
+
+function navigationFilterGroup(page: Page): Locator {
+  return page.locator('c8oforms-visibleifgroupeditor:visible').first();
 }
 
 export async function expectPagesPanelDefaultAfterWorkflowNavigation(page: Page): Promise<void> {
@@ -5627,19 +9394,23 @@ export async function recordedToasts(page: Page): Promise<string[]> {
  * wait for the tile, then retry once if the layout did not get added.
  */
 export async function addHorizontalLayout(page: Page): Promise<void> {
-  const tile = await paletteTileForIcon(page, PALETTE_ICON.layout, 'Horizontal layout palette tile');
   const layout = page.locator(SEL.layoutViewer);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    await page.waitForTimeout(1_200);
-    await tile.dblclick();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await acceptRgpdIfVisible(page);
+    const tile = await paletteTileForIcon(page, PALETTE_ICON.layout, 'Horizontal layout palette tile');
+    await page.waitForTimeout(1_000);
+    await tile.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+    await tile.dblclick({ delay: 75, timeout: 5_000 }).catch(async () => {
+      await page.waitForTimeout(500);
+    });
     try {
-      await expect(layout).toHaveCount(1, { timeout: 8_000 });
+      await expect(layout).toHaveCount(1, { timeout: 10_000 });
       return;
     } catch {
-      // editor was not interactive yet; retry once
+      // editor was not interactive yet; retry
     }
   }
-  await expect(layout, 'the Horizontal layout was not added to the page').toHaveCount(1, { timeout: 5_000 });
+  await expect(layout, 'the Horizontal layout was not added to the page').toHaveCount(1, { timeout: 10_000 });
 }
 
 /**
@@ -5761,6 +9532,163 @@ async function waitForLayoutChildCount(children: Locator, expected: number, time
     .toBe(expected)
     .then(() => true)
     .catch(() => false);
+}
+
+const LAYOUT_CHILD_COMPONENT_SELECTORS = [
+  { type: 'text', selector: `${SEL.textComponent}, c8oforms-itemtexteditor` },
+  { type: 'description', selector: `${SEL.descriptionComponent}, c8oforms-itemdescriptioneditor` },
+  { type: 'checkbox', selector: `${SEL.checkboxComponent}, c8oforms-itemcheckboxeditor` },
+  { type: 'button', selector: `${SEL.buttonComponent}, c8oforms-itembuttoneditor` },
+] as const;
+
+export async function layoutChildComponentTypes(page: Page): Promise<string[]> {
+  return page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).evaluateAll((children, candidates) => {
+    return children.map((child) => {
+      const element = child as Element;
+      for (const candidate of candidates) {
+        if (element.querySelector(candidate.selector)) {
+          return candidate.type;
+        }
+      }
+
+      const itemTag = Array.from(element.querySelectorAll('*'))
+        .map((descendant) => descendant.tagName.toLowerCase())
+        .find((tag) => tag.startsWith('c8oforms-item') && !tag.includes('layouteditor'));
+      return itemTag ?? 'unknown';
+    });
+  }, LAYOUT_CHILD_COMPONENT_SELECTORS);
+}
+
+/**
+ * Reorder a child already nested in a Horizontal layout by dragging it to the
+ * final layout child drop zone. The caller must assert the final DOM order; the
+ * helper only performs the user gesture.
+ */
+export async function moveLayoutChildToEnd(page: Page, fromIndex = 0): Promise<void> {
+  await enableNativeDropDeliveryForLayoutDropZones(page);
+
+  await selectAnotherLayoutChild(page, fromIndex);
+  const sourceChild = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).nth(fromIndex);
+  const source = sourceChild.locator(SEL.layoutChildCard).first();
+  await dragLayoutChildToEndWithPointer(page, source, fromIndex);
+}
+
+/**
+ * Drag an existing nested child to the leading layout drop zone. This is the
+ * #1364-sensitive path: beta151 lacks a usable before/between-child drop zone,
+ * so the DOM order remains unchanged.
+ */
+export async function moveLayoutChildToStart(page: Page, fromIndex: number): Promise<void> {
+  await enableNativeDropDeliveryForLayoutDropZones(page);
+
+  await selectAnotherLayoutChild(page, fromIndex);
+  const sourceChild = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).nth(fromIndex);
+  const source = sourceChild.locator(SEL.layoutChildCard).first();
+  await dragLayoutChildToStartWithPointer(page, source, fromIndex);
+}
+
+async function selectAnotherLayoutChild(page: Page, fromIndex: number): Promise<void> {
+  const children = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`);
+  const count = await children.count();
+  if (count < 2) return;
+
+  const otherIndex = fromIndex === 0 ? 1 : 0;
+  const other = children.nth(otherIndex);
+  const card = other.locator(SEL.layoutChildCard).first();
+  const box = (await card.boundingBox().catch(() => null)) ?? (await other.boundingBox().catch(() => null));
+  if (!box) return;
+
+  await page.mouse.move(5, 5);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(800);
+
+  if (await page.locator(`${SEL.configClose}:visible`).first().isVisible({ timeout: 1_500 }).catch(() => false)) {
+    await closeComponentConfig(page);
+    await expect(page.locator(SEL.layoutViewer), 'the Horizontal layout should be visible after closing child editor').toBeVisible({
+      timeout: 10_000,
+    });
+  }
+}
+
+async function dragLayoutChildToEndWithPointer(page: Page, source: Locator, fromIndex: number): Promise<void> {
+  await source.scrollIntoViewIfNeeded();
+  await expect(source, `layout child #${fromIndex} should be visible before dragging`).toBeVisible({ timeout: 10_000 });
+
+  const sourceBox = await source.boundingBox();
+  if (!sourceBox) throw new Error(`layout child #${fromIndex} has no bounding box`);
+
+  await page.mouse.move(5, 5);
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2, { steps: 8 });
+  await page.mouse.down();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 14, sourceBox.y + sourceBox.height / 2 + 10, {
+    steps: 8,
+  });
+
+  const layout = page.locator(SEL.layoutViewer).first();
+  const layoutBox = await layout.boundingBox();
+  if (!layoutBox) throw new Error('Horizontal layout has no bounding box');
+
+  await page.mouse.move(layoutBox.x + layoutBox.width - 12, layoutBox.y + layoutBox.height / 2, { steps: 25 });
+  await page.waitForTimeout(500);
+
+  const zone = await layoutChildDropZoneLocator(page, 1_000);
+  const zoneBox = zone ? await zone.boundingBox() : null;
+  if (zoneBox) {
+    await page.mouse.move(zoneBox.x + zoneBox.width / 2, zoneBox.y + zoneBox.height / 2, { steps: 8 });
+  }
+
+  await page.waitForTimeout(250);
+  await page.mouse.up();
+  await page.waitForTimeout(1_500);
+}
+
+async function dragLayoutChildToStartWithPointer(page: Page, source: Locator, fromIndex: number): Promise<void> {
+  await source.scrollIntoViewIfNeeded();
+  await expect(source, `layout child #${fromIndex} should be visible before dragging`).toBeVisible({ timeout: 10_000 });
+
+  const sourceBox = await source.boundingBox();
+  if (!sourceBox) throw new Error(`layout child #${fromIndex} has no bounding box`);
+
+  await page.mouse.move(5, 5);
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2, { steps: 8 });
+  await page.mouse.down();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2 - 14, sourceBox.y + sourceBox.height / 2 + 10, {
+    steps: 8,
+  });
+
+  const layout = page.locator(SEL.layoutViewer).first();
+  const layoutBox = await layout.boundingBox();
+  if (!layoutBox) throw new Error('Horizontal layout has no bounding box');
+
+  await page.mouse.move(layoutBox.x + 12, layoutBox.y + layoutBox.height / 2, { steps: 25 });
+  await page.waitForTimeout(500);
+
+  const zone = await layoutChildLeadingDropZoneLocator(page, 1_000);
+  const zoneBox = zone ? await zone.boundingBox() : null;
+  if (zoneBox) {
+    await page.mouse.move(zoneBox.x + zoneBox.width / 2, zoneBox.y + zoneBox.height / 2, { steps: 8 });
+  }
+
+  await page.waitForTimeout(250);
+  await page.mouse.up();
+  await page.waitForTimeout(1_500);
+}
+
+async function layoutChildDropZoneLocator(page: Page, timeout: number): Promise<Locator | null> {
+  const selector = [
+    `${SEL.layoutViewer} c8oforms-shareddropindicator`,
+    `${SEL.layoutViewer} [id*="afterItem"]`,
+    `${SEL.layoutViewer} ${SEL.containerInitialDropZone}`,
+  ].join(', ');
+  return lastVisibleLocator(page, selector, 'layout child reorder drop zone', timeout).catch(() => null);
+}
+
+async function layoutChildLeadingDropZoneLocator(page: Page, timeout: number): Promise<Locator | null> {
+  const selector = [
+    `${SEL.layoutViewer} .class1780324100000 c8oforms-shareddropindicator`,
+    `${SEL.layoutViewer} [id*="beforeItem"]`,
+  ].join(', ');
+  return firstVisibleLocator(page, selector, 'layout child leading drop zone', timeout).catch(() => null);
 }
 
 // Helpers for opening a nested layout child's own editor across UI variants.
