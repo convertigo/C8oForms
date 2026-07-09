@@ -76,6 +76,7 @@ For more technical informations : [documentation](./project.md)
     - [APIV2_csv](#apiv2_csv)
     - [APIV2_deleteDocument](#apiv2_deletedocument)
     - [APIV2_deleteResponses](#apiv2_deleteresponses)
+    - [APIV2_DiagnosePublishedAnonymousDefinitions](#apiv2_diagnosepublishedanonymousdefinitions)
     - [APIV2_DuplicateFormulaireDocument](#apiv2_duplicateformulairedocument)
     - [APIV2_Execute_Sequences](#apiv2_execute_sequences)
     - [APIV2_ExecuteView](#apiv2_executeview)
@@ -1306,6 +1307,30 @@ Purges stored responses for a form and logs errors.
 </tr>
 <tr>
 <td>version</td><td></td>
+</tr>
+</table>
+### APIV2_DiagnosePublishedAnonymousDefinitions
+
+Diagnose anonymous published definitions.
+Lists or repairs anonymous published forms whose flows differ from their published parent.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>dryRun</td><td>Keep true to diagnose only. Set to false to repair flows on affected anonymous published documents.</td>
+</tr>
+<tr>
+<td>ids</td><td>Optional JSON array or comma-separated list of ids to scan. Accepts draft ids, published ids, or anonymous published ids.</td>
+</tr>
+<tr>
+<td>includeOk</td><td>Include documents whose anonymous definition already matches the published parent.</td>
+</tr>
+<tr>
+<td>limit</td><td>Optional maximum number of anonymous documents to scan. Use 0 or empty for all.</td>
 </tr>
 </table>
 ### APIV2_DuplicateFormulaireDocument

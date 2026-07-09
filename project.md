@@ -5336,6 +5336,61 @@ Generic identifier for the targeted resource.
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_DiagnosePublishedAnonymousDefinitions</b> : Diagnose anonymous published definitions</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_DiagnosePublishedAnonymousDefinitions
+
+Diagnose anonymous published definitions.
+Lists or repairs anonymous published forms whose flows differ from their published parent.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;dryRun
+</td>
+<td>
+Keep true to diagnose only. Set to false to repair flows on affected anonymous published documents.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;ids
+</td>
+<td>
+Optional JSON array or comma-separated list of ids to scan. Accepts draft ids, published ids, or anonymous published ids.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;includeOk
+</td>
+<td>
+Include documents whose anonymous definition already matches the published parent.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;limit
+</td>
+<td>
+Optional maximum number of anonymous documents to scan. Use 0 or empty for all.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_DuplicateFormulaireDocument</b> : Duplicate draft form</summary><blockquote><p>
 
 
