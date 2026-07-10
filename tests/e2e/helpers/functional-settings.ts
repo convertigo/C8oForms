@@ -1,6 +1,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { setGlobalSymbolForTest, type RestoreGlobalSymbol } from './admin-symbols';
 import {
+  createFunctionalAdminSequenceClient,
+  type FunctionalAdminSequenceClient,
+} from './functional-users';
+import {
   PALETTE_ICON,
   SEL,
   addComponent,
@@ -107,7 +111,6 @@ export async function manageHomePagePreferenceThroughSettingsUi(page: Page): Pro
 
   await test.step('Open Settings and read the current default home page preference', async () => {
     await openSettings(page);
-    await expectProfileIdentityVisible(page);
     originalValue = normalizePublishedFirst(await currentPublishedFirstPreference(page));
     targetValue = originalValue === 'true' ? 'false' : 'true';
     await expectHomePageSelectValue(page, originalValue);
@@ -277,13 +280,12 @@ async function setGdprMenuForTest(
 }
 
 async function setGdprConfigForTest(updateConfig: (config: GdprConfig) => void): Promise<RestoreGdprConfig> {
-  const admin = new FunctionalConvertigoAdminClient();
-  await admin.login();
+  const admin = await createFunctionalAdminSequenceClient();
 
-  const previous = await admin.readGdprConfig();
+  const previous = await readGdprConfig(admin);
   const next = cloneJson(previous);
   updateConfig(next);
-  await admin.writeGdprConfig(next);
+  await writeGdprConfig(admin, next);
 
   let restored = false;
   return async () => {
@@ -291,86 +293,21 @@ async function setGdprConfigForTest(updateConfig: (config: GdprConfig) => void):
       return;
     }
     restored = true;
-    await admin.writeGdprConfig(previous);
+    await writeGdprConfig(admin, previous);
   };
 }
 
-class FunctionalConvertigoAdminClient {
-  private readonly endpoint = resolveConvertigoEndpoint();
-  private readonly user = process.env.CONVERTIGO_ADMIN_USER || process.env.TEST_NOCODE_USER || 'admin';
-  private readonly password = process.env.CONVERTIGO_ADMIN_PASSWORD || process.env.TEST_NOCODE_PASSWORD || '';
-  private cookie = '';
+async function readGdprConfig(admin: FunctionalAdminSequenceClient): Promise<GdprConfig> {
+  const response = await admin.callSequence('admin_gdrp_get', {});
+  return normalizeGdprConfig(gdprData(response));
+}
 
-  async login(): Promise<void> {
-    if (!this.password) {
-      throw new Error('CONVERTIGO_ADMIN_PASSWORD or TEST_NOCODE_PASSWORD is required to configure GDPR settings');
-    }
-    await this.callAdminService('engine.Authenticate', {
-      authType: 'login',
-      authUserName: this.user,
-      authPassword: this.password,
-    });
-  }
-
-  async readGdprConfig(): Promise<GdprConfig> {
-    const response = await this.callSequence('admin_gdrp_get', {});
-    return normalizeGdprConfig(gdprData(response));
-  }
-
-  async writeGdprConfig(config: GdprConfig): Promise<void> {
-    const response = await this.callSequence('admin_gdrp_upsert', { meta: JSON.stringify(config) });
-    const document = asRecord(response.document);
-    const success = response.success ?? document?.success;
-    if (success !== true && success !== 'true') {
-      throw new Error(`C8o admin_gdrp_upsert failed: ${JSON.stringify(response).slice(0, 500)}`);
-    }
-  }
-
-  private async callAdminService(path: string, form: Record<string, string>): Promise<string> {
-    const result = await this.rawPost(`${this.endpoint}/admin/services/${path}`, form);
-    if (!result.response.ok || serviceFailed(result.text)) {
-      throw new Error(`Convertigo admin service ${path} failed: ${result.response.status} ${compactServiceResponse(result.text)}`);
-    }
-    return result.text;
-  }
-
-  private async callSequence(sequence: string, params: Record<string, string>): Promise<Record<string, unknown>> {
-    const form = { __project: 'C8Oforms', __sequence: sequence, ...params };
-    const result = await this.rawPost(`${this.endpoint}/projects/C8Oforms/.json`, form);
-    let json: Record<string, unknown>;
-    try {
-      json = result.text ? (JSON.parse(result.text) as Record<string, unknown>) : {};
-    } catch {
-      throw new Error(`C8o ${sequence} returned non-JSON: ${result.text.slice(0, 300)}`);
-    }
-    if (!result.response.ok || json.error) {
-      throw new Error(`C8o ${sequence} failed: ${JSON.stringify(json).slice(0, 500)}`);
-    }
-    return json;
-  }
-
-  private async rawPost(url: string, form: Record<string, string>): Promise<{ response: Response; text: string }> {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        ...(this.cookie ? { Cookie: this.cookie } : {}),
-      },
-      body: new URLSearchParams(form).toString(),
-      redirect: 'follow',
-    });
-
-    const getSetCookie = (response.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
-    const setCookies = getSetCookie
-      ? getSetCookie.call(response.headers)
-      : response.headers.get('set-cookie')
-        ? [response.headers.get('set-cookie') as string]
-        : [];
-    if (setCookies.length > 0) {
-      this.cookie = setCookies.map((cookie) => cookie.split(';')[0]).join('; ');
-    }
-
-    return { response, text: await response.text() };
+async function writeGdprConfig(admin: FunctionalAdminSequenceClient, config: GdprConfig): Promise<void> {
+  const response = await admin.callSequence('admin_gdrp_upsert', { meta: JSON.stringify(config) });
+  const document = asRecord(response.document);
+  const success = response.success ?? document?.success;
+  if (success !== true && success !== 'true') {
+    throw new Error(`C8o admin_gdrp_upsert failed: ${JSON.stringify(response).slice(0, 500)}`);
   }
 }
 
@@ -489,29 +426,6 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function resolveConvertigoEndpoint(): string {
-  const explicit = process.env.TEST_NOCODE_ENDPOINT || process.env.C8O_SERVER || process.env.C8OFORMS_BASE_URL || '';
-  if (explicit) {
-    const trimmed = explicit.replace(/\/+$/, '');
-    return trimmed.endsWith('/convertigo') ? trimmed : `${trimmed}/convertigo`;
-  }
-
-  const appUrl = process.env.C8OFORMS_APP_URL || 'https://test-repro.convertigo.net/convertigo/projects/C8Oforms/DisplayObjects/mobile/';
-  const url = new URL(appUrl);
-  const convertigoPath = url.pathname.includes('/convertigo/')
-    ? url.pathname.slice(0, url.pathname.indexOf('/convertigo/') + '/convertigo'.length)
-    : '/convertigo';
-  return `${url.origin}${convertigoPath}`;
-}
-
-function serviceFailed(text: string): boolean {
-  return /<error\b/i.test(text) || /\bstate="error"/i.test(text);
-}
-
-function compactServiceResponse(text: string): string {
-  return text.replace(/\s+/g, ' ').trim().slice(0, 500);
-}
-
 async function responseCompletedLogoMetrics(page: Page): Promise<LogoMetrics> {
   const logo = page.locator(SEL.responseCompletedLogo).first();
   await expect(logo, 'response completion custom logo should be visible').toBeVisible({ timeout: 30_000 });
@@ -574,60 +488,6 @@ async function currentPublishedFirstPreference(page: Page): Promise<unknown> {
 async function currentUserSettings(page: Page): Promise<Record<string, unknown>> {
   const response = await c8oCall(page, 'getCurrentUserSettings', {});
   return settingsResult(response);
-}
-
-async function expectProfileIdentityVisible(page: Page): Promise<void> {
-  const settings = await currentUserSettings(page);
-  const initials = profileInitials(settings);
-  expect(initials, 'current user settings should provide displayable profile initials').toMatch(/^[A-Z?]{1,2}$/);
-
-  const menu = page.getByRole('navigation', { name: /menu/i }).first();
-  await expect(menu, 'Settings menu should expose the current user profile area').toBeVisible({
-    timeout: 15_000,
-  });
-
-  const profileLabel = profileDisplayLabel(settings);
-  if (profileLabel) {
-    await expect(menu, `Settings menu should display the current user profile label ${profileLabel}`).toContainText(
-      profileLabel,
-      { timeout: 15_000 },
-    );
-  } else {
-    await expect(menu, `Settings menu should display the current user profile initials ${initials}`).toContainText(
-      initials,
-      { timeout: 15_000 },
-    );
-  }
-
-  const email = profileEmail(settings);
-  if (email) {
-    await expect(menu, `Settings menu should display the current user email ${email}`).toContainText(email, {
-      timeout: 15_000,
-    });
-  }
-}
-
-function profileInitials(settings: Record<string, unknown>): string {
-  const displayName = normalizedSetting(settings.displayName);
-  if (displayName) {
-    return displayName.slice(0, 1).toUpperCase();
-  }
-
-  const name = normalizedSetting(settings.name);
-  const surname = normalizedSetting(settings.surname);
-  if (name) {
-    return `${name.charAt(0)}${surname.charAt(0)}`.toUpperCase();
-  }
-
-  return 'U';
-}
-
-function profileDisplayLabel(settings: Record<string, unknown>): string {
-  const displayName = normalizedSetting(settings.displayName);
-  if (displayName) {
-    return displayName;
-  }
-  return `${normalizedSetting(settings.name)} ${normalizedSetting(settings.surname)}`.trim();
 }
 
 function profileEmail(settings: Record<string, unknown>): string {

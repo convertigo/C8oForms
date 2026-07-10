@@ -11,6 +11,7 @@ import {
   configureComponentNavigationFilter,
   deleteLayoutChild,
   dragPaletteComponentInto,
+  getFormDocument,
   layoutChildComponentTypes,
   moveLayoutChildToStart,
   openConfigTabById,
@@ -385,6 +386,8 @@ export async function duplicateConfiguredButtonAndAssertCopyThroughUi(page: Page
 
 export async function reorderButtonsAndAssertPersistenceThroughUi(page: Page): Promise<void> {
   const suffix = Date.now();
+  const formId = page.url().match(/\/editor\/([^/?#]+)/)?.[1] ?? '';
+  expect(formId, 'Button reorder persistence needs the current application id').toMatch(/^\d+$/);
   const first = { technicalId: `functional_reorder_first_${suffix}`, label: `Functional first ${suffix}` };
   const second = { technicalId: `functional_reorder_second_${suffix}`, label: `Functional second ${suffix}` };
   const third = { technicalId: `functional_reorder_third_${suffix}`, label: `Functional third ${suffix}` };
@@ -411,6 +414,12 @@ export async function reorderButtonsAndAssertPersistenceThroughUi(page: Page): P
   await test.step('Move the third Button before the first Button by drag-and-drop', async () => {
     await moveComponentBefore(page, third.technicalId, first.technicalId, 'button');
     await expectButtonLabelOrder(page, reorderedOrder, 'editor Button order should reflect drag-and-drop');
+    await expect
+      .poll(() => persistedComponentOrder(page, formId, 'button', [first.technicalId, second.technicalId, third.technicalId]), {
+        message: 'Button drag-and-drop order should be persisted before reloading the editor',
+        timeout: 60_000,
+      })
+      .toEqual([third.technicalId, first.technicalId, second.technicalId]);
   });
 
   await test.step('Reload the editor and verify the reordered component order persists', async () => {
@@ -1284,6 +1293,7 @@ async function draggableFunctionalPaletteTileForIcon(page: Page, icon: string): 
 }
 
 async function dragPaletteTileToGroupDropZone(page: Page, tile: Locator, group: Locator, paletteIcon: string): Promise<void> {
+  await enableNativeDropDeliveryForLocalDropZones(page);
   const tileBox = await tile.boundingBox();
   if (!tileBox) {
     throw new Error(`Palette tile not found for icon ${paletteIcon}`);
@@ -1473,6 +1483,20 @@ async function visibleButtonLabelOrder(page: Page, knownLabels: string[]): Promi
         .filter(Boolean),
     knownLabels,
   );
+}
+
+async function persistedComponentOrder(
+  page: Page,
+  formId: string,
+  type: string,
+  knownTechnicalIds: string[],
+): Promise<string[]> {
+  const document = await getFormDocument(page, formId).catch(() => null);
+  const elements = document && Array.isArray(document.formulaire) ? document.formulaire : [];
+  return elements
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    .filter((entry) => entry.type === type && typeof entry.name === 'string' && knownTechnicalIds.includes(entry.name))
+    .map((entry) => String(entry.name));
 }
 
 async function moveComponentBefore(page: Page, sourceTechnicalId: string, targetTechnicalId: string, type: string): Promise<void> {

@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { SEL, c8oCall, login } from './studio';
+import { functionalAdminUserCredentials } from './functional-studio';
+import { ensureFunctionalUserIfPossible } from './functional-users';
 
 const ADMIN_SEL = {
   homePage: 'page-admindashboardhome',
@@ -37,7 +39,14 @@ const ADMIN_SEL = {
 
 export async function loginAsAdminWithUsernamePassword(page: Page): Promise<void> {
   await test.step('Log in with the configured admin-capable Studio user', async () => {
-    await login(page);
+    const credentials = functionalAdminUserCredentials();
+    if (!credentials) {
+      throw new Error(
+        'Set C8OFORMS_FUNCTIONAL_ADMIN_USER/PASSWORD, or CONVERTIGO_ADMIN_PASSWORD to provision an Admin UI user',
+      );
+    }
+    await ensureFunctionalUserIfPossible(credentials, { admin: true });
+    await login(page, credentials);
   });
 }
 
@@ -79,7 +88,7 @@ export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page
 
       const editingRights = modal
         .getByRole('checkbox', {
-          name: /Application editing|Editing rights|editing_rights/i,
+          name: /Application editing|Editing rights|Édition des applications|Edición de aplicaciones|Modifica delle applicazioni|editing_rights/i,
         })
         .first();
       await expect(editingRights, 'Add group modal should expose the Application editing permission').toBeVisible({

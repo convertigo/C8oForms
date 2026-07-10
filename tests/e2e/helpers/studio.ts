@@ -2672,14 +2672,14 @@ export async function normalizedLocatorText(locator: Locator): Promise<string> {
   return (await locator.innerText()).replace(/\s+/g, ' ').trim();
 }
 
-export async function submitViewerForm(page: Page): Promise<void> {
+export async function submitViewerForm(page: Page, completionTimeout = 60_000): Promise<void> {
   await test.step('Submit the viewer form', async () => {
     await expectRoute(page, ROUTE.viewer);
     const submit = await firstVisibleLocator(page, SEL.viewerSubmitButton, 'viewer submit button', 30_000);
     await submit.scrollIntoViewIfNeeded().catch(() => undefined);
     await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
     await confirmAlertIfVisible(page);
-    await page.locator(SEL.responseCompletedPage).waitFor({ state: 'attached', timeout: 60_000 });
+    await page.locator(SEL.responseCompletedPage).waitFor({ state: 'attached', timeout: completionTimeout });
   });
 }
 
@@ -2705,11 +2705,11 @@ async function openStyleSection(page: Page): Promise<void> {
 }
 
 export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab): Promise<void> {
-  if (await clickConfigTabById(page, tabId)) {
+  if (await clickConfigTabByFallbackText(page, tabId)) {
     await page.waitForTimeout(350);
     return;
   }
-  if (await clickConfigTabByFallbackText(page, tabId)) {
+  if (await clickConfigTabById(page, tabId)) {
     await page.waitForTimeout(350);
     return;
   }
@@ -2719,11 +2719,11 @@ export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab):
   }
 
   await openConfigurationSection(page);
-  if (await clickConfigTabById(page, tabId)) {
+  if (await clickConfigTabByFallbackText(page, tabId)) {
     await page.waitForTimeout(350);
     return;
   }
-  if (await clickConfigTabByFallbackText(page, tabId)) {
+  if (await clickConfigTabById(page, tabId)) {
     await page.waitForTimeout(350);
     return;
   }
@@ -3146,8 +3146,7 @@ async function clickConfigTabById(page: Page, tabId: MainEditorConfigTab): Promi
   if (!(await tab.isVisible({ timeout: 1_000 }).catch(() => false))) {
     return false;
   }
-  await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
-  return true;
+  return activateConfigTab(tab);
 }
 
 const CONFIG_TAB_FALLBACK_TEXT: Partial<Record<MainEditorConfigTab, string[]>> = {
@@ -3189,8 +3188,7 @@ async function clickConfigTabByFallbackText(page: Page, tabId: MainEditorConfigT
     const tab = tabs.nth(index);
     const text = searchableVisibleText(await tab.innerText().catch(() => ''));
     if (labels.includes(text)) {
-      await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
-      return true;
+      return activateConfigTab(tab);
     }
   }
   return false;
@@ -3207,8 +3205,21 @@ async function clickConfigTabByFallbackIndex(page: Page, tabId: MainEditorConfig
   if (!(await tab.isVisible({ timeout: 1_000 }).catch(() => false))) {
     return false;
   }
+  return activateConfigTab(tab);
+}
+
+async function activateConfigTab(tab: Locator): Promise<boolean> {
   await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
-  return true;
+  return expect
+    .poll(
+      async () => /(?:^|\s)c8o-btn-active(?:-style)?(?:\s|$)/.test((await tab.getAttribute('class')) ?? ''),
+      { timeout: 5_000 },
+    )
+    .toBe(true)
+    .then(
+      () => true,
+      () => false,
+    );
 }
 
 async function visibleConfigTabs(page: Page): Promise<Locator> {
@@ -6844,25 +6855,30 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
 }
 
 async function openCreatedFormFromSelector(page: Page, title: string): Promise<boolean> {
-  if (!(await selectorIsReady(page, 2_000))) {
-    await login(page);
-  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!(await selectorIsReady(page, 2_000))) {
+      await login(page);
+    }
 
-  await waitForSelectorHomeReadyForCreate(page);
-  const cards = page.locator('[id^="idcard"]:not([id^="idcardO"])');
-  let card = cards.filter({ hasText: title }).first();
-  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
-    card = cards.filter({ hasText: title.slice(0, 29) }).first();
-  }
-  if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
-    return false;
-  }
+    await waitForSelectorHomeReadyForCreate(page);
+    const cards = page.locator('[id^="idcard"]:not([id^="idcardO"])');
+    let card = cards.filter({ hasText: title }).first();
+    if (!(await card.isVisible({ timeout: 10_000 }).catch(() => false))) {
+      card = cards.filter({ hasText: title.slice(0, 29) }).first();
+    }
+    if (await card.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      await card.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+      await card.click({ timeout: 10_000 }).catch(async () => card.dispatchEvent('click'));
+      if (await expectRoute(page, ROUTE.editor, 60_000).then(() => true).catch(() => false)) {
+        return true;
+      }
+    }
 
-  await card.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
-  await card.click({ timeout: 10_000 }).catch(async () => card.dispatchEvent('click'));
-  return expectRoute(page, ROUTE.editor, 60_000)
-    .then(() => true)
-    .catch(() => false);
+    if (attempt === 0) {
+      await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => undefined);
+    }
+  }
+  return false;
 }
 
 function editorFormId(url: string): string | null {
@@ -7017,7 +7033,10 @@ export async function openComponentsPalette(page: Page, waitForIcon = PALETTE_IC
 
 export async function openWorkflowsPanel(page: Page): Promise<void> {
   await acceptRgpdIfVisible(page);
-  if (await page.locator(`${SEL.businessLogicComponent}:visible`).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
+  if (
+    (await page.locator(SEL.workflowsSearchbar).first().isVisible({ timeout: 1_000 }).catch(() => false)) &&
+    (await page.locator(SEL.workflowEntry).first().isVisible({ timeout: 1_000 }).catch(() => false))
+  ) {
     return;
   }
   await clickFirstVisible(page, SEL.workflowsPanelButton, 'workflows panel');
@@ -8271,29 +8290,12 @@ export function visibilityValueChip(page: Page, value: string) {
 }
 
 export async function fillVisibilityValueTextEditor(page: Page, value: string): Promise<void> {
-  const frameBody = page.frameLocator('iframe.tox-edit-area__iframe').last().locator('body');
-  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await frameBody.fill(value);
-    return;
-  }
-
-  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
-  await expect(inlineEditor, 'visibility value should expose a TinyMCE text editor').toBeVisible({ timeout: 10_000 });
-  await inlineEditor.click();
-  await page.keyboard.press('Control+A');
-  await page.keyboard.type(value);
-  await page.keyboard.press('Tab');
+  await fillVisibleTinyMceText(page, value, 'visibility value text editor');
 }
 
 export async function expectVisibilityValueTextEditorToContain(page: Page, value: string): Promise<void> {
-  const frameBody = page.frameLocator('iframe.tox-edit-area__iframe').last().locator('body');
-  if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await expect(frameBody).toContainText(value, { timeout: 10_000 });
-    return;
-  }
-
-  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
-  await expect(inlineEditor, 'visibility value text editor should contain the configured value').toContainText(value, {
+  const editorBody = await visibleTinyMceBody(page);
+  await expect(editorBody, 'visibility value text editor should contain the configured value').toContainText(value, {
     timeout: 10_000,
   });
 }
@@ -8597,7 +8599,7 @@ async function dragPaletteEntryToEditor(page: Page, section: SourcePaletteSectio
       : globalTile;
   await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
 
-  const before = await editorBody.locator('svg[id^="clickable-"]').count();
+  const before = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count();
   await tile.dragTo(editorBody).catch(() => undefined);
   await page.waitForTimeout(1_000);
   await fireActiveTinyMceChange(page);
@@ -8647,9 +8649,19 @@ function sourcePaletteEntryLocator(page: Page, label: string): Locator {
   return page.locator('[draggable="true"]:visible').filter({ hasText: label }).last();
 }
 
-async function editorContainsPaletteEntry(editorBody: Locator, label: string, previousSvgCount = 0): Promise<boolean> {
-  const svgCount = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count().catch(() => 0);
-  if (svgCount > previousSvgCount) {
+async function editorContainsPaletteEntry(
+  editorBody: Locator,
+  label: string,
+  previousTokenCount: number | null = null,
+): Promise<boolean> {
+  const tokenCount = await editorBody
+    .locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge')
+    .count()
+    .catch(() => 0);
+  if (previousTokenCount !== null) {
+    return tokenCount > previousTokenCount;
+  }
+  if (tokenCount > 0) {
     return true;
   }
   const text = await editorBody.innerText().catch(() => '');
@@ -8659,12 +8671,12 @@ async function editorContainsPaletteEntry(editorBody: Locator, label: string, pr
 async function waitForTinyMcePaletteEntry(
   page: Page,
   label: string,
-  previousSvgCount = 0,
+  previousTokenCount: number | null = null,
   timeout = 10_000,
 ): Promise<boolean> {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    if (await tinyMcePaletteEntryPresent(page, label, previousSvgCount)) {
+    if (await tinyMcePaletteEntryPresent(page, label, previousTokenCount)) {
       return true;
     }
     await page.waitForTimeout(250);
@@ -8672,9 +8684,13 @@ async function waitForTinyMcePaletteEntry(
   return false;
 }
 
-async function tinyMcePaletteEntryPresent(page: Page, label: string, previousSvgCount = 0): Promise<boolean> {
+async function tinyMcePaletteEntryPresent(
+  page: Page,
+  label: string,
+  previousTokenCount: number | null = null,
+): Promise<boolean> {
   const editorBody = await visibleTinyMceBody(page).catch(() => null);
-  return editorBody ? editorContainsPaletteEntry(editorBody, label, previousSvgCount) : false;
+  return editorBody ? editorContainsPaletteEntry(editorBody, label, previousTokenCount) : false;
 }
 
 async function visibleTinyMceBody(page: Page): Promise<Locator> {

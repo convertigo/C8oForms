@@ -5,6 +5,7 @@ import {
   PALETTE_ICON,
   SEL,
   addComponent,
+  c8oCall,
   closeComponentConfig,
   configureGridBaserowSource,
   createBlankForm,
@@ -68,11 +69,32 @@ export async function assertDashboardEmptyResultStates(page: Page): Promise<void
 }
 
 export async function assertIsolatedEmptyDashboardSections(page: Page): Promise<void> {
+  await ensureNoCodeDatabaseAccount(page);
   for (const entryPoint of ['dashboard-button', 'left-menu'] as const) {
     await assertDashboardSectionHasNoResultCards(page, 'edition', entryPoint);
     await assertDashboardSectionHasNoResultCards(page, 'published', entryPoint);
     await assertNoCodeDatabaseSectionHasNoFunctionalFixture(page, entryPoint);
   }
+}
+
+async function ensureNoCodeDatabaseAccount(page: Page): Promise<void> {
+  await test.step('Provision the isolated user No-code database account', async () => {
+    const response = await c8oCall(page, 'BaserowAccount', {});
+    const document = asRecord(response.document);
+    const result = asRecord(document?.result) ?? asRecord(response.result) ?? document ?? response;
+    const token = typeof result.token === 'string' ? result.token : '';
+    const iframe = typeof result.iframe === 'string' ? result.iframe : '';
+    expect(token, 'BaserowAccount should return a login token for the isolated user').not.toBe('');
+    expect(iframe, 'BaserowAccount should return an iframe endpoint for the isolated user').not.toBe('');
+
+    const checkLogin = await page.request.post(`${iframe.replace(/\/+$/, '')}/.json`, {
+      form: { __sequence: 'CheckLogin', token },
+      timeout: 60_000,
+    });
+    const body = await checkLogin.json().catch(() => ({}));
+    expect(checkLogin.ok(), 'Baserow iframe CheckLogin should succeed for the isolated user').toBe(true);
+    expect(String(asRecord(body)?.jwt_token ?? ''), 'Baserow iframe CheckLogin should return a JWT').not.toBe('');
+  });
 }
 
 async function createPublishedBaserowApplicationForDashboard(page: Page): Promise<DashboardFixture> {
@@ -286,6 +308,12 @@ async function clickLeftMenuSection(page: Page, section: DashboardSection): Prom
     const menuButton = await firstVisibleFromLocator(page, page.locator(DASHBOARD_SEL.menuButton), 'main menu button');
     await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
     await expect(page.locator(DASHBOARD_SEL.visibleMenu).first(), 'main menu should open').toBeVisible({ timeout: 10_000 });
+  }
+
+  const openedRoleItem = page.getByRole('button', { name: leftMenuRoleName(section) }).first();
+  if (await openedRoleItem.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await openedRoleItem.click({ timeout: 10_000 }).catch(async () => openedRoleItem.dispatchEvent('click'));
+    return;
   }
 
   const menuItem = await firstVisibleFromLocator(page, page.locator(selector), `${section} left-menu item`);
@@ -559,4 +587,8 @@ function leftMenuRoleName(section: DashboardSection): RegExp {
 
 function normalize(value: string): string {
   return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }

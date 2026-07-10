@@ -1685,7 +1685,13 @@ async function checkBaserowCheckboxOption(component: Locator, option: string): P
   const checkbox = component.getByRole('checkbox', { name: option }).first();
   await expect(checkbox, `Baserow Checkbox option ${option} should be visible`).toBeVisible({ timeout: 10_000 });
   await checkbox.scrollIntoViewIfNeeded().catch(() => undefined);
-  await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+  const box = await checkbox.boundingBox();
+  await checkbox
+    .click({
+      timeout: 10_000,
+      position: box ? { x: Math.min(9, box.width / 2), y: box.height / 2 } : undefined,
+    })
+    .catch(async () => checkbox.dispatchEvent('click'));
   await expectBaserowCheckboxSelectedLabels(component, [option], { partial: true });
 }
 

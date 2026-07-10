@@ -11,11 +11,16 @@ const FUNCTIONAL_RIGHTS = {
   publication: true,
 };
 
-type EnsureFunctionalUserOptions = {
+export type EnsureFunctionalUserOptions = {
   resetOwnedData?: boolean;
+  admin?: boolean;
 };
 
 type JsonRecord = Record<string, unknown>;
+
+export interface FunctionalAdminSequenceClient {
+  callSequence(sequence: string, params: Record<string, string>): Promise<JsonRecord>;
+}
 
 export function functionalUserProvisioningAvailable(): boolean {
   return Boolean(adminPassword());
@@ -34,6 +39,12 @@ export async function ensureFunctionalUserIfPossible(
     await admin.login();
     await admin.ensureUser(credentials, options);
   });
+}
+
+export async function createFunctionalAdminSequenceClient(): Promise<FunctionalAdminSequenceClient> {
+  const admin = new FunctionalUserAdminClient();
+  await admin.login();
+  return admin;
 }
 
 class FunctionalUserAdminClient {
@@ -58,7 +69,7 @@ class FunctionalUserAdminClient {
     if (!(await this.loginWorks(credentials))) {
       await this.changePassword(credentials);
     }
-    await this.grantFunctionalRights(credentials.user);
+    await this.grantFunctionalRights(credentials.user, options);
     if (options.resetOwnedData) {
       await this.cleanupOwnedData(credentials.user);
     }
@@ -87,7 +98,7 @@ class FunctionalUserAdminClient {
     });
   }
 
-  private async grantFunctionalRights(user: string): Promise<void> {
+  private async grantFunctionalRights(user: string, options: EnsureFunctionalUserOptions): Promise<void> {
     const response = await this.callSequence('admin_user_patch', {
       meta: JSON.stringify({
         _id: `C8Oreserved_${user}`,
@@ -96,6 +107,7 @@ class FunctionalUserAdminClient {
         language: FUNCTIONAL_LANGUAGE,
         c8o_view_type_users: true,
         ...FUNCTIONAL_RIGHTS,
+        ...(options.admin ? { admin: true, admin_readonly: false } : {}),
       }),
     });
     if (!patchSucceeded(response)) {
@@ -197,7 +209,7 @@ class FunctionalUserAdminClient {
     return result.text;
   }
 
-  private async callSequence(sequence: string, params: Record<string, string>): Promise<JsonRecord> {
+  async callSequence(sequence: string, params: Record<string, string>): Promise<JsonRecord> {
     const result = await this.rawPost(
       `${this.endpoint}/projects/C8Oforms/.json`,
       { __project: 'C8Oforms', __sequence: sequence, ...params },
@@ -232,7 +244,7 @@ class FunctionalUserAdminClient {
 
     const setCookies = collectSetCookies(response);
     if (includeAdminCookie && setCookies.length > 0) {
-      this.cookie = setCookies.map((cookie) => cookie.split(';')[0]).join('; ');
+      this.cookie = mergeCookieHeader(this.cookie, setCookies);
     }
 
     return { response, text: await response.text() };
@@ -269,6 +281,20 @@ function collectSetCookies(response: Response): string[] {
   }
   const cookie = response.headers.get('set-cookie');
   return cookie ? [cookie] : [];
+}
+
+function mergeCookieHeader(existing: string, setCookies: string[]): string {
+  const cookies = new Map<string, string>();
+  for (const pair of existing.split(';').map((value) => value.trim()).filter(Boolean)) {
+    cookies.set(pair.split('=', 1)[0], pair);
+  }
+  for (const setCookie of setCookies) {
+    const pair = setCookie.split(';', 1)[0].trim();
+    if (pair) {
+      cookies.set(pair.split('=', 1)[0], pair);
+    }
+  }
+  return [...cookies.values()].join('; ');
 }
 
 function loginSucceeded(json: JsonRecord, text: string): boolean {

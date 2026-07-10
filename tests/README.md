@@ -68,6 +68,12 @@ configured, the suite auto-provisions `c8oforms-functional-empty@yopmail.com`
 and removes that account's owned forms/responses before the isolated dashboard
 check.
 
+Admin UI scenarios accept an explicit C8Oforms admin account through
+`C8OFORMS_FUNCTIONAL_ADMIN_USER` and `C8OFORMS_FUNCTIONAL_ADMIN_PASSWORD`.
+Otherwise, when `CONVERTIGO_ADMIN_PASSWORD` is set, the suite auto-provisions
+`c8oforms-functional-admin@yopmail.com` and grants that dedicated account the
+C8Oforms admin right.
+
 ### Running against a local server
 
 How you point at the app depends on how it is served:

@@ -9,6 +9,7 @@ import {
   expectSelectorApplicationVisible,
   expectSelectorFolderHidden,
   expectSelectorFolderVisible,
+  getFormDocument,
   login,
   openCreateFolderPrompt,
   recordedToasts,
@@ -78,12 +79,24 @@ export function functionalEmptyUserCredentials(): LoginCredentials | null {
   };
 }
 
+export function functionalAdminUserCredentials(): LoginCredentials | null {
+  const user = (process.env.C8OFORMS_FUNCTIONAL_ADMIN_USER ?? defaultProvisionedFunctionalUser('admin')).trim();
+  if (!user) {
+    return null;
+  }
+
+  return {
+    user,
+    password: process.env.C8OFORMS_FUNCTIONAL_ADMIN_PASSWORD ?? user,
+  };
+}
+
 export function functionalSecondaryMcpToken(): string | null {
   const token = (process.env.C8OFORMS_FUNCTIONAL_SECONDARY_MCP_TOKEN ?? '').trim();
   return token || null;
 }
 
-function defaultProvisionedFunctionalUser(kind: 'secondary' | 'empty'): string {
+function defaultProvisionedFunctionalUser(kind: 'secondary' | 'empty' | 'admin'): string {
   if (!process.env.CONVERTIGO_ADMIN_PASSWORD && !process.env.TEST_NOCODE_PASSWORD) {
     return '';
   }
@@ -173,27 +186,30 @@ export async function logoutFromNoCodeDashboard(page: Page): Promise<void> {
     await expectNoCodeDashboardReady(page);
     const menuButton = await firstVisibleCandidate(
       [
+        page
+          .locator('page-selectorpage:not(.ion-page-hidden) c8oforms-toolbarcomponentui ion-button:has(ion-icon[src*="menu.svg"])')
+          .first(),
+        page.locator('page-selectorpage:not(.ion-page-hidden) ion-button.class1757346419324').first(),
         page.locator('page-selectorpage ion-menu-button, ion-menu-button[menu="start"]').first(),
         page.getByRole('banner').getByRole('button').first(),
-        page.locator('header button, ion-header button, [role="banner"] button').first(),
       ],
       'dashboard menu button',
     );
     await expect(menuButton, 'dashboard menu button should be visible').toBeVisible({ timeout: 15_000 });
     await menuButton.click({ timeout: 10_000 });
 
+    const logoutLabel = /logout|log out|déconnexion|se déconnecter|cerrar sesión|disconnetti/i;
     const logoutButton = await firstVisibleCandidate(
       [
+        page.locator('ion-menu').getByRole('button', { name: logoutLabel }).first(),
+        page.locator('ion-menu .logout-button[role="button"]:visible').first(),
+        page.getByRole('button', { name: logoutLabel }).first(),
         page.locator('ion-menu ion-item.class1759249408074:visible').first(),
-        page.locator('ion-menu .logout-button:visible').first(),
-        page.getByRole('navigation', { name: /menu/i }).getByRole('button', {
-          name: /logout|log out|déconnexion|se déconnecter|cerrar sesión|disconnetti/i,
-        }),
       ],
       'logout action',
     );
     await expect(logoutButton, 'logout action should be visible in the main menu').toBeVisible({ timeout: 15_000 });
-    await logoutButton.click({ timeout: 10_000 });
+    await logoutButton.click({ timeout: 10_000 }).catch(async () => logoutButton.dispatchEvent('click'));
     await expectLoginScreenVisible(page);
   });
 }
@@ -620,7 +636,7 @@ export async function renameApplicationAndAssertPersistenceThroughUi(
   renamedTitle = `Functional rename updated ${Date.now()}`,
 ): Promise<void> {
   await test.step('Rename an application and assert the new title persists', async () => {
-    await createBlankForm(page, originalTitle);
+    const formId = await createBlankForm(page, originalTitle);
     await openApplicationSettings(page);
 
     const titleInput = page.locator(FUNCTIONAL_SEL.applicationNameInput).first();
@@ -634,6 +650,12 @@ export async function renameApplicationAndAssertPersistenceThroughUi(
     await expect(titleInput, 'application name should be updated before closing settings').toHaveValue(renamedTitle, {
       timeout: 10_000,
     });
+    await expect
+      .poll(() => getFormDocument(page, formId).then((document) => String(document.name ?? '')).catch(() => ''), {
+        message: 'renamed application title should be persisted before leaving the editor',
+        timeout: 60_000,
+      })
+      .toBe(renamedTitle);
 
     const close = page.locator(FUNCTIONAL_SEL.applicationSettingsCloseButton).first();
     await expect(close, 'application settings close action should be visible').toBeVisible({ timeout: 10_000 });
@@ -820,6 +842,7 @@ export async function assertSelectorFiltersThroughUi(
 
     await setSelectorAllApplicationsFilter(page, true);
     await expectSelectorAllApplicationsFilterEnabled(page, true);
+    await searchSelectorApplicationsByNameThroughDashboard(page, title);
     await expectSelectorApplicationVisible(page, title);
     await setSelectorAllApplicationsFilter(page, false);
     await expectSelectorAllApplicationsFilterEnabled(page, false);

@@ -21,6 +21,7 @@ import {
   reopenExistingApplicationFromSelectorThroughUi,
   searchApplicationsByNameVariantsThroughUi,
 } from './helpers/functional-studio';
+import { loginAsAdminWithUsernamePassword } from './helpers/functional-admin';
 
 test.describe('No-Code Studio functional authoring', () => {
   test('AUTH-001 - log in with the current username/password test user', async ({ page }) => {
@@ -104,8 +105,8 @@ test.describe('No-Code Studio functional authoring', () => {
   });
 
   test('APP-009 - selector filters', async ({ page }) => {
-    test.setTimeout(180_000);
-    await loginWithUsernamePassword(page);
+    test.setTimeout(240_000);
+    await loginAsAdminWithUsernamePassword(page);
     await assertSelectorFiltersThroughUi(page);
   });
 

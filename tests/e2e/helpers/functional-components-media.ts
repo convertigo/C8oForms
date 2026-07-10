@@ -41,7 +41,7 @@ const CAMERA_COMPONENT = 'c8oforms-itemimgviewer';
 const LOCATION_COMPONENT = 'c8oforms-itemlocationviewer';
 const SIGNATURE_COMPONENT = 'c8oforms-itemsignatureviewver';
 const TINY_PNG_BUFFER = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/l7sXxQAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
   'base64',
 );
 
@@ -147,7 +147,7 @@ export async function exerciseSignatureDrawClearRequiredAndSubmitThroughUi(page:
     await drawSignature(component);
     await expectSignatureCanvasBlank(component, false, 'redrawn signature should mark the canvas before submission');
 
-    await submitViewerForm(page);
+    await submitViewerForm(page, 120_000);
     await expect(page.locator(SEL.responseCompletedPage), 'Signature response completion page should render').toBeAttached({
       timeout: 60_000,
     });
@@ -1076,7 +1076,7 @@ async function drawSignature(component: Locator): Promise<void> {
   await page.mouse.move(middle.x, middle.y, { steps: 10 });
   await page.mouse.move(end.x, end.y, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(1_000);
 }
 
 async function clearSignature(component: Locator): Promise<void> {

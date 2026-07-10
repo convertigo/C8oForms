@@ -40,6 +40,7 @@ import {
   sourcePaletteEntryDragPayload,
   sourcePaletteSectionStates,
   sourceSelectVisibleOptions,
+  tinyMceEditorContent,
   selectGridBaserowSourceWithoutTable,
   setGridReturnedValueToRowSelected,
   setGridFooterEnabled,
@@ -1624,16 +1625,12 @@ async function normalizedText(locator: Locator): Promise<string> {
 }
 
 async function expectVisibleTinyMceBody(page: Page): Promise<void> {
-  for (const selector of ['iframe.tox-edit-area__iframe', 'iframe[title="Rich Text Area"]']) {
-    const body = page.frameLocator(selector).last().locator('body');
-    if (await body.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      return;
-    }
-  }
-  await expect(
-    page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last(),
-    'Description rich text editor should be visible',
-  ).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => tinyMceEditorContent(page).then(() => true).catch(() => false), {
+      message: 'Description rich text editor should be visible',
+      timeout: 15_000,
+    })
+    .toBe(true);
 }
 
 async function expandedSourcePaletteSections(page: Page, sections: SourcePaletteSection[]): Promise<SourcePaletteSection[]> {

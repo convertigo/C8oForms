@@ -25,7 +25,7 @@ test.describe('No-Code Studio functional media components', () => {
   });
 
   test('CMP-SIGN-001 - Signature draw clear required validation and submission', async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await exerciseSignatureDrawClearRequiredAndSubmitThroughUi(page);

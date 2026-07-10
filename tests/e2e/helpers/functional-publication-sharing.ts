@@ -37,6 +37,10 @@ import {
   type LoginCredentials,
   type PublishedToolbarButtonThemeState,
 } from './studio';
+import {
+  createFunctionalAdminSequenceClient,
+  type FunctionalAdminSequenceClient,
+} from './functional-users';
 
 type FormDocument = Awaited<ReturnType<typeof getFormDocument>>;
 type PwaDocument = Awaited<ReturnType<typeof getPwaDocument>>;
@@ -429,6 +433,7 @@ async function expectPublishedPwaMetadataResources(page: Page, fixture: Publishe
 }
 
 export async function verifyPublishedApplicationCanBeSharedWithTemporaryGroupThroughUi(page: Page): Promise<void> {
+  const admin = await createFunctionalAdminSequenceClient();
   const suffix = Date.now();
   const title = `Functional group share ${suffix}`;
   const groupName = `functional_share_group_${suffix}`;
@@ -449,7 +454,7 @@ export async function verifyPublishedApplicationCanBeSharedWithTemporaryGroupThr
     });
 
     await test.step('Create a temporary group fixture for the current owner', async () => {
-      await createTemporaryAccessGroup(page, groupName, owner);
+      await createTemporaryAccessGroup(admin, groupName, owner);
       groupCreated = true;
       await expectShareGroupAvailableForPublishedApplication(page, publishedId, groupName);
     });
@@ -478,7 +483,7 @@ export async function verifyPublishedApplicationCanBeSharedWithTemporaryGroupThr
       await clearPublishedApplicationShares(page, publishedId).catch(() => undefined);
     }
     if (groupCreated) {
-      await deleteTemporaryAccessGroup(page, groupName).catch(() => undefined);
+      await deleteTemporaryAccessGroup(admin, groupName).catch(() => undefined);
     }
   }
 }
@@ -488,6 +493,7 @@ export async function verifyPublishedGroupShareAllowsConfiguredMemberThroughUi(
   browser: Browser,
   memberUser: LoginCredentials,
 ): Promise<void> {
+  const admin = await createFunctionalAdminSequenceClient();
   const suffix = Date.now();
   const title = `Functional group member share ${suffix}`;
   const technicalId = `functional_group_member_${suffix}`;
@@ -514,12 +520,12 @@ export async function verifyPublishedGroupShareAllowsConfiguredMemberThroughUi(
     });
 
     await test.step('Create a temporary group containing the configured member', async () => {
-      const memberAcl = await resolveAdminUserAclByEmail(page, memberUser.user);
+      const memberAcl = await resolveAdminUserAclByEmail(admin, memberUser.user);
       expect(memberAcl, `configured group member ${memberUser.user} should exist in Admin users`).not.toBe('');
-      await createTemporaryAccessGroup(page, groupName, owner);
+      await createTemporaryAccessGroup(admin, groupName, owner);
       groupCreated = true;
-      await addUserToTemporaryAccessGroup(page, groupName, memberAcl);
-      await expectTemporaryGroupContainsUser(page, groupName, memberAcl);
+      await addUserToTemporaryAccessGroup(admin, groupName, memberAcl);
+      await expectTemporaryGroupContainsUser(admin, groupName, memberAcl);
       await expectShareGroupAvailableForPublishedApplication(page, publishedId, groupName);
     });
 
@@ -553,7 +559,7 @@ export async function verifyPublishedGroupShareAllowsConfiguredMemberThroughUi(
       await clearPublishedApplicationShares(page, publishedId).catch(() => undefined);
     }
     if (groupCreated) {
-      await deleteTemporaryAccessGroup(page, groupName).catch(() => undefined);
+      await deleteTemporaryAccessGroup(admin, groupName).catch(() => undefined);
     }
   }
 }
@@ -811,6 +817,20 @@ async function expectPublishedPwaCacheStorage(page: Page, pwaIndexUrl: string): 
         cachedUrls: expect.arrayContaining([expect.stringContaining(new URL('.', pwaIndexUrl).pathname)]),
       }),
     );
+
+  const ngsw = await expectPublishedPwaJson(page, new URL('ngsw.json', pwaIndexUrl).toString(), 'ngsw.json cache readiness');
+  const assetGroups = Array.isArray(ngsw.assetGroups) ? ngsw.assetGroups : [];
+  const appGroup = assetGroups.find(
+    (group): group is Record<string, unknown> => Boolean(group) && typeof group === 'object' && (group as Record<string, unknown>).name === 'app',
+  );
+  const expectedAppShellAssets = appGroup && Array.isArray(appGroup.urls) ? appGroup.urls.length : 0;
+  expect(expectedAppShellAssets, 'published PWA ngsw app group should list preloaded shell assets').toBeGreaterThan(0);
+  await expect
+    .poll(() => publishedPwaAppShellCacheCount(page, pwaIndexUrl), {
+      message: 'published PWA service worker should finish preloading its scoped app shell',
+      timeout: 120_000,
+    })
+    .toBeGreaterThanOrEqual(expectedAppShellAssets);
 }
 
 async function expectPublishedPwaOfflineFormReload(page: Page, pwaIndexUrl: string, witnessSelector: string, value: string): Promise<void> {
@@ -847,6 +867,27 @@ async function expectPublishedPwaOfflineFormReload(page: Page, pwaIndexUrl: stri
   }
 }
 
+async function publishedPwaAppShellCacheCount(page: Page, pwaIndexUrl: string): Promise<number> {
+  const scopePath = new URL('.', pwaIndexUrl).pathname;
+  return page.evaluate(async (expectedScopePath) => {
+    if (!('caches' in window)) {
+      return 0;
+    }
+    const scopedAppCachePattern = new RegExp(
+      `^ngsw:${expectedScopePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:.*:assets:app:cache$`,
+    );
+    const matchingCounts: number[] = [];
+    for (const cacheName of await window.caches.keys()) {
+      if (!scopedAppCachePattern.test(cacheName)) {
+        continue;
+      }
+      const cache = await window.caches.open(cacheName);
+      matchingCounts.push((await cache.keys()).length);
+    }
+    return matchingCounts.length > 0 ? Math.max(...matchingCounts) : 0;
+  }, scopePath);
+}
+
 async function publishedPwaCacheSnapshot(page: Page): Promise<PublishedPwaCacheSnapshot> {
   return page.evaluate(async () => {
     const cacheApi = 'caches' in window ? window.caches : null;
@@ -874,13 +915,17 @@ async function publishedPwaCacheSnapshot(page: Page): Promise<PublishedPwaCacheS
   });
 }
 
-async function createTemporaryAccessGroup(page: Page, groupName: string, owner: string): Promise<void> {
-  const create = await c8oCall(page, 'admin_groups_post', {
+async function createTemporaryAccessGroup(
+  admin: FunctionalAdminSequenceClient,
+  groupName: string,
+  owner: string,
+): Promise<void> {
+  const create = await admin.callSequence('admin_groups_post', {
     meta: JSON.stringify({ group: groupName, user: owner }),
   });
   expect(create.success, `temporary group ${groupName} should be created in FullSync groups`).toBeDefined();
 
-  await c8oCall(page, 'admin_group_upsert', {
+  await admin.callSequence('admin_group_upsert', {
     meta: JSON.stringify({
       _id: groupName,
       editing_rights: false,
@@ -893,18 +938,22 @@ async function createTemporaryAccessGroup(page: Page, groupName: string, owner: 
   });
 }
 
-async function addUserToTemporaryAccessGroup(page: Page, groupName: string, userAcl: string): Promise<void> {
-  const add = await c8oCall(page, 'admin_groups_post', {
+async function addUserToTemporaryAccessGroup(
+  admin: FunctionalAdminSequenceClient,
+  groupName: string,
+  userAcl: string,
+): Promise<void> {
+  const add = await admin.callSequence('admin_groups_post', {
     meta: JSON.stringify({ group: groupName, user: userAcl }),
   });
   expect(add.success, `temporary group ${groupName} should accept member ${userAcl}`).toBeDefined();
 }
 
-async function deleteTemporaryAccessGroup(page: Page, groupName: string): Promise<void> {
-  await c8oCall(page, 'admin_groups_delete', {
+async function deleteTemporaryAccessGroup(admin: FunctionalAdminSequenceClient, groupName: string): Promise<void> {
+  await admin.callSequence('admin_groups_delete', {
     meta: JSON.stringify({ group: groupName }),
   }).catch(() => undefined);
-  await c8oCall(page, 'admin_group_delete', {
+  await admin.callSequence('admin_group_delete', {
     _use_doc_id: groupName,
   }).catch(() => undefined);
 }
@@ -929,18 +978,22 @@ async function expectShareGroupAvailableForPublishedApplication(page: Page, publ
     .toBe(true);
 }
 
-async function resolveAdminUserAclByEmail(page: Page, email: string): Promise<string> {
+async function resolveAdminUserAclByEmail(admin: FunctionalAdminSequenceClient, email: string): Promise<string> {
   const needle = email.toLowerCase();
-  const users = await adminGroupChildren(page, 'all_users');
+  const users = await adminGroupChildren(admin, 'all_users');
   const match = users.find((entry) => Object.values(entry).some((value) => String(value ?? '').toLowerCase().includes(needle)));
   return stringValue(match?.['~c8oAcl'] ?? match?.acl ?? match?._id);
 }
 
-async function expectTemporaryGroupContainsUser(page: Page, groupName: string, userAcl: string): Promise<void> {
+async function expectTemporaryGroupContainsUser(
+  admin: FunctionalAdminSequenceClient,
+  groupName: string,
+  userAcl: string,
+): Promise<void> {
   await expect
     .poll(
       async () => {
-        const users = await adminGroupChildren(page, groupName);
+        const users = await adminGroupChildren(admin, groupName);
         return users.some((entry) => stringValue(entry['~c8oAcl'] ?? entry.acl ?? entry._id) === userAcl);
       },
       {
@@ -951,18 +1004,28 @@ async function expectTemporaryGroupContainsUser(page: Page, groupName: string, u
     .toBe(true);
 }
 
-async function adminGroupChildren(page: Page, groupName: string): Promise<Record<string, unknown>[]> {
-  const entry = await adminGroupListEntry(page, groupName, groupName !== 'all_users');
+async function adminGroupChildren(
+  admin: FunctionalAdminSequenceClient,
+  groupName: string,
+): Promise<Record<string, unknown>[]> {
+  const entry = await adminGroupListEntry(admin, groupName, groupName !== 'all_users');
   let children = recordArray(entry?.children);
   if (children.length === 0 && groupName === 'all_users') {
-    const fullEntry = await adminGroupListEntry(page, groupName, true);
+    const fullEntry = await adminGroupListEntry(admin, groupName, true);
     children = recordArray(fullEntry?.children);
   }
   return children;
 }
 
-async function adminGroupListEntry(page: Page, groupName: string, includeChildren = false): Promise<Record<string, unknown> | null> {
-  const response = await c8oCall(page, 'admin_users_get_by_group_v2', includeChildren ? { targetGroup: groupName } : {});
+async function adminGroupListEntry(
+  admin: FunctionalAdminSequenceClient,
+  groupName: string,
+  includeChildren = false,
+): Promise<Record<string, unknown> | null> {
+  const response = await admin.callSequence(
+    'admin_users_get_by_group_v2',
+    includeChildren ? { targetGroup: groupName } : {},
+  );
   return adminResultValues(response).find((entry) => stringValue(entry.value) === groupName) ?? null;
 }
 

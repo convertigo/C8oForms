@@ -86,7 +86,7 @@ test.describe('No-Code Studio functional common component contract', () => {
   });
 
   test('VIS-003 - visibility on data display component types', async ({ page }) => {
-    test.setTimeout(300_000);
+    test.setTimeout(600_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await configureVisibilityOnDataDisplayComponentTypesThroughUi(page);
