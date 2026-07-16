@@ -7283,38 +7283,99 @@ tagName: ion-menu
                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
-                        		let lang;
-                        		try{
-                        			lang = event.detail.value
-                        		}
-                        		catch(e){
-                        			lang = event.toString();	
-                        		}
-                        		
-                        		if(lang != undefined && lang != ""){
-                        		    localStorage.setItem('lang', lang);
-                        	        window["__c8o__translate"]["use"](lang);
-                        	       	this.global.settings.language = lang;
-                        			this.local.visible = true;
-                        			this.global.relaodAgGrid = true
-                        	        page.ref.detectChanges();
-                        			resolve(lang);
-                        		}
-                        		setTimeout(()=>{
-                        			this.global.relaodAgGrid = undefined
-                        			this.local.visible = undefined;
-                        			try{
-                        				let id = "#c8oSpinnerRgaa";
-                        				document.getElementById(id).innerHTML = page["translate"].instant("my_lang_selected");
-                        				setTimeout(()=>{
-                        					document.getElementById(id).innerHTML = "";
-                        				}, 1000)
-                        			}
-                        			catch(e){
-                        				
-                        			}
-                        		},0);
+                        '		const translate = window["__c8o__translate"];
                         
+                        		let lang: string | null = null;
+                        
+                        		// Cas d''un événement Ionic
+                        		if (typeof event?.detail?.value === "string") {
+                        		  lang = event.detail.value;
+                        		}
+                        		// Cas d''un appel direct avec une chaîne
+                        		else if (typeof event === "string") {
+                        		  lang = event;
+                        		}
+                        
+                        		lang = lang?.trim().toLowerCase() ?? null;
+                        
+                        		if (lang == null || lang === "") {
+                        		  resolve(null);
+                        		  return;
+                        		}
+                        
+                        		// Adapte cette liste aux langues réellement disponibles
+                        		const supportedLanguages = ["fr", "en", "es", "it"];
+                        
+                        		if (!supportedLanguages.includes(lang)) {
+                        		  console.warn("Langue non supportée :", lang);
+                        		  resolve(null);
+                        		  return;
+                        		}
+                        
+                        		const finishLanguageChange = () => {
+                        		  const spinner = document.getElementById("c8oSpinnerRgaa");
+                        
+                        		  if (spinner != null) {
+                        		    spinner.textContent = translate.instant("my_lang_selected");
+                        
+                        		    setTimeout(() => {
+                        		      spinner.textContent = "";
+                        		    }, 1000);
+                        		  }
+                        
+                        		  /*
+                        		   * Laisse au composant et à AG Grid le temps de détecter
+                        		   * le passage à true avant de remettre les flags à false.
+                        		   */
+                        		  requestAnimationFrame(() => {
+                        		    this.global.reloadAgGrid = false;
+                        		    this.local.visible = false;
+                        
+                        		    page.ref?.detectChanges();
+                        		  });
+                        
+                        		  resolve(lang);
+                        		};
+                        
+                        		try {
+                        		  localStorage.setItem("lang", lang);
+                        
+                        		  this.global.settings ??= {};
+                        		  this.global.settings.language = lang;
+                        
+                        		  this.local.visible = true;
+                        		  this.global.reloadAgGrid = true;
+                        
+                        		  page.ref?.detectChanges();
+                        
+                        		  const languageChange$ = translate?.use?.(lang);
+                        
+                        		  if (languageChange$?.pipe != null) {
+                        		    languageChange$
+                        		      .pipe(first())
+                        		      .subscribe({
+                        		        next: () => {
+                        		          finishLanguageChange();
+                        		        },
+                        		        error: (error) => {
+                        		          this.global.reloadAgGrid = false;
+                        		          this.local.visible = false;
+                        
+                        		          page.ref?.detectChanges();
+                        		          reject(error);
+                        		        }
+                        		      });
+                        		  } else {
+                        		    finishLanguageChange();
+                        		  }
+                        		} catch (error) {
+                        		  this.global.reloadAgGrid = false;
+                        		  this.local.visible = false;
+                        
+                        		  page.ref?.detectChanges();
+                        		  reject(error);
+                        		}
+                        '
                 ↓SetGlobal [ngx.components.UIDynamicAction-1759249211788]: 
                   beanData: |
                     '{

@@ -3352,8 +3352,28 @@ useClickForTap: true
             					}
             				}
             //				console.log(page.global.settings);
-            				if(userSettings?.res?.language != null){
-            					window["__c8o__translate"]["use"](userSettings?.res?.language);
+            //				if(userSettings?.res?.language != null){
+            //					window["__c8o__translate"]["use"](userSettings?.res?.language);
+            //				}
+            				const translate = window["__c8o__translate"];
+            				
+            				const storedLanguage = localStorage.getItem("lang");
+            				const userLanguage = userSettings?.res?.language;
+            				
+            				const languageToUse =
+            				  storedLanguage ??
+            				  userLanguage ??
+            				  "fr";
+            				
+            				if (languageToUse != null) {
+            				  translate?.use?.(languageToUse);
+            				  page.global.language = languageToUse;
+            				  page.global.settings ??= {};
+            				  page.global.settings.language = languageToUse;
+            				}
+            				
+            				if (storedLanguage == null && userLanguage != null) {
+            				  localStorage.setItem("lang", userLanguage);
             				}
             			}
             			catch(e){
@@ -3385,7 +3405,7 @@ useClickForTap: true
             			                    setTimeout(() => {
             									data = page.purgeWrongKeys(data);
             									this.global.pagexPwa = pagex;
-            									this.global.dataPwa = data;
+            									this.global.dataPwa = JSON.stringify(data);
             			                        page.routerProvider.setRoot(pagex, data, null);
             			                    }, 200);
             			                    return false;
@@ -3426,7 +3446,7 @@ useClickForTap: true
             			                        setTimeout(() => {
             										data = page.purgeWrongKeys(data);
             										this.global.pagexPwa = pagex;
-            										this.global.dataPwa = data;
+            										this.global.dataPwa = JSON.stringify(data);
             			                            page.routerProvider.setRoot(pagex, data, null)
             			                        }, 200);
             			                        return false;
@@ -3707,6 +3727,8 @@ useClickForTap: true
             			                    let pagex = "sharingPage";
             			                    setTimeout(() => {
             									data = page.purgeWrongKeys(data);
+            									this.global.pagexPwa = pagex;
+            									this.global.dataPwa = JSON.stringify(data);
             			                        page.routerProvider.setRoot(pagex, data, null);
             			                    }, 200);
             			                    return false;
@@ -3809,6 +3831,97 @@ useClickForTap: true
             				}
             			
             			break;
+            			case "GDRPpage": 
+            			  if (this.global.tempFormId === undefined) {
+            			    this.global.tempFormId = null;
+            			  }
+            
+            			  if (this.global.tempPage === undefined) {
+            			    this.global.tempPage = null;
+            			  }
+            
+            			  indexPWA = window.location.pathname.indexOf("pwas");
+            			  indexMobile = window.location.pathname.indexOf("mobile");
+            
+            			  const isStandalonePwa =
+            			    indexPWA !== -1 &&
+            			    indexMobile === -1;
+            
+            			  if (!isStandalonePwa) {
+            			    return true;
+            			  }
+            
+            			  this.global.pwa = true;
+            
+            			  if (this.global.__pwaMenuDefaultApplied !== true) {
+            			    this.global.isMenuOpen = false;
+            			    this.global.__pwaMenuDefaultApplied = true;
+            			  }
+            
+            			  const baseUrl = this.getStandalonePwaBaseUrl();
+            			  const standalonePwa = this.getStandalonePwaId();
+            
+            			  if (this.global.standalonePwa == null) {
+            			    this.global.standalonePwa = standalonePwa;
+            			  }
+            			  
+            
+            			  /*
+            			   * Si les informations de retour existent déjà,
+            			   * il ne faut surtout pas les remplacer.
+            			   */
+            			  if (
+            			    this.global.pagexPwa != null &&
+            			    this.global.dataPwa != null
+            			  ) {
+            			    return true;
+            			  }
+            
+            			  try {
+            			    const response = await page.c8o.httpPublic
+            			      .get(baseUrl + "manifest.webmanifest")
+            			      .toPromise();
+            
+            			    const queryParams = event.route?.queryParams ?? {};
+            			    const routeParams = event.route?.params ?? {};
+            
+            			    if (response?.anonymous === true) {
+            			      const data = page.purgeWrongKeys({
+            			        ...queryParams,
+            			        ...routeParams,
+            
+            			        // Valeur normalisée placée en dernier
+            			        u: response?.anonymousKey ?? standalonePwa
+            			      });
+            
+            			      this.global.pagexPwa = "sharingPage";
+            			      this.global.dataPwa = JSON.stringify(data);
+            			    } else {
+            			      const data = page.purgeWrongKeys({
+            			        ...queryParams,
+            			        ...routeParams,
+            
+            			        // Valeur normalisée placée en dernier
+            			        formId: standalonePwa
+            			      });
+            
+            			      if (this.global.tempFormId == null) {
+            			        this.global.tempFormId = standalonePwa;
+            			      }
+            
+            			      if (this.global.tempPage == null) {
+            			        this.global.tempPage = "viewerPage";
+            			      }
+            
+            			      this.global.pagexPwa = "viewerPage";
+            			      this.global.dataPwa = JSON.stringify(data);
+            			    }
+            			  } catch (error) {
+            			    page.c8o.log?.warn?.(
+            			      `[GDRPpage] Impossible de reconstruire la navigation PWA : ${String(error)}`
+            			    );
+            			  }
+            			  break;
             			case "adminDashboardHome":
             			case "adminDashboardDetail":
             			case "adminDashboardUsers":
