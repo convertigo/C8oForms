@@ -16,7 +16,7 @@ scriptContent:
         
         interface PaginationState {
         	pageIndex: number;
-        	pageSize: number;
+        	pageSize: number | "infinite";
         
         	currentPageToken: string | null;
         	nextPageToken: string | null;
@@ -37,9 +37,40 @@ scriptContent:
         	public seeAllTpl: boolean = false;
         	public modalController: ModalController;
         
-        	public pagination: Record<PaginationTarget, PaginationState> = {
-        		edition: this.createPaginationState(),
-        		publication: this.createPaginationState()
+        	public pagination = {
+        		edition: {
+        			pageIndex: 0,
+        
+        			pageSize:
+        				25 as number | "infinite",
+        
+        			currentPageToken: null,
+        			nextPageToken: null,
+        
+        			pageTokenHistory:
+        				[] as Array<string | null>,
+        
+        			hasNextPage: false,
+        			paginated: false,
+        			loading: false
+        		},
+        
+        		publication: {
+        			pageIndex: 0,
+        
+        			pageSize:
+        				25 as number | "infinite",
+        
+        			currentPageToken: null,
+        			nextPageToken: null,
+        
+        			pageTokenHistory:
+        				[] as Array<string | null>,
+        
+        			hasNextPage: false,
+        			paginated: false,
+        			loading: false
+        		}
         	};
         	
         	/*End_c8o_PageDeclaration*/
@@ -4270,6 +4301,7 @@ title: Selection de formulaires
                           - com.twinsoft.convertigo.beans.common.FormatedContent: 
                             →: |
                               '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                              		page.local.selectedTab = ''edition'';
                               		this.global.menuItems = [
                               		  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: true}, publication:{badge: 0, active: false}, nocode: {badge: 0, active: false}} },
                               		  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},
@@ -4373,6 +4405,7 @@ title: Selection de formulaires
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
                             '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                            		page.local.selectedTab = ''publication'';
                             		this.global.menuItems = [
                             		  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: false}, publication:{badge: 0, active: true}, nocode: {badge: 0, active: false}} },
                             		  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},
@@ -14676,7 +14709,7 @@ title: Selection de formulaires
                     varValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:1
+                        - MobileSmartSourceType: script:this.pagination[this.local.selectedTab]?.pageIndex + 1
                   ↓total_count [ngx.components.UIUseVariable-1784217350037]: 
                     varValue: 
                       - xmlizable: 
@@ -14695,6 +14728,156 @@ title: Selection de formulaires
                   ↓Event [ngx.components.UIControlEvent-1784217351941]: 
                     attrName: (onPageChange)
                     eventName: onPageChange
+                    ↓CustomAction [ngx.components.UICustomAction-1784290534529]: 
+                      actionValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                              		const target =
+                              			page.local.selectedTab === "publication"
+                              				? "publication"
+                              				: "edition";
+                              
+                              		const pagination =
+                              			page.pagination[target];
+                              			
+                              		if (pagination.loading === true) {
+                              			resolve(false);
+                              			return;
+                              		}
+                              
+                              		switch (event.action) {
+                              			case "next":
+                              				if (
+                              					pagination.pageSize === "infinite" ||
+                              					pagination.hasNextPage !== true ||
+                              					pagination.nextPageToken == null
+                              				) {
+                              					resolve(false);
+                              					return;
+                              				}
+                              
+                              				pagination.pageTokenHistory.push(
+                              					pagination.currentPageToken
+                              				);
+                              
+                              				pagination.currentPageToken =
+                              					pagination.nextPageToken;
+                              
+                              				pagination.nextPageToken = null;
+                              				pagination.pageIndex++;
+                              
+                              				break;
+                              
+                              			case "previous":
+                              				if (
+                              					pagination.pageSize === "infinite" ||
+                              					pagination.pageIndex <= 0
+                              				) {
+                              					resolve(false);
+                              					return;
+                              				}
+                              
+                              				pagination.currentPageToken =
+                              					pagination.pageTokenHistory.pop() ?? null;
+                              
+                              				pagination.nextPageToken = null;
+                              				pagination.pageIndex--;
+                              
+                              				break;
+                              
+                              			case "pageSizeChange":
+                              				const rawPageSize =
+                              					event.pageSize;
+                              
+                              				const infiniteMode =
+                              					typeof rawPageSize === "string" &&
+                              					rawPageSize
+                              						.toLowerCase()
+                              						.trim() === "infinite";
+                              
+                              				if (infiniteMode) {
+                              					pagination.pageSize =
+                              						"infinite";
+                              				}
+                              				else {
+                              					const numericPageSize =
+                              						Number(rawPageSize);
+                              
+                              					if (
+                              						!Number.isInteger(
+                              							numericPageSize
+                              						) ||
+                              						numericPageSize <= 0 ||
+                              						numericPageSize > 100
+                              					) {
+                              						resolve(false);
+                              						return;
+                              					}
+                              
+                              					pagination.pageSize =
+                              						numericPageSize;
+                              				}
+                              
+                              				/*
+                              				 * Tout changement de taille invalide les bookmarks.
+                              				 */
+                              				pagination.pageIndex = 0;
+                              				pagination.currentPageToken = null;
+                              				pagination.nextPageToken = null;
+                              				pagination.pageTokenHistory = [];
+                              
+                              				pagination.hasNextPage = false;
+                              				pagination.paginated = false;
+                              
+                              				break;
+                              			default:
+                              				resolve(false);
+                              				return;
+                              		}
+                              
+                              		resolve({
+                              			target,
+                              			pagination
+                              		});
+                              '
+                      ↓If [ngx.components.UIDynamicAction-1784295309840]: 
+                        beanData: '{"ionBean":"IfAction","condition":"script:parent.out != false"}'
+                        ↓refreshList [ngx.components.UIDynamicInvoke-1784295322700]: 
+                          beanData: '{"ionBean":"InvokeAction"}'
+                          stack: C8Oforms.MobileApplication.Application.callViewLiveAndFillFormList
+                          ↓keys [ngx.components.UIControlVariable-1784295322703]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:null
+                  ↓page_size [ngx.components.UIUseVariable-1784290519520]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.pagination[this.local.selectedTab]?.pageSize
+                  ↓has_next_page [ngx.components.UIUseVariable-1784290519522]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.pagination[this.local.selectedTab]?.hasNextPage
+                  ↓loading [ngx.components.UIUseVariable-1784290519524]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:this.pagination[this.local.selectedTab]?.loading
+                  ↓page_size_options [ngx.components.UIUseVariable-1784290519526]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:[10, 25, 50, 100]
+                  ↓paginated [ngx.components.UIUseVariable-1784290519528]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:true
               ↓DivDragAndDrop [ngx.components.UIDynamicElement-1645548364631]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -15923,6 +16106,16 @@ title: Selection de formulaires
                     page.global.visibleoptions = {};
                     page.global.visibleoptions0 = {};
                     page.global.selectedItem = {};
+            		if (page.local.published) {
+            			page.local.selectedTab = ''publication'';	
+            		}
+            		if (!page.local.nocodedatabase && !page.local.published) {			
+            			page.local.selectedTab = ''edition'';
+            		}
+            		if (page.local.nocodedatabase) {
+            			page.local.selectedTab = ''edition'';
+            		}
+            		console
             		page.ref.detectChanges();
                     resolve(page.local.nocodedatabase != true);
             '

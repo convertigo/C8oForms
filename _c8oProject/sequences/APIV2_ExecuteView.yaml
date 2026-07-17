@@ -52,34 +52,90 @@ comment: |
     		? params.pagination
     		: {};
     
-    // Supporte pagination.pageSize, pageSize ou limit.
-    var requestedPageSize = paginationParams.pageSize;
+    /*
+     * Supporte :
+     * - pagination.pageSize
+     * - pageSize
+     * - limit
+     */
+    var requestedPageSize =
+    	paginationParams.pageSize;
     
-    if (requestedPageSize == null || requestedPageSize == "") {
-    	requestedPageSize = params.pageSize;
+    if (
+    	requestedPageSize == null ||
+    	requestedPageSize == ""
+    ) {
+    	requestedPageSize =
+    		params.pageSize;
     }
     
-    if (requestedPageSize == null || requestedPageSize == "") {
-    	requestedPageSize = params.limit;
+    if (
+    	requestedPageSize == null ||
+    	requestedPageSize == ""
+    ) {
+    	requestedPageSize =
+    		params.limit;
     }
     
-    var pageSize = parseInt(requestedPageSize, 10);
+    /*
+     * La valeur "infinite" désactive la pagination serveur.
+     */
+    var isInfinitePageSize =
+    	typeof requestedPageSize == "string" &&
+    	requestedPageSize
+    		.toLowerCase()
+    		.trim() == "infinite";
     
-    if (isNaN(pageSize) || pageSize < 1) {
-    	pageSize = DEFAULT_PAGE_SIZE;
+    /*
+     * pageSize reste numérique dans toutes les branches
+     * réellement paginées.
+     */
+    var pageSize =
+    	DEFAULT_PAGE_SIZE;
+    
+    if (!isInfinitePageSize) {
+    	pageSize = parseInt(
+    		requestedPageSize,
+    		10
+    	);
+    
+    	if (
+    		isNaN(pageSize) ||
+    		pageSize < 1
+    	) {
+    		pageSize =
+    			DEFAULT_PAGE_SIZE;
+    	}
+    
+    	pageSize = Math.min(
+    		pageSize,
+    		MAX_PAGE_SIZE
+    	);
     }
     
-    pageSize = Math.min(pageSize, MAX_PAGE_SIZE);
+    /*
+     * Supporte :
+     * - pagination.pageToken
+     * - pageToken
+     * - bookmark
+     */
+    var pageToken =
+    	paginationParams.pageToken;
     
-    // Supporte pagination.pageToken, pageToken ou bookmark.
-    var pageToken = paginationParams.pageToken;
-    
-    if (pageToken == null || pageToken == "") {
-    	pageToken = params.pageToken;
+    if (
+    	pageToken == null ||
+    	pageToken == ""
+    ) {
+    	pageToken =
+    		params.pageToken;
     }
     
-    if (pageToken == null || pageToken == "") {
-    	pageToken = params.bookmark;
+    if (
+    	pageToken == null ||
+    	pageToken == ""
+    ) {
+    	pageToken =
+    		params.bookmark;
     }
     
     if (
@@ -90,6 +146,36 @@ comment: |
     ) {
     	pageToken = null;
     }
+    
+    /*
+     * Aucun bookmark ne doit être utilisé en mode infinite.
+     */
+    if (isInfinitePageSize) {
+    	pageToken = null;
+    }
+    
+    /*
+     * Indique qu''une véritable pagination est demandée.
+     *
+     * En mode infinite, paginationRequested vaut false afin
+     * de conserver le traitement historique des in_folders.
+     */
+    var paginationRequested =
+    	!isInfinitePageSize &&
+    	(
+    		(
+    			params.pagination != null &&
+    			typeof params.pagination == "object" &&
+    			(
+    				params.pagination.pageSize != null ||
+    				params.pagination.pageToken != null
+    			)
+    		) ||
+    		params.pageSize != null ||
+    		params.limit != null ||
+    		params.pageToken != null ||
+    		params.bookmark != null
+    	);
     var hasUserFilter = params.user != null && params.user != undefined && params.user != "" && params.user != "undefined";
     var userFilterIds = [];
     if (hasUserFilter) {
@@ -1409,18 +1495,78 @@ comment: |
     //		pageToken
     //	);
     
-    	var searchPostFilter = null;
-    	
-    	if (normalizedSearchQuery != "") {
-    		searchPostFilter = function(doc) {
-    			return (
-    				doc != null &&
-    				normalizeSearchText(doc.name)
-    					.indexOf(normalizedSearchQuery) != -1
-    			);
-    		};
+    var searchPostFilter = null;
+    
+    if (normalizedSearchQuery != "") {
+    	searchPostFilter = function(doc) {
+    		return (
+    			doc != null &&
+    			normalizeSearchText(doc.name)
+    				.indexOf(
+    					normalizedSearchQuery
+    				) != -1
+    		);
+    	};
+    }
+    
+    if (isInfinitePageSize) {
+    	/*
+    	 * La recherche reste une requête Mango, mais elle est
+    	 * exécutée sans bookmark en mode infinite.
+    	 */
+    	var infiniteQuery =
+    		JSON.parse(
+    			JSON.stringify(
+    				mangoquery
+    			)
+    		);
+    
+    	infiniteQuery.limit = 10000;
+    
+    	delete infiniteQuery.bookmark;
+    
+    	res = toJSON(
+    		fsclient.postFind(
+    			targetDB,
+    			toJettison(
+    				infiniteQuery
+    			)
+    		)
+    	);
+    
+    	if (res == null) {
+    		res = {};
     	}
-    	
+    
+    	res.docs =
+    		Array.isArray(res.docs)
+    			? res.docs
+    			: [];
+    
+    	/*
+    	 * Conserve le filtre exact normalisé.
+    	 */
+    	if (
+    		typeof searchPostFilter ==
+    			"function"
+    	) {
+    		res.docs =
+    			res.docs.filter(
+    				searchPostFilter
+    			);
+    	}
+    
+    	res.pagination = {
+    		paginated: false,
+    		mode: "infinite",
+    		pageSize: "infinite",
+    		returnedCount:
+    			res.docs.length,
+    		hasNextPage: false,
+    		nextPageToken: null
+    	};
+    }
+    else {
     	res = executePaginatedFind(
     		targetDB,
     		mangoquery,
@@ -1429,12 +1575,16 @@ comment: |
     		searchPostFilter
     	);
     }
+    }
     
     /*
      * Normalisation de la réponse pour les targets
      * qui ne sont pas encore paginées.
      */
-    if (res != null && res.pagination == null) {
+    if (
+    	res != null &&
+    	res.pagination == null
+    ) {
     	var returnedCount =
     		Array.isArray(res.docs)
     			? res.docs.length
@@ -1442,8 +1592,20 @@ comment: |
     
     	res.pagination = {
     		paginated: false,
-    		pageSize: pageSize,
-    		returnedCount: returnedCount,
+    
+    		mode:
+    			isInfinitePageSize
+    				? "infinite"
+    				: "legacy",
+    
+    		pageSize:
+    			isInfinitePageSize
+    				? "infinite"
+    				: pageSize,
+    
+    		returnedCount:
+    			returnedCount,
+    
     		hasNextPage: false,
     		nextPageToken: null
     	};
