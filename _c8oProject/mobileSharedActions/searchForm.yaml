@@ -4,11 +4,25 @@
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '		console.log(page)
-          		if (page.local["ddoc"] == undefined || page.local["ddoc"] == null) {
-          			if (page[''pageOwner''] != undefined && page[''pageOwner'']?.local["ddoc"] != undefined) {				
-          				page.local["ddoc"] = page[''pageOwner''].local["ddoc"];
-          			}
+          '//		console.log(page)
+          //		if (page.local["ddoc"] == undefined || page.local["ddoc"] == null) {
+          //			if (page[''pageOwner''] != undefined && page[''pageOwner'']?.local["ddoc"] != undefined) {				
+          //				page.local["ddoc"] = page[''pageOwner''].local["ddoc"];
+          //			}
+          //		}
+          		if (page["pageOwner"] != undefined) {
+          			page = page["pageOwner"];
+          		}
+          		
+          		if (
+          			page.local["ddoc"] == undefined ||
+          			page.local["ddoc"] == null ||
+          			page.local["ddoc"] == ""
+          		) {
+          			page.local["ddoc"] =
+          				page.local.published === true
+          					? "published_formsV2"
+          					: "formsV2";
           		}
           		function readEditionFilters(){
           			if(page["getEditionFilters"] != undefined){
@@ -25,18 +39,208 @@
           			return filters == null ? {} : filters;
           		}
           		let filters = readEditionFilters();
+          		const createPaginationState = () => {
+          			return {
+          				pageIndex: 0,
+          				pageSize: 25,
+          
+          				currentPageToken: null,
+          				nextPageToken: null,
+          				pageTokenHistory: [],
+          
+          				hasNextPage: false,
+          				paginated: false,
+          				loading: false
+          			};
+          		};
+          
+          		const getPaginationTarget = ():
+          			"edition" | "publication" => {
+          			return page.local["ddoc"] ===
+          				"published_formsV2"
+          					? "publication"
+          					: "edition";
+          		};
+          
+          		const normalizePageSize = (
+          			value
+          		): number | "infinite" => {
+          			if (
+          				typeof value === "string" &&
+          				value
+          					.toLowerCase()
+          					.trim() === "infinite"
+          			) {
+          				return "infinite";
+          			}
+          
+          			const numericValue =
+          				Number(value);
+          
+          			if (
+          				Number.isInteger(numericValue) &&
+          				numericValue > 0
+          			) {
+          				return Math.min(
+          					numericValue,
+          					100
+          				);
+          			}
+          
+          			return 25;
+          		};
+          
+          		const ensurePaginationState = () => {
+          			if (
+          				page["pagination"] == null ||
+          				typeof page["pagination"] !== "object"
+          			) {
+          				page["pagination"] = {};
+          			}
+          
+          			const targets = [
+          				"edition",
+          				"publication"
+          			];
+          
+          			for (const targetName of targets) {
+          				if (
+          					page["pagination"][targetName] == null ||
+          					typeof page["pagination"][targetName]
+          						!== "object"
+          				) {
+          					page["pagination"][targetName] =
+          						createPaginationState();
+          
+          					continue;
+          				}
+          
+          				const defaults =
+          					createPaginationState();
+          
+          				for (const key of Object.keys(defaults)) {
+          					if (
+          						page["pagination"][targetName][key]
+          							=== undefined
+          					) {
+          						page["pagination"][targetName][key] =
+          							defaults[key];
+          					}
+          				}
+          
+          				if (
+          					!Array.isArray(
+          						page["pagination"][targetName]
+          							.pageTokenHistory
+          					)
+          				) {
+          					page["pagination"][targetName]
+          						.pageTokenHistory = [];
+          				}
+          
+          				page["pagination"][targetName]
+          					.pageSize =
+          						normalizePageSize(
+          							page["pagination"][targetName]
+          								.pageSize
+          						);
+          			}
+          
+          			const target =
+          				getPaginationTarget();
+          
+          			return {
+          				target,
+          				pagination:
+          					page["pagination"][target]
+          			};
+          		};
+          
+          		const resetPaginationState = (
+          			pagination
+          		): void => {
+          			const pageSize =
+          				normalizePageSize(
+          					pagination.pageSize
+          				);
+          
+          			pagination.pageIndex = 0;
+          			pagination.pageSize = pageSize;
+          
+          			pagination.currentPageToken = null;
+          			pagination.nextPageToken = null;
+          			pagination.pageTokenHistory = [];
+          
+          			pagination.hasNextPage = false;
+          			pagination.paginated = false;
+          		};
               page.local.filters = filters;
-              var currentCall = vars.call != null && vars.call != undefined ? vars.call : new Date().getTime();
-              page.local.totalCall = currentCall;
-              page.local.spinner = true;
-              page.local.loadingError = false;
-              page.local.alreadyFinished = false;
-              page.local.count = undefined;
-              page["list"] = [];
-              page.local.showAdvancedSearch = false;
-              if (page.ref != undefined && page.ref.detectChanges != undefined) {
-                page.ref.detectChanges();
-              }
+          	
+          //    var currentCall = vars.call != null && vars.call != undefined ? vars.call : new Date().getTime();
+          //    page.local.totalCall = currentCall;
+          //    page.local.spinner = true;
+          //    page.local.loadingError = false;
+          //    page.local.alreadyFinished = false;
+          //    page.local.count = undefined;
+          //    page["list"] = [];
+          //    page.local.showAdvancedSearch = false;
+          //	if (page.ref != undefined && page.ref.detectChanges != undefined) {
+          //	  page.ref.detectChanges();
+          //	}
+          	const paginationContext =
+          		ensurePaginationState();
+          	
+          	const paginationTarget =
+          		paginationContext.target;
+          	
+          	const pagination =
+          		paginationContext.pagination;
+          	
+          	/*
+          	 * À utiliser lorsqu''une recherche, un tag, un sous-tag,
+          	 * un utilisateur ou un filtre vient de changer.
+          	 */
+          	if (vars.resetPagination === true) {
+          		resetPaginationState(
+          			pagination
+          		);
+          	}
+          	
+          	const infiniteMode =
+          		pagination.pageSize ===
+          			"infinite";
+          	
+          	const currentCall =
+          		vars.call != null &&
+          		vars.call != undefined
+          			? vars.call
+          			: new Date().getTime();
+          	
+          	page.local.totalCall =
+          		currentCall;
+          	
+          	pagination.loading = true;
+          	
+          	page.local.spinner = true;
+          	page.local.loadingError = false;
+          	page.local.alreadyFinished = false;
+          	page.local.count = undefined;
+          	page.local.showAdvancedSearch = false;
+          	
+          	/*
+          	 * On conserve les anciens résultats pendant le chargement
+          	 * afin d''éviter un flash vide.
+          	 */
+          	if (!Array.isArray(page["list"])) {
+          		page["list"] = [];
+          	}
+          	
+          	if (
+          		page.ref != undefined &&
+          		page.ref.detectChanges != undefined
+          	) {
+          		page.ref.detectChanges();
+          	}
               function escapeRegexChar(c) {
                 return ("" + c).replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
               }
@@ -129,37 +333,282 @@
                 return highlighted;
               }
               var selectedUsers = Array.isArray(page.local._searchUser) ? page.local._searchUser.map((x) => { return x != null && x.value != undefined ? x.value : x; }) : [];
-              page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/search", dynamicParams: JSON.stringify({filters: filters, query: page["query"], tag: page.local.searchTags, subTag: page.local.searchSubTags, shared: page.local.shared, user: selectedUsers})})
-          	        .then((response: any, parameters: any)=>{
-          				console.log(response);
-          				if(page.local.totalCall == currentCall){
-          					page.local.count = response.res.docs.length;
-          		            var regex = page["query"] != undefined && page["query"] != "" ? new RegExp(buildAccentInsensitiveRegex(page["query"]), ''g'') : null;
-          					page["list"] = [...response.res.docs.map((x)=>{if(x.name != null && regex != null) {x.boldName = buildHighlightedName(x.name, regex);} return x})];
-          					page.local.alreadyFinished = true;
-          					page.local.spinner = false;
-                            if (page.ref != undefined && page.ref.detectChanges != undefined) {
-                              page.ref.detectChanges();
-                            }
-          				}
-          	            
-          	            resolve();
-          	            return null;
-          	        })
-          	        .fail((error)=>{
-          				console.error("e", error);
-          				page.c8o.log.error("[doSearchForm] an error occured "+ JSON.stringify(error));
-                        if(page.local.totalCall == currentCall){
-                            page.local.count = 0;
-                            page.local.alreadyFinished = true;
-                            page.local.loadingError = true;
-                            page.local.spinner = false;
-                            if (page.ref != undefined && page.ref.detectChanges != undefined) {
-                              page.ref.detectChanges();
-                            }
-                        }
+          	const dynamicParams = {
+          		filters:
+          			filters,
+          
+          		query:
+          			page["query"],
+          
+          		tag:
+          			page.local.searchTags,
+          
+          		subTag:
+          			page.local.searchSubTags,
+          
+          		shared:
+          			page.local.shared,
+          
+          		user:
+          			selectedUsers,
+          
+          		pagination: {
+          			pageSize:
+          				pagination.pageSize,
+          
+          			/*
+          			 * Aucun bookmark n''est envoyé en mode infinite.
+          			 */
+          			pageToken:
+          				infiniteMode
+          					? null
+          					: pagination
+          						.currentPageToken
+          		}
+          	};
+          //	page.c8o.callJsonObject("C8Oforms.APIV2_ExecuteView",{target: page.local["ddoc"] + "/search", dynamicParams: JSON.stringify({filters: filters, query: page["query"], tag: page.local.searchTags, subTag: page.local.searchSubTags, shared: page.local.shared, user: selectedUsers})})
+          	page.c8o.callJsonObject(
+          		"C8Oforms.APIV2_ExecuteView",
+          		{
+          			target:
+          				page.local["ddoc"] +
+          				"/search",
+          	
+          			dynamicParams:
+          				JSON.stringify(
+          					dynamicParams
+          				)
+          		}
+          	)
+          //	        .then((response: any, parameters: any)=>{
+          //				console.log(response);
+          //				if(page.local.totalCall == currentCall){
+          //					page.local.count = response.res.docs.length;
+          //		            var regex = page["query"] != undefined && page["query"] != "" ? new RegExp(buildAccentInsensitiveRegex(page["query"]), ''g'') : null;
+          //					page["list"] = [...response.res.docs.map((x)=>{if(x.name != null && regex != null) {x.boldName = buildHighlightedName(x.name, regex);} return x})];
+          //					page.local.alreadyFinished = true;
+          //					page.local.spinner = false;
+          //                  if (page.ref != undefined && page.ref.detectChanges != undefined) {
+          //                    page.ref.detectChanges();
+          //                  }
+          //				}
+          //	            
+          //	            resolve();
+          //	            return null;
+          //	        })
+          		.then((
+          			response: any,
+          			parameters: any
+          		) => {
+          			console.log(response);
+          		
+          			if (
+          				page.local.totalCall !==
+          				currentCall
+          			) {
+          				/*
+          				 * Réponse d''une ancienne recherche :
+          				 * on l''ignore intégralement.
+          				 */
           				resolve();
-          	        });
+          				return null;
+          			}
+          		
+          			const result =
+          				response != null &&
+          				response.res != null
+          					? response.res
+          					: {};
+          		
+          			const docs =
+          				Array.isArray(result.docs)
+          					? result.docs
+          					: [];
+          		
+          			const responsePagination =
+          				result.pagination != null &&
+          				typeof result.pagination ===
+          					"object"
+          					? result.pagination
+          					: {};
+          		
+          			const isPaginated =
+          				responsePagination.paginated ===
+          					true;
+          		
+          			const responseMode =
+          				responsePagination.mode != null
+          					? String(
+          						responsePagination.mode
+          					)
+          					: null;
+          		
+          			const rawResponsePageSize =
+          				responsePagination.pageSize;
+          		
+          			const isInfiniteResponse =
+          				responseMode === "infinite" ||
+          				(
+          					typeof rawResponsePageSize ===
+          						"string" &&
+          					rawResponsePageSize
+          						.toLowerCase()
+          						.trim() === "infinite"
+          				);
+          		
+          			pagination.loading = false;
+          			pagination.paginated =
+          				isPaginated;
+          		
+          			if (isInfiniteResponse) {
+          				pagination.pageSize =
+          					"infinite";
+          			}
+          			else {
+          				const numericPageSize =
+          					Number(
+          						rawResponsePageSize
+          					);
+          		
+          				if (
+          					Number.isInteger(
+          						numericPageSize
+          					) &&
+          					numericPageSize > 0
+          				) {
+          					pagination.pageSize =
+          						Math.min(
+          							numericPageSize,
+          							100
+          						);
+          				}
+          			}
+          		
+          			if (isPaginated) {
+          				pagination.hasNextPage =
+          					responsePagination
+          						.hasNextPage === true;
+          		
+          				pagination.nextPageToken =
+          					responsePagination
+          						.nextPageToken ?? null;
+          			}
+          			else {
+          				/*
+          				 * Mode infinite ou réponse legacy :
+          				 * aucun bookmark ne doit rester actif.
+          				 */
+          				pagination.pageIndex = 0;
+          				pagination.currentPageToken = null;
+          				pagination.nextPageToken = null;
+          				pagination.pageTokenHistory = [];
+          				pagination.hasNextPage = false;
+          			}
+          		
+          			page.local.count =
+          				docs.length;
+          		
+          			page.local.returnedCount =
+          				Number.isFinite(
+          					Number(
+          						responsePagination
+          							.returnedCount
+          					)
+          				)
+          					? Number(
+          						responsePagination
+          							.returnedCount
+          					)
+          					: docs.length;
+          		
+          			const regex =
+          				page["query"] != undefined &&
+          				page["query"] != ""
+          					? new RegExp(
+          						buildAccentInsensitiveRegex(
+          							page["query"]
+          						),
+          						"g"
+          					)
+          					: null;
+          		
+          			page["list"] =
+          				docs.map((doc) => {
+          					if (
+          						doc != null &&
+          						doc.name != null &&
+          						regex != null
+          					) {
+          						doc.boldName =
+          							buildHighlightedName(
+          								doc.name,
+          								regex
+          							);
+          					}
+          		
+          					return doc;
+          				});
+          		
+          			page.local.alreadyFinished = true;
+          			page.local.loadingError = false;
+          			page.local.spinner = false;
+          		
+          			if (
+          				page.ref != undefined &&
+          				page.ref.detectChanges != undefined
+          			) {
+          				page.ref.detectChanges();
+          			}
+          		
+          			resolve();
+          			return null;
+          		})
+          //	        .fail((error)=>{
+          //				console.error("e", error);
+          //				page.c8o.log.error("[doSearchForm] an error occured "+ JSON.stringify(error));
+          //              if(page.local.totalCall == currentCall){
+          //                  page.local.count = 0;
+          //                  page.local.alreadyFinished = true;
+          //                  page.local.loadingError = true;
+          //                  page.local.spinner = false;
+          //                  if (page.ref != undefined && page.ref.detectChanges != undefined) {
+          //                    page.ref.detectChanges();
+          //                  }
+          //              }
+          //				resolve();
+          //	        });
+          		.fail((error) => {
+          			console.error(
+          				"doSearchForm error",
+          				error
+          			);
+          		
+          			page.c8o.log.error(
+          				"[doSearchForm] an error occured " +
+          				JSON.stringify(error)
+          			);
+          		
+          			if (
+          				page.local.totalCall ===
+          				currentCall
+          			) {
+          				pagination.loading = false;
+          		
+          				page.local.count = 0;
+          				page.local.alreadyFinished = true;
+          				page.local.loadingError = true;
+          				page.local.spinner = false;
+          		
+          				if (
+          					page.ref != undefined &&
+          					page.ref.detectChanges != undefined
+          				) {
+          					page.ref.detectChanges();
+          				}
+          			}
+          		
+          			resolve();
+          		});
           '
   app_ts_imports: 
     - xmlizable: 
