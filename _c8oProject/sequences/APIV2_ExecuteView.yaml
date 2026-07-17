@@ -42,6 +42,54 @@ comment: |
     	params = { filters: {} };
     	log.warn("parse failed" + JSON.stringify(e));
     }
+    // Pagination
+    var DEFAULT_PAGE_SIZE = 25;
+    var MAX_PAGE_SIZE = 100;
+    
+    var paginationParams =
+    	params.pagination != null &&
+    	typeof params.pagination == "object"
+    		? params.pagination
+    		: {};
+    
+    // Supporte pagination.pageSize, pageSize ou limit.
+    var requestedPageSize = paginationParams.pageSize;
+    
+    if (requestedPageSize == null || requestedPageSize == "") {
+    	requestedPageSize = params.pageSize;
+    }
+    
+    if (requestedPageSize == null || requestedPageSize == "") {
+    	requestedPageSize = params.limit;
+    }
+    
+    var pageSize = parseInt(requestedPageSize, 10);
+    
+    if (isNaN(pageSize) || pageSize < 1) {
+    	pageSize = DEFAULT_PAGE_SIZE;
+    }
+    
+    pageSize = Math.min(pageSize, MAX_PAGE_SIZE);
+    
+    // Supporte pagination.pageToken, pageToken ou bookmark.
+    var pageToken = paginationParams.pageToken;
+    
+    if (pageToken == null || pageToken == "") {
+    	pageToken = params.pageToken;
+    }
+    
+    if (pageToken == null || pageToken == "") {
+    	pageToken = params.bookmark;
+    }
+    
+    if (
+    	pageToken == null ||
+    	pageToken == "" ||
+    	pageToken == "null" ||
+    	pageToken == "undefined"
+    ) {
+    	pageToken = null;
+    }
     var hasUserFilter = params.user != null && params.user != undefined && params.user != "" && params.user != "undefined";
     var userFilterIds = [];
     if (hasUserFilter) {
@@ -92,6 +140,30 @@ comment: |
             }
         }
         return false;
+    }
+    
+    function buildCreatorFilterValues(ids) {
+    	var values = [];
+    
+    	for (var i = 0; i < ids.length; i++) {
+    		var normalizedId = normalizeUserId(ids[i]);
+    
+    		if (normalizedId == "") {
+    			continue;
+    		}
+    
+    		if (values.indexOf(normalizedId) == -1) {
+    			values.push(normalizedId);
+    		}
+    
+    		var reservedId = "C8Oreserved_" + normalizedId;
+    
+    		if (values.indexOf(reservedId) == -1) {
+    			values.push(reservedId);
+    		}
+    	}
+    
+    	return values;
     }
     
     var filters = {};
@@ -184,6 +256,222 @@ comment: |
         text = text.replace(/[ýÿ]/g, "y");
         text = text.replace(/[žźż]/g, "z");
         return text;
+    }
+    
+    function executePaginatedFind(
+    	database,
+    	query,
+    	requestedPageSize,
+    	bookmark,
+    	postFilter
+    ) {
+    	var docs = [];
+    	var currentBookmark = bookmark;
+    	var lastResult = {};
+    	var exhausted = false;
+    	var scanCount = 0;
+    
+    	/*
+    	 * Protection contre une boucle anormalement longue si le filtre
+    	 * JavaScript rejette un très grand nombre de documents.
+    	 */
+    	var MAX_SCAN_BATCHES = 1000;
+    
+    	/*
+    	 * On interroge CouchDB jusqu''à obtenir requestedPageSize
+    	 * documents qui respectent également le postFilter.
+    	 */
+    	while (
+    		docs.length < requestedPageSize &&
+    		exhausted !== true &&
+    		scanCount < MAX_SCAN_BATCHES
+    	) {
+    		var paginatedQuery = JSON.parse(
+    			JSON.stringify(query)
+    		);
+    
+    		/*
+    		 * Ne demande que le nombre de documents encore nécessaire.
+    		 * Cela évite de consommer des documents qui appartiendraient
+    		 * à la page suivante.
+    		 */
+    		paginatedQuery.limit =
+    			requestedPageSize - docs.length;
+    
+    		if (
+    			currentBookmark != null &&
+    			currentBookmark != ""
+    		) {
+    			paginatedQuery.bookmark =
+    				currentBookmark;
+    		}
+    		else {
+    			delete paginatedQuery.bookmark;
+    		}
+    
+    		var previousBookmark =
+    			currentBookmark;
+    
+    		var result = toJSON(
+    			fsclient.postFind(
+    				database,
+    				toJettison(paginatedQuery)
+    			)
+    		);
+    
+    		if (result == null) {
+    			result = {};
+    		}
+    
+    		lastResult = result;
+    
+    		var rawDocs = Array.isArray(result.docs)
+    			? result.docs
+    			: [];
+    
+    		for (
+    			var docIndex = 0;
+    			docIndex < rawDocs.length;
+    			docIndex++
+    		) {
+    			var doc = rawDocs[docIndex];
+    
+    			if (
+    				typeof postFilter != "function" ||
+    				postFilter(doc) === true
+    			) {
+    				docs.push(doc);
+    			}
+    		}
+    
+    		var nextBookmark =
+    			result.bookmark != null &&
+    			result.bookmark != ""
+    				? result.bookmark
+    				: null;
+    
+    		currentBookmark = nextBookmark;
+    
+    		exhausted =
+    			rawDocs.length === 0 ||
+    			nextBookmark == null ||
+    			nextBookmark == previousBookmark;
+    
+    		scanCount++;
+    	}
+    
+    	if (scanCount >= MAX_SCAN_BATCHES) {
+    		log.warn(
+    			"Maximum pagination scan batches reached"
+    		);
+    	}
+    
+    	/*
+    	 * Vérifie qu''au moins un document correspondant existe après
+    	 * le bookmark actuel.
+    	 *
+    	 * La vérification doit elle aussi appliquer postFilter.
+    	 */
+    	var hasNextPage = false;
+    
+    	if (
+    		exhausted !== true &&
+    		currentBookmark != null
+    	) {
+    		var probeBookmark =
+    			currentBookmark;
+    
+    		var probeCount = 0;
+    		var probeExhausted = false;
+    
+    		while (
+    			hasNextPage !== true &&
+    			probeExhausted !== true &&
+    			probeCount < MAX_SCAN_BATCHES
+    		) {
+    			var probeQuery = JSON.parse(
+    				JSON.stringify(query)
+    			);
+    
+    			probeQuery.limit =
+    				requestedPageSize;
+    
+    			probeQuery.bookmark =
+    				probeBookmark;
+    
+    			delete probeQuery.execution_stats;
+    
+    			var probeResult = toJSON(
+    				fsclient.postFind(
+    					database,
+    					toJettison(probeQuery)
+    				)
+    			);
+    
+    			if (probeResult == null) {
+    				probeResult = {};
+    			}
+    
+    			var probeDocs =
+    				Array.isArray(probeResult.docs)
+    					? probeResult.docs
+    					: [];
+    
+    			for (
+    				var probeDocIndex = 0;
+    				probeDocIndex < probeDocs.length;
+    				probeDocIndex++
+    			) {
+    				if (
+    					typeof postFilter != "function" ||
+    					postFilter(
+    						probeDocs[probeDocIndex]
+    					) === true
+    				) {
+    					hasNextPage = true;
+    					break;
+    				}
+    			}
+    
+    			var nextProbeBookmark =
+    				probeResult.bookmark != null &&
+    				probeResult.bookmark != ""
+    					? probeResult.bookmark
+    					: null;
+    
+    			probeExhausted =
+    				probeDocs.length === 0 ||
+    				nextProbeBookmark == null ||
+    				nextProbeBookmark == probeBookmark;
+    
+    			probeBookmark =
+    				nextProbeBookmark;
+    
+    			probeCount++;
+    		}
+    	}
+    
+    	lastResult.docs = docs;
+    
+    	/*
+    	 * Le bookmark brut correspond à la position atteinte après
+    	 * avoir rempli la page courante.
+    	 */
+    	lastResult.bookmark =
+    		currentBookmark;
+    
+    	lastResult.pagination = {
+    		paginated: true,
+    		pageSize: requestedPageSize,
+    		returnedCount: docs.length,
+    		hasNextPage: hasNextPage,
+    		nextPageToken:
+    			hasNextPage
+    				? currentBookmark
+    				: null
+    	};
+    
+    	return lastResult;
     }
     
     let targetDB = "c8oforms_fs";
@@ -417,6 +705,165 @@ comment: |
     	}
     }
     
+    function cloneJson(value) {
+    	return JSON.parse(JSON.stringify(value));
+    }
+    
+    function buildAccessSelector(
+    	userId,
+    	groups
+    ) {
+    	var accessConditions = [
+    		{
+    			"$and": [
+    				{
+    					"~c8oAcl": {
+    						"$exists": false
+    					}
+    				},
+    				{
+    					"c8oGrp": {
+    						"$exists": false
+    					}
+    				}
+    			]
+    		},
+    		{
+    			"~c8oAcl": {
+    				"$eq": userId
+    			}
+    		}
+    	];
+    
+    	for (
+    		var groupIndex = 0;
+    		groupIndex < groups.length;
+    		groupIndex++
+    	) {
+    		var groupId = groups[groupIndex];
+    
+    		var groupCondition = {
+    			"c8oGrp": {
+    				"$or": [
+    					{},
+    					{
+    						"$eq": groupId
+    					}
+    				]
+    			}
+    		};
+    
+    		groupCondition.c8oGrp["$or"][0][groupId] = {
+    			"$in": [
+    				true,
+    				"true"
+    			]
+    		};
+    
+    		accessConditions.push(groupCondition);
+    	}
+    
+    	return {
+    		"$or": accessConditions
+    	};
+    }
+    
+    function getMangoRequestDefinition(targetDefinition) {
+    	if (Array.isArray(targetDefinition)) {
+    		for (
+    			var requestIndex = 0;
+    			requestIndex < targetDefinition.length;
+    			requestIndex++
+    		) {
+    			var definition =
+    				targetDefinition[requestIndex];
+    
+    			if (
+    				definition != null &&
+    				definition.type != "view"
+    			) {
+    				return JSON.parse(
+    					JSON.stringify(definition)
+    				);
+    			}
+    		}
+    
+    		return {};
+    	}
+    
+    	return JSON.parse(
+    		JSON.stringify(targetDefinition || {})
+    	);
+    }
+    
+    function getRequestSelectorClauses(
+    	requestDefinition
+    ) {
+    	if (
+    		Array.isArray(
+    			requestDefinition.selector
+    		)
+    	) {
+    		return JSON.parse(
+    			JSON.stringify(
+    				requestDefinition.selector
+    			)
+    		);
+    	}
+    
+    	if (
+    		requestDefinition.selector != null &&
+    		Array.isArray(
+    			requestDefinition.selector["$and"]
+    		)
+    	) {
+    		return JSON.parse(
+    			JSON.stringify(
+    				requestDefinition
+    					.selector["$and"]
+    			)
+    		);
+    	}
+    
+    	return [];
+    }
+    
+    function getCompatibleUseIndex(
+    	requestDefinition,
+    	removeAclSuffix
+    ) {
+    	if (
+    		!Array.isArray(
+    			requestDefinition.use_index
+    		)
+    	) {
+    		return null;
+    	}
+    
+    	var useIndex = JSON.parse(
+    		JSON.stringify(
+    			requestDefinition.use_index
+    		)
+    	);
+    
+    	/*
+    	 * Les requêtes admin ou créateur ne contiennent pas
+    	 * le filtre ~c8oAcl. Elles ne doivent donc pas forcer
+    	 * l''index suffixé par _by_ACL.
+    	 */
+    	if (
+    		removeAclSuffix === true &&
+    		useIndex.length >= 2
+    	) {
+    		useIndex[1] = useIndex[1].replace(
+    			/_by_ACL$/,
+    			""
+    		);
+    	}
+    
+    	return useIndex;
+    }
+    
     let mangoquery = {
     	selector: {
     		"$and": []
@@ -460,7 +907,27 @@ comment: |
     else {
     	usedGroups = [];
     }
-    if (target != "formsV2/search" && target != "published_formsV2/search") {
+    //if (target != "formsV2/search" && target != "published_formsV2/search") {
+    var isSearchTarget =
+    	target == "formsV2/search" ||
+    	target == "published_formsV2/search";
+    
+    var isInFolderTarget =
+    	target == "formsV2/in_folders" ||
+    	target == "published_formsV2/in_folders";
+    
+    var isOutFolderTarget =
+    	target == "formsV2/out_folder" ||
+    	target == "published_formsV2/out_folder";
+    
+    var usesPaginatedMangoQuery =
+    	isSearchTarget ||
+    	(
+    		isInFolderTarget &&
+    		paginationRequested
+    	);
+    
+    if (!usesPaginatedMangoQuery) {
     	var _requests = [];
     	for (var selector of requests[target]) {
     		var _sel = JSON.parse(JSON.stringify(selector));
@@ -590,78 +1057,154 @@ comment: |
     	}
     }
     else {
-    	usedGroups = usedGroups.map((x) => { return x.replace(/\./g, ''\\.'') });
-    	// build mangofilter
-    	if (admin || creatorOnlyFilter) {
-    		mangoquery.selector["$and"] = [
-    			{
-    				"_deleted": {
-    					"$exists": false
-    				}
-    			}
-    		];
+    //	usedGroups = usedGroups.map((x) => { return x.replace(/\./g, ''\\.'') });
+    //	// build mangofilter
+    //	if (admin || creatorOnlyFilter) {
+    //		mangoquery.selector["$and"] = [
+    //			{
+    //				"_deleted": {
+    //					"$exists": false
+    //				}
+    //			}
+    //		];
+    //	}
+    //	else {
+    //		mangoquery.selector["$and"] = [
+    //			{
+    //				"_deleted": {
+    //					"$exists": false
+    //				}
+    //			},
+    //			{
+    //				"$or": [
+    //					{
+    //						"~c8oAcl": {
+    //							"$exists": false
+    //						},
+    //						"c8oGrp": {
+    //							"$exists": false
+    //						}
+    //					},
+    //					{
+    //						"~c8oAcl": {
+    //							"$eq": authenticatedUserID
+    //						}
+    //					}
+    //				]
+    //			}
+    //		];
+    //	}
+    //	if (!admin && !creatorOnlyFilter) {
+    //		for (let elem of usedGroups) {
+    //			let obj =
+    //			{
+    //				"c8oGrp": {
+    //					"$or": [
+    //						{
+    //
+    //						},
+    //						{
+    //							"$eq": elem
+    //						}
+    //					]
+    //				}
+    //			}
+    //			obj.c8oGrp["$or"][0][elem] = {
+    //				"$in": [
+    //					true,
+    //					"true"
+    //				]
+    //			}
+    //			mangoquery.selector["$and"][1]["$or"].push(obj)
+    //		}
+    //        var directAclUserIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+    //        for (var directAclIndex = 1; directAclIndex < directAclUserIds.length; directAclIndex++) {
+    //            mangoquery.selector["$and"][1]["$or"].push({
+    //                "~c8oAcl": {
+    //                    "$eq": directAclUserIds[directAclIndex]
+    //                }
+    //            });
+    //        }
+    //	}
+    //
+    //	// now request
+    ////	mangoquery.selector["$and"] = requests[target].selector.concat(mangoquery.selector["$and"]);
+    //	var requestDefinition =
+    //		getMangoRequestDefinition(
+    //			requests[target]
+    //		);
+    //	
+    //	var requestSelectorClauses =
+    //		getRequestSelectorClauses(
+    //			requestDefinition
+    //		);
+    //	
+    //	mangoquery.selector["$and"] =
+    //		requestSelectorClauses.concat(
+    //			mangoquery.selector["$and"]
+    //		);
+    	var requestDefinition =
+    		getMangoRequestDefinition(
+    			requests[target]
+    		);
+    	
+    	if (
+    		requestDefinition == null ||
+    		requestDefinition.selector == null
+    	) {
+    		throw new Error(
+    			"No Mango request definition found for target: " +
+    			target
+    		);
     	}
-    	else {
-    		mangoquery.selector["$and"] = [
-    			{
-    				"_deleted": {
-    					"$exists": false
-    				}
-    			},
-    			{
-    				"$or": [
-    					{
-    						"~c8oAcl": {
-    							"$exists": false
-    						},
-    						"c8oGrp": {
-    							"$exists": false
-    						}
-    					},
-    					{
-    						"~c8oAcl": {
-    							"$eq": authenticatedUserID
-    						}
-    					}
-    				]
-    			}
-    		];
-    	}
-    	if (!admin && !creatorOnlyFilter) {
-    		for (let elem of usedGroups) {
-    			let obj =
-    			{
-    				"c8oGrp": {
-    					"$or": [
-    						{
-    
-    						},
-    						{
-    							"$eq": elem
-    						}
-    					]
-    				}
-    			}
-    			obj.c8oGrp["$or"][0][elem] = {
-    				"$in": [
-    					true,
-    					"true"
-    				]
-    			}
-    			mangoquery.selector["$and"][1]["$or"].push(obj)
+    	
+    	var requestSelectorClauses =
+    		getRequestSelectorClauses(
+    			requestDefinition
+    		);
+    	
+    	/*
+    	 * Les points sont échappés car certains identifiants
+    	 * de groupes sont utilisés comme noms de propriétés
+    	 * dans c8oGrp.
+    	 */
+    	var escapedUsedGroups =
+    		usedGroups.map(function(groupId) {
+    			return ("" + groupId)
+    				.replace(/\./g, "\\.");
+    		});
+    	
+    	/*
+    	 * Nouvelle requête propre pour la target courante.
+    	 *
+    	 * Pour in_folders, requestSelectorClauses contient déjà :
+    	 * - le type de formulaire ;
+    	 * - le tag correspondant à params.folder.
+    	 */
+    	mangoquery = {
+    		selector: {
+    			"$and": requestSelectorClauses
     		}
-            var directAclUserIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
-            for (var directAclIndex = 1; directAclIndex < directAclUserIds.length; directAclIndex++) {
-                mangoquery.selector["$and"][1]["$or"].push({
-                    "~c8oAcl": {
-                        "$eq": directAclUserIds[directAclIndex]
-                    }
-                });
-            }
+    	};
+    	
+    	mangoquery.selector["$and"].push({
+    		"_deleted": {
+    			"$exists": false
+    		}
+    	});
+    	
+    	/*
+    	 * Un administrateur voit toutes les applications.
+    	 * Un filtre créateur est appliqué séparément plus bas.
+    	 */
+    	if (!admin && !creatorOnlyFilter) {
+    		mangoquery.selector["$and"].push(
+    			buildAccessSelector(
+    				authenticatedUserID,
+    				escapedUsedGroups
+    			)
+    		);
     	}
-    
-    	// now request
-    	mangoquery.selector["$and"] = requests[target].selector.concat(mangoquery.selector["$and"]);
     	var normalizedSearchQuery = "";
     	if (params["query"] != undefined && params["query"] != "undefined" && params["query"] != "") {
     		normalizedSearchQuery = normalizeSearchText(params["query"]);
@@ -674,18 +1217,48 @@ comment: |
     	catch (e) {
     
     	}
-    	if (params["tag"] != undefined && params["tag"] != "undefined" && params["tag"] != "" && params["tag"] != "[]") {
-    		let res = { "$or": [] };
-    		for (var i = 0; i < params["tag"].length; i++) {
-    			res.$or.push({
+    //	if (params["tag"] != undefined && params["tag"] != "undefined" && params["tag"] != "" && params["tag"] != "[]") {
+    //		let res = { "$or": [] };
+    //		for (var i = 0; i < params["tag"].length; i++) {
+    //			res.$or.push({
+    //				"tag": {
+    //					"$type": "array", "$elemMatch": {
+    //						"$eq": params["tag"][i]
+    //					}
+    //				}
+    //			})
+    //		}
+    //		mangoquery.selector["$and"].push(res);
+    //	}
+    	if (
+    		params["tag"] != undefined &&
+    		params["tag"] != "undefined" &&
+    		params["tag"] != "" &&
+    		params["tag"] != "[]"
+    	) {
+    		var tagSelector = {
+    			"$or": []
+    		};
+    	
+    		for (
+    			var tagIndex = 0;
+    			tagIndex < params["tag"].length;
+    			tagIndex++
+    		) {
+    			tagSelector["$or"].push({
     				"tag": {
-    					"$type": "array", "$elemMatch": {
-    						"$eq": params["tag"][i]
+    					"$type": "array",
+    					"$elemMatch": {
+    						"$eq":
+    							params["tag"][tagIndex]
     					}
     				}
-    			})
+    			});
     		}
-    		mangoquery.selector["$and"].push(res);
+    	
+    		mangoquery.selector["$and"].push(
+    			tagSelector
+    		);
     	}
     	try {
     		params["subTag"] = JSON.parse(params["subTag"]);
@@ -693,37 +1266,187 @@ comment: |
     	catch (e) {
     
     	}
-    	if (params["subTag"] != undefined && params["subTag"] != "undefined" && params["subTag"] != "" && params["subTag"] != "[]") {
-    		let res = { "$or": [] };
-    		for (var i = 0; i < params["subTag"].length; i++) {
-    			res.$or.push({
+    //	if (params["subTag"] != undefined && params["subTag"] != "undefined" && params["subTag"] != "" && params["subTag"] != "[]") {
+    //		let res = { "$or": [] };
+    //		for (var i = 0; i < params["subTag"].length; i++) {
+    //			res.$or.push({
+    //				"subTag": {
+    //					"$type": "array", "$elemMatch": {
+    //						"$eq": params["subTag"][i]
+    //					}
+    //				}
+    //			})
+    //		}
+    //		mangoquery.selector["$and"].push(res);
+    //	}
+    
+    	if (
+    		params["subTag"] != undefined &&
+    		params["subTag"] != "undefined" &&
+    		params["subTag"] != "" &&
+    		params["subTag"] != "[]"
+    	) {
+    		var subTagSelector = {
+    			"$or": []
+    		};
+    	
+    		for (
+    			var subTagIndex = 0;
+    			subTagIndex < params["subTag"].length;
+    			subTagIndex++
+    		) {
+    			subTagSelector["$or"].push({
     				"subTag": {
-    					"$type": "array", "$elemMatch": {
-    						"$eq": params["subTag"][i]
+    					"$type": "array",
+    					"$elemMatch": {
+    						"$eq":
+    							params["subTag"][subTagIndex]
     					}
     				}
-    			})
+    			});
     		}
-    		mangoquery.selector["$and"].push(res);
+    	
+    		mangoquery.selector["$and"].push(
+    			subTagSelector
+    		);
     	}
-    	mangoquery.fields = requests[target].fields;
-    	mangoquery.sort = requests[target].sort;
-    	mangoquery.limit = 10000;
-    	mangoquery.execution_stats = true;
-    	mangoquery.use_index = requests[target].use_index;
     
-    	res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
-    	if (normalizedSearchQuery != "") {
-    		res.docs = res.docs.filter(function(doc) {
-    			return normalizeSearchText(doc.name).indexOf(normalizedSearchQuery) != -1;
-    		});
-    	}
+    //	mangoquery.fields = requests[target].fields;
+    //	mangoquery.sort = requests[target].sort;
+    //	mangoquery.limit = 10000;
+    //	mangoquery.execution_stats = true;
+    //	mangoquery.use_index = requests[target].use_index;
+    //
+    //	res = toJSON(fsclient.postFind(targetDB, toJettison(mangoquery)));
+    //	if (normalizedSearchQuery != "") {
+    //		res.docs = res.docs.filter(function(doc) {
+    //			return normalizeSearchText(doc.name).indexOf(normalizedSearchQuery) != -1;
+    //		});
+    //	}
+    //	if (creatorOnlyFilter) {
+    //        var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
+    //        res.docs = res.docs.filter((x) => {
+    //            return isCreatorMatch(x.creator, creatorFilterIds);
+    //		})
+    //	}
+    
+    	/*
+    	 * Issue #1106
+    	 */
     	if (creatorOnlyFilter) {
-            var creatorFilterIds = userFilterIds.length > 0 ? userFilterIds : [authenticatedUserID];
-            res.docs = res.docs.filter((x) => {
-                return isCreatorMatch(x.creator, creatorFilterIds);
-    		})
+    		var creatorFilterIds =
+    			userFilterIds.length > 0
+    				? userFilterIds
+    				: [authenticatedUserID];
+    	
+    		var creatorValues =
+    			buildCreatorFilterValues(creatorFilterIds);
+    	
+    		if (creatorValues.length > 0) {
+    			mangoquery.selector["$and"].push({
+    				"creator": {
+    					"$in": creatorValues
+    				}
+    			});
+    		}
     	}
+    	
+    //	mangoquery.fields = requests[target].fields;
+    //	mangoquery.sort = requests[target].sort;
+    //	mangoquery.execution_stats = true;
+    //	
+    //	if (requests[target].use_index != null) {
+    //		mangoquery.use_index = requests[target].use_index;
+    //	}
+    
+    if (requestDefinition.fields != null) {
+    	mangoquery.fields =
+    		requestDefinition.fields;
+    }
+    
+    if (requestDefinition.sort != null) {
+    	mangoquery.sort =
+    		requestDefinition.sort;
+    }
+    
+    mangoquery.execution_stats = true;
+    
+    var compatibleUseIndex =
+    	getCompatibleUseIndex(
+    		requestDefinition,
+    		admin || creatorOnlyFilter
+    	);
+    
+    /*
+     * Pour les recherches existantes, on conserve l''index
+     * actuellement configuré.
+     *
+     * Pour in_folders avec les droits par groupe, l''ancien
+     * index _by_ACL peut ne pas couvrir les conditions c8oGrp.
+     * On laisse donc CouchDB choisir un index pendant la
+     * première phase de validation.
+     */
+    var shouldForceUseIndex =
+    	compatibleUseIndex != null &&
+    	!(
+    		isInFolderTarget &&
+    		!admin &&
+    		!creatorOnlyFilter
+    	);
+    
+    if (shouldForceUseIndex) {
+    	mangoquery.use_index =
+    		compatibleUseIndex;
+    }
+    else {
+    	delete mangoquery.use_index;
+    }
+    	
+    //	res = executePaginatedFind(
+    //		targetDB,
+    //		mangoquery,
+    //		pageSize,
+    //		pageToken
+    //	);
+    
+    	var searchPostFilter = null;
+    	
+    	if (normalizedSearchQuery != "") {
+    		searchPostFilter = function(doc) {
+    			return (
+    				doc != null &&
+    				normalizeSearchText(doc.name)
+    					.indexOf(normalizedSearchQuery) != -1
+    			);
+    		};
+    	}
+    	
+    	res = executePaginatedFind(
+    		targetDB,
+    		mangoquery,
+    		pageSize,
+    		pageToken,
+    		searchPostFilter
+    	);
+    }
+    
+    /*
+     * Normalisation de la réponse pour les targets
+     * qui ne sont pas encore paginées.
+     */
+    if (res != null && res.pagination == null) {
+    	var returnedCount =
+    		Array.isArray(res.docs)
+    			? res.docs.length
+    			: 0;
+    
+    	res.pagination = {
+    		paginated: false,
+    		pageSize: pageSize,
+    		returnedCount: returnedCount,
+    		hasNextPage: false,
+    		nextPageToken: null
+    	};
     }'
 ↓object [steps.JsonToXmlStep-1694169429816]: 
   isEnabled: false
