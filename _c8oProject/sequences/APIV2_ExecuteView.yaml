@@ -560,6 +560,171 @@ comment: |
     	return lastResult;
     }
     
+    var OUT_FOLDER_TOKEN_PREFIX =
+    	"out_folder:v1:";
+    
+    function createOutFolderPageToken(
+    	offset
+    ) {
+    	return (
+    		OUT_FOLDER_TOKEN_PREFIX +
+    		offset
+    	);
+    }
+    
+    function parseOutFolderPageToken(
+    	token
+    ) {
+    	if (
+    		token == null ||
+    		token == ""
+    	) {
+    		return 0;
+    	}
+    
+    	var rawToken =
+    		"" + token;
+    
+    	if (
+    		rawToken.indexOf(
+    			OUT_FOLDER_TOKEN_PREFIX
+    		) != 0
+    	) {
+    		log.warn(
+    			"Invalid out_folder page token: " +
+    			rawToken
+    		);
+    
+    		return 0;
+    	}
+    
+    	var offset =
+    		parseInt(
+    			rawToken.substring(
+    				OUT_FOLDER_TOKEN_PREFIX.length
+    			),
+    			10
+    		);
+    
+    	if (
+    		isNaN(offset) ||
+    		offset < 0
+    	) {
+    		return 0;
+    	}
+    
+    	return offset;
+    }
+    
+    function paginateOutFolderResult(
+    	result,
+    	requestedPageSize,
+    	token
+    ) {
+    	if (result == null) {
+    		result = {};
+    	}
+    
+    	var allDocs =
+    		Array.isArray(result.docs)
+    			? result.docs
+    			: [];
+    
+    	var totalCount =
+    		allDocs.length;
+    
+    	var offset =
+    		parseOutFolderPageToken(
+    			token
+    		);
+    
+    	if (
+    		offset >= totalCount &&
+    		totalCount > 0
+    	) {
+    		offset = 0;
+    	}
+    
+    	var endOffset =
+    		Math.min(
+    			offset + requestedPageSize,
+    			totalCount
+    		);
+    
+    	var pageDocs =
+    		allDocs.slice(
+    			offset,
+    			endOffset
+    		);
+    
+    	var hasNextPage =
+    		endOffset < totalCount;
+    
+    	var pageCount =
+    		totalCount > 0
+    			? Math.ceil(
+    				totalCount /
+    				requestedPageSize
+    			)
+    			: 0;
+    
+    	var currentPageIndex =
+    		Math.floor(
+    			offset /
+    			requestedPageSize
+    		);
+    
+    	var lastPageOffset =
+    		totalCount > 0
+    			? Math.floor(
+    				(totalCount - 1) /
+    					requestedPageSize
+    			) * requestedPageSize
+    			: 0;
+    
+    	result.docs =
+    		pageDocs;
+    
+    	result.pagination = {
+    		paginated: true,
+    		mode: "out_folder_offset",
+    
+    		pageSize:
+    			requestedPageSize,
+    
+    		returnedCount:
+    			pageDocs.length,
+    
+    		totalCount:
+    			totalCount,
+    
+    		pageCount:
+    			pageCount,
+    
+    		currentPageIndex:
+    			currentPageIndex,
+    
+    		hasNextPage:
+    			hasNextPage,
+    
+    		nextPageToken:
+    			hasNextPage
+    				? createOutFolderPageToken(
+    					endOffset
+    				)
+    				: null,
+    
+    		lastPageToken:
+    			pageCount > 1
+    				? createOutFolderPageToken(
+    					lastPageOffset
+    				)
+    				: null
+    	};
+    
+    	return result;
+    }
+    
     let targetDB = "c8oforms_fs";
     if (fromResponses == "true") {
     	targetDB = "c8oforms_response_fs";
@@ -1140,6 +1305,28 @@ comment: |
     		else {
     			res.docs = transformedFold.concat(transformed);
     		}
+    	}
+    	
+    	/*
+    	 * Pagination de la liste finale out_folder.
+    	 *
+    	 * Elle intervient après :
+    	 * - la fusion des requêtes ;
+    	 * - la fusion des droits par groupes ;
+    	 * - le tri ;
+    	 * - la déduplication ;
+    	 * - la création des dossiers virtuels.
+    	 */
+    	if (
+    		isOutFolderTarget &&
+    		paginationRequested &&
+    		!isInfinitePageSize
+    	) {
+    		res = paginateOutFolderResult(
+    			res,
+    			pageSize,
+    			pageToken
+    		);
     	}
     }
     else {
