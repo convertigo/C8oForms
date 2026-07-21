@@ -513,6 +513,7 @@ For more technical informations : [documentation](./project.md)
         - [moveUserToGroupForm](#moveusertogroupform)
         - [ngxTagInput](#ngxtaginput)
         - [ngxTagInputCustomC8oForms](#ngxtaginputcustomc8oforms)
+        - [pagination](#pagination)
         - [PermissionsHeaderComponent](#permissionsheadercomponent)
         - [PopoverFilters](#popoverfilters)
         - [PopoverGroupActions](#popovergroupactions)
@@ -9198,6 +9199,55 @@ This component provides Chips management for your apps
 </tr>
 <tr>
 <td>ngxTagInputValidationError</td><td></td>
+</tr>
+</table>
+#### pagination
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>color</td><td></td>
+</tr>
+<tr>
+<td>has_next_page</td><td></td>
+</tr>
+<tr>
+<td>loading</td><td></td>
+</tr>
+<tr>
+<td>page</td><td></td>
+</tr>
+<tr>
+<td>page_selected</td><td></td>
+</tr>
+<tr>
+<td>page_size</td><td></td>
+</tr>
+<tr>
+<td>page_size_options</td><td></td>
+</tr>
+<tr>
+<td>paginated</td><td></td>
+</tr>
+<tr>
+<td>per_page</td><td></td>
+</tr>
+<tr>
+<td>total_count</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>onPageChange</td><td></td>
 </tr>
 </table>
 #### PermissionsHeaderComponent
