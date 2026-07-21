@@ -630,6 +630,11 @@ comment: |
     			? result.docs
     			: [];
     
+    	/*
+    	 * Important : totalCount correspond à la liste finale,
+    	 * après fusion, déduplication et création des dossiers
+    	 * virtuels.
+    	 */
     	var totalCount =
     		allDocs.length;
     
@@ -638,9 +643,16 @@ comment: |
     			token
     		);
     
+    	/*
+    	 * Si le token n''est plus valide après une modification
+    	 * des données, on revient à la première page.
+    	 */
     	if (
-    		offset >= totalCount &&
-    		totalCount > 0
+    		offset < 0 ||
+    		(
+    			offset >= totalCount &&
+    			totalCount > 0
+    		)
     	) {
     		offset = 0;
     	}
@@ -657,30 +669,41 @@ comment: |
     			endOffset
     		);
     
+    	var hasPreviousPage =
+    		offset > 0;
+    
     	var hasNextPage =
     		endOffset < totalCount;
     
     	var pageCount =
-    		totalCount > 0
-    			? Math.ceil(
+    		totalCount === 0
+    			? 0
+    			: Math.ceil(
     				totalCount /
     				requestedPageSize
-    			)
-    			: 0;
+    			);
     
     	var currentPageIndex =
-    		Math.floor(
-    			offset /
-    			requestedPageSize
+    		totalCount === 0
+    			? 0
+    			: Math.floor(
+    				offset /
+    					requestedPageSize
+    			);
+    
+    	var previousOffset =
+    		Math.max(
+    			0,
+    			offset - requestedPageSize
     		);
     
     	var lastPageOffset =
-    		totalCount > 0
-    			? Math.floor(
+    		totalCount === 0
+    			? 0
+    			: Math.floor(
     				(totalCount - 1) /
     					requestedPageSize
-    			) * requestedPageSize
-    			: 0;
+    			) * requestedPageSize;
     
     	result.docs =
     		pageDocs;
@@ -704,6 +727,27 @@ comment: |
     		currentPageIndex:
     			currentPageIndex,
     
+    		currentPageNumber:
+    			currentPageIndex + 1,
+    
+    		hasPreviousPage:
+    			hasPreviousPage,
+    
+    		/*
+    		 * null représente la première page.
+    		 *
+    		 * hasPreviousPage permet de distinguer :
+    		 * - première page : aucun retour possible ;
+    		 * - deuxième page : retour possible avec token null.
+    		 */
+    		previousPageToken:
+    			hasPreviousPage &&
+    			previousOffset > 0
+    				? createOutFolderPageToken(
+    					previousOffset
+    				)
+    				: null,
+    
     		hasNextPage:
     			hasNextPage,
     
@@ -713,6 +757,9 @@ comment: |
     					endOffset
     				)
     				: null,
+    
+    		firstPageToken:
+    			null,
     
     		lastPageToken:
     			pageCount > 1

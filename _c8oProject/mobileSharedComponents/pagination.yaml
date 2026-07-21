@@ -14,57 +14,48 @@ scriptContent:
         /*Begin_c8o_CompFinalization*/
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompChanges*/
-        //		if (changes.page && this.page != 1) {
-        //			this.page = (Number(this.page) < this.getPageNumber()) ? Number(this.page) + 1 : this.getPageNumber();
-        //			if (this.page_selected != this.local.selected) {				
-        //				this.local.selected = this.page_selected;
-        //			}
-        //			switch (this.local.selected) {
-        //				case 1:
-        //					if (this.page == this.getPageNumber()) {
-        //						if (this.getPageNumber() > 2) {
-        //							this.local.selected = 2;							
-        //						} else if (this.getPageNumber() <= 2) {
-        //							this.local.selected = 3;
-        //						} else {
-        //							this.local.selected = 1;
-        //						}
-        //					} else {					
-        //						this.local.selected = 1;
-        //					}
-        //					break;
-        //				case 2:					
-        //					this.local.selected = 3;
-        //					break;
-        //				case 3:
-        //					this.local.selected = 3;
-        //					break;
-        //				default:
-        //					break;
-        //			}
-        //		}
-        		console.log(changes)
         		if (changes.page) {
-        			const normalizedPage = Number(this.page);
-        		
-        			this.page =
-        				Number.isInteger(normalizedPage) &&
-        				normalizedPage > 0
-        					? normalizedPage
-        					: 1;
+        			const normalizedPage =
+        				this.normalizePage(
+        					changes.page.currentValue
+        				);
+        
+        			this.local.currentPage =
+        				normalizedPage;
+        
+        			console.log(
+        				"PAGINATION PAGE CHANGE",
+        				{
+        					instanceId:
+        						this.instanceID,
+        
+        					previousValue:
+        						changes.page.previousValue,
+        
+        					currentValue:
+        						changes.page.currentValue,
+        
+        					normalizedValue:
+        						normalizedPage,
+        
+        					localCurrentPage:
+        						this.local.currentPage,
+        
+        					firstChange:
+        						changes.page.firstChange
+        				}
+        			);
         		}
-        		
+        
         		if (changes.page_size) {
-        			const normalizedPageSize =
-        				Number(this.page_size);
-        		
+        			const currentPageSize =
+        				changes.page_size.currentValue;
+        
         			this.page_size =
-        				Number.isInteger(normalizedPageSize) &&
-        				normalizedPageSize > 0
-        					? normalizedPageSize
-        					: 25;
+        				currentPageSize === "infinite"
+        					? "infinite"
+        					: Number(currentPageSize);
         		}
-        		this.ref.detectChanges();
         		/*End_c8o_CompChanges*/
         /*Begin_c8o_CompDoCheck*/
         		/*End_c8o_CompDoCheck*/
@@ -102,7 +93,7 @@ scriptContent:
         	public canGoPrevious(): boolean {
         		return (
         			!this.isTrue(this.loading) &&
-        			this.getNumber(this.page, 1) > 1
+        			this.getCurrentPage() > 1
         		);
         	}
         	
@@ -111,10 +102,40 @@ scriptContent:
         	}
         
         	public canGoNext(): boolean {
-        		console.log(''pagination comp'', this)
         		return (
         			!this.isTrue(this.loading) &&
         			this.isTrue(this.has_next_page)
+        		);
+        	}
+        	
+        	public normalizePage(
+        		value: unknown
+        	): number {
+        		const numericValue =
+        			Number(value);
+        
+        		return (
+        			Number.isInteger(
+        				numericValue
+        			) &&
+        			numericValue > 0
+        		)
+        			? numericValue
+        			: 1;
+        	}
+        
+        	public getCurrentPage(): number {
+        		if (
+        			this.local != null &&
+        			this.local.currentPage != null
+        		) {
+        			return this.normalizePage(
+        				this.local.currentPage
+        			);
+        		}
+        
+        		return this.normalizePage(
+        			this.page
         		);
         	}
         	/*End_c8o_CompFunction*/
@@ -338,16 +359,23 @@ scriptContent:
                     			return;
                     		}
                     
-                    		const targetPage =
-                    			Math.max(
-                    				1,
-                    				Number(page.page) - 1
-                    			);
+                    		const currentPage =
+                    			page.getCurrentPage();
                     
                     		resolve({
                     			action: "previous",
-                    			page: targetPage,
-                    			pageSize: Number(page.page_size)
+                    			page:
+                    				Math.max(
+                    					1,
+                    					currentPage - 1
+                    				),
+                    
+                    			pageSize:
+                    				page.page_size === "infinite"
+                    					? "infinite"
+                    					: Number(
+                    						page.page_size
+                    					)
                     		});
                     '
             ↓EmitEvent [ngx.components.UIDynamicEmit-1784217295343]: 
@@ -590,7 +618,7 @@ scriptContent:
           textValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:('reset_fields_scope_page' | translate) + ' ' + this.page
+              - MobileSmartSourceType: script:('reset_fields_scope_page' | translate) + ' ' + this.getCurrentPage()
     ↓Directive [ngx.components.UIControlDirective-1784217295409]: 
       directiveName: If
       directiveSource: 
@@ -893,10 +921,20 @@ scriptContent:
                     			return;
                     		}
                     
+                    		const currentPage =
+                    			page.getCurrentPage();
+                    
                     		resolve({
                     			action: "next",
-                    			page: Number(page.page) + 1,
-                    			pageSize: Number(page.page_size)
+                    			page:
+                    				currentPage + 1,
+                    
+                    			pageSize:
+                    				page.page_size === "infinite"
+                    					? "infinite"
+                    					: Number(
+                    						page.page_size
+                    					)
                     		});
                     '
             ↓EmitEvent [ngx.components.UIDynamicEmit-1784280332819]: 
@@ -1434,11 +1472,11 @@ scriptContent:
                       			resolve(false);
                       			return;
                       		}
-                      		console.log(		{
-                      					action: "pageSizeChange",
-                      					page: 1,
-                      					pageSize: selectedPageSize
-                      				})
+                      //		console.log(		{
+                      //					action: "pageSizeChange",
+                      //					page: 1,
+                      //					pageSize: selectedPageSize
+                      //				})
                       		resolve({
                       			action: "pageSizeChange",
                       			page: 1,
