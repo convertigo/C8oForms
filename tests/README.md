@@ -22,6 +22,58 @@ Credentials and the target server live in `tests/.env` (gitignored), loaded by
 are in `.env.example`; `CONVERTIGO_ADMIN_PASSWORD` (deploy server) is only needed
 for `verify.mjs`.
 
+### No-Code Studio functional suite
+
+The functional baseline is separate from issue-driven red/green regression
+tests. Its catalog lives in `e2e/nocode-studio-functional-tests.md`, and the
+specs are grouped as `e2e/functional-*.spec.ts`.
+
+```bash
+cd tests
+npm run e2e:functional
+npm run e2e:functional:headed
+```
+
+The catalog's "Open Clarifications" section lists the remaining product or
+fixture inputs needed before more functional scenarios can be automated.
+
+Cross-user sharing scenarios need a second disposable Studio account. Either
+configure one explicitly in `.env`:
+
+```bash
+C8OFORMS_FUNCTIONAL_SECONDARY_USER=other-user@example.test
+C8OFORMS_FUNCTIONAL_SECONDARY_PASSWORD=other-user-password
+```
+
+or set `CONVERTIGO_ADMIN_PASSWORD`; the functional suite then authenticates as
+admin against `C8OFORMS_BASE_URL` and auto-provisions
+`c8oforms-functional-secondary@yopmail.com` through `C8Oforms.AddUser`.
+
+`SRC-010` also needs an MCP bearer token for that secondary account, so it can
+create an isolated Baserow fixture for each user:
+
+```bash
+C8OFORMS_FUNCTIONAL_SECONDARY_MCP_TOKEN=secondary-user-token
+```
+
+The isolated empty-dashboard scenario also accepts an explicit clean account:
+
+```bash
+C8OFORMS_FUNCTIONAL_EMPTY_USER=empty-user@example.test
+C8OFORMS_FUNCTIONAL_EMPTY_PASSWORD=empty-user-password
+```
+
+When `CONVERTIGO_ADMIN_PASSWORD` is set and no explicit empty account is
+configured, the suite auto-provisions `c8oforms-functional-empty@yopmail.com`
+and removes that account's owned forms/responses before the isolated dashboard
+check.
+
+Admin UI scenarios accept an explicit C8Oforms admin account through
+`C8OFORMS_FUNCTIONAL_ADMIN_USER` and `C8OFORMS_FUNCTIONAL_ADMIN_PASSWORD`.
+Otherwise, when `CONVERTIGO_ADMIN_PASSWORD` is set, the suite auto-provisions
+`c8oforms-functional-admin@yopmail.com` and grants that dedicated account the
+C8Oforms admin right.
+
 ### Running against a local server
 
 How you point at the app depends on how it is served:

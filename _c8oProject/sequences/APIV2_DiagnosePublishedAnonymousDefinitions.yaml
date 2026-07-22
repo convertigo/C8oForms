@@ -1,0 +1,280 @@
+accessibility: Private
+authenticatedContextRequired: true
+comment: |
+  Diagnose anonymous published definitions.
+  Lists or repairs anonymous published forms whose flows differ from their published parent.
+↓checkAdminRights [steps.SimpleStep-1894000001000]: 
+  expression: |
+    var repairRequested = ("" + dryRun) == "false";
+    __accept_admin_readonly = !repairRequested;
+    include("js/isAdmin.js");
+↓diagnose [steps.SimpleStep-1894000001001]: 
+  expression: |
+    'var fields = ["flows"];
+    var suffix = "_anonymous";
+    var max = parseInt(limit || "0", 10);
+    var shouldRepair = ("" + dryRun) == "false";
+    var includeOkDocuments = ("" + includeOk) == "true";
+    var query = new HashMap();
+    query.put("include_docs", "true");
+    query.put("reduce", "false");
+    var isArrayValue = function(value) {
+        return Object.prototype.toString.call(value) == "[object Array]";
+    };
+    
+    var stableStringify = function(value) {
+        if (typeof value == "undefined") {
+            return "__undefined__";
+        }
+        if (value === null) {
+            return "null";
+        }
+        var type = typeof value;
+        if (type != "object") {
+            return JSON.stringify(value);
+        }
+        if (isArrayValue(value)) {
+            var arrayParts = [];
+            for (var i = 0; i < value.length; i++) {
+                arrayParts.push(stableStringify(value[i]));
+            }
+            return "[" + arrayParts.join(",") + "]";
+        }
+        var keys = Object.keys(value).sort();
+        var objectParts = [];
+        for (var k = 0; k < keys.length; k++) {
+            var key = keys[k];
+            objectParts.push(JSON.stringify(key) + ":" + stableStringify(value[key]));
+        }
+        return "{" + objectParts.join(",") + "}";
+    };
+    
+    var getFieldSize = function(value) {
+        if (typeof value == "undefined" || value === null) {
+            return 0;
+        }
+        if (isArrayValue(value) || typeof value == "string") {
+            return value.length;
+        }
+        if (typeof value == "object") {
+            return Object.keys(value).length;
+        }
+        return 1;
+    };
+    
+    var trim = function(value) {
+        return ("" + value).replace(/^\s+|\s+$/g, "");
+    };
+    
+    var endsWith = function(value, ending) {
+        return value.indexOf(ending) == value.length - ending.length;
+    };
+    
+    var normalizeParentId = function(value) {
+        var normalized = trim(value);
+        if (normalized.length === 0) {
+            return "";
+        }
+        if (endsWith(normalized, suffix)) {
+            normalized = normalized.substring(0, normalized.length - suffix.length);
+        }
+        if (normalized.indexOf("published_") !== 0) {
+            normalized = "published_" + normalized;
+        }
+        return normalized;
+    };
+    
+    var selectedParentIds = {};
+    var restrictToIds = false;
+    var rawIds = typeof ids != "undefined" && ids !== null ? trim(ids) : "";
+    if (rawIds.length > 0) {
+        var parsedIds = [];
+        try {
+            parsedIds = rawIds.charAt(0) == "[" ? JSON.parse(rawIds) : rawIds.split(",");
+        }
+        catch (e) {
+            parsedIds = rawIds.split(",");
+        }
+        if (!isArrayValue(parsedIds)) {
+            parsedIds = [parsedIds];
+        }
+        for (var idIndex = 0; idIndex < parsedIds.length; idIndex++) {
+            var selectedParentId = normalizeParentId(parsedIds[idIndex]);
+            if (selectedParentId.length > 0) {
+                selectedParentIds[selectedParentId] = true;
+                restrictToIds = true;
+            }
+        }
+    }
+    if (!restrictToIds && !isNaN(max) && max > 0) {
+        query.put("limit", "" + max);
+    }
+    
+    var compareFlows = function(publishedDoc, anonymousDoc) {
+        var publishedFlows = publishedDoc.flows;
+        var anonymousFlows = anonymousDoc.flows;
+        var differs = stableStringify(publishedFlows) != stableStringify(anonymousFlows);
+        return {
+            different: differs,
+            publishedSize: getFieldSize(publishedFlows),
+            anonymousSize: getFieldSize(anonymousFlows)
+        };
+    };
+    
+    var repairFlows = function(parentId, anonymousId, publishedDoc) {
+        var mergeRules = new HashMap();
+        mergeRules.put(java.util.Arrays.asList(new java.lang.String("flows")), new java.lang.String("override"));
+        return toJSON(fsclient.postDocument(
+            java.lang.String("c8oforms_fs"),
+            toJettison({ _id: anonymousId, flows: publishedDoc.flows }),
+            new HashMap(),
+            enums.CouchPostDocumentPolicy.merge,
+            mergeRules,
+            false
+        ));
+    };
+    
+    var res = {
+        ok: true,
+        dryRun: !shouldRepair,
+        repairEnabled: shouldRepair,
+        restrictedToIds: restrictToIds,
+        checked: 0,
+        anonymousCandidates: 0,
+        alreadyOkCount: 0,
+        toRepairCount: 0,
+        flowsDifferentCount: 0,
+        repairedCount: 0,
+        missingParentCount: 0,
+        invalidAnonymousIdCount: 0,
+        skippedDeletedCount: 0,
+        fields: fields,
+        toRepair: [],
+        flowsDifferent: [],
+        repaired: [],
+        repairErrors: [],
+        missingParent: [],
+        invalidAnonymousId: [],
+        skippedDeleted: [],
+        errors: []
+    };
+    if (includeOkDocuments) {
+        res.alreadyOk = [];
+    }
+    
+    try {
+        var rows = toJSON(fsclient.getView("c8oforms_fs", "published_forms_anonymous", "all", query)).rows || [];
+        res.anonymousCandidates = rows.length;
+        for (var r = 0; r < rows.length; r++) {
+            context.getRootContext().lastAccessTime = new Date().getTime();
+            var row = rows[r];
+            var anonymousDoc = row.doc;
+            if (!anonymousDoc && row.id) {
+                anonymousDoc = getDoc(row.id, null, "c8oforms_fs");
+            }
+            if (!anonymousDoc || !anonymousDoc._id) {
+                res.errors.push({ id: row.id || "", error: "anonymous_document_not_found" });
+                continue;
+            }
+            var anonymousId = "" + anonymousDoc._id;
+            if (anonymousDoc.deleted === true || anonymousDoc._deleted === true) {
+                res.skippedDeletedCount++;
+                res.skippedDeleted.push({ anonymousId: anonymousId });
+                continue;
+            }
+            if (anonymousId.indexOf("published_") !== 0 || anonymousId.indexOf(suffix) != anonymousId.length - suffix.length) {
+                res.invalidAnonymousIdCount++;
+                res.invalidAnonymousId.push({ anonymousId: anonymousId });
+                continue;
+            }
+            
+            var parentId = anonymousId.substring(0, anonymousId.length - suffix.length);
+            if (restrictToIds && selectedParentIds[parentId] !== true) {
+                continue;
+            }
+            res.checked++;
+            var publishedDoc = getDoc(parentId, null, "c8oforms_fs");
+            if (!publishedDoc || publishedDoc.error || !publishedDoc._id) {
+                res.missingParentCount++;
+                res.missingParent.push({
+                    id: parentId,
+                    anonymousId: anonymousId,
+                    error: publishedDoc && publishedDoc.error ? "" + publishedDoc.error : "missing_parent"
+                });
+                continue;
+            }
+            
+            var comparison = compareFlows(publishedDoc, anonymousDoc);
+            var entry = {
+                id: parentId,
+                anonymousId: anonymousId,
+                name: publishedDoc.name || anonymousDoc.name || "",
+                creator: publishedDoc.creator || anonymousDoc.creator || "",
+                publishedVersion: publishedDoc.version || "",
+                anonymousVersion: anonymousDoc.version || "",
+                parentSharedAnonymous: publishedDoc.sharedAnonymous === true || publishedDoc.sharedAnonymous == "true",
+                anonymousAcl: anonymousDoc["~c8oAcl"] || "",
+                flowsDifferent: comparison.different,
+                publishedFlowsSize: comparison.publishedSize,
+                anonymousFlowsSize: comparison.anonymousSize
+            };
+            if (comparison.different) {
+                res.toRepairCount++;
+                res.flowsDifferentCount++;
+                res.toRepair.push(entry);
+                res.flowsDifferent.push(entry);
+                if (shouldRepair) {
+                    try {
+                        var repairResponse = repairFlows(parentId, anonymousId, publishedDoc);
+                        entry.repairStatus = "repaired";
+                        entry.repairResponse = repairResponse;
+                        res.repairedCount++;
+                        res.repaired.push(entry);
+                    }
+                    catch (repairError) {
+                        entry.repairStatus = "error";
+                        entry.repairError = "" + repairError;
+                        res.repairErrors.push({
+                            id: parentId,
+                            anonymousId: anonymousId,
+                            error: "" + repairError
+                        });
+                    }
+                }
+            }
+            else {
+                res.alreadyOkCount++;
+                if (includeOkDocuments) {
+                    res.alreadyOk.push(entry);
+                }
+            }
+        }
+    }
+    catch (e) {
+        res.ok = false;
+        res.errors.push({ error: "" + e });
+    }'
+↓result [steps.JsonToXmlStep-1894000001002]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓includeOk [variables.RequestableVariable-1894000001003]: 
+  comment: Include documents whose anonymous definition already matches the published parent.
+  value: false
+↓limit [variables.RequestableVariable-1894000001004]: 
+  comment: Optional maximum number of anonymous documents to scan. Use 0 or empty for all.
+  value: 0
+↓dryRun [variables.RequestableVariable-1894000001005]: 
+  comment: Keep true to diagnose only. Set to false to repair flows on affected anonymous published documents.
+  value: true
+↓ids [variables.RequestableVariable-1894000001006]: 
+  comment: Optional JSON array or comma-separated list of ids to scan. Accepts draft ids, published ids, or anonymous published ids.
