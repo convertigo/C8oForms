@@ -1755,6 +1755,51 @@ scriptContent:
         		}
         		return this.stringifyChoiceValue(result);
         	}
+            public isSelectMultiple(item: any): boolean {
+                return item != null && item.type == "select" && item.config != null && item.config.selectionMode == "multiple";
+            }
+            public normalizeSelectValue(value: any): string {
+                let normalized = this.normalizeSingleChoiceDefaultValue(value);
+                if (normalized === undefined || normalized === null) {
+                    return "";
+                }
+                return "" + normalized;
+            }
+            public normalizeSelectValues(value: any): string[] {
+                if (value === undefined || value === null || value === "") {
+                    return [];
+                }
+                let values: any[] = [];
+                if (Array.isArray(value)) {
+                    values = value;
+                }
+                else if (typeof value == "string") {
+                    let trimmed = value.trim();
+                    if (trimmed == "") {
+                        return [];
+                    }
+                    try {
+                        let parsed = JSON.parse(trimmed);
+                        if (parsed !== value) {
+                            return this.normalizeSelectValues(parsed);
+                        }
+                    }
+                    catch (e) {}
+                    let separator = this.local?.subKeyD == null || this.local.subKeyD == "" ? "," : this.local.subKeyD;
+                    values = trimmed.indexOf(separator) != -1 ? trimmed.split(separator) : [trimmed];
+                }
+                else {
+                    values = [value];
+                }
+                let normalizedValues: string[] = [];
+                for (let entry of values) {
+                    let normalized = this.normalizeSelectValue(entry);
+                    if (normalized !== "" && normalizedValues.indexOf(normalized) == -1) {
+                        normalizedValues.push(normalized);
+                    }
+                }
+                return normalizedValues;
+            }
         	public normalizeCheckboxDefaultValuesResult(result: any): any {
         		if (result === undefined || result === null) {
         			return null;
@@ -1832,7 +1877,29 @@ scriptContent:
         				return;
         			}
         			let changed = false;
-        			if (item.type == "select" || item.type == "radio") {
+                    if (page.isSelectMultiple(item)) {
+                        if (variables.selfVar === undefined || variables.selfVar === null) {
+                            return;
+                        }
+                        let nextValues = page.normalizeSelectValues(variables.selfVar);
+                        if (JSON.stringify(formSubmit[item.name].value) != JSON.stringify(nextValues)) {
+                            formSubmit[item.name].value = nextValues;
+                            changed = true;
+                        }
+                        if (Array.isArray(formSubmit[item.name].children)) {
+                            for (let i = 0; i < formSubmit[item.name].children.length; i++) {
+                                let child = item.children?.[i] || formSubmit[item.name].children[i];
+                                let normalizedValue = page.normalizeSelectValue(child?.value);
+                                let normalizedDisplayValue = page.normalizeSelectValue(child?.displayValue);
+                                let nextSelected = nextValues.indexOf(normalizedValue) != -1 || (normalizedDisplayValue != "" && nextValues.indexOf(normalizedDisplayValue) != -1);
+                                if (formSubmit[item.name].children[i].selected !== nextSelected) {
+                                    formSubmit[item.name].children[i].selected = nextSelected;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                    else if (item.type == "select" || item.type == "radio") {
         				if (variables.selfVar === undefined || variables.selfVar === null) {
         					return;
         				}
@@ -2025,35 +2092,75 @@ scriptContent:
         					formSubmit[item["name"]] = { "name": item["name"], "type": item["type"], "label": item["config"]["label"], "children": [], "labelHtml": item["config"]["personalized"] ? item["config"]["html"] : item["config"]["label"] };
         					// search for default values in urlParams
         					let urlParams = page.local.urlParams.get(item["name"]);
-        					let defaultSelected = "";
+                            let isSelectMultiple = page.isSelectMultiple(item);
+                            let defaultSelected: any = isSelectMultiple ? [] : "";
         					let defaultVariables = page.hasSimpleChoiceDefaultExpression(item) ? await page.computeSimpleChoiceDefaultVariables(item) : {};
-        					let computedDefaultValue = defaultVariables.selfVar !== undefined ? page.normalizeSingleChoiceDefaultValue(defaultVariables.selfVar) : item.config?.defaultValue;
-        					if (!item.config.sourceEnabled) {
-        						for (let child in item["children"]) {
-        							let selected: boolean = false;
-        							let useResponse = response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] && response[item["name"]]["children"][child]["selected"] != undefined;
-        							try {
-        								selected = useResponse ? response[item["name"]]["children"][child]["selected"] : urlParams != undefined ? item["children"][child]["value"] == urlParams : computedDefaultValue != undefined ? page.choiceValuesMatch(item["children"][child]["value"], computedDefaultValue) : false;
-        								//to preselect others
-        								if (selected == false && item.children[child].other && computedDefaultValue == ''__c8o__unique_other'') {
-        									defaultSelected = ''__c8o__unique_other'';
-        								}
-        								if (selected) {
-        									defaultSelected = item["children"][child].value;
-        								}
-        							}
-        							catch (e) {
-        								this.c8o.log.error("[fillFormSubmit] An error occured on radio/type (" + item.id + ")");
-        							}
-        							formSubmit[item["name"]]["children"].push({ "value": item["children"][child].value, "selected": selected, "other": item["children"][child].other });
-        						}
-        					}
-        					else {
-        						
-        						defaultSelected = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : computedDefaultValue != undefined ? computedDefaultValue : "";
-        						if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined) {
-        							formSubmit[item["name"]]["children"] = response[item["name"]]["children"];
-        						}
+                            if (isSelectMultiple) {
+                                let computedDefaultValues = defaultVariables.selfVar !== undefined ? page.normalizeSelectValues(defaultVariables.selfVar) : page.normalizeSelectValues(item.config?.defaultValue);
+                                if (!item.config.sourceEnabled) {
+                                    let useResponseChildren = response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined;
+                                    let responseValue = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : undefined;
+                                    let selectedValues = useResponseChildren ? [] : responseValue !== undefined ? page.normalizeSelectValues(responseValue) : urlParams != undefined ? page.normalizeSelectValues(urlParams) : computedDefaultValues;
+                                    for (let child in item["children"]) {
+                                        let selected: boolean = false;
+                                        try {
+                                            if (useResponseChildren) {
+                                                selected = response[item["name"]]["children"][child] && response[item["name"]]["children"][child]["selected"] != undefined ? response[item["name"]]["children"][child]["selected"] : false;
+                                            }
+                                            else {
+                                                let childValue = page.normalizeSelectValue(item["children"][child]["value"]);
+                                                let childDisplayValue = page.normalizeSelectValue(item["children"][child]["displayValue"]);
+                                                selected = selectedValues.indexOf(childValue) != -1 || (childDisplayValue != "" && selectedValues.indexOf(childDisplayValue) != -1);
+                                            }
+                                            if (selected) {
+                                                let selectedValue = page.normalizeSelectValue(item["children"][child]["value"]);
+                                                if (selectedValue != "" && selectedValues.indexOf(selectedValue) == -1) {
+                                                    selectedValues.push(selectedValue);
+                                                }
+                                            }
+                                        }
+                                        catch (e) {
+                                            this.c8o.log.error("[fillFormSubmit] An error occured on select multiple (" + item.id + ")");
+                                        }
+                                        formSubmit[item["name"]]["children"].push({ "value": item["children"][child].value, "selected": selected, "other": item["children"][child].other });
+                                    }
+                                    defaultSelected = selectedValues;
+                                }
+                                else {
+                                    defaultSelected = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? page.normalizeSelectValues(response[item["name"]]["value"]) : computedDefaultValues;
+                                    if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined) {
+                                        formSubmit[item["name"]]["children"] = response[item["name"]]["children"];
+                                    }
+                                }
+                            }
+                            else {
+                                let computedDefaultValue = defaultVariables.selfVar !== undefined ? page.normalizeSingleChoiceDefaultValue(defaultVariables.selfVar) : item.config?.defaultValue;
+                                if (!item.config.sourceEnabled) {
+                                    for (let child in item["children"]) {
+                                        let selected: boolean = false;
+                                        let useResponse = response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined && response[item["name"]]["children"][child] && response[item["name"]]["children"][child]["selected"] != undefined;
+                                        try {
+                                            selected = useResponse ? response[item["name"]]["children"][child]["selected"] : urlParams != undefined ? item["children"][child]["value"] == urlParams : computedDefaultValue != undefined ? page.choiceValuesMatch(item["children"][child]["value"], computedDefaultValue) : false;
+                                            //to preselect others
+                                            if (selected == false && item.children[child].other && computedDefaultValue == ''__c8o__unique_other'') {
+                                                defaultSelected = ''__c8o__unique_other'';
+                                            }
+                                            if (selected) {
+                                                defaultSelected = item["children"][child].value;
+                                            }
+                                        }
+                                        catch (e) {
+                                            this.c8o.log.error("[fillFormSubmit] An error occured on radio/type (" + item.id + ")");
+                                        }
+                                        formSubmit[item["name"]]["children"].push({ "value": item["children"][child].value, "selected": selected, "other": item["children"][child].other });
+                                    }
+                                }
+                                else {
+                                    defaultSelected = response != undefined && response[item["name"]] != undefined && response[item["name"]]["value"] != undefined ? response[item["name"]]["value"] : computedDefaultValue != undefined ? computedDefaultValue : "";
+                                    if (response != undefined && response[item["name"]] != undefined && response[item["name"]]["children"] != undefined) {
+                                        formSubmit[item["name"]]["children"] = response[item["name"]]["children"];
+                                    }
+                                }
         					}
         					// assign value
         					formSubmit[item["name"]]["value"] = defaultSelected;
