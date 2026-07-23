@@ -401,6 +401,7 @@
              "Interface": "script:this.item?.config?.type != undefined ? this.item?.config?.type : ''popover''",
              "InterfaceOptions": "plain:{cssClass: ''custom-popover''}",
              "LabelPlacement": "plain:end",
+             "Multiple": "script:this.item?.type == ''select'' && this.item?.config?.selectionMode == ''multiple''",
              "Placeholder": "script:this.item?.config?.placeholder",
              "ToggleIcon": "script:''assets\/images\/svg\/lucide\/chevron-down.svg''",
              "Value": "script:this.item?.config?.defaultValue"
@@ -440,19 +441,43 @@
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
-                      		    let id = "";
-                      		    vars.item = page.item;
-                      		    vars.model = page.model;
-                      		    for(let child in vars.item.children){
-                      		        if(vars.item.children[child].value != vars.model.value){
-                      		            vars.model.children[child].selected = false;
-                      		        }
-                      		        else{
-                      		            vars.model.children[child].selected = true;
-                      		            id = vars.item.children[child];
-                      		        }
-                      		    }
-                      		resolve(id);
+                                  vars.item = page.item;
+                                  vars.model = page.model;
+                                  let owner = page["pageOwner"];
+                                  let isSelectMultiple = owner?.isSelectMultiple;
+                                  let normalizeSelectValue = owner?.normalizeSelectValue;
+                                  let normalizeSelectValues = owner?.normalizeSelectValues;
+                                  let multiple = typeof isSelectMultiple == "function" && isSelectMultiple.call(owner, vars.item) === true;
+                                  if(multiple){
+                                      let selectedValues = typeof normalizeSelectValues == "function" ? normalizeSelectValues.call(owner, event) : [];
+                                      if(vars.model != null){
+                                          vars.model.value = selectedValues;
+                                          let sourceChildren = vars.item != null && vars.item.children != null ? vars.item.children : [];
+                                          let modelChildren = vars.model.children != null ? vars.model.children : [];
+                                          for(let child in modelChildren){
+                                              let modelChild = modelChildren[child];
+                                              if(modelChild != null){
+                                                  let sourceChild = sourceChildren[child];
+                                                  let childValue = typeof normalizeSelectValue == "function" ? normalizeSelectValue.call(owner, sourceChild?.value) : "";
+                                                  modelChild.selected = selectedValues.indexOf(childValue) !== -1;
+                                              }
+                                          }
+                                      }
+                                      resolve(null);
+                                  }
+                                  else{
+                                      let id = "";
+                                      for(let child in vars.item.children){
+                                          if(vars.item.children[child].value != vars.model.value){
+                                              vars.model.children[child].selected = false;
+                                          }
+                                          else{
+                                              vars.model.children[child].selected = true;
+                                              id = vars.item.children[child];
+                                          }
+                                      }
+                                      resolve(id);
+                                  }
                       
               ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1596634526996]: 
                 beanData: '{"ionBean":"InvokeAction"}'
@@ -491,18 +516,29 @@
                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
-                      		    if(page["redList"] != undefined){
+                                  if(page["redList"] != undefined){
                                       if(vars.item.config.mandatory == true){
-                                          if(event.value == ""){
-                                              vars.redList[vars.item.name] = true;
-                                              //;
+                                          let model = page.model;
+                                          let owner = page["pageOwner"];
+                                          let isSelectMultiple = owner?.isSelectMultiple;
+                                          let normalizeSelectValues = owner?.normalizeSelectValues;
+                                          let multiple = typeof isSelectMultiple == "function" && isSelectMultiple.call(owner, vars.item) === true;
+                                          if(multiple){
+                                              let normalizedValues = typeof normalizeSelectValues == "function" ? normalizeSelectValues.call(owner, model?.value) : [];
+                                              vars.redList[vars.item.name] = normalizedValues.length === 0;
                                           }
                                           else{
-                                              vars.redList[vars.item.name] = false;
+                                              if(model?.value == ""){
+                                                  vars.redList[vars.item.name] = true;
+                                                  //;
+                                              }
+                                              else{
+                                                  vars.redList[vars.item.name] = false;
+                                              }
                                           }
                                       }
-                                  } 
-                      		resolve();
+                                  }
+                                  resolve();
                       
               ↓item [ngx.components.UIControlVariable-1610466011626]: 
                 varValue: 
@@ -651,20 +687,38 @@
                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
-                        			page.model.value = "";
-                        			let id = "";
-                        		    vars.item = page.item;
-                        		    vars.model = page.model;
-                        		    for(let child in vars.item.children){
-                        		        if(vars.item.children[child].value != vars.model.value){
-                        		            vars.model.children[child].selected = false;
-                        		        }
-                        		        else{
-                        		            vars.model.children[child].selected = true;
-                        		            id = vars.item.children[child];
-                        		        }
-                        		    }
-                        			resolve(id);
+                                  vars.item = page.item;
+                                  vars.model = page.model;
+                                  let owner = page["pageOwner"];
+                                  let isSelectMultiple = owner?.isSelectMultiple;
+                                  let multiple = typeof isSelectMultiple == "function" && isSelectMultiple.call(owner, vars.item) === true;
+                                  if(multiple){
+                                      if(vars.model != null){
+                                          vars.model.value = [];
+                                          let modelChildren = vars.model.children != null ? vars.model.children : [];
+                                          for(let child in modelChildren){
+                                              let modelChild = modelChildren[child];
+                                              if(modelChild != null){
+                                                  modelChild.selected = false;
+                                              }
+                                          }
+                                      }
+                                      resolve(null);
+                                  }
+                                  else{
+                                      page.model.value = "";
+                                      let id = "";
+                                      for(let child in vars.item.children){
+                                          if(vars.item.children[child].value != vars.model.value){
+                                              vars.model.children[child].selected = false;
+                                          }
+                                          else{
+                                              vars.model.children[child].selected = true;
+                                              id = vars.item.children[child];
+                                          }
+                                      }
+                                      resolve(id);
+                                  }
                         
                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1768395674151]: 
                   beanData: '{"ionBean":"InvokeAction"}'
