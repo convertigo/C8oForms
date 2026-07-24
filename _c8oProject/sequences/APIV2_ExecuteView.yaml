@@ -8,7 +8,23 @@ comment: |
     '// Imports and helpers functions
     include("js/common.js");
     
-    let authenticatedUserID = context.getAuthenticatedUser();
+    //let authenticatedUserID = context.getAuthenticatedUser();
+    
+    /*
+     * Utilisateur réellement connecté.
+     *
+     * Cette valeur ne doit jamais être remplacée par un utilisateur
+     * sélectionné dans les filtres d''administration.
+     */
+    let connectedUserID =
+    	context.getAuthenticatedUser();
+    
+    /*
+     * Utilisateur utilisé par les filtres ACL ou créateur existants.
+     * Cette variable peut être modifiée plus bas.
+     */
+    let authenticatedUserID =
+    	connectedUserID;
     // get dynamic params
     var params = {};
     try {
@@ -23,7 +39,8 @@ comment: |
     		params.filters = {
     			"hide_apps_i_created": false,
     			"hide_folders": false,
-    			"show_all_apps": false
+    			"show_all_apps": false,
+    			"my_collaborations": false
     		}
     	}
     	else {
@@ -35,6 +52,9 @@ comment: |
     		}
     		if (params.filters.show_all_apps == undefined) {
     			params.filters.show_all_apps = false;
+    		}
+    		if (params.filters.my_collaborations == undefined) {
+    			params.filters.my_collaborations = false;
     		}
     	}
     }
@@ -250,6 +270,129 @@ comment: |
     	}
     
     	return values;
+    }
+    
+    /**
+     * Construit une condition correspondant à une entrée directe
+     * dans l''objet c8oGrp.
+     *
+     * Exemple de document :
+     *
+     * "c8oGrp": {
+     *     "C8Oreserved_google:...:user@company.com": true
+     * }
+     */
+    function buildDirectC8oGrpCondition(
+    	identity
+    ) {
+    	var escapedIdentity =
+    		("" + identity).replace(
+    			/\./g,
+    			"\\."
+    		);
+    
+    	var directIdentityEntry = {};
+    
+    	directIdentityEntry[
+    		escapedIdentity
+    	] = {
+    		"$in": [
+    			true,
+    			"true"
+    		]
+    	};
+    
+    	return {
+    		"c8oGrp": {
+    			"$or": [
+    				directIdentityEntry,
+    
+    				/*
+    				 * Compatibilité avec d''anciens documents
+    				 * où c8oGrp pouvait être une valeur simple.
+    				 */
+    				{
+    					"$eq":
+    						identity
+    				}
+    			]
+    		}
+    	};
+    }
+    
+    /**
+     * Construit le filtre Mango "mes collaborations".
+     *
+     * Une application est considérée comme une collaboration
+     * directe lorsque :
+     *
+     * 1. l''utilisateur apparaît dans collabs ;
+     * 2. l''utilisateur apparaît dans c8oGrp avec la valeur true.
+     */
+    function buildCollaborationSelector(
+    	userId
+    ) {
+    	var identityValues =
+    		buildCreatorFilterValues([
+    			userId
+    		]);
+    
+    	if (identityValues.length === 0) {
+    		/*
+    		 * Condition volontairement impossible afin de ne
+    		 * jamais retourner toutes les applications lorsque
+    		 * l''identité utilisateur est absente.
+    		 */
+    		return {
+    			"_id": {
+    				"$eq":
+    					"__no_collaboration_identity__"
+    			}
+    		};
+    	}
+    
+    	var collabsConditions = [];
+    	var c8oGrpConditions = [];
+    
+    	for (
+    		var identityIndex = 0;
+    		identityIndex <
+    			identityValues.length;
+    		identityIndex++
+    	) {
+    		var identity =
+    			identityValues[
+    				identityIndex
+    			];
+    
+    		collabsConditions.push({
+    			"collabs": {
+    				"$elemMatch": {
+    					"$eq":
+    						identity
+    				}
+    			}
+    		});
+    
+    		c8oGrpConditions.push(
+    			buildDirectC8oGrpCondition(
+    				identity
+    			)
+    		);
+    	}
+    
+    	return {
+    		"$and": [
+    			{
+    				"$or":
+    					collabsConditions
+    			},
+    			{
+    				"$or":
+    					c8oGrpConditions
+    			}
+    		]
+    	};
     }
     
     var filters = {};
@@ -1169,8 +1312,39 @@ comment: |
     };
     
     // get admin attr
-    var admin = params.filters.show_all_apps == true;
-    var creatorOnlyFilter = hasUserFilter || (params.filters.hide_apps_i_created === true && params.filters.show_all_apps !== true);
+    //var admin = params.filters.show_all_apps == true;
+    //var creatorOnlyFilter = hasUserFilter || (params.filters.hide_apps_i_created === true && params.filters.show_all_apps !== true);
+    
+    // get filters attributes
+    var collaborationOnlyFilter =
+    	params.filters.my_collaborations ===
+    		true;
+    
+    /*
+     * Le filtre de collaboration est une restriction.
+     * Il prend donc la priorité sur "show all applications".
+     */
+    var admin =
+    	params.filters.show_all_apps ==
+    		true &&
+    	collaborationOnlyFilter !== true;
+    
+    /*
+     * Le filtre créateur ne doit pas être appliqué en même
+     * temps que le filtre "mes collaborations".
+     */
+    var creatorOnlyFilter =
+    	collaborationOnlyFilter !== true &&
+    	(
+    		hasUserFilter ||
+    		(
+    			params.filters
+    				.hide_apps_i_created ===
+    					true &&
+    			params.filters
+    				.show_all_apps !== true
+    		)
+    	);
     
     var withACL = true;
     try {
@@ -1180,13 +1354,28 @@ comment: |
     
     }
     
-    if ((admin === true || hasUserFilter) && userFilterIds.length > 0) {
+    //if ((admin === true || hasUserFilter) && userFilterIds.length > 0) {
+    //	admin = false;
+    //    authenticatedUserID = userFilterIds[0];
+    //}
+    
+    if (
+    	collaborationOnlyFilter !== true &&
+    	(
+    		admin === true ||
+    		hasUserFilter
+    	) &&
+    	userFilterIds.length > 0
+    ) {
     	admin = false;
-        authenticatedUserID = userFilterIds[0];
+    
+    	authenticatedUserID =
+    		userFilterIds[0];
     }
     
     // request is acl or group based create filter
-    if (!admin && withACL && !creatorOnlyFilter) {
+    if (!admin && withACL && !creatorOnlyFilter &&
+    	!collaborationOnlyFilter) {
         // call c8ofullsyncgrp =>  design/get_groups_by_user
         query = new java.util.HashMap();
         query.put(''reduce'', ''false'');
@@ -1226,22 +1415,112 @@ comment: |
     	);
     
     if (!usesPaginatedMangoQuery) {
+    //	var _requests = [];
+    //	for (var selector of requests[target]) {
+    //		var _sel = JSON.parse(JSON.stringify(selector));
+    //		if (_sel.type != "view" && !admin && withACL && !creatorOnlyFilter) {
+    //			_sel.selector["$and"].push({
+    //				"~c8oAcl": authenticatedUserID
+    //			});
+    //		}
+    //		else if (_sel.type != "view" && _sel.use_index != null && (admin || creatorOnlyFilter)) {
+    //			if (_sel.use_index.length == 2) {
+    //				_sel.use_index[1] = _sel.use_index[1].substring(0, _sel.use_index[1].length - 7);
+    //			}
+    //		}
+    //		delete _sel.acl;
+    //		_requests.push(_sel);
+    //
+    //	}
     	var _requests = [];
-    	for (var selector of requests[target]) {
-    		var _sel = JSON.parse(JSON.stringify(selector));
-    		if (_sel.type != "view" && !admin && withACL && !creatorOnlyFilter) {
-    			_sel.selector["$and"].push({
-    				"~c8oAcl": authenticatedUserID
-    			});
+    	
+    	for (
+    		var selector of
+    			requests[target]
+    	) {
+    		var _sel =
+    			JSON.parse(
+    				JSON.stringify(
+    					selector
+    				)
+    			);
+    	
+    		/*
+    		 * Les vues byGroups retournent des applications
+    		 * accessibles par groupe.
+    		 *
+    		 * Elles ne doivent pas être utilisées pour le filtre
+    		 * "mes collaborations", qui cible uniquement les
+    		 * collaborations directes.
+    		 */
+    		if (
+    			collaborationOnlyFilter &&
+    			_sel.type == "view"
+    		) {
+    			continue;
     		}
-    		else if (_sel.type != "view" && _sel.use_index != null && (admin || creatorOnlyFilter)) {
-    			if (_sel.use_index.length == 2) {
-    				_sel.use_index[1] = _sel.use_index[1].substring(0, _sel.use_index[1].length - 7);
+    	
+    		if (_sel.type != "view") {
+    			if (
+    				collaborationOnlyFilter
+    			) {
+    				_sel.selector[
+    					"$and"
+    				].push(
+    					buildCollaborationSelector(
+    						connectedUserID
+    					)
+    				);
+    	
+    				/*
+    				 * Les index ACL existants ne couvrent pas
+    				 * nécessairement collabs et c8oGrp.
+    				 *
+    				 * Pour cette première version, CouchDB choisit
+    				 * l''index le plus compatible.
+    				 */
+    				delete _sel.use_index;
+    			}
+    			else if (
+    				!admin &&
+    				withACL &&
+    				!creatorOnlyFilter
+    			) {
+    				_sel.selector[
+    					"$and"
+    				].push({
+    					"~c8oAcl":
+    						authenticatedUserID
+    				});
+    			}
+    			else if (
+    				_sel.use_index != null &&
+    				(
+    					admin ||
+    					creatorOnlyFilter
+    				)
+    			) {
+    				if (
+    					_sel.use_index.length ==
+    						2
+    				) {
+    					_sel.use_index[1] =
+    						_sel.use_index[1]
+    							.substring(
+    								0,
+    								_sel.use_index[1]
+    									.length -
+    									7
+    							);
+    				}
     			}
     		}
+    	
     		delete _sel.acl;
-    		_requests.push(_sel);
-    
+    	
+    		_requests.push(
+    			_sel
+    		);
     	}
     	var res = { docs: []/*, execution_stats: [], warning: [], querys: [] */ };
     	var _res = null;
@@ -1517,14 +1796,43 @@ comment: |
     	 * Un administrateur voit toutes les applications.
     	 * Un filtre créateur est appliqué séparément plus bas.
     	 */
-    	if (!admin && !creatorOnlyFilter) {
-    		mangoquery.selector["$and"].push(
+    //	if (!admin && !creatorOnlyFilter) {
+    //		mangoquery.selector["$and"].push(
+    //			buildAccessSelector(
+    //				authenticatedUserID,
+    //				escapedUsedGroups
+    //			)
+    //		);
+    //	}
+    
+    	if (collaborationOnlyFilter) {
+    		/*
+    		 * Le filtre est intégré directement dans la requête
+    		 * Mango afin que les bookmarks et hasNextPage soient
+    		 * calculés sur les seuls documents correspondants.
+    		 */
+    		mangoquery.selector[
+    			"$and"
+    		].push(
+    			buildCollaborationSelector(
+    				connectedUserID
+    			)
+    		);
+    	}
+    	else if (
+    		!admin &&
+    		!creatorOnlyFilter
+    	) {
+    		mangoquery.selector[
+    			"$and"
+    		].push(
     			buildAccessSelector(
     				authenticatedUserID,
     				escapedUsedGroups
     			)
     		);
     	}
+    
     	var normalizedSearchQuery = "";
     	if (params["query"] != undefined && params["query"] != "undefined" && params["query"] != "") {
     		normalizedSearchQuery = normalizeSearchText(params["query"]);
@@ -1691,11 +1999,13 @@ comment: |
     
     mangoquery.execution_stats = true;
     
-    var compatibleUseIndex =
-    	getCompatibleUseIndex(
-    		requestDefinition,
-    		admin || creatorOnlyFilter
-    	);
+    //var compatibleUseIndex =
+    //	getCompatibleUseIndex(
+    //		requestDefinition,
+    //		admin || creatorOnlyFilter
+    //	);
+    
+    
     
     /*
      * Pour les recherches existantes, on conserve l''index
@@ -1706,8 +2016,39 @@ comment: |
      * On laisse donc CouchDB choisir un index pendant la
      * première phase de validation.
      */
+    //var shouldForceUseIndex =
+    //	compatibleUseIndex != null &&
+    //	!(
+    //		isInFolderTarget &&
+    //		!admin &&
+    //		!creatorOnlyFilter
+    //	);
+    //
+    //if (shouldForceUseIndex) {
+    //	mangoquery.use_index =
+    //		compatibleUseIndex;
+    //}
+    //else {
+    //	delete mangoquery.use_index;
+    //}
+    
+    var compatibleUseIndex =
+    	getCompatibleUseIndex(
+    		requestDefinition,
+    		admin ||
+    		creatorOnlyFilter ||
+    		collaborationOnlyFilter
+    	);
+    
+    /*
+     * En mode collaboration, on ne force pas l''index ACL.
+     *
+     * CouchDB doit pouvoir sélectionner un index compatible
+     * avec collabs et c8oGrp.
+     */
     var shouldForceUseIndex =
     	compatibleUseIndex != null &&
+    	collaborationOnlyFilter !== true &&
     	!(
     		isInFolderTarget &&
     		!admin &&
