@@ -3,7 +3,7 @@ scriptContent:
     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
-        /*Begin_c8o_CompImport*/
+        '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	/*End_c8o_CompDeclaration*/
@@ -65,8 +65,165 @@ scriptContent:
         	public typeOF(attr){
         		return typeof(attr);
         	}
-        	/*End_c8o_CompFunction*/
-        
+                public getSelectSelectedDisplay(arr: any[], val: any): any {
+                    const owner: any = this.pageOwner;
+                    const item: any = this.item;
+                    const multiple = typeof owner?.isSelectMultiple === "function" ? owner.isSelectMultiple.call(owner, item) : item?.type == "select" && item?.config?.selectionMode == "multiple";
+                    if(!multiple){
+                        return typeof owner?.getSelectSelectedOne === "function" ? owner.getSelectSelectedOne(arr, val) : { val: "", type: "html" };
+                    }
+                    const selectedValues = typeof owner?.normalizeSelectValues === "function" ? owner.normalizeSelectValues.call(owner, val) : this.normalizeSelectDisplayValues(val);
+                    if(selectedValues.length === 0){
+                        return { val: "", type: "text" };
+                    }
+                    return { val: selectedValues.map((value: any) => this.resolveSelectDisplayLabel(arr, value)).join(", "), type: "text" };
+                }
+                private normalizeSelectDisplayValues(value: any): any[] {
+                    if(value == null){
+                        return [];
+                    }
+                    const values = Array.isArray(value) ? value : [value];
+                    return values.map((entry: any) => this.getSelectValueKey(entry)).filter((entry: any) => entry !== "");
+                }
+                private resolveSelectDisplayLabel(arr: any[], value: any): string {
+                    const normalizedValue = this.getSelectValueKey(value);
+                    if(normalizedValue === ""){
+                        return "";
+                    }
+                    const selectedChild = this.findSelectDisplayCandidate(this.model?.children, normalizedValue) || this.findSelectDisplayCandidate(this.item?.children, normalizedValue);
+                    const sourceOption = this.findSelectDisplayCandidate(arr, normalizedValue);
+                    const techOption = this.findTechSelectDisplayCandidate(normalizedValue);
+                    return this.getSelectDisplayText(selectedChild || sourceOption || techOption) || normalizedValue;
+                }
+                private findSelectDisplayCandidate(values: any, selectedValue: string): any {
+                    if(!Array.isArray(values)){
+                        return undefined;
+                    }
+                    return values.find((entry: any) => this.getSelectValueKey(entry) == selectedValue);
+                }
+                private findTechSelectDisplayCandidate(selectedValue: string): any {
+                    const techSelect = this.pageOwner?.local?.techSelect?.[this.item?.name];
+                    if(techSelect == null){
+                        return undefined;
+                    }
+                    if(Array.isArray(techSelect)){
+                        return this.findSelectDisplayCandidate(techSelect, selectedValue);
+                    }
+                    if(typeof techSelect === "object"){
+                        if(techSelect[selectedValue] != undefined){
+                            return techSelect[selectedValue];
+                        }
+                        if(this.getSelectValueKey(techSelect) == selectedValue){
+                            return techSelect;
+                        }
+                    }
+                    return this.getSelectValueKey(techSelect) == selectedValue ? techSelect : undefined;
+                }
+                private getSelectDisplayText(entry: any): string {
+                    if(entry == null){
+                        return "";
+                    }
+                    if(typeof entry === "string"){
+                        return entry;
+                    }
+                    if(entry.displayValue != undefined){
+                        return this.getSelectValueKey(entry.displayValue);
+                    }
+                    if(entry.value != undefined){
+                        return this.getSelectValueKey(entry.value);
+                    }
+                    return this.getSelectValueKey(entry);
+                }
+                private getSelectValueKey(value: any): string {
+                    if(value == null){
+                        return "";
+                    }
+                    if(typeof value === "string"){
+                        return value;
+                    }
+                    if(typeof value === "number" || typeof value === "boolean"){
+                        return "" + value;
+                    }
+                    if(value.value != undefined){
+                        return this.getSelectValueKey(value.value);
+                    }
+                    if(value.displayValue != undefined){
+                        return this.getSelectValueKey(value.displayValue);
+                    }
+                    try {
+                        const serialized = JSON.stringify(value);
+                        return serialized != undefined ? serialized : "";
+                    }
+                    catch(e){
+                        return "";
+                    }
+                }
+                public isSourcedSelectOptionChecked(item: any, model: any, option: any, index?: number): boolean {
+                    if(item?.type != "select" || model == null || option == null || !Array.isArray(model.children)){
+                        return false;
+                    }
+                    const optionValue = this.getSelectValueKey(option);
+                    if(optionValue === ""){
+                        return false;
+                    }
+                    const children = model.children;
+                    const matchingChild = children.find((child: any) => this.getSelectValueKey(child) == optionValue);
+                    if(matchingChild != null){
+                        return matchingChild.selected === true;
+                    }
+                    if(Number.isInteger(index)){
+                        const indexedChild = children[index as number];
+                        return indexedChild != null && this.getSelectValueKey(indexedChild) == optionValue && indexedChild.selected === true;
+                    }
+                    return false;
+                }
+                public updateSourcedSelectMultipleSelection(item: any, model: any, option: any, checked: boolean): string[] {
+                    const owner: any = this.pageOwner;
+                    const normalizeSelectValues = owner?.normalizeSelectValues;
+                    const normalizeValues = (value: any): string[] => {
+                        return typeof normalizeSelectValues === "function" ? normalizeSelectValues.call(owner, value) : this.normalizeSelectDisplayValues(value);
+                    };
+                    const currentValues = normalizeValues(model?.value);
+                    if(model == null || option == null){
+                        return currentValues;
+                    }
+                    const optionValue = this.getSelectValueKey(option);
+                    if(optionValue === ""){
+                        model.value = currentValues;
+                        return currentValues;
+                    }
+                    const nextValues = checked === true ? normalizeValues([...currentValues, optionValue]) : currentValues.filter((value: any) => value !== optionValue);
+                    model.value = nextValues;
+                    const selectedSet = new Set(nextValues);
+                    if(Array.isArray(model.children)){
+                        model.children.forEach((child: any) => {
+                            const childValue = this.getSelectValueKey(child);
+                            child.selected = childValue !== "" && selectedSet.has(childValue);
+                        });
+                    }
+                    const itemName = item?.name;
+                    if(owner?.local != null && itemName != null){
+                        if(owner.local.techSelect == null){
+                            owner.local.techSelect = {};
+                        }
+                        let cache = owner.local.techSelect[itemName];
+                        if(cache == null || typeof cache !== "object" || Array.isArray(cache)){
+                            cache = Object.create(null);
+                        }
+                        if(checked === true){
+                            cache[optionValue] = option;
+                        }
+                        else {
+                            delete cache[optionValue];
+                        }
+                        owner.local.techSelect[itemName] = cache;
+                    }
+                    if(owner?.redList != null && itemName != null){
+                        owner.redList[itemName] = item?.config?.mandatory === true && nextValues.length === 0;
+                    }
+                    return nextValues;
+                }
+        	/*End_c8o_CompFunction*/'
 ↓placeholder [ngx.components.UICompVariable-1599133963809]: 
   value: '''placeholder'''
 ↓value [ngx.components.UICompVariable-1599133963812]: 
@@ -119,7 +276,7 @@ scriptContent:
         directiveSource: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:(this.model.value == '' || this.model.value == null) else ElseBlock_1599133070874
+            - MobileSmartSourceType: script:(this.model.value == '' || this.model.value == null || this.model.value?.length === 0) else ElseBlock_1599133070874
         ↓TextItem [ngx.components.UIDynamicElement-1648543186053]: 
           beanData: '{"ionBean":"TextItem"}'
           tagName: ion-text
@@ -157,7 +314,7 @@ scriptContent:
             directiveSource: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:(this.pageOwner.getSelectSelectedOne(this.pageOwner.local.sourceValue[this.elems], this.model.value)).type == 'html' else ElseBlock_1734702349382
+                - MobileSmartSourceType: script:(this.getSelectSelectedDisplay(this.pageOwner.local.sourceValue[this.elems], this.model.value)).type == 'html' else ElseBlock_1734702349382
             ↓Div [ngx.components.UIDynamicElement-1734703393559]: 
               beanData: '{"ionBean":"DivTag"}'
               tagName: div
@@ -166,7 +323,7 @@ scriptContent:
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:router.sanitizer.bypassSecurityTrustHtml((this.pageOwner.getSelectSelectedOne(this.pageOwner.local.sourceValue[this.elems], this.model.value)).val)
+                    - MobileSmartSourceType: script:router.sanitizer.bypassSecurityTrustHtml((this.getSelectSelectedDisplay(this.pageOwner.local.sourceValue[this.elems], this.model.value)).val)
           ↓Taga [ngx.components.UIElement-1734703393565]: 
             identifier: ElseBlock_1734702349382
             tagName: ng-template
@@ -174,7 +331,7 @@ scriptContent:
               textValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:(this.pageOwner.getSelectSelectedOne(this.pageOwner.local.sourceValue[this.elems], this.model.value)).val
+                  - MobileSmartSourceType: script:(this.getSelectSelectedDisplay(this.pageOwner.local.sourceValue[this.elems], this.model.value)).val
       ↓Icon [ngx.components.UIDynamicElement-1648542314940]: 
         beanData: |
           '{
@@ -785,109 +942,229 @@ scriptContent:
                    "AllowEmptySelection": "plain:true"
                   }'
                 tagName: ion-radio-group
-                ↓ng_container [ngx.components.UIElement-1728307526627]: 
+                ↓DirectiveSingleMode [ngx.components.UIControlDirective-1784888638731]: 
+                  directiveName: If
+                  directiveSource: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:!(this.item?.type == 'select' && this.item?.config?.selectionMode == 'multiple')
+                  ↓ng_container [ngx.components.UIElement-1728307526627]: 
+                    tagName: ng-container
+                    ↓attr [ngx.components.UIAttribute-1728307526630]: 
+                      attrName: '*cdkVirtualFor'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:let item of this.pageOwner.local.sourceValue[this.elems];let myIndex = index;
+                      comment: 'trackBy: trackById'
+                    ↓GenericItem [ngx.components.UIDynamicElement-1728307571294]: 
+                      beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+                      tagName: ion-item
+                      ↓RadioButton [ngx.components.UIDynamicElement-1728307571303]: 
+                        beanData: |
+                          '{
+                           "ionBean": "RadioButton",
+                           "IonSlot": "plain:start",
+                           "Justify": "plain:start",
+                           "LabelPlacement": "plain:end",
+                           "Value": "script:this.typeOF(item) == ''string'' ? item : item.value != undefined ? (this.typeOF(item.value) == ''string'' ? item.value : JSON.stringify(item.value)) : item.displayValue != undefined ? item.displayValue : item"
+                          }'
+                        tagName: ion-radio
+                        ↓Attr2 [ngx.components.UIAttribute-1728307571306]: 
+                          attrName: '[attr.aria-label]'
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
+                        ↓Style [ngx.components.UIStyle-1728308135832]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '/**
+                                   * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                                   * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                                   * They are set using custom property notation, e.g.: --main-color: black;
+                                   * and are accessed using the var() function, e.g.: color: var(--main-color);
+                                   * You can find below your component''s properties you can customize within the page.
+                                   * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                                   * For more informations see https://ionicframework.com/docs/theming.
+                                  **/
+                                  //--border-radius	//Border radius of the radio
+                                  //--color	//Color of the radio
+                                  //--color-checked	//Color of the checked radio
+                                  //--inner-border-radius	//Border radius of the inner checked radio
+                                  width: 100%;
+                                  '
+                        ↓Directive [ngx.components.UIControlDirective-1734702318813]: 
+                          directiveName: If
+                          directiveSource: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:item.type == 'html' && item.displayValue != undefined else ElseBlock_1734702349381
+                          ↓Div [ngx.components.UIDynamicElement-1734702420327]: 
+                            beanData: '{"ionBean":"DivTag"}'
+                            tagName: div
+                            ↓Attr [ngx.components.UIAttribute-1734702428217]: 
+                              attrName: '[innerHTML]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:router.sanitizer.bypassSecurityTrustHtml(item.displayValue)
+                        ↓Taga [ngx.components.UIElement-1734702349381]: 
+                          identifier: ElseBlock_1734702349381
+                          tagName: ng-template
+                          ↓Text [ngx.components.UIText-1728308054075]: 
+                            textValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
+                      ↓Event [ngx.components.UIControlEvent-1728307571309]: 
+                        ↓ChooseThisElem [ngx.components.UICustomAction-1728307571312]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		   	page.model["children"].forEach((x)=>{x.selected = false});
+                                  			page.model["children"][event.currentTarget.index].selected = true;
+                                  			
+                                  			page.model.value = typeof(page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index]) == "string" ? page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index] : page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value != undefined ? (typeof(page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value) == "string" ? (""+page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value) : JSON.stringify(page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value)) : page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].displayValue != undefined ? props.stack.root.scope.item.displayValue : page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index];
+                                  			page.pageOwner.local.techSelect[page.item.name] = page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index]
+                                  			page.pageOwner.local.selectSearchableC8o[page.model[''name'']] = false;
+                                  			page.pageOwner["redList"][page.item.name] = false;
+                                  			page.pageOwner.local.searchForClick = false;
+                                  			resolve();
+                                  '
+                          ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1728307571315]: 
+                            beanData: '{"ionBean":"InvokeAction"}'
+                            stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
+                            ↓item [ngx.components.UIControlVariable-1728307571318]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.item
+                            ↓excludeMySelf [ngx.components.UIControlVariable-1728485292046]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:true
+                      ↓Attr [ngx.components.UIAttribute-1728483282729]: 
+                        attrName: index
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:myIndex
+              ↓DirectiveMultipleMode [ngx.components.UIControlDirective-1784889300001]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.item?.type == 'select' && this.item?.config?.selectionMode == 'multiple'
+                ↓ng_container [ngx.components.UIElement-1784890000001]: 
                   tagName: ng-container
-                  ↓attr [ngx.components.UIAttribute-1728307526630]: 
+                  ↓attr [ngx.components.UIAttribute-1784890000002]: 
                     attrName: '*cdkVirtualFor'
                     attrValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: plain:let item of this.pageOwner.local.sourceValue[this.elems];let myIndex = index;
                     comment: 'trackBy: trackById'
-                  ↓GenericItem [ngx.components.UIDynamicElement-1728307571294]: 
+                  ↓GenericItem [ngx.components.UIDynamicElement-1784890000003]: 
                     beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
                     tagName: ion-item
-                    ↓RadioButton [ngx.components.UIDynamicElement-1728307571303]: 
+                    ↓CheckBox [ngx.components.UIDynamicElement-1784890000004]: 
                       beanData: |
                         '{
-                         "ionBean": "RadioButton",
-                         "IonSlot": "plain:start",
-                         "Justify": "plain:start",
-                         "LabelPlacement": "plain:end",
-                         "Value": "script:this.typeOF(item) == ''string'' ? item : item.value != undefined ? (this.typeOF(item.value) == ''string'' ? item.value : JSON.stringify(item.value)) : item.displayValue != undefined ? item.displayValue : item"
+                         "ionBean": "CheckBox",
+                         "ControlName": "plain:name1784890000004",
+                         "Disabled": "script:false",
+                         "LabelPlacement": "plain:end"
                         }'
-                      tagName: ion-radio
-                      ↓Attr2 [ngx.components.UIAttribute-1728307571306]: 
+                      tagName: ion-checkbox
+                      ↓AttrChecked [ngx.components.UIAttribute-1784890000005]: 
+                        attrName: '[checked]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:this.isSourcedSelectOptionChecked(this.item, this.model, item, myIndex)
+                      ↓AttrAriaLabel [ngx.components.UIAttribute-1784890000006]: 
                         attrName: '[attr.aria-label]'
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
-                      ↓Style [ngx.components.UIStyle-1728308135832]: 
-                        styleContent: 
+                      ↓AttrSlot [ngx.components.UIAttribute-1784890000013]: 
+                        attrName: slot
+                        attrValue: 
                           - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '/**
-                                 * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                 * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                 * They are set using custom property notation, e.g.: --main-color: black;
-                                 * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                 * You can find below your component''s properties you can customize within the page.
-                                 * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                 * For more informations see https://ionicframework.com/docs/theming.
-                                **/
-                                //--border-radius	//Border radius of the radio
-                                //--color	//Color of the radio
-                                //--color-checked	//Color of the checked radio
-                                //--inner-border-radius	//Border radius of the inner checked radio
-                                width: 100%;
-                                '
-                      ↓Directive [ngx.components.UIControlDirective-1734702318813]: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:start
+                      ↓Directive [ngx.components.UIControlDirective-1784890000007]: 
                         directiveName: If
                         directiveSource: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:item.type == 'html' && item.displayValue != undefined else ElseBlock_1734702349381
-                        ↓Div [ngx.components.UIDynamicElement-1734702420327]: 
+                            - MobileSmartSourceType: script:item.type == 'html' && item.displayValue != undefined else ElseBlock_1784890000010
+                        ↓Div [ngx.components.UIDynamicElement-1784890000008]: 
                           beanData: '{"ionBean":"DivTag"}'
                           tagName: div
-                          ↓Attr [ngx.components.UIAttribute-1734702428217]: 
+                          ↓Attr [ngx.components.UIAttribute-1784890000009]: 
                             attrName: '[innerHTML]'
                             attrValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:router.sanitizer.bypassSecurityTrustHtml(item.displayValue)
-                      ↓Taga [ngx.components.UIElement-1734702349381]: 
-                        identifier: ElseBlock_1734702349381
+                      ↓Taga [ngx.components.UIElement-1784890000010]: 
+                        identifier: ElseBlock_1784890000010
                         tagName: ng-template
-                        ↓Text [ngx.components.UIText-1728308054075]: 
+                        ↓Text [ngx.components.UIText-1784890000011]: 
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                               - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
-                    ↓Event [ngx.components.UIControlEvent-1728307571309]: 
-                      ↓ChooseThisElem [ngx.components.UICustomAction-1728307571312]: 
-                        actionValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '		   	page.model["children"].forEach((x)=>{x.selected = false});
-                                			page.model["children"][event.currentTarget.index].selected = true;
-                                			
-                                			page.model.value = typeof(page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index]) == "string" ? page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index] : page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value != undefined ? (typeof(page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value) == "string" ? (""+page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value) : JSON.stringify(page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].value)) : page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index].displayValue != undefined ? props.stack.root.scope.item.displayValue : page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index];
-                                			page.pageOwner.local.techSelect[page.item.name] = page.pageOwner.local.sourceValue[page.elems][event.currentTarget.index]
-                                			page.pageOwner.local.selectSearchableC8o[page.model[''name'']] = false;
-                                			page.pageOwner["redList"][page.item.name] = false;
-                                			page.pageOwner.local.searchForClick = false;
-                                			resolve();
-                                '
-                        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1728307571315]: 
-                          beanData: '{"ionBean":"InvokeAction"}'
-                          stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
-                          ↓item [ngx.components.UIControlVariable-1728307571318]: 
-                            varValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this.item
-                          ↓excludeMySelf [ngx.components.UIControlVariable-1728485292046]: 
-                            varValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:true
-                    ↓Attr [ngx.components.UIAttribute-1728483282729]: 
+                      ↓Event [ngx.components.UIControlEvent-1784900812669]: 
+                        attrName: (ionChange)
+                        eventName: ionChange
+                        ↓ToggleSourcedMultipleOption [ngx.components.UICustomAsyncAction-1784900813471]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		let selectedValues: string[] = [];
+                                  		try {
+                                  			const checked = event?.detail?.checked === true;
+                                  			selectedValues = page.updateSourcedSelectMultipleSelection(
+                                  				page.item,
+                                  				page.model,
+                                  				props.stack.root.scope.item,
+                                  				checked
+                                  			);
+                                  			if(event?.stopPropagation != undefined){
+                                  				event.stopPropagation();
+                                  			}
+                                  		} catch (e) {
+                                  		
+                                  		} finally {
+                                  			return selectedValues;
+                                  		}
+                                  '
+                          ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1784900814285]: 
+                            beanData: '{"ionBean":"InvokeAction"}'
+                            stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
+                            ↓item [ngx.components.UIControlVariable-1784900815099]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.item
+                            ↓excludeMySelf [ngx.components.UIControlVariable-1784900815101]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:true
+                    ↓Attr [ngx.components.UIAttribute-1784890000012]: 
                       attrName: index
                       attrValue: 
                         - xmlizable: 
@@ -991,85 +1268,187 @@ scriptContent:
                    "DoubleBinding": "script:this.model.value"
                   }'
                 tagName: ion-radio-group
-                ↓ng_container [ngx.components.UIElement-1728308306283]: 
+                ↓DirectiveSingleMode [ngx.components.UIControlDirective-1784901780089]: 
+                  directiveName: If
+                  directiveSource: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:!(this.item?.type == 'select' && this.item?.config?.selectionMode == 'multiple')
+                  ↓ng_container [ngx.components.UIElement-1728308306283]: 
+                    tagName: ng-container
+                    ↓attr [ngx.components.UIAttribute-1728308306286]: 
+                      attrName: '*cdkVirtualFor'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:let item of this.pageOwner.local.sourceValue[this.elems];let myIndex = index;
+                      comment: 'trackBy: trackById'
+                    ↓GenericItem [ngx.components.UIDynamicElement-1728308306289]: 
+                      beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+                      tagName: ion-item
+                      ↓RadioButton [ngx.components.UIDynamicElement-1728308306292]: 
+                        beanData: |
+                          '{
+                           "ionBean": "RadioButton",
+                           "IonSlot": "plain:start",
+                           "Justify": "plain:start",
+                           "LabelPlacement": "plain:end",
+                           "Value": "script:this.typeOF(item) == ''string'' ? item : item.value != undefined? item.value : item.displayValue != undefined ? item.displayValue : item"
+                          }'
+                        tagName: ion-radio
+                        ↓Attr2 [ngx.components.UIAttribute-1728308306295]: 
+                          attrName: '[attr.aria-label]'
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
+                        ↓Text [ngx.components.UIText-1728308306298]: 
+                          textValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
+                        ↓Style [ngx.components.UIStyle-1728308306301]: 
+                          styleContent: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '/**
+                                   * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                                   * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                                   * They are set using custom property notation, e.g.: --main-color: black;
+                                   * and are accessed using the var() function, e.g.: color: var(--main-color);
+                                   * You can find below your component''s properties you can customize within the page.
+                                   * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                                   * For more informations see https://ionicframework.com/docs/theming.
+                                  **/
+                                  //--border-radius	//Border radius of the radio
+                                  //--color	//Color of the radio
+                                  //--color-checked	//Color of the checked radio
+                                  //--inner-border-radius	//Border radius of the inner checked radio
+                                  width: 100%;
+                                  '
+                      ↓Event [ngx.components.UIControlEvent-1728308306304]: 
+                        ↓ChooseThisElem [ngx.components.UICustomAction-1728308306307]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		   	
+                                  		   	page.model["children"].forEach((x)=>{x.selected = false});
+                                  			page.model["children"][props.stack.root.scope.scroll.previousViewPort.startIndex + props.stack.root.scope.myIndex].selected = true;
+                                  			page.model.value = typeof(props.stack.root.scope.item) == "string" ? props.stack.root.scope.item : props.stack.root.scope.item.value != undefined? props.stack.root.scope.item.value : props.stack.root.scope.item.displayValue != undefined ? props.stack.root.scope.item.displayValue : props.stack.root.scope.item;
+                                  			page.pageOwner.local.techSelect[page.item.name] = props.stack.root.scope.item;
+                                  			page.pageOwner.local.selectSearchableC8o[page.model[''name'']] = false;
+                                  			page.pageOwner["redList"][page.item.name] = false;
+                                  			page.pageOwner.local.searchForClick = false;
+                                  			resolve();
+                                  '
+                          ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1728308306310]: 
+                            beanData: '{"ionBean":"InvokeAction"}'
+                            stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
+                            ↓item [ngx.components.UIControlVariable-1728308306313]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.item
+              ↓DirectiveMultipleMode [ngx.components.UIControlDirective-1784901796355]: 
+                directiveName: If
+                directiveSource: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.item?.type == 'select' && this.item?.config?.selectionMode == 'multiple'
+                ↓ng_container [ngx.components.UIElement-1784901798705]: 
                   tagName: ng-container
-                  ↓attr [ngx.components.UIAttribute-1728308306286]: 
+                  ↓attr [ngx.components.UIAttribute-1784901798707]: 
                     attrName: '*cdkVirtualFor'
                     attrValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: plain:let item of this.pageOwner.local.sourceValue[this.elems];let myIndex = index;
                     comment: 'trackBy: trackById'
-                  ↓GenericItem [ngx.components.UIDynamicElement-1728308306289]: 
+                  ↓GenericItem [ngx.components.UIDynamicElement-1784901798709]: 
                     beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
                     tagName: ion-item
-                    ↓RadioButton [ngx.components.UIDynamicElement-1728308306292]: 
+                    ↓CheckBox [ngx.components.UIDynamicElement-1784901801059]: 
                       beanData: |
                         '{
-                         "ionBean": "RadioButton",
-                         "IonSlot": "plain:start",
-                         "Justify": "plain:start",
-                         "LabelPlacement": "plain:end",
-                         "Value": "script:this.typeOF(item) == ''string'' ? item : item.value != undefined? item.value : item.displayValue != undefined ? item.displayValue : item"
+                         "ionBean": "CheckBox",
+                         "ControlName": "plain:nameSel015DefaultMultiple",
+                         "Disabled": "script:false",
+                         "LabelPlacement": "plain:end"
                         }'
-                      tagName: ion-radio
-                      ↓Attr2 [ngx.components.UIAttribute-1728308306295]: 
+                      tagName: ion-checkbox
+                      ↓AttrChecked [ngx.components.UIAttribute-1784901801061]: 
+                        attrName: '[checked]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:this.isSourcedSelectOptionChecked(this.item, this.model, item, myIndex)
+                      ↓AttrAriaLabel [ngx.components.UIAttribute-1784901801063]: 
                         attrName: '[attr.aria-label]'
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
-                      ↓Text [ngx.components.UIText-1728308306298]: 
+                      ↓AttrSlot [ngx.components.UIAttribute-1784901801065]: 
+                        attrName: slot
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:start
+                      ↓Text [ngx.components.UIText-1784901801067]: 
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: 'script:item.displayValue != undefined ? item.displayValue : item.value != undefined ? item.value : item'
-                      ↓Style [ngx.components.UIStyle-1728308306301]: 
-                        styleContent: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '/**
-                                 * Custom properties (sometimes referred to as CSS variables or cascading variables)
-                                 * are entities defined by CSS authors that contain specific values to be reused throughout a document.
-                                 * They are set using custom property notation, e.g.: --main-color: black;
-                                 * and are accessed using the var() function, e.g.: color: var(--main-color);
-                                 * You can find below your component''s properties you can customize within the page.
-                                 * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
-                                 * For more informations see https://ionicframework.com/docs/theming.
-                                **/
-                                //--border-radius	//Border radius of the radio
-                                //--color	//Color of the radio
-                                //--color-checked	//Color of the checked radio
-                                //--inner-border-radius	//Border radius of the inner checked radio
-                                width: 100%;
-                                '
-                    ↓Event [ngx.components.UIControlEvent-1728308306304]: 
-                      ↓ChooseThisElem [ngx.components.UICustomAction-1728308306307]: 
-                        actionValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                '		   	
-                                		   	page.model["children"].forEach((x)=>{x.selected = false});
-                                			page.model["children"][props.stack.root.scope.scroll.previousViewPort.startIndex + props.stack.root.scope.myIndex].selected = true;
-                                			page.model.value = typeof(props.stack.root.scope.item) == "string" ? props.stack.root.scope.item : props.stack.root.scope.item.value != undefined? props.stack.root.scope.item.value : props.stack.root.scope.item.displayValue != undefined ? props.stack.root.scope.item.displayValue : props.stack.root.scope.item;
-                                			page.pageOwner.local.techSelect[page.item.name] = props.stack.root.scope.item;
-                                			page.pageOwner.local.selectSearchableC8o[page.model[''name'']] = false;
-                                			page.pageOwner["redList"][page.item.name] = false;
-                                			page.pageOwner.local.searchForClick = false;
-                                			resolve();
-                                '
-                        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1728308306310]: 
-                          beanData: '{"ionBean":"InvokeAction"}'
-                          stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
-                          ↓item [ngx.components.UIControlVariable-1728308306313]: 
-                            varValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this.item
+                      ↓Event [ngx.components.UIControlEvent-1784902437887]: 
+                        attrName: (ionChange)
+                        eventName: ionChange
+                        ↓ToggleSourcedMultipleOption [ngx.components.UICustomAsyncAction-1784902438689]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		let selectedValues: string[] = [];
+                                  		try {
+                                  			const checked = event?.detail?.checked === true;
+                                  			selectedValues = page.updateSourcedSelectMultipleSelection(
+                                  				page.item,
+                                  				page.model,
+                                  				props.stack.root.scope.item,
+                                  				checked
+                                  			);
+                                  			if(event?.stopPropagation != undefined){
+                                  				event.stopPropagation();
+                                  			}
+                                  		} catch (e) {
+                                  		
+                                  		} finally {
+                                  			return selectedValues;
+                                  		}
+                                  '
+                          ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1784902439503]: 
+                            beanData: '{"ionBean":"InvokeAction"}'
+                            stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
+                            ↓item [ngx.components.UIControlVariable-1784902440317]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.item
+                            ↓excludeMySelf [ngx.components.UIControlVariable-1784902440319]: 
+                              varValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:true
+                    ↓Attr [ngx.components.UIAttribute-1784901801069]: 
+                      attrName: index
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:myIndex
     ↓Attr2 [ngx.components.UIAttribute-1662995548823]: 
       attrName: role
       attrValue: 
@@ -1172,6 +1551,8 @@ scriptContent:
             					y.setAttribute("aria-hidden", "true");	
             				});
             			})
+            			
+            //			console.log(page)
             			
             		} catch (e) {
             		
