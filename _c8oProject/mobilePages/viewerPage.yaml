@@ -1800,6 +1800,102 @@ scriptContent:
                 }
                 return normalizedValues;
             }
+        	
+        	public restoreSourcedSelectMultipleState(item: any, model: any, sourceOptions?: any[]): string[] {
+        		if (!this.isSelectMultiple(item) || model == null) {
+        			return [];
+        		}
+        		let selectedValues = this.normalizeSelectValues(model?.value);
+        		if (selectedValues.length == 0 && Array.isArray(model.children)) {
+        			for (let child of model.children) {
+        				if (child?.selected === true) {
+        					let childValue = this.normalizeSelectValue(child?.value);
+        					if (childValue == "") {
+        						childValue = this.normalizeSelectValue(child?.displayValue);
+        					}
+        					if (childValue != "" && selectedValues.indexOf(childValue) == -1) {
+        						selectedValues.push(childValue);
+        					}
+        				}
+        			}
+        		}
+        		const sourceByValue: any = Object.create(null);
+        		const canonicalByValue: any = Object.create(null);
+        		const registerOption = (option: any) => {
+        			const optionValue = this.normalizeSelectValue(option);
+        			if (optionValue == "") {
+        				return;
+        			}
+        			sourceByValue[optionValue] = option;
+        			canonicalByValue[optionValue] = optionValue;
+        			if (option != null && typeof option == "object") {
+        				const displayValue = this.normalizeSelectValue(option.displayValue);
+        				if (displayValue != "") {
+        					canonicalByValue[displayValue] = optionValue;
+        				}
+        			}
+        		};
+        		if (Array.isArray(sourceOptions)) {
+        			for (let option of sourceOptions) {
+        				registerOption(option);
+        			}
+        		}
+        		if (Array.isArray(model.children)) {
+        			for (let child of model.children) {
+        				const childValue = this.normalizeSelectValue(child?.value);
+        				if (childValue != "") {
+        					canonicalByValue[childValue] = childValue;
+        					const childDisplayValue = this.normalizeSelectValue(child?.displayValue);
+        					if (childDisplayValue != "") {
+        						canonicalByValue[childDisplayValue] = childValue;
+        					}
+        				}
+        			}
+        		}
+        		const canonicalSelectedValues: string[] = [];
+        		for (let selectedValue of selectedValues) {
+        			const canonicalValue = canonicalByValue[selectedValue] != undefined ? canonicalByValue[selectedValue] : selectedValue;
+        			if (canonicalValue != "" && canonicalSelectedValues.indexOf(canonicalValue) == -1) {
+        				canonicalSelectedValues.push(canonicalValue);
+        			}
+        		}
+        		selectedValues = canonicalSelectedValues;
+        		model.value = selectedValues;
+        		const selectedSet = new Set(selectedValues);
+        		const selectedOptions: any = Object.create(null);
+        		if (Array.isArray(model.children)) {
+        			for (let child of model.children) {
+        				let childValue = this.normalizeSelectValue(child?.value);
+        				let childDisplayValue = this.normalizeSelectValue(child?.displayValue);
+        				let matchedValue = childValue != "" && selectedSet.has(childValue) ? childValue : childDisplayValue != "" && canonicalByValue[childDisplayValue] != undefined && selectedSet.has(canonicalByValue[childDisplayValue]) ? canonicalByValue[childDisplayValue] : "";
+        				child.selected = matchedValue != "";
+        				if (matchedValue != "") {
+        					selectedOptions[matchedValue] = sourceByValue[matchedValue] != undefined ? sourceByValue[matchedValue] : child;
+        				}
+        			}
+        		}
+        		const itemName = item?.name;
+        		if (this.local != null && itemName != null) {
+        			if (this.local.techSelect == null) {
+        				this.local.techSelect = {};
+        			}
+        			const previousCache = this.local.techSelect[itemName];
+        			const nextCache: any = Object.create(null);
+        			for (let selectedValue of selectedValues) {
+        				if (sourceByValue[selectedValue] != undefined) {
+        					nextCache[selectedValue] = sourceByValue[selectedValue];
+        				}
+        				else if (selectedOptions[selectedValue] != undefined) {
+        					nextCache[selectedValue] = selectedOptions[selectedValue];
+        				}
+        				else if (previousCache != null && typeof previousCache == "object" && !Array.isArray(previousCache) && previousCache[selectedValue] != undefined) {
+        					nextCache[selectedValue] = previousCache[selectedValue];
+        				}
+        			}
+        			this.local.techSelect[itemName] = nextCache;
+        		}
+        		return selectedValues;
+        	}
         	public normalizeCheckboxDefaultValuesResult(result: any): any {
         		if (result === undefined || result === null) {
         			return null;
@@ -3971,13 +4067,28 @@ scriptContent:
         									// find Colomn definitions
         									let currentValue = formSubmit[item.name] != undefined ? formSubmit[item.name]["value"] : undefined;
         									let urlParams = page.local.urlParams.get(item["name"]);
-        									if ((urlParams == null || urlParams === "") && currentValue !== undefined && currentValue !== null && currentValue !== "") {
-        										urlParams = currentValue;
+        									let isMultipleSelect = page.isSelectMultiple(item);
+        									let hasUrlParams = urlParams != null && urlParams !== "";
+        									if (isMultipleSelect) {
+        										if (hasUrlParams) {
+        											currentValue = page.normalizeSelectValues(urlParams);
+        										}
+        										else if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0 && page.normalizeSelectValues(currentValue).length == 0) {
+        											const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
+        											if (tmp != undefined && tmp.length > 0) {
+        												currentValue = tmp.map((res) => { return res.value });
+        											}
+        										}
         									}
-        									if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
-        										const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
-        										if (tmp != undefined && tmp.length > 0) {
-        											urlParams = tmp[0].value
+        									else {
+        										if ((urlParams == null || urlParams === "") && currentValue !== undefined && currentValue !== null && currentValue !== "") {
+        											urlParams = currentValue;
+        										}
+        										if (formSubmit[item.name] != undefined && formSubmit[item.name].children != undefined && formSubmit[item.name].children.length > 0) {
+        											const tmp = formSubmit[item.name].children.filter(x => x.selected == true);
+        											if (tmp != undefined && tmp.length > 0) {
+        												urlParams = tmp[0].value
+        											}
         										}
         									}
         									formSubmit[item["name"]]["children"] = [];
@@ -4001,7 +4112,7 @@ scriptContent:
         										let selected2 = false;
         										let optionValue = getOptionValue(child);
         										let modelOptionValue = getModelValueForOption(child, optionValue);
-        										if (valuesMatch(optionValue, urlParams) || valuesMatch(modelOptionValue, urlParams)) {
+        										if (!isMultipleSelect && (valuesMatch(optionValue, urlParams) || valuesMatch(modelOptionValue, urlParams))) {
         											defaultSelected = modelOptionValue;
         											defaultBinded = child;
         											selected2 = true;
@@ -4021,21 +4132,33 @@ scriptContent:
         										}
         										formSubmit[item["name"]]["children"].push(objectToPush);
         									}
-        									// fill helper to get select value
-        									try {
-        										this.local.techSelect[item["name"]] = defaultBinded;
-        									}
-        									catch (e) {
-        
-        									}
         									let callFunctionToBecalled = false;
-        									if(formSubmit[item["name"]]["value"] != defaultSelected){
-        										callFunctionToBecalled = true;
+        									if (isMultipleSelect) {
+        										let previousValues = page.normalizeSelectValues(currentValue);
+        										formSubmit[item["name"]]["value"] = previousValues;
+        										let restoredValues = page.restoreSourcedSelectMultipleState(item, formSubmit[item["name"]], array);
+        										if (JSON.stringify(previousValues) != JSON.stringify(restoredValues)) {
+        											callFunctionToBecalled = true;
+        										}
         									}
-        									formSubmit[item["name"]]["value"] = defaultSelected;
+        									else {
+        										// fill helper to get select value
+        										try {
+        											this.local.techSelect[item["name"]] = defaultBinded;
+        										}
+        										catch (e) {
+        										
+        										}
+        										if(formSubmit[item["name"]]["value"] != defaultSelected){
+        											callFunctionToBecalled = true;
+        										}
+        										formSubmit[item["name"]]["value"] = defaultSelected;
+        									}
         									page.local.sourceValue[item.name] = array;
         									page.local.updating[item.id] = 1;
-        									formSubmit[item["name"]]["value"] = defaultSelected;
+        									if (!isMultipleSelect) {
+        										formSubmit[item["name"]]["value"] = defaultSelected;
+        									}
         									let currentSHA = page["shaById"][item.id];
         									if(callFunctionToBecalled){
         										try {
@@ -4052,11 +4175,11 @@ scriptContent:
         												})
         										}
         										catch (e) {
-        
+        										
         										}
         									}
-        									
-        
+        								
+        								
         								}
         								// fail function for grid
         								failFunc = (err) => {
