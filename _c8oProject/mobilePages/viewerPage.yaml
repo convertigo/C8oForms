@@ -8179,6 +8179,150 @@ scriptContent:
         		}
         	}
         
+            private getConditionFieldDirectConfig(val: any): any {
+                if (val != null && val.config != null && val.type != null) {
+                    return val;
+                }
+                if (val != null && val.str != null && typeof val.str == "object" && val.str.config != null && val.str.type != null) {
+                    return val.str;
+                }
+                if (val != null && Array.isArray(val.arr)) {
+                    for (let entry of val.arr) {
+                        let candidate = entry != null && typeof entry == "object" && entry.value != null ? entry.value : entry;
+                        if (candidate != null && typeof candidate == "object" && candidate.config != null && candidate.type != null) {
+                            return candidate;
+                        }
+                    }
+                }
+                return null;
+            }
+            private getConditionFieldIdCandidates(val: any): Array<any> {
+                let ids: Array<any> = [];
+                const pushId = (candidate: any) => {
+                    if (candidate == null) {
+                        return;
+                    }
+                    if (typeof candidate == "number" || (typeof candidate == "string" && /^\d+$/.test(candidate))) {
+                        let id = +candidate;
+                        if (ids.indexOf(id) == -1) {
+                            ids.push(id);
+                        }
+                    }
+                };
+                pushId(val?.id);
+                pushId(val?.fieldId);
+                pushId(val?.c8oid);
+                pushId(val?.str);
+                if (Array.isArray(val?.arr)) {
+                    for (let entry of val.arr) {
+                        if (entry != null && typeof entry == "object") {
+                            pushId(entry.id);
+                            pushId(entry.value);
+                        }
+                        else {
+                            pushId(entry);
+                        }
+                    }
+                }
+                return ids;
+            }
+            private getConditionFieldNameCandidate(val: any): string {
+                let name = val?.name != null && val.name !== "" ? "" + val.name : "";
+                if (name == "" && val?.str != null && typeof val.str == "string" && !/^\d+$/.test(val.str)) {
+                    name = val.str;
+                }
+                if (name == "" && Array.isArray(val?.arr) && val.arr.length > 0) {
+                    let first = val.arr[0] != null && typeof val.arr[0] == "object" && val.arr[0].value != null ? val.arr[0].value : val.arr[0];
+                    if (typeof first == "string" && !/^\d+$/.test(first)) {
+                        name = first;
+                    }
+                }
+                if (name == "") {
+                    name = this.getConditionSourceFieldName(val);
+                }
+                return name != null ? "" + name : "";
+            }
+            private collectConditionFieldsByName(name: string, search: any, matches: Array<any>): void {
+                if (name == null || name === "" || !Array.isArray(search)) {
+                    return;
+                }
+                for (let obj of search) {
+                    if (obj == null) {
+                        continue;
+                    }
+                    if (obj.name != null && "" + obj.name == name) {
+                        matches.push(obj);
+                    }
+                    if (Array.isArray(obj.children)) {
+                        this.collectConditionFieldsByName(name, obj.children, matches);
+                    }
+                }
+            }
+            private getConditionFieldByNameWithoutAmbiguity(name: string): any {
+                if (name == null || name === "") {
+                    return null;
+                }
+                let matches: Array<any> = [];
+                this.collectConditionFieldsByName(name, this.formsList, matches);
+                if (Array.isArray(this.form?.actions)) {
+                    this.collectConditionFieldsByName(name, this.form.actions, matches);
+                }
+                if (Array.isArray(this.form?.flows)) {
+                    for (let flow of this.form.flows) {
+                        this.collectConditionFieldsByName(name, flow?.elements, matches);
+                    }
+                }
+                let uniqueMatches: Array<any> = [];
+                for (let match of matches) {
+                    if (uniqueMatches.indexOf(match) == -1) {
+                        uniqueMatches.push(match);
+                    }
+                }
+                return uniqueMatches.length == 1 ? uniqueMatches[0] : null;
+            }
+            private getConditionFieldFromValue(val: ValFieldObject): any {
+                let direct = this.getConditionFieldDirectConfig(val);
+                if (direct != null) {
+                    return direct;
+                }
+                for (let id of this.getConditionFieldIdCandidates(val)) {
+                    let item = this.getItemById(id);
+                    if (item != null) {
+                        return item;
+                    }
+                }
+                return this.getConditionFieldByNameWithoutAmbiguity(this.getConditionFieldNameCandidate(val));
+            }
+            public getConditionFieldType(field: FieldObject, goToPage: boolean = false): string {
+                let val: any = field != null ? field.val1 : null;
+                let historicalType = goToPage ? this.getGoToPageType(val?.type) : this.getType(val?.type);
+                if (val?.type !== "select") {
+                    return historicalType;
+                }
+                let item = this.getConditionFieldFromValue(val);
+                if (item != null && item.type == "select" && item.config?.selectionMode == "multiple") {
+                    return "multiple";
+                }
+                return historicalType;
+            }
+            private getSelectMultipleValueForCondition(val: ValFieldObject): Array<any> {
+                let item = this.getConditionFieldFromValue(val);
+                let name = item?.name != null ? item.name : this.getConditionSourceFieldName(val);
+                let entry = this.getRuntimeFieldEntry(name);
+                if (entry != null && entry.item != null && Object.prototype.hasOwnProperty.call(entry.item, "value")) {
+                    return this.normalizeSelectValues(entry.item.value);
+                }
+                let values: Array<any> = [];
+                let children = entry?.item?.children;
+                if (children != null) {
+                    for (let child in children) {
+                        if (children[child]?.selected === true) {
+                            values.push(children[child]?.value);
+                        }
+                    }
+                }
+                return this.normalizeSelectValues(values);
+            }
         
         	/**
         	 * Performs a computation based on the condition.
@@ -8189,7 +8333,7 @@ scriptContent:
         		let result = true;
         		if (this.instanceOfField(cond)) {
         			const field = <FieldObject>cond;
-        			const type1: string = field.type == "goToPageIf" ? this.getGoToPageType(field.val1.type) : this.getType(field.val1.type);
+                    const type1: string = this.getConditionFieldType(field, field.type == "goToPageIf");
         			const operator: string = field.operator;
         			result = this[operator](field, type1);
         		}
@@ -8376,6 +8520,9 @@ scriptContent:
         					str = this.getConditionSourceFieldName(val);
         					ret = val.source ? this.getFormCheckboxGroupValueByName(str) : val.arr;
         					break;
+                        case "select":
+                            ret = val.source ? this.getSelectMultipleValueForCondition(val) : val.arr;
+                            break;
         			}
         		} else {
         			if (Array.isArray(val.arr) && val.arr.length > 0) {
@@ -8661,14 +8808,8 @@ scriptContent:
         	}
         
         	private getValueForFilledCondition(field: FieldObject): any {
-        		switch (field.val1.type) {
-        			case "checkbox":
-        			case "radio_group":
-        			case "checkbox_group":
-        				return this.getValMultiple(field.val1);
-        			default:
-        				return this.getValSimple(field.val1);
-        		}
+                let type = this.getConditionFieldType(field, field.type == "goToPageIf");
+                return type == "multiple" ? this.getValMultiple(field.val1) : this.getValSimple(field.val1);
         	}
         
         	private isConditionValueFilled(value: any): boolean {
@@ -10130,8 +10271,7 @@ scriptContent:
         	        return page?.included !== false;
         	    }
         	}
-        	/*End_c8o_PageFunction*/
-        '
+            /*End_c8o_PageFunction*/'
 segment: viewer/:formId/:edit/:i
 startMenu: C8Oforms.MobileApplication.Application.MenuSelector
 title: Visualisateur

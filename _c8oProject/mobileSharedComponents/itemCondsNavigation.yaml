@@ -467,6 +467,56 @@ scriptContent:
         	    }
         	    
         	}
+            public getConditionClassifierOwner(): any{
+                let owner: any = this.pageOwner as any;
+                let guard = 0;
+                while(owner != null && guard < 20){
+                    if(owner.getConditionFieldType != undefined || owner.getConditionTypeForField != undefined){
+                        return owner;
+                    }
+                    let nextOwner = owner.pageOwner != null ? owner.pageOwner : owner.owner;
+                    if(nextOwner == owner){
+                        break;
+                    }
+                    owner = nextOwner;
+                    guard++;
+                }
+                return this.pageOwner as any;
+            }
+            public getConditionEditorType(field: any, goToPage: boolean = false): string{
+                let val: any = field != null && field.val1 != undefined ? field.val1 : field;
+                let type: string = val != null && val.type != null ? val.type : "";
+                let owner: any = this.getConditionClassifierOwner();
+                let classifier: any = owner != null && owner.getConditionFieldType != undefined ? owner.getConditionFieldType : (owner != null ? owner.getConditionTypeForField : null);
+                if(typeof classifier == "function"){
+                    try{
+                        return classifier.call(owner, field != null && field.val1 != undefined ? field : {val1: val}, goToPage);
+                    }
+                    catch(e){
+                    }
+                }
+                if(goToPage){
+                    if(owner != null && typeof owner.getGoToPageType == "function"){
+                        try{
+                            return owner.getGoToPageType(type);
+                        }
+                        catch(e){
+                        }
+                    }
+                    return this.getGoToPageType(type);
+                }
+                if(owner != null && typeof owner.getType == "function"){
+                    try{
+                        return owner.getType(type);
+                    }
+                    catch(e){
+                    }
+                }
+                return this.getType(type);
+            }
+            public getGoToPageSelfType(): string{
+                return this.getConditionEditorType(this.local != null ? this.local.goToPageSelf : null, true);
+            }
         	/**
         	 * convert a string to an array
         	 * @param e
@@ -684,7 +734,8 @@ scriptContent:
         		if(current == null){
         			return false;
         		}
-        		return this.getGoToPageType(current.type) != "" && this.getGoToPageType(current.type) != "file"
+                let type = this.getConditionEditorType({val1: this.buildCurrentConditionField(current)}, true);
+                return type != "" && type != "file"
         			&& !(current.type == "checkbox_group" && current.config?.sourceEnabled == true)
         			&& !(current.type == "radio_group" && current.config?.sourceEnabled == true)
         			&& !(current.type == "checkbox" && current.config?.sourceEnabled == true)
@@ -980,7 +1031,7 @@ scriptContent:
         	    }
         	   
         	}
-        	/*End_c8o_CompFunction*/
+            /*End_c8o_CompFunction*/
         '
 ↓form [ngx.components.UICompVariable-1775821932883]: 
   value: 
@@ -3212,7 +3263,7 @@ scriptContent:
         directiveSource: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:(this.local.showGoToPage || (this.local.goToPageSelf?.type && this.getGoToPageType(this.local.goToPageSelf.type) == 'multiple')) else ElseBlock_1595862191603
+            - MobileSmartSourceType: script:(this.local.showGoToPage || (this.local.goToPageSelf?.type && this.getGoToPageSelfType() == 'multiple')) else ElseBlock_1595862191603
         isEnabled: false
         ↓Directive [ngx.components.UIControlDirective-1775822466158]: 
           directiveIndexName: k
@@ -3296,7 +3347,7 @@ scriptContent:
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:this.local.goToPageSelf?.type && this.getGoToPageType(this.local.goToPageSelf.type) != 'multiple'
+                - MobileSmartSourceType: plain:this.local.goToPageSelf?.type && this.getGoToPageSelfType() != 'multiple'
         ↓DivSave [ngx.components.UIDynamicElement-1775822466200]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -3357,7 +3408,7 @@ scriptContent:
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:this.local.goToPageSelf?.type && this.getGoToPageType(this.local.goToPageSelf.type) != 'multiple'
+                - MobileSmartSourceType: plain:this.local.goToPageSelf?.type && this.getGoToPageSelfType() != 'multiple'
       ↓Tag [ngx.components.UIElement-1775822466224]: 
         comment: preview mode for goto
         identifier: ElseBlock_1595862191603
@@ -3533,7 +3584,7 @@ scriptContent:
               attrValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: plain:this.local.goToPageSelf?.type && this.getGoToPageType(this.local.goToPageSelf.type) != 'multiple'
+                  - MobileSmartSourceType: plain:this.local.goToPageSelf?.type && this.getGoToPageSelfType() != 'multiple'
           ↓Attr [ngx.components.UIAttribute-1775822466299]: 
             attrName: '[matTooltip]'
             attrValue: 
@@ -3724,8 +3775,8 @@ scriptContent:
             		        },
             		        operator: ''''
             		    });
-            		    const getVisibleCompletionByType = (type) => {
-            		        const normalized = page.getType(type);
+                        const getVisibleCompletionByType = (type, field: any = null) => {
+                            const normalized = page.getConditionEditorType != null ? page.getConditionEditorType(field != null ? field : {type: type}, false) : page.getType(type);
             		        if (normalized == ''multiple'') {
             		            return [''equals'', ''different'', ''among_following'', ''out_following'', ''is_empty'', ''is_filled''];
             		        }
@@ -3782,11 +3833,11 @@ scriptContent:
             		        for (let field of fields) {
             		            page.local.visibleFieldsById['''' + field.str] = field;
             		            page.local.visibleFieldsByName['''' + field.name] = field;
-            		            page.local.complByNameVisible[field.name] = getVisibleCompletionByType(field.type);
+                                page.local.complByNameVisible[field.name] = getVisibleCompletionByType(field.type, field);
             		        }
             		    };
-            		    const getGoToCompletionByType = (type) => {
-            		        const normalized = page.getGoToPageType(type);
+                        const getGoToCompletionByType = (type, field: any = null) => {
+                            const normalized = page.getConditionEditorType != null ? page.getConditionEditorType(field != null ? field : {type: type}, true) : page.getGoToPageType(type);
             		        if (normalized == ''multiple'') {
             		            return [''equals'', ''different'', ''among_following'', ''out_following'', ''is_empty'', ''is_filled''];
             		        }
@@ -3807,7 +3858,7 @@ scriptContent:
             		        for (let field of fields) {
             		            page.local.goToFieldsById['''' + field.str] = field;
             		            page.local.goToFieldsByName['''' + field.name] = field;
-            		            page.local.complByNameGoTo[field.name] = getGoToCompletionByType(field.type);
+                                page.local.complByNameGoTo[field.name] = getGoToCompletionByType(field.type, field);
             		        }
             		    };
             		    const enrichVisibleFieldReference = (ref) => {
@@ -4329,10 +4380,11 @@ scriptContent:
             		        }
             		    };
             		    page.local.condGoToPage = item.conditions.goToPageIf.condVisible;
-            		    page.local.goToPageSelf = {
+                        page.local.goToPageSelf = page.buildCurrentConditionField != null ? page.buildCurrentConditionField(item) : {
             		        str: item.id,
             		        source: true,
-            		        type: item.type
+                            type: item.type,
+                            arr: []
             		    };
             		    page.local.goToPageIf = ensureGoToPageIfStructure(item);
             		    page.local.condGoToPage = page.local.goToPageIf.condVisible;
@@ -4343,7 +4395,7 @@ scriptContent:
             		    page.local.item = item;
             		} catch (e) {
             		    console.error(e);
-            		}
+                    }
             '
   ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1775822109750]: 
     beanData: '{"ionBean":"InvokeAction"}'
