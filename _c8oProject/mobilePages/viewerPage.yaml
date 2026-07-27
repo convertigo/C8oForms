@@ -387,6 +387,145 @@ scriptContent:
                 catch (_e) {
                 }
             }
+            private isSel027FilterOperatorWithoutValue(operator: any): boolean {
+                const op = (operator == null ? "" : "" + operator).toLowerCase();
+                return [
+                    "empty",
+                    "not_empty",
+                    "is_empty",
+                    "is_filled",
+                    "date_equals_today",
+                    "date_before_today",
+                    "date_after_today",
+                    "date_equals_week",
+                    "date_equals_month",
+                    "date_equals_year"
+                ].indexOf(op) != -1;
+            }
+            private isSel027MissingFilterValue(value: any): boolean {
+                if (Array.isArray(value)) {
+                    return this.normalizeSelectValues(value).length == 0;
+                }
+                if (value === undefined || value === null) {
+                    return true;
+                }
+                if (typeof value == "string") {
+                    return value.trim() == "";
+                }
+                return false;
+            }
+            private getSel027NonEmptyFilterValues(value: any): string[] {
+                return Array.isArray(value) ? this.normalizeSelectValues(value) : [];
+            }
+            private hasSel027FilterNodeContent(node: any): boolean {
+                return node != null && typeof node == "object" && (
+                    (Array.isArray(node.filters) && node.filters.length > 0) ||
+                    (Array.isArray(node.groups) && node.groups.length > 0) ||
+                    (node.field != undefined && node.op != undefined)
+                );
+            }
+            private normalizeSel027FilterNodeForConnector(node: any): any {
+                if (node == null || typeof node != "object") {
+                    return null;
+                }
+                let normalized: any = Array.isArray(node) ? [] : { ...node };
+                if (Array.isArray(node.filters)) {
+                    normalized.filters = [];
+                    for (let child of node.filters) {
+                        let normalizedChild = this.normalizeSel027FilterNodeForConnector(child);
+                        if (this.hasSel027FilterNodeContent(normalizedChild)) {
+                            normalized.filters.push(normalizedChild);
+                        }
+                    }
+                    if (Array.isArray(node.groups)) {
+                        normalized.groups = [];
+                        for (let childGroup of node.groups) {
+                            let normalizedGroup = this.normalizeSel027FilterNodeForConnector(childGroup);
+                            if (this.hasSel027FilterNodeContent(normalizedGroup)) {
+                                normalized.groups.push(normalizedGroup);
+                            }
+                        }
+                        if (normalized.groups.length == 0) {
+                            delete normalized.groups;
+                        }
+                    }
+                    return this.hasSel027FilterNodeContent(normalized) ? normalized : null;
+                }
+                const operator = normalized.op != undefined ? normalized.op : normalized.type;
+                if (this.isSel027FilterOperatorWithoutValue(operator)) {
+                    return normalized;
+                }
+                if (this.isSel027MissingFilterValue(normalized.value)) {
+                    return null;
+                }
+                if (Array.isArray(normalized.value)) {
+                    const values = this.getSel027NonEmptyFilterValues(normalized.value);
+                    if (values.length == 0) {
+                        return null;
+                    }
+                    if (values.length == 1) {
+                        normalized.value = values[0];
+                        return normalized;
+                    }
+                    const baseFilter = { ...normalized };
+                    delete baseFilter.filters;
+                    delete baseFilter.groups;
+                    return {
+                        mode: "OR",
+                        filters: values.map((value) => ({ ...baseFilter, value: value }))
+                    };
+                }
+                return normalized;
+            }
+            private normalizeSel027FilterTreeForConnector(filterTree: any): any {
+                let normalized = this.normalizeSel027FilterNodeForConnector(filterTree);
+                if (normalized == null) {
+                    return { mode: filterTree?.mode || "AND", filters: [] };
+                }
+                return normalized;
+            }
+            private getSel027SelectMultipleFilterValueExpression(valueSource: any, ObjectThatHaveToCallFunc: Array<any>): string | null {
+                try {
+                    const raw = valueSource?.str;
+                    if (raw == null || ("" + raw).trim() == "") {
+                        return null;
+                    }
+                    const source = ("" + raw).trim();
+                    const match = /^\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/.exec(source);
+                    if (match == null || match[0] != source) {
+                        return null;
+                    }
+                    const id = match[1];
+                    const defElem: any = this.getItemById(id);
+                    if (!this.isSelectMultiple(defElem)) {
+                        return null;
+                    }
+                    const path = this.getPathById(+id);
+                    if (path == null || path == "") {
+                        return null;
+                    }
+                    let meta: any = {};
+                    if (match[2] != null && match[2] != "") {
+                        meta = JSON.parse(match[2].replace(/\\/g, ""));
+                    }
+                    const c8opath = meta?.c8opath == null ? "" : "" + meta.c8opath;
+                    const parts = c8opath == "" ? [] : c8opath.split(".");
+                    const asksDisplayValue = parts.indexOf("displayValue") != -1;
+                    const asksValue = c8opath == "" || parts.indexOf("value") != -1;
+                    if (!asksDisplayValue && !asksValue) {
+                        return null;
+                    }
+                    if (ObjectThatHaveToCallFunc.indexOf(id) == -1 && ObjectThatHaveToCallFunc.indexOf(+id) == -1) {
+                        ObjectThatHaveToCallFunc.push(id);
+                    }
+                    return asksDisplayValue
+                        ? this.getSelectMultipleSmartSourceDisplayValuesExpression(path, defElem)
+                        : this.getSelectMultipleSmartSourceValuesExpression(path);
+                }
+                catch (_e) {
+                    return null;
+                }
+            }
         	public async checkCanRespond(form, toast=false){
         		if(form?.config?.oneRespByPerson){
         			let indexFormId = (form)?._id?.indexOf("_anonymous");
@@ -4983,7 +5122,7 @@ scriptContent:
         									res.filters.push({
         										"field": cond.val1.name,
         										"op": cond.operator,
-        										"value": this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
+                                                "value": this.getSel027SelectMultipleFilterValueExpression(cond.val2, ObjectThatHaveToCallFunc) || this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
         									})
         								}
         							}
@@ -5002,7 +5141,7 @@ scriptContent:
         							                    groupFormatted.filters.push({
         							                        field: cond.val1.name,
         							                        op: cond.operator,
-        							                        value: this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
+                                                            value: this.getSel027SelectMultipleFilterValueExpression(cond.val2, ObjectThatHaveToCallFunc) || this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
         							                    });
         							                }
         							            }
@@ -5022,7 +5161,7 @@ scriptContent:
         							                            subGroupFormatted.filters.push({
         							                                field: cond.val1.name,
         							                                op: cond.operator,
-        							                                value: this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
+                                                                    value: this.getSel027SelectMultipleFilterValueExpression(cond.val2, ObjectThatHaveToCallFunc) || this.stringOf$$ToCode(cond.val2.str, overrideToTS ? "ts" : cond.val2.type, ObjectThatHaveToCallFunc, regex, false, backend)
         							                            });
         							                        }
         							                    }
@@ -6950,31 +7089,44 @@ scriptContent:
         						res.filters = await Promise.all(
         							res.filters.map((x) => this.evalValueIfNeeded(x, "filters", evalInCurrentScope))
         						);
+                                let sel027EvaluatedFilter = JSON.parse(JSON.stringify(res));
                                 this.traceSelectMultipleFilterPrototype("evaluated-filter-value", {
                                     variableName: va,
                                     itemId: item?.id,
                                     itemName: item?.name,
-                                    filters: res.filters
-                                }, res);
+                                    filters: sel027EvaluatedFilter.filters
+                                }, sel027EvaluatedFilter);
+                                res = this.normalizeSel027FilterTreeForConnector(res);
                                 this.traceSelectMultipleFilterPrototype("constructed-filter-object", {
                                     variableName: va,
                                     itemId: item?.id,
                                     itemName: item?.name,
                                     forms_filter: res
-                                }, res);
-                                this.traceSelectMultipleFilterPrototype("forms-filter-before-serialization", {
-                                    variableName: va,
-                                    itemId: item?.id,
-                                    itemName: item?.name,
-                                    forms_filter: res
-                                }, res);
-        						variables[va] = JSON.stringify(res);
-                                this.traceSelectMultipleFilterPrototype("forms-filter-after-serialization", {
-                                    variableName: va,
-                                    itemId: item?.id,
-                                    itemName: item?.name,
-                                    forms_filter_json: variables[va]
-                                }, res);
+                                }, sel027EvaluatedFilter);
+                                if (this.hasSel027FilterNodeContent(res)) {
+                                    this.traceSelectMultipleFilterPrototype("forms-filter-before-serialization", {
+                                        variableName: va,
+                                        itemId: item?.id,
+                                        itemName: item?.name,
+                                        forms_filter: res
+                                    }, sel027EvaluatedFilter);
+                                    variables[va] = JSON.stringify(res);
+                                    this.traceSelectMultipleFilterPrototype("forms-filter-after-serialization", {
+                                        variableName: va,
+                                        itemId: item?.id,
+                                        itemName: item?.name,
+                                        forms_filter_json: variables[va]
+                                    }, sel027EvaluatedFilter);
+                                }
+                                else {
+                                    variables[va] = "";
+                                    this.traceSelectMultipleFilterPrototype("forms-filter-omitted", {
+                                        variableName: va,
+                                        itemId: item?.id,
+                                        itemName: item?.name,
+                                        forms_filter: res
+                                    }, sel027EvaluatedFilter);
+                                }
         					}
         					else if (res.sorts != null && Array.isArray(res.sorts)) {
         						res.sorts = await Promise.all(
