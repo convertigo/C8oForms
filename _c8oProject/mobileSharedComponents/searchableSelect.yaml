@@ -93,7 +93,8 @@ scriptContent:
                     const selectedChild = this.findSelectDisplayCandidate(this.model?.children, normalizedValue) || this.findSelectDisplayCandidate(this.item?.children, normalizedValue);
                     const sourceOption = this.findSelectDisplayCandidate(arr, normalizedValue);
                     const techOption = this.findTechSelectDisplayCandidate(normalizedValue);
-                    return this.getSelectDisplayText(selectedChild || sourceOption || techOption) || normalizedValue;
+                    const displayText = this.getSelectDisplayText(selectedChild || sourceOption || techOption);
+                    return displayText !== "" ? displayText : this.normalizeSelectClosedDisplayText(normalizedValue);
                 }
                 private findSelectDisplayCandidate(values: any, selectedValue: string): any {
                     if(!Array.isArray(values)){
@@ -120,19 +121,34 @@ scriptContent:
                     return this.getSelectValueKey(techSelect) == selectedValue ? techSelect : undefined;
                 }
                 private getSelectDisplayText(entry: any): string {
+                    let displayText = "";
                     if(entry == null){
                         return "";
                     }
                     if(typeof entry === "string"){
-                        return entry;
+                        displayText = entry;
                     }
-                    if(entry.displayValue != undefined){
-                        return this.getSelectValueKey(entry.displayValue);
+                    else if(entry.displayValue != undefined){
+                        displayText = this.getSelectValueKey(entry.displayValue);
                     }
-                    if(entry.value != undefined){
-                        return this.getSelectValueKey(entry.value);
+                    else if(entry.value != undefined){
+                        displayText = this.getSelectValueKey(entry.value);
                     }
-                    return this.getSelectValueKey(entry);
+                    else {
+                        displayText = this.getSelectValueKey(entry);
+                    }
+                    return this.normalizeSelectClosedDisplayText(displayText);
+                }
+                private normalizeSelectClosedDisplayText(value: any): string {
+                    const text = this.getSelectValueKey(value);
+                    if(text === ""){
+                        return "";
+                    }
+                    return text
+                        .replace(/<br\s*\/?>/gi, ", ")
+                        .replace(/<\/?(div|span)\b[^>]*>/gi, "")
+                        .replace(/\s*,\s*/g, ", ")
+                        .trim();
                 }
                 private getSelectValueKey(value: any): string {
                     if(value == null){
@@ -1080,7 +1096,8 @@ scriptContent:
                          "ionBean": "CheckBox",
                          "ControlName": "plain:name1784890000004",
                          "Disabled": "script:false",
-                         "LabelPlacement": "plain:end"
+                         "LabelPlacement": "plain:end",
+                         "Value": "script:this.typeOF(item) == ''string'' ? item : item.value != undefined ? (this.typeOF(item.value) == ''string'' ? item.value : JSON.stringify(item.value)) : item.displayValue != undefined ? item.displayValue : JSON.stringify(item)"
                         }'
                       tagName: ion-checkbox
                       ↓AttrChecked [ngx.components.UIAttribute-1784890000005]: 
@@ -1133,23 +1150,66 @@ scriptContent:
                               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                 →: |
-                                  '		let selectedValues: string[] = [];
-                                  		try {
-                                  			const checked = event?.detail?.checked === true;
-                                  			selectedValues = page.updateSourcedSelectMultipleSelection(
-                                  				page.item,
-                                  				page.model,
-                                  				props.stack.root.scope.item,
-                                  				checked
-                                  			);
-                                  			if(event?.stopPropagation != undefined){
-                                  				event.stopPropagation();
-                                  			}
-                                  		} catch (e) {
-                                  		
-                                  		} finally {
-                                  			return selectedValues;
-                                  		}
+                                  '        let selectedValues: string[] = [];
+                                          try {
+                                              const checked = event?.detail?.checked === true;
+                                              const scope = props?.stack?.root?.scope || {};
+                                              const sourceValues = page?.pageOwner?.local?.sourceValue?.[page?.elems];
+                                              let option = scope?.item;
+                                              if(option == null && Array.isArray(sourceValues)){
+                                                  let eventValue = event?.detail?.value;
+                                                  if(eventValue == null && event?.currentTarget?.value != undefined){
+                                                      eventValue = event.currentTarget.value;
+                                                  }
+                                                  if(eventValue == null && event?.target?.value != undefined){
+                                                      eventValue = event.target.value;
+                                                  }
+                                                  const eventValueKey = page.getSelectValueKey(eventValue);
+                                                  if(eventValueKey !== ""){
+                                                      const sourceOption = sourceValues.find((entry: any) => page.getSelectValueKey(entry) == eventValueKey);
+                                                      option = sourceOption != undefined ? sourceOption : eventValueKey;
+                                                  }
+                                              }
+                                              if(option == null && Array.isArray(sourceValues)){
+                                                  let optionIndex: any = event?.currentTarget?.index;
+                                                  if(optionIndex == null && event?.currentTarget?.getAttribute != undefined){
+                                                      optionIndex = event.currentTarget.getAttribute("index");
+                                                  }
+                                                  if(optionIndex == null && event?.target?.index != undefined){
+                                                      optionIndex = event.target.index;
+                                                  }
+                                                  if(optionIndex == null && event?.target?.getAttribute != undefined){
+                                                      optionIndex = event.target.getAttribute("index");
+                                                  }
+                                                  if(optionIndex == null && scope?.myIndex != undefined){
+                                                      optionIndex = scope.myIndex;
+                                                  }
+                                                  const numericIndex = typeof optionIndex == "number" ? optionIndex : parseInt(optionIndex, 10);
+                                                  if(!isNaN(numericIndex)){
+                                                      let renderedStart = 0;
+                                                      if(scope?.viewport?.getRenderedRange != undefined){
+                                                          const renderedRange = scope.viewport.getRenderedRange();
+                                                          if(renderedRange?.start != undefined && !isNaN(+renderedRange.start)){
+                                                              renderedStart = +renderedRange.start;
+                                                          }
+                                                      }
+                                                      const absoluteIndex = renderedStart > 0 ? renderedStart + numericIndex : numericIndex;
+                                                      option = sourceValues[absoluteIndex] != undefined ? sourceValues[absoluteIndex] : sourceValues[numericIndex];
+                                                  }
+                                              }
+                                              selectedValues = page.updateSourcedSelectMultipleSelection(
+                                                  page.item,
+                                                  page.model,
+                                                  option,
+                                                  checked
+                                              );
+                                              if(event?.stopPropagation != undefined){
+                                                  event.stopPropagation();
+                                              }
+                                          } catch (e) {
+                                          } finally {
+                                              return selectedValues;
+                                          }
                                   '
                           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1784900814285]: 
                             beanData: '{"ionBean":"InvokeAction"}'
@@ -1377,7 +1437,8 @@ scriptContent:
                          "ionBean": "CheckBox",
                          "ControlName": "plain:nameSel015DefaultMultiple",
                          "Disabled": "script:false",
-                         "LabelPlacement": "plain:end"
+                         "LabelPlacement": "plain:end",
+                         "Value": "script:this.typeOF(item) == ''string'' ? item : item.value != undefined ? (this.typeOF(item.value) == ''string'' ? item.value : JSON.stringify(item.value)) : item.displayValue != undefined ? item.displayValue : JSON.stringify(item)"
                         }'
                       tagName: ion-checkbox
                       ↓AttrChecked [ngx.components.UIAttribute-1784901801061]: 
@@ -1412,23 +1473,66 @@ scriptContent:
                               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                 →: |
-                                  '		let selectedValues: string[] = [];
-                                  		try {
-                                  			const checked = event?.detail?.checked === true;
-                                  			selectedValues = page.updateSourcedSelectMultipleSelection(
-                                  				page.item,
-                                  				page.model,
-                                  				props.stack.root.scope.item,
-                                  				checked
-                                  			);
-                                  			if(event?.stopPropagation != undefined){
-                                  				event.stopPropagation();
-                                  			}
-                                  		} catch (e) {
-                                  		
-                                  		} finally {
-                                  			return selectedValues;
-                                  		}
+                                  '        let selectedValues: string[] = [];
+                                          try {
+                                              const checked = event?.detail?.checked === true;
+                                              const scope = props?.stack?.root?.scope || {};
+                                              const sourceValues = page?.pageOwner?.local?.sourceValue?.[page?.elems];
+                                              let option = scope?.item;
+                                              if(option == null && Array.isArray(sourceValues)){
+                                                  let eventValue = event?.detail?.value;
+                                                  if(eventValue == null && event?.currentTarget?.value != undefined){
+                                                      eventValue = event.currentTarget.value;
+                                                  }
+                                                  if(eventValue == null && event?.target?.value != undefined){
+                                                      eventValue = event.target.value;
+                                                  }
+                                                  const eventValueKey = page.getSelectValueKey(eventValue);
+                                                  if(eventValueKey !== ""){
+                                                      const sourceOption = sourceValues.find((entry: any) => page.getSelectValueKey(entry) == eventValueKey);
+                                                      option = sourceOption != undefined ? sourceOption : eventValueKey;
+                                                  }
+                                              }
+                                              if(option == null && Array.isArray(sourceValues)){
+                                                  let optionIndex: any = event?.currentTarget?.index;
+                                                  if(optionIndex == null && event?.currentTarget?.getAttribute != undefined){
+                                                      optionIndex = event.currentTarget.getAttribute("index");
+                                                  }
+                                                  if(optionIndex == null && event?.target?.index != undefined){
+                                                      optionIndex = event.target.index;
+                                                  }
+                                                  if(optionIndex == null && event?.target?.getAttribute != undefined){
+                                                      optionIndex = event.target.getAttribute("index");
+                                                  }
+                                                  if(optionIndex == null && scope?.myIndex != undefined){
+                                                      optionIndex = scope.myIndex;
+                                                  }
+                                                  const numericIndex = typeof optionIndex == "number" ? optionIndex : parseInt(optionIndex, 10);
+                                                  if(!isNaN(numericIndex)){
+                                                      let renderedStart = 0;
+                                                      if(scope?.viewport?.getRenderedRange != undefined){
+                                                          const renderedRange = scope.viewport.getRenderedRange();
+                                                          if(renderedRange?.start != undefined && !isNaN(+renderedRange.start)){
+                                                              renderedStart = +renderedRange.start;
+                                                          }
+                                                      }
+                                                      const absoluteIndex = renderedStart > 0 ? renderedStart + numericIndex : numericIndex;
+                                                      option = sourceValues[absoluteIndex] != undefined ? sourceValues[absoluteIndex] : sourceValues[numericIndex];
+                                                  }
+                                              }
+                                              selectedValues = page.updateSourcedSelectMultipleSelection(
+                                                  page.item,
+                                                  page.model,
+                                                  option,
+                                                  checked
+                                              );
+                                              if(event?.stopPropagation != undefined){
+                                                  event.stopPropagation();
+                                              }
+                                          } catch (e) {
+                                          } finally {
+                                              return selectedValues;
+                                          }
                                   '
                           ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1784902439503]: 
                             beanData: '{"ionBean":"InvokeAction"}'
