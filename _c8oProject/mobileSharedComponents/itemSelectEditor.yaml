@@ -6,6 +6,16 @@ scriptContent:
         '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
+        	public readonly selectionModeOptions = [
+        	  {
+        	    label: "select_selection_mode_single",
+        	    value: "single"
+        	  },
+        	  {
+        	    label: "select_selection_mode_multiple",
+        	    value: "multiple"
+        	  }
+        	];
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
@@ -13,6 +23,18 @@ scriptContent:
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
         		/*End_c8o_CompFinalization*/
+        /*Begin_c8o_CompChanges*/
+        		/*End_c8o_CompChanges*/
+        /*Begin_c8o_CompDoCheck*/
+        		/*End_c8o_CompDoCheck*/
+        /*Begin_c8o_CompAfterContentInit*/
+        		/*End_c8o_CompAfterContentInit*/
+        /*Begin_c8o_CompAfterContentChecked*/
+        		/*End_c8o_CompAfterContentChecked*/
+        /*Begin_c8o_CompAfterViewInit*/
+        		/*End_c8o_CompAfterViewInit*/
+        /*Begin_c8o_CompAfterViewChecked*/
+        		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
         	public ensureChoiceDefaultValueConfig(): boolean {
         		if (this.item == null) {
@@ -69,6 +91,185 @@ scriptContent:
         		}
         		return true;
         	}
+            private getSelectionMode(item: any = this.item): string {
+                return item != null && item.type == "select" && item.config != null && item.config.selectionMode == "multiple" ? "multiple" : "single";
+            }
+            private getSelectionModeTransitionOwner(): any {
+                return this["pageOwner"] != undefined ? this["pageOwner"] : this;
+            }
+            private notifySelectionModeTransitionChange(): void {
+                try {
+                    let owner = this.getSelectionModeTransitionOwner();
+                    if (owner != undefined && owner["updateState"] != undefined) {
+                        owner["updateState"]();
+                    }
+                }
+                catch (e) {}
+            }
+            private stringifySelectionModeValue(value: any): any {
+                if (value === undefined || value === null) {
+                    return value;
+                }
+                if (typeof value == "object") {
+                    if (value.value !== undefined) {
+                        return this.stringifySelectionModeValue(value.value);
+                    }
+                    if (value.displayValue !== undefined) {
+                        return this.stringifySelectionModeValue(value.displayValue);
+                    }
+                    if (value.label !== undefined) {
+                        return this.stringifySelectionModeValue(value.label);
+                    }
+                    if (value.name !== undefined) {
+                        return this.stringifySelectionModeValue(value.name);
+                    }
+                    return "";
+                }
+                return "" + value;
+            }
+            public normalizeSelectionModeValue(value: any): string {
+                let normalized = this.stringifySelectionModeValue(value);
+                if (normalized === undefined || normalized === null) {
+                    return "";
+                }
+                return "" + normalized;
+            }
+            public normalizeSelectionModeValues(value: any): string[] {
+                if (value === undefined || value === null || value === "") {
+                    return [];
+                }
+                let values: any[] = [];
+                if (Array.isArray(value)) {
+                    values = value;
+                }
+                else if (typeof value == "string") {
+                    let trimmed = value.trim();
+                    if (trimmed == "") {
+                        return [];
+                    }
+                    try {
+                        let parsed = JSON.parse(trimmed);
+                        if (parsed !== value) {
+                            return this.normalizeSelectionModeValues(parsed);
+                        }
+                    }
+                    catch (e) {}
+                    let owner = this.getSelectionModeTransitionOwner();
+                    let separator = owner?.local?.subKeyD == null || owner?.local?.subKeyD == "" ? "," : owner.local.subKeyD;
+                    values = trimmed.indexOf(separator) != -1 ? trimmed.split(separator) : [trimmed];
+                }
+                else {
+                    values = [value];
+                }
+                let normalizedValues: string[] = [];
+                for (let entry of values) {
+                    let normalized = this.normalizeSelectionModeValue(entry);
+                    if (normalized !== "" && normalizedValues.indexOf(normalized) == -1) {
+                        normalizedValues.push(normalized);
+                    }
+                }
+                return normalizedValues;
+            }
+            private getSelectedChoiceValues(item: any): string[] {
+                let values: string[] = [];
+                if (item == null || !Array.isArray(item.children)) {
+                    return values;
+                }
+                for (let child of item.children) {
+                    if (child != null && child.selected === true) {
+                        let value = this.normalizeSelectionModeValue(child.value);
+                        if (value !== "" && values.indexOf(value) == -1) {
+                            values.push(value);
+                        }
+                    }
+                }
+                return values;
+            }
+            private getSelectionModeStoredValues(item: any): string[] {
+                if (item == null) {
+                    return [];
+                }
+                let config = item.config || {};
+                let sourceVar = item.sources?.self?.vars?.selfVar;
+                if (Object.prototype.hasOwnProperty.call(config, "defaultValue")) {
+                    return this.normalizeSelectionModeValues(config.defaultValue);
+                }
+                if (sourceVar != null && sourceVar.type !== "ts" && sourceVar.str !== undefined && sourceVar.str !== null && sourceVar.str !== "") {
+                    return this.normalizeSelectionModeValues(sourceVar.str);
+                }
+                let selectedValues = this.getSelectedChoiceValues(item);
+                if (selectedValues.length > 0) {
+                    return selectedValues;
+                }
+                if (Object.prototype.hasOwnProperty.call(item, "value")) {
+                    return this.normalizeSelectionModeValues(item.value);
+                }
+                return [];
+            }
+            private setSelectionModeStoredDefault(item: any, value: any): void {
+                if (item.config == null) {
+                    item.config = {};
+                }
+                item.config.defaultValue = value;
+                let sourceVar = item.sources?.self?.vars?.selfVar;
+                if (sourceVar != null && sourceVar.type !== "ts") {
+                    sourceVar.type = "text";
+                    sourceVar.str = value;
+                    sourceVar.html = false;
+                }
+            }
+            private syncSelectionModeChildren(item: any, values: string[], mode: string): void {
+                if (item == null || !Array.isArray(item.children)) {
+                    return;
+                }
+                let singleValue = values.length > 0 ? values[0] : "";
+                let singleSelected = false;
+                for (let child of item.children) {
+                    if (child == null) {
+                        continue;
+                    }
+                    let childValue = this.normalizeSelectionModeValue(child.value);
+                    if (mode == "multiple") {
+                        child.selected = childValue !== "" && values.indexOf(childValue) != -1;
+                    }
+                    else {
+                        child.selected = !singleSelected && singleValue !== "" && childValue === singleValue;
+                        if (child.selected === true) {
+                            singleSelected = true;
+                        }
+                    }
+                }
+            }
+            public applySelectionMode(nextMode: string): boolean {
+                if (nextMode !== "single" && nextMode !== "multiple") {
+                    return false;
+                }
+                let item = this.item;
+                if (item == null || item.type != "select") {
+                    return false;
+                }
+                let currentMode = this.getSelectionMode(item);
+                if (currentMode === nextMode) {
+                    return false;
+                }
+                if (!this.ensureChoiceDefaultValueConfig()) {
+                    return false;
+                }
+                let values = this.getSelectionModeStoredValues(item);
+                if (nextMode === "multiple") {
+                    item.config.selectionMode = "multiple";
+                    this.setSelectionModeStoredDefault(item, values);
+                    this.syncSelectionModeChildren(item, values, "multiple");
+                }
+                else {
+                    let firstValue = values.length > 0 ? values[0] : "";
+                    delete item.config.selectionMode;
+                    this.setSelectionModeStoredDefault(item, firstValue);
+                    this.syncSelectionModeChildren(item, firstValue !== "" ? [firstValue] : [], "single");
+                }
+                this.notifySelectionModeTransitionChange();
+                return true;
+            }
         	public setChoiceDefaultValueMode(mode: string): void {
         		if (!this.ensureChoiceDefaultValueConfig()) {
         			return;
@@ -94,8 +295,21 @@ scriptContent:
         		}
         		catch (e) {}
         	}
+        	
+        	public getSelectionModeModel(returnType: ''model'' | ''item'' = ''model'', label: string = ''''): any {
+        	  const currentMode =
+        	    this.item?.config?.selectionMode === "multiple"
+        	      ? "select_selection_mode_multiple"
+        	      : "select_selection_mode_single";
+        		if (returnType == ''item'') {
+        		  return this.selectionModeOptions.find(
+        		    (option: any) => option.label === label
+        		  );
+        		}
+        		return currentMode
+        	}
         	/*End_c8o_CompFunction*/
-        	'
+        '
 ↓item [ngx.components.UICompVariable-1571389778961]: 
   value: 
 ↓idselected [ngx.components.UICompVariable-1571389778964]: 
@@ -304,6 +518,234 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: script:'tooltip_data_source_choice'
         ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1782915651962]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:true
+  ↓GridRowSelectionMode [ngx.components.UIDynamicElement-1785157008212]: 
+    beanData: '{"ionBean":"GridRow","Height":"plain"}'
+    comment: SEL-004 selection mode control
+    tagName: ion-row
+    ↓AttrChoiceSelectionModeTab [ngx.components.UIAttribute-1785157008214]: 
+      attrName: '*ngIf'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: plain:this.tabselected == 'tab_selector_choice_source' || this.tabselected == null || this.tabselected == undefined || this.tabselected == ''
+    ↓StyleRow [ngx.components.UIStyle-1785157008216]: 
+      styleContent: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              'display: flex;
+              width: 100%;
+              margin: 0;
+              padding: 24px;
+              box-sizing: border-box;
+              '
+    ↓GridCol [ngx.components.UIDynamicElement-1785157008218]: 
+      beanData: '{"ionBean":"GridCol","Size":"plain:12"}'
+      tagName: ion-col
+      ↓GenericItemSelectionMode [ngx.components.UIDynamicElement-1785157008220]: 
+        beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+        isEnabled: false
+        tagName: ion-item
+        ↓Label [ngx.components.UIDynamicElement-1785157008222]: 
+          beanData: '{"ionBean":"Label"}'
+          tagName: ion-label
+          ↓Text [ngx.components.UIText-1785157008224]: 
+            i18n: true
+            textValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:select_selection_mode
+        ↓SelectContainerSelectionMode [ngx.components.UIDynamicElement-1785157008226]: 
+          beanData: |
+            '{
+             "ionBean": "Select",
+             "ControlName": "plain:name1785157008226",
+             "Interface": "plain:popover",
+             "InterfaceOptions": "plain:{cssClass: ''custom-popover''}",
+             "LabelPlacement": "plain:end",
+             "ToggleIcon": "script:''assets\/images\/svg\/lucide\/chevron-down.svg''"
+            }'
+          tagName: ion-select
+          ↓SelectOptionSingle [ngx.components.UIDynamicElement-1785157008228]: 
+            beanData: '{"ionBean":"SelectOption","Value":"plain:single"}'
+            tagName: ion-select-option
+            ↓Text [ngx.components.UIText-1785157008230]: 
+              i18n: true
+              textValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:select_selection_mode_single
+          ↓SelectOptionMultiple [ngx.components.UIDynamicElement-1785157008232]: 
+            beanData: '{"ionBean":"SelectOption","Value":"plain:multiple"}'
+            tagName: ion-select-option
+            ↓Text [ngx.components.UIText-1785157008234]: 
+              i18n: true
+              textValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:select_selection_mode_multiple
+          ↓AttrModel [ngx.components.UIAttribute-1785157008236]: 
+            attrName: '[ngModel]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: 'script:this.item?.config?.selectionMode == ''multiple'' ? ''multiple'' : ''single'''
+          ↓EventSelectionModeChanged [ngx.components.UIControlEvent-1785157008238]: 
+            attrName: (ngModelChange)
+            eventName: (ngModelChange)
+            ↓ApplySelectionMode [ngx.components.UICustomAsyncAction-1785157009040]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      'try {
+                          page.applySelectionMode(event.out);
+                      } catch (e) {
+                      } finally {
+                          return;
+                      }'
+          ↓AttrClass [ngx.components.UIAttribute-1785157009042]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:form-select--small
+          ↓AttrAriaLabel [ngx.components.UIAttribute-1785157009044]: 
+            attrName: '[attr.aria-label]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.translate.instant('select_selection_mode')
+          ↓FormatLayout [ngx.components.UIDynamicAttr-1785157009046]: 
+            beanData: '{"ionBean":"FormatLayout","TextAlignment":"plain:ion-text-start"}'
+            selfClose: false
+        ↓AttrItemClass [ngx.components.UIAttribute-1785157009048]: 
+          attrName: '[ngClass]'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:'stylegenerictexteditor form-item--small'
+        ↓Style [ngx.components.UIStyle-1785157009050]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  'width: 100%;
+                  height: auto !important;
+                  .label{
+                  		margin-top: 0px !important;	
+                  		margin-bottom: 0px !important;	
+                  	}
+                  '
+      ↓UseSharedComponentSourceEnabled [ngx.components.UIUseShared-1785157655810]: 
+        sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+        ↓label [ngx.components.UIUseVariable-1785157655813]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.translate.instant('select_selection_mode')
+        ↓options [ngx.components.UIUseVariable-1785157655816]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.selectionModeOptions
+        ↓model [ngx.components.UIUseVariable-1785157655819]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.getSelectionModeModel()
+        ↓Event [ngx.components.UIControlEvent-1785157655822]: 
+          attrName: (modelChanged)
+          eventName: modelChanged
+          ↓setVal [ngx.components.UICustomAsyncAction-1785157655825]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    'try {
+                      page.item.config.sourceEnabled = event.out == ''from_data_source'';
+                    } catch (e) {
+                    } finally {
+                      return;
+                    }'
+            isEnabled: false
+            ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1785157655828]: 
+              beanData: '{"ionBean":"InvokeAction"}'
+              stack: C8Oforms.MobileApplication.Application.updateState
+              ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1785157655831]: 
+                beanData: '{"ionBean":"InvokeAction"}'
+                stack: C8Oforms.MobileApplication.Application.tickAction
+          ↓ApplySelectionMode [ngx.components.UICustomAsyncAction-1785157672100]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    		try {
+                    		  const nextMode =
+                    		    event?.out?.item ??
+                    		    event?.out?.item?.value ??
+                    		    event?.out?.value ??
+                    		    event?.out;
+                    			
+                    		  const valueOf = page.getSelectionModeModel('item', nextMode);
+                    		  if (valueOf?.value) {
+                    		  console.log(valueOf?.value)
+                    			page.applySelectionMode(valueOf?.value);
+                    		  } else {			
+                    			page.applySelectionMode(nextMode);
+                    		  }
+                    
+                    		} catch (e) {
+                    		  console.error("Unable to apply Select selection mode", e);
+                    		} finally {
+                    		  return;
+                    		 }
+                    
+        ↓keyName [ngx.components.UIUseVariable-1785157655834]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:'label'
+        ↓i18nCallback [ngx.components.UIUseVariable-1785157655837]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:null
+        ↓style [ngx.components.UIUseVariable-1785157655840]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:null
+        ↓hasSeparators [ngx.components.UIUseVariable-1785157655843]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:false
+        ↓disabled [ngx.components.UIUseVariable-1785157655846]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:false
+        ↓tooltipEnabled [ngx.components.UIUseVariable-1785157655849]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:true
+        ↓tooltipContent [ngx.components.UIUseVariable-1785157655852]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:'tooltip_select_mode_choice'
+        ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1785157655855]: 
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType

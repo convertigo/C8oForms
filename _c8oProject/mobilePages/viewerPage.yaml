@@ -296,6 +296,97 @@ scriptContent:
         /*Begin_c8o_PageFinalization*/
         		/*End_c8o_PageFinalization*/
         /*Begin_c8o_PageFunction*/
+            private hasSel027ArrayFilterValue(payload: any): boolean {
+                if (payload == null) {
+                    return false;
+                }
+                if (Array.isArray(payload)) {
+                    return payload.some((entry) => this.hasSel027ArrayFilterValue(entry));
+                }
+                if (typeof payload == "object") {
+                    if (Object.prototype.hasOwnProperty.call(payload, "value") && Array.isArray(payload.value)) {
+                        return true;
+                    }
+                    if (Array.isArray(payload.filters)) {
+                        return payload.filters.some((entry) => this.hasSel027ArrayFilterValue(entry));
+                    }
+                    if (payload.forms_filter != undefined) {
+                        return this.hasSel027ArrayFilterValue(payload.forms_filter);
+                    }
+                }
+                return false;
+            }
+            private sanitizeSel027FilterValue(value: any): any {
+                if (value == null) {
+                    return value;
+                }
+                if (Array.isArray(value)) {
+                    return value.map((entry) => this.sanitizeSel027FilterValue(entry));
+                }
+                if (typeof value == "object") {
+                    let sanitized: any = {};
+                    if (Object.prototype.hasOwnProperty.call(value, "value")) {
+                        sanitized.value = this.sanitizeSel027FilterValue(value.value);
+                    }
+                    if (Object.prototype.hasOwnProperty.call(value, "displayValue")) {
+                        sanitized.displayValue = this.sanitizeSel027FilterValue(value.displayValue);
+                    }
+                    if (Object.keys(sanitized).length > 0) {
+                        return sanitized;
+                    }
+                    try {
+                        return JSON.stringify(value);
+                    }
+                    catch (_e) {
+                        return "" + value;
+                    }
+                }
+                return value;
+            }
+            private sanitizeSel027FilterPrototype(payload: any): any {
+                if (payload == null) {
+                    return payload;
+                }
+                if (Array.isArray(payload)) {
+                    return payload.map((entry) => this.sanitizeSel027FilterPrototype(entry));
+                }
+                if (typeof payload != "object") {
+                    return payload;
+                }
+                let sanitized: any = {};
+                for (let key of ["variableName", "itemId", "itemName", "requestable", "mode", "field", "op"]) {
+                    if (payload[key] != undefined) {
+                        sanitized[key] = payload[key];
+                    }
+                }
+                if (Object.prototype.hasOwnProperty.call(payload, "value")) {
+                    sanitized.value = this.sanitizeSel027FilterValue(payload.value);
+                    sanitized.valueIsArray = Array.isArray(payload.value);
+                    if (Array.isArray(payload.value)) {
+                        sanitized.valueLength = payload.value.length;
+                    }
+                }
+                if (Array.isArray(payload.filters)) {
+                    sanitized.filters = payload.filters.map((entry) => this.sanitizeSel027FilterPrototype(entry));
+                }
+                if (payload.forms_filter != undefined) {
+                    sanitized.forms_filter = this.sanitizeSel027FilterPrototype(payload.forms_filter);
+                }
+                if (payload.forms_filter_json != undefined) {
+                    sanitized.forms_filter_json = payload.forms_filter_json;
+                }
+                return sanitized;
+            }
+            private traceSelectMultipleFilterPrototype(stage: string, payload: any, arrayCandidate: any = payload): void {
+                try {
+                    if (!this.hasSel027ArrayFilterValue(arrayCandidate)) {
+                        return;
+                    }
+                    this.c8o?.log?.debug?.("[SEL027_FILTER_PROTOTYPE] " + stage + " " + JSON.stringify(this.sanitizeSel027FilterPrototype(payload)));
+                }
+                catch (_e) {
+                }
+            }
         	public async checkCanRespond(form, toast=false){
         		if(form?.config?.oneRespByPerson){
         			let indexFormId = (form)?._id?.indexOf("_anonymous");
@@ -1799,6 +1890,100 @@ scriptContent:
                     }
                 }
                 return normalizedValues;
+            }
+            public getSelectMultipleSmartSourceValues(values: any): string[] {
+                return this.normalizeSelectValues(values);
+            }
+            public joinSelectMultipleSmartSourceValues(values: any): string {
+                return this.normalizeSelectValues(values).join(", ");
+            }
+            private getSmartSourceOwnerFromPath(path: string): string {
+                return ("" + path).indexOf("page.pageOwner.") == 0 ? "page.pageOwner" : "page";
+            }
+            private getSelectMultipleSmartSourceValuesExpression(path: string): string {
+                const owner = this.getSmartSourceOwnerFromPath(path);
+                return owner + ".getSelectMultipleSmartSourceValues(" + path + ")";
+            }
+            private getSelectMultipleSmartSourceDisplayValuesExpression(path: string, item: any): string {
+                const owner = this.getSmartSourceOwnerFromPath(path);
+                const itemName = this.escapeJsLiteral(item?.name);
+                return owner + ".getSelectMultipleSmartSourceDisplayValues(''" + itemName + "'', " + path + ")";
+            }
+            private getSelectMultipleSmartSourceExpression(path: string, item: any, displayValue = false): string {
+                return displayValue ? this.getSelectMultipleSmartSourceDisplayValuesExpression(path, item) : this.getSelectMultipleSmartSourceValuesExpression(path);
+            }
+            private getSelectMultipleSmartSourceTextExpression(path: string, item: any, displayValue = false): string {
+                const owner = this.getSmartSourceOwnerFromPath(path);
+                return owner + ".joinSelectMultipleSmartSourceValues(" + this.getSelectMultipleSmartSourceExpression(path, item, displayValue) + ")";
+            }
+            private selectMultipleOptionMatchesValue(option: any, value: string): boolean {
+                if (option === undefined || option === null) {
+                    return false;
+                }
+                let valuesToCompare = [option];
+                if (typeof option == "object") {
+                    valuesToCompare.push(option.value, option.displayValue, option.label, option.name);
+                }
+                for (let candidate of valuesToCompare) {
+                    if (this.normalizeSelectValue(candidate) == value) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            private findSelectMultipleOptionByValue(options: any, value: string): any {
+                if (options === undefined || options === null || value == "") {
+                    return null;
+                }
+                if (this.selectMultipleOptionMatchesValue(options, value)) {
+                    return options;
+                }
+                if (Array.isArray(options)) {
+                    for (let option of options) {
+                        if (this.selectMultipleOptionMatchesValue(option, value)) {
+                            return option;
+                        }
+                    }
+                }
+                else if (typeof options == "object") {
+                    if (options[value] !== undefined) {
+                        return options[value];
+                    }
+                    for (let key of Object.keys(options)) {
+                        if (key == value || this.selectMultipleOptionMatchesValue(options[key], value)) {
+                            return options[key];
+                        }
+                    }
+                }
+                return null;
+            }
+            private getSelectMultipleOptionDisplayValue(option: any, fallback: string): string {
+                if (option !== undefined && option !== null && typeof option == "object") {
+                    let displayValue = this.normalizeSelectValue(option.displayValue ?? option.label ?? option.name ?? option.value);
+                    return displayValue != "" ? displayValue : fallback;
+                }
+                let displayValue = this.normalizeSelectValue(option);
+                return displayValue != "" ? displayValue : fallback;
+            }
+            public getSelectMultipleSmartSourceDisplayValues(name: any, values: any): string[] {
+                const itemName = name == null ? "" : "" + name;
+                const normalizedValues = this.normalizeSelectValues(values);
+                const formItem: any = itemName != "" ? this.getItemByName(itemName) : null;
+                const sourceOptions = itemName != "" ? this.local?.sourceValue?.[itemName] : null;
+                const selectedCache = itemName != "" ? this.local?.techSelect?.[itemName] : null;
+                const children = Array.isArray(formItem?.children) ? formItem.children : null;
+                let displayValues: string[] = [];
+                for (let value of normalizedValues) {
+                    let option = this.findSelectMultipleOptionByValue(selectedCache, value);
+                    if (option == null) {
+                        option = this.findSelectMultipleOptionByValue(sourceOptions, value);
+                    }
+                    if (option == null) {
+                        option = this.findSelectMultipleOptionByValue(children, value);
+                    }
+                    displayValues.push(this.getSelectMultipleOptionDisplayValue(option, value));
+                }
+                return displayValues;
             }
         	
         	public restoreSourcedSelectMultipleState(item: any, model: any, sourceOptions?: any[]): string[] {
@@ -3421,6 +3606,21 @@ scriptContent:
         									}
         									params = { ...params, __context: "*", __removeContext: "true" };
         									try {
+                                                let sel027FormsFilterValue = params["forms_filter"];
+                                                if (sel027FormsFilterValue != undefined && sel027FormsFilterValue !== "") {
+                                                    try {
+                                                        let sel027FormsFilterParsed = typeof sel027FormsFilterValue == "string" ? JSON.parse(sel027FormsFilterValue) : sel027FormsFilterValue;
+                                                        page.traceSelectMultipleFilterPrototype("source-variables-before-call", {
+                                                            itemId: item?.id,
+                                                            itemName: item?.name,
+                                                            requestable: requestable,
+                                                            variableName: "forms_filter",
+                                                            forms_filter: sel027FormsFilterParsed
+                                                        }, sel027FormsFilterParsed);
+                                                    }
+                                                    catch (_e) {
+                                                    }
+                                                }
         										let followingCode = async () => {
         											//if fullsync
         											if (sources.fullSyncArgs != undefined && sources.fullSyncArgs.isFullsync) {
@@ -5249,7 +5449,7 @@ scriptContent:
         				case "time":
         					// if no path is specified and it''s not "ts" expression
         					if (meta.c8opath == "" && !ts && defElem?.type != "grid" && defElem?.type != "gallery") {
-        						currentVal = "`+" + this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format", ts) + "+`";
+                                currentVal = "`+" + this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format", ts, false, defElem) + "+`";
         					}
         					// if path is specified or if it''s "ts" expression
         					else {
@@ -5427,27 +5627,45 @@ scriptContent:
         								suffix += "?.[''" + elem + "'']";
         							}
         							if (ts) {
-        								currentVal = this[verb](path, defElem.type, typeTargeted, ts, displayValue) + suffix;
+                                        currentVal = this[verb](path, defElem.type, typeTargeted, ts, displayValue, defElem) + suffix;
         							}
         							else {
-        								currentVal = "`+ (" + this[verb](path, defElem.type, typeTargeted, ts, displayValue) + suffix + " ?? '''') +`";
+                                        currentVal = "`+ (" + this[verb](path, defElem.type, typeTargeted, ts, displayValue, defElem) + suffix + " ?? '''') +`";
         							}
         
         						}
         						else if ((defElem.type == "select" && defElem.sources != undefined && Object.values(defElem.sources).find((x: any) => { return x.enabled == true }) && splitted?.[1] == "displayValue") || (defElem.type == "radio" && defElem.sources != undefined && Object.values(defElem.sources).find((x: any) => { return x.enabled == true }) && splitted?.[1] == "displayValue")) {
-        							let basePath = "page.local.techSelect";
-        							splitted.forEach((value, index) => {
-        								// ensure name of grid has not changed
-        								if (index == 0) {
-        									value = this.getNameById(+id);
+                                    if (defElem.type == "select" && this.isSelectMultiple(defElem)) {
+                                        let suffix = "";
+                                        for (let elem of splitted.slice(2)) {
+                                            suffix += "?.[''" + this.escapeJsLiteral(elem) + "'']";
+                                        }
+                                        const displayExpression = this.getSelectMultipleSmartSourceDisplayValuesExpression(path, defElem);
+                                        if (ts) {
+                                            currentVal = displayExpression + suffix;
+                                        }
+                                        else if (suffix == "") {
+                                            currentVal = "`+ (" + this.getSelectMultipleSmartSourceTextExpression(path, defElem, true) + " ?? '''') +`";
+                                        }
+                                        else {
+                                            currentVal = "`+ (" + displayExpression + suffix + " ?? '''') +`";
         								}
-        								basePath += "?.[''" + this.escapeJsLiteral(value) + "'']";
-        							});
-        							if (ts) {
-        								currentVal = basePath;
         							}
         							else {
-        								currentVal = "`+ (" + basePath + " ?? '''') +`";
+                                        let basePath = "page.local.techSelect";
+                                        splitted.forEach((value, index) => {
+                                            // ensure name of grid has not changed
+                                            if (index == 0) {
+                                                value = this.getNameById(+id);
+                                            }
+                                            basePath += "?.[''" + this.escapeJsLiteral(value) + "'']";
+                                        });
+                                        if (ts) {
+                                            currentVal = basePath;
+                                        }
+                                        else {
+                                            currentVal = "`+ (" + basePath + " ?? '''') +`";
+                                        }
         							}
         
         						}
@@ -5461,7 +5679,19 @@ scriptContent:
         							for (let elem of meta.c8opath?.split(".")?.slice(sliceCount)) {
         								suffix += "?.[''" + elem + "'']";
         							}
-        							if (ts) {
+                                    if (defElem.type == "select" && this.isSelectMultiple(defElem) && splitted?.[1] == "value") {
+                                        const valueExpression = this.getSelectMultipleSmartSourceValuesExpression(path);
+                                        if (ts) {
+                                            currentVal = valueExpression + suffix;
+                                        }
+                                        else if (suffix == "") {
+                                            currentVal = "`+ (" + this.getSelectMultipleSmartSourceTextExpression(path, defElem, false) + " ?? '''') +`";
+                                        }
+                                        else {
+                                            currentVal = "`+ (" + valueExpression + suffix + " ?? '''') +`";
+                                        }
+                                    }
+                                    else if (ts) {
         								currentVal = path + suffix;
         							}
         							else {
@@ -5474,7 +5704,7 @@ scriptContent:
         				case "location":
         					// default for str checkbox_grp
         					if (meta.c8opath == "") {
-        						currentVal = this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format", ts);
+                                currentVal = this.selected_data_c8o_separated_by_coma(path, defElem.type, "TEXT_format", ts, false, defElem);
         					}
         					else {
         						let splitted = meta.c8opath.split(".");
@@ -5593,7 +5823,7 @@ scriptContent:
         	 * @param type can only be "TEXT_format"
         	 * @returns 
         	 */
-        	public selected_data_c8o_separated_by_coma(path, targeType, type, ts, displayValue = false) {
+            public selected_data_c8o_separated_by_coma(path, targeType, type, ts, displayValue = false, item: any = null) {
         		if (type == "TEXT_format") {
         			if (targeType == "checkbox_group") {
         				return "Object.keys(" + path + ").filter(((x)=>{return Object.keys(" + path + "[x]).filter((y)=>{ return " + path + "[x][y].selected }).length > 0})).map((z)=>{ return " + path + "[z].filter((b)=>{return b.selected}).map((a, i)=>{var prefix = ''''; if(i == 0){prefix = z + '' :'' } return prefix + a.value}).join('', '') }).join(''; '')";
@@ -5605,6 +5835,9 @@ scriptContent:
         				return path + `.filter((x)=>{return x.selected}).map((y)=>{return y.${displayValue ? ''displayValue'' : ''value''}}).join('', '')`;
         
         			}
+                    else if (targeType == "select" && this.isSelectMultiple(item)) {
+                        return this.getSelectMultipleSmartSourceTextExpression(path, item, displayValue);
+                    }
         			else if (targeType == "radio" || targeType == "slider" || targeType == "select" || targeType == "datetime" || targeType == "time") {
         				return path;
         			}
@@ -5660,7 +5893,7 @@ scriptContent:
         	 * @param type can only be "TEXT_format" or "JSON_format"
         	 * @returns selected_data
         	 */
-        	public selected_data(path, targeType, type, ts, displayValue = false) {
+            public selected_data(path, targeType, type, ts, displayValue = false, item: any = null) {
         		if (type == "JSON_format") {
         			if (targeType == "checkbox") {
         				const strToReturn = path + `?.filter((x)=>{return x?.selected})?.map((y)=>{return y?.${displayValue ? ''displayValue'' : ''value''}})`;
@@ -5682,6 +5915,15 @@ scriptContent:
         				}
         			}
         			else if (targeType == "radio" || targeType == "select") {
+                        if (targeType == "select" && this.isSelectMultiple(item)) {
+                            const strToReturn = this.getSelectMultipleSmartSourceExpression(path, item, displayValue);
+                            if (ts) {
+                                return strToReturn;
+                            }
+                            else {
+                                return "JSON.stringify(" + strToReturn + ")";
+                            }
+                        }
         				return path;
         			}
         			else if (targeType == "radio_group") {
@@ -5764,7 +6006,10 @@ scriptContent:
         	 * @param type 
         	 * @returns text format 
         	 */
-        	public TEXT_format(path, targeType, type, ts) {
+            public TEXT_format(path, targeType, type, ts, displayValue = false, item: any = null) {
+                if (targeType == "select" && this.isSelectMultiple(item)) {
+                    return this.getSelectMultipleSmartSourceTextExpression(path, item, displayValue);
+                }
         		if (targeType == "radio" || targeType == "slider" || targeType == "select") {
         			return path;
         		}
@@ -5805,7 +6050,14 @@ scriptContent:
         	 * @param type 
         	 * @returns text format 
         	 */
-        	public JSON_format(path, targeType, type, ts) {
+            public JSON_format(path, targeType, type, ts, displayValue = false, item: any = null) {
+                if (targeType == "select" && this.isSelectMultiple(item)) {
+                    const strToReturn = this.getSelectMultipleSmartSourceExpression(path, item, displayValue);
+                    if (ts) {
+                        return strToReturn;
+                    }
+                    return "JSON.stringify(" + strToReturn + ")";
+                }
         		if (targeType == "radio" || targeType == "slider" || targeType == "select") {
         			return path;
         		}
@@ -6035,18 +6287,30 @@ scriptContent:
         				case "checkbox":
         				case "select":
         					let childrenLength2 = elem.children.length;
+                            let selectMultipleValues = this.isSelectMultiple(elem) ? this.normalizeSelectValues(valElem) : null;
         					str += `<tbody>
         						<tr style="height: 18px;">
         						<th style="text-align: center; height: 18px; width: 99.2498%;" colspan="2"><span id="1234"><!--START1123-->${elem.config.html}<!--END1123--></span></th>
         						</tr>`;
         					for (let index in elem.children) {
         						let child = elem.children[index];
+                                let selectedMarker = "&nbsp;";
+                                if (elem.type == "checkbox") {
+                                    selectedMarker = valElem[index].selected ? "✔️" : "&nbsp;";
+                                }
+                                else if (selectMultipleValues != null) {
+                                    let childValue = this.normalizeSelectValue(child.value);
+                                    selectedMarker = childValue != "" && selectMultipleValues.indexOf(childValue) != -1 ? "✔️" : "&nbsp;";
+                                }
+                                else {
+                                    selectedMarker = child.value == valElem ? "✔️" : "&nbsp;";
+                                }
         						str += `<tr style="height: 18px;">
         						<td style="width: 50%; height: 18px; text-align: center;">
         						${child.value}
         						</td>
         						<td style="width: 50%; height: 18px; text-align: center;">
-        						${elem.type == "checkbox" ? valElem[index].selected ? "✔️" : "&nbsp;" : child.value == valElem ? "✔️" : "&nbsp;"}
+                                ${selectedMarker}
         						</td>
         						</tr>
         						`;
@@ -6686,7 +6950,31 @@ scriptContent:
         						res.filters = await Promise.all(
         							res.filters.map((x) => this.evalValueIfNeeded(x, "filters", evalInCurrentScope))
         						);
+                                this.traceSelectMultipleFilterPrototype("evaluated-filter-value", {
+                                    variableName: va,
+                                    itemId: item?.id,
+                                    itemName: item?.name,
+                                    filters: res.filters
+                                }, res);
+                                this.traceSelectMultipleFilterPrototype("constructed-filter-object", {
+                                    variableName: va,
+                                    itemId: item?.id,
+                                    itemName: item?.name,
+                                    forms_filter: res
+                                }, res);
+                                this.traceSelectMultipleFilterPrototype("forms-filter-before-serialization", {
+                                    variableName: va,
+                                    itemId: item?.id,
+                                    itemName: item?.name,
+                                    forms_filter: res
+                                }, res);
         						variables[va] = JSON.stringify(res);
+                                this.traceSelectMultipleFilterPrototype("forms-filter-after-serialization", {
+                                    variableName: va,
+                                    itemId: item?.id,
+                                    itemName: item?.name,
+                                    forms_filter_json: variables[va]
+                                }, res);
         					}
         					else if (res.sorts != null && Array.isArray(res.sorts)) {
         						res.sorts = await Promise.all(
@@ -10271,7 +10559,8 @@ scriptContent:
         	        return page?.included !== false;
         	    }
         	}
-            /*End_c8o_PageFunction*/'
+            /*End_c8o_PageFunction*/
+        '
 segment: viewer/:formId/:edit/:i
 startMenu: C8Oforms.MobileApplication.Application.MenuSelector
 title: Visualisateur
