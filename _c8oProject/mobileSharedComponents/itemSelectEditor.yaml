@@ -170,6 +170,162 @@ scriptContent:
                 }
                 return normalizedValues;
             }
+            public isEditorSelectMultiple(item: any = this.item): boolean {
+                return this.getSelectionMode(item) == "multiple";
+            }
+            public isEditorSelectSingle(item: any = this.item): boolean {
+                return !this.isEditorSelectMultiple(item);
+            }
+            private normalizeSelectInterfaceValue(value: any): string {
+                let normalized = this.normalizeSelectionModeValue(value);
+                return normalized == null ? "" : normalized.trim();
+            }
+            public getSelectInterfaceOptions(item: any = this.item): string[] {
+                let options = ["popover", "action-sheet", "alert"];
+                return this.getSelectionMode(item) == "multiple" ? options.filter((option: string) => option !== "action-sheet") : options;
+            }
+            public isSelectInterfaceOptionVisible(option: any, item: any = this.item): boolean {
+                return this.getSelectInterfaceOptions(item).indexOf(this.normalizeSelectInterfaceValue(option)) != -1;
+            }
+            public normalizeSelectInterfaceForMode(nextMode: string, currentInterface: any): any {
+                let normalizedInterface = this.normalizeSelectInterfaceValue(currentInterface);
+                if (nextMode === "multiple" && normalizedInterface === "action-sheet") {
+                    return "popover";
+                }
+                return currentInterface;
+            }
+            public getSelectInterfaceModel(item: any = this.item): any {
+                if (this.getSelectionMode(item) == "multiple" && this.normalizeSelectInterfaceValue(item?.config?.type) === "action-sheet") {
+                    return "popover";
+                }
+                return item?.config?.type;
+            }
+            public setSelectInterfaceForCurrentMode(nextInterface: any): boolean {
+                let item = this.item;
+                if (item == null || item.type != "select") {
+                    return false;
+                }
+                if (item.config == null) {
+                    item.config = {};
+                }
+                let normalizedInterface = this.normalizeSelectInterfaceValue(nextInterface);
+                if (this.getSelectInterfaceOptions(item).indexOf(normalizedInterface) == -1) {
+                    return false;
+                }
+                if (item.config.type === normalizedInterface) {
+                    return false;
+                }
+                item.config.type = normalizedInterface;
+                this.notifySelectionModeTransitionChange();
+                return true;
+            }
+            public getEditorSelectChildDefaultValue(child: any): string {
+                if (child == null) {
+                    return "";
+                }
+                if (child.other === true) {
+                    return "__c8o__unique_other";
+                }
+                return this.normalizeSelectionModeValue(child.value);
+            }
+            public isEditorMultipleDefaultChecked(child: any): boolean {
+                if (!this.isEditorSelectMultiple()) {
+                    return false;
+                }
+                let childValue = this.getEditorSelectChildDefaultValue(child);
+                if (childValue == "") {
+                    return false;
+                }
+                return this.getSelectionModeStoredValues(this.item).indexOf(childValue) != -1;
+            }
+            private areSelectionModeValuesEqual(left: string[], right: string[]): boolean {
+                if (left.length != right.length) {
+                    return false;
+                }
+                for (let i = 0; i < left.length; i++) {
+                    if (left[i] !== right[i]) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            private isSelectionModeDefaultAlreadyCanonical(item: any, values: string[]): boolean {
+                let defaultValue = item?.config?.defaultValue;
+                if (!Array.isArray(defaultValue)) {
+                    return false;
+                }
+                if (defaultValue.length != values.length) {
+                    return false;
+                }
+                for (let i = 0; i < values.length; i++) {
+                    if (this.normalizeSelectionModeValue(defaultValue[i]) !== values[i]) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            private areEditorMultipleDefaultChildrenSynced(item: any, values: string[]): boolean {
+                if (item == null || !Array.isArray(item.children)) {
+                    return true;
+                }
+                for (let child of item.children) {
+                    if (child == null) {
+                        continue;
+                    }
+                    let childValue = this.getEditorSelectChildDefaultValue(child);
+                    let expected = childValue !== "" && values.indexOf(childValue) != -1;
+                    if ((child.selected === true) !== expected) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            private syncEditorMultipleDefaultChildren(item: any, values: string[]): void {
+                if (item == null || !Array.isArray(item.children)) {
+                    return;
+                }
+                for (let child of item.children) {
+                    if (child == null) {
+                        continue;
+                    }
+                    let childValue = this.getEditorSelectChildDefaultValue(child);
+                    child.selected = childValue !== "" && values.indexOf(childValue) != -1;
+                }
+            }
+            public toggleEditorMultipleDefault(child: any, checked?: boolean): boolean {
+                let item = this.item;
+                if (item == null || item.type != "select" || !this.isEditorSelectMultiple(item)) {
+                    return false;
+                }
+                if (!this.ensureChoiceDefaultValueConfig()) {
+                    return false;
+                }
+                let childValue = this.getEditorSelectChildDefaultValue(child);
+                if (childValue == "") {
+                    return false;
+                }
+                let selectedValues = this.getSelectionModeStoredValues(item);
+                let nextChecked = typeof checked == "boolean" ? checked : selectedValues.indexOf(childValue) == -1;
+                let nextValues = selectedValues.slice();
+                let wasSelected = nextValues.indexOf(childValue) != -1;
+                if (nextChecked === true && !wasSelected) {
+                    nextValues.push(childValue);
+                }
+                else if (nextChecked !== true && wasSelected) {
+                    nextValues = nextValues.filter((value: string) => value !== childValue);
+                }
+                let canonicalValues = this.normalizeSelectionModeValues(nextValues);
+                let changed = !this.areSelectionModeValuesEqual(selectedValues, canonicalValues)
+                    || !this.isSelectionModeDefaultAlreadyCanonical(item, selectedValues)
+                    || !this.areEditorMultipleDefaultChildrenSynced(item, canonicalValues);
+                if (!changed) {
+                    return false;
+                }
+                this.setSelectionModeStoredDefault(item, canonicalValues);
+                this.syncEditorMultipleDefaultChildren(item, canonicalValues);
+                this.notifySelectionModeTransitionChange();
+                return true;
+            }
             private getSelectedChoiceValues(item: any): string[] {
                 let values: string[] = [];
                 if (item == null || !Array.isArray(item.children)) {
@@ -258,6 +414,10 @@ scriptContent:
                 let values = this.getSelectionModeStoredValues(item);
                 if (nextMode === "multiple") {
                     item.config.selectionMode = "multiple";
+                    let nextInterface = this.normalizeSelectInterfaceForMode(nextMode, item.config.type);
+                    if (nextInterface !== item.config.type) {
+                        item.config.type = nextInterface;
+                    }
                     this.setSelectionModeStoredDefault(item, values);
                     this.syncSelectionModeChildren(item, values, "multiple");
                 }
@@ -1661,6 +1821,938 @@ scriptContent:
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: script:'Option'
+    ↓AttrSingleMode [ngx.components.UIAttribute-1785163747124]: 
+      attrName: '*ngIf'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: plain:this.isEditorSelectSingle()
+  ↓DirectiveMultipleDefaults [ngx.components.UIControlDirective-1785163910700]: 
+    directiveName: If
+    directiveSource: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:this.isEditorSelectMultiple()
+    ↓MultipleDefaultList [ngx.components.UIDynamicElement-1785163910702]: 
+      beanData: '{"ionBean":"DivTag"}'
+      tagName: div
+      ↓StylePadding [ngx.components.UIStyle-1785163913052]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                'display: flex;
+                flex-direction: column;
+                width: 100%;
+                height: 100%;
+                min-height: 0;
+                margin: 0;
+                padding: 24px;
+                box-sizing: border-box;
+                overflow: hidden;
+                '
+      ↓ReorderGroup [ngx.components.UIElement-1785163913054]: 
+        tagName: ion-reorder-group
+        ↓StyleBoundedScroll [ngx.components.UIStyle-1785163915404]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  'display: block;
+                  width: 100%;
+                  flex: 0 1 auto;
+                  max-height: min(calc(100% - 48px), calc(100vh - 340px));
+                  min-height: 0;
+                  overflow-y: auto;
+                  overflow-x: hidden;
+                  '
+        ↓AttrDisabled [ngx.components.UIAttribute-1785163915406]: 
+          attrName: '[disabled]'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:false
+        ↓EventReorder [ngx.components.UIControlEvent-1785163915408]: 
+          attrName: (ionItemReorder)
+          eventName: (ionItemReorder)
+          ↓ApplyReorder [ngx.components.UICustomAction-1785163916210]: 
+            actionValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '        var items = Array.isArray(vars.items) ? vars.items : [];
+                            var indexes = [];
+                            items.forEach(function(child, index) {
+                                if (!child.other) {
+                                    indexes.push(index);
+                                }
+                            });
+                            var from = indexes[event.detail.from];
+                            var to = indexes[event.detail.to];
+                            if (from != undefined && to != undefined && from !== to) {
+                                var moved = items.splice(from, 1)[0];
+                                items.splice(to, 0, moved);
+                                var owner = page["pageOwner"] != undefined ? page["pageOwner"] : page;
+                                if (owner != undefined && owner["updateState"] != undefined) {
+                                    owner["updateState"]();
+                                }
+                            }
+                            event.detail.complete();
+                            resolve();
+                    '
+            ↓items [ngx.components.UIControlVariable-1785163917024]: 
+              varValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.item.children
+        ↓Directive1 [ngx.components.UIControlDirective-1785163917026]: 
+          directiveIndexName: j
+          directiveItemName: child
+          directiveSource: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.item.children
+          ↓Item [ngx.components.UIDynamicElement-1785163917028]: 
+            beanData: '{"ionBean":"GridRow"}'
+            tagName: ion-row
+            ↓StyleRow [ngx.components.UIStyle-1785163917030]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      'width: 100%;
+                      margin: 0 0 8px 0;
+                      '
+            ↓Attr [ngx.components.UIAttribute-1785163917032]: 
+              attrName: id
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:'@prefixc8oitem'+child.name+'@prefixc8otype'+child.type+'c8o_child1'
+            ↓Attr2 [ngx.components.UIAttribute-1785163917034]: 
+              attrName: '*ngIf'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:!child.other
+            ↓GridCol3 [ngx.components.UIDynamicElement-1785163917036]: 
+              beanData: '{"ionBean":"GridCol","Size":"plain:12"}'
+              tagName: ion-col
+              ↓StyleRow [ngx.components.UIStyle-1785163917038]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        width: 100%;
+                        min-height: 44px;
+                        padding: 6px 10px;
+                        background: #F5F5F5;
+                        border: 1px solid rgba(26, 26, 26, 0.08);
+                        border-radius: 8px;
+                        box-shadow: none;
+                        box-sizing: border-box;
+                        '
+              ↓DivCheckbox [ngx.components.UIDynamicElement-1785163917040]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1785163917042]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          flex: 0 0 auto;
+                          width: 32px;
+                          min-width: 32px;
+                          height: 32px;
+                          min-height: 32px;
+                          margin: 0;
+                          padding: 0;
+                          background: transparent;
+                          border: 0;
+                          border-radius: 0;
+                          box-sizing: border-box;
+                          ion-checkbox{
+                              margin: 0 !important;
+                              width: 18px;
+                              height: 18px;
+                              min-width: 18px;
+                              min-height: 18px;
+                              --border-color: #B8C1CC;
+                              --checkbox-background-checked: #0F62FE;
+                              --border-color-checked: #0F62FE;
+                          }
+                          '
+                ↓GenericItem [ngx.components.UIDynamicElement-1785163917044]: 
+                  beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+                  tagName: ion-item
+                  ↓Style [ngx.components.UIStyle-1785163917046]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'margin: 0;
+                            width: 20px;
+                            min-width: 20px;
+                            display: flex;
+                            align-items: center;
+                            height: 32px;
+                            overflow: visible;
+                            --min-height: 32px;
+                            --padding-start: 0;
+                            --padding-end: 0;
+                            --inner-padding-end: 0;
+                            --inner-border-width: 0;
+                            --background: transparent;
+                            --box-shadow: none;
+                            box-shadow: none !important;
+                            '
+                  ↓DefaultCheckbox [ngx.components.UIDynamicElement-1785163917048]: 
+                    beanData: '{"ionBean":"CheckBox","Disabled":"script:false"}'
+                    tagName: ion-checkbox
+                    ↓AttrChecked [ngx.components.UIAttribute-1785163917050]: 
+                      attrName: '[checked]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.isEditorMultipleDefaultChecked(child)
+                    ↓AttrValue [ngx.components.UIAttribute-1785163917052]: 
+                      attrName: '[value]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.getEditorSelectChildDefaultValue(child)
+                    ↓AttrAriaLabel [ngx.components.UIAttribute-1785163917054]: 
+                      attrName: '[attr.aria-label]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.getEditorSelectChildDefaultValue(child)
+                    ↓EventToggleDefault [ngx.components.UIControlEvent-1785163917056]: 
+                      attrName: (ionChange)
+                      eventName: (ionChange)
+                      ↓ToggleMultipleDefault [ngx.components.UICustomAsyncAction-1785163917058]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                '        try {
+                                            let checked: any = event?.detail?.checked;
+                                            if (typeof checked != "boolean" && typeof event?.checked == "boolean") {
+                                                checked = event.checked;
+                                            }
+                                            if (typeof checked != "boolean" && typeof event?.out?.checked == "boolean") {
+                                                checked = event.out.checked;
+                                            }
+                                            if (typeof checked != "boolean" && typeof event?.out == "boolean") {
+                                                checked = event.out;
+                                            }
+                                            page.toggleEditorMultipleDefault(vars.child, checked);
+                                            if (event?.stopPropagation != undefined) {
+                                                event.stopPropagation();
+                                            }
+                                        } catch (e) {
+                                        } finally {
+                                            return;
+                                        }
+                                '
+                        ↓child [ngx.components.UIControlVariable-1785163917872]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:child
+              ↓DivInputOption [ngx.components.UIDynamicElement-1785163917874]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1785163917876]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'display: flex;
+                          align-items: center;
+                          flex: 1 1 auto;
+                          min-width: 0;
+                          '
+                ↓GenericItem [ngx.components.UIDynamicElement-1785163917878]: 
+                  beanData: '{"ionBean":"GenericItem"}'
+                  tagName: ion-item
+                  ↓Attr2 [ngx.components.UIAttribute-1785163917880]: 
+                    attrName: '[ngClass]'
+                    attrValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:'stylegenerictexteditor form-item--small'
+                  ↓Style [ngx.components.UIStyle-1785163917882]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'width: 100%;
+                            margin: 0;
+                            display: flex;
+                            align-items: center;
+                            min-height: 32px;
+                            --min-height: 32px;
+                            --padding-start: 0;
+                            --padding-end: 0;
+                            --inner-padding-end: 0;
+                            --inner-border-width: 0;
+                            --background: transparent;
+                            --box-shadow: none;
+                            box-shadow: none !important;
+                            border: 0;
+                            border-radius: 0;
+                            padding: 0;
+                            .label{
+                                margin-top: 0px !important;
+                                margin-bottom: 0px !important;
+                            }
+                            '
+                  ↓TextInput1 [ngx.components.UIDynamicElement-1785163917884]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Input",
+                       "ControlName": "plain:name1785163917884",
+                       "Debounce": "plain:0",
+                       "Placeholder": "script:this.global[''text'']",
+                       "Value": "script:child.value"
+                      }'
+                    tagName: ion-input
+                    ↓Event [ngx.components.UIControlEvent-1785163917886]: 
+                      attrName: (change)
+                      eventName: onChange
+                      ↓UpdateState [ngx.components.UICustomAction-1785163917888]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        page.pageOwner.updateState();
+                                        resolve();
+                                
+                    ↓Attr [ngx.components.UIAttribute-1785163917890]: 
+                      attrName: '[(ngModel)]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:child.value
+                    ↓Attr2 [ngx.components.UIAttribute-1785163917892]: 
+                      attrName: ondragstart
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:event.preventDefault();event.stopPropagation();
+                    ↓Event11 [ngx.components.UIControlEvent-1785163917894]: 
+                      attrName: (dragover)
+                      eventName: (dragover)
+                      ↓refuseDrop [ngx.components.UICustomAction-1785163917896]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        if(event.dataTransfer.types.includes("__c8oformsdrag")){
+                                            event.preventDefault();
+                                        }
+                                        resolve();
+                                
+                    ↓Attr3 [ngx.components.UIAttribute-1785163917898]: 
+                      attrName: ondragover
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:event.preventDefault()
+                    ↓Attr31 [ngx.components.UIAttribute-1785163917900]: 
+                      attrName: ondrop
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:event.preventDefault()
+                    ↓Attr11 [ngx.components.UIAttribute-1785163917902]: 
+                      attrName: '[attr.draggable]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:false
+                    ↓Event11132 [ngx.components.UIControlEvent-1785163917904]: 
+                      attrName: (mouseenter)
+                      eventName: (mouseenter)
+                      ↓cantDrag [ngx.components.UICustomAction-1785163917906]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        page.pageOwner.local.canDrag = "false";
+                                        page.tick();
+                                        resolve();
+                                
+                    ↓Event111311 [ngx.components.UIControlEvent-1785163917908]: 
+                      attrName: (mouseleave)
+                      eventName: (mouseleave)
+                      ↓canDrag [ngx.components.UICustomAction-1785163917910]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        page.pageOwner.local.canDrag = "true";
+                                        page.tick();
+                                        resolve();
+                                
+                    ↓Attr4 [ngx.components.UIAttribute-1785163917912]: 
+                      attrName: '[ngClass]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:''
+              ↓DivDelete [ngx.components.UIDynamicElement-1785163917914]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1785163917916]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'display: flex;
+                          align-items: center;
+                          gap: 4px;
+                          flex: 0 0 auto;
+                          '
+                ↓GenericItem [ngx.components.UIDynamicElement-1785163917918]: 
+                  beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+                  tagName: ion-item
+                  ↓StyleNoChrome [ngx.components.UIStyle-1785163917920]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'margin: 0;
+                            width: auto;
+                            display: flex;
+                            align-items: center;
+                            height: 32px;
+                            --min-height: 32px;
+                            --padding-start: 0;
+                            --padding-end: 0;
+                            --inner-padding-end: 0;
+                            --inner-border-width: 0;
+                            --background: transparent;
+                            --box-shadow: none;
+                            box-shadow: none !important;
+                            '
+                  ↓DeleteButton [ngx.components.UIDynamicElement-1785163917922]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Button",
+                       "IonColor": "plain:btLight",
+                       "IonFill": "plain:clear"
+                      }'
+                    tagName: ion-button
+                    ↓Event [ngx.components.UIControlEvent-1785163917924]: 
+                      ↓CustomAction [ngx.components.UICustomAction-1785163917926]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        vars.item.children.splice(vars.j, 1);
+                                        page.pageOwner.updateState();
+                                        resolve();
+                                
+                        ↓item [ngx.components.UIControlVariable-1785163917928]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this.item
+                        ↓j [ngx.components.UIControlVariable-1785163917930]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:j
+                    ↓Style [ngx.components.UIStyle-1785163917932]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'margin: 0 !important;
+                              width: 32px;
+                              height: 32px;
+                              &::part(native) {
+                                  background: transparent !important;
+                                  border-radius: 8px;
+                              }
+                              ion-icon{
+                                  color:var(--ion-color-danger);
+                              }
+                              '
+                    ↓Icon [ngx.components.UIDynamicElement-1785163917934]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IonColor": "plain:danger",
+                         "IconName": "plain:trash-outline"
+                        }'
+                      tagName: ion-icon
+                    ↓Attr2 [ngx.components.UIAttribute-1785163917936]: 
+                      attrName: class
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:initial btn
+                  ↓ReorderHandle [ngx.components.UIElement-1785163917938]: 
+                    tagName: ion-reorder
+                    ↓Attr [ngx.components.UIAttribute-1785163917940]: 
+                      attrName: slot
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:end
+              ↓Style [ngx.components.UIStyle-1785163917942]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        '
+        ↓Directive2 [ngx.components.UIControlDirective-1785163917944]: 
+          directiveIndexName: j
+          directiveItemName: child
+          directiveSource: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.item.children
+          ↓Item [ngx.components.UIDynamicElement-1785163917946]: 
+            beanData: '{"ionBean":"GridRow"}'
+            tagName: ion-row
+            ↓Style [ngx.components.UIStyle-1785163917948]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      'width: 100%;
+                      margin: 0 0 8px 0;
+                      '
+            ↓Attr [ngx.components.UIAttribute-1785163917950]: 
+              attrName: id
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:'@prefixc8oitem'+child.name+'@prefixc8otype'+child.type+'c8o_child1'
+            ↓Attr2 [ngx.components.UIAttribute-1785163917952]: 
+              attrName: '*ngIf'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:child.other
+            ↓GridCol3 [ngx.components.UIDynamicElement-1785163917954]: 
+              beanData: '{"ionBean":"GridCol","Size":"plain:12"}'
+              tagName: ion-col
+              ↓StyleRow [ngx.components.UIStyle-1785163917956]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        width: 100%;
+                        min-height: 44px;
+                        padding: 6px 10px;
+                        background: #F5F5F5;
+                        border: 1px solid rgba(26, 26, 26, 0.08);
+                        border-radius: 8px;
+                        box-shadow: none;
+                        box-sizing: border-box;
+                        '
+              ↓DivCheckbox [ngx.components.UIDynamicElement-1785163917958]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1785163917960]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          flex: 0 0 auto;
+                          width: 32px;
+                          min-width: 32px;
+                          height: 32px;
+                          min-height: 32px;
+                          margin: 0;
+                          padding: 0;
+                          background: transparent;
+                          border: 0;
+                          border-radius: 0;
+                          box-sizing: border-box;
+                          ion-checkbox{
+                              margin: 0 !important;
+                              width: 18px;
+                              height: 18px;
+                              min-width: 18px;
+                              min-height: 18px;
+                              --border-color: #B8C1CC;
+                              --checkbox-background-checked: #0F62FE;
+                              --border-color-checked: #0F62FE;
+                          }
+                          '
+                ↓GenericItem [ngx.components.UIDynamicElement-1785163917962]: 
+                  beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+                  tagName: ion-item
+                  ↓Style [ngx.components.UIStyle-1785163917964]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'margin: 0;
+                            width: 20px;
+                            min-width: 20px;
+                            display: flex;
+                            align-items: center;
+                            height: 32px;
+                            overflow: visible;
+                            --min-height: 32px;
+                            --padding-start: 0;
+                            --padding-end: 0;
+                            --inner-padding-end: 0;
+                            --inner-border-width: 0;
+                            --background: transparent;
+                            --box-shadow: none;
+                            box-shadow: none !important;
+                            '
+                  ↓DefaultCheckbox [ngx.components.UIDynamicElement-1785163917966]: 
+                    beanData: '{"ionBean":"CheckBox","Disabled":"script:false"}'
+                    tagName: ion-checkbox
+                    ↓AttrChecked [ngx.components.UIAttribute-1785163917968]: 
+                      attrName: '[checked]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.isEditorMultipleDefaultChecked(child)
+                    ↓AttrValue [ngx.components.UIAttribute-1785163917970]: 
+                      attrName: '[value]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.getEditorSelectChildDefaultValue(child)
+                    ↓AttrAriaLabel [ngx.components.UIAttribute-1785163917972]: 
+                      attrName: '[attr.aria-label]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: script:this.getEditorSelectChildDefaultValue(child)
+                    ↓EventToggleDefault [ngx.components.UIControlEvent-1785163917974]: 
+                      attrName: (ionChange)
+                      eventName: (ionChange)
+                      ↓ToggleMultipleDefault [ngx.components.UICustomAsyncAction-1785163917976]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                '        try {
+                                            let checked: any = event?.detail?.checked;
+                                            if (typeof checked != "boolean" && typeof event?.checked == "boolean") {
+                                                checked = event.checked;
+                                            }
+                                            if (typeof checked != "boolean" && typeof event?.out?.checked == "boolean") {
+                                                checked = event.out.checked;
+                                            }
+                                            if (typeof checked != "boolean" && typeof event?.out == "boolean") {
+                                                checked = event.out;
+                                            }
+                                            page.toggleEditorMultipleDefault(vars.child, checked);
+                                            if (event?.stopPropagation != undefined) {
+                                                event.stopPropagation();
+                                            }
+                                        } catch (e) {
+                                        } finally {
+                                            return;
+                                        }
+                                '
+                        ↓child [ngx.components.UIControlVariable-1785163917978]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:child
+              ↓DivInputOption [ngx.components.UIDynamicElement-1785163917980]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1785163917982]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'display: flex;
+                          align-items: center;
+                          flex: 1 1 auto;
+                          min-width: 0;
+                          '
+                ↓GenericItem [ngx.components.UIDynamicElement-1785163917984]: 
+                  beanData: '{"ionBean":"GenericItem"}'
+                  tagName: ion-item
+                  ↓Style [ngx.components.UIStyle-1785163917986]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'width: 100%;
+                            margin: 0;
+                            display: flex;
+                            align-items: center;
+                            min-height: 32px;
+                            --min-height: 32px;
+                            --padding-start: 0;
+                            --padding-end: 0;
+                            --inner-padding-end: 0;
+                            --inner-border-width: 0;
+                            --background: transparent;
+                            --box-shadow: none;
+                            box-shadow: none !important;
+                            border: 0;
+                            border-radius: 0;
+                            padding: 0;
+                            .label{
+                                margin-top: 0px !important;
+                                margin-bottom: 0px !important;
+                            }
+                            '
+                  ↓TextInput1 [ngx.components.UIDynamicElement-1785163917988]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Input",
+                       "ControlName": "plain:name1785163917988",
+                       "Disabled": "plain:true",
+                       "Debounce": "plain:0",
+                       "Placeholder": "script:this.global[''text'']",
+                       "Value": "script:(''Other'' | translate) +''...''"
+                      }'
+                    tagName: ion-input
+                    ↓Event [ngx.components.UIControlEvent-1785163917990]: 
+                      attrName: (change)
+                      eventName: onChange
+                      ↓UpdateState [ngx.components.UICustomAction-1785163917992]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        page.pageOwner.updateState();
+                                        resolve();
+                                
+                    ↓Attr2 [ngx.components.UIAttribute-1785163917994]: 
+                      attrName: ondragstart
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:event.preventDefault();event.stopPropagation();return false;
+                    ↓Attr3 [ngx.components.UIAttribute-1785163917996]: 
+                      attrName: ondragover
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:event.preventDefault()
+                    ↓Attr31 [ngx.components.UIAttribute-1785163917998]: 
+                      attrName: ondrop
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:event.preventDefault()
+                    ↓Attr11 [ngx.components.UIAttribute-1785163918000]: 
+                      attrName: '[attr.draggable]'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:false
+                    ↓Event11132 [ngx.components.UIControlEvent-1785163918002]: 
+                      attrName: (mouseenter)
+                      eventName: (mouseenter)
+                      ↓cantDrag [ngx.components.UICustomAction-1785163918004]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        page.pageOwner.local.canDrag = "false";
+                                        page.tick();
+                                        resolve();
+                                
+                    ↓Event111311 [ngx.components.UIControlEvent-1785163918006]: 
+                      attrName: (mouseleave)
+                      eventName: (mouseleave)
+                      ↓canDrag [ngx.components.UICustomAction-1785163918008]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        page.pageOwner.local.canDrag = "true";
+                                        page.tick();
+                                        resolve();
+                                
+              ↓DivDelete [ngx.components.UIDynamicElement-1785163918010]: 
+                beanData: '{"ionBean":"DivTag"}'
+                tagName: div
+                ↓Style [ngx.components.UIStyle-1785163918012]: 
+                  styleContent: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          'display: flex;
+                          align-items: center;
+                          gap: 4px;
+                          flex: 0 0 auto;
+                          '
+                ↓GenericItem [ngx.components.UIDynamicElement-1785163918014]: 
+                  beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+                  tagName: ion-item
+                  ↓StyleNoChrome [ngx.components.UIStyle-1785163918016]: 
+                    styleContent: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                          →: |
+                            'margin: 0;
+                            width: auto;
+                            display: flex;
+                            align-items: center;
+                            height: 32px;
+                            --min-height: 32px;
+                            --padding-start: 0;
+                            --padding-end: 0;
+                            --inner-padding-end: 0;
+                            --inner-border-width: 0;
+                            --background: transparent;
+                            --box-shadow: none;
+                            box-shadow: none !important;
+                            '
+                  ↓DeleteButton [ngx.components.UIDynamicElement-1785163918018]: 
+                    beanData: |
+                      '{
+                       "ionBean": "Button",
+                       "IonColor": "plain:btLight",
+                       "IonFill": "plain:clear"
+                      }'
+                    tagName: ion-button
+                    ↓Event [ngx.components.UIControlEvent-1785163918020]: 
+                      ↓CustomAction [ngx.components.UICustomAction-1785163918022]: 
+                        actionValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                              →: |
+                                        vars.item.children.splice(vars.j, 1);
+                                        page.pageOwner.updateState();
+                                        resolve();
+                                
+                        ↓item [ngx.components.UIControlVariable-1785163918024]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:this.item
+                        ↓j [ngx.components.UIControlVariable-1785163918026]: 
+                          varValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:j
+                    ↓Style [ngx.components.UIStyle-1785163918028]: 
+                      styleContent: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                            →: |
+                              'margin: 0 !important;
+                              width: 32px;
+                              height: 32px;
+                              &::part(native) {
+                                  background: transparent !important;
+                                  border-radius: 8px;
+                              }
+                              ion-icon{
+                                  color:var(--ion-color-danger);
+                              }
+                              '
+                    ↓Icon [ngx.components.UIDynamicElement-1785163918030]: 
+                      beanData: |
+                        '{
+                         "ionBean": "Icon",
+                         "IonColor": "plain:danger",
+                         "IconName": "plain:trash-outline"
+                        }'
+                      tagName: ion-icon
+                    ↓Attr [ngx.components.UIAttribute-1785163918032]: 
+                      attrName: class
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:initial btn
+                  ↓ReorderHandle [ngx.components.UIElement-1785163918034]: 
+                    tagName: ion-reorder
+                    ↓Attr [ngx.components.UIAttribute-1785163918036]: 
+                      attrName: slot
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:end
+              ↓Style [ngx.components.UIStyle-1785163918038]: 
+                styleContent: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        'display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        '
+      ↓UseSharedComponentAddOptions [ngx.components.UIUseShared-1785163918040]: 
+        sharedcomponent: C8Oforms.MobileApplication.Application.itemAddCheckBoxOrRadio
+        ↓AttrNoShrink [ngx.components.UIAttribute-1785163920426]: 
+          attrName: style
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: 'plain:flex: 0 0 auto;'
+        ↓item [ngx.components.UIUseVariable-1785163920428]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.item
+        ↓defaultValue [ngx.components.UIUseVariable-1785163920430]: 
+          varValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:'Option'
 ↓Tag [ngx.components.UIElement-1599050997049]: 
   identifier: ElseBlock_1599050997049
   tagName: ng-template
@@ -1916,6 +3008,12 @@ scriptContent:
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: plain:action_sheet
+            ↓AttrMultipleMode [ngx.components.UIAttribute-1785165540220]: 
+              attrName: '*ngIf'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.isSelectInterfaceOptionVisible('action-sheet')
           ↓SelectOption2 [ngx.components.UIDynamicElement-1571405199061]: 
             beanData: '{"ionBean":"SelectOption","Value":"plain:alert"}'
             tagName: ion-select-option
@@ -1926,14 +3024,26 @@ scriptContent:
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: plain:alert
           ↓Attr [ngx.components.UIAttribute-1571405228430]: 
-            attrName: '[(ngModel)]'
+            attrName: '[ngModel]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.item.config.type
+                - MobileSmartSourceType: script:this.getSelectInterfaceModel()
           ↓Event [ngx.components.UIControlEvent-1571405532983]: 
             attrName: (ngModelChange)
             eventName: (ngModelChange)
+            ↓ApplySelectInterface [ngx.components.UICustomAsyncAction-1785165550434]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      'try {
+                          page.setSelectInterfaceForCurrentMode(event.out);
+                      } catch (e) {
+                      } finally {
+                          return;
+                      }'
           ↓Attr1 [ngx.components.UIAttribute-1775196887169]: 
             attrName: class
             attrValue: 
