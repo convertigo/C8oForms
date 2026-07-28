@@ -28,19 +28,60 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
-        	public getConditionFieldType(): string {
-        		try {
-        			let cond = this.currentObject != null && this.currentObject.conds != null ? this.currentObject.conds[this.l] : null;
-        			let type = cond != null && cond.val1 != null ? cond.val1.type : "";
-        			if (this.conditionKind == "goToPageIf") {
-        				return this.pageOwner.getGoToPageType(type);
-        			}
-        			return this.pageOwner.getType(type);
-        		}
-        		catch (e) {
-        			return "";
-        		}
-        	}
+            public getConditionFieldType(condition: any = null): string {
+                try {
+                    let cond = condition != null ? condition : (this.currentObject != null && this.currentObject.conds != null ? this.currentObject.conds[this.l] : null);
+                    let field = cond != null && cond.val1 != undefined ? cond : {val1: cond};
+                    let val = field != null ? field.val1 : null;
+                    let type = val != null && val.type != null ? val.type : "";
+                    let goToPage = this.conditionKind == "goToPageIf";
+                    let owner = this.pageOwner as any;
+                    let guard = 0;
+                    while(owner != null && guard < 20){
+                        let classifier = owner.getConditionFieldType != undefined ? owner.getConditionFieldType : owner.getConditionTypeForField;
+                        if(typeof classifier == "function"){
+                            try{
+                                let classified = classifier.call(owner, field, goToPage);
+                                if(classified != null && classified !== ""){
+                                    return classified;
+                                }
+                            }
+                            catch(e){
+                            }
+                        }
+                        if(typeof owner.getConditionEditorType == "function"){
+                            try{
+                                let editorType = owner.getConditionEditorType(field, goToPage);
+                                if(editorType != null && editorType !== ""){
+                                    return editorType;
+                                }
+                            }
+                            catch(e){
+                            }
+                        }
+                        let nextOwner = owner.pageOwner != null ? owner.pageOwner : owner.owner;
+                        if(nextOwner == owner){
+                            break;
+                        }
+                        owner = nextOwner;
+                        guard++;
+                    }
+                    owner = this.pageOwner as any;
+                    if(goToPage){
+                        if(owner != null && typeof owner.getGoToPageType == "function"){
+                            return owner.getGoToPageType(type);
+                        }
+                        return "simple";
+                    }
+                    if(owner != null && typeof owner.getType == "function"){
+                        return owner.getType(type);
+                    }
+                    return "simple";
+                }
+                catch (e) {
+                    return "";
+                }
+            }
         	public operatorHasNoRightValue(operator: string): boolean {
         		return ["is_filled", "is_empty", "contains_a_file", "does_not_contain_file", "contains_multiple_files"].indexOf(operator) != -1;
         	}
@@ -1066,6 +1107,7 @@ scriptContent:
                   - MobileSmartSourceType: plain:is_filled
           ↓SelectOption145 [ngx.components.UIDynamicElement-1758189195868]: 
             beanData: '{"ionBean":"SelectOption","Value":"plain:among_following"}'
+            isEnabled: false
             tagName: ion-select-option
             ↓Text [ngx.components.UIText-1758189195871]: 
               i18n: true
@@ -1075,6 +1117,7 @@ scriptContent:
                   - MobileSmartSourceType: plain:among_following
           ↓SelectOption146 [ngx.components.UIDynamicElement-1758189195874]: 
             beanData: '{"ionBean":"SelectOption","Value":"plain:among_following"}'
+            isEnabled: false
             tagName: ion-select-option
             ↓Text [ngx.components.UIText-1758189195877]: 
               i18n: true
