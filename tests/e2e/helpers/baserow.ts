@@ -11,6 +11,8 @@
  *   C8OFORMS_MCP_URL    optional; defaults to <C8OFORMS_BASE_URL>/convertigo/api/mcp.
  */
 
+import { execFileSync } from 'node:child_process';
+
 type Json = Record<string, unknown>;
 
 export interface BaserowCatalog {
@@ -59,6 +61,52 @@ function mcpToken(): string {
     throw new Error('C8OFORMS_MCP_TOKEN is not set - needed for Baserow fixtures (see tests/.env.example).');
   }
   return t;
+}
+
+/**
+ * Mint an MCP token for the same configured worker account used by login().
+ *
+ * The provisioning script only understands C8OFORMS_TEST_USER_INDEX, while the
+ * Playwright helpers also support TEST_PARALLEL_INDEX / TEST_WORKER_INDEX and
+ * the legacy singular C8OFORMS_TEST_USER variables. Normalize those inputs here
+ * so the browser session and Baserow fixture always belong to the same user.
+ */
+export function mintCurrentWorkerMcpToken(): string {
+  const listedUsers = (process.env.C8OFORMS_TEST_USERS ?? process.env.TEST_NOCODE_E2E_USERS ?? '')
+    .split(',')
+    .map((user) => user.trim())
+    .filter(Boolean);
+  const singularUser = (process.env.C8OFORMS_TEST_USER ?? '').trim();
+  const users = listedUsers.length > 0 ? listedUsers : singularUser ? [singularUser] : [];
+  const oneBased = Number(process.env.C8OFORMS_TEST_USER_INDEX);
+  const parallel = Number(process.env.TEST_PARALLEL_INDEX ?? process.env.TEST_WORKER_INDEX);
+  const selectedIndex =
+    Number.isInteger(oneBased) && oneBased > 0
+      ? oneBased
+      : Number.isInteger(parallel) && parallel >= 0
+        ? parallel + 1
+        : 1;
+  const normalizedIndex = users.length > 0 ? ((selectedIndex - 1) % users.length) + 1 : selectedIndex;
+  const env = {
+    ...process.env,
+    C8OFORMS_TEST_USER_INDEX: String(normalizedIndex),
+    GITHUB_ENV: '',
+  };
+  if (listedUsers.length === 0 && singularUser) {
+    env.C8OFORMS_TEST_USERS = singularUser;
+    env.C8OFORMS_TEST_PASSWORD_1 = process.env.C8OFORMS_TEST_PASSWORD ?? singularUser;
+  }
+
+  const out = execFileSync('node', ['ci/ensure-test-users.mjs', '--emit-mcp-token'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env,
+  });
+  const match = out.match(/^C8OFORMS_MCP_TOKEN=(.+)$/m);
+  if (!match) {
+    throw new Error(`Could not mint an MCP token for worker index ${normalizedIndex}: ${out.slice(-400)}`);
+  }
+  return match[1].trim();
 }
 
 function sleep(ms: number): Promise<void> {

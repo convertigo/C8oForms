@@ -1,6 +1,5 @@
 import { test, expect, type Browser } from './fixtures';
-import { execFileSync } from 'node:child_process';
-import { ensureBaserowTable } from './helpers/baserow';
+import { ensureBaserowTable, mintCurrentWorkerMcpToken } from './helpers/baserow';
 import {
   SEL,
   PALETTE_ICON,
@@ -56,19 +55,18 @@ const PROBES: UserProbe[] = [
   { oneBasedIndex: 2, marker: 'Owner Bravo 1423' },
 ];
 
-// Mint an MCP token for a specific configured user by reusing the proven CI
-// provisioning script. Without GITHUB_ENV it prints `C8OFORMS_MCP_TOKEN=...`.
 function mintMcpToken(oneBasedIndex: number): string {
-  const out = execFileSync('node', ['ci/ensure-test-users.mjs', '--emit-mcp-token'], {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    env: { ...process.env, C8OFORMS_TEST_USER_INDEX: String(oneBasedIndex), GITHUB_ENV: '' },
-  });
-  const match = out.match(/^C8OFORMS_MCP_TOKEN=(.+)$/m);
-  if (!match) {
-    throw new Error(`Could not mint an MCP token for user index ${oneBasedIndex}: ${out.slice(-400)}`);
+  const previousIndex = process.env.C8OFORMS_TEST_USER_INDEX;
+  process.env.C8OFORMS_TEST_USER_INDEX = String(oneBasedIndex);
+  try {
+    return mintCurrentWorkerMcpToken();
+  } finally {
+    if (previousIndex === undefined) {
+      delete process.env.C8OFORMS_TEST_USER_INDEX;
+    } else {
+      process.env.C8OFORMS_TEST_USER_INDEX = previousIndex;
+    }
   }
-  return match[1].trim();
 }
 
 async function selectTableInPicker(browser: Browser, probe: UserProbe): Promise<void> {
