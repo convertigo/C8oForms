@@ -270,13 +270,32 @@ componentScriptContent:
         		return ''en'';
         	}
         
+        	public getAgentAssistantTheme(): string {
+        		try {
+        			const globalTheme = this.global?.themeDark === true || this.global?.darkTheme === true || this.global?.dark === true;
+        			const domTheme = document.documentElement?.classList?.contains(''dark'') || document.body?.classList?.contains(''dark'');
+        			return globalTheme || domTheme ? ''dark'' : ''light'';
+        		} catch (e) {
+        			return ''light'';
+        		}
+        	}
+        
         	public getAgentAssistantContext(): any {
         		const currentUrl = this.getAgentAssistantCurrentUrl();
         		const currentRoute = this.getAgentAssistantCurrentRoute();
-        		const currentFormId = this.getAgentAssistantCurrentFormId();
-        		const currentPage = this.getAgentAssistantCurrentPage();
+        		const routeFormId = this.getAgentAssistantCurrentFormId();
+        		const selected: any = this.global?.agentAssistantSelectionContext || {};
+        		const selectedFormId = String(selected.currentFormId || selected.formId || '''');
+        		const selectionMatchesRoute = routeFormId !== '''' && (selectedFormId === '''' || routeFormId === selectedFormId);
+        		const selection: any = selectionMatchesRoute ? selected : {};
+        		const currentFormId = String(selection.currentFormId || selection.formId || routeFormId || '''');
+        		const currentPage = String(selection.currentPage || selection.pageId || this.getAgentAssistantCurrentPage() || '''');
         		const language = this.getAgentAssistantLanguage();
+        		const theme = this.getAgentAssistantTheme();
         		return {
+        			contextVersion: ''1'',
+        			embedMode: ''c8oforms'',
+        			hostOrigin: window.location.origin,
         			assistantSurface: ''nocode'',
         			assistantContext: ''nocode'',
         			agentProfile: ''nocode'',
@@ -291,15 +310,27 @@ componentScriptContent:
         			language: language,
         			locale: language,
         			assistantLanguage: language,
-        			theme: ''light'',
-        			darkTheme: ''false'',
+        			theme: theme,
+        			darkTheme: theme === ''dark'',
         			currentUrl: currentUrl,
         			nocodeCurrentUrl: currentUrl,
         			currentRoute: currentRoute,
         			nocodeCurrentRoute: currentRoute,
         			currentFormId: currentFormId,
         			nocodeCurrentFormId: currentFormId,
-        			currentPage: currentPage
+        			formId: currentFormId,
+        			currentFormName: String(selection.currentFormName || selection.formName || ''''),
+        			formName: String(selection.formName || selection.currentFormName || ''''),
+        			currentFormRevision: String(selection.currentFormRevision || selection.formRevision || ''''),
+        			formRevision: String(selection.formRevision || selection.currentFormRevision || ''''),
+        			currentPage: currentPage,
+        			pageId: currentPage,
+        			pageName: String(selection.pageName || ''''),
+        			elementId: String(selection.elementId || ''''),
+        			elementName: String(selection.elementName || ''''),
+        			elementType: String(selection.elementType || ''''),
+        			parentElementId: String(selection.parentElementId || ''''),
+        			selectionKind: String(selection.selectionKind || (currentFormId !== '''' ? ''form'' : ''''))
         		};
         	}
         
@@ -317,22 +348,17 @@ componentScriptContent:
         			if (this.global?.isAgentMenuOpen !== true) {
         				return;
         			}
+        			const frame = document.querySelector(''iframe.agent-assistant-frame'') as HTMLIFrameElement;
+        			if (!frame || !frame.contentWindow) {
+        				return;
+        			}
         			const context = this.getAgentAssistantContext();
         			const serialized = JSON.stringify(context);
         			if (!force && serialized === this.agentAssistantLastPostedContext && this.agentAssistantLastPostedUrl === this.agentAssistantSafeUrlValue) {
         				return;
         			}
         			const targetOrigin = this.getAgentAssistantTargetOrigin();
-        			const frames = Array.prototype.slice.call(document.querySelectorAll(''iframe''));
-        			for (const frame of frames) {
-        				const src = String(frame.getAttribute(''src'') || frame.src || '''');
-        				if (src.indexOf(''ConvertigoAssistant'') === -1 && src.indexOf(''path-to-agent'') === -1) {
-        					continue;
-        				}
-        				if (frame.contentWindow) {
-        					frame.contentWindow.postMessage({ type: ''ConvertigoAssistant.context'', payload: context }, targetOrigin);
-        				}
-        			}
+        			frame.contentWindow.postMessage({ type: ''ConvertigoAssistant.context'', payload: context }, targetOrigin);
         			this.agentAssistantLastPostedContext = serialized;
         			this.agentAssistantLastPostedUrl = this.agentAssistantSafeUrlValue;
         		} catch (e) {}
@@ -348,16 +374,46 @@ componentScriptContent:
         					this.postAgentAssistantContext(false);
         				}
         			}, 1500);
-        			window.addEventListener(''popstate'', () => this.postAgentAssistantContext(true));
-        			window.addEventListener(''hashchange'', () => this.postAgentAssistantContext(true));
+        			const publish = () => this.postAgentAssistantContext(true);
+        			window.addEventListener(''popstate'', publish);
+        			window.addEventListener(''hashchange'', publish);
+        			window.addEventListener(''c8oforms:assistant-context-change'', publish as EventListener);
         			window.addEventListener(''message'', (event) => {
         				try {
         					const data = event && event.data ? event.data : null;
-        					if (data && data.type === ''ConvertigoAssistant.context.request'') {
+        					const frame = document.querySelector(''iframe.agent-assistant-frame'') as HTMLIFrameElement;
+        					const targetOrigin = this.getAgentAssistantTargetOrigin();
+        					if (!data || !frame || event.source !== frame.contentWindow || event.origin !== targetOrigin) {
+        						return;
+        					}
+        					if (data.type === ''ConvertigoAssistant.context.request'') {
         						this.postAgentAssistantContext(true);
+        						return;
+        					}
+        					if (data.type === ''ConvertigoAssistant.form-updated'') {
+        						this.handleAgentAssistantFormUpdated(data.payload || data.context || {});
         					}
         				} catch (e) {}
         			});
+        		} catch (e) {}
+        	}
+        
+        	public handleAgentAssistantFormUpdated(payload: any): void {
+        		try {
+        			payload = payload && typeof payload === "object" ? payload : {};
+        			const formId = String(payload.formId || "");
+        			const current = this.getAgentAssistantContext();
+        			if (formId === "" || String(current.formId || current.currentFormId || "") !== formId) {
+        				return;
+        			}
+        			const mutationKey = String(payload.mutationKey || ((payload.runid || "") + ":" + formId + ":" + (payload.completedAt || "")));
+        			if (mutationKey !== "" && this.global?.agentAssistantLastMutationKey === mutationKey) {
+        				return;
+        			}
+        			if (!this.global) { this.global = {}; }
+        			this.global.agentAssistantLastMutationKey = mutationKey;
+        			this.events.publish("AgentAssistantFormUpdated", payload, true);
+        			try { window.dispatchEvent(new CustomEvent("c8oforms:assistant-form-updated", { detail: payload })); } catch (eEvent) {}
         		} catch (e) {}
         	}
         
@@ -366,10 +422,12 @@ componentScriptContent:
         		if (endpoint === '''') {
         			return '''';
         		}
-        		const language = this.getAgentAssistantLanguage();
         		const params = new URLSearchParams();
         		params.set(''agentBridge'', ''1'');
         		params.set(''assistantMode'', ''agent'');
+        		params.set(''embedMode'', ''c8oforms'');
+        		params.set(''contextVersion'', ''1'');
+        		params.set(''hostOrigin'', window.location.origin);
         		params.set(''assistantSurface'', ''nocode'');
         		params.set(''assistantContext'', ''nocode'');
         		params.set(''agentProfile'', ''nocode'');
@@ -381,11 +439,6 @@ componentScriptContent:
         		params.set(''codexHomeScope'', ''user'');
         		params.set(''vibeHomeScope'', ''user'');
         		params.set(''homeScope'', ''user'');
-        		params.set(''language'', language);
-        		params.set(''locale'', language);
-        		params.set(''assistantLanguage'', language);
-        		params.set(''theme'', ''light'');
-        		params.set(''dark-theme'', ''false'');
         		return endpoint + ''/projects/ConvertigoAssistant/DisplayObjects/mobile/path-to-agent/%3Athreadid?'' + params.toString();
         	}
         
@@ -5248,34 +5301,19 @@ useClickForTap: true
             					var context: any = {};
             					try { context = originalContext ? originalContext.call(page) : {}; } catch (eContext) { context = {}; }
             					var language = app.getAgentAssistantLanguage ? app.getAgentAssistantLanguage() : ''en'';
+            					var theme = app.getAgentAssistantTheme ? app.getAgentAssistantTheme() : ''light'';
             					context.language = language;
             					context.locale = language;
             					context.assistantLanguage = language;
-            					context.theme = ''light'';
-            					context.darkTheme = ''false'';
+            					context.theme = theme;
+            					context.darkTheme = theme === ''dark'';
             					return context;
             				};
             
             				var originalUrl = page.getAgentAssistantUrl;
             				app.getAgentAssistantUrl = function() {
-            					var url = '''';
-            					try { url = originalUrl ? String(originalUrl.call(page) || '''') : ''''; } catch (eUrl) { url = ''''; }
-            					if (!url.length) {
-            						return url;
-            					}
-            					var language = app.getAgentAssistantLanguage ? app.getAgentAssistantLanguage() : ''en'';
-            					try {
-            						var parsed = new URL(url, window.location.href);
-            						parsed.searchParams.set(''language'', language);
-            						parsed.searchParams.set(''locale'', language);
-            						parsed.searchParams.set(''assistantLanguage'', language);
-            						parsed.searchParams.set(''theme'', ''light'');
-            						parsed.searchParams.set(''dark-theme'', ''false'');
-            						return parsed.toString();
-            					} catch (eParse) {
-            						var separator = url.indexOf(''?'') === -1 ? ''?'' : ''&'';
-            						return url + separator + ''language='' + encodeURIComponent(language) + ''&locale='' + encodeURIComponent(language) + ''&assistantLanguage='' + encodeURIComponent(language) + ''&theme=light&dark-theme=false'';
-            					}
+            					try { return originalUrl ? String(originalUrl.call(page) || '''') : ''''; } catch (eUrl) {}
+            					return '''';
             				};
             
             				app.closeAgentAssistantIfLoggedOut = function() {
@@ -9072,9 +9110,14 @@ useClickForTap: true
           
           ion-menu#agentMenu,
           ion-menu[menu-id="AgentMenu"] {
-            --width: min(420px, 42vw) !important;
-            --min-width: 360px !important;
-            --max-width: 520px !important;
+            --agent-drawer-width: clamp(360px, 42vw, 960px);
+            --width: var(--agent-drawer-width) !important;
+            --min-width: var(--agent-drawer-width) !important;
+            --max-width: var(--agent-drawer-width) !important;
+            width: var(--agent-drawer-width) !important;
+            min-width: var(--agent-drawer-width) !important;
+            max-width: var(--agent-drawer-width) !important;
+            box-sizing: content-box;
             --background: var(--sidebar, #ffffff);
             --box-shadow: -12px 0 32px rgba(15, 23, 42, 0.12);
             border-left: 1px solid var(--sidebar-border, #ededed);
@@ -9083,9 +9126,12 @@ useClickForTap: true
           @media (max-width: 700px) {
             ion-menu#agentMenu,
             ion-menu[menu-id="AgentMenu"] {
+              --agent-drawer-width: 100vw;
               --width: 100vw !important;
               --min-width: 100vw !important;
               --max-width: 100vw !important;
+              box-sizing: border-box;
+              border-left: 0;
             }
           }
           

@@ -56522,6 +56522,48 @@ title: Title for editor
                   		page.local.filteredPaletteComponents = page.searchPalette(this.local.Palette, "");
                   		resolve();
                   '
+        ↓PublishAgentAssistantFormContext [ngx.components.UICustomAction-1784896708637]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '		try {
+                  			var form = page.form || {};
+                  			var pageTechName = String((page.local && page.local.currentPage) || "");
+                  			var pageDefinition = null;
+                  			try {
+                  				var pages = Array.isArray(form.pages) ? form.pages : [];
+                  				for (var i = 0; i < pages.length; i++) {
+                  					if (pages[i] && (pages[i].pageTechName == pageTechName || pages[i].id == pageTechName)) {
+                  						pageDefinition = pages[i];
+                  						break;
+                  					}
+                  				}
+                  			} catch (ePage) {}
+                  			if (page.global) {
+                  				page.global.agentAssistantSelectionContext = {
+                  					currentFormId: String(form._id || (page.local && page.local.formId) || ""),
+                  					nocodeCurrentFormId: String(form._id || (page.local && page.local.formId) || ""),
+                  					formId: String(form._id || (page.local && page.local.formId) || ""),
+                  					currentFormName: String(form.name || ""),
+                  					formName: String(form.name || ""),
+                  					currentFormRevision: String(form._rev || form.version || ""),
+                  					formRevision: String(form._rev || form.version || ""),
+                  					currentPage: pageTechName,
+                  					pageId: pageTechName,
+                  					pageName: String((pageDefinition && (pageDefinition.name || pageDefinition.title)) || pageTechName),
+                  					elementId: "",
+                  					elementName: "",
+                  					elementType: "",
+                  					parentElementId: "",
+                  					selectionKind: "form"
+                  				};
+                  			}
+                  			try { window.dispatchEvent(new CustomEvent("c8oforms:assistant-context-change")); } catch (eEvent) {}
+                  		} catch (e) {}
+                  		resolve();
+                  '
       ↓PublishEventInitalSyncFinished [ngx.components.UIDynamicAction-1601369445620]: 
         beanData: |
           '{
@@ -65626,3 +65668,139 @@ title: Title for editor
           →: |
             		page.local.filteredPaletteComponents = page.searchPalette(this.local.Palette, "");
             		resolve();
+↓AgentAssistantFormUpdated [ngx.components.UIEventSubscriber-1784901025663]: 
+  comment: Reloads the current form after a successful mutation reported by the embedded Convertigo Assistant.
+  topic: AgentAssistantFormUpdated
+  ↓ReloadAssistantUpdatedForm [ngx.components.UIDynamicAction-1784901027571]: 
+    beanData: |
+      '{
+       "ionBean": "CallSequenceAction",
+       "requestable": "plain:C8Oforms.APIV2_getDocument",
+       "noLoading": "plain:true"
+      }'
+    comment: Fetches the authoritative form document after an Assistant mutation.
+    ↓id [ngx.components.UIControlVariable-1784901029503]: 
+      varValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:(stack && stack['root'] && stack['root'].out && stack['root'].out.formId) || c8oPage.local.formId
+    ↓ApplyAssistantUpdatedForm [ngx.components.UICustomAction-1784901029505]: 
+      actionValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              '		try {
+              			var rootEvent = props.stack && props.stack["root"] ? (props.stack["root"].out || {}) : {};
+              			var currentFormId = String((page.local && page.local.formId) || (page.form && page.form._id) || "");
+              			var eventFormId = String(rootEvent.formId || currentFormId || "");
+              			if (!currentFormId.length || eventFormId !== currentFormId) {
+              				resolve({applied: false, reason: "form-changed"});
+              				return;
+              			}
+              			if (page["__updateStateLocalWriteInFlight"] === true) {
+              				var attempt = Number(rootEvent.refreshAttempt || 0);
+              				if (attempt < 10) {
+              					var retryEvent: any = {};
+              					for (var retryKey in rootEvent) {
+              						retryEvent[retryKey] = rootEvent[retryKey];
+              					}
+              					retryEvent.refreshAttempt = attempt + 1;
+              					setTimeout(function() {
+              						try { page.events.publish("AgentAssistantFormUpdated", retryEvent, true); } catch (eRetry) {}
+              					}, 500);
+              				}
+              				resolve({applied: false, reason: "local-write-in-flight", deferred: attempt < 10});
+              				return;
+              			}
+              			var out = props.parent && props.parent.out ? props.parent.out : {};
+              			var doc = out.res || (out.document && out.document.res) || out.document || null;
+              			if (!doc || String(doc._id || "") !== currentFormId) {
+              				resolve({applied: false, reason: "document-unavailable"});
+              				return;
+              			}
+              			var previousForm = page.form || {};
+              			var previousRevision = String(previousForm._rev || "");
+              			var nextRevision = String(doc._rev || "");
+              			var revisionNumber = function(value) {
+              				var match = String(value || "").match(/^(\d+)-/);
+              				return match ? Number(match[1]) : 0;
+              			};
+              			if (revisionNumber(nextRevision) < revisionNumber(previousRevision)) {
+              				resolve({applied: false, reason: "older-revision"});
+              				return;
+              			}
+              			var selection = page.global && page.global.agentAssistantSelectionContext ? page.global.agentAssistantSelectionContext : {};
+              			var selectedElementId = String(selection.elementId || page.idselectedC || page.idselected || "");
+              			var currentPage = String((page.local && page.local.currentPage) || selection.pageId || "");
+              			var findById = function(value, wantedId) {
+              				if (!wantedId.length || value == null || typeof value !== "object") { return null; }
+              				if (!Array.isArray(value) && String(value.id || "") === wantedId) { return value; }
+              				if (Array.isArray(value)) {
+              					for (var arrayIndex = 0; arrayIndex < value.length; arrayIndex++) {
+              						var arrayMatch = findById(value[arrayIndex], wantedId);
+              						if (arrayMatch) { return arrayMatch; }
+              					}
+              					return null;
+              				}
+              				for (var objectKey in value) {
+              					if (objectKey === "_attachments") { continue; }
+              					var objectMatch = findById(value[objectKey], wantedId);
+              					if (objectMatch) { return objectMatch; }
+              				}
+              				return null;
+              			};
+              			var selectedElement = findById(doc.formulaire || [], selectedElementId) || findById(doc.flows || [], selectedElementId);
+              			if (selectedElement && selectedElement.config && selectedElement.config.page) {
+              				currentPage = String(selectedElement.config.page);
+              			}
+              			var pages = Array.isArray(doc.pages) ? doc.pages : [];
+              			var pageIndex = -1;
+              			for (var pageCursor = 0; pageCursor < pages.length; pageCursor++) {
+              				if (pages[pageCursor] && (String(pages[pageCursor].pageTechName || "") === currentPage || String(pages[pageCursor].id || "") === currentPage)) {
+              					pageIndex = pageCursor;
+              					break;
+              				}
+              			}
+              			if (pageIndex < 0 && pages.length) {
+              				pageIndex = 0;
+              				currentPage = String(pages[0].pageTechName || pages[0].id || "");
+              			}
+              			page.form = doc;
+              			page.formsList = doc.formulaire || [];
+              			page.local.pages = pages;
+              			page.local.currentIndex = pageIndex < 0 ? 0 : pageIndex;
+              			page.local.currentPage = currentPage;
+              			if (!selectedElement) {
+              				page.idselected = "";
+              				page.idselectedC = "";
+              				selectedElementId = "";
+              			}
+              			var pageDefinition = pageIndex >= 0 ? pages[pageIndex] : null;
+              			if (!page.global) { page.global = {}; }
+              			page.global.agentAssistantSelectionContext = {
+              				currentFormId: currentFormId,
+              				nocodeCurrentFormId: currentFormId,
+              				formId: currentFormId,
+              				currentFormName: String(doc.name || ""),
+              				formName: String(doc.name || ""),
+              				currentFormRevision: nextRevision,
+              				formRevision: nextRevision,
+              				currentPage: currentPage,
+              				pageId: currentPage,
+              				pageName: String((pageDefinition && (pageDefinition.name || pageDefinition.title)) || currentPage),
+              				elementId: selectedElementId,
+              				elementName: String((selectedElement && (selectedElement.name || (selectedElement.config && selectedElement.config.label))) || ""),
+              				elementType: String((selectedElement && selectedElement.type) || ""),
+              				parentElementId: String((selectedElement && selectedElement.parentRef) || ""),
+              				selectionKind: selectedElement ? String(selection.selectionKind || "form-element") : "form"
+              			};
+              			try { window.dispatchEvent(new CustomEvent("c8oforms:assistant-context-change")); } catch (eContext) {}
+              			page.ref.detectChanges();
+              			resolve({applied: true, formId: currentFormId, revision: nextRevision, elementPreserved: !!selectedElement});
+              		} catch (e) {
+              			try { page.c8o.log.warn("[Assistant] Unable to refresh the updated form: " + e); } catch (eLog) {}
+              			resolve({applied: false, reason: "refresh-error"});
+              		}
+              '
+      comment: Applies the refreshed form while preserving the current page and exact element selection when possible.
