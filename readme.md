@@ -528,6 +528,7 @@ For more technical informations : [documentation](./project.md)
         - [searchApp](#searchapp)
         - [seeProfilModal](#seeprofilmodal)
         - [SelectDataInteractionsEditor](#selectdatainteractionseditor)
+        - [SelectEditorComponent](#selecteditorcomponent)
         - [sharedDropIndicator](#shareddropindicator)
         - [sharedDropIndicatorSelector](#shareddropindicatorselector)
         - [SharedGrabHeader](#sharedgrabheader)
@@ -9395,6 +9396,58 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>item</td><td></td>
+</tr>
+</table>
+#### SelectEditorComponent
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>disabled</td><td></td>
+</tr>
+<tr>
+<td>hasSeparators</td><td></td>
+</tr>
+<tr>
+<td>i18nCallback</td><td></td>
+</tr>
+<tr>
+<td>keyName</td><td></td>
+</tr>
+<tr>
+<td>label</td><td></td>
+</tr>
+<tr>
+<td>model</td><td></td>
+</tr>
+<tr>
+<td>options</td><td></td>
+</tr>
+<tr>
+<td>style</td><td></td>
+</tr>
+<tr>
+<td>tooltipAlwaysVisible</td><td></td>
+</tr>
+<tr>
+<td>tooltipContent</td><td></td>
+</tr>
+<tr>
+<td>tooltipEnabled</td><td></td>
+</tr>
+</table>
+**events**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>modelChanged</td><td></td>
 </tr>
 </table>
 #### sharedDropIndicator

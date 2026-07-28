@@ -3582,6 +3582,7 @@ const DATA_SOURCE_FILTER_FIELD_INPUT = '.class1758189195703 input';
 const DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON = 'ion-button.class1758189195718';
 const DATA_SOURCE_FILTER_OPERATOR_SELECT = 'ion-select.class1758189195757';
 const DATA_SOURCE_SORT_ACTION_INDEX = 2;
+const DATA_SOURCE_GROUP_BY_ACTION_INDEX = 4;
 const DATA_SOURCE_SORT_ADD_FIELD_BUTTON = 'ion-button.class1758273392231';
 const DATA_SOURCE_SORT_ASC_BUTTON = '.class1758275049219';
 const DATA_SOURCE_SORT_DESC_BUTTON = '.class1758275831002';
@@ -4010,6 +4011,43 @@ export async function openDataSourceFilterPanel(page: Page): Promise<void> {
     await expect(filterAction, 'the data source Filter action should be selected').toHaveClass(/figma-button--selected/, {
       timeout: 10_000,
     });
+  });
+}
+
+export async function configureDataSourceGroupBy(page: Page, column: string): Promise<void> {
+  await test.step(`Configure data source Group by ${column}`, async () => {
+    const actions = page.locator(`${DATA_SOURCE_EDITOR_ACTION_BUTTON}:visible`);
+    const groupByAction = actions.nth(DATA_SOURCE_GROUP_BY_ACTION_INDEX);
+    await expect(groupByAction, 'the data source Group by action should be visible').toBeVisible({ timeout: 15_000 });
+    await groupByAction.click({ timeout: 10_000 }).catch(async () => groupByAction.dispatchEvent('click'));
+    await expect(groupByAction, 'the data source Group by action should be selected').toHaveClass(
+      /figma-button--selected/,
+      { timeout: 10_000 },
+    );
+    await fillVisibleTinyMceText(page, column, `data source Group by should contain ${column}`);
+  });
+}
+
+export async function dataSourceFilterFieldOptions(page: Page): Promise<string[]> {
+  return test.step('List the data source Filter fields', async () => {
+    await openDataSourceFilterPanel(page);
+    let fieldButton = page
+      .locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON}:visible`)
+      .last();
+    if (!(await fieldButton.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await addDataSourceFilterRow(page);
+      fieldButton = page
+        .locator(`c8oforms-datasourceeditor ${DATA_SOURCE_FILTER_FIELD_BROWSE_BUTTON}:visible`)
+        .last();
+    }
+    await expect(fieldButton, 'the data source Filter field picker button should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+    await fieldButton.click({ timeout: 10_000 }).catch(async () => fieldButton.dispatchEvent('click'));
+    await expect(sourceCompletionPopover(page), 'the data source Filter field picker should open').toBeVisible({
+      timeout: 15_000,
+    });
+    return (await sourceCompletionPopoverState(page)).labels;
   });
 }
 
