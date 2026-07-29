@@ -9413,19 +9413,22 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>hasSeparators</td><td></td>
 </tr>
 <tr>
-<td>i18nCallback</td><td></td>
+<td>i18nCallback</td><td>Optional translation callback for object option labels. Failures leave the raw visible value unchanged.</td>
 </tr>
 <tr>
-<td>keyName</td><td></td>
+<td>keyName</td><td>Optional object property used as the option value and display seed when options are object-based.</td>
 </tr>
 <tr>
 <td>label</td><td></td>
 </tr>
 <tr>
-<td>model</td><td></td>
+<td>model</td><td>Selected value exchanged with the form model. Primitive and keyName-based object values keep the existing contract.</td>
 </tr>
 <tr>
-<td>options</td><td></td>
+<td>options</td><td>Source option list. Search filtering must read from this input without mutating or reindexing it.</td>
+</tr>
+<tr>
+<td>searchEnabled</td><td>Enables the custom searchable options popover. When false, the component keeps the historical native Ionic select branch.</td>
 </tr>
 <tr>
 <td>style</td><td></td>
