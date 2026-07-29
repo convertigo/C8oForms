@@ -6,21 +6,28 @@ scriptContent:
         '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
+        	/** Local query used only to filter displayed select options. */
+        	public searchQuery = "";
+        	/** Controls the custom searchable options popover without opening the native ion-select overlay. */
+        	public isSearchOptionsPopoverOpen = false;
+        	/** Element that opened the searchable popover, used to restore focus on dismiss. */
+        	private searchOptionsFocusTarget: any = null;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
-        		if ((this.keyName == null || this.keyName == undefined || this.keyName == '''') && !this.disabled) {
+        		if ((this.keyName == null || this.keyName == undefined || this.keyName == '''') && !this.disabled) {
         			//indexOf - case of simple array
-        			this.local.index = this.options.indexOf(this.model);			
+        			this.local.index = this.options.indexOf(this.model);
         		} else {
         			//findIndex - case of object list
-        			
         			this.local.index = this.options.findIndex(item => this.model == item[this.keyName]);
         		}
         //		console.log(''select'', this.model)
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
+        		this.isSearchOptionsPopoverOpen = false;
+        		this.searchOptionsFocusTarget = null;
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompChanges*/
         		
@@ -43,6 +50,233 @@ scriptContent:
         		}
         		const alwaysVisible = this.tooltipAlwaysVisible === true || this.tooltipAlwaysVisible === "true";
         		return alwaysVisible || (this.local != null && this.local.isHovered === true);
+        	}
+        
+        	/** Returns true when the optional local option search is enabled. */
+        	public isSearchEnabled(): boolean {
+        		return this.searchEnabled === true || this.searchEnabled === "true";
+        	}
+        
+        	/** Options rendered by the select. The source options input is never mutated. */
+        	public get filteredOptions(): any[] {
+        		const sourceOptions = this.getSourceOptions();
+        		const normalizedQuery = this.normalizeSearchText(this.searchQuery);
+        		if (!this.isSearchEnabled() || normalizedQuery == "") {
+        			return sourceOptions;
+        		}
+        		return sourceOptions.filter((option) => this.optionMatchesSearch(option, normalizedQuery));
+        	}
+        
+        	/** Updates only the local query used by the controlled searchable popover. */
+        	public onSearchChange(eventOrValue: any, _unusedSelectElement?: any): void {
+        		const candidate = this.extractSearchValue(eventOrValue);
+        		this.searchQuery = candidate == null ? "" : "" + candidate;
+        	}
+        
+        	/** Clears only the local option filter and keeps focus in the searchable popover. */
+        	public clearSearch(searchbar?: any): void {
+        		this.searchQuery = "";
+        		this.focusSearchOptionsInput(searchbar);
+        	}
+        
+        	public openSearchOptions(event?: any): void {
+        		if (!this.isSearchEnabled() || this.isComponentDisabled()) {
+        			return;
+        		}
+        		this.searchOptionsFocusTarget = event != null ? (event.currentTarget || event.target || null) : this.searchOptionsFocusTarget;
+        		this.isSearchOptionsPopoverOpen = true;
+        	}
+        
+        	public openSearchOptionsFromKeyboard(event?: any): void {
+        		const key = event != null ? (event.key || event.code) : null;
+        		if (key === "Enter" || key === " " || key === "Space" || key === "Spacebar") {
+        			if (event != null && typeof event.preventDefault == "function") {
+        				event.preventDefault();
+        			}
+        			this.openSearchOptions(event);
+        		}
+        	}
+        
+        	public closeSearchOptions(): void {
+        		this.isSearchOptionsPopoverOpen = false;
+        	}
+        
+        	public onSearchOptionsDidPresent(searchbar?: any): void {
+        		this.focusSearchOptionsInput(searchbar);
+        	}
+        
+        	public onSearchOptionsDidDismiss(): void {
+        		this.isSearchOptionsPopoverOpen = false;
+        		this.focusSearchOptionsTrigger();
+        	}
+        
+        	public hasNoSearchResults(): boolean {
+        		return this.isSearchEnabled() && this.normalizeSearchText(this.searchQuery) != "" && this.filteredOptions.length == 0;
+        	}
+        
+        	public getSearchOptionLabel(option: any): string {
+        		return this.getOptionSearchText(option);
+        	}
+        
+        	public getSelectedOptionLabel(): string {
+        		const sourceOptions = this.getSourceOptions();
+        		const optionFromIndex = this.local != null && this.local.index != null && this.local.index >= 0
+        			? sourceOptions[this.local.index]
+        			: null;
+        		const selectedOption = optionFromIndex != null ? optionFromIndex : this.findSelectedOption();
+        		return selectedOption == null ? "" : this.getSearchOptionLabel(selectedOption);
+        	}
+        
+        	public isSearchOptionSelected(option: any): boolean {
+        		const optionValue = this.getOptionValue(option);
+        		if (Array.isArray(this.model)) {
+        			return this.model.some((value) => this.sameOptionValue(value, optionValue));
+        		}
+        		return this.sameOptionValue(this.model, optionValue);
+        	}
+        
+        	public selectSearchOption(option: any): any {
+        		if (this.isComponentDisabled()) {
+        			return null;
+        		}
+        		const sourceOptions = this.getSourceOptions();
+        		const selectedIndex = sourceOptions.indexOf(option);
+        		const selectedValue = this.getOptionValue(option);
+        //		console.log(this, selectedIndex, selectedValue)
+        		if (this.local == null) {
+        			this.local = {};
+        		}
+        		this.local.index = selectedIndex;
+        		this.model = selectedValue;
+        //		console.log(this.model)
+        		const output = this.hasKeyName() ? {item: this.model, index: selectedIndex} : this.model;
+        		this.emitModelChanged(output);
+        		this.closeSearchOptions();
+        		return output;
+        	}
+        
+        	public isComponentDisabled(): boolean {
+        		return this.disabled === true || this.disabled === "true";
+        	}
+        
+        	private extractSearchValue(eventOrValue: any): any {
+        		return eventOrValue != null && eventOrValue.detail != null
+        			? eventOrValue.detail.value
+        			: (eventOrValue != null && eventOrValue.target != null
+        				? eventOrValue.target.value
+        				: eventOrValue);
+        	}
+        
+        	private focusSearchOptionsInput(searchbar?: any): void {
+        		const target = searchbar || (this as any).searchOptionsInput;
+        		this.scheduleSearchFocus(() => {
+        			try {
+        				if (target != null && typeof target.setFocus == "function") {
+        					target.setFocus();
+        				} else if (target != null && target.nativeElement != null && typeof target.nativeElement.setFocus == "function") {
+        					target.nativeElement.setFocus();
+        				}
+        			} catch (_e) {
+        			}
+        		});
+        	}
+        
+        	private focusSearchOptionsTrigger(): void {
+        		const target = this.searchOptionsFocusTarget;
+        		this.searchOptionsFocusTarget = null;
+        		this.scheduleSearchFocus(() => {
+        			try {
+        				if (target != null && typeof target.focus == "function") {
+        					target.focus();
+        				} else if (target != null && target.nativeElement != null && typeof target.nativeElement.focus == "function") {
+        					target.nativeElement.focus();
+        				}
+        			} catch (_e) {
+        			}
+        		});
+        	}
+        
+        	private scheduleSearchFocus(callback: () => void): void {
+        		if (typeof requestAnimationFrame == "function") {
+        			requestAnimationFrame(callback);
+        		} else {
+        			setTimeout(callback, 0);
+        		}
+        	}
+        
+        	private emitModelChanged(output: any): void {
+        		try {
+        			if (this.modelChanged != null && typeof this.modelChanged.emit == "function") {
+        				this.modelChanged.emit(output);
+        			}
+        		} catch (_e) {
+        		}
+        	}
+        
+        	private findSelectedOption(): any {
+        		const sourceOptions = this.getSourceOptions();
+        		return sourceOptions.find((option) => this.sameOptionValue(this.getOptionValue(option), this.model));
+        	}
+        
+        	private hasKeyName(): boolean {
+        		return this.keyName != null && this.keyName != undefined && this.keyName != "" && ("" + this.keyName).length > 0;
+        	}
+        
+        	private getOptionValue(option: any): any {
+        		return this.hasKeyName() && option != null && typeof option == "object" ? option[this.keyName] : option;
+        	}
+        
+        	private sameOptionValue(left: any, right: any): boolean {
+        		return left == right;
+        	}
+        
+        	private getSourceOptions(): any[] {
+        		return Array.isArray(this.options) ? this.options : [];
+        	}
+        
+        	private optionMatchesSearch(option: any, normalizedQuery: string): boolean {
+        		return this.normalizeSearchText(this.getOptionSearchText(option)).indexOf(normalizedQuery) != -1;
+        	}
+        
+        	/** Returns the visible option label used for filtering without stringifying technical objects. */
+        	private getOptionSearchText(option: any): string {
+        		const hasKeyName = this.hasKeyName();
+        		let visibleValue = hasKeyName && option != null && typeof option == "object" ? option[this.keyName] : option;
+        
+        		if (hasKeyName && this.i18nCallback != null && typeof this.i18nCallback == "function") {
+        			try {
+        				visibleValue = this.i18nCallback(visibleValue);
+        			} catch (_e) {
+        			}
+        		}
+        
+        		if (visibleValue != null && typeof visibleValue == "object") {
+        			visibleValue = visibleValue.label != null
+        				? visibleValue.label
+        				: (visibleValue.displayValue != null
+        					? visibleValue.displayValue
+        					: (visibleValue.name != null
+        						? visibleValue.name
+        						: (visibleValue.value != null
+        							? visibleValue.value
+        							: (visibleValue.title != null ? visibleValue.title : ""))));
+        		}
+        
+        		const text = visibleValue == null ? "" : "" + visibleValue;
+        		if (text != "" && this.translate != null && typeof this.translate.instant == "function") {
+        			try {
+        				const translated = this.translate.instant(text);
+        				if (translated != null && translated != "") {
+        					return "" + translated;
+        				}
+        			} catch (_e) {
+        			}
+        		}
+        		return text;
+        	}
+        
+        	private normalizeSearchText(value: any): string {
+        		return (value == null ? "" : "" + value).trim().toLocaleLowerCase();
         	}
         
         	/*End_c8o_CompFunction*/
@@ -548,7 +782,7 @@ scriptContent:
           directiveSource: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.options
+              - MobileSmartSourceType: script:this.filteredOptions
           ↓SelectSizeOption [ngx.components.UIDynamicElement-1784713238415]: 
             beanData: '{"ionBean":"SelectOption","Value":"script:elem"}'
             tagName: ion-select-option
@@ -595,9 +829,9 @@ scriptContent:
                   varValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:index
+                      - MobileSmartSourceType: script:this.options.indexOf(elem)
           ↓SelectSizeOption1 [ngx.components.UIDynamicElement-1784713328864]: 
-            beanData: '{"ionBean":"SelectOption","Value":"script:JSON.stringify({value:JSON.stringify(elem), index: index})"}'
+            beanData: '{"ionBean":"SelectOption","Value":"script:JSON.stringify({value:JSON.stringify(elem), index: this.options.indexOf(elem)})"}'
             tagName: ion-select-option
             ↓Text [ngx.components.UIText-1784713328867]: 
               textValue: 
@@ -642,7 +876,27 @@ scriptContent:
                   varValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:index
+                      - MobileSmartSourceType: script:this.options.indexOf(elem)
+        ↓SelectNoSearchResults [ngx.components.UIDynamicElement-1785252982552]: 
+          beanData: |
+            '{
+             "ionBean": "SelectOption",
+             "Disabled": "plain:true",
+             "Value": "plain:no-results"
+            }'
+          comment: Disabled option displayed when the active search hides every option.
+          tagName: ion-select-option
+          ↓Text [ngx.components.UIText-1785252982627]: 
+            textValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:'No matching options' | translate
+          ↓AttrSearchNoResults [ngx.components.UIAttribute-1785252982660]: 
+            attrName: '*ngIf'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:this.hasNoSearchResults()
         ↓Attr [ngx.components.UIAttribute-1784713238421]: 
           attrName: required
           attrValue: 
@@ -889,6 +1143,449 @@ scriptContent:
                 	height: 44px !important;
                 }
                 '
+      ↓AttrNativeSelectBranch [ngx.components.UIAttribute-1785256222501]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:!this.isSearchEnabled()
+    ↓SearchableTriggerItem [ngx.components.UIDynamicElement-1785256290328]: 
+      beanData: |
+        '{
+         "ionBean": "GenericItem",
+         "Button": "plain:true",
+         "Lines": "plain:none",
+         "Disabled": "script:this.disabled"
+        }'
+      comment: Search-enabled replacement trigger that opens the controlled options popover instead of the native ion-select overlay.
+      identifier: searchOptionsTrigger
+      tagName: ion-item
+      ↓AttrClass [ngx.components.UIAttribute-1785256290330]: 
+        attrName: class
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:form-item--small select-editor-search-trigger
+      ↓AttrSearchEnabled [ngx.components.UIAttribute-1785256290332]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.isSearchEnabled()
+      ↓AttrRole [ngx.components.UIAttribute-1785256290334]: 
+        attrName: role
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:button
+      ↓AttrTabIndex [ngx.components.UIAttribute-1785256290336]: 
+        attrName: tabindex
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:0
+      ↓AttrAriaHaspopup [ngx.components.UIAttribute-1785256290338]: 
+        attrName: aria-haspopup
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:listbox
+      ↓AttrAriaExpanded [ngx.components.UIAttribute-1785256290340]: 
+        attrName: '[attr.aria-expanded]'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: 'script:this.isSearchOptionsPopoverOpen ? ''true'' : ''false'''
+      ↓SelectedDisplay [ngx.components.UIElement-1785256290342]: 
+        tagName: span
+        ↓AttrClass [ngx.components.UIAttribute-1785256292698]: 
+          attrName: class
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:select-editor-search-trigger__label
+        ↓Text [ngx.components.UIText-1785256292700]: 
+          textValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.getSelectedOptionLabel()
+      ↓TriggerIcon [ngx.components.UIDynamicElement-1785256292702]: 
+        beanData: '{"ionBean":"Icon","IconSource":"source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\/images\/svg\/lucide\/chevron-down.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"}'
+        tagName: ion-icon
+        ↓AttrClass [ngx.components.UIAttribute-1785256292704]: 
+          attrName: class
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:select-editor-search-trigger__icon
+      ↓ClickEvent [ngx.components.UIControlEvent-1785256292706]: 
+        attrName: click
+        comment: Open the controlled searchable options popover.
+        eventName: click
+        ↓OpenSearchOptions [ngx.components.UICustomAsyncAction-1785256293504]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  		page.openSearchOptions(event);
+                  		return null;
+                  
+      ↓KeydownEvent [ngx.components.UIControlEvent-1785256293506]: 
+        attrName: keydown
+        comment: Open the controlled searchable options popover from keyboard activation.
+        eventName: keydown
+        ↓OpenSearchOptionsFromKeyboard [ngx.components.UICustomAsyncAction-1785256293508]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  		page.openSearchOptionsFromKeyboard(event);
+                  		return null;
+                  
+      ↓Style [ngx.components.UIStyle-1785256293510]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                'height: 44px !important;
+                --ripple-color: transparent !important;
+                '
+      ↓StyleLayout [ngx.components.UIStyle-1785256293512]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                'margin: 0px;
+                width: 100%;
+                &::part(native) {
+                	background: #FFF !important;
+                	height: 44px !important;
+                	display: flex;
+                	align-items: center;
+                }
+                .select-editor-search-trigger__label {
+                	flex: 1 1 auto;
+                	min-width: 0;
+                	overflow: hidden;
+                	text-overflow: ellipsis;
+                	white-space: nowrap;
+                }
+                .select-editor-search-trigger__icon {
+                	flex: 0 0 auto;
+                	width: 18px;
+                	height: 18px;
+                	margin-left: 8px;
+                }
+                '
+      ↓Attr [ngx.components.UIAttribute-1785314642652]: 
+        attrName: id
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:searchOptionsPopover
+    ↓SearchOptionsPopover [ngx.components.UIDynamicElement-1785256320261]: 
+      beanData: |
+        '{
+         "ionBean": "InlinePopover",
+         "Alignment": "plain:center",
+         "IsOpen": "script:this.isSearchOptionsPopoverOpen",
+         "KeepContentsMounted": "plain:true",
+         "ShowBackdrop": "plain:false",
+         "Trigger": "plain:searchOptionsPopover",
+         "TriggerAction": "plain:click"
+        }'
+      comment: Controlled searchable options popover used only when searchEnabled is true.
+      identifier: searchOptionsPopover
+      tagName: ion-popover
+      ↓AttrClass [ngx.components.UIAttribute-1785256320263]: 
+        attrName: class
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:custom-popover select-editor-search-popover
+      ↓AttrSearchEnabled [ngx.components.UIAttribute-1785256320265]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.isSearchEnabled()
+      ↓SearchOptionsContent [ngx.components.UIDynamicElement-1785256320267]: 
+        beanData: '{"ionBean":"DivTag"}'
+        tagName: div
+        ↓AttrClass [ngx.components.UIAttribute-1785256320269]: 
+          attrName: class
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:select-editor-search-popover__content
+        ↓Style [ngx.components.UIStyle-1785256320271]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  'width: min(360px, calc(100vw - 32px));
+                  padding: 8px;
+                  box-sizing: border-box;
+                  '
+        ↓SearchBar [ngx.components.UIDynamicElement-1785252535735]: 
+          beanData: |
+            '{
+             "ionBean": "Searchbar",
+             "ControlName": "plain:selectEditorSearch",
+             "DoubleBinding": "script:this.searchQuery",
+             "placeholder": "script:''Search'' | translate",
+             "showClearButton": "plain:always"
+            }'
+          comment: Optional local search field for filtering visible select options.
+          identifier: searchOptionsInput
+          tagName: ion-searchbar
+          ↓AttrClass [ngx.components.UIAttribute-1785252550279]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:select-editor-search
+          ↓AttrSearchEnabled [ngx.components.UIAttribute-1785252563947]: 
+            attrName: '*ngIf'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:this.isSearchEnabled()
+          ↓AttrAriaLabel [ngx.components.UIAttribute-1785252581150]: 
+            attrName: '[attr.aria-label]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.translate.instant('Search')
+          ↓Style [ngx.components.UIStyle-1785252751016]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    '/**
+                     * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                     * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                     * They are set using custom property notation, e.g.: --main-color: black;
+                     * and are accessed using the var() function, e.g.: color: var(--main-color);
+                     * You can find below your component''s properties you can customize within the page.
+                     * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                     * For more information see https://ionicframework.com/docs/theming.
+                    **/
+                    //--background	//Background of the searchbar input
+                    //--border-radius	//Border radius of the searchbar input
+                    //--box-shadow	//Box shadow of the searchbar input
+                    //--cancel-button-color	//Color of the searchbar cancel button
+                    //--clear-button-color	//Color of the searchbar clear button
+                    //--color	//Color of the searchbar text
+                    //--icon-color	//Color of the searchbar icon
+                    //--placeholder-color	//Color of the searchbar placeholder
+                    //--placeholder-font-style	//Font style of the searchbar placeholder
+                    //--placeholder-font-weight	//Font weight of the searchbar placeholder
+                    //--placeholder-opacity	//Opacity of the searchbar placeholder
+                    --background: #FFF !important;
+                    padding: 0px;
+                    border: 1px solid #eee;
+                    --border-radius: 10px !important;
+                    border-radius: 10px !important;
+                    --box-shadow:none !important;
+                    --cancel-button-color:var(--ion-color-medium);
+                    --clear-button-color: var(--ion-color-medium);
+                    --color:#1A1A1A;
+                    --icon-color: #1A1A1A;
+                    --placeholder-color: var(--ion-color-medium);
+                    --placeholder-font-style:normal;
+                    --placeholder-font-weight:400;
+                    --placeholder-opacity:0.7;
+                    '
+          ↓InputEvent [ngx.components.UIControlEvent-1785256244913]: 
+            attrName: (ionInput)
+            comment: Update only the local search query inside the custom searchable popover.
+            eventName: ionInput
+            ↓SetSearchQuery [ngx.components.UICustomAsyncAction-1785256245711]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      		page.onSearchChange(event);
+                      		return page.searchQuery;
+                      
+          ↓ClearEvent [ngx.components.UIControlEvent-1785256250050]: 
+            attrName: (ionClear)
+            comment: Clear only the local search query inside the custom searchable popover.
+            eventName: ionClear
+            ↓ClearSearchQuery [ngx.components.UICustomAsyncAction-1785256250058]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      		page.clearSearch(vars.searchbar);
+                      		return page.searchQuery;
+                      
+              ↓searchbar [ngx.components.UIControlVariable-1785256250886]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.searchOptionsInput
+        ↓SearchOptionsList [ngx.components.UIDynamicElement-1785256378133]: 
+          beanData: '{"ionBean":"DivTag"}'
+          tagName: div
+          ↓AttrClass [ngx.components.UIAttribute-1785256378135]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:select-editor-search-options
+          ↓AttrRole [ngx.components.UIAttribute-1785256378137]: 
+            attrName: role
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:listbox
+          ↓Directive [ngx.components.UIControlDirective-1785256378139]: 
+            directiveIndexName: filteredIndex
+            directiveItemName: option
+            directiveSource: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.filteredOptions
+            ↓SearchOptionButton [ngx.components.UIElement-1785256380495]: 
+              tagName: button
+              ↓AttrClass [ngx.components.UIAttribute-1785256382851]: 
+                attrName: class
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:select-editor-search-option
+              ↓AttrType [ngx.components.UIAttribute-1785256382853]: 
+                attrName: type
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:button
+              ↓AttrRole [ngx.components.UIAttribute-1785256382855]: 
+                attrName: role
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:option
+              ↓AttrAriaSelected [ngx.components.UIAttribute-1785256382857]: 
+                attrName: '[attr.aria-selected]'
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: 'script:this.isSearchOptionSelected(option) ? ''true'' : ''false'''
+              ↓AttrDisabled [ngx.components.UIAttribute-1785256382859]: 
+                attrName: '[disabled]'
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.isComponentDisabled()
+              ↓Text [ngx.components.UIText-1785256382861]: 
+                textValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.getSearchOptionLabel(option)
+              ↓ClickEvent [ngx.components.UIControlEvent-1785256382863]: 
+                comment: Select one option from the custom searchable popover.
+                ↓SelectSearchOption [ngx.components.UICustomAsyncAction-1785256383661]: 
+                  actionValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                        →: |
+                          //		console.log('in', vars.option)
+                          		return page.selectSearchOption(vars.option);
+                          
+                  ↓option [ngx.components.UIControlVariable-1785256384471]: 
+                    varValue: 
+                      - xmlizable: 
+                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                        - MobileSmartSourceType: script:option
+                  ↓ClosePopover [ngx.components.UIDynamicAction-1785315163627]: 
+                    beanData: '{"ionBean":"ClosePopoverAction"}'
+          ↓Style [ngx.components.UIStyle-1785256384473]: 
+            styleContent: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                  →: |
+                    'max-height: 280px;
+                    overflow-y: auto;
+                    padding-top: 8px;
+                    .select-editor-search-option {
+                    	appearance: none;
+                    	-webkit-appearance: none;
+                    	border: 0;
+                    	border-radius: 6px;
+                    	background: transparent;
+                    	color: #1A1A1A;
+                    	display: block;
+                    	font: inherit;
+                    	min-height: 36px;
+                    	padding: 8px 10px;
+                    	text-align: left;
+                    	width: 100%;
+                    }
+                    .select-editor-search-option:hover,
+                    .select-editor-search-option:focus {
+                    	background: #F4F5F8;
+                    	outline: none;
+                    }
+                    .select-editor-search-option[aria-selected="true"] {
+                    	background: #E8F0FE;
+                    	font-weight: 600;
+                    }
+                    '
+      ↓DidPresentEvent [ngx.components.UIControlEvent-1785256320273]: 
+        attrName: (ionPopoverDidPresent)
+        comment: Focus the searchbar once Ionic has presented the custom popover.
+        eventName: (ionPopoverDidPresent)
+        ↓FocusSearchbar [ngx.components.UICustomAsyncAction-1785256321071]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  		page.onSearchOptionsDidPresent(vars.searchbar);
+                  		return null;
+                  
+          ↓searchbar [ngx.components.UIControlVariable-1785256321881]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.searchOptionsInput
+      ↓DidDismissEvent [ngx.components.UIControlEvent-1785256321883]: 
+        attrName: (ionPopoverDidDismiss)
+        comment: Close the controlled state and restore focus to the trigger after dismiss.
+        eventName: (ionPopoverDidDismiss)
+        ↓CloseSearchOptions [ngx.components.UICustomAsyncAction-1785256321885]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  		page.onSearchOptionsDidDismiss();
+                  		return null;
+                  
+      ↓Style [ngx.components.UIStyle-1785256321887]: 
+        styleContent: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+            - com.twinsoft.convertigo.beans.common.FormatedContent: 
+              →: |
+                '&::part(content) {
+                	max-width: calc(100vw - 32px);
+                	width: auto;
+                }
+                '
   ↓Attr [ngx.components.UIAttribute-1784713174554]: 
     attrName: class
     attrValue: 
@@ -965,7 +1662,12 @@ scriptContent:
           	border-radius: 10px;
           	background: #F5F5F5;
           }
-          .w-100 {	
+          .select-editor-search{
+          	flex: 1 1 100%;
+          	min-width: min(220px, 100%);
+          	max-width: 100%;
+          }
+          .w-100 {
           	width: 100% !important;
           }
           .template-column-unset {
@@ -1048,4 +1750,8 @@ scriptContent:
   autoEmit: true
 ↓tooltipAlwaysVisible [ngx.components.UICompVariable-1784713174608]: 
   autoEmit: true
+  value: false
+↓searchEnabled [ngx.components.UICompVariable-1785252487410]: 
+  autoEmit: true
+  comment: Enable the optional local search bar for displayed select options.
   value: false
