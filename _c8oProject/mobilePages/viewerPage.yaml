@@ -79,6 +79,12 @@ scriptContent:
         	public creating;
         	public functionsById = {};
         	public previousAndPostFunctions = {};
+            /**
+             * Stores the latest result of GoTo side-effect conditions.
+             * Passive conditions can be recomputed globally, but a navigation side effect
+             * only runs when its condition becomes true after not being true.
+             */
+            private goToConditionStates: Record<string, boolean> = {};
         	public functionsExecById = {};
         	public shaById = {};
         	public page = this;
@@ -9176,6 +9182,52 @@ scriptContent:
         		return false;
         	}
         
+            /**
+             * Builds a stable runtime key for a GoTo side effect.
+             * The owner field, condition path and target action identify the transition
+             * without relying on display labels.
+             */
+            private getGoToConditionStateKey(item: any, conditionPath: any, action: any): string {
+                let ownerKey = item != null && item.id != null ? "id:" + item.id : (item != null && item.name != null ? "name:" + item.name : "unknown");
+                let verb = action != null && action.verb != null && action.verb !== "" ? "" + action.verb : "authorize";
+                let page = action != null && action.page != null ? "" + action.page : "";
+                return ownerKey + "|" + conditionPath + "|" + verb + "|" + page;
+            }
+            /**
+             * Rearms GoTo side effects whose condition is currently false.
+             */
+            private rearmInactiveGoToConditions(actions: any): void {
+                if (this.goToConditionStates == null) {
+                    this.goToConditionStates = {};
+                }
+                for (let action of (Array.isArray(actions) ? actions : [])) {
+                    if (action == null || action.verb != "goTo") {
+                        continue;
+                    }
+                    let stateKey = action.__goToConditionStateKey;
+                    if (stateKey != null && stateKey !== "" && action.__goToConditionMatched !== true) {
+                        this.goToConditionStates[stateKey] = false;
+                    }
+                }
+            }
+            /**
+             * Allows a GoTo action only on a false-to-true transition.
+             */
+            private shouldRunGoToSideEffect(action: any): boolean {
+                if (action == null || action.verb != "goTo") {
+                    return true;
+                }
+                let stateKey = action.__goToConditionStateKey;
+                if (stateKey == null || stateKey === "") {
+                    return true;
+                }
+                if (this.goToConditionStates == null) {
+                    this.goToConditionStates = {};
+                }
+                let alreadySatisfied = this.goToConditionStates[stateKey] === true;
+                this.goToConditionStates[stateKey] = true;
+                return !alreadySatisfied;
+            }
         	private evaluateGoToConditionMatch(cond: any): boolean {
         		try {
         			if (this.isAfieldSimpleOrMultipleGo(cond) || this.isAFile(cond) || this.isACamSign(cond)) {
@@ -9248,6 +9300,9 @@ scriptContent:
         				return;
         			}
         			if (cond.verb == "goTo") {
+                        if (!this.shouldRunGoToSideEffect(cond)) {
+                            return;
+                        }
         				this.local.currentIndex = indexToGo;
         				let i = this["navParams"].get("i") != undefined ? this["navParams"].get("i") : ":i";
         				let edit = this["navParams"].get("edit") != undefined ? this["navParams"].get("edit") : ":edit";
@@ -9263,42 +9318,70 @@ scriptContent:
         		}
         	}
         
-        	private evaluateGoToPageIfGroup(group: any, item: any, inheritedAction: any = null): any {
-        		let operator = ((group != null && group.condVisible != null ? "" + group.condVisible : "and")).toLowerCase();
-        		let groupAction: any = {
-        			verb: group != null && group.verb != null && group.verb !== "" ? group.verb : (inheritedAction != null ? inheritedAction.verb : null),
-        			page: group != null && group.page != null && group.page !== "" ? group.page : (inheritedAction != null ? inheritedAction.page : null)
-        		};
-        		let results: Array<boolean> = [];
-        		let actions: Array<any> = [];
-        		for (let cond of (Array.isArray(group != null ? group.conds : null) ? group.conds : [])) {
-        			let matched = this.evaluateGoToConditionMatch(cond);
-        			results.push(matched);
-        			if (matched && cond != null && cond.page != null && cond.page !== "") {
-        				actions.push({
-        					verb: cond.verb != null && cond.verb !== "" ? cond.verb : (groupAction.verb != null && groupAction.verb !== "" ? groupAction.verb : "authorize"),
-        					page: cond.page
-        				});
-        			}
-        		}
-        		for (let child of (Array.isArray(group != null ? group.groups : null) ? group.groups : [])) {
-        			let childResult = this.evaluateGoToPageIfGroup(child, item, groupAction);
-        			results.push(childResult.matched === true);
-        			if (childResult.matched === true) {
-        				actions = actions.concat(Array.isArray(childResult.actions) ? childResult.actions : []);
-        			}
-        		}
-        		if (results.length == 0) {
-        			return { matched: false, actions: [] };
-        		}
-        		if (operator == "or") {
-        			let matched = results.some((value) => value === true);
-        			return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [] };
-        		}
-        		let matched = results.every((value) => value === true);
-        		return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [] };
-        	}
-        
+            private evaluateGoToPageIfGroup(group: any, item: any, inheritedAction: any = null, conditionPath: string = "root"): any {
+                let operator = ((group != null && group.condVisible != null ? "" + group.condVisible : "and")).toLowerCase();
+                let groupAction: any = {
+                    verb: group != null && group.verb != null && group.verb !== "" ? group.verb : (inheritedAction != null ? inheritedAction.verb : null),
+                    page: group != null && group.page != null && group.page !== "" ? group.page : (inheritedAction != null ? inheritedAction.page : null)
+                };
+                let results: Array<boolean> = [];
+                let actions: Array<any> = [];
+                let stateActions: Array<any> = [];
+                let condIndex = 0;
+                for (let cond of (Array.isArray(group != null ? group.conds : null) ? group.conds : [])) {
+                    let matched = this.evaluateGoToConditionMatch(cond);
+                    results.push(matched);
+                    if (matched && cond != null && cond.page != null && cond.page !== "") {
+                        actions.push({
+                            verb: cond.verb != null && cond.verb !== "" ? cond.verb : (groupAction.verb != null && groupAction.verb !== "" ? groupAction.verb : "authorize"),
+                            page: cond.page
+                        });
+                    }
+                    if (cond != null && cond.page != null && cond.page !== "") {
+                        let stateAction: any = {
+                            verb: cond.verb != null && cond.verb !== "" ? cond.verb : (groupAction.verb != null && groupAction.verb !== "" ? groupAction.verb : "authorize"),
+                            page: cond.page
+                        };
+                        stateAction.__goToConditionStateKey = this.getGoToConditionStateKey(item, conditionPath + ".cond." + condIndex, stateAction);
+                        stateAction.__goToConditionMatched = matched;
+                        stateActions.push(stateAction);
+                        if (matched && actions.length > 0) {
+                            actions[actions.length - 1].__goToConditionStateKey = stateAction.__goToConditionStateKey;
+                            actions[actions.length - 1].__goToConditionMatched = true;
+                        }
+                    }
+                    condIndex++;
+                }
+                let groupIndex = 0;
+                for (let child of (Array.isArray(group != null ? group.groups : null) ? group.groups : [])) {
+                    let childResult = this.evaluateGoToPageIfGroup(child, item, groupAction, conditionPath + ".group." + groupIndex);
+                    results.push(childResult.matched === true);
+                    stateActions = stateActions.concat(Array.isArray(childResult.stateActions) ? childResult.stateActions : []);
+                    if (childResult.matched === true) {
+                        actions = actions.concat(Array.isArray(childResult.actions) ? childResult.actions : []);
+                    }
+                    groupIndex++;
+                }
+                if (results.length == 0) {
+                    return { matched: false, actions: [], stateActions: stateActions };
+                }
+                if (operator == "or") {
+                    let matched = results.some((value) => value === true);
+                    if (groupAction.page != null && groupAction.page !== "") {
+                        groupAction.__goToConditionStateKey = this.getGoToConditionStateKey(item, conditionPath + ".groupAction", groupAction);
+                        groupAction.__goToConditionMatched = matched;
+                        stateActions.push(groupAction);
+                    }
+                    return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [], stateActions: stateActions };
+                }
+                let matched = results.every((value) => value === true);
+                if (groupAction.page != null && groupAction.page !== "") {
+                    groupAction.__goToConditionStateKey = this.getGoToConditionStateKey(item, conditionPath + ".groupAction", groupAction);
+                    groupAction.__goToConditionMatched = matched;
+                    stateActions.push(groupAction);
+                }
+                return { matched: matched, actions: matched ? (groupAction.page != null && groupAction.page !== "" ? [groupAction] : actions) : [], stateActions: stateActions };
+            }
         	private detectGoToPageIfAndComplete(group: any, item: any): void {
         		if (group == null || item == null) {
         			return;
@@ -9309,6 +9392,7 @@ scriptContent:
         		}
         		this.resetGoToPageTargets(group, item);
         		let result = this.evaluateGoToPageIfGroup(group, item);
+                this.rearmInactiveGoToConditions(result.stateActions);
         		if (result.matched !== true) {
         			return;
         		}
