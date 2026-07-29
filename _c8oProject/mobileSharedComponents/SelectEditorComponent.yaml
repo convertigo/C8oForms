@@ -6,24 +6,28 @@ scriptContent:
         '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
-        	/** Local query used only to filter displayed select options. */
+        	/**
+        	 * Local search query used to filter visible options in the custom popover.
+        	 * It must never mutate the source options input or the persisted model.
+        	 */
         	public searchQuery = "";
-        	/** Controls the custom searchable options popover without opening the native ion-select overlay. */
+        	/**
+        	 * Controls the searchable popover. When search is disabled, the historical
+        	 * native ion-select remains the only options interface.
+        	 */
         	public isSearchOptionsPopoverOpen = false;
-        	/** Element that opened the searchable popover, used to restore focus on dismiss. */
+        	/** Last focusable trigger, restored after popover dismiss for keyboard users. */
         	private searchOptionsFocusTarget: any = null;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
+        		// Keep local.index tied to the original options input. Search filtering is display-only.
         		if ((this.keyName == null || this.keyName == undefined || this.keyName == '''') && !this.disabled) {
-        			//indexOf - case of simple array
         			this.local.index = this.options.indexOf(this.model);
         		} else {
-        			//findIndex - case of object list
         			this.local.index = this.options.findIndex(item => this.model == item[this.keyName]);
         		}
-        //		console.log(''select'', this.model)
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
         		this.isSearchOptionsPopoverOpen = false;
@@ -43,21 +47,22 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
+        	/** Preserves the existing tooltip visibility contract for hover and always-visible modes. */
         	public showTooltipButton(): boolean {
-        		const enabled = this.tooltipEnabled === true || this.tooltipEnabled === "true";
+        		const enabled = this.isEnabledInput(this.tooltipEnabled);
         		if (!enabled) {
         			return false;
         		}
-        		const alwaysVisible = this.tooltipAlwaysVisible === true || this.tooltipAlwaysVisible === "true";
+        		const alwaysVisible = this.isEnabledInput(this.tooltipAlwaysVisible);
         		return alwaysVisible || (this.local != null && this.local.isHovered === true);
         	}
         
         	/** Returns true when the optional local option search is enabled. */
         	public isSearchEnabled(): boolean {
-        		return this.searchEnabled === true || this.searchEnabled === "true";
+        		return this.isEnabledInput(this.searchEnabled);
         	}
         
-        	/** Options rendered by the select. The source options input is never mutated. */
+        	/** Returns the options currently visible to the user without mutating the source options input. */
         	public get filteredOptions(): any[] {
         		const sourceOptions = this.getSourceOptions();
         		const normalizedQuery = this.normalizeSearchText(this.searchQuery);
@@ -68,7 +73,7 @@ scriptContent:
         	}
         
         	/** Updates only the local query used by the controlled searchable popover. */
-        	public onSearchChange(eventOrValue: any, _unusedSelectElement?: any): void {
+        	public onSearchChange(eventOrValue: any): void {
         		const candidate = this.extractSearchValue(eventOrValue);
         		this.searchQuery = candidate == null ? "" : "" + candidate;
         	}
@@ -79,6 +84,7 @@ scriptContent:
         		this.focusSearchOptionsInput(searchbar);
         	}
         
+        	/** Opens the controlled search popover and records its trigger for focus restoration. */
         	public openSearchOptions(event?: any): void {
         		if (!this.isSearchEnabled() || this.isComponentDisabled()) {
         			return;
@@ -87,6 +93,7 @@ scriptContent:
         		this.isSearchOptionsPopoverOpen = true;
         	}
         
+        	/** Mirrors button activation keys without opening Ionic''s native select overlay. */
         	public openSearchOptionsFromKeyboard(event?: any): void {
         		const key = event != null ? (event.key || event.code) : null;
         		if (key === "Enter" || key === " " || key === "Space" || key === "Spacebar") {
@@ -97,27 +104,33 @@ scriptContent:
         		}
         	}
         
+        	/** Closes the controlled popover without changing the query or selected value. */
         	public closeSearchOptions(): void {
         		this.isSearchOptionsPopoverOpen = false;
         	}
         
+        	/** Focuses the popover search input once Ionic has presented the overlay. */
         	public onSearchOptionsDidPresent(searchbar?: any): void {
         		this.focusSearchOptionsInput(searchbar);
         	}
         
+        	/** Resets popover state and restores trigger focus; dismiss is not a selection event. */
         	public onSearchOptionsDidDismiss(): void {
         		this.isSearchOptionsPopoverOpen = false;
         		this.focusSearchOptionsTrigger();
         	}
         
+        	/** Indicates that the active query has no local option match. */
         	public hasNoSearchResults(): boolean {
         		return this.isSearchEnabled() && this.normalizeSearchText(this.searchQuery) != "" && this.filteredOptions.length == 0;
         	}
         
+        	/** Returns the user-facing label for one visible option. */
         	public getSearchOptionLabel(option: any): string {
         		return this.getOptionSearchText(option);
         	}
         
+        	/** Displays the selected option using the original options index first, then a value lookup fallback. */
         	public getSelectedOptionLabel(): string {
         		const sourceOptions = this.getSourceOptions();
         		const optionFromIndex = this.local != null && this.local.index != null && this.local.index >= 0
@@ -127,6 +140,7 @@ scriptContent:
         		return selectedOption == null ? "" : this.getSearchOptionLabel(selectedOption);
         	}
         
+        	/** Checks whether one rendered option matches the current model value, including array models. */
         	public isSearchOptionSelected(option: any): boolean {
         		const optionValue = this.getOptionValue(option);
         		if (Array.isArray(this.model)) {
@@ -135,6 +149,7 @@ scriptContent:
         		return this.sameOptionValue(this.model, optionValue);
         	}
         
+        	/** Applies an option from the filtered view while resolving its index against the original options input. */
         	public selectSearchOption(option: any): any {
         		if (this.isComponentDisabled()) {
         			return null;
@@ -142,23 +157,28 @@ scriptContent:
         		const sourceOptions = this.getSourceOptions();
         		const selectedIndex = sourceOptions.indexOf(option);
         		const selectedValue = this.getOptionValue(option);
-        //		console.log(this, selectedIndex, selectedValue)
         		if (this.local == null) {
         			this.local = {};
         		}
         		this.local.index = selectedIndex;
         		this.model = selectedValue;
-        //		console.log(this.model)
         		const output = this.hasKeyName() ? {item: this.model, index: selectedIndex} : this.model;
         		this.emitModelChanged(output);
         		this.closeSearchOptions();
         		return output;
         	}
         
+        	/** Normalizes the disabled input before it gates popover opening and selection. */
         	public isComponentDisabled(): boolean {
-        		return this.disabled === true || this.disabled === "true";
+        		return this.isEnabledInput(this.disabled);
         	}
         
+        	/** Normalizes Convertigo boolean inputs, which may arrive as booleans or strings. */
+        	private isEnabledInput(value: any): boolean {
+        		return value === true || value === "true";
+        	}
+        
+        	/** Extracts a search value from Ionic events, DOM events, or direct values. */
         	private extractSearchValue(eventOrValue: any): any {
         		return eventOrValue != null && eventOrValue.detail != null
         			? eventOrValue.detail.value
@@ -167,6 +187,7 @@ scriptContent:
         				: eventOrValue);
         	}
         
+        	/** Schedules focus on the searchbar while tolerating Ionic view timing differences. */
         	private focusSearchOptionsInput(searchbar?: any): void {
         		const target = searchbar || (this as any).searchOptionsInput;
         		this.scheduleSearchFocus(() => {
@@ -177,10 +198,12 @@ scriptContent:
         					target.nativeElement.setFocus();
         				}
         			} catch (_e) {
+        				// Ionic focus APIs may reject while an overlay is settling.
         			}
         		});
         	}
         
+        	/** Restores keyboard focus to the element that opened the custom popover. */
         	private focusSearchOptionsTrigger(): void {
         		const target = this.searchOptionsFocusTarget;
         		this.searchOptionsFocusTarget = null;
@@ -192,10 +215,12 @@ scriptContent:
         					target.nativeElement.focus();
         				}
         			} catch (_e) {
+        				// Focus restoration is best-effort after dismiss.
         			}
         		});
         	}
         
+        	/** Runs focus work after Ionic has had a chance to update the overlay DOM. */
         	private scheduleSearchFocus(callback: () => void): void {
         		if (typeof requestAnimationFrame == "function") {
         			requestAnimationFrame(callback);
@@ -204,36 +229,40 @@ scriptContent:
         		}
         	}
         
+        	/** Emits the selected value through the existing Convertigo output event. */
         	private emitModelChanged(output: any): void {
-        		try {
-        			if (this.modelChanged != null && typeof this.modelChanged.emit == "function") {
-        				this.modelChanged.emit(output);
-        			}
-        		} catch (_e) {
+        		if (this.modelChanged != null && typeof this.modelChanged.emit == "function") {
+        			this.modelChanged.emit(output);
         		}
         	}
         
+        	/** Finds the current value inside the original options input. */
         	private findSelectedOption(): any {
         		const sourceOptions = this.getSourceOptions();
         		return sourceOptions.find((option) => this.sameOptionValue(this.getOptionValue(option), this.model));
         	}
         
+        	/** Returns true when options are objects and keyName identifies their value field. */
         	private hasKeyName(): boolean {
         		return this.keyName != null && this.keyName != undefined && this.keyName != "" && ("" + this.keyName).length > 0;
         	}
         
+        	/** Reads the model value for an option while preserving primitive options. */
         	private getOptionValue(option: any): any {
         		return this.hasKeyName() && option != null && typeof option == "object" ? option[this.keyName] : option;
         	}
         
+        	/** Keeps the historical loose equality used by the existing select model. */
         	private sameOptionValue(left: any, right: any): boolean {
         		return left == right;
         	}
         
+        	/** Returns a safe array view of the options input without cloning or rewriting it. */
         	private getSourceOptions(): any[] {
         		return Array.isArray(this.options) ? this.options : [];
         	}
         
+        	/** Applies the local text match used by filteredOptions. */
         	private optionMatchesSearch(option: any, normalizedQuery: string): boolean {
         		return this.normalizeSearchText(this.getOptionSearchText(option)).indexOf(normalizedQuery) != -1;
         	}
@@ -247,21 +276,11 @@ scriptContent:
         			try {
         				visibleValue = this.i18nCallback(visibleValue);
         			} catch (_e) {
+        				// Keep the raw option value when an external i18n callback fails.
         			}
         		}
         
-        		if (visibleValue != null && typeof visibleValue == "object") {
-        			visibleValue = visibleValue.label != null
-        				? visibleValue.label
-        				: (visibleValue.displayValue != null
-        					? visibleValue.displayValue
-        					: (visibleValue.name != null
-        						? visibleValue.name
-        						: (visibleValue.value != null
-        							? visibleValue.value
-        							: (visibleValue.title != null ? visibleValue.title : ""))));
-        		}
-        
+        		visibleValue = this.getObjectDisplayValue(visibleValue);
         		const text = visibleValue == null ? "" : "" + visibleValue;
         		if (text != "" && this.translate != null && typeof this.translate.instant == "function") {
         			try {
@@ -270,11 +289,33 @@ scriptContent:
         					return "" + translated;
         				}
         			} catch (_e) {
+        				// Translation is optional for option labels.
         			}
         		}
         		return text;
         	}
         
+        	/** Extracts a human label from common option object shapes. */
+        	private getObjectDisplayValue(value: any): any {
+        		if (value == null || typeof value != "object") {
+        			return value;
+        		}
+        		if (value.label != null) {
+        			return value.label;
+        		}
+        		if (value.displayValue != null) {
+        			return value.displayValue;
+        		}
+        		if (value.name != null) {
+        			return value.name;
+        		}
+        		if (value.value != null) {
+        			return value.value;
+        		}
+        		return value.title != null ? value.title : "";
+        	}
+        
+        	/** Normalizes local text comparison for search queries and option labels. */
         	private normalizeSearchText(value: any): string {
         		return (value == null ? "" : "" + value).trim().toLocaleLowerCase();
         	}
@@ -753,6 +794,7 @@ scriptContent:
           - MobileSmartSourceType: 'script:{''w-100'': style?.width == 100}'
     ↓GenericItem [ngx.components.UIDynamicElement-1784713238403]: 
       beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
+      comment: Historical native Select branch rendered only when local search is disabled.
       tagName: ion-item
       ↓Attr [ngx.components.UIAttribute-1784713238406]: 
         attrName: class
@@ -775,6 +817,7 @@ scriptContent:
            "ToggleIcon": "source:{\"filter\":\"Asset\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"asset\":\"''assets\\\/images\\\/svg\\\/lucide\\\/chevron-down.svg''\"}],\"path\":\"\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}",
            "Value": "script:this.model"
           }'
+        comment: Native Ionic Select preserving the original non-search behavior, model contract and option indexing.
         tagName: ion-select
         ↓Directive [ngx.components.UIControlDirective-1784713238412]: 
           directiveIndexName: index
@@ -985,16 +1028,15 @@ scriptContent:
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
                         '		try {
-                        			console.log(event.detail.value, event);
                         			let value = JSON.parse(event.detail.value);
                         			page.model = JSON.parse(value.value)[page.keyName];
                         			page.local.index = value.index;
-                        			console.log({item: page.model, index: value.index})
                         			return {item: page.model, index: value.index};
                         		} catch (e) {
                         		
                         		}
                         '
+                comment: Parses the native select payload for object options and preserves the historical modelChanged output.
                 ↓EmitEvent [ngx.components.UIDynamicEmit-1784713758640]: 
                   beanData: |
                     '{
@@ -1157,7 +1199,7 @@ scriptContent:
          "Lines": "plain:none",
          "Disabled": "script:this.disabled"
         }'
-      comment: Search-enabled replacement trigger that opens the controlled options popover instead of the native ion-select overlay.
+      comment: Search-enabled trigger for the controlled options popover; it is hidden when local search is disabled.
       identifier: searchOptionsTrigger
       tagName: ion-item
       ↓AttrClass [ngx.components.UIAttribute-1785256290330]: 
@@ -1220,7 +1262,7 @@ scriptContent:
               - MobileSmartSourceType: plain:select-editor-search-trigger__icon
       ↓ClickEvent [ngx.components.UIControlEvent-1785256292706]: 
         attrName: click
-        comment: Open the controlled searchable options popover.
+        comment: Opens the controlled searchable popover without delegating to the native select opener.
         eventName: click
         ↓OpenSearchOptions [ngx.components.UICustomAsyncAction-1785256293504]: 
           actionValue: 
@@ -1233,7 +1275,7 @@ scriptContent:
                   
       ↓KeydownEvent [ngx.components.UIControlEvent-1785256293506]: 
         attrName: keydown
-        comment: Open the controlled searchable options popover from keyboard activation.
+        comment: Keyboard activation path for the searchable trigger.
         eventName: keydown
         ↓OpenSearchOptionsFromKeyboard [ngx.components.UICustomAsyncAction-1785256293508]: 
           actionValue: 
@@ -1298,7 +1340,7 @@ scriptContent:
          "Trigger": "plain:searchOptionsPopover",
          "TriggerAction": "plain:click"
         }'
-      comment: Controlled searchable options popover used only when searchEnabled is true.
+      comment: Controlled options overlay used only by the search-enabled branch.
       identifier: searchOptionsPopover
       tagName: ion-popover
       ↓AttrClass [ngx.components.UIAttribute-1785256320263]: 
@@ -1341,7 +1383,7 @@ scriptContent:
              "placeholder": "script:''Search'' | translate",
              "showClearButton": "plain:always"
             }'
-          comment: Optional local search field for filtering visible select options.
+          comment: Local query input for filtering displayed options inside the custom popover.
           identifier: searchOptionsInput
           tagName: ion-searchbar
           ↓AttrClass [ngx.components.UIAttribute-1785252550279]: 
@@ -1405,7 +1447,7 @@ scriptContent:
                     '
           ↓InputEvent [ngx.components.UIControlEvent-1785256244913]: 
             attrName: (ionInput)
-            comment: Update only the local search query inside the custom searchable popover.
+            comment: Updates only the local search query as the user types.
             eventName: ionInput
             ↓SetSearchQuery [ngx.components.UICustomAsyncAction-1785256245711]: 
               actionValue: 
@@ -1418,7 +1460,7 @@ scriptContent:
                       
           ↓ClearEvent [ngx.components.UIControlEvent-1785256250050]: 
             attrName: (ionClear)
-            comment: Clear only the local search query inside the custom searchable popover.
+            comment: Clears the local query while preserving the current selection.
             eventName: ionClear
             ↓ClearSearchQuery [ngx.components.UICustomAsyncAction-1785256250058]: 
               actionValue: 
@@ -1436,6 +1478,7 @@ scriptContent:
                     - MobileSmartSourceType: script:this.searchOptionsInput
         ↓SearchOptionsList [ngx.components.UIDynamicElement-1785256378133]: 
           beanData: '{"ionBean":"DivTag"}'
+          comment: Filtered option list derived from the original options input.
           tagName: div
           ↓AttrClass [ngx.components.UIAttribute-1785256378135]: 
             attrName: class
@@ -1457,6 +1500,7 @@ scriptContent:
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.filteredOptions
             ↓SearchOptionButton [ngx.components.UIElement-1785256380495]: 
+              comment: Visible option row; selection resolves its index from the original options input.
               tagName: button
               ↓AttrClass [ngx.components.UIAttribute-1785256382851]: 
                 attrName: class
@@ -1494,16 +1538,16 @@ scriptContent:
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: script:this.getSearchOptionLabel(option)
               ↓ClickEvent [ngx.components.UIControlEvent-1785256382863]: 
-                comment: Select one option from the custom searchable popover.
+                comment: Runs the selection action for one visible search result.
                 ↓SelectSearchOption [ngx.components.UICustomAsyncAction-1785256383661]: 
                   actionValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                       - com.twinsoft.convertigo.beans.common.FormatedContent: 
                         →: |
-                          //		console.log('in', vars.option)
                           		return page.selectSearchOption(vars.option);
                           
+                  comment: Applies the clicked filtered option, emits the historical output payload, then lets the popover close action run.
                   ↓option [ngx.components.UIControlVariable-1785256384471]: 
                     varValue: 
                       - xmlizable: 
@@ -1511,6 +1555,7 @@ scriptContent:
                         - MobileSmartSourceType: script:option
                   ↓ClosePopover [ngx.components.UIDynamicAction-1785315163627]: 
                     beanData: '{"ionBean":"ClosePopoverAction"}'
+                    comment: Closes the Ionic popover after the selection action has updated the model.
           ↓Style [ngx.components.UIStyle-1785256384473]: 
             styleContent: 
               - xmlizable: 
@@ -1546,7 +1591,7 @@ scriptContent:
                     '
       ↓DidPresentEvent [ngx.components.UIControlEvent-1785256320273]: 
         attrName: (ionPopoverDidPresent)
-        comment: Focus the searchbar once Ionic has presented the custom popover.
+        comment: Focuses the search input after the popover is presented.
         eventName: (ionPopoverDidPresent)
         ↓FocusSearchbar [ngx.components.UICustomAsyncAction-1785256321071]: 
           actionValue: 
@@ -1557,6 +1602,7 @@ scriptContent:
                   		page.onSearchOptionsDidPresent(vars.searchbar);
                   		return null;
                   
+          comment: Delegates focus timing to the component helper to tolerate Ionic overlay lifecycle timing.
           ↓searchbar [ngx.components.UIControlVariable-1785256321881]: 
             varValue: 
               - xmlizable: 
@@ -1564,7 +1610,7 @@ scriptContent:
                 - MobileSmartSourceType: script:this.searchOptionsInput
       ↓DidDismissEvent [ngx.components.UIControlEvent-1785256321883]: 
         attrName: (ionPopoverDidDismiss)
-        comment: Close the controlled state and restore focus to the trigger after dismiss.
+        comment: Restores controlled popover state after dismiss without changing the model.
         eventName: (ionPopoverDidDismiss)
         ↓CloseSearchOptions [ngx.components.UICustomAsyncAction-1785256321885]: 
           actionValue: 
@@ -1575,6 +1621,7 @@ scriptContent:
                   		page.onSearchOptionsDidDismiss();
                   		return null;
                   
+          comment: Keeps the local popover flag synchronized after user or programmatic dismiss.
       ↓Style [ngx.components.UIStyle-1785256321887]: 
         styleContent: 
           - xmlizable: 
@@ -1722,17 +1769,21 @@ scriptContent:
           	}
           }'
 ↓options [ngx.components.UICompVariable-1784713174578]: 
+  comment: Source option list. Search filtering must read from this input without mutating or reindexing it.
   value: '[''statique'', ''dynamique'']'
 ↓model [ngx.components.UICompVariable-1784713174581]: 
   autoEmit: true
+  comment: Selected value exchanged with the form model. Primitive and keyName-based object values keep the existing contract.
   value: '''statique'''
 ↓modelChanged [ngx.components.UICompEvent-1784713174584]: 
   attrName: modelChanged
 ↓keyName [ngx.components.UICompVariable-1784713174587]: 
   autoEmit: true
+  comment: Optional object property used as the option value and display seed when options are object-based.
   value: null
 ↓i18nCallback [ngx.components.UICompVariable-1784713174590]: 
   autoEmit: true
+  comment: Optional translation callback for object option labels. Failures leave the raw visible value unchanged.
   value: null
 ↓style [ngx.components.UICompVariable-1784713174593]: 
   autoEmit: true
@@ -1753,5 +1804,5 @@ scriptContent:
   value: false
 ↓searchEnabled [ngx.components.UICompVariable-1785252487410]: 
   autoEmit: true
-  comment: Enable the optional local search bar for displayed select options.
+  comment: Enables the custom searchable options popover. When false, the component keeps the historical native Ionic select branch.
   value: false
