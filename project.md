@@ -21358,7 +21358,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;i18nCallback
 </td>
 <td>
-
+Optional translation callback for object option labels. Failures leave the raw visible value unchanged.
 </td>
 </tr>
 <tr>
@@ -21366,7 +21366,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;keyName
 </td>
 <td>
-
+Optional object property used as the option value and display seed when options are object-based.
 </td>
 </tr>
 <tr>
@@ -21382,7 +21382,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;model
 </td>
 <td>
-
+Selected value exchanged with the form model. Primitive and keyName-based object values keep the existing contract.
 </td>
 </tr>
 <tr>
@@ -21390,7 +21390,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;options
 </td>
 <td>
-
+Source option list. Search filtering must read from this input without mutating or reindexing it.
 </td>
 </tr>
 <tr>
@@ -21398,7 +21398,7 @@ comment
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;searchEnabled
 </td>
 <td>
-Enable the optional local search bar for displayed select options.
+Enables the custom searchable options popover. When false, the component keeps the historical native Ionic select branch.
 </td>
 </tr>
 <tr>
