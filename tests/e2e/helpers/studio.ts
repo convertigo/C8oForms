@@ -66,6 +66,10 @@ export const SEL = {
   buttonComponent: 'c8oforms-itembuttonviewer',
   buttonLabelInput: 'c8oforms-textinputsetting.class1776707403149 input, .class1776707403149 input',
   buttonDisplayModeSwitch: '.class1782410200003',
+  buttonTextColorSwatch: 'c8oforms-itembuttoneditor .class1776709886936',
+  buttonBackgroundColorSwatch: 'c8oforms-itembuttoneditor .class1776709886964',
+  buttonJustifySwitch: 'c8oforms-itembuttoneditor c8oforms-toggleswitch.class1776707700599',
+  buttonAlignSwitch: 'c8oforms-itembuttoneditor c8oforms-toggleswitch.class1776709259771',
   buttonAdvancedTextEditor:
     ':is(c8oforms-datasourceeditor.class1782410100001, c8oforms-datasourceeditor:has(.tox-tinymce))',
   buttonIconNameInput: '.class1776709887054 input',
@@ -291,6 +295,17 @@ type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
 export type VisibilityMode = 'always' | 'never' | 'auth_required' | 'no_auth_required' | 'condition';
 export type ButtonStateMode = 'always_enabled' | 'enabled_when_condition' | 'disabled_when_condition';
+export type ButtonFlexAlignment = 'flex-start' | 'center' | 'flex-end';
+
+export interface ButtonPreviewStyleState {
+  cssBackground: string;
+  cssColor: string;
+  nativeBackground: string;
+  nativeColor: string;
+  justifyContent: string;
+  alignItems: string;
+  hostHeight: string;
+}
 
 export interface PublishedToolbarButtonThemeState {
   color: string;
@@ -2903,6 +2918,131 @@ export async function setButtonLabel(page: Page, value: string): Promise<void> {
     await expect(input, 'button label input should keep the typed value').toHaveValue(value, { timeout: 10_000 });
     await page.waitForTimeout(1_500);
   });
+}
+
+export async function setButtonNormalAppearance(
+  page: Page,
+  appearance: {
+    textColor: string;
+    backgroundColor: string;
+    justify: ButtonFlexAlignment;
+    align: ButtonFlexAlignment;
+  },
+): Promise<void> {
+  await test.step('Configure Button normal-mode colors and alignment', async () => {
+    await openButtonStyleLabelSection(page);
+    await selectButtonDisplayMode(page, 'normal');
+
+    await setButtonColorPickerValue(page, SEL.buttonTextColorSwatch, appearance.textColor, 'text');
+    await setButtonColorPickerValue(
+      page,
+      SEL.buttonBackgroundColorSwatch,
+      appearance.backgroundColor,
+      'background',
+    );
+    await selectButtonFlexOption(page, SEL.buttonJustifySwitch, appearance.justify, 'justification');
+    await selectButtonFlexOption(page, SEL.buttonAlignSwitch, appearance.align, 'alignment');
+    await page.waitForTimeout(1_000);
+  });
+}
+
+export async function buttonPreviewStyleState(page: Page): Promise<ButtonPreviewStyleState> {
+  const component = page.locator(`${SEL.buttonComponent}:visible`).first();
+  await expect(component, 'Button component should be visible before reading its Preview style').toBeVisible({
+    timeout: 30_000,
+  });
+
+  return component.evaluate((host) => {
+    const wrapper = host.querySelector('.class1741085564886') as HTMLElement | null;
+    const button = host.querySelector('ion-button') as HTMLElement | null;
+    const nativeButton = button?.shadowRoot?.querySelector('button') as HTMLElement | null;
+    if (!wrapper || !button || !nativeButton) {
+      throw new Error('normal Button Preview DOM is incomplete');
+    }
+
+    const buttonStyle = getComputedStyle(button);
+    const nativeStyle = getComputedStyle(nativeButton);
+    const wrapperStyle = getComputedStyle(wrapper);
+    return {
+      cssBackground: buttonStyle.getPropertyValue('--background').trim(),
+      cssColor: buttonStyle.getPropertyValue('--color').trim(),
+      nativeBackground: nativeStyle.backgroundColor,
+      nativeColor: nativeStyle.color,
+      justifyContent: wrapperStyle.justifyContent,
+      alignItems: wrapperStyle.alignItems,
+      hostHeight: getComputedStyle(host).height,
+    };
+  });
+}
+
+async function setButtonColorPickerValue(
+  page: Page,
+  swatchSelector: string,
+  hexColor: string,
+  label: string,
+): Promise<void> {
+  const swatch = page.locator(`${swatchSelector}:visible`).first();
+  await expect(swatch, `Button ${label} color swatch should be visible`).toBeVisible({ timeout: 15_000 });
+  await swatch.click({ timeout: 10_000 }).catch(async () => swatch.dispatchEvent('click'));
+
+  const pickerInputs = page.locator('ion-popover:not(.overlay-hidden) input, .color-picker input');
+  await expect
+    .poll(() => pickerInputs.count(), {
+      message: `Button ${label} color picker should expose its controls`,
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(1);
+
+  const hexInput = pickerInputs.last();
+  const inputBox = await hexInput.evaluate((input) => {
+    const box = input.getBoundingClientRect();
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  });
+  if (inputBox.width <= 0 || inputBox.height <= 0) {
+    throw new Error(`Button ${label} color picker Hex input has no usable bounds`);
+  }
+
+  await page.mouse.click(inputBox.x + inputBox.width / 2, inputBox.y + inputBox.height / 2);
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type(hexColor);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+
+  await expect
+    .poll(() => swatch.evaluate((element) => getComputedStyle(element).backgroundColor), {
+      message: `Button ${label} color swatch should reflect ${hexColor}`,
+      timeout: 10_000,
+    })
+    .toBe(hexToRgbCss(hexColor));
+}
+
+async function selectButtonFlexOption(
+  page: Page,
+  switchSelector: string,
+  value: ButtonFlexAlignment,
+  label: string,
+): Promise<void> {
+  const optionIndex: Record<ButtonFlexAlignment, number> = {
+    'flex-start': 0,
+    center: 1,
+    'flex-end': 2,
+  };
+  const option = page.locator(`${switchSelector} button.c8o-btn`).nth(optionIndex[value]);
+  await expect(option, `Button ${label} option ${value} should be visible`).toBeVisible({ timeout: 15_000 });
+  await option.dispatchEvent('click');
+  await expect(
+    page.locator(`${switchSelector} button.c8o-btn`).nth(optionIndex[value]),
+    `Button ${label} should be ${value}`,
+  ).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
+  await page.waitForTimeout(500);
+}
+
+function hexToRgbCss(hexColor: string): string {
+  const normalized = hexColor.replace(/^#/, '');
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) {
+    throw new Error(`expected a six-digit Hex color, got ${hexColor}`);
+  }
+  return `rgb(${Number.parseInt(normalized.slice(0, 2), 16)}, ${Number.parseInt(normalized.slice(2, 4), 16)}, ${Number.parseInt(normalized.slice(4, 6), 16)})`;
 }
 
 export async function setButtonAdvancedRichLabel(
