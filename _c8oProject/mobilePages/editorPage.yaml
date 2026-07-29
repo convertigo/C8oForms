@@ -3787,6 +3787,70 @@ scriptContent:
         		return objToInsert;
         	}
         
+            public deleteFlowElement(item, persist = true): boolean {
+                const normalizeId = (ref) => ref != null && typeof ref == "object" ? ref.id : ref;
+                const deletedId = normalizeId(item);
+                if (deletedId == null || !Array.isArray(this.form?.flows)) {
+                    return false;
+                }
+                const currentFlow = this.form.flows[this.local?.currentIndex];
+                let targetFlow = Array.isArray(currentFlow?.elements) && currentFlow.elements.some((element) => normalizeId(element?.id) == deletedId)
+                    ? currentFlow
+                    : null;
+                if (targetFlow == null) {
+                    targetFlow = this.form.flows.find((flow) => {
+                        return Array.isArray(flow?.elements) && flow.elements.some((element) => normalizeId(element?.id) == deletedId);
+                    });
+                }
+                if (targetFlow == null) {
+                    return false;
+                }
+                const elements = targetFlow.elements;
+                const refKeys = ["childrenRefs", "childrenRefsElse"];
+                const idsToDelete = new Set();
+                const collectIds = (id) => {
+                    const normalizedId = normalizeId(id);
+                    if (normalizedId == null || idsToDelete.has("" + normalizedId)) {
+                        return;
+                    }
+                    idsToDelete.add("" + normalizedId);
+                    const element = elements.find((candidate) => normalizeId(candidate?.id) == normalizedId);
+                    if (element == null) {
+                        return;
+                    }
+                    for (const refKey of refKeys) {
+                        if (Array.isArray(element[refKey])) {
+                            for (const childRef of element[refKey]) {
+                                collectIds(childRef);
+                            }
+                        }
+                    }
+                };
+                collectIds(deletedId);
+                for (const element of elements) {
+                    for (const refKey of refKeys) {
+                        if (Array.isArray(element?.[refKey])) {
+                            element[refKey] = element[refKey].filter((ref) => !idsToDelete.has("" + normalizeId(ref)));
+                        }
+                    }
+                }
+                targetFlow.elements = elements.filter((element) => !idsToDelete.has("" + normalizeId(element?.id)));
+                const parentId = normalizeId(item?.parentRef);
+                this.idselectedC = "";
+                if (parentId != null && targetFlow.elements.some((element) => normalizeId(element?.id) == parentId)) {
+                    this.idselected = parentId;
+                }
+                else if (this.idselected == deletedId || idsToDelete.has("" + normalizeId(this.idselected))) {
+                    this.idselected = "";
+                }
+                if (this.local?.showItemid != null && idsToDelete.has("" + normalizeId(this.local.showItemid))) {
+                    this.local.showItemid = "";
+                }
+                if (persist) {
+                    this.updateState();
+                }
+                return true;
+            }
         	delElementIndex(i, j = null, k = null) {
         		const normalizeId = (ref) => ref != null && typeof ref == "object" ? ref.id : ref;
         		const getIndex = (id) => this.getElementIndexById(normalizeId(id));
@@ -3864,7 +3928,7 @@ scriptContent:
         					clearEditorSelectionAfterDelete(childId, normalizeId(i?.id));
         				}
         			}
-        			else {
+                    else if (!this.deleteFlowElement(i, false)) {
         				const deletedId = normalizeId(i?.id);
         				const deletedParentId = normalizeId(i?.parentRef);
         				if (i?.parentRef != null) {
@@ -53192,7 +53256,7 @@ title: Title for editor
                                                           					}
                                                           				}
                                                                       }
-                                                          		    page.form.flows[page.local.currentIndex].elements.splice(vars.i, 1);
+                                                                  page.deleteFlowElement(vars.i, false);
                                                           		    page.idselected = "";
                                                           		    await page.updateState();
                                                           		    if(attach_to_delete.length > 0){
@@ -53216,7 +53280,7 @@ title: Title for editor
                                                     varValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: script:stack.root.scope.t
+                                                        - MobileSmartSourceType: script:stack.root.scope.thing
                                           ↓Attr [ngx.components.UIAttribute-1741109898853]: 
                                             attrName: '[title]'
                                             attrValue: 

@@ -237,11 +237,12 @@ export const SEL = {
   // the empty-container "initial" drop button shown while a palette drag is active
   containerInitialDropZone: '.class1600440331787',
   // open component editor: the "Supprimer" (delete) button in the right rail
-  componentDeleteButton: '.class1775818864338',
+  componentDeleteButton: ':is(.class1775818864338, button.c8o-btn-delete)',
   // delete-confirmation ion-alert: the danger-styled "Oui"/confirm button
   // (the "Non" button is btn--info; both carry text-generic, so key on btn--danger)
-  confirmDeleteYesButton: 'ion-alert button.btn--danger',
+  confirmDeleteYesButton: ':is(ion-alert button.btn--danger, ion-alert button.alert-button:last-of-type)',
   flowLoopActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypefor_loop"]',
+  flowBusinessLogicActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypebusiness_logic"]',
   flowLoopActionEditor: 'c8oforms-itemforloopeditor1',
   flowLoopConditionRow: '.for-loop-condition-row',
   flowLoopPaletteButton: 'c8oforms-itemforloopeditor1 ion-button.class1777542949212',
@@ -4822,6 +4823,91 @@ export async function openButtonFlowLoopActionConfig(page: Page, flowName?: stri
     icon: PALETTE_ICON.forLoop,
     actionCardSelector: SEL.flowLoopActionCard,
     actionName: 'Loop',
+  });
+}
+
+export async function addButtonFlowLoopAction(page: Page, flowName?: string | RegExp): Promise<void> {
+  await test.step('Open the Button workflow', async () => {
+    await openButtonWorkflow(page, flowName);
+  });
+
+  await test.step('Add the Loop action', async () => {
+    await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
+    const loopTile = await paletteTileForIcon(page, PALETTE_ICON.forLoop, 'Loop action');
+    const loopCards = page.locator(SEL.flowLoopActionCard);
+    const before = await loopCards.count();
+    await loopTile.dblclick({ force: true, delay: 75 });
+    await expect
+      .poll(() => loopCards.count(), {
+        message: 'Loop action should be added to the flow',
+        timeout: 15_000,
+      })
+      .toBe(before + 1);
+  });
+}
+
+export async function addFormulaActionToLoop(page: Page): Promise<void> {
+  await test.step('Add a Formula inside the open Loop action', async () => {
+    const close = page.locator(`${SEL.configClose}:visible, button.c8o-btn-close:visible, .c8o-btn-close:visible`).last();
+    if (await close.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await close.click({ timeout: 10_000 }).catch(async () => close.dispatchEvent('click'));
+      await page.waitForTimeout(800);
+    }
+    if (!(await page.locator('#bloc-palette:visible').first().isVisible({ timeout: 1_000 }).catch(() => false))) {
+      await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
+    }
+    await fillComponentPaletteSearch(page, PALETTE_SEARCH_TERM_BY_ICON[PALETTE_ICON.businessLogic]);
+    const tile = await draggablePaletteTileForIcon(
+      page,
+      PALETTE_ICON.businessLogic,
+      'business logic formula action',
+    );
+    const formulaCards = page.locator(SEL.flowBusinessLogicActionCard);
+    const before = await formulaCards.count();
+    const loop = page.locator(SEL.flowLoopActionCard).last();
+    await expect(loop, 'Loop action card should be visible before nesting the Formula').toBeVisible({
+      timeout: 15_000,
+    });
+
+    const tileBox = await tile.boundingBox();
+    const loopBox = await loop.boundingBox();
+    if (!tileBox || !loopBox) {
+      throw new Error('Formula palette tile or Loop action has no drag coordinates');
+    }
+
+    await page.mouse.move(tileBox.x + tileBox.width / 2, tileBox.y + tileBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(tileBox.x + tileBox.width / 2 + 12, tileBox.y + tileBox.height / 2 + 10, {
+      steps: 8,
+    });
+    await page.mouse.move(loopBox.x + loopBox.width / 2, loopBox.y + loopBox.height / 2, { steps: 30 });
+    await page.waitForTimeout(400);
+
+    const dropZones = page.locator(
+      [
+        `${SEL.flowLoopActionCard} c8oforms-shareddropindicator:visible`,
+        `${SEL.flowLoopActionCard} [id*="afterItem"]:visible`,
+        `${SEL.flowLoopActionEditor} c8oforms-shareddropindicator:visible`,
+        `${SEL.flowLoopActionEditor} [id*="afterItem"]:visible`,
+      ].join(', '),
+    );
+    const dropZoneCount = await dropZones.count();
+    if (dropZoneCount > 0) {
+      const dropZone = dropZones.nth(dropZoneCount - 1);
+      const dropBox = await dropZone.boundingBox();
+      if (dropBox) {
+        await page.mouse.move(dropBox.x + dropBox.width / 2, dropBox.y + dropBox.height / 2, { steps: 10 });
+      }
+    }
+    await page.waitForTimeout(250);
+    await page.mouse.up();
+
+    await expect
+      .poll(() => formulaCards.count(), {
+        message: 'Formula action should be nested inside the Loop through drag and drop',
+        timeout: 15_000,
+      })
+      .toBe(before + 1);
   });
 }
 
