@@ -22,6 +22,8 @@ on:
   push:
     tags:
       - '**'
+  schedule:
+    - cron: '15 2 * * *'
   workflow_dispatch:
     inputs:
       endpoint:
@@ -447,7 +449,7 @@ jobs:
     # Ensure the disposable accounts used by the e2e shards exist before tests
     # start. The #1421 fixture always uses the first/primary account.
     needs: build_and_deploy
-    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.build_and_deploy.result == 'success') }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.build_and_deploy.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -473,10 +475,8 @@ jobs:
         run: node ci/ensure-test-users.mjs
 
   e2e_tests:
-    # Run the Playwright suite against the freshly deployed endpoint, sharded
-    # across eight GitHub-hosted runners per browser. Test failures are reported
-    # later, they do not block the release. Each shard uses one worker and one
-    # dedicated disposable account.
+    # The continuous release/dispatch path runs Chromium only. The scheduled
+    # Firefox phase below starts after every Chromium shard has completed.
     needs: prepare_e2e_test_users
     if: ${{ always() && needs.prepare_e2e_test_users.result == 'success' }}
     runs-on: ubuntu-latest
@@ -485,15 +485,10 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.61.0-noble
     env:
-      # Eight shards per browser. The matrix concurrency is capped below because
-      # all jobs still share the same test-nocode engine.
       E2E_SHARD_TOTAL: 8
     strategy:
       fail-fast: false
-      # Repository variable E2E_MAX_PARALLEL can be used for controlled
-      # concurrency experiments without editing this workflow. Keep all 16 jobs
-      # enabled by default until measurements prove that a lower cap is faster.
-      max-parallel: ${{ fromJSON(vars.E2E_MAX_PARALLEL || '16') }}
+      max-parallel: 8
       matrix:
         include:
           - browser: chromium
@@ -520,30 +515,6 @@ jobs:
           - browser: chromium
             shard: 8
             user_index: 8
-          - browser: firefox
-            shard: 1
-            user_index: 9
-          - browser: firefox
-            shard: 2
-            user_index: 10
-          - browser: firefox
-            shard: 3
-            user_index: 11
-          - browser: firefox
-            shard: 4
-            user_index: 12
-          - browser: firefox
-            shard: 5
-            user_index: 13
-          - browser: firefox
-            shard: 6
-            user_index: 14
-          - browser: firefox
-            shard: 7
-            user_index: 15
-          - browser: firefox
-            shard: 8
-            user_index: 16
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -596,10 +567,6 @@ jobs:
           C8OFORMS_PRIMARY_TEST_USER: testuser-convertigo@yopmail.com
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
           C8OFORMS_SHARD_DEBUG: 1
-          # Firefox runs as root in the Playwright container and aborts with the
-          # checkout HOME. Scope this override to the browser process so git can
-          # keep the credentials and safe.directory configured by checkout.
-          HOME: /root
         run: |
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           : "${C8OFORMS_MCP_URL:=${TEST_NOCODE_ENDPOINT%/}/api/mcp}"
@@ -626,9 +593,8 @@ jobs:
           # `shell: bash` turns on `-e`, so disable it around the test run to
           # capture the code and still let the artifact upload step run.
           set +e
-          # One CI retry as a safety net for transient interaction hiccups
-          # (firefox is notably flakier under concurrent load). Intrinsically
-          # flaky Baserow specs still raise this to 2 via test.describe.configure.
+          # One CI retry remains as a safety net while the report separately
+          # classifies first-attempt failures as flaky.
           npx playwright test $SPECS --workers=1 --retries=1
           TEST_STATUS=$?
           set -e
@@ -651,6 +617,15 @@ jobs:
             tests/test-results/**/*.zip
           if-no-files-found: ignore
           retention-days: 7
+
+  e2e_firefox_tests:
+    needs: [prepare_e2e_test_users, e2e_tests]
+    if: ${{ always() && github.event_name == 'schedule' && needs.prepare_e2e_test_users.result == 'success' }}
+    uses: ./.github/workflows/e2e-shards.yml
+    with:
+      browser: firefox
+      endpoint: ${{ github.event.inputs.endpoint || '' }}
+    secrets: inherit
 
   release:
     needs: [build_and_deploy, deps_report]
@@ -766,8 +741,8 @@ jobs:
     # Runs after the release and after the "to be tested" issue closure job.
     # While the e2e suite is being stabilized this remains report-only: no issue
     # reopening from test failures.
-    needs: [release, close_and_set_issues_to_be_tested, e2e_tests]
-    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release.result == 'success') }}
+    needs: [release, close_and_set_issues_to_be_tested, e2e_tests, e2e_firefox_tests]
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.release.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -790,7 +765,7 @@ jobs:
       - name: Generate e2e regression report
         working-directory: tests
         env:
-          EXPECTED_E2E_RESULT_SHARDS: 16
+          EXPECTED_E2E_RESULT_SHARDS: ${{ github.event_name == 'schedule' && '16' || '8' }}
           E2E_REOPEN_ISSUES: false
           RELEASE_TAG: ${{ github.ref_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

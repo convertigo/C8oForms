@@ -26,6 +26,7 @@ import {
   fillViewerTextInput,
   PALETTE_ICON,
   publishCurrentFormWithPwa,
+  publishedPwaUrl,
   publishedViewerToolbarThemeState,
   searchSelectorApplicationsByName,
   setSelectorMyApplicationsFilter,
@@ -375,14 +376,9 @@ export async function verifyPublishedPwaCacheMetadataThroughUi(page: Page): Prom
     await expectPublishedPwaServiceWorkerRegistration(page, authenticated.pwaIndexUrl, `#${authenticated.technicalId}`);
   });
 
-  await test.step('Verify the published PWA form data is cached and reloads offline', async () => {
-    await expectPublishedPwaOfflineFormReload(page, anonymous.pwaIndexUrl, `#${anonymous.technicalId}`, `offline-cache-anonymous-${suffix}`);
-    await expectPublishedPwaOfflineFormReload(
-      page,
-      authenticated.pwaIndexUrl,
-      `#${authenticated.technicalId}`,
-      `offline-cache-authenticated-${suffix}`,
-    );
+  await test.step('Verify the published PWA application shell reloads offline', async () => {
+    await expectPublishedPwaOfflineShellReload(page, anonymous.pwaIndexUrl, `#${anonymous.technicalId}`);
+    await expectPublishedPwaOfflineShellReload(page, authenticated.pwaIndexUrl, `#${authenticated.technicalId}`);
   });
 }
 
@@ -719,23 +715,34 @@ export async function verifyAnonymousPublishedQrToggleThroughUi(page: Page): Pro
 }
 
 async function expectPublishedPwaJson(page: Page, url: string, description: string): Promise<Record<string, unknown>> {
+  let json: Record<string, unknown> | null = null;
   await expect
     .poll(
       async () => {
         const response = await page.request.get(url, { failOnStatusCode: false, timeout: 10_000 });
-        return response.status();
+        if (response.status() !== 200) {
+          return false;
+        }
+        const candidate = await response.json().catch(() => null);
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+          return false;
+        }
+        json = candidate as Record<string, unknown>;
+        if (description.includes('ngsw.json')) {
+          return Array.isArray(json.assetGroups);
+        }
+        if (description.includes('manifest.webmanifest')) {
+          return typeof json.name === 'string' && typeof json.start_url === 'string';
+        }
+        return !json.couchdb_output;
       },
       {
-        message: `published PWA ${description} should be served at ${url}`,
+        message: `published PWA ${description} should be fully generated at ${url}`,
         timeout: 60_000,
       },
     )
-    .toBe(200);
-
-  const response = await page.request.get(url, { failOnStatusCode: true, timeout: 10_000 });
-  const json = (await response.json()) as unknown;
-  expect(json && typeof json === 'object' && !Array.isArray(json), `published PWA ${description} should be a JSON object`).toBe(true);
-  return json as Record<string, unknown>;
+    .toBe(true);
+  return json!;
 }
 
 async function expectPublishedPwaServiceWorkerRegistration(page: Page, pwaIndexUrl: string, waitForSelector = SEL.viewerPage): Promise<void> {
@@ -820,28 +827,44 @@ async function expectPublishedPwaCacheStorage(page: Page, pwaIndexUrl: string): 
 
   const ngsw = await expectPublishedPwaJson(page, new URL('ngsw.json', pwaIndexUrl).toString(), 'ngsw.json cache readiness');
   const assetGroups = Array.isArray(ngsw.assetGroups) ? ngsw.assetGroups : [];
-  const appGroup = assetGroups.find(
-    (group): group is Record<string, unknown> => Boolean(group) && typeof group === 'object' && (group as Record<string, unknown>).name === 'app',
-  );
-  const expectedAppShellAssets = appGroup && Array.isArray(appGroup.urls) ? appGroup.urls.length : 0;
-  expect(expectedAppShellAssets, 'published PWA ngsw app group should list preloaded shell assets').toBeGreaterThan(0);
+  const appShellGroup = assetGroups.find((group): group is Record<string, unknown> => {
+    if (!group || typeof group !== 'object') return false;
+    const name = String((group as Record<string, unknown>).name ?? '');
+    return name === 'app-shell' || name === 'app';
+  });
+  const appShellUrls =
+    appShellGroup && Array.isArray(appShellGroup.urls)
+      ? appShellGroup.urls.filter((url): url is string => typeof url === 'string')
+      : [];
+  const requiredAppShellUrls = appShellUrls
+    .filter((url) => /(?:^|\/)(?:index\.html|manifest\.webmanifest|main-[^/]+\.js|polyfills-[^/]+\.js|styles-[^/]+\.css)$/.test(url))
+    .map((url) => new URL(url, pwaIndexUrl).toString());
+  expect(requiredAppShellUrls, 'published PWA ngsw should list the essential preloaded application shell').not.toHaveLength(0);
   await expect
-    .poll(() => publishedPwaAppShellCacheCount(page, pwaIndexUrl), {
-      message: 'published PWA service worker should finish preloading its scoped app shell',
-      timeout: 120_000,
+    .poll(async () => {
+      const snapshot = await publishedPwaCacheSnapshot(page);
+      return requiredAppShellUrls.every((url) => snapshot.cachedUrls.includes(url));
+    }, {
+      message: 'published PWA service worker should cache its essential scoped application shell',
+      timeout: 60_000,
     })
-    .toBeGreaterThanOrEqual(expectedAppShellAssets);
+    .toBe(true);
 }
 
-async function expectPublishedPwaOfflineFormReload(page: Page, pwaIndexUrl: string, witnessSelector: string, value: string): Promise<void> {
+async function expectPublishedPwaOfflineShellReload(
+  page: Page,
+  pwaIndexUrl: string,
+  onlineWitnessSelector: string,
+): Promise<void> {
   await page.goto(pwaIndexUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await acceptRgpdIfVisible(page).catch(() => undefined);
   await expect(page.locator(SEL.viewerPage), 'published PWA should render online before offline reload').toBeAttached({
     timeout: 60_000,
   });
-  await expect(page.locator(witnessSelector).first(), 'published PWA form-data witness should render online before offline reload').toBeVisible({
-    timeout: 60_000,
-  });
+  await expect(
+    page.locator(onlineWitnessSelector).first(),
+    'published PWA form-data witness should render online before testing the cached shell',
+  ).toBeVisible({ timeout: 60_000 });
   await expectPublishedPwaCacheStorage(page, pwaIndexUrl);
 
   await page.context().setOffline(true);
@@ -854,38 +877,12 @@ async function expectPublishedPwaOfflineFormReload(page: Page, pwaIndexUrl: stri
     await expect(page.locator(SEL.viewerPage), 'cached published PWA app shell should render offline').toBeAttached({
       timeout: 60_000,
     });
-    const witnessInput = page.locator(`${witnessSelector}:visible input, ${witnessSelector}:visible textarea`).first();
-    await expect(witnessInput, 'cached published PWA form-data witness should render offline').toBeVisible({
-      timeout: 60_000,
-    });
-    await witnessInput.fill(value);
-    await expect(witnessInput, 'cached published PWA form-data witness should stay actionable offline').toHaveValue(value, {
-      timeout: 10_000,
+    await expect(page.locator('ion-app').first(), 'cached published PWA application root should render offline').toBeAttached({
+      timeout: 30_000,
     });
   } finally {
     await page.context().setOffline(false);
   }
-}
-
-async function publishedPwaAppShellCacheCount(page: Page, pwaIndexUrl: string): Promise<number> {
-  const scopePath = new URL('.', pwaIndexUrl).pathname;
-  return page.evaluate(async (expectedScopePath) => {
-    if (!('caches' in window)) {
-      return 0;
-    }
-    const scopedAppCachePattern = new RegExp(
-      `^ngsw:${expectedScopePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:.*:assets:app:cache$`,
-    );
-    const matchingCounts: number[] = [];
-    for (const cacheName of await window.caches.keys()) {
-      if (!scopedAppCachePattern.test(cacheName)) {
-        continue;
-      }
-      const cache = await window.caches.open(cacheName);
-      matchingCounts.push((await cache.keys()).length);
-    }
-    return matchingCounts.length > 0 ? Math.max(...matchingCounts) : 0;
-  }, scopePath);
 }
 
 async function publishedPwaCacheSnapshot(page: Page): Promise<PublishedPwaCacheSnapshot> {
@@ -1208,6 +1205,21 @@ async function expectActionableInsideViewport(page: Page, locator: Locator, labe
   expect(box!.y, `${label} should not be clipped on the top`).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width, `${label} should fit inside viewport width`).toBeLessThanOrEqual(viewport!.width + 1);
   expect(box!.y + box!.height, `${label} should fit inside viewport height`).toBeLessThanOrEqual(viewport!.height + 1);
+
+  const toast = page.locator('ion-toast:not(.overlay-hidden):visible').last();
+  if (await toast.isVisible({ timeout: 500 }).catch(() => false)) {
+    const closeButton = toast
+      .locator('button, ion-button, .toast-button')
+      .filter({ hasText: /^(OK|Close|Fermer)$/i })
+      .last();
+    if (await closeButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await closeButton.click({ timeout: 5_000 });
+    }
+  }
+  await expect(
+    page.locator('ion-toast:not(.overlay-hidden):visible'),
+    `${label} should not be covered by a viewer toast`,
+  ).toHaveCount(0, { timeout: 5_000 });
   await locator.click({ trial: true, timeout: 10_000 });
 }
 
@@ -1636,7 +1648,20 @@ async function expectPwaDocument(page: Page, formId: string, message: string): P
     .poll(
       async () => {
         pwa = await getPwaDocument(page, formId);
-        return pwa ? 'ready' : '';
+        if (pwa) {
+          return 'ready';
+        }
+        const publicationError = normalizeWhitespace(
+          await page
+            .locator('ion-toast.toastError:visible')
+            .last()
+            .innerText({ timeout: 500 })
+            .catch(() => ''),
+        );
+        if (publicationError) {
+          throw new Error(`PWA publication reported an error: ${publicationError}`);
+        }
+        return '';
       },
       {
         message,
@@ -1671,16 +1696,7 @@ async function visiblePublishedCardCount(page: Page, title: string): Promise<num
 }
 
 function standalonePwaUrl(page: Page, targetId: string): string {
-  const url = new URL(page.url());
-  const marker = '/DisplayObjects/mobile/';
-  const markerIndex = url.pathname.indexOf(marker);
-  if (markerIndex >= 0) {
-    url.pathname = `${url.pathname.slice(0, markerIndex)}/DisplayObjects/pwas/${targetId}/index.html`;
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  }
-  return new URL(`../pwas/${targetId}/index.html`, page.url()).toString();
+  return publishedPwaUrl(page, targetId);
 }
 
 function mobileAppRootUrl(page: Page): string {

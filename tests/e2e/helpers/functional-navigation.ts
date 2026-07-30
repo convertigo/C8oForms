@@ -439,8 +439,7 @@ async function selectViewerSelectOption(page: Page, technicalId: string, option:
         : overlay.locator('ion-item, ion-radio, [role="option"], [role="radio"], button').filter({ hasText: option }).first();
       await expect(optionLocator, `viewer Select option ${option} should be visible`).toBeVisible({ timeout: 10_000 });
       await optionLocator.click({ force: true, timeout: 10_000 });
-      await expect(page.locator(overlaySelector), 'viewer Select options overlay should close').toHaveCount(0, { timeout: 10_000 });
-      await page.waitForTimeout(750);
+      await expect(overlay, 'viewer Select options overlay should close').toBeHidden({ timeout: 10_000 });
       const selectValue = await select.evaluate((element) => String((element as HTMLElement & { value?: unknown }).value ?? '')).catch(() => '');
       if (selectValue !== option && (await select.isVisible({ timeout: 1_000 }).catch(() => false))) {
         await select.evaluate((element, value) => {
@@ -450,12 +449,10 @@ async function selectViewerSelectOption(page: Page, technicalId: string, option:
           ionSelect.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
           ionSelect.dispatchEvent(new CustomEvent('ionBlur', { bubbles: true, composed: true }));
         }, option);
-        await page.waitForTimeout(750);
       }
       if (await root.isVisible({ timeout: 1_000 }).catch(() => false)) {
         await expect(root, `viewer Select ${technicalId} should display ${option}`).toContainText(option, { timeout: 10_000 });
       }
-      await page.waitForTimeout(500);
       return;
     }
 
@@ -463,7 +460,6 @@ async function selectViewerSelectOption(page: Page, technicalId: string, option:
     await expect(page.locator(overlaySelector), 'stale viewer Select overlay should close before retry')
       .toHaveCount(0, { timeout: 5_000 })
       .catch(() => undefined);
-    await page.waitForTimeout(500);
   }
 
   throw new Error(`viewer Select option ${option} should be visible`);

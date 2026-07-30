@@ -211,7 +211,7 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
   expect(payload.ok, `could not get drag payload for ${label}`).toBe(true);
 
   await page.evaluate((html) => {
-    const tinymce = (window as any).tinymce;
+    const tinymce = (window as any).hugerte ?? (window as any).tinymce;
     tinymce?.activeEditor?.insertContent(html);
     tinymce?.activeEditor?.fire('change');
     tinymce?.activeEditor?.fire('blur');

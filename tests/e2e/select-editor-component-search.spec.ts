@@ -47,7 +47,9 @@ test.describe('SelectEditorComponent optional option search source contract', ()
     const yaml = componentYaml();
 
     expect(yaml).toContain('↓searchEnabled [ngx.components.UICompVariable-');
-    expect(yaml).toContain('comment: Enable the optional local search bar for displayed select options.');
+    expect(yaml).toContain(
+      'comment: Enables the custom searchable options popover. When false, the component keeps the historical native Ionic select branch.',
+    );
     expect(yaml).toMatch(/↓searchEnabled[\s\S]*?autoEmit: true[\s\S]*?value: false/);
     expect(yaml).toContain('"DoubleBinding": "script:this.searchQuery"');
     expect(yaml).toContain('"showClearButton": "plain:always"');
@@ -55,7 +57,7 @@ test.describe('SelectEditorComponent optional option search source contract', ()
     expect(yaml).toContain('eventName: ionInput');
     expect(yaml).toContain('page.onSearchChange(event);');
     expect(yaml).toContain('eventName: ionClear');
-    expect(yaml).toContain('page.clearSearch();');
+    expect(yaml).toContain('page.clearSearch(vars.searchbar);');
   });
 
   test('filters through a computed list without mutating the source options', () => {

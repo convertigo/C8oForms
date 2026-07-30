@@ -46,24 +46,53 @@ export async function replaceBaserowTableRows(
 }
 
 async function baserowApiSession(page: Page): Promise<BaserowApiSession> {
-  const accountResponse = await c8oCall(page, 'BaserowAccount', {});
-  const account = sequenceResult(accountResponse);
-  const token = stringField(account, 'token');
-  const iframe = stringField(account, 'iframe');
+  let token: string | null = null;
+  let iframe: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const accountResponse = await c8oCall(page, 'BaserowAccount', {});
+        const account = sequenceResult(accountResponse);
+        token = stringField(account, 'token');
+        iframe = stringField(account, 'iframe');
+        return Boolean(token && iframe);
+      },
+      {
+        message: 'C8Oforms.BaserowAccount should finish provisioning token/iframe',
+        timeout: 60_000,
+        intervals: [1_000, 2_000, 5_000, 10_000],
+      },
+    )
+    .toBe(true);
   if (!token || !iframe) {
-    throw new Error(`C8Oforms.BaserowAccount did not return token/iframe: ${JSON.stringify(account).slice(0, 300)}`);
+    throw new Error('C8Oforms.BaserowAccount did not return token/iframe after provisioning');
   }
 
-  const checkLogin = await page.request.post(`${iframe.replace(/\/+$/, '')}/.json`, {
-    form: {
-      __sequence: 'CheckLogin',
-      token,
-    },
-  });
-  const checkLoginJson = await jsonResponse(checkLogin, 'Baserow CheckLogin');
-  const jwtToken = stringField(checkLoginJson, 'jwt_token');
+  let jwtToken: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const checkLogin = await page.request.post(`${iframe!.replace(/\/+$/, '')}/.json`, {
+          form: {
+            __sequence: 'CheckLogin',
+            token: token!,
+          },
+          timeout: 60_000,
+        });
+        if (!checkLogin.ok()) return false;
+        const checkLoginJson = await checkLogin.json().catch(() => ({}));
+        jwtToken = stringField(checkLoginJson as JsonRecord, 'jwt_token');
+        return Boolean(jwtToken);
+      },
+      {
+        message: 'Baserow CheckLogin should return jwt_token after account provisioning',
+        timeout: 60_000,
+        intervals: [1_000, 2_000, 5_000, 10_000],
+      },
+    )
+    .toBe(true);
   if (!jwtToken) {
-    throw new Error(`Baserow CheckLogin did not return jwt_token: ${JSON.stringify(checkLoginJson).slice(0, 300)}`);
+    throw new Error('Baserow CheckLogin did not return jwt_token after provisioning');
   }
 
   const apiBaseUrl = await baserowBackendUrl(page, iframe);

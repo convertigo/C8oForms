@@ -12,6 +12,7 @@ import {
   createBlankForm,
   createMcpTokenThroughSettingsUi,
   expectMcpTokenListed,
+  gotoWithTransientRetry,
   openPublishedViewer,
   openPreview,
   openSettings,
@@ -320,7 +321,7 @@ async function visibleToastMessages(page: Page): Promise<string[]> {
 }
 
 async function openGdprPage(page: Page): Promise<void> {
-  await page.goto('./path-to-gdrppage', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await gotoWithTransientRetry(page, './path-to-gdrppage');
   await expectGdprPageReady(page);
 }
 

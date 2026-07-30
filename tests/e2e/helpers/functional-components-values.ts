@@ -1777,12 +1777,7 @@ async function expectSliderStyleValues(page: Page, values: { pin: boolean; snaps
 }
 
 async function openSliderStyleTab(page: Page): Promise<void> {
-  const tab = page
-    .locator('button:visible, ion-button:visible, [role="tab"]:visible')
-    .filter({ hasText: /Slider style/i })
-    .first();
-  await expect(tab, 'Slider style appearance tab should be visible').toBeVisible({ timeout: 15_000 });
-  await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+  await openConfigTabById(page, 'forms_slider_style');
   await expect(page.locator('c8oforms-toggleswitch:visible').first(), 'Slider style settings should be visible').toBeVisible({
     timeout: 15_000,
   });
@@ -2278,7 +2273,7 @@ async function setDescriptionRichText(
   await page.keyboard.press('Control+I');
   await page.keyboard.press('Shift+Enter');
   await page.keyboard.type('User email: ');
-  await fireActiveTinyMceChange(page);
+  await fireActiveTinyMceChange(page, body);
 
   for (const fragment of [content.introText, content.boldText, content.italicText]) {
     await expect
@@ -2303,12 +2298,22 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   return inlineEditor;
 }
 
-async function fireActiveTinyMceChange(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const editor = (window as any).tinymce?.activeEditor;
-    editor?.fire('input');
-    editor?.fire('change');
-    editor?.fire('blur');
+async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
+  const body = editorBody ?? (await visibleTinyMceBody(page));
+  await body.evaluate((targetBody) => {
+    const hostWindow = window.parent === window ? window : window.parent;
+    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
+    const rawEditors = tinymce?.editors;
+    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
+    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const editor =
+      (frameId ? tinymce?.get?.(frameId) : null) ??
+      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === targetBody);
+    if (!editor) throw new Error('TinyMCE instance not found for the visible Description editor');
+    editor.fire('input');
+    editor.fire('change');
+    editor.save?.();
+    editor.fire('blur');
   });
 }
 

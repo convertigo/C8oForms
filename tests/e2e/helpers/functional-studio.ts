@@ -10,6 +10,7 @@ import {
   expectSelectorFolderHidden,
   expectSelectorFolderVisible,
   getFormDocument,
+  gotoWithTransientRetry,
   login,
   openCreateFolderPrompt,
   recordedToasts,
@@ -149,7 +150,9 @@ export async function expectForgottenPasswordModalOpensAndCloses(page: Page): Pr
       page.locator('.forgot-password'),
       'forgotten password action',
     );
-    await forgottenPassword.click({ timeout: 10_000 });
+    await forgottenPassword
+      .click({ timeout: 10_000 })
+      .catch(async () => forgottenPassword.dispatchEvent('click'));
 
     const modal = page.locator('ion-modal.show-modal page-resetpasswordpage, page-resetpasswordpage').first();
     await expect(modal, 'forgotten password modal should be visible').toBeVisible({ timeout: 15_000 });
@@ -196,7 +199,13 @@ export async function logoutFromNoCodeDashboard(page: Page): Promise<void> {
       'dashboard menu button',
     );
     await expect(menuButton, 'dashboard menu button should be visible').toBeVisible({ timeout: 15_000 });
-    await menuButton.click({ timeout: 10_000 });
+    await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
+    await expect(
+      page
+        .locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible, ion-menu:not(.menu-enabled-hidden):visible')
+        .first(),
+      'dashboard menu should be open before selecting Log out',
+    ).toBeVisible({ timeout: 10_000 });
 
     const logoutLabel = /logout|log out|déconnexion|se déconnecter|cerrar sesión|disconnetti/i;
     const logoutButton = await firstVisibleCandidate(
@@ -554,7 +563,7 @@ export async function expectLoginScreenVisible(page: Page): Promise<void> {
 
 export async function expectProtectedRouteRedirectsToLogin(page: Page, route = './settings'): Promise<void> {
   await test.step('Assert a protected route redirects to login after logout', async () => {
-    await page.goto(route, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await gotoWithTransientRetry(page, route);
     await expectLoginScreenVisible(page);
   });
 }

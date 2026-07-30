@@ -79,21 +79,48 @@ export async function assertIsolatedEmptyDashboardSections(page: Page): Promise<
 
 async function ensureNoCodeDatabaseAccount(page: Page): Promise<void> {
   await test.step('Provision the isolated user No-code database account', async () => {
-    const response = await c8oCall(page, 'BaserowAccount', {});
-    const document = asRecord(response.document);
-    const result = asRecord(document?.result) ?? asRecord(response.result) ?? document ?? response;
-    const token = typeof result.token === 'string' ? result.token : '';
-    const iframe = typeof result.iframe === 'string' ? result.iframe : '';
+    let token = '';
+    let iframe = '';
+    await expect
+      .poll(
+        async () => {
+          const response = await c8oCall(page, 'BaserowAccount', {});
+          const document = asRecord(response.document);
+          const result = asRecord(document?.result) ?? asRecord(response.result) ?? document ?? response;
+          token = typeof result.token === 'string' ? result.token : '';
+          iframe = typeof result.iframe === 'string' ? result.iframe : '';
+          return Boolean(token && iframe);
+        },
+        {
+          message: 'BaserowAccount should finish provisioning the isolated user',
+          timeout: 60_000,
+          intervals: [1_000, 2_000, 5_000, 10_000],
+        },
+      )
+      .toBe(true);
     expect(token, 'BaserowAccount should return a login token for the isolated user').not.toBe('');
     expect(iframe, 'BaserowAccount should return an iframe endpoint for the isolated user').not.toBe('');
 
-    const checkLogin = await page.request.post(`${iframe.replace(/\/+$/, '')}/.json`, {
-      form: { __sequence: 'CheckLogin', token },
-      timeout: 60_000,
-    });
-    const body = await checkLogin.json().catch(() => ({}));
-    expect(checkLogin.ok(), 'Baserow iframe CheckLogin should succeed for the isolated user').toBe(true);
-    expect(String(asRecord(body)?.jwt_token ?? ''), 'Baserow iframe CheckLogin should return a JWT').not.toBe('');
+    let jwt = '';
+    await expect
+      .poll(
+        async () => {
+          const checkLogin = await page.request.post(`${iframe.replace(/\/+$/, '')}/.json`, {
+            form: { __sequence: 'CheckLogin', token },
+            timeout: 60_000,
+          });
+          if (!checkLogin.ok()) return false;
+          const body = await checkLogin.json().catch(() => ({}));
+          jwt = String(asRecord(body)?.jwt_token ?? '');
+          return jwt.length > 0;
+        },
+        {
+          message: 'Baserow iframe CheckLogin should return a JWT after account provisioning',
+          timeout: 60_000,
+          intervals: [1_000, 2_000, 5_000, 10_000],
+        },
+      )
+      .toBe(true);
   });
 }
 

@@ -540,10 +540,7 @@ async function clickViewerSubmitWithoutCompletionWait(page: Page): Promise<void>
 
 function assertBaserowAddRowFixture(catalog: BaserowCatalog): void {
   const table = catalog.tables.find((candidate) => candidate.name === ADD_ROW_TABLE);
-  if (!table) {
-    console.warn(`Baserow catalog read-back did not include ${ADD_ROW_TABLE}; continuing after ensure-created returned successfully.`);
-    return;
-  }
+  expect(table, `Baserow table ${ADD_ROW_TABLE} should exist after schema read-back`).toBeTruthy();
   const columns = (table.columns ?? []) as Record<string, unknown>[];
   for (const columnName of [ADD_ROW_NAME_COLUMN, ADD_ROW_NOTE_COLUMN]) {
     const column = columns.find((candidate) => candidate.name === columnName);

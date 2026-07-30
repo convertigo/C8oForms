@@ -1083,9 +1083,15 @@ async function addPaletteComponentAndAssertVisible(page: Page, component: Palett
 async function setTextInputQuestionLabel(page: Page, value: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click({ timeout: 10_000 });
-  const filledThroughTinyMce = await page.evaluate((text) => {
-    const tinymce = (window as unknown as { tinymce?: { activeEditor?: TinyMceLikeEditor } }).tinymce;
-    const editor = tinymce?.activeEditor;
+  const filledThroughTinyMce = await editorBody.evaluate((body, text) => {
+    const hostWindow = window.parent === window ? window : window.parent;
+    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
+    const rawEditors = tinymce?.editors;
+    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
+    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const editor =
+      (frameId ? tinymce?.get?.(frameId) : null) ??
+      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === body);
     if (!editor) {
       return false;
     }
@@ -1095,6 +1101,7 @@ async function setTextInputQuestionLabel(page: Page, value: string): Promise<voi
     editor.setContent(`<p>${holder.innerHTML}</p>`);
     editor.fire('input');
     editor.fire('change');
+    editor.save?.();
     editor.fire('blur');
     return true;
   }, value);
@@ -1115,9 +1122,8 @@ async function setTextInputQuestionLabel(page: Page, value: string): Promise<voi
   }
 
   await page.keyboard.press('Tab').catch(() => undefined);
-  await fireActiveTinyMceChange(page);
+  await fireActiveTinyMceChange(page, editorBody);
   await expectQuestionLabelEditorText(page, value);
-  await page.waitForTimeout(1_000);
 }
 
 async function openTextInputQuestionTab(page: Page): Promise<void> {
@@ -1255,11 +1261,22 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   return inlineEditor;
 }
 
-async function fireActiveTinyMceChange(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const tinymce = (window as unknown as { tinymce?: { activeEditor?: TinyMceLikeEditor } }).tinymce;
-    tinymce?.activeEditor?.fire('change');
-    tinymce?.activeEditor?.fire('blur');
+async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
+  const body = editorBody ?? (await visibleTinyMceBody(page));
+  await body.evaluate((targetBody) => {
+    const hostWindow = window.parent === window ? window : window.parent;
+    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
+    const rawEditors = tinymce?.editors;
+    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
+    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const editor =
+      (frameId ? tinymce?.get?.(frameId) : null) ??
+      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === targetBody);
+    if (!editor) throw new Error('TinyMCE instance not found for the visible question editor');
+    editor.fire('input');
+    editor.fire('change');
+    editor.save?.();
+    editor.fire('blur');
   });
 }
 
@@ -1654,7 +1671,7 @@ async function expectInvalidTechnicalIdentifierRestoresPreviousValue(
 ): Promise<void> {
   await recordToasts(page);
   const toastCountBefore = (await recordedToasts(page)).length;
-  await setTechnicalId(page, invalidValue);
+  await setTechnicalId(page, invalidValue, { expectPersistence: false });
   await expect(
     page.locator(`${SEL.technicalIdInput}:visible`).first(),
     `invalid technical identifier "${invalidValue}" should restore the previous value`,

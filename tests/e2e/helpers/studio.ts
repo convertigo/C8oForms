@@ -808,9 +808,9 @@ export async function openPublishedViewer(page: Page, formId: string, waitForSel
       )
       .not.toBe('');
 
-    const pwaPath = `../pwas/${targetId}/index.html`;
-    await waitForPublishedPwaRoute(page, pwaPath);
-    await page.goto(pwaPath, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    const pwaUrl = publishedPwaUrl(page, targetId);
+    await waitForPublishedPwaRoute(page, pwaUrl);
+    await page.goto(pwaUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.locator(SEL.viewerPage).waitFor({ state: 'attached', timeout: 60_000 });
     await page.locator(waitForSelector).first().waitFor({ state: 'visible', timeout: 60_000 });
     await page.waitForTimeout(2_000);
@@ -830,16 +830,19 @@ function publishedViewerTargetId(pwa: JsonRecord | null, fallbackPublishedId: st
   return fallbackPublishedId;
 }
 
-async function waitForPublishedPwaRoute(page: Page, relativePath: string): Promise<void> {
-  const absoluteUrl = new URL(relativePath, page.url()).toString();
+export function publishedPwaUrl(page: Page, targetId: string): string {
+  return `${resolveConvertigoEndpoint(page)}/projects/C8Oforms/DisplayObjects/pwas/${encodeURIComponent(targetId)}/index.html`;
+}
+
+async function waitForPublishedPwaRoute(page: Page, url: string): Promise<void> {
   await expect
     .poll(
       async () => {
-        const response = await page.request.get(absoluteUrl, { failOnStatusCode: false, timeout: 10_000 });
+        const response = await page.request.get(url, { failOnStatusCode: false, timeout: 10_000 });
         return response.status();
       },
       {
-        message: `published PWA route should be available at ${absoluteUrl}`,
+        message: `published PWA route should be available at ${url}`,
         timeout: 90_000,
       },
     )
@@ -912,39 +915,85 @@ async function readToolbarButtonThemeState(button: Locator): Promise<PublishedTo
  * a correctly published anonymous form. Use this helper instead.
  */
 export async function openAnonymousPwa(page: Page, anonymousKey: string): Promise<void> {
-  await page.goto(`../pwas/${anonymousKey}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await gotoWithTransientRetry(page, publishedPwaUrl(page, anonymousKey));
+}
+
+function resolveConvertigoEndpoint(page: Page): string {
+  const explicit =
+    process.env.TEST_NOCODE_ENDPOINT || process.env.C8O_SERVER || process.env.C8OFORMS_BASE_URL || '';
+  if (explicit) {
+    const trimmed = explicit.replace(/\/+$/, '');
+    return trimmed.endsWith('/convertigo') ? trimmed : `${trimmed}/convertigo`;
+  }
+
+  const currentUrl = new URL(page.url());
+  const convertigoIndex = currentUrl.pathname.indexOf('/convertigo/');
+  if (convertigoIndex >= 0) {
+    return `${currentUrl.origin}${currentUrl.pathname.slice(0, convertigoIndex + '/convertigo'.length)}`;
+  }
+  return `${currentUrl.origin}/convertigo`;
 }
 
 export async function c8oCall(page: Page, sequence: string, params: Record<string, unknown>): Promise<JsonRecord> {
-  return page.evaluate(
-    async ({ sequenceName, sequenceParams }) => {
-      const formData = new FormData();
-      formData.append('__project', 'C8Oforms');
-      formData.append('__sequence', sequenceName);
-      for (const [key, value] of Object.entries(sequenceParams)) {
+  const retryableRead =
+    /^(?:get|APIV2_(?:get|Get|Execute|McpTokenList)|admin_(?:users|groups|group).*_get|BaserowAccount$)/i.test(sequence);
+  const endpoint = resolveConvertigoEndpoint(page);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < (retryableRead ? 3 : 1); attempt++) {
+    try {
+      const multipart: Record<string, string> = {
+        __project: 'C8Oforms',
+        __sequence: sequence,
+      };
+      for (const [key, value] of Object.entries(params)) {
         if (value === undefined || value === null) continue;
-        formData.append(key, typeof value === 'string' ? value : JSON.stringify(value));
+        multipart[key] = typeof value === 'string' ? value : JSON.stringify(value);
       }
 
-      const response = await fetch(`${location.origin}/convertigo/projects/C8Oforms/.json`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
+      const response = await page.request.post(`${endpoint}/projects/C8Oforms/.json`, {
+        multipart,
+        timeout: 60_000,
       });
       const text = await response.text();
-      let json: Record<string, unknown>;
+      let json: JsonRecord;
       try {
-        json = text ? JSON.parse(text) : {};
+        json = text ? (JSON.parse(text) as JsonRecord) : {};
       } catch {
-        throw new Error(`C8o ${sequenceName} returned non-JSON: ${text.slice(0, 300)}`);
+        throw new Error(`C8o ${sequence} returned non-JSON: ${text.slice(0, 300)}`);
       }
-      if (!response.ok || (json as { error?: unknown }).error) {
-        throw new Error(`C8o ${sequenceName} failed: ${JSON.stringify(json).slice(0, 500)}`);
+      if (!response.ok() || json.error) {
+        throw new Error(`C8o ${sequence} failed: HTTP ${response.status()} ${JSON.stringify(json).slice(0, 500)}`);
       }
       return json;
-    },
-    { sequenceName: sequence, sequenceParams: params },
-  );
+    } catch (error) {
+      lastError = error;
+      if (!retryableRead || attempt === 2 || !/abort|timeout|HTTP 50[234]|temporar|ECONNRESET|NS_ERROR/i.test(String(error))) {
+        throw error;
+      }
+      await page.waitForTimeout([500, 1_500][attempt] ?? 1_500);
+    }
+  }
+  throw lastError;
+}
+
+export async function gotoWithTransientRetry(page: Page, url: string, timeout = 60_000): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (
+        attempt === 2 ||
+        !/NS_BINDING_ABORTED|ERR_ABORTED|frame (?:was )?detached|navigation.*(?:interrupted|cancelled)/i.test(String(error))
+      ) {
+        throw error;
+      }
+      await page.waitForTimeout([250, 750][attempt] ?? 750);
+    }
+  }
+  throw lastError;
 }
 
 export async function setCurrentUserStudioLanguage(
@@ -960,7 +1009,7 @@ export async function setCurrentUserStudioLanguage(
 
 export async function openSettings(page: Page): Promise<void> {
   await test.step('open user settings', async () => {
-    await page.goto('./settings', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await gotoWithTransientRetry(page, './settings');
     await expectRoute(page, ROUTE.settings, 60_000);
     await page.locator('page-settingspage').waitFor({ state: 'attached', timeout: 60_000 });
     await expect(page.locator(SEL.settingsMcpRoot), 'the MCP tokens settings section should be visible').toBeVisible({
@@ -3004,10 +3053,15 @@ async function setButtonColorPickerValue(
   }
 
   await page.mouse.click(inputBox.x + inputBox.width / 2, inputBox.y + inputBox.height / 2);
-  await page.keyboard.press('ControlOrMeta+A');
-  await page.keyboard.type(hexColor);
+  await hexInput.fill(hexColor);
+  await hexInput.evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, data: value, inputType: 'insertText' }));
+    input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    input.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, composed: true, detail: { value } }));
+  }, hexColor);
   await page.keyboard.press('Enter');
-  await page.keyboard.press('Escape');
 
   await expect
     .poll(() => swatch.evaluate((element) => getComputedStyle(element).backgroundColor), {
@@ -3015,6 +3069,7 @@ async function setButtonColorPickerValue(
       timeout: 10_000,
     })
     .toBe(hexToRgbCss(hexColor));
+  await page.keyboard.press('Escape');
 }
 
 async function selectButtonFlexOption(
@@ -3035,7 +3090,6 @@ async function selectButtonFlexOption(
     page.locator(`${switchSelector} button.c8o-btn`).nth(optionIndex[value]),
     `Button ${label} should be ${value}`,
   ).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
-  await page.waitForTimeout(500);
 }
 
 function hexToRgbCss(hexColor: string): string {
@@ -3065,7 +3119,6 @@ export async function setButtonAdvancedRichLabel(
 
     await typeVisibleTinyMceRichContent(page, editorRoot, content);
     await page.keyboard.press('Tab').catch(() => undefined);
-    await page.waitForTimeout(1_500);
   });
 }
 
@@ -3147,7 +3200,12 @@ async function selectButtonDisplayMode(page: Page, mode: 'normal' | 'advanced'):
   await expect(button, `Button display mode ${mode} option should be visible`).toBeVisible({ timeout: 10_000 });
   await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
   await expect(button, `Button display mode should be ${mode}`).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
-  await page.waitForTimeout(800);
+  if (mode === 'advanced') {
+    await expect(
+      page.locator(`${SEL.buttonAdvancedTextEditor}:visible`).first(),
+      'advanced Button editor should be mounted',
+    ).toBeVisible({ timeout: 15_000 });
+  }
 }
 
 async function typeVisibleTinyMceRichContent(
@@ -3158,17 +3216,15 @@ async function typeVisibleTinyMceRichContent(
   const body = editorRoot.frameLocator('iframe.tox-edit-area__iframe').locator('body');
   await expect(body, 'TinyMCE editable iframe body should be visible').toBeVisible({ timeout: 20_000 });
 
-  await body.click({ timeout: 10_000 });
-  await page.keyboard.press('Control+A');
-  await page.keyboard.press('Backspace');
-
-  await page.keyboard.press('Control+B');
-  await page.keyboard.type(content.boldText);
-  await page.keyboard.press('Control+B');
-  await page.keyboard.press('Shift+Enter');
-  await page.keyboard.press('Control+I');
-  await page.keyboard.type(content.italicText);
-  await page.keyboard.press('Control+I');
+  const escapeHtml = (value: string) =>
+    value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  const html = `<p><strong>${escapeHtml(content.boldText)}</strong><br><em>${escapeHtml(content.italicText)}</em></p>`;
+  await mutateTinyMceEditor(body, 'set', html);
 
   for (const fragment of [content.boldText, content.italicText]) {
     await expect
@@ -4376,6 +4432,7 @@ export async function setGridReturnedValueToRowSelected(page: Page): Promise<voi
 
 export async function selectTinyMcePathBadgeTreeValue(page: Page, label: string, expectedPath: string): Promise<void> {
   await test.step(`Select ${label} from the TinyMCE path badge tree`, async () => {
+    const editorBody = await visibleTinyMceBody(page);
     await clickTinyMcePathBadgeEditButton(page);
 
     const treeview = page.locator('ion-modal.modalCSV').last();
@@ -4387,6 +4444,7 @@ export async function selectTinyMcePathBadgeTreeValue(page: Page, label: string,
     await clickChooseButtonForTreeLabel(page, label);
     await acceptRgpdIfVisible(page, 500);
     await expect(treeview, 'source tree modal should close after choosing a value').toBeHidden({ timeout: 15_000 });
+    await fireActiveTinyMceChange(page, editorBody);
     await expectTinyMcePathBadge(page, expectedPath);
   });
 }
@@ -4848,10 +4906,11 @@ export async function addButtonFlowLoopAction(page: Page, flowName?: string | Re
 
 export async function addFormulaActionToLoop(page: Page): Promise<void> {
   await test.step('Add a Formula inside the open Loop action', async () => {
+    await enableNativeDropDeliveryForC8oDropZones(page);
     const close = page.locator(`${SEL.configClose}:visible, button.c8o-btn-close:visible, .c8o-btn-close:visible`).last();
     if (await close.isVisible({ timeout: 1_000 }).catch(() => false)) {
       await close.click({ timeout: 10_000 }).catch(async () => close.dispatchEvent('click'));
-      await page.waitForTimeout(800);
+      await expect(close).toBeHidden({ timeout: 10_000 });
     }
     if (!(await page.locator('#bloc-palette:visible').first().isVisible({ timeout: 1_000 }).catch(() => false))) {
       await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
@@ -4904,7 +4963,7 @@ export async function addFormulaActionToLoop(page: Page): Promise<void> {
 
     await expect
       .poll(() => formulaCards.count(), {
-        message: 'Formula action should be nested inside the Loop through drag and drop',
+        message: 'Formula action should be nested once inside the Loop through native HTML5 drag and drop',
         timeout: 15_000,
       })
       .toBe(before + 1);
@@ -7207,7 +7266,16 @@ async function selectorFormListState(page: Page): Promise<string> {
   }
 
   const hasCard = await root
-    .locator(`${SEL.selectorCardTitle}, ${SEL.selectorListTitle}, [id^="idcard"]:not([id^="idcardO"])`)
+    .locator(
+      [
+        SEL.selectorCardTitle,
+        SEL.selectorListTitle,
+        '[id^="idcard"]:not([id^="idcardO"])',
+        'c8oforms-cardselector',
+        'c8oforms-listselector',
+        'cdk-virtual-scroll-viewport .cdk-virtual-scroll-content-wrapper > ion-col',
+      ].join(', '),
+    )
     .first()
     .isVisible({ timeout: 500 })
     .catch(() => false);
@@ -7297,14 +7365,34 @@ export async function openComponentsPalette(page: Page, waitForIcon = PALETTE_IC
 
 export async function openWorkflowsPanel(page: Page): Promise<void> {
   await acceptRgpdIfVisible(page);
-  if (
-    (await page.locator(SEL.workflowsSearchbar).first().isVisible({ timeout: 1_000 }).catch(() => false)) &&
-    (await page.locator(SEL.workflowEntry).first().isVisible({ timeout: 1_000 }).catch(() => false))
-  ) {
+  const searchbar = page.locator(SEL.workflowsSearchbar).first();
+  const entry = page.locator(SEL.workflowEntry).first();
+
+  if (await searchbar.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await expect(entry, 'Workflows panel is open but no workflow entry is visible').toBeVisible({
+      timeout: 15_000,
+    });
     return;
   }
-  await clickFirstVisible(page, SEL.workflowsPanelButton, 'workflows panel');
-  await page.waitForTimeout(800);
+
+  const button = await firstVisibleLocator(page, SEL.workflowsPanelButton, 'workflows panel');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await searchbar.isVisible({ timeout: 500 }).catch(() => false)) {
+      break;
+    }
+
+    await button.click({ timeout: 15_000 }).catch(() => undefined);
+    if (await searchbar.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      break;
+    }
+  }
+
+  await expect(searchbar, 'Workflows panel should open after clicking the Workflows menu').toBeVisible({
+    timeout: 5_000,
+  });
+  await expect(entry, 'Workflows panel should expose workflow entries once open').toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 export async function openFirstWorkflowSection(page: Page): Promise<void> {
@@ -7503,11 +7591,39 @@ export async function countComponents(page: Page): Promise<number> {
 /**
  * Rename the technical identifier of the component whose config panel is open.
  */
-export async function setTechnicalId(page: Page, value: string): Promise<void> {
+export async function setTechnicalId(
+  page: Page,
+  value: string,
+  options: { expectPersistence?: boolean } = {},
+): Promise<void> {
   const input = await firstVisibleLocator(page, SEL.technicalIdInput, 'technical identifier input');
+  if (options.expectPersistence === false) {
+    await input.fill(value);
+    await input.blur();
+    await expect(input, `invalid technical identifier ${value} should be rejected`).not.toHaveValue(value, {
+      timeout: 10_000,
+    });
+    return;
+  }
+
+  const persisted = page.waitForResponse(
+    (response) => {
+      const request = response.request();
+      const postData = request.postData() ?? '';
+      return (
+        response.ok() &&
+        request.method() === 'POST' &&
+        response.url().includes('/projects/C8Oforms/.json') &&
+        postData.includes('APIV2_updateFormulaireDocument') &&
+        postData.includes(`"name":"${value}"`)
+      );
+    },
+    { timeout: 15_000 },
+  );
   await input.fill(value);
   await input.blur();
-  await page.waitForTimeout(1_500); // editor persists the rename on blur
+  await persisted;
+  await expect(input, `technical identifier ${value} should remain visible after persistence`).toHaveValue(value);
 }
 
 async function paletteTileForIcon(page: Page, icon: string, description: string, timeout = 30_000): Promise<Locator> {
@@ -7846,7 +7962,11 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
   await editorBody.click();
   const filledThroughTinyMce = await editorBody.evaluate((body, text) => {
     const frameWindow = body.ownerDocument.defaultView as any;
-    const tinymce = frameWindow?.parent?.tinymce ?? frameWindow?.tinymce;
+    const tinymce =
+      frameWindow?.parent?.hugerte ??
+      frameWindow?.parent?.tinymce ??
+      frameWindow?.hugerte ??
+      frameWindow?.tinymce;
     const editors = Array.isArray(tinymce?.editors) ? tinymce.editors : Object.values(tinymce?.editors ?? {});
     const frameElement = frameWindow?.frameElement;
     const editor =
@@ -8435,33 +8555,20 @@ export async function setDescriptionText(page: Page, text: string): Promise<void
 }
 
 async function setTinyMceContentThroughApi(page: Page, text: string): Promise<boolean> {
-  const hasEditor = await expect
-    .poll(
-      () =>
-        page.evaluate(() => {
-          const tinymce = (window as any).tinymce;
-          const rawEditors = tinymce?.editors;
-          const editors = Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
-          return editors.length;
-        }),
-      {
-        message: 'TinyMCE editor instance should be registered',
-        timeout: 15_000,
-      },
-    )
-    .toBeGreaterThan(0)
-    .then(() => true)
-    .catch(() => false);
-  if (!hasEditor) {
+  const editorBody = await visibleTinyMceBody(page).catch(() => null);
+  if (!editorBody) {
     return false;
   }
 
-  const applied = await page.evaluate((value) => {
-    const tinymce = (window as any).tinymce;
+  const applied = await editorBody.evaluate((body, value) => {
+    const hostWindow = window.parent === window ? window : window.parent;
+    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
     const rawEditors = tinymce?.editors;
     const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
-    const active = tinymce?.activeEditor;
-    const editor = active && !active.removed ? active : editors.filter((candidate) => candidate && !candidate.removed).pop();
+    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const editor =
+      (frameId ? tinymce?.get?.(frameId) : null) ??
+      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === body);
     if (!editor) {
       return false;
     }
@@ -8471,13 +8578,13 @@ async function setTinyMceContentThroughApi(page: Page, text: string): Promise<bo
     editor.setContent(holder.innerHTML);
     editor.fire('input');
     editor.fire('change');
+    editor.save?.();
     editor.fire('blur');
     return String(editor.getContent({ format: 'text' }) ?? '').includes(value);
   }, text);
 
   if (applied) {
-    await fireActiveTinyMceChange(page);
-    await page.waitForTimeout(1_000);
+    await fireActiveTinyMceChange(page, editorBody);
   }
   return applied;
 }
@@ -8512,11 +8619,7 @@ export async function addVisibilityCondition(page: Page, spec: VisibilityConditi
     }
   }
 
-  // The condition editor saves asynchronously (ionChange -> save emit). Let that
-  // settle so the operator/value persists before the caller closes the panel —
-  // otherwise the last-authored condition can be lost (this bit is what made an
-  // is_empty condition look like a viewer bug).
-  await page.waitForTimeout(1_000);
+  await expectVisibilityConditionConfigured(page, spec.field, spec.operator);
 }
 
 export interface ButtonStateConditionSpec extends VisibilityConditionSpec {
@@ -8805,10 +8908,9 @@ export async function dragSourcePaletteEntryToTinyMceStrict(
     .catch((error) => {
       realDragError = String(error);
     });
-  await page.waitForTimeout(1_000);
-  await fireActiveTinyMceChange(page);
+  await fireActiveTinyMceChange(page, editorBody);
 
-  if (await waitForTinyMcePaletteEntry(page, label, before, 3_000)) {
+  if (await waitForTinyMcePaletteEntry(page, label, before, 3_000, editorBody)) {
     return;
   }
 
@@ -8864,10 +8966,12 @@ async function dragPaletteEntryToEditor(page: Page, section: SourcePaletteSectio
   await expect(tile, `source palette entry ${label} should be visible`).toBeVisible({ timeout: 15_000 });
 
   const before = await editorBody.locator('svg[id^="clickable-"], span[c8otype="path"], span.styleBadge').count();
-  await tile.dragTo(editorBody).catch(() => undefined);
-  await page.waitForTimeout(1_000);
-  await fireActiveTinyMceChange(page);
-  if (await editorContainsPaletteEntry(editorBody, label, before)) {
+  let realDragError = '';
+  await tile.dragTo(editorBody, { timeout: 10_000 }).catch((error) => {
+    realDragError = String(error);
+  });
+  await fireActiveTinyMceChange(page, editorBody);
+  if (await waitForTinyMcePaletteEntry(page, label, before, 3_000, editorBody)) {
     return;
   }
 
@@ -8896,14 +9000,13 @@ async function dragPaletteEntryToEditor(page: Page, section: SourcePaletteSectio
   );
   expect(payload.ok, `could not get drag payload for ${label}`).toBe(true);
 
-  await page.evaluate((html) => {
-    const tinymce = (window as any).tinymce;
-    tinymce?.activeEditor?.insertContent(html);
-  }, payload.html);
-  await fireActiveTinyMceChange(page);
+  await mutateTinyMceEditor(editorBody, 'insert', payload.html);
+  await fireActiveTinyMceChange(page, editorBody);
   await expect
     .poll(() => editorContainsPaletteEntry(editorBody, label, before), {
-      message: `TinyMCE editor should contain the ${label} Source Palette token`,
+      message: `TinyMCE editor should contain the ${label} Source Palette token${
+        realDragError ? `; dragTo error=${realDragError}` : ''
+      }`,
       timeout: 10_000,
     })
     .toBe(true);
@@ -8937,10 +9040,11 @@ async function waitForTinyMcePaletteEntry(
   label: string,
   previousTokenCount: number | null = null,
   timeout = 10_000,
+  editorBody?: Locator,
 ): Promise<boolean> {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    if (await tinyMcePaletteEntryPresent(page, label, previousTokenCount)) {
+    if (await tinyMcePaletteEntryPresent(page, label, previousTokenCount, editorBody)) {
       return true;
     }
     await page.waitForTimeout(250);
@@ -8952,9 +9056,10 @@ async function tinyMcePaletteEntryPresent(
   page: Page,
   label: string,
   previousTokenCount: number | null = null,
+  editorBody?: Locator,
 ): Promise<boolean> {
-  const editorBody = await visibleTinyMceBody(page).catch(() => null);
-  return editorBody ? editorContainsPaletteEntry(editorBody, label, previousTokenCount) : false;
+  const body = editorBody ?? (await visibleTinyMceBody(page).catch(() => null));
+  return body ? editorContainsPaletteEntry(body, label, previousTokenCount) : false;
 }
 
 async function visibleTinyMceBody(page: Page): Promise<Locator> {
@@ -9063,12 +9168,41 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
   await page.mouse.click(center!.x, center!.y);
 }
 
-async function fireActiveTinyMceChange(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const tinymce = (window as any).tinymce;
-    tinymce?.activeEditor?.fire('change');
-    tinymce?.activeEditor?.fire('blur');
-  });
+async function mutateTinyMceEditor(editorBody: Locator, action: 'notify' | 'insert' | 'set', html = ''): Promise<void> {
+  await editorBody.evaluate(
+    (body, payload) => {
+      const hostWindow = window.parent === window ? window : window.parent;
+      const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
+      const rawEditors = tinymce?.editors;
+      const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
+      const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+      const editor =
+        (frameId ? tinymce?.get?.(frameId) : null) ??
+        editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === body);
+      if (!editor) {
+        throw new Error(`TinyMCE instance not found for target body ${body.id || '(without id)'}`);
+      }
+      if (payload.action === 'insert') {
+        editor.focus?.();
+        editor.insertContent(payload.html);
+      } else if (payload.action === 'set') {
+        editor.focus?.();
+        editor.setContent(payload.html);
+      }
+      editor.setDirty?.(true);
+      editor.fire('input');
+      editor.fire('change');
+      editor.nodeChanged?.();
+      editor.save?.();
+      editor.fire('blur');
+    },
+    { action, html },
+  );
+}
+
+async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
+  const body = editorBody ?? (await visibleTinyMceBody(page));
+  await mutateTinyMceEditor(body, 'notify');
 }
 
 async function confirmAlertIfVisible(page: Page): Promise<void> {
@@ -9708,7 +9842,7 @@ export async function dragPaletteComponentInto(
   paletteIcon: string,
   containerSelector: string,
 ): Promise<void> {
-  await enableNativeDropDeliveryForLayoutDropZones(page);
+  await enableNativeDropDeliveryForC8oDropZones(page);
   const tile = await draggablePaletteTileForIcon(page, paletteIcon, `palette tile ${paletteIcon}`);
   const container = page.locator(containerSelector).first();
   const children = page.locator(`${containerSelector} ${SEL.layoutChild}`);
@@ -9732,21 +9866,24 @@ export async function dragPaletteComponentInto(
   ).toHaveCount(before + 1, { timeout: 3_000 });
 }
 
-async function enableNativeDropDeliveryForLayoutDropZones(page: Page): Promise<void> {
+async function enableNativeDropDeliveryForC8oDropZones(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as { __c8oLayoutDropDeliveryInstalled?: boolean };
-    if (w.__c8oLayoutDropDeliveryInstalled) return;
-    w.__c8oLayoutDropDeliveryInstalled = true;
+    const w = window as unknown as { __c8oDropDeliveryInstalled?: boolean };
+    if (w.__c8oDropDeliveryInstalled) return;
+    w.__c8oDropDeliveryInstalled = true;
     document.addEventListener(
       'dragover',
       (event) => {
         const dragEvent = event as DragEvent;
         const target = event.target as Element | null;
         const dataTransfer = dragEvent.dataTransfer;
+        const dragTypes = Array.from(dataTransfer?.types || []);
         if (
           target?.closest?.('c8oforms-shareddropindicator, .class1600440331787') &&
           dataTransfer &&
-          Array.from(dataTransfer.types || []).includes('__c8oformsdrag')
+          ['__c8oformsdrag', '__c8oformsdragactions', '__c8oformsdragflows'].some((type) =>
+            dragTypes.includes(type),
+          )
         ) {
           // Firefox only delivers a native drop if dragover was synchronously
           // cancelled. C8Oforms still handles the real drop event itself.
@@ -9845,7 +9982,7 @@ export async function layoutChildComponentTypes(page: Page): Promise<string[]> {
  * helper only performs the user gesture.
  */
 export async function moveLayoutChildToEnd(page: Page, fromIndex = 0): Promise<void> {
-  await enableNativeDropDeliveryForLayoutDropZones(page);
+  await enableNativeDropDeliveryForC8oDropZones(page);
 
   await selectAnotherLayoutChild(page, fromIndex);
   const sourceChild = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).nth(fromIndex);
@@ -9859,7 +9996,7 @@ export async function moveLayoutChildToEnd(page: Page, fromIndex = 0): Promise<v
  * so the DOM order remains unchanged.
  */
 export async function moveLayoutChildToStart(page: Page, fromIndex: number): Promise<void> {
-  await enableNativeDropDeliveryForLayoutDropZones(page);
+  await enableNativeDropDeliveryForC8oDropZones(page);
 
   await selectAnotherLayoutChild(page, fromIndex);
   const sourceChild = page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`).nth(fromIndex);
