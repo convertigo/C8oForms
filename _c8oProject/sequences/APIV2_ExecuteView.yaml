@@ -529,6 +529,84 @@ comment: |
         return text;
     }
     
+    /**
+     * Computes pagination metadata from the fully filtered result set.
+     *
+     * Text search and all active selectors are applied before totalCount,
+     * pageCount and the requested page window are calculated.
+     */
+    function countFilteredMangoResults(
+        database,
+        query,
+        postFilter
+    ) {
+        var totalCount = 0;
+        var bookmark = null;
+        var exhausted = false;
+        var batchCount = 0;
+        var MAX_COUNT_BATCHES = 1000;
+        var COUNT_BATCH_SIZE = 500;
+        while (
+            exhausted !== true &&
+            batchCount < MAX_COUNT_BATCHES
+        ) {
+            var countQuery = JSON.parse(
+                JSON.stringify(query)
+            );
+            countQuery.limit = COUNT_BATCH_SIZE;
+            delete countQuery.execution_stats;
+            if (
+                bookmark != null &&
+                bookmark != ""
+            ) {
+                countQuery.bookmark = bookmark;
+            }
+            else {
+                delete countQuery.bookmark;
+            }
+            var result = toJSON(
+                fsclient.postFind(
+                    database,
+                    toJettison(countQuery)
+                )
+            );
+            if (result == null) {
+                result = {};
+            }
+            var docs = Array.isArray(result.docs)
+                ? result.docs
+                : [];
+            for (
+                var docIndex = 0;
+                docIndex < docs.length;
+                docIndex++
+            ) {
+                if (
+                    typeof postFilter != "function" ||
+                    postFilter(docs[docIndex]) === true
+                ) {
+                    totalCount++;
+                }
+            }
+            var nextBookmark =
+                result.bookmark != null &&
+                result.bookmark != ""
+                    ? result.bookmark
+                    : null;
+            exhausted =
+                docs.length === 0 ||
+                nextBookmark == null ||
+                nextBookmark == bookmark;
+            bookmark = nextBookmark;
+            batchCount++;
+        }
+        if (batchCount >= MAX_COUNT_BATCHES) {
+            log.warn(
+                "Maximum filtered pagination count batches reached"
+            );
+        }
+        return totalCount;
+    }
     function executePaginatedFind(
     	database,
     	query,
@@ -731,16 +809,31 @@ comment: |
     	lastResult.bookmark =
     		currentBookmark;
     
-    	lastResult.pagination = {
-    		paginated: true,
-    		pageSize: requestedPageSize,
-    		returnedCount: docs.length,
-    		hasNextPage: hasNextPage,
-    		nextPageToken:
-    			hasNextPage
-    				? currentBookmark
-    				: null
-    	};
+    var totalCount = countFilteredMangoResults(
+        database,
+        query,
+        postFilter
+    );
+    var pageCount =
+        totalCount === 0
+            ? 0
+            : Math.ceil(
+                totalCount /
+                requestedPageSize
+            );
+    lastResult.pagination = {
+        paginated: true,
+        mode: "mango_bookmark",
+        pageSize: requestedPageSize,
+        returnedCount: docs.length,
+        totalCount: totalCount,
+        pageCount: pageCount,
+        hasNextPage: hasNextPage,
+        nextPageToken:
+            hasNextPage
+                ? currentBookmark
+                : null
+    };
     
     	return lastResult;
     }

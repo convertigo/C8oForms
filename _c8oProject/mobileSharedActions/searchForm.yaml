@@ -44,13 +44,19 @@
           				pageIndex: 0,
           				pageSize: 25,
           
-          				currentPageToken: null,
-          				nextPageToken: null,
-          				pageTokenHistory: [],
+                          currentPageToken: null,
+                          previousPageToken: null,
+                          nextPageToken: null,
+                          lastPageToken: null,
+                          pageTokenHistory: [],
           
-          				hasNextPage: false,
-          				paginated: false,
-          				loading: false
+                          hasPreviousPage: false,
+                          hasNextPage: false,
+                          totalCount: null,
+                          pageCount: null,
+                          mode: null,
+                          paginated: false,
+                          loading: false
           			};
           		};
           
@@ -167,12 +173,15 @@
           			pagination.pageIndex = 0;
           			pagination.pageSize = pageSize;
           
-          			pagination.currentPageToken = null;
-          			pagination.nextPageToken = null;
-          			pagination.pageTokenHistory = [];
+                      pagination.currentPageToken = null;
+                      pagination.previousPageToken = null;
+                      pagination.nextPageToken = null;
+                      pagination.lastPageToken = null;
+                      pagination.pageTokenHistory = [];
           
-          			pagination.hasNextPage = false;
-          			pagination.paginated = false;
+                      pagination.hasPreviousPage = false;
+                      pagination.hasNextPage = false;
+                      pagination.paginated = false;
           		};
               page.local.filters = filters;
           	
@@ -711,27 +720,78 @@
           				}
           			}
           		
-          			if (isPaginated) {
-          				pagination.hasNextPage =
-          					responsePagination
-          						.hasNextPage === true;
-          		
-          				pagination.nextPageToken =
-          					responsePagination
-          						.nextPageToken ?? null;
-          			}
-          			else {
-          				/*
-          				 * Mode infinite ou réponse legacy :
-          				 * aucun bookmark ne doit rester actif.
-          				 */
-          				pagination.pageIndex = 0;
-          				pagination.currentPageToken = null;
-          				pagination.nextPageToken = null;
-          				pagination.pageTokenHistory = [];
-          				pagination.hasNextPage = false;
-          			}
-          		
+          if (isPaginated) {
+              pagination.mode =
+                  responsePagination.mode ?? null;
+              pagination.hasPreviousPage =
+                  responsePagination
+                      .hasPreviousPage === true;
+              pagination.previousPageToken =
+                  responsePagination
+                      .previousPageToken ?? null;
+              pagination.hasNextPage =
+                  responsePagination
+                      .hasNextPage === true;
+              pagination.nextPageToken =
+                  responsePagination
+                      .nextPageToken ?? null;
+              pagination.lastPageToken =
+                  responsePagination
+                      .lastPageToken ?? null;
+              const totalCount =
+                  Number(
+                      responsePagination.totalCount
+                  );
+              pagination.totalCount =
+                  Number.isInteger(totalCount) &&
+                  totalCount >= 0
+                      ? totalCount
+                      : docs.length;
+              const pageCount =
+                  Number(
+                      responsePagination.pageCount
+                  );
+              pagination.pageCount =
+                  Number.isInteger(pageCount) &&
+                  pageCount >= 0
+                      ? pageCount
+                      : (
+                          pagination.totalCount === 0
+                              ? 0
+                              : Math.ceil(
+                                  pagination.totalCount /
+                                  Number(pagination.pageSize)
+                              )
+                      );
+              const currentPageIndex =
+                  Number(
+                      responsePagination.currentPageIndex
+                  );
+              if (
+                  Number.isInteger(currentPageIndex) &&
+                  currentPageIndex >= 0
+              ) {
+                  pagination.pageIndex =
+                      currentPageIndex;
+              }
+          }
+          else {
+              /*
+               * Mode infinite ou réponse legacy :
+               * aucun bookmark ne doit rester actif.
+               */
+              pagination.mode = null;
+              pagination.pageIndex = 0;
+              pagination.currentPageToken = null;
+              pagination.previousPageToken = null;
+              pagination.nextPageToken = null;
+              pagination.lastPageToken = null;
+              pagination.pageTokenHistory = [];
+              pagination.hasPreviousPage = false;
+              pagination.hasNextPage = false;
+              pagination.totalCount = null;
+              pagination.pageCount = null;
+          }
           			page.local.count =
           				docs.length;
           		
@@ -780,15 +840,29 @@
           			page.local.loadingError = false;
           			page.local.spinner = false;
           		
-          			if (
-          				page.ref != undefined &&
-          				page.ref.detectChanges != undefined
-          			) {
-          				page.ref.detectChanges();
-          			}
-          		
-          			resolve();
-          			return null;
+          if (
+              page.ref != undefined &&
+              page.ref.detectChanges != undefined
+          ) {
+              page.ref.detectChanges();
+          }
+          requestAnimationFrame(() => {
+              const currentPage = page as any;
+              if (
+                  typeof currentPage.refreshViewportMetrics ===
+                      "function"
+              ) {
+                  currentPage.refreshViewportMetrics(6);
+              }
+              else if (
+                  typeof currentPage.viewport?.checkViewportSize ===
+                      "function"
+              ) {
+                  currentPage.viewport.checkViewportSize();
+              }
+          });
+          resolve();
+          return null;
           		})
           //	        .fail((error)=>{
           //				console.error("e", error);
