@@ -8,8 +8,6 @@ import { functionalEmptyUserCredentials, loginWithFunctionalCredentials, loginWi
 import { ensureFunctionalUserIfPossible } from './helpers/functional-users';
 
 test.describe('No-Code Studio functional dashboard', () => {
-  test.describe.configure({ retries: process.env.CI ? 2 : 0 });
-
   test.use({
     viewport: { width: 1920, height: 1080 },
   });

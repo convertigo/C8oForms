@@ -485,17 +485,15 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.61.0-noble
     env:
-      # Eight shards per browser → 16 concurrent sessions (8 chromium + 8 firefox)
-      # on the shared test-nocode engine. Each of the 16 jobs uses a distinct
-      # test user, so no account is shared by concurrent jobs. The shared PWA
-      # cache (worker persistent context) plus per-run account cleanup keep the
-      # editor page loads light enough to run all shards in parallel.
+      # Eight shards per browser. The matrix concurrency is capped below because
+      # all jobs still share the same test-nocode engine.
       E2E_SHARD_TOTAL: 8
-      # Firefox in the Playwright container runs as root; GitHub Actions sets
-      # HOME=/github/home owned by pwuser, which makes Firefox abort at launch.
-      HOME: /root
     strategy:
       fail-fast: false
+      # Repository variable E2E_MAX_PARALLEL can be used for controlled
+      # concurrency experiments without editing this workflow. Keep all 16 jobs
+      # enabled by default until measurements prove that a lower cap is faster.
+      max-parallel: ${{ fromJSON(vars.E2E_MAX_PARALLEL || '16') }}
       matrix:
         include:
           - browser: chromium
@@ -555,8 +553,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p tests/dist/sharding
-          if git ls-remote --exit-code --heads origin badges >/dev/null 2>&1; then
-            git fetch --depth=1 origin badges
+          if git ls-remote --exit-code --heads origin refs/heads/badges >/dev/null; then
+            git fetch --no-tags --depth=1 origin refs/heads/badges
             if git cat-file -e FETCH_HEAD:e2e-timings.json 2>/dev/null; then
               git show FETCH_HEAD:e2e-timings.json > tests/dist/sharding/e2e-timings.json
               echo "Restored previous e2e timings from the badges branch."
@@ -598,6 +596,10 @@ jobs:
           C8OFORMS_PRIMARY_TEST_USER: testuser-convertigo@yopmail.com
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
           C8OFORMS_SHARD_DEBUG: 1
+          # Firefox runs as root in the Playwright container and aborts with the
+          # checkout HOME. Scope this override to the browser process so git can
+          # keep the credentials and safe.directory configured by checkout.
+          HOME: /root
         run: |
           export C8OFORMS_APP_URL="${TEST_NOCODE_ENDPOINT%/}/projects/C8Oforms/DisplayObjects/mobile/"
           : "${C8OFORMS_MCP_URL:=${TEST_NOCODE_ENDPOINT%/}/api/mcp}"
@@ -788,7 +790,7 @@ jobs:
       - name: Generate e2e regression report
         working-directory: tests
         env:
-          EXPECTED_E2E_RESULT_SHARDS: 8
+          EXPECTED_E2E_RESULT_SHARDS: 16
           E2E_REOPEN_ISSUES: false
           RELEASE_TAG: ${{ github.ref_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -824,5 +826,6 @@ jobs:
           name: e2e-regression-report
           path: |
             tests/dist/e2e_report.md
+            tests/dist/e2e-network-timings.json
             tests/dist/badge/e2e-timings.json
           if-no-files-found: error

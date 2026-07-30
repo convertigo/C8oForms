@@ -23,6 +23,34 @@ const e2eDir = join(here, '..', 'e2e');
 
 // Rough relative durations (minutes-ish). Only the long ones need an entry.
 const WEIGHTS = {
+  // Functional contracts are intentionally split into independently shardable
+  // files. These fallback weights cover the first run after a rename, before
+  // the badges branch contains measurements for the new filenames.
+  'functional-publication.spec.ts': 35,
+  'functional-sharing-access.spec.ts': 30,
+  'functional-sharing-editor.spec.ts': 20,
+  'functional-components-common.spec.ts': 30,
+  'functional-components-visibility-main.spec.ts': 10,
+  'functional-components-visibility-data.spec.ts': 10,
+  'functional-components-visibility-layout.spec.ts': 5,
+  'functional-components-values-text.spec.ts': 13,
+  'functional-components-values-baserow.spec.ts': 14,
+  'functional-components-values-choices.spec.ts': 30,
+  'functional-components-values-date-time.spec.ts': 25,
+  'functional-components-values-actions.spec.ts': 25,
+  'functional-visibility-modes.spec.ts': 16,
+  'functional-visibility-operators.spec.ts': 18,
+  'functional-visibility-checkbox.spec.ts': 10,
+  'functional-visibility-choices.spec.ts': 10,
+  'functional-admin.spec.ts': 10,
+  'functional-authoring.spec.ts': 30,
+  'functional-components-media.spec.ts': 14,
+  'functional-dashboard.spec.ts': 11,
+  'functional-editor.spec.ts': 12,
+  'functional-navigation.spec.ts': 12,
+  'functional-settings.spec.ts': 15,
+  'functional-sources.spec.ts': 24,
+  'functional-workflows.spec.ts': 25,
   'visibility-operators.spec.ts': 5,
   'visibility-types-a.spec.ts': 6,
   'visibility-types-b.spec.ts': 2,
