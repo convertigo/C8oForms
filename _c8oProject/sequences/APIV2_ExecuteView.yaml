@@ -272,6 +272,40 @@ comment: |
     	return values;
     }
     
+    function extractCanonicalUserIds(value) {
+        var ids = [];
+        if (value == null || value == undefined || value == "" || value == "undefined") {
+            return ids;
+        }
+        var rawValues = Array.isArray(value) ? value : [value];
+        for (var valueIndex = 0; valueIndex < rawValues.length; valueIndex++) {
+            var rawValue = rawValues[valueIndex];
+            if (rawValue != null && rawValue.value != undefined) {
+                rawValue = rawValue.value;
+            }
+            var normalizedValue = normalizeUserId(rawValue);
+            if (normalizedValue != "" && ids.indexOf(normalizedValue) == -1) {
+                ids.push(normalizedValue);
+            }
+        }
+        return ids;
+    }
+    function extractSelectedCollaborationUserId() {
+        if (collaborationUserFilterIds.length === 1) {
+            return collaborationUserFilterIds[0];
+        }
+        if (collaborationUserFilterIds.length > 1) {
+            return "";
+        }
+        if (userFilterIds.length === 1) {
+            return userFilterIds[0];
+        }
+        return "";
+    }
+    var collaborationUserFilterIds =
+        extractCanonicalUserIds(
+            params.collaborationUser
+        );
     /**
      * Construit une condition correspondant à une entrée directe
      * dans l''objet c8oGrp.
@@ -321,13 +355,16 @@ comment: |
     }
     
     /**
-     * Construit le filtre Mango "mes collaborations".
+     * Filters applications where the user selected in the search field is a
+     * collaborator but not the owner.
      *
-     * Une application est considérée comme une collaboration
-     * directe lorsque :
+     * This filter is contextual to the selected search user. It must not fall back
+     * to the currently authenticated user when no search user is selected.
      *
-     * 1. l''utilisateur apparaît dans collabs ;
-     * 2. l''utilisateur apparaît dans c8oGrp avec la valeur true.
+     * A document matches when:
+     * 1. creator is not the selected user;
+     * 2. the selected user appears in collabs;
+     * 3. the selected user appears in c8oGrp with true.
      */
     function buildCollaborationSelector(
     	userId
@@ -338,11 +375,11 @@ comment: |
     		]);
     
     	if (identityValues.length === 0) {
-    		/*
-    		 * Condition volontairement impossible afin de ne
-    		 * jamais retourner toutes les applications lorsque
-    		 * l''identité utilisateur est absente.
-    		 */
+            /*
+             * Deliberately impossible condition: collaboration-only mode
+             * must never return all applications or fall back to currentUser
+             * when the selected search user is missing.
+             */
     		return {
     			"_id": {
     				"$eq":
@@ -381,18 +418,23 @@ comment: |
     		);
     	}
     
-    	return {
-    		"$and": [
-    			{
-    				"$or":
-    					collabsConditions
-    			},
-    			{
-    				"$or":
-    					c8oGrpConditions
-    			}
-    		]
-    	};
+        return {
+            "$and": [
+                {
+                    "creator": {
+                        "$nin": identityValues
+                    }
+                },
+                {
+                    "$or":
+                        collabsConditions
+                },
+                {
+                    "$or":
+                        c8oGrpConditions
+                }
+            ]
+        };
     }
     
     var filters = {};
@@ -1320,6 +1362,10 @@ comment: |
     	params.filters.my_collaborations ===
     		true;
     
+    var selectedCollaborationUserID =
+        collaborationOnlyFilter === true
+            ? extractSelectedCollaborationUserId()
+            : "";
     /*
      * Le filtre de collaboration est une restriction.
      * Il prend donc la priorité sur "show all applications".
@@ -1468,7 +1514,7 @@ comment: |
     					"$and"
     				].push(
     					buildCollaborationSelector(
-    						connectedUserID
+                                selectedCollaborationUserID
     					)
     				);
     	
@@ -1815,7 +1861,7 @@ comment: |
     			"$and"
     		].push(
     			buildCollaborationSelector(
-    				connectedUserID
+                    selectedCollaborationUserID
     			)
     		);
     	}

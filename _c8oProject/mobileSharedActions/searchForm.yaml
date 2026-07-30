@@ -238,7 +238,7 @@
                       : [];
               };
               const normalizeSearchUsers = (value) => {
-                  return Array.isArray(value)
+                  const users = Array.isArray(value)
                       ? value
                           .map((entry) => {
                               return entry != null &&
@@ -251,6 +251,9 @@
                                   ("" + entry).trim() != "";
                           })
                       : [];
+                  return users.filter((entry, index) => {
+                      return users.indexOf(entry) === index;
+                  });
               };
               const normalizedQuery =
                   normalizeSearchQuery(
@@ -274,6 +277,39 @@
                   normalizeSearchUsers(
                       page.local._searchUser
                   );
+              const resetSelectedUserCollaborationFilter = () => {
+                  if (
+                      filters == null ||
+                      filters.my_collaborations !== true ||
+                      activeSearchUsers.length === 1
+                  ) {
+                      return;
+                  }
+                  filters.my_collaborations = false;
+                  if (page.local.data != null) {
+                      page.local.data.my_collaborations = false;
+                  }
+                  page.local.filters = filters;
+                  try {
+                      if (
+                          typeof page["persistEditionFilters"] === "function" &&
+                          page.local.data != null
+                      ) {
+                          page["persistEditionFilters"].call(
+                              page,
+                              page.local.data
+                          );
+                      }
+                      else {
+                          window.localStorage.setItem(
+                              "c8oforms_edition_filters",
+                              JSON.stringify(filters)
+                          );
+                      }
+                  }
+                  catch (e) {}
+              };
+              resetSelectedUserCollaborationFilter();
               if (
                   normalizedQuery == "" &&
                   activeSearchTags.length == 1 &&
@@ -379,6 +415,29 @@
                   page.local.loadingError = true;
                   resolve();
                   return;
+              }
+              const searchSignature = JSON.stringify({
+                  target: page.local["ddoc"],
+                  query: normalizedQuery,
+                  tags: activeSearchTags.map((entry) => {
+                      return entry != null && entry.value != undefined
+                          ? entry.value
+                          : entry;
+                  }),
+                  subTags: activeSearchSubTags.map((entry) => {
+                      return entry != null && entry.value != undefined
+                          ? entry.value
+                          : entry;
+                  }),
+                  users: activeSearchUsers,
+                  filters: filters
+              });
+              if (page.local["_searchSignature"] !== searchSignature) {
+                  resetPaginationState(
+                      pagination
+                  );
+                  page.local["_searchSignature"] =
+                      searchSignature;
               }
           	pagination.loading = true;
           	
@@ -493,7 +552,13 @@
                 highlighted += escapeHtml(text.substring(lastIndex));
                 return highlighted;
               }
-              var selectedUsers = Array.isArray(page.local._searchUser) ? page.local._searchUser.map((x) => { return x != null && x.value != undefined ? x.value : x; }) : [];
+              var selectedUsers = activeSearchUsers;
+              const selectedCollaborationUser =
+                  filters != null &&
+                  filters.my_collaborations === true &&
+                  selectedUsers.length === 1
+                      ? selectedUsers[0]
+                      : null;
           	const dynamicParams = {
           		filters:
           			filters,
@@ -512,7 +577,8 @@
           
           		user:
           			selectedUsers,
-          
+                  collaborationUser:
+                      selectedCollaborationUser,
           		pagination: {
           			pageSize:
           				pagination.pageSize,
