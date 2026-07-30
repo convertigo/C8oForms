@@ -9245,42 +9245,51 @@ scriptContent:
         		return false;
         	}
         
-        	private resetGoToPageTargets(group: any, item: any): void {
-        		try {
-        			if (group == null || item == null) {
-        				return;
-        			}
-        			let groupAction = group != null ? group.page : null;
-        			if (groupAction != null && groupAction !== "") {
-        				let groupIndexToGo = this.findIndexOfPageByPageTechName(groupAction);
-        				if (groupIndexToGo > -1) {
-        					if (this.local.pages[groupIndexToGo].enabled == undefined || typeof this.local.pages[groupIndexToGo].enabled == "boolean") {
-        						this.local.pages[groupIndexToGo].enabled = {};
-        					}
-        					this.local.pages[groupIndexToGo].enabled[item.id] = false;
-        				}
-        			}
-        			for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
-        				let action = cond != null ? cond.page : null;
-        				if (action == null || action === "") {
-        					continue;
-        				}
-        				let indexToGo = this.findIndexOfPageByPageTechName(action);
-        				if (indexToGo < 0) {
-        					continue;
-        				}
-        				if (this.local.pages[indexToGo].enabled == undefined || typeof this.local.pages[indexToGo].enabled == "boolean") {
-        					this.local.pages[indexToGo].enabled = {};
-        				}
-        				this.local.pages[indexToGo].enabled[item.id] = false;
-        			}
-        			for (let child of (Array.isArray(group.groups) ? group.groups : [])) {
-        				this.resetGoToPageTargets(child, item);
-        			}
-        		}
-        		catch (e) {
-        		}
-        	}
+            /**
+             * Resets only Authorize page targets before evaluating goToPageIf.
+             * GoTo actions are navigation side effects and must not seed page.enabled,
+             * because tab visibility reads page.enabled through isEditorPageAvailable().
+             */
+            private resetGoToPageTargets(group: any, item: any, inheritedAction: any = null): void {
+                try {
+                    if (group == null || item == null) {
+                        return;
+                    }
+                    let groupAction: any = {
+                        verb: group != null && group.verb != null && group.verb !== "" ? group.verb : (inheritedAction != null ? inheritedAction.verb : null),
+                        page: group != null && group.page != null && group.page !== "" ? group.page : (inheritedAction != null ? inheritedAction.page : null)
+                    };
+                    if (groupAction.page != null && groupAction.page !== "" && groupAction.verb != "goTo") {
+                        let groupIndexToGo = this.findIndexOfPageByPageTechName(groupAction.page);
+                        if (groupIndexToGo > -1) {
+                            if (this.local.pages[groupIndexToGo].enabled == undefined || typeof this.local.pages[groupIndexToGo].enabled == "boolean") {
+                                this.local.pages[groupIndexToGo].enabled = {};
+                            }
+                            this.local.pages[groupIndexToGo].enabled[item.id] = false;
+                        }
+                    }
+                    for (let cond of (Array.isArray(group.conds) ? group.conds : [])) {
+                        let action = cond != null ? cond.page : null;
+                        let verb = cond != null && cond.verb != null && cond.verb !== "" ? cond.verb : (groupAction.verb != null && groupAction.verb !== "" ? groupAction.verb : "authorize");
+                        if (action == null || action === "" || verb == "goTo") {
+                            continue;
+                        }
+                        let indexToGo = this.findIndexOfPageByPageTechName(action);
+                        if (indexToGo < 0) {
+                            continue;
+                        }
+                        if (this.local.pages[indexToGo].enabled == undefined || typeof this.local.pages[indexToGo].enabled == "boolean") {
+                            this.local.pages[indexToGo].enabled = {};
+                        }
+                        this.local.pages[indexToGo].enabled[item.id] = false;
+                    }
+                    for (let child of (Array.isArray(group.groups) ? group.groups : [])) {
+                        this.resetGoToPageTargets(child, item, groupAction);
+                    }
+                }
+                catch (e) {
+                }
+            }
         
         	private applyGoToCondition(cond: any, item: any): void {
         		try {
