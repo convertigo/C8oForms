@@ -481,30 +481,26 @@ comment: Process a tick (Refresh define in caf)
           
           				page.ref.detectChanges();
           
-          				setTimeout(() => {
-          					page["list"] = docs;
-          
-          					if (
-          						page.local.done &&
-          						page["viewport"] != null
-          					) {
-          						const renderedRange =
-          							page["viewport"]
-          								.getRenderedRange();
-          
-          						page["viewport"]
-          							.setRenderedRange({
-          								start: 0,
-          								end:
-          									renderedRange.end + 1
-          							});
-          					}
-          					else {
-          						page.local.done = true;
-          					}
-          
-          					page.ref.detectChanges();
-          				});
+          setTimeout(() => {
+              page["list"] = docs;
+              page.local.done = true;
+              page.ref.detectChanges();
+              requestAnimationFrame(() => {
+                  const currentPage = page as any;
+                  if (
+                      typeof currentPage.refreshViewportMetrics ===
+                          "function"
+                  ) {
+                      currentPage.refreshViewportMetrics(6);
+                  }
+                  else if (
+                      typeof currentPage.viewport?.checkViewportSize ===
+                          "function"
+                  ) {
+                      currentPage.viewport.checkViewportSize();
+                  }
+              });
+          });
           
           				return null;
           			};
@@ -526,10 +522,21 @@ comment: Process a tick (Refresh define in caf)
           				page.local.hashFolders = undefined;
           				page.local.count = undefined;
           				const hasActiveSearch = () => {
-          					return (page["query"] != undefined && page["query"] != "")
-          						|| (Array.isArray(page.local.searchTags) && page.local.searchTags.length > 0)
-          						|| (Array.isArray(page.local.searchSubTags) && page.local.searchSubTags.length > 0)
-          						|| (Array.isArray(page.local._searchUser) && page.local._searchUser.length > 0);
+                              const normalizedQuery =
+                                  page["query"] == null
+                                      ? ""
+                                      : ("" + page["query"]).trim();
+                              if (page["query"] !== normalizedQuery) {
+                                  page["query"] = normalizedQuery;
+                                  if (page.local["_query"] !== undefined) {
+                                      page.local["_query"] =
+                                          normalizedQuery;
+                                  }
+                              }
+                              return normalizedQuery != ""
+                                  || (Array.isArray(page.local.searchTags) && page.local.searchTags.length > 0)
+                                  || (Array.isArray(page.local.searchSubTags) && page.local.searchSubTags.length > 0)
+                                  || (Array.isArray(page.local._searchUser) && page.local._searchUser.length > 0);
           				};
           //				let execQuery = () => {
           //					page.local.requestCounter++;
@@ -802,7 +809,11 @@ comment: Process a tick (Refresh define in caf)
           						);
           					});
           				};
-          				execQuery();
+                          execQuery({
+                              resetPagination:
+                                  vars != null &&
+                                  vars["resetPagination"] === true
+                          });
           				// live changes
           				let p = Pouch["default"];
           				const header = {
