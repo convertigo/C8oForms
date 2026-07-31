@@ -1091,6 +1091,7 @@ async function setTextInputQuestionLabel(page: Page, value: string): Promise<voi
     );
     const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
     const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const editorIds = [body.id, frameId].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
     const matchesTarget = (candidate: any) => {
       if (!candidate || candidate.removed) return false;
       try {
@@ -1109,7 +1110,7 @@ async function setTextInputQuestionLabel(page: Page, value: string): Promise<voi
       return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
     });
     const editor =
-      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      registries.flatMap((registry: any) => editorIds.map((id) => registry.get?.(id))).find(matchesTarget) ??
       editors.find(matchesTarget);
     if (!editor) {
       return false;
@@ -1258,6 +1259,13 @@ async function expectTextInputCommonProperties(
 }
 
 async function visibleTinyMceBody(page: Page): Promise<Locator> {
+  const inlineEditor = page
+    .locator('[contenteditable="true"].mce-content-body:visible, .tox-edit-area [contenteditable="true"]:visible')
+    .last();
+  if (await inlineEditor.isVisible({ timeout: 500 }).catch(() => false)) {
+    return inlineEditor;
+  }
+
   for (const selector of [
     'iframe[title="Rich Text Area"]',
     'iframe.tox-edit-area__iframe',
@@ -1275,9 +1283,9 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
     }
   }
 
-  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
-  await expect(inlineEditor, 'a TinyMCE editor should be visible').toBeVisible({ timeout: 10_000 });
-  return inlineEditor;
+  const eventualInlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(eventualInlineEditor, 'a HugeRTE editor should be visible').toBeVisible({ timeout: 10_000 });
+  return eventualInlineEditor;
 }
 
 async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
@@ -1290,6 +1298,9 @@ async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promis
     );
     const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
     const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const editorIds = [targetBody.id, frameId].filter(
+      (id, index, all): id is string => Boolean(id) && all.indexOf(id) === index,
+    );
     const matchesTarget = (candidate: any) => {
       if (!candidate || candidate.removed) return false;
       try {
@@ -1308,9 +1319,9 @@ async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promis
       return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
     });
     const editor =
-      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      registries.flatMap((registry: any) => editorIds.map((id) => registry.get?.(id))).find(matchesTarget) ??
       editors.find(matchesTarget);
-    if (!editor) throw new Error('TinyMCE instance not found for the visible question editor');
+    if (!editor) throw new Error('HugeRTE instance not found for the visible question editor');
     editor.fire('input');
     editor.fire('change');
     editor.save?.();

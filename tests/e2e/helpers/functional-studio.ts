@@ -200,20 +200,23 @@ export async function logoutFromNoCodeDashboard(page: Page): Promise<void> {
     );
     await expect(menuButton, 'dashboard menu button should be visible').toBeVisible({ timeout: 15_000 });
     await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
+    const openMenu = page
+      .locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible, ion-menu:not(.menu-enabled-hidden):visible')
+      .last();
     await expect(
-      page
-        .locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible, ion-menu:not(.menu-enabled-hidden):visible')
-        .first(),
+      openMenu,
       'dashboard menu should be open before selecting Log out',
     ).toBeVisible({ timeout: 10_000 });
 
     const logoutLabel = /logout|log out|déconnexion|se déconnecter|cerrar sesión|disconnetti/i;
     const logoutButton = await firstVisibleCandidate(
       [
-        page.locator('ion-menu').getByRole('button', { name: logoutLabel }).first(),
-        page.locator('ion-menu .logout-button[role="button"]:visible').first(),
-        page.getByRole('button', { name: logoutLabel }).first(),
-        page.locator('ion-menu ion-item.class1759249408074:visible').first(),
+        openMenu.getByRole('button', { name: logoutLabel }).last(),
+        openMenu
+          .locator('ion-item:visible, ion-button:visible, button:visible, [role="button"]:visible')
+          .filter({ hasText: logoutLabel })
+          .last(),
+        openMenu.locator('.logout-button:visible, [aria-label*="logout" i]:visible, [title*="déconnect" i]:visible').last(),
       ],
       'logout action',
     );
@@ -831,6 +834,10 @@ export async function assertSelectorFiltersThroughUi(
 
     await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await expectNoCodeDashboardReady(page);
+    // Let the initial FullSync-backed list settle before opening or changing
+    // filters. Interacting while the selector starts its first fetch can leave
+    // the virtual list stuck on skeleton cards in CI.
+    await expectSelectorApplicationVisible(page, title);
     await setSelectorHideFoldersFilter(page, false);
     await expectSelectorFolderVisible(page, folderTitle);
     await expectSelectorApplicationVisible(page, title);

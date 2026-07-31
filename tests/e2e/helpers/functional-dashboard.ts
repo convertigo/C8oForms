@@ -79,16 +79,30 @@ export async function assertIsolatedEmptyDashboardSections(page: Page): Promise<
 
 async function ensureNoCodeDatabaseAccount(page: Page): Promise<void> {
   await test.step('Provision the isolated user No-code database account', async () => {
-    let jwt = '';
+    let token = '';
+    let iframe = '';
     await expect
       .poll(
         async () => {
           const response = await c8oCall(page, 'BaserowAccount', {});
           const document = asRecord(response.document);
           const result = asRecord(document?.result) ?? asRecord(response.result) ?? document ?? response;
-          const token = typeof result.token === 'string' ? result.token : '';
-          const iframe = typeof result.iframe === 'string' ? result.iframe : '';
-          if (!token || !iframe) return false;
+          token = typeof result.token === 'string' ? result.token : '';
+          iframe = typeof result.iframe === 'string' ? result.iframe : '';
+          return Boolean(token && iframe);
+        },
+        {
+          message: 'Baserow account provisioning should return its token and iframe endpoint',
+          timeout: 120_000,
+          intervals: [1_000, 2_000, 5_000, 10_000],
+        },
+      )
+      .toBe(true);
+
+    let jwt = '';
+    await expect
+      .poll(
+        async () => {
           const checkLogin = await page.request.post(`${iframe.replace(/\/+$/, '')}/.json`, {
             form: { __sequence: 'CheckLogin', token },
             timeout: 60_000,
@@ -99,7 +113,7 @@ async function ensureNoCodeDatabaseAccount(page: Page): Promise<void> {
           return jwt.length > 0;
         },
         {
-          message: 'Baserow account provisioning should return a fresh token accepted by iframe CheckLogin',
+          message: 'Baserow iframe CheckLogin should accept the provisioned token',
           timeout: 120_000,
           intervals: [1_000, 2_000, 5_000, 10_000],
         },

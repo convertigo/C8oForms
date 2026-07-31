@@ -218,6 +218,7 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
     );
     const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
     const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const editorIds = [body.id, frameId].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
     const matchesTarget = (candidate: any) => {
       if (!candidate || candidate.removed) return false;
       try {
@@ -236,9 +237,9 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
       return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
     });
     const editor =
-      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      registries.flatMap((registry: any) => editorIds.map((id) => registry.get?.(id))).find(matchesTarget) ??
       editors.find(matchesTarget);
-    if (!editor) throw new Error('TinyMCE instance not found for the quoted grid path editor');
+    if (!editor) throw new Error('HugeRTE instance not found for the quoted grid path editor');
     editor.focus?.();
     editor.insertContent(html);
     editor.fire('input');

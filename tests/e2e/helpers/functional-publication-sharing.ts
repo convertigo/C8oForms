@@ -841,16 +841,16 @@ async function expectPublishedPwaCacheStorage(page: Page, pwaIndexUrl: string): 
     'published PWA ngsw should declare index.html as its navigation shell',
   ).toBe(true);
   const requiredCachedAppShellUrls = appShellUrls
-    .filter((url) => /(?:^|\/)(?:manifest\.webmanifest|main-[^/]+\.js|polyfills-[^/]+\.js|styles-[^/]+\.css)$/.test(url))
+    .filter((url) => /\.(?:css|js)$/.test(new URL(url, pwaIndexUrl).pathname))
     .map((url) => new URL(url, pwaIndexUrl).toString());
-  expect(requiredCachedAppShellUrls, 'published PWA ngsw should list the essential preloaded application shell').not.toHaveLength(0);
+  expect(requiredCachedAppShellUrls, 'published PWA ngsw should list its preloaded application bundles').not.toHaveLength(0);
   await expect
     .poll(async () => {
       const snapshot = await publishedPwaCacheSnapshot(page);
       return requiredCachedAppShellUrls.every((url) => snapshot.cachedUrls.includes(url));
     }, {
-      message: 'published PWA service worker should cache its scoped application bundles',
-      timeout: 60_000,
+      message: 'published PWA service worker should finish prefetching every scoped JS/CSS bundle before offline mode',
+      timeout: 120_000,
     })
     .toBe(true);
 }

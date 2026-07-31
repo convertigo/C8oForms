@@ -2768,9 +2768,28 @@ export async function submitViewerForm(page: Page, completionTimeout = 60_000): 
     const submit = await firstVisibleLocator(page, SEL.viewerSubmitButton, 'viewer submit button', 30_000);
     await submit.scrollIntoViewIfNeeded().catch(() => undefined);
     await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
-    await confirmAlertIfVisible(page);
-    await page.locator(SEL.responseCompletedPage).waitFor({ state: 'attached', timeout: completionTimeout });
+    await confirmSubmissionAlertOrWaitForCompletion(page, completionTimeout);
   });
+}
+
+async function confirmSubmissionAlertOrWaitForCompletion(page: Page, timeout: number): Promise<void> {
+  const completion = page.locator(SEL.responseCompletedPage);
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    if ((await completion.count().catch(() => 0)) > 0) {
+      return;
+    }
+    if (await alert.isVisible({ timeout: 100 }).catch(() => false)) {
+      await confirmAlertIfVisible(page, 0);
+      break;
+    }
+    await page.waitForTimeout(100);
+  }
+
+  const remaining = Math.max(1, deadline - Date.now());
+  await completion.waitFor({ state: 'attached', timeout: remaining });
 }
 
 export async function openConfigurationSection(page: Page): Promise<void> {
@@ -8118,6 +8137,7 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
     );
     const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
     const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const editorIds = [body.id, frameId].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
     const matchesTarget = (candidate: any) => {
       if (!candidate || candidate.removed) return false;
       try {
@@ -8136,7 +8156,7 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
       return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
     });
     const editor =
-      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      registries.flatMap((registry: any) => editorIds.map((id) => registry.get?.(id))).find(matchesTarget) ??
       editors.find(matchesTarget);
     if (!editor) return false;
 
@@ -8725,6 +8745,7 @@ async function setTinyMceContentThroughApi(page: Page, text: string): Promise<bo
     );
     const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
     const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const editorIds = [body.id, frameId].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
     const matchesTarget = (candidate: any) => {
       if (!candidate || candidate.removed) return false;
       try {
@@ -8743,7 +8764,7 @@ async function setTinyMceContentThroughApi(page: Page, text: string): Promise<bo
       return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
     });
     const editor =
-      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      registries.flatMap((registry: any) => editorIds.map((id) => registry.get?.(id))).find(matchesTarget) ??
       editors.find(matchesTarget);
     if (!editor) {
       return false;
@@ -9251,6 +9272,13 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   const deadline = Date.now() + 15_000;
 
   while (Date.now() < deadline) {
+    const inlineEditor = page
+      .locator('[contenteditable="true"].mce-content-body:visible, .tox-edit-area [contenteditable="true"]:visible')
+      .last();
+    if (await inlineEditor.isVisible({ timeout: 100 }).catch(() => false)) {
+      return inlineEditor;
+    }
+
     for (const selector of frameSelectors) {
       const frames = page.locator(selector);
       const count = await frames.count().catch(() => 0);
@@ -9270,7 +9298,7 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   }
 
   const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
-  await expect(inlineEditor, 'a TinyMCE editor should be visible').toBeVisible({ timeout: 10_000 });
+  await expect(inlineEditor, 'a HugeRTE editor should be visible').toBeVisible({ timeout: 10_000 });
   return inlineEditor;
 }
 
@@ -9346,7 +9374,7 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
 
 async function mutateTinyMceEditor(editorBody: Locator, action: 'notify' | 'insert' | 'set', html = ''): Promise<void> {
   await editorBody.evaluate(
-    (body, payload) => {
+    async (body, payload) => {
       const frameWindow = body.ownerDocument.defaultView as any;
       const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
       const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
@@ -9354,6 +9382,7 @@ async function mutateTinyMceEditor(editorBody: Locator, action: 'notify' | 'inse
       );
       const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
       const frameId = frameElement?.id?.replace(/_ifr$/, '');
+      const editorIds = [body.id, frameId].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
       const matchesTarget = (candidate: any) => {
         if (!candidate || candidate.removed) return false;
         try {
@@ -9367,15 +9396,26 @@ async function mutateTinyMceEditor(editorBody: Locator, action: 'notify' | 'inse
           return false;
         }
       };
-      const editors = registries.flatMap((registry: any) => {
-        const rawEditors = registry?.editors;
-        return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
-      });
-      const editor =
-        (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
-        editors.find(matchesTarget);
+      const resolveEditor = () => {
+        const editors = registries.flatMap((registry: any) => {
+          const rawEditors = registry?.editors;
+          return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+        });
+        return (
+          registries
+            .flatMap((registry: any) => editorIds.map((id) => registry.get?.(id)))
+            .find(matchesTarget) ?? editors.find(matchesTarget)
+        );
+      };
+
+      let editor = resolveEditor();
+      const deadline = Date.now() + 10_000;
+      while (!editor && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        editor = resolveEditor();
+      }
       if (!editor) {
-        throw new Error(`TinyMCE instance not found for target body ${body.id || '(without id)'}`);
+        throw new Error(`HugeRTE instance not found for target body ${body.id || '(without id)'}`);
       }
       if (payload.action === 'insert') {
         editor.focus?.();
@@ -9400,9 +9440,9 @@ async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promis
   await mutateTinyMceEditor(body, 'notify');
 }
 
-async function confirmAlertIfVisible(page: Page): Promise<void> {
+async function confirmAlertIfVisible(page: Page, timeout = 1_500): Promise<void> {
   const alert = page.locator('ion-alert').last();
-  if (!(await alert.isVisible({ timeout: 1_500 }).catch(() => false))) {
+  if (!(await alert.isVisible({ timeout }).catch(() => false))) {
     return;
   }
   const confirmButton = alert
