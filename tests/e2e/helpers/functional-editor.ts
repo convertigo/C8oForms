@@ -145,8 +145,7 @@ export async function renamePageWithValidationThroughUi(page: Page, validName = 
   await test.step('Reject an empty page name', async () => {
     const input = page.locator(SEL.pageNameInput).first();
     await recordToasts(page);
-    await input.fill('', { timeout: 10_000 });
-    await input.blur();
+    await commitTextInputChange(input, '');
     await expect
       .poll(async () => (await recordedToasts(page)).join(' | '), {
         message: 'empty page name should raise a validation toast',
@@ -157,8 +156,7 @@ export async function renamePageWithValidationThroughUi(page: Page, validName = 
 
   await test.step('Reject a duplicate page name', async () => {
     const input = page.locator(SEL.pageNameInput).first();
-    await input.fill('Page 1', { timeout: 10_000 });
-    await input.blur();
+    await commitTextInputChange(input, 'Page 1');
     await expect
       .poll(async () => (await recordedToasts(page)).join(' | '), {
         message: 'duplicate page name should raise a validation toast',
@@ -169,8 +167,7 @@ export async function renamePageWithValidationThroughUi(page: Page, validName = 
 
   await test.step('Save a valid page name and assert it persists after reload', async () => {
     const input = page.locator(SEL.pageNameInput).first();
-    await input.fill(validName, { timeout: 10_000 });
-    await input.blur();
+    await commitTextInputChange(input, validName);
     await expect(input, 'valid page name should stay in the settings input').toHaveValue(validName, {
       timeout: 10_000,
     });
@@ -189,6 +186,15 @@ export async function renamePageWithValidationThroughUi(page: Page, validName = 
       `page row ${validName} should persist after reload`,
     ).toBeVisible({ timeout: 30_000 });
   });
+}
+
+async function commitTextInputChange(input: Locator, value: string): Promise<void> {
+  await input.fill(value, { timeout: 10_000 });
+  await expect(input, 'page name input should contain the value before committing it').toHaveValue(value, {
+    timeout: 10_000,
+  });
+  await input.dispatchEvent('change');
+  await input.blur();
 }
 
 export async function deletePageCancelThenConfirmThroughUi(page: Page): Promise<void> {

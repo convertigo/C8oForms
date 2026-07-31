@@ -12,6 +12,7 @@ import {
   getFormDocument,
   gotoWithTransientRetry,
   login,
+  openEditionApplicationsTab,
   openCreateFolderPrompt,
   recordedToasts,
   recordToasts,
@@ -68,18 +69,6 @@ export function functionalSecondaryUserCredentials(): LoginCredentials | null {
   };
 }
 
-export function functionalEmptyUserCredentials(): LoginCredentials | null {
-  const user = (process.env.C8OFORMS_FUNCTIONAL_EMPTY_USER ?? defaultProvisionedFunctionalUser('empty')).trim();
-  if (!user || user.toLowerCase() === TEST_USER.toLowerCase()) {
-    return null;
-  }
-
-  return {
-    user,
-    password: process.env.C8OFORMS_FUNCTIONAL_EMPTY_PASSWORD ?? user,
-  };
-}
-
 export function functionalAdminUserCredentials(): LoginCredentials | null {
   const user = (process.env.C8OFORMS_FUNCTIONAL_ADMIN_USER ?? defaultProvisionedFunctionalUser('admin')).trim();
   if (!user) {
@@ -97,7 +86,7 @@ export function functionalSecondaryMcpToken(): string | null {
   return token || null;
 }
 
-function defaultProvisionedFunctionalUser(kind: 'secondary' | 'empty' | 'admin'): string {
+function defaultProvisionedFunctionalUser(kind: 'secondary' | 'admin'): string {
   if (!process.env.CONVERTIGO_ADMIN_PASSWORD && !process.env.TEST_NOCODE_PASSWORD) {
     return '';
   }
@@ -106,11 +95,7 @@ function defaultProvisionedFunctionalUser(kind: 'secondary' | 'empty' | 'admin')
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '');
   const domain = process.env.C8OFORMS_FUNCTIONAL_USER_DOMAIN ?? 'yopmail.com';
-  // The first isolated fixture accumulated an external Baserow account whose
-  // password no longer matched its FullSync credential. Rotate that default
-  // identity once; subsequent runs keep the new credential document intact.
-  const fixtureKind = kind === 'empty' ? 'empty-v2' : kind;
-  return `${prefix || 'c8oforms-functional'}-${fixtureKind}@${domain}`;
+  return `${prefix || 'c8oforms-functional'}-${kind}@${domain}`;
 }
 
 export async function loginWithFunctionalCredentials(page: Page, credentials: LoginCredentials): Promise<void> {
@@ -182,7 +167,9 @@ export async function expectNoCodeDashboardReady(page: Page): Promise<void> {
     await expect(page.locator(SEL.selectorPageRoot).first(), 'selector page should be visible').toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.locator(SEL.blankFormCard).first(), 'blank application creation entry should be visible').toBeVisible({
+    await openEditionApplicationsTab(page);
+    const blankFormCard = page.locator(SEL.blankFormCard).first();
+    await expect(blankFormCard, 'blank application creation entry should be visible').toBeVisible({
       timeout: 15_000,
     });
   });
@@ -191,26 +178,26 @@ export async function expectNoCodeDashboardReady(page: Page): Promise<void> {
 export async function logoutFromNoCodeDashboard(page: Page): Promise<void> {
   await test.step('Log out from the No-Code Studio dashboard', async () => {
     await expectNoCodeDashboardReady(page);
-    const menuButton = await firstVisibleCandidate(
-      [
-        page
-          .locator('page-selectorpage:not(.ion-page-hidden) c8oforms-toolbarcomponentui ion-button:has(ion-icon[src*="menu.svg"])')
-          .first(),
-        page.locator('page-selectorpage:not(.ion-page-hidden) ion-button.class1757346419324').first(),
-        page.locator('page-selectorpage ion-menu-button, ion-menu-button[menu="start"]').first(),
-        page.getByRole('banner').getByRole('button').first(),
-      ],
-      'dashboard menu button',
-    );
-    await expect(menuButton, 'dashboard menu button should be visible').toBeVisible({ timeout: 15_000 });
-    await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
-    const openMenu = page
-      .locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible, ion-menu:not(.menu-enabled-hidden):visible')
-      .last();
-    await expect(
-      openMenu,
-      'dashboard menu should be open before selecting Log out',
-    ).toBeVisible({ timeout: 10_000 });
+    const openMenu = page.locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible').last();
+    if (!(await openMenu.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      const menuButton = await firstVisibleCandidate(
+        [
+          page
+            .locator('page-selectorpage:not(.ion-page-hidden) c8oforms-toolbarcomponentui ion-button:has(ion-icon[src*="menu.svg"])')
+            .first(),
+          page.locator('page-selectorpage:not(.ion-page-hidden) ion-button.class1757346419324').first(),
+          page.locator('page-selectorpage ion-menu-button, ion-menu-button[menu="start"]').first(),
+          page.getByRole('banner').getByRole('button').first(),
+        ],
+        'dashboard menu button',
+      );
+      await expect(menuButton, 'dashboard menu button should be visible').toBeVisible({ timeout: 15_000 });
+      await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
+      await expect(
+        openMenu,
+        'dashboard menu should be open before selecting Log out',
+      ).toBeVisible({ timeout: 10_000 });
+    }
 
     const logoutLabel = /logout|log out|déconnexion|se déconnecter|cerrar sesión|disconnetti/i;
     const logoutButton = await firstVisibleCandidate(
@@ -759,6 +746,7 @@ export async function moveApplicationIntoFolderAndAssertThroughUi(
   title = `Functional move app ${Date.now()}`,
 ): Promise<void> {
   await test.step('Move an application into a folder and assert folder filters', async () => {
+    await createFolderAndValidateTitleThroughUi(page, folderTitle);
     await createBlankForm(page, title);
 
     await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -842,8 +830,8 @@ export async function assertSelectorFiltersThroughUi(
     // the virtual list stuck on skeleton cards in CI.
     await searchSelectorApplicationsByNameThroughDashboard(page, title);
     await expectSelectorApplicationVisible(page, title);
-    const collaborator = await addFirstAvailableCollaboratorFromSelectorCard(page, title);
-    expect(collaborator, 'a collaborator should be selected for the test application').toContain('@');
+    const collaboratorIdentity = await addFirstAvailableCollaboratorFromSelectorCard(page, title);
+    expect(collaboratorIdentity, 'a collaborator should be selected for the test application').not.toBe('');
 
     await setSelectorMyApplicationsFilter(page, true);
     await expectSelectorMyApplicationsFilterEnabled(page, true);

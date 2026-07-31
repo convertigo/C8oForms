@@ -171,6 +171,7 @@ export const SEL = {
     'c8oforms-datasourceconfigurebutton button.class1776013870072, c8oforms-datasourceconfigurebutton button.c8o-btn',
   mapSourceModeRow: 'ion-row.class1777130000001',
   publishButton: 'ion-button.class1773332457603, .class1650456634147 ion-button',
+  editionApplicationsTab: 'ion-button.class1761754757300',
   publishedApplicationsTab: 'ion-button.class1761754757348',
   publishedQrButton: 'page-selectorpage ion-button.class1761581105514',
   selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
@@ -1620,15 +1621,16 @@ export async function addFirstAvailableCollaboratorFromSelectorCard(page: Page, 
     const optionText = normalizeWhitespace(await option.innerText());
     await option.click();
 
-    const collaboratorMail = optionText.split(/\s+/).find((token) => token.includes('@')) ?? optionText;
-    await expect(modal.locator('ion-item').filter({ hasText: collaboratorMail }).first(), 'selected collaborator should be listed').toBeVisible({
+    const collaboratorIdentity = optionText.split(/\s+/).find((token) => token.includes('@')) ?? optionText;
+    expect(collaboratorIdentity, 'selected collaborator identity should not be empty').not.toBe('');
+    await expect(modal.locator('ion-item').filter({ hasText: collaboratorIdentity }).first(), 'selected collaborator should be listed').toBeVisible({
       timeout: 15_000,
     });
 
     await modal.locator(SEL.collaboratorsSaveButton).first().click();
     await expect(modal, 'collaborators modal should close after saving').toBeHidden({ timeout: 30_000 });
     await waitForIonicLoading(page, 15_000);
-    return collaboratorMail;
+    return collaboratorIdentity;
   });
 }
 
@@ -6346,6 +6348,7 @@ type PwaAccessMode = 'authenticated' | 'anonymous';
 type PublishedQrButtonMode = 'show' | 'hide';
 
 const PUBLISHED_APPLICATIONS_TAB_RE = /^(Published Apps|Published|Applications publi[ée]es)$/i;
+const EDITION_APPLICATIONS_TAB_RE = /^(Apps edition|Applications en [ée]ditions)$/i;
 const PUBLISHED_APPLICATIONS_VIEW_RE =
   /Application publishing|Publication des applications|no-code publishing workspace|espace de publication no-code|Applications en production|Applications in production|Vos applications d[ée]ploy[ée]es|Your deployed applications/i;
 
@@ -6441,6 +6444,27 @@ export async function openPublishedApplicationsTab(page: Page): Promise<void> {
       })
       .toBe(true);
     await page.waitForTimeout(500);
+  });
+}
+
+export async function openEditionApplicationsTab(page: Page): Promise<void> {
+  const blankFormCard = page.locator(SEL.blankFormCard).first();
+  if (await blankFormCard.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    return;
+  }
+
+  const stableTab = page.locator(SEL.editionApplicationsTab).first();
+  const tab = (await stableTab.isVisible({ timeout: 1_500 }).catch(() => false))
+    ? stableTab
+    : page
+        .locator('page-selectorpage:not(.ion-page-hidden) ion-button, page-selectorpage:not(.ion-page-hidden) button')
+        .filter({ hasText: EDITION_APPLICATIONS_TAB_RE })
+        .first();
+  await expect(tab, 'Apps edition dashboard tab should be visible').toBeVisible({ timeout: 15_000 });
+  await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+  await waitForIonicLoading(page, 15_000);
+  await expect(blankFormCard, 'blank application creation entry should be visible in Apps edition').toBeVisible({
+    timeout: 30_000,
   });
 }
 
@@ -7368,6 +7392,7 @@ async function waitForSelectorHomeReadyForCreate(page: Page): Promise<void> {
       timeout: 30_000,
     })
     .toBe(true);
+  await openEditionApplicationsTab(page);
   await waitForIonicLoading(page, 10_000);
   await waitForSelectorFormListLoaded(page);
 }
