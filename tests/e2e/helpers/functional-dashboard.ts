@@ -41,11 +41,11 @@ const DASHBOARD_SEL = {
   menuButton:
     'page-selectorpage:not(.ion-page-hidden) ion-menu-button, ion-menu-button[menu="start"], page-selectorpage:not(.ion-page-hidden) ion-button.class1757346419324',
   menuEditionItem:
-    'ion-menu ion-item.form-item--small.btn:has(ion-icon[src*="pen-line.svg"]), ion-item.class1759164027337, ion-item.class1656493755519',
+    'ion-menu ion-item.class1759224316627, ion-menu ion-item.form-item--small.btn:has(ion-icon[src*="pen-line.svg"]), ion-item.class1759164027337, ion-item.class1656493755519',
   menuPublishedItem:
-    'ion-menu ion-item.form-item--small.btn:has(ion-icon[src*="book-open.svg"]), ion-item.class1759164027376, ion-item.class1656494131069',
+    'ion-menu ion-item.class1759224316666, ion-menu ion-item.form-item--small.btn:has(ion-icon[src*="book-open.svg"]), ion-item.class1759164027376, ion-item.class1656494131069',
   menuDatabaseItem:
-    'ion-menu ion-item.form-item--small.btn:has(ion-icon[src*="database.svg"]), ion-item.class1759164027415, ion-item.class1728311082676',
+    'ion-menu ion-item.class1759224316699, ion-menu ion-item.form-item--small.btn:has(ion-icon[src*="database.svg"]), ion-item.class1759164027415, ion-item.class1728311082676',
   visibleMenu: 'ion-menu.show-menu, ion-menu.menu-pane-visible, ion-menu:not(.menu-hidden)',
   noCodeDatabaseFrame: 'page-selectorpage:not(.ion-page-hidden) iframe',
 } as const;
@@ -79,32 +79,16 @@ export async function assertIsolatedEmptyDashboardSections(page: Page): Promise<
 
 async function ensureNoCodeDatabaseAccount(page: Page): Promise<void> {
   await test.step('Provision the isolated user No-code database account', async () => {
-    let token = '';
-    let iframe = '';
+    let jwt = '';
     await expect
       .poll(
         async () => {
           const response = await c8oCall(page, 'BaserowAccount', {});
           const document = asRecord(response.document);
           const result = asRecord(document?.result) ?? asRecord(response.result) ?? document ?? response;
-          token = typeof result.token === 'string' ? result.token : '';
-          iframe = typeof result.iframe === 'string' ? result.iframe : '';
-          return Boolean(token && iframe);
-        },
-        {
-          message: 'BaserowAccount should finish provisioning the isolated user',
-          timeout: 60_000,
-          intervals: [1_000, 2_000, 5_000, 10_000],
-        },
-      )
-      .toBe(true);
-    expect(token, 'BaserowAccount should return a login token for the isolated user').not.toBe('');
-    expect(iframe, 'BaserowAccount should return an iframe endpoint for the isolated user').not.toBe('');
-
-    let jwt = '';
-    await expect
-      .poll(
-        async () => {
+          const token = typeof result.token === 'string' ? result.token : '';
+          const iframe = typeof result.iframe === 'string' ? result.iframe : '';
+          if (!token || !iframe) return false;
           const checkLogin = await page.request.post(`${iframe.replace(/\/+$/, '')}/.json`, {
             form: { __sequence: 'CheckLogin', token },
             timeout: 60_000,
@@ -115,12 +99,13 @@ async function ensureNoCodeDatabaseAccount(page: Page): Promise<void> {
           return jwt.length > 0;
         },
         {
-          message: 'Baserow iframe CheckLogin should return a JWT after account provisioning',
-          timeout: 60_000,
+          message: 'Baserow account provisioning should return a fresh token accepted by iframe CheckLogin',
+          timeout: 120_000,
           intervals: [1_000, 2_000, 5_000, 10_000],
         },
       )
       .toBe(true);
+    expect(jwt, 'Baserow iframe CheckLogin should return a JWT after account provisioning').not.toBe('');
   });
 }
 
@@ -318,34 +303,39 @@ async function ensureNoCodeDatabaseTableThroughUi(page: Page): Promise<void> {
 }
 
 async function clickLeftMenuSection(page: Page, section: DashboardSection): Promise<void> {
-  const roleItem = page.getByRole('button', { name: leftMenuRoleName(section) }).first();
-  if (await roleItem.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await roleItem.click({ timeout: 10_000 }).catch(async () => roleItem.dispatchEvent('click'));
-    return;
-  }
+  const selectorItems = page.locator(menuItemSelector(section));
+  const roleItems = page.getByRole('button', { name: leftMenuRoleName(section) });
 
-  const selector = menuItemSelector(section);
-  const stableItem = page.locator(selector).first();
-  if (await stableItem.isVisible({ timeout: 1_000 }).catch(() => false)) {
+  const stableItem = await firstVisibleFromLocator(page, selectorItems, `${section} left-menu item`, 1_500);
+  if (await stableItem.isVisible({ timeout: 500 }).catch(() => false)) {
     await stableItem.click({ timeout: 10_000 }).catch(async () => stableItem.dispatchEvent('click'));
     return;
   }
 
-  {
-    const menuButton = await firstVisibleFromLocator(page, page.locator(DASHBOARD_SEL.menuButton), 'main menu button');
-    await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
-    await expect(page.locator(DASHBOARD_SEL.visibleMenu).first(), 'main menu should open').toBeVisible({ timeout: 10_000 });
-  }
-
-  const openedRoleItem = page.getByRole('button', { name: leftMenuRoleName(section) }).first();
-  if (await openedRoleItem.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await openedRoleItem.click({ timeout: 10_000 }).catch(async () => openedRoleItem.dispatchEvent('click'));
+  const roleItem = await firstVisibleFromLocator(page, roleItems, `${section} left-menu item`, 1_500);
+  if (await roleItem.isVisible({ timeout: 500 }).catch(() => false)) {
+    await roleItem.click({ timeout: 10_000 }).catch(async () => roleItem.dispatchEvent('click'));
     return;
   }
 
-  const menuItem = await firstVisibleFromLocator(page, page.locator(selector), `${section} left-menu item`);
-  await expect(menuItem, `${section} left-menu item should be visible after opening the menu`).toBeVisible({ timeout: 2_000 });
-  await menuItem.click({ timeout: 10_000 }).catch(async () => menuItem.dispatchEvent('click'));
+  const menuButton = await firstVisibleFromLocator(page, page.locator(DASHBOARD_SEL.menuButton), 'main menu button', 5_000);
+  await expect(menuButton, 'main menu button should be visible when the split-pane menu is hidden').toBeVisible({
+    timeout: 2_000,
+  });
+  await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
+  await expect(page.locator(DASHBOARD_SEL.visibleMenu).first(), 'main menu should open').toBeVisible({ timeout: 10_000 });
+
+  const openedStableItem = await firstVisibleFromLocator(page, selectorItems, `${section} opened left-menu item`, 10_000);
+  if (await openedStableItem.isVisible({ timeout: 500 }).catch(() => false)) {
+    await openedStableItem.click({ timeout: 10_000 }).catch(async () => openedStableItem.dispatchEvent('click'));
+    return;
+  }
+
+  const openedRoleItem = await firstVisibleFromLocator(page, roleItems, `${section} opened left-menu item`, 5_000);
+  await expect(openedRoleItem, `${section} left-menu item should be visible after opening the menu`).toBeVisible({
+    timeout: 2_000,
+  });
+  await openedRoleItem.click({ timeout: 10_000 }).catch(async () => openedRoleItem.dispatchEvent('click'));
 }
 
 async function expectNoCodeDatabaseTableVisible(page: Page, database: string, table: string): Promise<void> {
@@ -606,9 +596,9 @@ function menuItemSelector(section: DashboardSection): string {
 
 function leftMenuRoleName(section: DashboardSection): RegExp {
   return {
-    edition: /^Home \(Edition\)$/i,
-    published: /^Home \(Published\)$/i,
-    database: /^Home \(Database\)$/i,
+    edition: /^(?:Home \(Edition\)|Accueil \(Édition\)|Pagina de inicio \(Edición\)|Pagina iniziale \(Edizione\))$/i,
+    published: /^(?:Home \(Published\)|Accueil \(Publiées\)|Pagina de inicio \(Publicados\)|Pagina iniziale \(Pubblicato\))$/i,
+    database: /^(?:Home \(Database\)|Accueil \(Base de données\)|Inicio \(Base de datos\)|Home \(Base di dati\))$/i,
   }[section];
 }
 

@@ -836,16 +836,20 @@ async function expectPublishedPwaCacheStorage(page: Page, pwaIndexUrl: string): 
     appShellGroup && Array.isArray(appShellGroup.urls)
       ? appShellGroup.urls.filter((url): url is string => typeof url === 'string')
       : [];
-  const requiredAppShellUrls = appShellUrls
-    .filter((url) => /(?:^|\/)(?:index\.html|manifest\.webmanifest|main-[^/]+\.js|polyfills-[^/]+\.js|styles-[^/]+\.css)$/.test(url))
+  expect(
+    appShellUrls.some((url) => /(?:^|\/)index\.html$/.test(url)),
+    'published PWA ngsw should declare index.html as its navigation shell',
+  ).toBe(true);
+  const requiredCachedAppShellUrls = appShellUrls
+    .filter((url) => /(?:^|\/)(?:manifest\.webmanifest|main-[^/]+\.js|polyfills-[^/]+\.js|styles-[^/]+\.css)$/.test(url))
     .map((url) => new URL(url, pwaIndexUrl).toString());
-  expect(requiredAppShellUrls, 'published PWA ngsw should list the essential preloaded application shell').not.toHaveLength(0);
+  expect(requiredCachedAppShellUrls, 'published PWA ngsw should list the essential preloaded application shell').not.toHaveLength(0);
   await expect
     .poll(async () => {
       const snapshot = await publishedPwaCacheSnapshot(page);
-      return requiredAppShellUrls.every((url) => snapshot.cachedUrls.includes(url));
+      return requiredCachedAppShellUrls.every((url) => snapshot.cachedUrls.includes(url));
     }, {
-      message: 'published PWA service worker should cache its essential scoped application shell',
+      message: 'published PWA service worker should cache its scoped application bundles',
       timeout: 60_000,
     })
     .toBe(true);

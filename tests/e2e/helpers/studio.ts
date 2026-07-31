@@ -291,6 +291,8 @@ type MainEditorConfigTab =
   | 'defaultvalue'
   | 'data_interactions';
 
+type MainEditorStyleTab = 'forms_slider_style';
+
 type ChartHeightMode = 'auto' | 'personalized';
 type GridPaginationMode = 'all_rows' | 'paginated';
 export type StudioLanguage = 'en' | 'fr' | 'es' | 'it';
@@ -1448,22 +1450,45 @@ export async function returnToSelectorFromEditor(page: Page): Promise<void> {
 export async function openEditorCollaboratorsModal(page: Page): Promise<Locator> {
   return test.step('Open the editor collaborators modal', async () => {
     await expectRoute(page, ROUTE.editor);
-    await dismissVisiblePopovers(page);
-
     const modal = page.locator(SEL.collaboratorsModal).last();
-    if (await clickEditorMoreActionsCollaborators(page, modal)) {
-      return modal;
+    const moreActions = page.locator(SEL.editorMoreActionsButton).first();
+    const toolbarButton = page.locator(SEL.editorToolbarCollaboratorsButton).first();
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await dismissVisiblePopovers(page);
+      await expect
+        .poll(
+          async () => {
+            if (await modal.isVisible().catch(() => false)) return 'modal';
+            if (await moreActions.isVisible().catch(() => false)) return 'more-actions';
+            if (await toolbarButton.isVisible().catch(() => false)) return 'toolbar';
+            return 'loading';
+          },
+          {
+            message: 'an editor collaborators affordance should become available after the form finishes loading',
+            timeout: 30_000,
+          },
+        )
+        .toMatch(/^(?:modal|more-actions|toolbar)$/);
+
+      if (await modal.isVisible().catch(() => false)) {
+        return modal;
+      }
+      if ((await moreActions.isVisible().catch(() => false)) && (await clickEditorMoreActionsCollaborators(page, modal))) {
+        return modal;
+      }
+
+      await dismissVisiblePopovers(page);
+      if (await toolbarButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await toolbarButton.click({ timeout: 5_000 }).catch(async () => toolbarButton.dispatchEvent('click'));
+        if (await modal.waitFor({ state: 'visible', timeout: 30_000 }).then(() => true).catch(() => false)) {
+          return modal;
+        }
+      }
+      await page.waitForTimeout(750);
     }
 
-    const toolbarButton = page.locator(SEL.editorToolbarCollaboratorsButton).first();
-    await expect(toolbarButton, 'editor toolbar collaborators button should be available').toBeVisible({
-      timeout: 10_000,
-    });
-    await toolbarButton.click({ timeout: 5_000 }).catch(async () => toolbarButton.dispatchEvent('click'));
-    await expect(modal, 'the collaborators modal should open from the editor toolbar').toBeVisible({
-      timeout: 30_000,
-    });
-    return modal;
+    throw new Error('the collaborators modal did not open from either editor affordance');
   });
 }
 
@@ -1499,12 +1524,12 @@ async function clickEditorMoreActionsCollaborators(page: Page, modal: Locator): 
 
   await moreActions.click({ timeout: 5_000 }).catch(async () => moreActions.dispatchEvent('click'));
   const popover = page.locator(SEL.editorMoreActionsPopover).last();
-  if (!(await popover.isVisible({ timeout: 5_000 }).catch(() => false))) {
+  if (!(await popover.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false))) {
     return false;
   }
 
   const item = popover.locator(SEL.editorMoreActionsCollaboratorsMenuItem).first();
-  if (await item.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  if (await item.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
     await item.click({ timeout: 5_000 }).catch(async () => item.dispatchEvent('click'));
   } else {
     const clicked = await page.evaluate(() => {
@@ -2800,6 +2825,35 @@ export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab):
   throw new Error(`No visible config tab matches id ${tabId}. Visible tabs: ${(await visibleTexts(page, SEL.configTab)).join(' | ')}`);
 }
 
+export async function openStyleTabById(page: Page, tabId: MainEditorStyleTab): Promise<void> {
+  await openStyleSection(page);
+  const index = await styleTabIndexById(page, tabId);
+  const tabs = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`);
+  if (index !== null && index >= 0 && index < (await tabs.count())) {
+    const activated = await activateConfigTab(tabs.nth(index));
+    if (activated) {
+      await page.waitForTimeout(350);
+      return;
+    }
+  }
+
+  const fallbackLabels: Record<MainEditorStyleTab, string[]> = {
+    forms_slider_style: ["Slider style", "Style de l'échelle linéaire", 'Estillo del slider', 'Stille di slider'],
+  };
+  const normalizedLabels = fallbackLabels[tabId].map(searchableVisibleText);
+  const count = await tabs.count();
+  for (let tabIndex = 0; tabIndex < count; tabIndex++) {
+    const tab = tabs.nth(tabIndex);
+    const label = searchableVisibleText(await tab.innerText().catch(() => ''));
+    if (normalizedLabels.includes(label) && (await activateConfigTab(tab))) {
+      await page.waitForTimeout(350);
+      return;
+    }
+  }
+
+  throw new Error(`No visible style tab matches id ${tabId}. Visible tabs: ${(await visibleTexts(page, SEL.styleTab)).join(' | ')}`);
+}
+
 export async function expectButtonStyleTabsOnly(page: Page): Promise<void> {
   const container = page.locator(SEL.styleTabsContainer).first();
   await expect(container, 'button style tabs should be visible').toBeVisible({ timeout: 15_000 });
@@ -3063,13 +3117,17 @@ async function setButtonColorPickerValue(
   }, hexColor);
   await page.keyboard.press('Enter');
 
+  const picker = page.locator('ion-popover:not(.overlay-hidden)').last();
+  await page.keyboard.press('Escape');
+  await expect(picker, `Button ${label} color picker should close before applying its value`).toBeHidden({
+    timeout: 10_000,
+  });
   await expect
     .poll(() => swatch.evaluate((element) => getComputedStyle(element).backgroundColor), {
       message: `Button ${label} color swatch should reflect ${hexColor}`,
       timeout: 10_000,
     })
     .toBe(hexToRgbCss(hexColor));
-  await page.keyboard.press('Escape');
 }
 
 async function selectButtonFlexOption(
@@ -3515,6 +3573,69 @@ async function configTabIndexById(page: Page, tabId: MainEditorConfigTab): Promi
           const tabIds = editor.getMainEditorTabIds(item, 'configuration') ?? [];
           const index = tabIds.indexOf(targetTabId);
           if (index !== -1 && index < visibleConfigTabs.length) {
+            return index;
+          }
+        }
+      }
+      return null;
+    }, tabId)
+    .catch(() => null);
+}
+
+async function styleTabIndexById(page: Page, tabId: MainEditorStyleTab): Promise<number | null> {
+  return page
+    .evaluate((targetTabId) => {
+      const seen = new Set<object>();
+      const candidates: any[] = [];
+      const visit = (entry: unknown) => {
+        if (
+          entry &&
+          typeof entry === 'object' &&
+          !seen.has(entry) &&
+          typeof (entry as any).getMainEditorTabIds === 'function' &&
+          typeof (entry as any).getActiveMainEditorItem === 'function' &&
+          (entry as any).local != null
+        ) {
+          seen.add(entry);
+          candidates.push(entry);
+        }
+      };
+      const visitMaybeContext = (value: unknown) => {
+        if (Array.isArray(value)) {
+          for (const entry of value) visit(entry);
+        } else {
+          visit(value);
+        }
+      };
+
+      for (const element of document.querySelectorAll('*')) {
+        const rawElement = element as unknown as Record<string, unknown>;
+        visitMaybeContext((rawElement as any).__ngContext__);
+        for (const key of Object.getOwnPropertyNames(rawElement)) {
+          visitMaybeContext(rawElement[key]);
+        }
+      }
+
+      const visible = (el: Element) => {
+        const box = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const visibleStyleTabs = [
+        ...document.querySelectorAll('[data-main-editor-tabs-buttons="style"] .class1775832335416'),
+      ].filter(visible);
+      if (visibleStyleTabs.length === 0) return null;
+
+      for (const editor of candidates) {
+        const ids = [editor.idselected, editor.idselectedC].filter((id) => id != null && id !== '');
+        const items = ids
+          .map((id) => editor.getEditorChildById?.(id) ?? editor.getElementByID?.(id))
+          .filter((item) => item != null);
+        for (const baseItem of items) {
+          const item = editor.getActiveMainEditorItem(baseItem) ?? baseItem;
+          const tabIds = editor.getMainEditorTabIds(item, 'style') ?? [];
+          const index = tabIds.indexOf(targetTabId);
+          if (index !== -1 && index < visibleStyleTabs.length) {
             return index;
           }
         }
@@ -7246,25 +7367,11 @@ async function selectorFormListState(page: Page): Promise<string> {
   const text = await root.innerText({ timeout: 500 }).catch(() => '');
   const count = selectorResultCount(text);
   const skeletonCount = await root.locator('ion-skeleton-text:visible').count().catch(() => 0);
-  if (skeletonCount > 0 || count == null) {
-    if (skeletonCount === 0) {
-      const hasLegacyCreateCard = await root.locator(SEL.blankFormCard).first().isVisible({ timeout: 500 }).catch(() => false);
-      const hasLegacyApplicationCard = await root
-        .locator(`${SEL.selectorCardTitle}, ${SEL.selectorListTitle}, [id^="idcard"]:not([id^="idcardO"])`)
-        .first()
-        .isVisible({ timeout: 500 })
-        .catch(() => false);
-      if (hasLegacyCreateCard || hasLegacyApplicationCard) {
-        return hasLegacyApplicationCard ? 'ready:legacy-cards' : 'ready:legacy-create';
-      }
-    }
+  if (skeletonCount > 0) {
     return `loading:count=${count ?? 'unset'} skeletons=${skeletonCount}`;
   }
 
-  if (count === 0) {
-    return SELECTOR_EMPTY_FORM_LIST_RE.test(text) ? 'ready:empty' : 'loading:empty-message-missing';
-  }
-
+  const hasCreateCard = await root.locator(SEL.blankFormCard).first().isVisible({ timeout: 500 }).catch(() => false);
   const hasCard = await root
     .locator(
       [
@@ -7279,7 +7386,16 @@ async function selectorFormListState(page: Page): Promise<string> {
     .first()
     .isVisible({ timeout: 500 })
     .catch(() => false);
-  return hasCard ? `ready:cards:${count}` : `loading:cards-missing:${count}`;
+  if (hasCard) {
+    return `ready:cards:${count ?? 'unknown'}`;
+  }
+  if (SELECTOR_EMPTY_FORM_LIST_RE.test(text) || count === 0) {
+    return 'ready:empty';
+  }
+  if (hasCreateCard) {
+    return `ready:create:${count ?? 'unknown'}`;
+  }
+  return `loading:count=${count ?? 'unset'} cards-missing`;
 }
 
 function selectorResultCount(text: string): number | null {
@@ -7606,24 +7722,58 @@ export async function setTechnicalId(
     return;
   }
 
+  if ((await input.inputValue()) === value) {
+    return;
+  }
+
   const persisted = page.waitForResponse(
     (response) => {
       const request = response.request();
       const postData = request.postData() ?? '';
+      let decodedPostData = postData;
+      try {
+        decodedPostData = decodeURIComponent(postData.replace(/\+/g, ' '));
+      } catch {
+        // Multipart bodies are usually already decoded.
+      }
+      let parsedPayload: unknown;
+      try {
+        parsedPayload = request.postDataJSON();
+      } catch {
+        parsedPayload = null;
+      }
+      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const namedValuePattern = new RegExp(
+        `["']?name["']?\\s*(?::|=)\\s*["']?${escapedValue}(?:["'&,;}\\r\\n]|$)`,
+      );
       return (
         response.ok() &&
         request.method() === 'POST' &&
         response.url().includes('/projects/C8Oforms/.json') &&
-        postData.includes('APIV2_updateFormulaireDocument') &&
-        postData.includes(`"name":"${value}"`)
+        decodedPostData.includes('APIV2_updateFormulaireDocument') &&
+        (documentContainsNamedValue(parsedPayload, value) || namedValuePattern.test(decodedPostData))
       );
     },
-    { timeout: 15_000 },
+    { timeout: 30_000 },
   );
   await input.fill(value);
   await input.blur();
   await persisted;
-  await expect(input, `technical identifier ${value} should remain visible after persistence`).toHaveValue(value);
+  await expect(input, `technical identifier ${value} should remain visible after persistence`).toHaveValue(value, {
+    timeout: 10_000,
+  });
+}
+
+function documentContainsNamedValue(value: unknown, expected: string): boolean {
+  if (Array.isArray(value)) {
+    return value.some((entry) => documentContainsNamedValue(entry, expected));
+  }
+  if (value == null || typeof value !== 'object') {
+    return false;
+  }
+  return Object.entries(value).some(
+    ([key, entry]) => (key === 'name' && entry === expected) || documentContainsNamedValue(entry, expected),
+  );
 }
 
 async function paletteTileForIcon(page: Page, icon: string, description: string, timeout = 30_000): Promise<Locator> {
@@ -7962,25 +8112,32 @@ async function fillVisibleTinyMceText(page: Page, value: string, description: st
   await editorBody.click();
   const filledThroughTinyMce = await editorBody.evaluate((body, text) => {
     const frameWindow = body.ownerDocument.defaultView as any;
-    const tinymce =
-      frameWindow?.parent?.hugerte ??
-      frameWindow?.parent?.tinymce ??
-      frameWindow?.hugerte ??
-      frameWindow?.tinymce;
-    const editors = Array.isArray(tinymce?.editors) ? tinymce.editors : Object.values(tinymce?.editors ?? {});
-    const frameElement = frameWindow?.frameElement;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === body ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === body ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
     const editor =
-      editors.find((candidate: any) => {
-        try {
-          return (
-            candidate?.getBody?.() === body ||
-            candidate?.iframeElement === frameElement ||
-            candidate?.iframeElement?.contentDocument?.body === body
-          );
-        } catch {
-          return false;
-        }
-      }) ?? (tinymce?.activeEditor?.getBody?.() === body ? tinymce.activeEditor : null);
+      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      editors.find(matchesTarget);
     if (!editor) return false;
 
     const holder = body.ownerDocument.createElement('div');
@@ -8561,14 +8718,33 @@ async function setTinyMceContentThroughApi(page: Page, text: string): Promise<bo
   }
 
   const applied = await editorBody.evaluate((body, value) => {
-    const hostWindow = window.parent === window ? window : window.parent;
-    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
-    const rawEditors = tinymce?.editors;
-    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
-    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const frameWindow = body.ownerDocument.defaultView as any;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === body ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === body ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
     const editor =
-      (frameId ? tinymce?.get?.(frameId) : null) ??
-      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === body);
+      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      editors.find(matchesTarget);
     if (!editor) {
       return false;
     }
@@ -9171,14 +9347,33 @@ async function clickChooseButtonForTreeLabel(page: Page, label: string): Promise
 async function mutateTinyMceEditor(editorBody: Locator, action: 'notify' | 'insert' | 'set', html = ''): Promise<void> {
   await editorBody.evaluate(
     (body, payload) => {
-      const hostWindow = window.parent === window ? window : window.parent;
-      const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
-      const rawEditors = tinymce?.editors;
-      const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
-      const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+      const frameWindow = body.ownerDocument.defaultView as any;
+      const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+      const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+        (registry, index, all) => registry && all.indexOf(registry) === index,
+      );
+      const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+      const frameId = frameElement?.id?.replace(/_ifr$/, '');
+      const matchesTarget = (candidate: any) => {
+        if (!candidate || candidate.removed) return false;
+        try {
+          return (
+            candidate.getBody?.() === body ||
+            candidate.iframeElement === frameElement ||
+            candidate.iframeElement?.contentDocument?.body === body ||
+            (frameId != null && candidate.id === frameId)
+          );
+        } catch {
+          return false;
+        }
+      };
+      const editors = registries.flatMap((registry: any) => {
+        const rawEditors = registry?.editors;
+        return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+      });
       const editor =
-        (frameId ? tinymce?.get?.(frameId) : null) ??
-        editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === body);
+        (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+        editors.find(matchesTarget);
       if (!editor) {
         throw new Error(`TinyMCE instance not found for target body ${body.id || '(without id)'}`);
       }

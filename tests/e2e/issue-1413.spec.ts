@@ -210,11 +210,41 @@ async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void
   }, label);
   expect(payload.ok, `could not get drag payload for ${label}`).toBe(true);
 
-  await page.evaluate((html) => {
-    const tinymce = (window as any).hugerte ?? (window as any).tinymce;
-    tinymce?.activeEditor?.insertContent(html);
-    tinymce?.activeEditor?.fire('change');
-    tinymce?.activeEditor?.fire('blur');
+  await editorBody.evaluate((body, html) => {
+    const frameWindow = body.ownerDocument.defaultView as any;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === body ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === body ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
+    const editor =
+      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      editors.find(matchesTarget);
+    if (!editor) throw new Error('TinyMCE instance not found for the quoted grid path editor');
+    editor.focus?.();
+    editor.insertContent(html);
+    editor.fire('input');
+    editor.fire('change');
+    editor.save?.();
+    editor.fire('blur');
   }, payload.html);
   await expect(editorBody.locator('svg[id^="clickable-"]').first()).toBeVisible({ timeout: 10_000 });
 }

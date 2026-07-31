@@ -1084,14 +1084,33 @@ async function setTextInputQuestionLabel(page: Page, value: string): Promise<voi
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click({ timeout: 10_000 });
   const filledThroughTinyMce = await editorBody.evaluate((body, text) => {
-    const hostWindow = window.parent === window ? window : window.parent;
-    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
-    const rawEditors = tinymce?.editors;
-    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
-    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const frameWindow = body.ownerDocument.defaultView as any;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === body ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === body ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
     const editor =
-      (frameId ? tinymce?.get?.(frameId) : null) ??
-      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === body);
+      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      editors.find(matchesTarget);
     if (!editor) {
       return false;
     }
@@ -1264,14 +1283,33 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
 async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
   const body = editorBody ?? (await visibleTinyMceBody(page));
   await body.evaluate((targetBody) => {
-    const hostWindow = window.parent === window ? window : window.parent;
-    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
-    const rawEditors = tinymce?.editors;
-    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
-    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const frameWindow = targetBody.ownerDocument.defaultView as any;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === targetBody ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === targetBody ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
     const editor =
-      (frameId ? tinymce?.get?.(frameId) : null) ??
-      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === targetBody);
+      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      editors.find(matchesTarget);
     if (!editor) throw new Error('TinyMCE instance not found for the visible question editor');
     editor.fire('input');
     editor.fire('change');

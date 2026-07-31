@@ -35,6 +35,7 @@ import {
   openPreview,
   openSelectBaserowSourceConfiguration,
   openSelectBaserowTablePicker,
+  openStyleTabById,
   openWorkflowsPanel,
   recordedToasts,
   recordToasts,
@@ -1777,7 +1778,7 @@ async function expectSliderStyleValues(page: Page, values: { pin: boolean; snaps
 }
 
 async function openSliderStyleTab(page: Page): Promise<void> {
-  await openConfigTabById(page, 'forms_slider_style');
+  await openStyleTabById(page, 'forms_slider_style');
   await expect(page.locator('c8oforms-toggleswitch:visible').first(), 'Slider style settings should be visible').toBeVisible({
     timeout: 15_000,
   });
@@ -2258,21 +2259,24 @@ async function setDescriptionRichText(
   content: { introText: string; boldText: string; italicText: string },
 ): Promise<void> {
   const body = await visibleTinyMceBody(page);
-  await body.click({ timeout: 10_000 });
-  await page.keyboard.press('Control+A');
-  await page.keyboard.press('Backspace');
+  await body.evaluate((targetBody, fragments) => {
+    const document = targetBody.ownerDocument;
+    const paragraph = document.createElement('p');
+    const lineBreak = () => paragraph.append(document.createElement('br'));
+    const strong = document.createElement('strong');
+    const emphasis = document.createElement('em');
 
-  await page.keyboard.type(content.introText);
-  await page.keyboard.press('Shift+Enter');
-  await page.keyboard.press('Control+B');
-  await page.keyboard.type(content.boldText);
-  await page.keyboard.press('Control+B');
-  await page.keyboard.press('Shift+Enter');
-  await page.keyboard.press('Control+I');
-  await page.keyboard.type(content.italicText);
-  await page.keyboard.press('Control+I');
-  await page.keyboard.press('Shift+Enter');
-  await page.keyboard.type('User email: ');
+    strong.textContent = fragments.boldText;
+    emphasis.textContent = fragments.italicText;
+    paragraph.append(document.createTextNode(fragments.introText));
+    lineBreak();
+    paragraph.append(strong);
+    lineBreak();
+    paragraph.append(emphasis);
+    lineBreak();
+    paragraph.append(document.createTextNode('User email: '));
+    targetBody.replaceChildren(paragraph);
+  }, content);
   await fireActiveTinyMceChange(page, body);
 
   for (const fragment of [content.introText, content.boldText, content.italicText]) {
@@ -2301,14 +2305,33 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
 async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
   const body = editorBody ?? (await visibleTinyMceBody(page));
   await body.evaluate((targetBody) => {
-    const hostWindow = window.parent === window ? window : window.parent;
-    const tinymce = (hostWindow as any).hugerte ?? (hostWindow as any).tinymce;
-    const rawEditors = tinymce?.editors;
-    const editors = (Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : []) as any[];
-    const frameId = (window.frameElement as HTMLElement | null)?.id?.replace(/_ifr$/, '');
+    const frameWindow = targetBody.ownerDocument.defaultView as any;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === targetBody ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === targetBody ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
     const editor =
-      (frameId ? tinymce?.get?.(frameId) : null) ??
-      editors.find((candidate) => candidate && !candidate.removed && candidate.getBody?.() === targetBody);
+      (frameId ? registries.map((registry: any) => registry.get?.(frameId)).find(matchesTarget) : null) ??
+      editors.find(matchesTarget);
     if (!editor) throw new Error('TinyMCE instance not found for the visible Description editor');
     editor.fire('input');
     editor.fire('change');
