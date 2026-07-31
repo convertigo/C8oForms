@@ -40,17 +40,23 @@ test('Studio service worker only prefetches its small application shell', () => 
   assert.equal(assets.updateMode, 'lazy');
 });
 
-test('published PWA service workers keep prefetching their application code', () => {
+test('published PWA service workers prefetch only their shell and load application code lazily', () => {
   for (const path of [
     'ionicTpl/ngsw-config-sub-pwa.json',
     'ngswForPWA/ngsw-config-sub-pwa.json',
   ]) {
     const config = readConfig(path);
-    const app = assetGroup(config, 'app');
+    const shell = assetGroup(config, 'app-shell');
+    const code = assetGroup(config, 'app-code');
 
-    assert.equal(app.installMode, 'prefetch', `${path} installMode`);
-    assert.equal(app.updateMode, 'prefetch', `${path} updateMode`);
-    assert.ok(app.resources.files.includes('/*.js'), `${path} JavaScript bundle pattern`);
-    assert.ok(app.resources.files.includes('/*.css'), `${path} CSS bundle pattern`);
+    assert.equal(shell.installMode, 'prefetch', `${path} shell installMode`);
+    assert.equal(shell.updateMode, 'prefetch', `${path} shell updateMode`);
+    assert.ok(!shell.resources.files.includes('/*.js'), `${path} shell should not prefetch every JavaScript bundle`);
+    assert.ok(!shell.resources.files.includes('/*.css'), `${path} shell should not prefetch every CSS bundle`);
+
+    assert.equal(code.installMode, 'lazy', `${path} code installMode`);
+    assert.equal(code.updateMode, 'lazy', `${path} code updateMode`);
+    assert.ok(code.resources.files.includes('/*.js'), `${path} JavaScript bundle pattern`);
+    assert.ok(code.resources.files.includes('/*.css'), `${path} CSS bundle pattern`);
   }
 });

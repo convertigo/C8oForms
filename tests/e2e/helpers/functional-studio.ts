@@ -106,7 +106,11 @@ function defaultProvisionedFunctionalUser(kind: 'secondary' | 'empty' | 'admin')
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '');
   const domain = process.env.C8OFORMS_FUNCTIONAL_USER_DOMAIN ?? 'yopmail.com';
-  return `${prefix || 'c8oforms-functional'}-${kind}@${domain}`;
+  // The first isolated fixture accumulated an external Baserow account whose
+  // password no longer matched its FullSync credential. Rotate that default
+  // identity once; subsequent runs keep the new credential document intact.
+  const fixtureKind = kind === 'empty' ? 'empty-v2' : kind;
+  return `${prefix || 'c8oforms-functional'}-${fixtureKind}@${domain}`;
 }
 
 export async function loginWithFunctionalCredentials(page: Page, credentials: LoginCredentials): Promise<void> {
@@ -755,7 +759,6 @@ export async function moveApplicationIntoFolderAndAssertThroughUi(
   title = `Functional move app ${Date.now()}`,
 ): Promise<void> {
   await test.step('Move an application into a folder and assert folder filters', async () => {
-    await createFolderAndValidateTitleThroughUi(page, folderTitle);
     await createBlankForm(page, title);
 
     await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -837,24 +840,17 @@ export async function assertSelectorFiltersThroughUi(
     // Let the initial FullSync-backed list settle before opening or changing
     // filters. Interacting while the selector starts its first fetch can leave
     // the virtual list stuck on skeleton cards in CI.
+    await searchSelectorApplicationsByNameThroughDashboard(page, title);
     await expectSelectorApplicationVisible(page, title);
-    await setSelectorHideFoldersFilter(page, false);
-    await expectSelectorFolderVisible(page, folderTitle);
-    await expectSelectorApplicationVisible(page, title);
-
     const collaborator = await addFirstAvailableCollaboratorFromSelectorCard(page, title);
     expect(collaborator, 'a collaborator should be selected for the test application').toContain('@');
 
     await setSelectorMyApplicationsFilter(page, true);
     await expectSelectorMyApplicationsFilterEnabled(page, true);
+    await searchSelectorApplicationsByNameThroughDashboard(page, title);
     await expectSelectorApplicationVisible(page, title);
     await setSelectorMyApplicationsFilter(page, false);
     await expectSelectorMyApplicationsFilterEnabled(page, false);
-
-    await setSelectorHideFoldersFilter(page, true);
-    await expectSelectorFolderHidden(page, folderTitle);
-    await setSelectorHideFoldersFilter(page, false);
-    await expectSelectorFolderVisible(page, folderTitle);
 
     await setSelectorAllApplicationsFilter(page, true);
     await expectSelectorAllApplicationsFilterEnabled(page, true);
@@ -862,6 +858,16 @@ export async function assertSelectorFiltersThroughUi(
     await expectSelectorApplicationVisible(page, title);
     await setSelectorAllApplicationsFilter(page, false);
     await expectSelectorAllApplicationsFilterEnabled(page, false);
+
+    // Folder names are not part of the application-name search index. Clear
+    // the query and create the folder at the top of the current list before
+    // asserting the dedicated Hide folders filter.
+    await searchSelectorApplicationsByNameThroughDashboard(page, '');
+    await createFolderAndValidateTitleThroughUi(page, folderTitle);
+    await setSelectorHideFoldersFilter(page, true);
+    await expectSelectorFolderHidden(page, folderTitle);
+    await setSelectorHideFoldersFilter(page, false);
+    await expectSelectorFolderVisible(page, folderTitle);
   });
 }
 

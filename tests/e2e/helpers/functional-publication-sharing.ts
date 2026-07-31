@@ -424,7 +424,8 @@ async function expectPublishedPwaMetadataResources(page: Page, fixture: Publishe
   const ngsw = await expectPublishedPwaJson(page, new URL('ngsw.json', fixture.pwaIndexUrl).toString(), `${fixture.mode} ngsw.json`);
   expect(Array.isArray(ngsw.assetGroups), `${fixture.mode} PWA ngsw.json should expose asset groups`).toBe(true);
   const assetGroupNames = (ngsw.assetGroups as Array<{ name?: unknown }>).map((group) => String(group.name ?? ''));
-  expect(assetGroupNames, `${fixture.mode} PWA ngsw.json should include the app shell asset group`).toContain('app');
+  expect(assetGroupNames, `${fixture.mode} PWA ngsw.json should include the app shell asset group`).toContain('app-shell');
+  expect(assetGroupNames, `${fixture.mode} PWA ngsw.json should include the lazy application code asset group`).toContain('app-code');
   expect(assetGroupNames, `${fixture.mode} PWA ngsw.json should include the lazy assets asset group`).toContain('assets');
 }
 
@@ -843,16 +844,17 @@ async function expectPublishedPwaCacheStorage(page: Page, pwaIndexUrl: string): 
   const requiredCachedAppShellUrls = appShellUrls
     .filter((url) => /\.(?:css|js)$/.test(new URL(url, pwaIndexUrl).pathname))
     .map((url) => new URL(url, pwaIndexUrl).toString());
-  expect(requiredCachedAppShellUrls, 'published PWA ngsw should list its preloaded application bundles').not.toHaveLength(0);
-  await expect
-    .poll(async () => {
-      const snapshot = await publishedPwaCacheSnapshot(page);
-      return requiredCachedAppShellUrls.every((url) => snapshot.cachedUrls.includes(url));
-    }, {
-      message: 'published PWA service worker should finish prefetching every scoped JS/CSS bundle before offline mode',
-      timeout: 120_000,
-    })
-    .toBe(true);
+  if (requiredCachedAppShellUrls.length > 0) {
+    await expect
+      .poll(async () => {
+        const snapshot = await publishedPwaCacheSnapshot(page);
+        return requiredCachedAppShellUrls.every((url) => snapshot.cachedUrls.includes(url));
+      }, {
+        message: 'published PWA service worker should finish prefetching its declared shell bundles before offline mode',
+        timeout: 60_000,
+      })
+      .toBe(true);
+  }
 }
 
 async function expectPublishedPwaOfflineShellReload(

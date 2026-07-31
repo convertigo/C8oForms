@@ -23,12 +23,17 @@ Promise.all(promises).then(() => {
 		var ngswJson = fs.readFileSync('../../DisplayObjects/template-pwa/ngsw.json', 'utf8');
 		//		console.log('Contenu du fichier:', ngswJson);
 		ngswJson = JSON.parse(ngswJson);
-		ngswJson.assetGroups[0].urls = ngswJson.assetGroups[0].urls.map(function(url) {
-			if (url.endsWith(".js") || url.endsWith(".css") || url.endsWith(".woff2")) {
-				return url.replace("DisplayObjects/mobile/", "DisplayObjects/mobile/scripts/");
+		for (const group of ngswJson.assetGroups) {
+			if (!Array.isArray(group.urls)) {
+				continue;
 			}
-			return url;
-		});
+			group.urls = group.urls.map(function(url) {
+				if (url.endsWith(".js") || url.endsWith(".css") || url.endsWith(".woff2")) {
+					return url.replace("DisplayObjects/mobile/", "DisplayObjects/mobile/scripts/");
+				}
+				return url;
+			});
+		}
 		ngswJson.hashTable = Object.fromEntries(
 			Object.entries(ngswJson.hashTable).map(([key, value]) => {
 				if (!key.includes("/assets/") && !key.includes("/svg/") && !key.endsWith("/ngsw.json") && !key.endsWith("/index.html") && !key.endsWith("/manifest.webmanifest") && !key.endsWith("/ngsw-worker.js") && !key.includes("/scripts/") && (key.endsWith(".js") || key.endsWith(".css") || key.endsWith(".woff2"))) {
@@ -43,5 +48,4 @@ Promise.all(promises).then(() => {
 		console.error('Erreur lors de la lecture du fichier:', err);
 	}
 });
-
 
