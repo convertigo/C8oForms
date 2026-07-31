@@ -44,13 +44,19 @@
           				pageIndex: 0,
           				pageSize: 25,
           
-          				currentPageToken: null,
-          				nextPageToken: null,
-          				pageTokenHistory: [],
+                          currentPageToken: null,
+                          previousPageToken: null,
+                          nextPageToken: null,
+                          lastPageToken: null,
+                          pageTokenHistory: [],
           
-          				hasNextPage: false,
-          				paginated: false,
-          				loading: false
+                          hasPreviousPage: false,
+                          hasNextPage: false,
+                          totalCount: null,
+                          pageCount: null,
+                          mode: null,
+                          paginated: false,
+                          loading: false
           			};
           		};
           
@@ -167,12 +173,15 @@
           			pagination.pageIndex = 0;
           			pagination.pageSize = pageSize;
           
-          			pagination.currentPageToken = null;
-          			pagination.nextPageToken = null;
-          			pagination.pageTokenHistory = [];
+                      pagination.currentPageToken = null;
+                      pagination.previousPageToken = null;
+                      pagination.nextPageToken = null;
+                      pagination.lastPageToken = null;
+                      pagination.pageTokenHistory = [];
           
-          			pagination.hasNextPage = false;
-          			pagination.paginated = false;
+                      pagination.hasPreviousPage = false;
+                      pagination.hasNextPage = false;
+                      pagination.paginated = false;
           		};
               page.local.filters = filters;
           	
@@ -219,6 +228,226 @@
           	page.local.totalCall =
           		currentCall;
           	
+              const normalizeSearchQuery = (value) => {
+                  return value == null
+                      ? ""
+                      : ("" + value).trim();
+              };
+              const normalizeSearchList = (value) => {
+                  return Array.isArray(value)
+                      ? value.filter((entry) => {
+                          const rawValue =
+                              entry != null &&
+                              entry.value != undefined
+                                  ? entry.value
+                                  : entry;
+                          return rawValue != null &&
+                              ("" + rawValue).trim() != "";
+                      })
+                      : [];
+              };
+              const normalizeSearchUsers = (value) => {
+                  const users = Array.isArray(value)
+                      ? value
+                          .map((entry) => {
+                              return entry != null &&
+                                  entry.value != undefined
+                                      ? entry.value
+                                      : entry;
+                          })
+                          .filter((entry) => {
+                              return entry != null &&
+                                  ("" + entry).trim() != "";
+                          })
+                      : [];
+                  return users.filter((entry, index) => {
+                      return users.indexOf(entry) === index;
+                  });
+              };
+              const normalizedQuery =
+                  normalizeSearchQuery(
+                      page["query"]
+                  );
+              page["query"] =
+                  normalizedQuery;
+              if (page.local["_query"] !== undefined) {
+                  page.local["_query"] =
+                      normalizedQuery;
+              }
+              let activeSearchTags =
+                  normalizeSearchList(
+                      page.local.searchTags
+                  );
+              const activeSearchSubTags =
+                  normalizeSearchList(
+                      page.local.searchSubTags
+                  );
+              const activeSearchUsers =
+                  normalizeSearchUsers(
+                      page.local._searchUser
+                  );
+              const resetSelectedUserCollaborationFilter = () => {
+                  if (
+                      filters == null ||
+                      filters.my_collaborations !== true ||
+                      activeSearchUsers.length === 1
+                  ) {
+                      return;
+                  }
+                  filters.my_collaborations = false;
+                  if (page.local.data != null) {
+                      page.local.data.my_collaborations = false;
+                  }
+                  page.local.filters = filters;
+                  try {
+                      if (
+                          typeof page["persistEditionFilters"] === "function" &&
+                          page.local.data != null
+                      ) {
+                          page["persistEditionFilters"].call(
+                              page,
+                              page.local.data
+                          );
+                      }
+                      else {
+                          window.localStorage.setItem(
+                              "c8oforms_edition_filters",
+                              JSON.stringify(filters)
+                          );
+                      }
+                  }
+                  catch (e) {}
+              };
+              resetSelectedUserCollaborationFilter();
+              if (
+                  normalizedQuery == "" &&
+                  activeSearchTags.length == 1 &&
+                  activeSearchSubTags.length == 0 &&
+                  activeSearchUsers.length == 0
+              ) {
+                  const folderTag =
+                      activeSearchTags[0];
+                  page.local.folder =
+                      folderTag != null &&
+                      folderTag.value != undefined
+                          ? folderTag.value
+                          : folderTag;
+                  page.local.searchTags = [];
+                  activeSearchTags = [];
+              }
+              if (
+                  normalizedQuery == "" &&
+                  activeSearchTags.length == 0 &&
+                  activeSearchSubTags.length == 0 &&
+                  activeSearchUsers.length == 0
+              ) {
+                  resetPaginationState(
+                      pagination
+                  );
+                  page.local.searchTags = [];
+                  page.local.searchSubTags = [];
+                  page.local._searchUser = null;
+                  page.local.showAdvancedSearch = false;
+                  page.local.loadingError = false;
+                  page.local.alreadyFinished = false;
+                  page.local.count = undefined;
+                  page.local.returnedCount = undefined;
+                  page.local.spinner = true;
+                  if (!Array.isArray(page["list"])) {
+                      page["list"] = [];
+                  }
+                  if (
+                      page.ref != undefined &&
+                      page.ref.detectChanges != undefined
+                  ) {
+                      page.ref.detectChanges();
+                  }
+                  if (typeof this.STS1567094239807 == "function") {
+                      const liveStack =
+                          props && props.stack
+                              ? props.stack
+                              : {
+                                  root: {
+                                      scope: {},
+                                      in: {},
+                                      out: event
+                                  }
+                              };
+                      const liveParent =
+                          props
+                              ? props.parent
+                              : null;
+                      this.STS1567094239807(
+                          page,
+                          {
+                              stack: liveStack,
+                              parent: liveParent,
+                              out: event
+                          },
+                          Object.assign(
+                              {},
+                              liveStack["root"].in,
+                              {
+                                  keys: null,
+                                  resetPagination: true
+                              }
+                          ),
+                          event
+                      )
+                      .then(() => {
+                          resolve();
+                          return null;
+                      })
+                      .catch((error) => {
+                          page.c8o.log.error(
+                              "[doSearchForm] empty search reset failed " +
+                              JSON.stringify(error)
+                          );
+                          pagination.loading = false;
+                          page.local.spinner = false;
+                          page.local.loadingError = true;
+                          if (
+                              page.ref != undefined &&
+                              page.ref.detectChanges != undefined
+                          ) {
+                              page.ref.detectChanges();
+                          }
+                          resolve();
+                      });
+                      return;
+                  }
+                  page.c8o.log.error(
+                      "[doSearchForm] empty search reset unavailable"
+                  );
+                  pagination.loading = false;
+                  page.local.spinner = false;
+                  page.local.loadingError = true;
+                  resolve();
+                  return;
+              }
+              const searchSignature = JSON.stringify({
+                  target: page.local["ddoc"],
+                  query: normalizedQuery,
+                  tags: activeSearchTags.map((entry) => {
+                      return entry != null && entry.value != undefined
+                          ? entry.value
+                          : entry;
+                  }),
+                  subTags: activeSearchSubTags.map((entry) => {
+                      return entry != null && entry.value != undefined
+                          ? entry.value
+                          : entry;
+                  }),
+                  users: activeSearchUsers,
+                  filters: filters
+              });
+              if (page.local["_searchSignature"] !== searchSignature) {
+                  resetPaginationState(
+                      pagination
+                  );
+                  page.local["_searchSignature"] =
+                      searchSignature;
+              }
           	pagination.loading = true;
           	
           	page.local.spinner = true;
@@ -332,7 +561,13 @@
                 highlighted += escapeHtml(text.substring(lastIndex));
                 return highlighted;
               }
-              var selectedUsers = Array.isArray(page.local._searchUser) ? page.local._searchUser.map((x) => { return x != null && x.value != undefined ? x.value : x; }) : [];
+              var selectedUsers = activeSearchUsers;
+              const selectedCollaborationUser =
+                  filters != null &&
+                  filters.my_collaborations === true &&
+                  selectedUsers.length === 1
+                      ? selectedUsers[0]
+                      : null;
           	const dynamicParams = {
           		filters:
           			filters,
@@ -351,7 +586,8 @@
           
           		user:
           			selectedUsers,
-          
+                  collaborationUser:
+                      selectedCollaborationUser,
           		pagination: {
           			pageSize:
           				pagination.pageSize,
@@ -484,27 +720,78 @@
           				}
           			}
           		
-          			if (isPaginated) {
-          				pagination.hasNextPage =
-          					responsePagination
-          						.hasNextPage === true;
-          		
-          				pagination.nextPageToken =
-          					responsePagination
-          						.nextPageToken ?? null;
-          			}
-          			else {
-          				/*
-          				 * Mode infinite ou réponse legacy :
-          				 * aucun bookmark ne doit rester actif.
-          				 */
-          				pagination.pageIndex = 0;
-          				pagination.currentPageToken = null;
-          				pagination.nextPageToken = null;
-          				pagination.pageTokenHistory = [];
-          				pagination.hasNextPage = false;
-          			}
-          		
+          if (isPaginated) {
+              pagination.mode =
+                  responsePagination.mode ?? null;
+              pagination.hasPreviousPage =
+                  responsePagination
+                      .hasPreviousPage === true;
+              pagination.previousPageToken =
+                  responsePagination
+                      .previousPageToken ?? null;
+              pagination.hasNextPage =
+                  responsePagination
+                      .hasNextPage === true;
+              pagination.nextPageToken =
+                  responsePagination
+                      .nextPageToken ?? null;
+              pagination.lastPageToken =
+                  responsePagination
+                      .lastPageToken ?? null;
+              const totalCount =
+                  Number(
+                      responsePagination.totalCount
+                  );
+              pagination.totalCount =
+                  Number.isInteger(totalCount) &&
+                  totalCount >= 0
+                      ? totalCount
+                      : docs.length;
+              const pageCount =
+                  Number(
+                      responsePagination.pageCount
+                  );
+              pagination.pageCount =
+                  Number.isInteger(pageCount) &&
+                  pageCount >= 0
+                      ? pageCount
+                      : (
+                          pagination.totalCount === 0
+                              ? 0
+                              : Math.ceil(
+                                  pagination.totalCount /
+                                  Number(pagination.pageSize)
+                              )
+                      );
+              const currentPageIndex =
+                  Number(
+                      responsePagination.currentPageIndex
+                  );
+              if (
+                  Number.isInteger(currentPageIndex) &&
+                  currentPageIndex >= 0
+              ) {
+                  pagination.pageIndex =
+                      currentPageIndex;
+              }
+          }
+          else {
+              /*
+               * Mode infinite ou réponse legacy :
+               * aucun bookmark ne doit rester actif.
+               */
+              pagination.mode = null;
+              pagination.pageIndex = 0;
+              pagination.currentPageToken = null;
+              pagination.previousPageToken = null;
+              pagination.nextPageToken = null;
+              pagination.lastPageToken = null;
+              pagination.pageTokenHistory = [];
+              pagination.hasPreviousPage = false;
+              pagination.hasNextPage = false;
+              pagination.totalCount = null;
+              pagination.pageCount = null;
+          }
           			page.local.count =
           				docs.length;
           		
@@ -553,15 +840,29 @@
           			page.local.loadingError = false;
           			page.local.spinner = false;
           		
-          			if (
-          				page.ref != undefined &&
-          				page.ref.detectChanges != undefined
-          			) {
-          				page.ref.detectChanges();
-          			}
-          		
-          			resolve();
-          			return null;
+          if (
+              page.ref != undefined &&
+              page.ref.detectChanges != undefined
+          ) {
+              page.ref.detectChanges();
+          }
+          requestAnimationFrame(() => {
+              const currentPage = page as any;
+              if (
+                  typeof currentPage.refreshViewportMetrics ===
+                      "function"
+              ) {
+                  currentPage.refreshViewportMetrics(6);
+              }
+              else if (
+                  typeof currentPage.viewport?.checkViewportSize ===
+                      "function"
+              ) {
+                  currentPage.viewport.checkViewportSize();
+              }
+          });
+          resolve();
+          return null;
           		})
           //	        .fail((error)=>{
           //				console.error("e", error);
