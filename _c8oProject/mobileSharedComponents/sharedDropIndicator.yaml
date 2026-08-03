@@ -68,9 +68,487 @@ scriptContent:
                 }
                 return this.hasDragType(event, "group") || this.hasDragType(event, "ion-card") || this.hasDragType(event, "layout");
             }
+            private getDragData(event: any, key: string): any {
+                try {
+                    const value = event?.dataTransfer?.getData?.(key);
+                    return value == null || value === "" ? null : value;
+                }
+                catch (e) {
+                    return null;
+                }
+            }
+            private getDraggingType(event: any): string {
+                const dataType = this.getDragData(event, "type");
+                if (dataType != null) {
+                    return String(dataType);
+                }
+                const ownerPage = this.getOwnerPage();
+                if (ownerPage?.local?.draggingType != null) {
+                    return String(ownerPage.local.draggingType);
+                }
+                return this.hasDragType(event, "layout") ? "layout" : "";
+            }
+            private getRelationTargetParentId(): any {
+                const targetParentId = (this as any).relationTargetParentId;
+                return targetParentId == null || targetParentId === "" ? null : targetParentId;
+            }
+            private getRelationTargetIndex(): any {
+                const destination = this.parseDropIndex((this as any).i);
+                if (destination.length < 2) {
+                    return null;
+                }
+                const targetIndex = destination[destination.length - 1];
+                return Number.isFinite(targetIndex) ? targetIndex : null;
+            }
+            private resolveRelationElement(page: any, ref: any): any {
+                if (ref == null || ref === "") {
+                    return null;
+                }
+                if (typeof page?.getElementByID === "function") {
+                    try {
+                        const resolved = page.getElementByID(ref);
+                        if (resolved != null) {
+                            return resolved;
+                        }
+                    }
+                    catch (e) {
+                    }
+                }
+                const refId = typeof page?.getRelationElementId === "function" ? page.getRelationElementId(ref) : (typeof ref === "object" ? ref?.id : ref);
+                if (refId == null || !Array.isArray(page?.formsList)) {
+                    return null;
+                }
+                return page.formsList.find((item: any) => "" + item?.id === "" + refId) || null;
+            }
+            private getRelationDraggedElementId(event: any, page: any, origin: Array<number>): any {
+                const explicitId = this.getDragData(event, "relationElementId") || page?.local?.relationElementId;
+                if (explicitId != null && explicitId !== "") {
+                    return explicitId;
+                }
+                return this.getMovedFormElementId(page, origin);
+            }
+            public getNestedLayoutDropValidation(event?: any): any {
+                const page = this.getOwnerPage();
+                const draggedType = this.getDraggingType(event);
+                const targetParentId = this.getRelationTargetParentId();
+                const originMode = this.getDragData(event, "origin") || page?.local?.draggingOrigin;
+                const operation = originMode === "new" ? "create" : (originMode === "moved" ? "move" : "");
+                if (this.card !== true || draggedType !== "layout" || targetParentId == null) {
+                    return { allowed: false, reason: "UNSUPPORTED_RELATION_OPERATION" };
+                }
+                const targetParent = this.resolveRelationElement(page, targetParentId);
+                if (targetParent == null) {
+                    return { allowed: false, reason: "TARGET_PARENT_NOT_FOUND", targetParentId };
+                }
+                if (targetParent.type !== "layout") {
+                    return { allowed: false, reason: "TARGET_NOT_LAYOUT", targetParentId };
+                }
+                if (!Array.isArray(targetParent.childrenRefs)) {
+                    return { allowed: false, reason: "INVALID_TARGET_INDEX", targetParentId };
+                }
+                const rawTargetIndex = this.getRelationTargetIndex();
+                const targetIndex = rawTargetIndex == null ? targetParent.childrenRefs.length : Number(rawTargetIndex);
+                if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex > targetParent.childrenRefs.length) {
+                    return { allowed: false, reason: "INVALID_TARGET_INDEX", targetParentId, targetIndex: rawTargetIndex };
+                }
+                if (operation === "create") {
+                    return { allowed: true, operation, targetParentId, targetIndex };
+                }
+                if (operation !== "move") {
+                    return { allowed: false, reason: "UNSUPPORTED_RELATION_OPERATION", targetParentId };
+                }
+                const origin = this.parseDropIndex(this.getDragData(event, "index") || page?.local?.draggingOriginIndex);
+                const draggedId = this.getRelationDraggedElementId(event, page, origin);
+                if (draggedId == null || draggedId === "") {
+                    return { allowed: false, reason: "DRAGGED_ELEMENT_NOT_FOUND", targetParentId };
+                }
+                const dragged = this.resolveRelationElement(page, draggedId);
+                if (dragged == null) {
+                    return { allowed: false, reason: "DRAGGED_ELEMENT_NOT_FOUND", draggedId, targetParentId };
+                }
+                if (dragged.type !== "layout") {
+                    return { allowed: false, reason: "UNSUPPORTED_RELATION_OPERATION", draggedId, targetParentId };
+                }
+                if ("" + draggedId === "" + targetParentId) {
+                    return { allowed: false, reason: "SELF_RELATION", draggedId, targetParentId };
+                }
+                if (typeof page?.prepareRelationMove !== "function") {
+                    return { allowed: false, reason: "INVALID_RELATION_MOVE", draggedId, targetParentId };
+                }
+                const movePlan = page.prepareRelationMove(draggedId, targetParentId, targetIndex, page.formsList);
+                if (movePlan == null || movePlan.valid !== true) {
+                    return { allowed: false, reason: movePlan?.error?.code || "INVALID_RELATION_MOVE", draggedId, targetParentId, targetIndex };
+                }
+                return { allowed: true, operation, draggedId, targetParentId, targetIndex, movePlan };
+            }
+            private getRelationId(page: any, ref: any): string | null {
+                if (typeof page?.getRelationElementId === "function") {
+                    try {
+                        return page.getRelationElementId(ref);
+                    }
+                    catch (e) {
+                    }
+                }
+                if (ref == null || ref === "") {
+                    return null;
+                }
+                if (typeof ref === "object") {
+                    return ref.id == null || ref.id === "" ? null : "" + ref.id;
+                }
+                return "" + ref;
+            }
+            private buildRelationIndex(page: any, elements: any[] | null): Map<string, any> {
+                if (typeof page?.buildElementIndex === "function") {
+                    try {
+                        return page.buildElementIndex(elements);
+                    }
+                    catch (e) {
+                    }
+                }
+                const elementIndex = new Map<string, any>();
+                const visitedObjects = new Set<any>();
+                const visit = (items: any[] | null) => {
+                    if (!Array.isArray(items)) {
+                        return;
+                    }
+                    for (let item of items) {
+                        if (item == null || typeof item !== "object" || visitedObjects.has(item)) {
+                            continue;
+                        }
+                        visitedObjects.add(item);
+                        const itemId = this.getRelationId(page, item);
+                        if (itemId != null && !elementIndex.has(itemId)) {
+                            elementIndex.set(itemId, item);
+                        }
+                        if (Array.isArray(item.children)) {
+                            visit(item.children);
+                        }
+                    }
+                };
+                visit(elements);
+                return elementIndex;
+            }
+            private sameRelationValue(page: any, left: any, right: any): boolean {
+                if (left === right) {
+                    return true;
+                }
+                const leftId = this.getRelationId(page, left);
+                const rightId = this.getRelationId(page, right);
+                return leftId != null && rightId != null && leftId === rightId;
+            }
+            private sameRelationRefs(page: any, left: any, right: any): boolean {
+                if (left === right) {
+                    return true;
+                }
+                if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+                    return false;
+                }
+                for (let index = 0; index < left.length; index++) {
+                    if (!this.sameRelationValue(page, left[index], right[index])) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            private getRootTargetIndex(page: any, destinationValue: any): number {
+                const destination = this.parseDropIndex(destinationValue);
+                const elementsLength = Array.isArray(page?.formsList) ? page.formsList.length : 0;
+                let targetIndex = Number.isFinite(destination[0]) ? destination[0] : elementsLength;
+                return Math.max(0, Math.min(targetIndex, elementsLength));
+            }
+            private captureRelationSubtreeSnapshot(page: any, root: any, elements: any[], relationIndex: Map<string, any> | null = null): any {
+                const index = relationIndex || this.buildRelationIndex(page, elements);
+                const rootId = this.getRelationId(page, root);
+                const entries: any[] = [];
+                const visitedIds = new Set<string>();
+                const visit = (item: any, isRoot: boolean) => {
+                    const itemId = this.getRelationId(page, item);
+                    if (item == null || typeof item !== "object" || itemId == null || visitedIds.has(itemId)) {
+                        return;
+                    }
+                    visitedIds.add(itemId);
+                    entries.push({
+                        id: itemId,
+                        item,
+                        isRoot,
+                        hadParentRef: Object.prototype.hasOwnProperty.call(item, "parentRef"),
+                        parentRef: item.parentRef,
+                        hadChildrenRefs: Object.prototype.hasOwnProperty.call(item, "childrenRefs"),
+                        childrenRefs: Array.isArray(item.childrenRefs) ? item.childrenRefs.concat([]) : item.childrenRefs
+                    });
+                    if (Array.isArray(item.childrenRefs)) {
+                        for (let childRef of item.childrenRefs) {
+                            const childId = this.getRelationId(page, childRef);
+                            const child = childId != null ? index.get(childId) : null;
+                            if (child != null) {
+                                visit(child, false);
+                            }
+                        }
+                    }
+                };
+                visit(root, true);
+                return { rootId, entries };
+            }
+            public prepareRelationMoveToRoot(page: any, draggedRef: any, targetIndex: any, elements: any[] | null = page?.formsList): any {
+                if (!Array.isArray(elements)) {
+                    return { valid: false, error: { code: "INVALID_RELATION_MODEL" } };
+                }
+                const draggedId = this.getRelationId(page, draggedRef);
+                if (draggedId == null) {
+                    return { valid: false, error: { code: "ELEMENT_NOT_FOUND" } };
+                }
+                const relationIndex = this.buildRelationIndex(page, elements);
+                const dragged = relationIndex.get(draggedId);
+                if (dragged == null || dragged.type !== "layout") {
+                    return { valid: false, error: { code: "ELEMENT_NOT_FOUND", elementId: draggedId } };
+                }
+                const flatOccurrences = elements.filter((item: any) => this.getRelationId(page, item) === draggedId).length;
+                if (flatOccurrences !== 1) {
+                    return { valid: false, error: { code: "FLAT_OCCURRENCE_INVALID", elementId: draggedId, occurrences: flatOccurrences } };
+                }
+                const sourceIndex = elements.findIndex((item: any) => this.getRelationId(page, item) === draggedId);
+                const sourceParentId = this.getRelationId(page, dragged.parentRef);
+                const parentsContainingChild: string[] = [];
+                const originalChildrenRefsByParent: any[] = [];
+                for (let parent of elements) {
+                    const parentId = this.getRelationId(page, parent);
+                    if (parentId == null || !Array.isArray(parent?.childrenRefs)) {
+                        continue;
+                    }
+                    if (parent.childrenRefs.some((ref: any) => this.getRelationId(page, ref) === draggedId)) {
+                        parentsContainingChild.push(parentId);
+                        originalChildrenRefsByParent.push({
+                            parent,
+                            parentId,
+                            hadChildrenRefs: Object.prototype.hasOwnProperty.call(parent, "childrenRefs"),
+                            childrenRefs: parent.childrenRefs.concat([])
+                        });
+                    }
+                }
+                let requestedTargetIndex = Number(targetIndex);
+                if (!Number.isFinite(requestedTargetIndex)) {
+                    requestedTargetIndex = elements.length;
+                }
+                requestedTargetIndex = Math.max(0, Math.min(requestedTargetIndex, elements.length));
+                let normalizedTargetIndex = requestedTargetIndex;
+                if (sourceIndex > -1 && sourceIndex < normalizedTargetIndex) {
+                    normalizedTargetIndex--;
+                }
+                normalizedTargetIndex = Math.max(0, Math.min(normalizedTargetIndex, Math.max(0, elements.length - 1)));
+                const subtreeSnapshot = this.captureRelationSubtreeSnapshot(page, dragged, elements, relationIndex);
+                return {
+                    valid: true,
+                    dragged,
+                    draggedId,
+                    sourceIndex,
+                    sourceParentId,
+                    targetKind: "root",
+                    requestedTargetIndex,
+                    targetIndex: normalizedTargetIndex,
+                    parentIdsToDetachFrom: Array.from(new Set(parentsContainingChild)),
+                    originalChildrenRefsByParent,
+                    originalFlatOrder: elements.concat([]),
+                    hadParentRef: Object.prototype.hasOwnProperty.call(dragged, "parentRef"),
+                    parentRef: dragged.parentRef,
+                    subtreeSnapshot,
+                    normalizedContradiction: sourceParentId != null && parentsContainingChild.indexOf(sourceParentId) === -1
+                };
+            }
+            private restoreRelationMoveToRoot(plan: any, elements: any[]): void {
+                if (Array.isArray(plan?.originalFlatOrder)) {
+                    elements.splice(0, elements.length, ...plan.originalFlatOrder);
+                }
+                for (let snapshot of plan?.originalChildrenRefsByParent || []) {
+                    if (snapshot.parent == null) {
+                        continue;
+                    }
+                    if (snapshot.hadChildrenRefs) {
+                        if (!Array.isArray(snapshot.parent.childrenRefs)) {
+                            snapshot.parent.childrenRefs = [];
+                        }
+                        snapshot.parent.childrenRefs.splice(0, snapshot.parent.childrenRefs.length, ...snapshot.childrenRefs);
+                    }
+                    else {
+                        delete snapshot.parent.childrenRefs;
+                    }
+                }
+                if (plan?.dragged != null) {
+                    if (plan.hadParentRef) {
+                        plan.dragged.parentRef = plan.parentRef;
+                    }
+                    else {
+                        delete plan.dragged.parentRef;
+                    }
+                }
+                for (let entry of plan?.subtreeSnapshot?.entries || []) {
+                    if (entry.item == null) {
+                        continue;
+                    }
+                    if (entry.hadParentRef) {
+                        entry.item.parentRef = entry.parentRef;
+                    }
+                    else {
+                        delete entry.item.parentRef;
+                    }
+                    if (entry.hadChildrenRefs) {
+                        if (!Array.isArray(entry.item.childrenRefs)) {
+                            entry.item.childrenRefs = [];
+                        }
+                        entry.item.childrenRefs.splice(0, entry.item.childrenRefs.length, ...entry.childrenRefs);
+                    }
+                    else {
+                        delete entry.item.childrenRefs;
+                    }
+                }
+            }
+            public validateRelationMoveToRootResult(page: any, plan: any, elements: any[] | null = page?.formsList): any {
+                const diagnostic: any = { valid: true, errors: [], warnings: [] };
+                const addError = (code: string, details: any = {}) => {
+                    diagnostic.valid = false;
+                    diagnostic.errors.push({ code, ...details });
+                };
+                if (!Array.isArray(elements) || plan == null) {
+                    addError("INVALID_RELATION_MODEL");
+                    return diagnostic;
+                }
+                const relationIndex = this.buildRelationIndex(page, elements);
+                const dragged = relationIndex.get(plan.draggedId);
+                if (dragged == null) {
+                    addError("ELEMENT_NOT_FOUND", { elementId: plan.draggedId });
+                    return diagnostic;
+                }
+                const draggedOccurrences = elements.filter((item: any) => this.getRelationId(page, item) === plan.draggedId).length;
+                if (draggedOccurrences !== 1) {
+                    addError("FLAT_OCCURRENCE_INVALID", { elementId: plan.draggedId, occurrences: draggedOccurrences });
+                }
+                if (this.getRelationId(page, dragged.parentRef) != null) {
+                    addError("ROOT_PARENT_REF_NOT_CLEARED", { elementId: plan.draggedId, parentRef: this.getRelationId(page, dragged.parentRef) });
+                }
+                for (let parent of elements) {
+                    const parentId = this.getRelationId(page, parent);
+                    if (parentId == null || !Array.isArray(parent?.childrenRefs)) {
+                        continue;
+                    }
+                    if (parent.childrenRefs.some((ref: any) => this.getRelationId(page, ref) === plan.draggedId)) {
+                        addError("ROOT_CHILD_STILL_REFERENCED_BY_PARENT", { elementId: plan.draggedId, parentId });
+                    }
+                }
+                for (let entry of plan.subtreeSnapshot?.entries || []) {
+                    const current = relationIndex.get(entry.id);
+                    if (current == null) {
+                        addError("SUBTREE_ELEMENT_MISSING", { elementId: entry.id });
+                        continue;
+                    }
+                    const occurrences = elements.filter((item: any) => this.getRelationId(page, item) === entry.id).length;
+                    if (occurrences !== 1) {
+                        addError("SUBTREE_FLAT_OCCURRENCE_INVALID", { elementId: entry.id, occurrences });
+                    }
+                    if (!this.sameRelationRefs(page, entry.childrenRefs, current.childrenRefs)) {
+                        addError("SUBTREE_CHILDREN_REFS_CHANGED", { elementId: entry.id });
+                    }
+                    if (entry.isRoot !== true) {
+                        if (!this.sameRelationValue(page, entry.parentRef, current.parentRef)) {
+                            addError("DESCENDANT_PARENT_REF_CHANGED", { elementId: entry.id });
+                        }
+                        if (this.getRelationId(page, current.parentRef) == null) {
+                            addError("DESCENDANT_BECAME_ROOT", { elementId: entry.id });
+                        }
+                    }
+                }
+                if (typeof page?.hasRelationCycle === "function") {
+                    try {
+                        if (page.hasRelationCycle(plan.draggedId, elements, relationIndex)) {
+                            addError("RELATION_CYCLE", { elementId: plan.draggedId });
+                        }
+                    }
+                    catch (e) {
+                    }
+                }
+                return diagnostic;
+            }
+            public moveRelationElementToRoot(page: any, draggedRef: any, targetIndex: any, elements: any[] | null = page?.formsList, options: any = null): any {
+                const plan = this.prepareRelationMoveToRoot(page, draggedRef, targetIndex, elements);
+                if (plan == null || plan.valid !== true) {
+                    return { success: false, error: plan?.error || { code: "INVALID_RELATION_MOVE_TO_ROOT" }, rolledBack: false };
+                }
+                try {
+                    for (let snapshot of plan.originalChildrenRefsByParent) {
+                        if (Array.isArray(snapshot.parent?.childrenRefs)) {
+                            const keptRefs = snapshot.parent.childrenRefs.filter((ref: any) => this.getRelationId(page, ref) !== plan.draggedId);
+                            snapshot.parent.childrenRefs.splice(0, snapshot.parent.childrenRefs.length, ...keptRefs);
+                        }
+                    }
+                    if (options?.forceFailureAfterDetach === true) {
+                        throw { code: "FORCED_ROLLBACK" };
+                    }
+                    const currentIndex = elements.findIndex((item: any) => this.getRelationId(page, item) === plan.draggedId);
+                    if (currentIndex < 0) {
+                        throw { code: "ELEMENT_NOT_FOUND", elementId: plan.draggedId };
+                    }
+                    elements.splice(currentIndex, 1);
+                    if (plan.hadParentRef) {
+                        delete plan.dragged.parentRef;
+                    }
+                    else {
+                        delete plan.dragged.parentRef;
+                    }
+                    const insertionIndex = Math.max(0, Math.min(plan.targetIndex, elements.length));
+                    elements.splice(insertionIndex, 0, plan.dragged);
+                    const postValidation = this.validateRelationMoveToRootResult(page, plan, elements);
+                    if (postValidation.valid !== true) {
+                        throw { code: "POST_MUTATION_INTEGRITY_FAILURE", diagnostic: postValidation };
+                    }
+                    return {
+                        success: true,
+                        movedId: plan.draggedId,
+                        sourceParentId: plan.sourceParentId,
+                        targetKind: "root",
+                        targetIndex: insertionIndex,
+                        normalizedContradiction: plan.normalizedContradiction,
+                        diagnostic: postValidation
+                    };
+                }
+                catch (e) {
+                    this.restoreRelationMoveToRoot(plan, elements);
+                    return {
+                        success: false,
+                        error: {
+                            code: e?.code || "RELATION_MOVE_TO_ROOT_FAILED",
+                            diagnostic: e?.diagnostic
+                        },
+                        rolledBack: true
+                    };
+                }
+            }
+            public getRootLayoutDropValidation(event?: any, destinationValue: any = null): any {
+                const page = this.getOwnerPage();
+                const draggedType = this.getDraggingType(event);
+                const originMode = this.getDragData(event, "origin") || page?.local?.draggingOrigin;
+                if (this.card === true || page?.action === true || page?.local?.flow === true || draggedType !== "layout" || originMode !== "moved") {
+                    return { allowed: false, reason: "UNSUPPORTED_RELATION_OPERATION" };
+                }
+                const origin = this.parseDropIndex(this.getDragData(event, "index") || page?.local?.draggingOriginIndex);
+                const draggedId = this.getRelationDraggedElementId(event, page, origin);
+                if (draggedId == null || draggedId === "") {
+                    return { allowed: false, reason: "DRAGGED_ELEMENT_NOT_FOUND" };
+                }
+                const dragged = this.resolveRelationElement(page, draggedId);
+                if (dragged == null || dragged.type !== "layout") {
+                    return { allowed: false, reason: "DRAGGED_ELEMENT_NOT_FOUND", draggedId };
+                }
+                const requestedTargetIndex = this.getRootTargetIndex(page, destinationValue == null ? (this as any).i : destinationValue);
+                const movePlan = this.prepareRelationMoveToRoot(page, draggedId, requestedTargetIndex, page.formsList);
+                if (movePlan == null || movePlan.valid !== true) {
+                    return { allowed: false, reason: movePlan?.error?.code || "INVALID_RELATION_MOVE_TO_ROOT", draggedId, targetKind: "root" };
+                }
+                return { allowed: true, operation: "move", targetKind: "root", draggedId, requestedTargetIndex, targetIndex: movePlan.targetIndex, movePlan };
+            }
+            public isNestedLayoutDropAllowed(event?: any): boolean {
+                return this.getNestedLayoutDropValidation(event)?.allowed === true;
+            }
             public canAcceptDrop(event?: any): boolean {
                 if (this.card === true && this.isFormsDrag(event) && this.isDraggingContainerFormElement(event)) {
-                    return false;
+                    return this.isNestedLayoutDropAllowed(event);
                 }
                 return true;
             }
@@ -275,7 +753,7 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  '        if((this as any).canAcceptDrop?.(event) === false){
+                          if((this as any).canAcceptDrop?.(event) === false){
                               if ((page as any).local != null) {
                                   (page as any).local.isOver = false;
                               }
@@ -292,26 +770,16 @@ scriptContent:
                   		if((page as any).pageOwner != undefined){
                   			page = (page as any).pageOwner;
                   		}
-                  		console.log("[DnD] sharedDropIndicator dragover", JSON.stringify({
-                  			types: Array.from(event?.dataTransfer?.types || []),
-                  			draggingActions: page.local?.draggingActions,
-                  			draggingType: page.local?.draggingType,
-                  			pageFlow: page.local?.flow,
-                  			currentIndex: page.local?.currentIndex,
-                  			currentPage: page.local?.currentPage,
-                  			varsIndex: vars.index,
-                  			varsFlow: vars.flow,
-                  			varsAction: vars.action,
-                  			varsCard: vars.card,
-                  			varsTargetCardChild: vars.targetCardChild
-                  		}));
                   		if(vars.card == true){
                   		    if(event.dataTransfer.types.includes("__c8oformsdrag")){
                                   if(event.dataTransfer.types.includes("group")){
                                       //page.c8o.log.debug("dropping  card into another card is not authorized");
                                   }
                                   else if(event.dataTransfer.types.includes("ion-card") || event.dataTransfer.types.includes("layout")){
-                                      //page.c8o.log.debug("dropping  card into another card is not authorized");
+                                      if(event.dataTransfer.types.includes("layout") && (this as any).isNestedLayoutDropAllowed?.(event) === true){
+                                          event.preventDefault();
+                                          page["recursive"](event.target, "before");
+                                      }
                                   }
                                   else{
                                       event.preventDefault();
@@ -353,7 +821,7 @@ scriptContent:
                   			}
                   		}
                   		resolve();
-                  '
+                  
           ↓card [ngx.components.UIControlVariable-1600443970442]: 
             varValue: 
               - xmlizable: 
@@ -395,8 +863,8 @@ scriptContent:
                                 event.dataTransfer.dropEffect = "none";
                             }
                             if (typeof ownerPage["cleanupDragState"] === "function") {
-                                ownerPage["cleanupDragState"]("sharedDropIndicator.drop.invalid");
-                            }
+                				ownerPage["cleanupDragState"]("sharedDropIndicator.drop.invalid");
+                			}
                             resolve();
                             return;
                         }
@@ -432,14 +900,75 @@ scriptContent:
                 					arrayDestination.push(len)
                 				}
                 				const TypeOrigin = event.dataTransfer.getData("origin");
+                				const nestedLayoutValidation = (this as any).getNestedLayoutDropValidation?.(event);
+                				const rootLayoutValidation = nestedLayoutValidation?.allowed === true ? null : (this as any).getRootLayoutDropValidation?.(event, arrayDestination);
                 				console.log(TypeOrigin)
-                				switch(TypeOrigin){
-                					case "new":
-                						page["addElement"](event.dataTransfer.getData("type"), arrayDestination);
-                					break;
-                					case "moved":
-                						page["moveElement"](arrayDestination, arrayOrigin);
-                					break;
+                				if(nestedLayoutValidation?.allowed === true){
+                					switch(TypeOrigin){
+                						case "new":
+                							const relationIdOf = (value: any) => typeof value === "object" ? value?.id : value;
+                							const beforeIds = new Set((page["formsList"] || []).map((item: any) => "" + relationIdOf(item)).filter((id: any) => id !== "" && id !== "undefined" && id !== "null"));
+                							page["addElement"](event.dataTransfer.getData("type"), arrayDestination);
+                							const created = (page["formsList"] || []).find((item: any) => {
+                								const itemId = relationIdOf(item);
+                								return itemId != null && !beforeIds.has("" + itemId);
+                							});
+                							const createdId = relationIdOf(created);
+                							const targetParent = (page["formsList"] || []).find((item: any) => "" + relationIdOf(item) === "" + nestedLayoutValidation.targetParentId);
+                							const targetRefs = Array.isArray(targetParent?.childrenRefs) ? targetParent.childrenRefs : [];
+                							const createdOccurrences = targetRefs.filter((ref: any) => "" + relationIdOf(ref) === "" + createdId).length;
+                							const creationValid = created != null && created.type === "layout" && "" + relationIdOf(created.parentRef) === "" + nestedLayoutValidation.targetParentId && createdOccurrences === 1;
+                							if(creationValid !== true){
+                								if(createdId != null){
+                									for(const candidate of (page["formsList"] || [])){
+                										if(Array.isArray(candidate?.childrenRefs)){
+                											candidate.childrenRefs.splice(0, candidate.childrenRefs.length, ...candidate.childrenRefs.filter((ref: any) => "" + relationIdOf(ref) !== "" + createdId));
+                										}
+                									}
+                									const createdIndex = (page["formsList"] || []).findIndex((item: any) => "" + relationIdOf(item) === "" + createdId);
+                									if(createdIndex > -1){
+                										page["formsList"].splice(createdIndex, 1);
+                									}
+                								}
+                								console.warn("[DnD] nested layout creation rolled back", { createdId, targetParentId: nestedLayoutValidation.targetParentId });
+                								if(typeof page["updateState"] === "function"){
+                									page["updateState"]();
+                								}
+                							}
+                						break;
+                						case "moved":
+                							const relationResult = page["moveRelationElement"](nestedLayoutValidation.draggedId, nestedLayoutValidation.targetParentId, nestedLayoutValidation.targetIndex);
+                							if(relationResult?.success === true){
+                								page["updateState"]();
+                							}
+                							else{
+                								console.warn("[DnD] nested layout move rejected", relationResult);
+                							}
+                						break;
+                					}
+                				}
+                				else if(rootLayoutValidation?.allowed === true){
+                					switch(TypeOrigin){
+                						case "moved":
+                							const rootRelationResult = (this as any).moveRelationElementToRoot(page, rootLayoutValidation.draggedId, rootLayoutValidation.requestedTargetIndex);
+                							if(rootRelationResult?.success === true){
+                								page["updateState"]();
+                							}
+                							else{
+                								console.warn("[DnD] root layout move rejected", rootRelationResult);
+                							}
+                						break;
+                					}
+                				}
+                				else{
+                					switch(TypeOrigin){
+                						case "new":
+                							page["addElement"](event.dataTransfer.getData("type"), arrayDestination);
+                						break;
+                						case "moved":
+                							page["moveElement"](arrayDestination, arrayOrigin);
+                						break;
+                					}
                 				}
                 			}
                 			else if(page.action == true) {
@@ -732,3 +1261,5 @@ scriptContent:
   value: false
 ↓if_else [ngx.components.UICompVariable-1743685645054]: 
   value: false
+↓relationTargetParentId [ngx.components.UICompVariable-1785751497477]: 
+  value: 

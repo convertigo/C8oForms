@@ -42,8 +42,8 @@ scriptContent:
         	public trackById (index: number, obj: object): number{
           		return +obj;
         	};
-        	public trackByObj (index: number, obj: object): number{
-          		return +obj;
+        	public trackByObj (index: number, obj: any): any{
+        		return obj?.id ?? obj?.priority ?? obj ?? index;
         	};
         	public identifyScheme(target, ouput){
         		let cols = this.item.config[target];
@@ -126,24 +126,77 @@ scriptContent:
         		}
         		return sizes[index % sizes.length];
         	}
+        	public getLayoutChildrenRefs(): any[] {
+        		const refs = this.item?.childrenRefs;
+        		if (!Array.isArray(refs)) {
+        			return [];
+        		}
+        		return refs.filter((childRef: any) => this.getLayoutChild(childRef) != null);
+        	}
+        	public getLayoutChild(childRef: any): any {
+        		if (childRef == null || childRef === "") {
+        			return null;
+        		}
+        		const elementResolver = this.pageOwner?.getElementByID;
+        		if (typeof elementResolver === "function") {
+        			try {
+        				const resolved = elementResolver.call(this.pageOwner, childRef);
+        				if (resolved != null) {
+        					return resolved;
+        				}
+        			}
+        			catch (e) {
+        			}
+        		}
+        		const itemResolver = this.pageOwner?.getItemById;
+        		if (typeof itemResolver === "function") {
+        			try {
+        				const resolved = itemResolver.call(this.pageOwner, childRef);
+        				if (resolved != null) {
+        					return resolved;
+        				}
+        			}
+        			catch (e) {
+        			}
+        		}
+        		return typeof childRef === "object" ? childRef : null;
+        	}
+        	public getLayoutChildName(childRef: any): any {
+        		const child = this.getLayoutChild(childRef);
+        		return child?.name || child?.id || childRef;
+        	}
         	public isSelectedLayoutChildRef(childRef: any): boolean {
         		const selected = this.idselectedC || this.pageOwner?.["idselectedC"];
         		if (selected == null || selected === "") {
         			return false;
         		}
-        		const child = this.pageOwner?.getElementByID?.(childRef) || this.pageOwner?.getItemById?.(childRef);
-        		return selected == childRef || (child != null && selected == child.id);
+        		const child = this.getLayoutChild(childRef);
+        		if (selected == childRef || (child != null && selected == child.id)) {
+        			return true;
+        		}
+        		const isDescendant = this.pageOwner?.isDescendant;
+        		if (child?.id != null && typeof isDescendant === "function") {
+        			try {
+        				return isDescendant.call(this.pageOwner, selected, child.id) === true;
+        			}
+        			catch (e) {
+        			}
+        		}
+        		return false;
         	}
             public isDraggingContainerFormElement(): boolean {
                 var draggingType = this.pageOwner?.local?.draggingType;
                 return draggingType === "group" || draggingType === "ion-card" || draggingType === "layout";
+            }
+            public isNestedLayoutDragCandidate(): boolean {
+                return this.pageOwner?.local?.draggingType === "layout" && this.item?.type === "layout" && this.item?.id != null;
             }
             public canShowLayoutChildDropZones(): boolean {
                 if (this.pageOwner?.local?.dragging !== true || this.pageOwner?.local?.draggingActions === true) {
                     return false;
                 }
                 if (this.isDraggingContainerFormElement()) {
-                    return false;
+                    return this.isNestedLayoutDragCandidate() && !this.isDraggingThisLayoutOrAncestor();
                 }
                 return !this.isDraggingThisLayoutOrAncestor();
             }
@@ -460,13 +513,13 @@ scriptContent:
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: 'script:(this.item.childrenRefs == null || this.item.childrenRefs.length == 0) ? ''flex'' : ''none'''
+            - MobileSmartSourceType: 'script:this.getLayoutChildrenRefs().length == 0 ? ''flex'' : ''none'''
       ↓Directive [ngx.components.UIControlDirective-1780392000006]: 
         directiveName: If
         directiveSource: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:this.canShowLayoutChildDropZones() && (this.item.childrenRefs == null || this.item.childrenRefs.length == 0)
+            - MobileSmartSourceType: script:this.canShowLayoutChildDropZones() && this.getLayoutChildrenRefs().length == 0
         ↓UseSharedComponent [ngx.components.UIUseShared-1780392000009]: 
           sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
           ↓id [ngx.components.UIUseVariable-1780392000012]: 
@@ -484,6 +537,11 @@ scriptContent:
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:true
+          ↓relationTargetParentId [ngx.components.UIUseVariable-1785751692649]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.item?.id
     ↓Directive22 [ngx.components.UIControlDirective-1730914174680]: 
       directiveExpression: trackBy:trackByObj
       directiveIndexName: j
@@ -491,16 +549,16 @@ scriptContent:
       directiveSource: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:this.item.childrenRefs
+          - MobileSmartSourceType: script:this.getLayoutChildrenRefs()
       ↓GridCol [ngx.components.UIDynamicElement-1776855753912]: 
         beanData: |
           '{
            "ionBean": "GridCol",
-           "SizeLg": "script:!this.hasSelectedLayoutChild() ? this.getComputedLayoutSize(''computedColSize'', j, 12) : (this.isSelectedLayoutChildRef(child) ? ''12'' : ''0'')",
-           "SizeMd": "script:!this.hasSelectedLayoutChild() ? this.getComputedLayoutSize(''computedTabletSize'', j, 12) : (this.isSelectedLayoutChildRef(child) ? ''12'' : ''0'')",
-           "SizeSm": "script:!this.hasSelectedLayoutChild() ? this.getComputedLayoutSize(''computedPhoneLSize'', j, 12) : (this.isSelectedLayoutChildRef(child) ? ''12'' : ''0'')",
-           "SizeXl": "script:!this.hasSelectedLayoutChild() ? this.getComputedLayoutSize(''computedColSize'', j, 12) : (this.isSelectedLayoutChildRef(child) ? ''12'' : ''0'')",
-           "SizeXs": "script:!this.hasSelectedLayoutChild() ? this.getComputedLayoutSize(''computedPhonePSize'', j, 12) : (this.isSelectedLayoutChildRef(child) ? ''12'' : ''0'')"
+           "SizeLg": "script:this.getComputedLayoutSize(''computedColSize'', j, 12)",
+           "SizeMd": "script:this.getComputedLayoutSize(''computedTabletSize'', j, 12)",
+           "SizeSm": "script:this.getComputedLayoutSize(''computedPhoneLSize'', j, 12)",
+           "SizeXl": "script:this.getComputedLayoutSize(''computedColSize'', j, 12)",
+           "SizeXs": "script:this.getComputedLayoutSize(''computedPhonePSize'', j, 12)"
           }'
         tagName: ion-col
         ↓Style [ngx.components.UIStyle-1779120000004]: 
@@ -550,7 +608,7 @@ scriptContent:
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:'@prefixc8obeforeItem' + ((this.pageOwner.getElementByID(child) || {}).name || child)
+                    - MobileSmartSourceType: script:'@prefixc8obeforeItem' + this.getLayoutChildName(child)
               ↓i [ngx.components.UIUseVariable-1780324100018]: 
                 varValue: 
                   - xmlizable: 
@@ -566,6 +624,11 @@ scriptContent:
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: script:true
+              ↓relationTargetParentId [ngx.components.UIUseVariable-1785751701915]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.item?.id
         ↓DropZoneAfterLast [ngx.components.UIDynamicElement-1780324100030]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -590,13 +653,13 @@ scriptContent:
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: 'script:this.canShowLayoutChildDropZones() && j == this.item.childrenRefs.length - 1 ? ''flex'' : ''none'''
+                - MobileSmartSourceType: 'script:this.canShowLayoutChildDropZones() && j == this.getLayoutChildrenRefs().length - 1 ? ''flex'' : ''none'''
           ↓Directive [ngx.components.UIControlDirective-1780324100039]: 
             directiveName: If
             directiveSource: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.canShowLayoutChildDropZones() && j == this.item.childrenRefs.length - 1
+                - MobileSmartSourceType: script:this.canShowLayoutChildDropZones() && j == this.getLayoutChildrenRefs().length - 1
             ↓UseSharedComponent [ngx.components.UIUseShared-1780324100042]: 
               sharedcomponent: C8Oforms.MobileApplication.Application.sharedDropIndicator
               ↓id [ngx.components.UIUseVariable-1780324100045]: 
@@ -608,7 +671,7 @@ scriptContent:
                 varValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:[this.indexItem, this.item.childrenRefs.length]
+                    - MobileSmartSourceType: script:[this.indexItem, this.getLayoutChildrenRefs().length]
               ↓card [ngx.components.UIUseVariable-1780324100051]: 
                 varValue: 
                   - xmlizable: 
@@ -619,18 +682,23 @@ scriptContent:
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: script:true
+              ↓relationTargetParentId [ngx.components.UIUseVariable-1785751709247]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.item?.id
         ↓UseSharedComponent [ngx.components.UIUseShared-1730914174689]: 
           sharedcomponent: C8Oforms.MobileApplication.Application.itemLayoutEditor_Elem
           ↓item1730737782207 [ngx.components.UIUseVariable-1730914174692]: 
             varValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.pageOwner.getElementByID(child)
+                - MobileSmartSourceType: script:this.getLayoutChild(child)
           ↓child [ngx.components.UIUseVariable-1730914174695]: 
             varValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.pageOwner.getElementByID(child)
+                - MobileSmartSourceType: script:this.getLayoutChild(child)
           ↓j [ngx.components.UIUseVariable-1730914174698]: 
             varValue: 
               - xmlizable: 
@@ -662,6 +730,16 @@ scriptContent:
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:true
+          ↓layoutRenderPath [ngx.components.UIUseVariable-1785750066150]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.layoutRenderPath
+          ↓layoutRenderDepth [ngx.components.UIUseVariable-1785750074603]: 
+            varValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.layoutRenderDepth
 ↓AfterItem [ngx.components.UIDynamicElement-1730913907140]: 
   beanData: '{"ionBean":"GridRow","Height":"plain"}'
   tagName: ion-row
@@ -786,3 +864,7 @@ scriptContent:
           margin-bottom: 0 !important;
           ;
           }'
+↓layoutRenderPath [ngx.components.UICompVariable-1785749916764]: 
+  value: '[]'
+↓layoutRenderDepth [ngx.components.UICompVariable-1785749927747]: 
+  value: 0

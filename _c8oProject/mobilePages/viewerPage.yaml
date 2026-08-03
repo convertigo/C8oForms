@@ -10553,6 +10553,7 @@ scriptContent:
         	 * @returns The found element, or null if not found.
         	 */
         	public getItemById(id: any, search: any[] = this.formsList): object | null {
+                const relationLookupId = this.getRelationElementId(id);
         		// Cast id to number
         		id = +id;
         
@@ -10586,10 +10587,154 @@ scriptContent:
         			}
         		}
         
+                const relationItem = relationLookupId != null
+                    ? this.buildElementIndex(searchArray).get(relationLookupId)
+                    : null;
+                if (relationItem != null) {
+                    return relationItem;
+                }
         		// Return null if the element is not found
         		return null;
         	}
-        
+            public getRelationElementId(ref: any): string | null {
+                if (ref == null || ref === "") {
+                    return null;
+                }
+                if (typeof ref === "object") {
+                    if (ref.id == null || ref.id === "") {
+                        return null;
+                    }
+                    return "" + ref.id;
+                }
+                return "" + ref;
+            }
+            public buildElementIndex(elements: any[] | null = this.formsList): Map<string, any> {
+                const elementIndex = new Map<string, any>();
+                const visitedObjects = new Set<any>();
+                const visit = (items: any[] | null) => {
+                    if (!Array.isArray(items)) {
+                        return;
+                    }
+                    for (let item of items) {
+                        if (item == null || typeof item !== "object" || visitedObjects.has(item)) {
+                            continue;
+                        }
+                        visitedObjects.add(item);
+                        const itemId = this.getRelationElementId(item);
+                        if (itemId != null && !elementIndex.has(itemId)) {
+                            elementIndex.set(itemId, item);
+                        }
+                        if (Array.isArray(item.children)) {
+                            visit(item.children);
+                        }
+                    }
+                };
+                visit(elements);
+                return elementIndex;
+            }
+            public getDirectChildren(parent: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any[] {
+                if (parent == null || typeof parent !== "object") {
+                    return [];
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                const children: any[] = [];
+                const seenIds = new Set<string>();
+                const addChild = (child: any) => {
+                    const childId = this.getRelationElementId(child);
+                    if (childId == null || seenIds.has(childId)) {
+                        return;
+                    }
+                    seenIds.add(childId);
+                    children.push(child);
+                };
+                if (Array.isArray(parent.childrenRefs)) {
+                    for (let childRef of parent.childrenRefs) {
+                        const childId = this.getRelationElementId(childRef);
+                        const child = childId != null ? index.get(childId) : null;
+                        if (child != null) {
+                            addChild(child);
+                        }
+                    }
+                }
+                if (Array.isArray(parent.children)) {
+                    for (let child of parent.children) {
+                        addChild(child);
+                    }
+                }
+                return children;
+            }
+            public getParentById(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any | null {
+                const childId = this.getRelationElementId(id);
+                if (childId == null) {
+                    return null;
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                const child = index.get(childId);
+                if (child != null) {
+                    const parentId = this.getRelationElementId(child.parentRef);
+                    if (parentId != null) {
+                        const parent = index.get(parentId);
+                        if (parent != null) {
+                            return parent;
+                        }
+                    }
+                }
+                const indexedItems = Array.from(index.values());
+                for (let candidateParent of indexedItems) {
+                    const directChildren = this.getDirectChildren(candidateParent, elements, index);
+                    for (let directChild of directChildren) {
+                        if (this.getRelationElementId(directChild) === childId) {
+                            return candidateParent;
+                        }
+                    }
+                }
+                return null;
+            }
+            public getAncestors(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any[] {
+                const ancestors: any[] = [];
+                const index = relationIndex || this.buildElementIndex(elements);
+                const visitedIds = new Set<string>();
+                let currentId = this.getRelationElementId(id);
+                while (currentId != null && !visitedIds.has(currentId)) {
+                    visitedIds.add(currentId);
+                    const parent = this.getParentById(currentId, elements, index);
+                    const parentId = this.getRelationElementId(parent);
+                    if (parent == null || parentId == null) {
+                        break;
+                    }
+                    ancestors.push(parent);
+                    currentId = parentId;
+                }
+                return ancestors;
+            }
+            public hasRelationCycle(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): boolean {
+                const index = relationIndex || this.buildElementIndex(elements);
+                const visitedIds = new Set<string>();
+                let currentId = this.getRelationElementId(id);
+                while (currentId != null) {
+                    if (visitedIds.has(currentId)) {
+                        return true;
+                    }
+                    visitedIds.add(currentId);
+                    const parent = this.getParentById(currentId, elements, index);
+                    currentId = this.getRelationElementId(parent);
+                }
+                return false;
+            }
+            public isDescendant(id: any, possibleAncestorId: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): boolean {
+                const childId = this.getRelationElementId(id);
+                const ancestorId = this.getRelationElementId(possibleAncestorId);
+                if (childId == null || ancestorId == null || childId === ancestorId) {
+                    return false;
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                for (let ancestor of this.getAncestors(childId, elements, index)) {
+                    if (this.getRelationElementId(ancestor) === ancestorId) {
+                        return true;
+                    }
+                }
+                return false;
+            }
         	/**
         	 * Get the values of a form checkbox by its name.
         	 * @param name - The name of the form checkbox.
