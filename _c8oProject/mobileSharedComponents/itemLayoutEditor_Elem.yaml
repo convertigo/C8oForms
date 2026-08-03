@@ -65,6 +65,13 @@ scriptContent:
         		event.dataTransfer.setData("type", this.child.type);
         		event.dataTransfer.setData("origin", "moved");
         		event.dataTransfer.setData("index", [this.indexItem, this.j].toString());
+        		const relationElementId = this.getLayoutRenderId(this.child);
+        		if (this.child.type === "layout" && relationElementId !== "") {
+        			event.dataTransfer.setData("relationElementId", relationElementId);
+        			event.dataTransfer.setData("relationOperation", "move");
+        			this.pageOwner.local.relationElementId = relationElementId;
+        			this.pageOwner.local.relationOperation = "move";
+        		}
         		this.pageOwner.local.draggingOrigin = "moved";
         		this.pageOwner.local.draggingOriginIndex = [this.indexItem, this.j];
         		this.pageOwner.local.dragging = true;
@@ -100,6 +107,8 @@ scriptContent:
         			this.pageOwner.local.draggingName = "";
         			delete this.pageOwner.local.draggingOrigin;
         			delete this.pageOwner.local.draggingOriginIndex;
+        			delete this.pageOwner.local.relationElementId;
+        			delete this.pageOwner.local.relationOperation;
         			this.pageOwner.ref.detectChanges();
         		}
         		document.getElementById("c8o-child-drag-image")?.remove();
@@ -133,7 +142,6 @@ scriptContent:
         			this.pageOwner["idselectedC"] = this.child.id;
         			this.pageOwner.local["showItemid"] = this.child.id;
         		}
-        		console.log(this.item, this.child);
         		this.pageOwner?.ref?.detectChanges();
         		this.ref.detectChanges();
         		return true;
@@ -176,14 +184,78 @@ scriptContent:
         		document.body.appendChild(clone);
         		event.dataTransfer.setDragImage(clone, Math.max(0, event.clientX - rect.left), Math.max(0, event.clientY - rect.top));
         	}
+        	public getLayoutRenderId(value: any): string {
+        		const resolver = this.pageOwner?.getRelationElementId;
+        		let resolved = value;
+        		if (typeof resolver === "function") {
+        			try {
+        				resolved = resolver.call(this.pageOwner, value);
+        			}
+        			catch (e) {
+        				resolved = value;
+        			}
+        		}
+        		if (resolved == null && value != null) {
+        			resolved = value.id != null ? value.id : (value.priority != null ? value.priority : value.name);
+        		}
+        		return resolved == null ? "" : "" + resolved;
+        	}
+        	public getLayoutRenderPath(): any[] {
+        		return Array.isArray(this.layoutRenderPath) ? this.layoutRenderPath : [];
+        	}
+        	public getCurrentLayoutRenderDepth(): number {
+        		const depth = Number(this.layoutRenderDepth);
+        		return Number.isFinite(depth) && depth >= 0 ? depth : 0;
+        	}
+        	public getCurrentLayoutRenderPath(): any[] {
+        		const path = this.getLayoutRenderPath().slice();
+        		const itemId = this.getLayoutRenderId(this.item);
+        		if (itemId !== "" && path.map((entry: any) => "" + entry).indexOf(itemId) === -1) {
+        			path.push(itemId);
+        		}
+        		return path;
+        	}
+        	public getNestedLayoutRenderDepth(): number {
+        		return this.getCurrentLayoutRenderDepth() + 1;
+        	}
+        	public getNestedLayoutIndexItem(): any {
+        		const childId = this.getLayoutRenderId(this.child);
+        		const formsList = this.pageOwner?.formsList;
+        		if (childId !== "" && Array.isArray(formsList)) {
+        			const index = formsList.findIndex((candidate: any) => this.getLayoutRenderId(candidate) === childId);
+        			if (index >= 0) {
+        				return index;
+        			}
+        		}
+        		return this.indexItem;
+        	}
+        	public canRenderNestedLayoutChild(): boolean {
+        		if (this.child?.type !== "layout") {
+        			return false;
+        		}
+        		const childId = this.getLayoutRenderId(this.child);
+        		if (childId === "") {
+        			console.warn("RELATION_RENDER_MISSING_LAYOUT_ID", this.child);
+        			return false;
+        		}
+        		const path = this.getCurrentLayoutRenderPath().map((entry: any) => "" + entry);
+        		if (path.indexOf(childId) !== -1) {
+        			console.warn("RELATION_RENDER_CYCLE", childId);
+        			return false;
+        		}
+        		if (this.getCurrentLayoutRenderDepth() >= 32) {
+        			console.warn("RELATION_RENDER_MAX_DEPTH", childId);
+        			return false;
+        		}
+        		return true;
+        	}
         	public isChildSelectedFromViewer(): boolean {
         		return this.child != null && (this.idselectedC == this.child.id || this.owner?.["idselectedC"] == this.child.id || this.pageOwner?.["idselectedC"] == this.child.id);
         	}
         	public getSelectedChildFromViewer(): any {
         		return this.pageOwner?.["idselectedC"] || this.owner?.["idselectedC"] || this.idselectedC || "";
         	}
-        	/*End_c8o_CompFunction*/
-        '
+        	/*End_c8o_CompFunction*/'
 ↓item1730737782207 [ngx.components.UICompVariable-1730813313916]: 
   value: '[]'
 ↓child [ngx.components.UICompVariable-1730813313919]: 
@@ -578,7 +650,7 @@ scriptContent:
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:!this.isChildSelectedFromViewer() && this.pageOwner.local.draggingActions != true
+                  - MobileSmartSourceType: script:this.child != null && this.pageOwner.local.draggingActions != true
               ↓UseSharedComponentHeader [ngx.components.UIUseShared-1780662865001]: 
                 sharedcomponent: C8Oforms.MobileApplication.Application.HeaderComponents
                 ↓child [ngx.components.UIUseVariable-1780662865002]: 
@@ -677,24 +749,7 @@ scriptContent:
                             directiveSource: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this.renderSelectedEditor && this.isChildSelectedFromViewer() else ElseBlock_direct_layout_child_viewer
-                            ↓UseSharedComponent [ngx.components.UIUseShared-1776796710623]: 
-                              sharedcomponent: C8Oforms.MobileApplication.Application.switchItemEdition
-                              ↓currentItem [ngx.components.UIUseVariable-1776796710625]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:this.child
-                              ↓idselected [ngx.components.UIUseVariable-1776796710627]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:this.getSelectedChildFromViewer()
-                              ↓isChild [ngx.components.UIUseVariable-1776796710629]: 
-                                varValue: 
-                                  - xmlizable: 
-                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:true
+                                - MobileSmartSourceType: script:false else ElseBlock_direct_layout_child_viewer
                           ↓Tag [ngx.components.UIElement-1776796710633]: 
                             identifier: ElseBlock_direct_layout_child_viewer
                             tagName: ng-template
@@ -720,6 +775,40 @@ scriptContent:
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                     - MobileSmartSourceType: script:this.pageOwner.getEditorPreviewModel(child)
+                            ↓DirectiveLayoutRecursive [ngx.components.UIControlDirective-1785750094366]: 
+                              directiveName: If
+                              directiveSource: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: script:this.canRenderNestedLayoutChild()
+                              ↓UseSharedComponentLayoutRecursive [ngx.components.UIUseShared-1785750096722]: 
+                                sharedcomponent: C8Oforms.MobileApplication.Application.itemLayoutEditorViewer
+                                ↓item [ngx.components.UIUseVariable-1785750099114]: 
+                                  binding: twoWayBinding
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:this.child
+                                ↓idselected [ngx.components.UIUseVariable-1785750099116]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:this.pageOwner?.idselected || this.item?.id
+                                ↓indexItem [ngx.components.UIUseVariable-1785750099118]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:this.getNestedLayoutIndexItem()
+                                ↓layoutRenderPath [ngx.components.UIUseVariable-1785750099120]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:this.getCurrentLayoutRenderPath()
+                                ↓layoutRenderDepth [ngx.components.UIUseVariable-1785750099122]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:this.getNestedLayoutRenderDepth()
               ↓Style [ngx.components.UIStyle-1780654218838]: 
                 styleContent: 
                   - xmlizable: 
@@ -770,6 +859,23 @@ scriptContent:
                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                       →: |
+                        		const dragBlocked = page.childDragInProgress || Date.now() - page.childDragEndedAt < 350 || page.pageOwner?.local?.dragging == true || page.pageOwner?.local?.draggingActions == true;
+                        		if (dragBlocked) {
+                        			page.onChildLayoutClick(event);
+                        			resolve();
+                        			return;
+                        		}
+                        
+                        		const childId = page.child?.id;
+                        		const parentId = page.item?.id;
+                        		const pageOwnerSelected = page.pageOwner != null && childId != null && parentId != null && page.pageOwner["idselected"] == parentId && page.pageOwner["idselectedC"] == childId;
+                        
+                        		if (page.isChildSelectedFromViewer() && pageOwnerSelected !== true) {
+                        			page.selectChildFromViewer(event);
+                        			resolve();
+                        			return;
+                        		}
+                        
                         		page.onChildLayoutClick(event);
                         		resolve();
                         
@@ -953,3 +1059,7 @@ scriptContent:
             	border-radius: inherit;
             }
             '
+↓layoutRenderPath [ngx.components.UICompVariable-1785749951117]: 
+  value: '[]'
+↓layoutRenderDepth [ngx.components.UICompVariable-1785749965330]: 
+  value: 0

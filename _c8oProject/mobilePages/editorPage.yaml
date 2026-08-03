@@ -5644,8 +5644,514 @@ scriptContent:
         				}
         			}
         		}
-        		return null;
-        	}
+                const relationLookupId = this.getRelationElementId(id);
+                if (relationLookupId != null) {
+                    const relationItem = this.buildElementIndex(form).get(relationLookupId);
+                    if (relationItem != null) {
+                        return relationItem;
+                    }
+                }
+                return null;
+            }
+            public getRelationElementId(ref: any): string | null {
+                if (ref == null || ref === "") {
+                    return null;
+                }
+                if (typeof ref === "object") {
+                    if (ref.id == null || ref.id === "") {
+                        return null;
+                    }
+                    return "" + ref.id;
+                }
+                return "" + ref;
+            }
+            public buildElementIndex(elements: any[] | null = this.formsList): Map<string, any> {
+                const elementIndex = new Map<string, any>();
+                const visitedObjects = new Set<any>();
+                const visit = (items: any[] | null) => {
+                    if (!Array.isArray(items)) {
+                        return;
+                    }
+                    for (let item of items) {
+                        if (item == null || typeof item !== "object" || visitedObjects.has(item)) {
+                            continue;
+                        }
+                        visitedObjects.add(item);
+                        const itemId = this.getRelationElementId(item);
+                        if (itemId != null && !elementIndex.has(itemId)) {
+                            elementIndex.set(itemId, item);
+                        }
+                        if (Array.isArray(item.children)) {
+                            visit(item.children);
+                        }
+                    }
+                };
+                visit(elements);
+                return elementIndex;
+            }
+            public getDirectChildren(parent: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any[] {
+                if (parent == null || typeof parent !== "object") {
+                    return [];
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                const children: any[] = [];
+                const seenIds = new Set<string>();
+                const addChild = (child: any) => {
+                    const childId = this.getRelationElementId(child);
+                    if (childId == null || seenIds.has(childId)) {
+                        return;
+                    }
+                    seenIds.add(childId);
+                    children.push(child);
+                };
+                if (Array.isArray(parent.childrenRefs)) {
+                    for (let childRef of parent.childrenRefs) {
+                        const childId = this.getRelationElementId(childRef);
+                        const child = childId != null ? index.get(childId) : null;
+                        if (child != null) {
+                            addChild(child);
+                        }
+                    }
+                }
+                if (Array.isArray(parent.children)) {
+                    for (let child of parent.children) {
+                        addChild(child);
+                    }
+                }
+                return children;
+            }
+            public getParentById(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any | null {
+                const childId = this.getRelationElementId(id);
+                if (childId == null) {
+                    return null;
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                const child = index.get(childId);
+                if (child != null) {
+                    const parentId = this.getRelationElementId(child.parentRef);
+                    if (parentId != null) {
+                        const parent = index.get(parentId);
+                        if (parent != null) {
+                            return parent;
+                        }
+                    }
+                }
+                const indexedItems = Array.from(index.values());
+                for (let candidateParent of indexedItems) {
+                    const directChildren = this.getDirectChildren(candidateParent, elements, index);
+                    for (let directChild of directChildren) {
+                        if (this.getRelationElementId(directChild) === childId) {
+                            return candidateParent;
+                        }
+                    }
+                }
+                return null;
+            }
+            public getAncestors(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any[] {
+                const ancestors: any[] = [];
+                const index = relationIndex || this.buildElementIndex(elements);
+                const visitedIds = new Set<string>();
+                let currentId = this.getRelationElementId(id);
+                while (currentId != null && !visitedIds.has(currentId)) {
+                    visitedIds.add(currentId);
+                    const parent = this.getParentById(currentId, elements, index);
+                    const parentId = this.getRelationElementId(parent);
+                    if (parent == null || parentId == null) {
+                        break;
+                    }
+                    ancestors.push(parent);
+                    currentId = parentId;
+                }
+                return ancestors;
+            }
+            public hasRelationCycle(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): boolean {
+                const index = relationIndex || this.buildElementIndex(elements);
+                const visitedIds = new Set<string>();
+                let currentId = this.getRelationElementId(id);
+                while (currentId != null) {
+                    if (visitedIds.has(currentId)) {
+                        return true;
+                    }
+                    visitedIds.add(currentId);
+                    const parent = this.getParentById(currentId, elements, index);
+                    currentId = this.getRelationElementId(parent);
+                }
+                return false;
+            }
+            public isDescendant(id: any, possibleAncestorId: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): boolean {
+                const childId = this.getRelationElementId(id);
+                const ancestorId = this.getRelationElementId(possibleAncestorId);
+                if (childId == null || ancestorId == null || childId === ancestorId) {
+                    return false;
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                for (let ancestor of this.getAncestors(childId, elements, index)) {
+                    if (this.getRelationElementId(ancestor) === ancestorId) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            public addRelationDiagnostic(diagnostic: any, severity: string, code: string, elementId: any = null, parentId: any = null, message: string = ""): void {
+                const entry: any = { code };
+                const normalizedElementId = this.getRelationElementId(elementId);
+                const normalizedParentId = this.getRelationElementId(parentId);
+                if (normalizedElementId != null) {
+                    entry.elementId = normalizedElementId;
+                }
+                if (normalizedParentId != null) {
+                    entry.parentId = normalizedParentId;
+                }
+                if (message !== "") {
+                    entry.message = message;
+                }
+                if (severity === "warning") {
+                    diagnostic.warnings.push(entry);
+                }
+                else {
+                    diagnostic.errors.push(entry);
+                    diagnostic.valid = false;
+                }
+            }
+            public validateRelationIntegrity(elements: any[] | null = this.formsList): any {
+                const diagnostic: any = { valid: true, errors: [], warnings: [] };
+                if (!Array.isArray(elements)) {
+                    this.addRelationDiagnostic(diagnostic, "error", "INVALID_RELATION_MODEL", null, null, "The canonical element collection is not an array.");
+                    return diagnostic;
+                }
+                const index = this.buildElementIndex(elements);
+                const parentsByChildId = new Map<string, Set<string>>();
+                const addParentForChild = (childId: string, parentId: string) => {
+                    if (!parentsByChildId.has(childId)) {
+                        parentsByChildId.set(childId, new Set<string>());
+                    }
+                    parentsByChildId.get(childId).add(parentId);
+                };
+                for (let parent of elements) {
+                    const parentId = this.getRelationElementId(parent);
+                    if (parent == null || typeof parent !== "object" || parentId == null) {
+                        continue;
+                    }
+                    if (parent.childrenRefs != null && !Array.isArray(parent.childrenRefs)) {
+                        this.addRelationDiagnostic(diagnostic, "error", "INVALID_CHILDREN_REFS", null, parentId, "childrenRefs must be an array when present.");
+                        continue;
+                    }
+                    if (!Array.isArray(parent.childrenRefs)) {
+                        continue;
+                    }
+                    const seenChildIds = new Set<string>();
+                    for (let childRef of parent.childrenRefs) {
+                        const childId = this.getRelationElementId(childRef);
+                        if (childId == null) {
+                            this.addRelationDiagnostic(diagnostic, "error", "MISSING_CHILD_REFERENCE", null, parentId, "childrenRefs contains an empty reference.");
+                            continue;
+                        }
+                        if (childId === parentId) {
+                            this.addRelationDiagnostic(diagnostic, "error", "SELF_REFERENCE", childId, parentId, "An element cannot reference itself as a child.");
+                        }
+                        if (seenChildIds.has(childId)) {
+                            this.addRelationDiagnostic(diagnostic, "error", "DUPLICATE_CHILD_REFERENCE", childId, parentId, "The same child is referenced more than once by this parent.");
+                        }
+                        seenChildIds.add(childId);
+                        const child = index.get(childId);
+                        if (child == null) {
+                            this.addRelationDiagnostic(diagnostic, "error", "MISSING_CHILD_REFERENCE", childId, parentId, "childrenRefs points to an unknown element.");
+                            continue;
+                        }
+                        addParentForChild(childId, parentId);
+                        const declaredParentId = this.getRelationElementId(child.parentRef);
+                        if (declaredParentId == null || declaredParentId !== parentId) {
+                            this.addRelationDiagnostic(diagnostic, "error", "PARENT_CHILD_MISMATCH", childId, parentId, "child.parentRef does not match the parent childrenRefs relation.");
+                        }
+                    }
+                }
+                for (let item of elements) {
+                    const itemId = this.getRelationElementId(item);
+                    if (item == null || typeof item !== "object" || itemId == null) {
+                        continue;
+                    }
+                    const parentId = this.getRelationElementId(item.parentRef);
+                    if (parentId == null) {
+                        continue;
+                    }
+                    if (parentId === itemId) {
+                        this.addRelationDiagnostic(diagnostic, "error", "SELF_REFERENCE", itemId, parentId, "An element cannot reference itself as parent.");
+                        continue;
+                    }
+                    const parent = index.get(parentId);
+                    if (parent == null) {
+                        this.addRelationDiagnostic(diagnostic, "error", "MISSING_PARENT_REFERENCE", itemId, parentId, "parentRef points to an unknown element.");
+                        continue;
+                    }
+                    if (!Array.isArray(parent.childrenRefs) || parent.childrenRefs.findIndex((ref: any) => this.getRelationElementId(ref) === itemId) === -1) {
+                        this.addRelationDiagnostic(diagnostic, "error", "PARENT_CHILD_MISMATCH", itemId, parentId, "parentRef is not mirrored in parent.childrenRefs.");
+                    }
+                }
+                parentsByChildId.forEach((parents, childId) => {
+                    if (parents.size > 1) {
+                        this.addRelationDiagnostic(diagnostic, "error", "MULTIPLE_RELATION_PARENTS", childId, Array.from(parents).join(","), "The child appears in childrenRefs of multiple parents.");
+                    }
+                });
+                for (let item of elements) {
+                    const itemId = this.getRelationElementId(item);
+                    if (itemId != null && this.hasRelationCycle(itemId, elements, index)) {
+                        this.addRelationDiagnostic(diagnostic, "error", "RELATION_CYCLE", itemId, null, "The parentRef chain contains a cycle.");
+                    }
+                }
+                return diagnostic;
+            }
+            public getRelationReferenceForParent(parent: any, child: any, preferredRef: any = null): any {
+                if (preferredRef != null) {
+                    return preferredRef;
+                }
+                if (Array.isArray(parent?.childrenRefs)) {
+                    const usesObjectRefs = parent.childrenRefs.some((ref: any) => ref != null && typeof ref === "object");
+                    if (usesObjectRefs) {
+                        return child;
+                    }
+                }
+                return child?.id;
+            }
+            public prepareRelationMove(draggedRef: any, targetParentRef: any, targetIndex: any = null, elements: any[] | null = this.formsList): any {
+                if (!Array.isArray(elements)) {
+                    return { valid: false, error: { code: "INVALID_RELATION_MODEL" } };
+                }
+                const draggedId = this.getRelationElementId(draggedRef);
+                if (draggedId == null) {
+                    return { valid: false, error: { code: "ELEMENT_NOT_FOUND" } };
+                }
+                const index = this.buildElementIndex(elements);
+                const dragged = index.get(draggedId);
+                const draggedInFlatList = elements.some((item: any) => this.getRelationElementId(item) === draggedId);
+                if (dragged == null) {
+                    return { valid: false, error: { code: "ELEMENT_NOT_FOUND", elementId: draggedId } };
+                }
+                if (!draggedInFlatList) {
+                    return { valid: false, error: { code: "LEGACY_NESTED_MUTATION_UNSUPPORTED", elementId: draggedId } };
+                }
+                const targetParentId = this.getRelationElementId(targetParentRef);
+                if (targetParentId == null) {
+                    return { valid: false, error: { code: "TARGET_PARENT_NOT_FOUND" } };
+                }
+                if (draggedId === targetParentId) {
+                    return { valid: false, error: { code: "SELF_RELATION", elementId: draggedId, parentId: targetParentId } };
+                }
+                const targetParent = index.get(targetParentId);
+                const targetParentInFlatList = elements.some((item: any) => this.getRelationElementId(item) === targetParentId);
+                if (targetParent == null || !targetParentInFlatList) {
+                    return { valid: false, error: { code: "TARGET_PARENT_NOT_FOUND", parentId: targetParentId } };
+                }
+                if (!Array.isArray(targetParent.childrenRefs)) {
+                    return { valid: false, error: { code: "TARGET_PARENT_CHILDREN_REFS_INVALID", parentId: targetParentId } };
+                }
+                if (this.isDescendant(targetParentId, draggedId, elements, index)) {
+                    return { valid: false, error: { code: "RELATION_CYCLE", elementId: draggedId, parentId: targetParentId } };
+                }
+                const sourceParentId = this.getRelationElementId(dragged.parentRef);
+                const parentsContainingChild: string[] = [];
+                const refsByParentId: any = {};
+                for (let parent of elements) {
+                    const parentId = this.getRelationElementId(parent);
+                    if (parentId == null || !Array.isArray(parent?.childrenRefs)) {
+                        continue;
+                    }
+                    refsByParentId[parentId] = parent.childrenRefs.concat([]);
+                    if (parent.childrenRefs.some((ref: any) => this.getRelationElementId(ref) === draggedId)) {
+                        parentsContainingChild.push(parentId);
+                    }
+                }
+                const parentIdsToDetachFrom = Array.from(new Set(parentsContainingChild));
+                const parentIdsToTouch = Array.from(new Set(parentIdsToDetachFrom.concat([targetParentId])));
+                const targetOriginalRefs = targetParent.childrenRefs.concat([]);
+                let requestedTargetIndex = Number(targetIndex);
+                if (!Number.isFinite(requestedTargetIndex)) {
+                    requestedTargetIndex = targetOriginalRefs.length;
+                }
+                requestedTargetIndex = Math.max(0, Math.min(requestedTargetIndex, targetOriginalRefs.length));
+                const removedBeforeTarget = targetOriginalRefs.slice(0, requestedTargetIndex).filter((ref: any) => this.getRelationElementId(ref) === draggedId).length;
+                const targetRefsAfterDetach = targetOriginalRefs.filter((ref: any) => this.getRelationElementId(ref) !== draggedId);
+                const normalizedTargetIndex = Math.max(0, Math.min(requestedTargetIndex - removedBeforeTarget, targetRefsAfterDetach.length));
+                const preferredTargetRef = targetOriginalRefs.find((ref: any) => this.getRelationElementId(ref) === draggedId);
+                const childReference = this.getRelationReferenceForParent(targetParent, dragged, preferredTargetRef);
+                const targetChildrenRefsAfter = targetRefsAfterDetach.concat([]);
+                targetChildrenRefsAfter.splice(normalizedTargetIndex, 0, childReference);
+                const originalChildrenRefsByParent = parentIdsToTouch.map((parentId) => {
+                    const parent = index.get(parentId);
+                    return {
+                        parentId,
+                        hadChildrenRefs: Object.prototype.hasOwnProperty.call(parent, "childrenRefs"),
+                        childrenRefs: Array.isArray(parent?.childrenRefs) ? parent.childrenRefs.concat([]) : parent?.childrenRefs
+                    };
+                });
+                const contradictoryParents = parentIdsToDetachFrom.filter((parentId) => sourceParentId != null && parentId !== sourceParentId);
+                return {
+                    valid: true,
+                    dragged,
+                    targetParent,
+                    draggedId,
+                    sourceParentId,
+                    targetParentId,
+                    requestedTargetIndex,
+                    targetIndex: normalizedTargetIndex,
+                    parentIdsToDetachFrom,
+                    parentIdsToTouch,
+                    originalParentRef: dragged.parentRef,
+                    originalChildrenRefsByParent,
+                    targetChildrenRefsAfter,
+                    newParentRef: targetParent.id,
+                    childReference,
+                    normalizedContradiction: contradictoryParents.length > 0 || (sourceParentId != null && parentsContainingChild.indexOf(sourceParentId) === -1),
+                    diagnostics: {
+                        contradictoryParents
+                    }
+                };
+            }
+            public detachRelationChild(parent: any, childRef: any, relationKey: string = "childrenRefs"): any {
+                const childId = this.getRelationElementId(childRef);
+                if (parent == null || childId == null || !Array.isArray(parent[relationKey])) {
+                    return { success: false, removed: 0, error: { code: "INVALID_CHILDREN_REFS" } };
+                }
+                const initialLength = parent[relationKey].length;
+                const keptRefs = parent[relationKey].filter((ref: any) => this.getRelationElementId(ref) !== childId);
+                parent[relationKey].splice(0, parent[relationKey].length, ...keptRefs);
+                return { success: true, removed: initialLength - keptRefs.length };
+            }
+            public attachRelationChild(parent: any, child: any, targetIndex: any, childReference: any = null, relationKey: string = "childrenRefs"): any {
+                const childId = this.getRelationElementId(child);
+                if (parent == null || childId == null || !Array.isArray(parent[relationKey])) {
+                    return { success: false, error: { code: "INVALID_CHILDREN_REFS" } };
+                }
+                this.detachRelationChild(parent, childId, relationKey);
+                let normalizedIndex = Number(targetIndex);
+                if (!Number.isFinite(normalizedIndex)) {
+                    normalizedIndex = parent[relationKey].length;
+                }
+                normalizedIndex = Math.max(0, Math.min(normalizedIndex, parent[relationKey].length));
+                parent[relationKey].splice(normalizedIndex, 0, this.getRelationReferenceForParent(parent, child, childReference));
+                return { success: true, targetIndex: normalizedIndex };
+            }
+            public validateRelationMoveResult(plan: any, elements: any[] | null = this.formsList): any {
+                const diagnostic: any = { valid: true, errors: [], warnings: [] };
+                const index = this.buildElementIndex(elements);
+                const dragged = index.get(plan?.draggedId);
+                const targetParent = index.get(plan?.targetParentId);
+                if (dragged == null) {
+                    this.addRelationDiagnostic(diagnostic, "error", "ELEMENT_NOT_FOUND", plan?.draggedId, null, "Moved element is missing after mutation.");
+                    return diagnostic;
+                }
+                if (targetParent == null || !Array.isArray(targetParent.childrenRefs)) {
+                    this.addRelationDiagnostic(diagnostic, "error", "TARGET_PARENT_NOT_FOUND", plan?.draggedId, plan?.targetParentId, "Target parent is missing after mutation.");
+                    return diagnostic;
+                }
+                const actualParentId = this.getRelationElementId(dragged.parentRef);
+                if (actualParentId !== plan.targetParentId) {
+                    this.addRelationDiagnostic(diagnostic, "error", "PARENT_REF_NOT_UPDATED", plan.draggedId, plan.targetParentId, "Moved element parentRef does not reference the target parent.");
+                }
+                const targetOccurrences = targetParent.childrenRefs.filter((ref: any) => this.getRelationElementId(ref) === plan.draggedId).length;
+                if (targetOccurrences !== 1) {
+                    this.addRelationDiagnostic(diagnostic, "error", "TARGET_CHILD_OCCURRENCE_INVALID", plan.draggedId, plan.targetParentId, "Target parent must contain the moved child exactly once.");
+                }
+                for (let parent of elements || []) {
+                    const parentId = this.getRelationElementId(parent);
+                    if (parentId == null || parentId === plan.targetParentId || !Array.isArray(parent?.childrenRefs)) {
+                        continue;
+                    }
+                    if (parent.childrenRefs.some((ref: any) => this.getRelationElementId(ref) === plan.draggedId)) {
+                        this.addRelationDiagnostic(diagnostic, "error", "MULTIPLE_RELATION_PARENTS", plan.draggedId, parentId, "A non-target parent still contains the moved child.");
+                    }
+                }
+                if (this.hasRelationCycle(plan.draggedId, elements, index)) {
+                    this.addRelationDiagnostic(diagnostic, "error", "RELATION_CYCLE", plan.draggedId, plan.targetParentId, "Move created a relation cycle.");
+                }
+                return diagnostic;
+            }
+            public moveRelationElement(draggedRef: any, targetParentRef: any, targetIndex: any = null, elements: any[] | null = this.formsList, options: any = null): any {
+                const plan = this.prepareRelationMove(draggedRef, targetParentRef, targetIndex, elements);
+                if (!plan.valid) {
+                    return { success: false, error: plan.error, rolledBack: false };
+                }
+                const index = this.buildElementIndex(elements);
+                const parentSnapshots = plan.parentIdsToTouch.map((parentId) => {
+                    const parent = index.get(parentId);
+                    return {
+                        parent,
+                        hadChildrenRefs: Object.prototype.hasOwnProperty.call(parent, "childrenRefs"),
+                        childrenRefs: Array.isArray(parent?.childrenRefs) ? parent.childrenRefs.concat([]) : parent?.childrenRefs
+                    };
+                });
+                const parentRefSnapshot = {
+                    hadParentRef: Object.prototype.hasOwnProperty.call(plan.dragged, "parentRef"),
+                    parentRef: plan.dragged.parentRef
+                };
+                const restore = () => {
+                    for (let snapshot of parentSnapshots) {
+                        if (snapshot.parent == null) {
+                            continue;
+                        }
+                        if (snapshot.hadChildrenRefs) {
+                            if (Array.isArray(snapshot.childrenRefs)) {
+                                if (!Array.isArray(snapshot.parent.childrenRefs)) {
+                                    snapshot.parent.childrenRefs = [];
+                                }
+                                snapshot.parent.childrenRefs.splice(0, snapshot.parent.childrenRefs.length, ...snapshot.childrenRefs);
+                            }
+                            else {
+                                snapshot.parent.childrenRefs = snapshot.childrenRefs;
+                            }
+                        }
+                        else {
+                            delete snapshot.parent.childrenRefs;
+                        }
+                    }
+                    if (parentRefSnapshot.hadParentRef) {
+                        plan.dragged.parentRef = parentRefSnapshot.parentRef;
+                    }
+                    else {
+                        delete plan.dragged.parentRef;
+                    }
+                };
+                try {
+                    for (let parentId of plan.parentIdsToDetachFrom) {
+                        const parent = index.get(parentId);
+                        const detachResult = this.detachRelationChild(parent, plan.draggedId);
+                        if (!detachResult.success) {
+                            throw { code: detachResult.error?.code || "DETACH_FAILED" };
+                        }
+                    }
+                    if (options?.forceFailureAfterDetach === true) {
+                        throw { code: "FORCED_ROLLBACK" };
+                    }
+                    const attachResult = this.attachRelationChild(plan.targetParent, plan.dragged, plan.targetIndex, plan.childReference);
+                    if (!attachResult.success) {
+                        throw { code: attachResult.error?.code || "ATTACH_FAILED" };
+                    }
+                    plan.dragged.parentRef = plan.newParentRef;
+                    const postValidation = this.validateRelationMoveResult(plan, elements);
+                    if (!postValidation.valid) {
+                        throw { code: "POST_MUTATION_INTEGRITY_FAILURE", diagnostic: postValidation };
+                    }
+                    return {
+                        success: true,
+                        movedId: plan.draggedId,
+                        sourceParentId: plan.sourceParentId,
+                        targetParentId: plan.targetParentId,
+                        targetIndex: plan.targetIndex,
+                        normalizedContradiction: plan.normalizedContradiction,
+                        diagnostic: postValidation
+                    };
+                }
+                catch (e) {
+                    restore();
+                    return {
+                        success: false,
+                        error: {
+                            code: e?.code || "RELATION_MOVE_FAILED",
+                            diagnostic: e?.diagnostic
+                        },
+                        rolledBack: true
+                    };
+                }
+            }
         	public async searchCompletionWithId(id, currentElem) {
         		try {
         			// if its source elem
@@ -29682,7 +30188,7 @@ title: Title for editor
                                 directiveSource: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:item.config.page == this.local.currentPage && item.parentRef == undefined
+                                    - MobileSmartSourceType: script:item.config.page == this.local.currentPage && (item.parentRef == undefined || item.id == this.idselected)
                                 ↓BeforeItem [ngx.components.UIDynamicElement-1650357060272]: 
                                   beanData: '{"ionBean":"GridRow","Height":"plain:unset"}'
                                   tagName: ion-row
@@ -33419,8 +33925,17 @@ title: Title for editor
                                                 	            this.c8o.log.debug("dragstart at level0, index of target to move is "+vars.index);
                                                 	            event.dataTransfer.setData("__c8oformsdrag", true);
                                                 	            event.dataTransfer.setData(vars.item.type, true);
+                                                	            event.dataTransfer.setData("type", vars.item.type);
                                                 	            event.dataTransfer.setData("origin", "moved");
                                                 	            event.dataTransfer.setData("index", vars.index);
+                                                	            if (vars.item?.type === "layout" && vars.item?.id != null) {
+                                                	                const relationElementId = String(vars.item.id);
+                                                	                event.dataTransfer.setData("relationElementId", relationElementId);
+                                                	                event.dataTransfer.setData("relationOperation", "move");
+                                                	                page.local.relationElementId = relationElementId;
+                                                	                page.local.relationOperation = "move";
+                                                	            }
+                                                	            page.local.draggingType = vars.item.type;
                                                 	            page.local.draggingOrigin = "moved";
                                                 	            page.local.draggingOriginIndex = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((entry) => Number(entry));
                                                 	            page.local.dragging = true;
@@ -33846,9 +34361,18 @@ title: Title for editor
                                                 //			event.dataTransfer.setData(vars.item.type, true);
                                                 			event.dataTransfer.setData("__c8oformsdrag", "true");
                                                 			event.dataTransfer.setData(vars.item.type, "true");
+                                                			event.dataTransfer.setData("type", vars.item.type);
                                                 	        event.dataTransfer.setData("origin", "moved");
                                                 	        event.dataTransfer.setData("index", vars.index);
+                                                			if (vars.item?.type === "layout" && vars.item?.id != null) {
+                                                				const relationElementId = String(vars.item.id);
+                                                				event.dataTransfer.setData("relationElementId", relationElementId);
+                                                				event.dataTransfer.setData("relationOperation", "move");
+                                                				page.local.relationElementId = relationElementId;
+                                                				page.local.relationOperation = "move";
+                                                			}
                                                 			event.dataTransfer.setData("text/plain", vars.item.name || vars.item.type || "c8oforms-item");
+                                                			page.local.draggingType = vars.item.type;
                                                 	        page.local.draggingOrigin = "moved";
                                                 	        page.local.draggingOriginIndex = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((entry) => Number(entry));
                                                 			page.local.dragging = true;
@@ -33872,6 +34396,8 @@ title: Title for editor
                                                 				page.local.draggingName = "";
                                                 				delete page.local.draggingOrigin;
                                                 				delete page.local.draggingOriginIndex;
+                                                				delete page.local.relationElementId;
+                                                				delete page.local.relationOperation;
                                                 				page.ref.detectChanges();
                                                 				delete window["draggingELEMC8O"];
                                                 			}
