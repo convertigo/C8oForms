@@ -7210,6 +7210,14 @@ tagName: ion-menu
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: script:'it' | translate
+            ↓SelectOptionZH [ngx.components.UIDynamicElement-1785837875783]: 
+              beanData: '{"ionBean":"SelectOption","Value":"plain:zh-CN"}'
+              tagName: ion-select-option
+              ↓Text [ngx.components.UIText-1785837875785]: 
+                textValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: plain:简体中文
             ↓Attr2 [ngx.components.UIAttribute-1759248783203]: 
               attrName: class
               attrValue: 
@@ -7296,21 +7304,29 @@ tagName: ion-menu
                         		  lang = event;
                         		}
                         
-                        		lang = lang?.trim().toLowerCase() ?? null;
+                        		const localeOwner: any = this;
+                        		const getCanonicalEnabledLocale =
+                        		  typeof localeOwner?.getCanonicalEnabledLocale === "function"
+                        		    ? localeOwner.getCanonicalEnabledLocale.bind(localeOwner)
+                        		    : null;
+                        		const canonicalLang =
+                        		  getCanonicalEnabledLocale != null
+                        		    ? getCanonicalEnabledLocale(lang)
+                        		    : typeof localeOwner?.normalizeLocaleCandidate === "function"
+                        		      ? localeOwner.normalizeLocaleCandidate(lang)
+                        		      : null;
                         
-                        		if (lang == null || lang === "") {
-                        		  resolve(null);
-                        		  return;
-                        		}
-                        
-                        		// Adapte cette liste aux langues réellement disponibles
-                        		const supportedLanguages = ["fr", "en", "es", "it"];
-                        
-                        		if (!supportedLanguages.includes(lang)) {
+                        		if (
+                        		  canonicalLang == null ||
+                        		  typeof localeOwner?.isEnabledApplicationLocale !== "function" ||
+                        		  !localeOwner.isEnabledApplicationLocale(canonicalLang)
+                        		) {
                         		  console.warn("Langue non supportée :", lang);
                         		  resolve(null);
                         		  return;
                         		}
+                        
+                        		lang = canonicalLang;
                         
                         		const finishLanguageChange = () => {
                         		  const spinner = document.getElementById("c8oSpinnerRgaa");
@@ -7338,17 +7354,41 @@ tagName: ion-menu
                         		};
                         
                         		try {
-                        		  localStorage.setItem("lang", lang);
-                        
-                        		  this.global.settings ??= {};
-                        		  this.global.settings.language = lang;
-                        
                         		  this.local.visible = true;
                         		  this.global.reloadAgGrid = true;
                         
                         		  page.ref?.detectChanges();
                         
-                        		  const languageChange$ = translate?.use?.(lang);
+                        		  const applyApplicationLocale =
+                        		    typeof localeOwner?.applyApplicationLocale === "function"
+                        		      ? localeOwner.applyApplicationLocale.bind(localeOwner)
+                        		      : null;
+                        
+                        		  let languageChange$: any = null;
+                        		  if (applyApplicationLocale != null) {
+                        		    const appliedLocale = applyApplicationLocale(lang, {
+                        		      setDefault: true,
+                        		      useTranslate: true,
+                        		      persistLocal: true,
+                        		      persistGlobal: true,
+                        		      updateMetadata: true,
+                        		      source: "menu-selector"
+                        		    });
+                        
+                        		    if (appliedLocale == null) {
+                        		      throw new Error("Unsupported application locale");
+                        		    }
+                        
+                        		    lang = appliedLocale.locale ?? lang;
+                        		    languageChange$ = appliedLocale.languageChange;
+                        		  } else {
+                        		    localStorage.setItem("lang", lang);
+                        
+                        		    this.global.settings ??= {};
+                        		    this.global.settings.language = lang;
+                        
+                        		    languageChange$ = translate?.use?.(lang);
+                        		  }
                         
                         		  if (languageChange$?.pipe != null) {
                         		    languageChange$
@@ -7393,11 +7433,16 @@ tagName: ion-menu
                         		//done for rgaa / wcag
                         		try {
                         			setTimeout(()=>{
-                        				let elems = document.getElementsByClassName("my-custom-interface")[0].querySelectorAll("ion-item ion-label");
-                        				elems[0]["lang"]= "fr";
-                        				elems[1]["lang"]= "en";
-                        				elems[2]["lang"]= "es";
-                        				elems[3]["lang"]= "it";
+                        				const supportedLanguages = ["fr", "en", "es", "it", "zh-CN"];
+                        				const languagePopover =
+                        					document.getElementsByClassName("custom-popover")[0] ||
+                        					document.getElementsByClassName("my-custom-interface")[0];
+                        				let elems = languagePopover?.querySelectorAll("ion-item ion-label") || [];
+                        				supportedLanguages.forEach((language, index) => {
+                        					if (elems[index] != null) {
+                        						elems[index]["lang"] = language;
+                        					}
+                        				});
                         			},1000)
                         		} catch (e) {
                         		

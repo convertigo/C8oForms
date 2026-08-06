@@ -336,65 +336,239 @@ componentScriptContent:
         		}
         	}
         
+        	public getEnabledApplicationLocales(): string[] {
+        		return ["fr", "en", "es", "it", "zh-CN"];
+        	}
+        
+        	public normalizeLocaleCandidate(value: any): string | null {
+        		if (value == null) {
+        			return null;
+        		}
+        
+        		let rawValue: string;
+        		try {
+        			rawValue = typeof value === "string" ? value : String(value);
+        		}
+        		catch (e) {
+        			return null;
+        		}
+        
+        		const normalizedValue = rawValue.trim().replace(/_/g, "-");
+        		if (normalizedValue === "") {
+        			return null;
+        		}
+        
+        		const normalizedLowerValue = normalizedValue.toLowerCase();
+        		const primaryLanguage = normalizedLowerValue.split("-")[0];
+        
+        		if (primaryLanguage === "fr") {
+        			return "fr";
+        		}
+        		if (primaryLanguage === "en") {
+        			return "en";
+        		}
+        		if (primaryLanguage === "es") {
+        			return "es";
+        		}
+        		if (primaryLanguage === "it") {
+        			return "it";
+        		}
+        
+        		if (
+        			normalizedLowerValue === "zh-cn" ||
+        			normalizedLowerValue === "zh-sg" ||
+        			normalizedLowerValue === "zh-hans"
+        		) {
+        			return "zh-CN";
+        		}
+        
+        		return null;
+        	}
+        
+        	public isEnabledApplicationLocale(value: any): boolean {
+        		const canonicalLocale = this.normalizeLocaleCandidate(value);
+        		return canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1;
+        	}
+        
+        	public resolveEnabledLocale(value: any, fallback: string = "en"): string {
+        		const canonicalLocale = this.normalizeLocaleCandidate(value);
+        		if (canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1) {
+        			return canonicalLocale;
+        		}
+        
+        		const fallbackLocale = this.normalizeLocaleCandidate(fallback);
+        		if (fallbackLocale != null && this.getEnabledApplicationLocales().indexOf(fallbackLocale) !== -1) {
+        			return fallbackLocale;
+        		}
+        
+        		return "en";
+        	}
+        
+        	public resolveFirstEnabledLocale(candidates: any[], fallback: any = "en", finalSafeLocale: string = "en"): string {
+        		const sourceCandidates = Array.isArray(candidates) ? candidates : [candidates];
+        		for (const candidate of sourceCandidates) {
+        			const canonicalLocale = this.normalizeLocaleCandidate(candidate);
+        			if (canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1) {
+        				return canonicalLocale;
+        			}
+        		}
+        
+        		const fallbackLocale = this.normalizeLocaleCandidate(fallback);
+        		if (fallbackLocale != null && this.getEnabledApplicationLocales().indexOf(fallbackLocale) !== -1) {
+        			return fallbackLocale;
+        		}
+        
+        		const safeLocale = this.normalizeLocaleCandidate(finalSafeLocale);
+        		if (safeLocale != null && this.getEnabledApplicationLocales().indexOf(safeLocale) !== -1) {
+        			return safeLocale;
+        		}
+        
+        		return "en";
+        	}
+        
+        
+        	public getCanonicalEnabledLocale(value: any): string | null {
+        		const canonicalLocale = this.normalizeLocaleCandidate(value);
+        		if (canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1) {
+        			return canonicalLocale;
+        		}
+        
+        		return null;
+        	}
+        
+        	public getBrowserLocaleCandidates(): any[] {
+        		const candidates: any[] = [];
+        
+        		try {
+        			const languages = typeof navigator !== "undefined" && Array.isArray(navigator.languages)
+        				? navigator.languages
+        				: [];
+        
+        			for (const language of languages) {
+        				if (language != null && candidates.indexOf(language) === -1) {
+        					candidates.push(language);
+        				}
+        			}
+        		}
+        		catch (e) {
+        			// Ignore browser locale lookup failures and keep the configured fallback.
+        		}
+        
+        		try {
+        			const language = typeof navigator !== "undefined" ? navigator.language : null;
+        			if (language != null && candidates.indexOf(language) === -1) {
+        				candidates.push(language);
+        			}
+        		}
+        		catch (e) {
+        			// Ignore browser locale lookup failures and keep the configured fallback.
+        		}
+        
+        		return candidates;
+        	}
+        
+        	public getContentLanguageMetaElement(): HTMLMetaElement {
+        		let metaLanguage = document.querySelector("meta[http-equiv=''Content-Language'']") as HTMLMetaElement;
+        		if (metaLanguage == null) {
+        			metaLanguage = document.createElement("meta");
+        			metaLanguage.setAttribute("http-equiv", "Content-Language");
+        			document.getElementsByTagName("head")[0].appendChild(metaLanguage);
+        		}
+        
+        		return metaLanguage;
+        	}
+        
+        	public updateApplicationLocaleMetadata(locale: any): string | null {
+        		const canonicalLocale = this.getCanonicalEnabledLocale(locale);
+        		if (canonicalLocale == null) {
+        			return null;
+        		}
+        
+        		window.document.getElementsByTagName("html")[0].setAttribute("lang", canonicalLocale);
+        		this.getContentLanguageMetaElement().setAttribute("content", canonicalLocale);
+        
+        		return canonicalLocale;
+        	}
+        
+        	public applyApplicationLocale(locale: any, options: any = null): any {
+        		const canonicalLocale = this.getCanonicalEnabledLocale(locale);
+        		if (canonicalLocale == null) {
+        			return null;
+        		}
+        
+        		const applyOptions = options ?? {};
+        		if (applyOptions.setDefault !== false && typeof this.translate?.setDefaultLang === "function") {
+        			this.translate.setDefaultLang(canonicalLocale);
+        		}
+        
+        		let languageChange$: any = null;
+        		if (applyOptions.useTranslate !== false && typeof this.translate?.use === "function") {
+        			if (this.translate?.currentLang !== canonicalLocale) {
+        				languageChange$ = this.translate.use(canonicalLocale);
+        			}
+        		}
+        
+        		if (applyOptions.persistLocal === true) {
+        			window.localStorage.setItem("lang", canonicalLocale);
+        		}
+        
+        		if (applyOptions.persistGlobal !== false) {
+        			this.global.settings ??= {};
+        			this.global.settings.language = canonicalLocale;
+        			this.global.language = canonicalLocale;
+        		}
+        
+        		if (applyOptions.updateMetadata !== false) {
+        			this.updateApplicationLocaleMetadata(canonicalLocale);
+        		}
+        
+        		return {
+        			locale: canonicalLocale,
+        			languageChange: languageChange$
+        		};
+        	}
+        
         	/** configure language pref and fix chrome''s translate issue */
         	public configureLang() {
-        		// get logs preference from local storage
-        		let localLang = window.localStorage.getItem("lang");
-        		if (localLang != undefined && localLang != "undefined") {
-        			this.translate.setDefaultLang(localLang);
-        			this.translate.use(localLang);
-        		}
-        		else {
-        			try {
-        				let navLang = navigator.language;
-        				if (navLang.indexOf("fr") == 0) {
-        					localLang = "fr";
-        					this.translate.setDefaultLang(''fr'');
-        				}
-        				else if (navLang.indexOf("en") == 0) {
-        					localLang = "en";
-        					this.translate.setDefaultLang(''en'');
-        				}
-        				else if (navLang.indexOf("es") == 0) {
-        					localLang = "es";
-        					this.translate.setDefaultLang(''es'');
-        				}
-        				else {
-        					localLang = "en";
-        					this.translate.setDefaultLang(''en'');
-        				}
+        		const storedLang = window.localStorage.getItem("lang");
+        		const hasStoredLang = storedLang != null && storedLang !== "" && storedLang !== "undefined";
+        		const browserLocaleCandidates = this.getBrowserLocaleCandidates();
+        		const localLang = this.resolveFirstEnabledLocale(
+        			hasStoredLang ? [storedLang, ...browserLocaleCandidates] : browserLocaleCandidates,
+        			"en",
+        			"en"
+        		);
+        		const canonicalStoredLang = hasStoredLang ? this.getCanonicalEnabledLocale(storedLang) : null;
+        		const shouldCanonicalizeStoredLang = canonicalStoredLang != null && storedLang !== canonicalStoredLang;
         
-        			}
-        			catch (e) {
-        				localLang = "en";
-        				this.translate.setDefaultLang(''en'');
-        			}
-        			this.global["__secretL"] = localLang;
-        		}
-        		// Fix Chrome''s translate issue and add meta tags
-        		window.document.getElementsByTagName("html")[0].setAttribute("lang", localLang);
-        
-        		// Add meta tags for language and charset
-        		let metaLanguage = document.createElement(''meta'');
-        		metaLanguage.setAttribute(''http-equiv'', ''Content-Language'');
-        		metaLanguage.setAttribute(''content'', localLang);
-        		document.getElementsByTagName(''head'')[0].appendChild(metaLanguage);
-        
-        		let metaCharset = document.createElement(''meta'');
-        		metaCharset.setAttribute(''charset'', ''UTF-8'');
-        		document.getElementsByTagName(''head'')[0].appendChild(metaCharset);
-        
-        		this.translate.onLangChange.subscribe((e) => {
-        			window.document.getElementsByTagName("html")[0].setAttribute("lang", e.lang);
-        
-        			// Update meta language tag when language changes
-        			metaLanguage.setAttribute(''content'', e.lang);
+        		this.applyApplicationLocale(localLang, {
+        			setDefault: true,
+        			useTranslate: true,
+        			persistLocal: shouldCanonicalizeStoredLang,
+        			persistGlobal: true,
+        			updateMetadata: true,
+        			source: "startup"
         		});
         
-        		if (Object.keys(this.global.settings).length <= 1) {
-        			this.global.settings["language"] = localLang;
+        		if (!hasStoredLang) {
+        			this.global["__secretL"] = localLang;
+        		}
+        
+        		let metaCharset = document.querySelector("meta[charset]") as HTMLMetaElement;
+        		if (metaCharset == null) {
+        			metaCharset = document.createElement("meta");
+        			metaCharset.setAttribute("charset", "UTF-8");
+        			document.getElementsByTagName("head")[0].appendChild(metaCharset);
+        		}
+        
+        		if (this.global.__c8oLocaleMetadataSubscriptionBound !== true) {
+        			this.global.__c8oLocaleMetadataSubscriptionBound = true;
+        			this.translate.onLangChange.subscribe((e) => {
+        				this.updateApplicationLocaleMetadata(e?.lang);
+        			});
         		}
         	}
+        
         
         	/** set gdrp structure */
         	public async defineGdrp(translate) {
@@ -3358,24 +3532,84 @@ useClickForTap: true
             //					window["__c8o__translate"]["use"](userSettings?.res?.language);
             //				}
             				const translate = window["__c8o__translate"];
+            				const localeOwner: any = page;
             				
+            				const normalizeLocaleCandidate =
+            				  typeof localeOwner?.normalizeLocaleCandidate === "function"
+            				    ? localeOwner.normalizeLocaleCandidate.bind(localeOwner)
+            				    : (_value: any) => null;
+            				const isEnabledApplicationLocale =
+            				  typeof localeOwner?.isEnabledApplicationLocale === "function"
+            				    ? localeOwner.isEnabledApplicationLocale.bind(localeOwner)
+            				    : (_value: any) => false;
+            				const resolveFirstEnabledLocale =
+            				  typeof localeOwner?.resolveFirstEnabledLocale === "function"
+            				    ? localeOwner.resolveFirstEnabledLocale.bind(localeOwner)
+            				    : (candidates: any[], fallback: string = "fr", finalSafeLocale: string = "fr") => {
+            				        const sourceCandidates = Array.isArray(candidates) ? candidates : [candidates];
+            				        for (const candidate of sourceCandidates) {
+            				          const canonicalCandidate = normalizeLocaleCandidate(candidate);
+            				          if (canonicalCandidate != null && isEnabledApplicationLocale(canonicalCandidate)) {
+            				            return canonicalCandidate;
+            				          }
+            				        }
+            
+            				        const canonicalFallback = normalizeLocaleCandidate(fallback);
+            				        if (canonicalFallback != null && isEnabledApplicationLocale(canonicalFallback)) {
+            				          return canonicalFallback;
+            				        }
+            
+            				        const canonicalFinalSafeLocale = normalizeLocaleCandidate(finalSafeLocale);
+            				        if (canonicalFinalSafeLocale != null && isEnabledApplicationLocale(canonicalFinalSafeLocale)) {
+            				          return canonicalFinalSafeLocale;
+            				        }
+            
+            				        return "fr";
+            				      };
+            				
+            				const browserLocaleCandidates =
+            				  typeof localeOwner?.getBrowserLocaleCandidates === "function"
+            				    ? localeOwner.getBrowserLocaleCandidates()
+            				    : [];
             				const storedLanguage = localStorage.getItem("lang");
+            				const hasStoredLanguage = storedLanguage != null && storedLanguage !== "" && storedLanguage !== "undefined";
+            				const canonicalStoredLanguage = hasStoredLanguage ? normalizeLocaleCandidate(storedLanguage) : null;
+            				const hasUsableStoredLanguage = canonicalStoredLanguage != null && isEnabledApplicationLocale(canonicalStoredLanguage);
             				const userLanguage = userSettings?.res?.language;
-            				
-            				const languageToUse =
-            				  storedLanguage ??
-            				  userLanguage ??
-            				  "fr";
+            				const languageToUse = resolveFirstEnabledLocale(
+            				  [hasUsableStoredLanguage ? storedLanguage : null, userLanguage, ...browserLocaleCandidates],
+            				  "fr",
+            				  "fr"
+            				);
             				
             				if (languageToUse != null) {
-            				  translate?.use?.(languageToUse);
-            				  page.global.language = languageToUse;
-            				  page.global.settings ??= {};
-            				  page.global.settings.language = languageToUse;
+            				  const applyApplicationLocale =
+            				    typeof localeOwner?.applyApplicationLocale === "function"
+            				      ? localeOwner.applyApplicationLocale.bind(localeOwner)
+            				      : null;
+            				
+            				  if (applyApplicationLocale != null) {
+            				    applyApplicationLocale(languageToUse, {
+            				      setDefault: false,
+            				      useTranslate: true,
+            				      persistLocal: false,
+            				      persistGlobal: true,
+            				      updateMetadata: true,
+            				      source: "appguard"
+            				    });
+            				  } else {
+            				    translate?.use?.(languageToUse);
+            				    page.global.language = languageToUse;
+            				    page.global.settings ??= {};
+            				    page.global.settings.language = languageToUse;
+            				  }
             				}
             				
-            				if (storedLanguage == null && userLanguage != null) {
-            				  localStorage.setItem("lang", userLanguage);
+            				if (!hasUsableStoredLanguage && userLanguage != null) {
+            				  const normalizedUserLanguage = normalizeLocaleCandidate(userLanguage);
+            				  if (normalizedUserLanguage != null && isEnabledApplicationLocale(normalizedUserLanguage)) {
+            				    localStorage.setItem("lang", normalizedUserLanguage);
+            				  }
             				}
             			}
             			catch(e){
