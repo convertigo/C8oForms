@@ -9,7 +9,27 @@ comment: |
   expression: |
     '// Imports and helpers functions
     include("js/common.js");
-    
+    function normalizeBackendCreationLocale(value) {
+        if (value == null || value == undefined) {
+            return null;
+        }
+        var valueType = Object.prototype.toString.call(value);
+        if (valueType == "[object Array]" || valueType == "[object Object]") {
+            return null;
+        }
+        var candidate = String(value).replace(/^\s+|\s+$/g, "");
+        if (candidate == "") {
+            return null;
+        }
+        var normalized = candidate.replace(/_/g, "-").toLowerCase();
+        if (normalized == "fr" || normalized == "en" || normalized == "es" || normalized == "it") {
+            return normalized;
+        }
+        if (normalized == "zh-cn" || normalized == "zh-sg" || normalized == "zh-hans") {
+            return "zh-CN";
+        }
+        return null;
+    }
     let loglevel = "warn";
     let authenticatedUserID = context.getAuthenticatedUser();
     var doc = {};
@@ -23,28 +43,37 @@ comment: |
     var args = {};
     var arrayAuthorized = ["favorites", "published_first", "language", "provider", "mail", "editing_rights", "c8o_view_type_users", "name", "surname", "displayName", "picture", "admin", "~c8oAcl", "nocode_db_rights", "formulas", "admin_readonly", "publication"];
     for (let i = 0; i < arrayAuthorized.length; i++) {
-    	if (meta[arrayAuthorized[i]] !== undefined) {
-    		args[arrayAuthorized[i]] = meta[arrayAuthorized[i]];
-    	}
+        var authorizedKey = arrayAuthorized[i];
+        if (meta[authorizedKey] !== undefined) {
+            if (authorizedKey == "language") {
+                var normalizedLanguage = normalizeBackendCreationLocale(meta[authorizedKey]);
+                if (normalizedLanguage != null) {
+                    args[authorizedKey] = normalizedLanguage;
+                }
+            }
+            else {
+                args[authorizedKey] = meta[authorizedKey];
+            }
+        }
     }
     if(args["provider"] == undefined || args["provider"] === ""){
-    	args["provider"] = "forms";
+        args["provider"] = "forms";
     }
     if(args["editing_rights"] != undefined){
-    	args["editing_rights"] = args["editing_rights"] + "";
+        args["editing_rights"] = args["editing_rights"] + "";
     }
     if(args["nocode_db_rights"] != undefined){
-    	args["nocode_db_rights"] = args["nocode_db_rights"] + "";
+        args["nocode_db_rights"] = args["nocode_db_rights"] + "";
     }
     args["c8o_view_type_users"] = true;
     args["_id"] = "C8Oreserved_" + args["mail"];
     args["~c8oAcl"] = args["mail"];
     var resp = (callSequence("lib_UserManager", "AddUser", { user: args["mail"], password: "", askForPasswordReset: "true" }));
     if(resp.document && resp.document.error != undefined){
-    	doc.ok = false;
+        doc.ok = false;
     }
     else{
-    	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(args), new HashMap(), enums.CouchPostDocumentPolicy.none, new HashMap(), false));
+        doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(args), new HashMap(), enums.CouchPostDocumentPolicy.none, new HashMap(), false));
     }
     '
 ↓object [steps.JsonToXmlStep-1740049699668]: 

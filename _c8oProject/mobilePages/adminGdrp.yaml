@@ -405,67 +405,129 @@ title: Title for adminGdrp
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
               '		try {
-              			setTimeout(async () => {				
-              //				console.log(page.global, page.global.c8oGDRPmenu, page.global.c8oGDRPmenu._text);
-              				try {
-              					if (page.isValidJSON(page.global.c8oGDRPmenu.text))	{						
-              						page.local.menu = JSON.parse(page.global.c8oGDRPmenu.text);
-              					} else {
-              						page.local.menu = {
-              							"fr": "",
-              							"en": "",
-              							"es": "",
-              							"it": ""
-              						}
-              						page.local.menu[page.translate.currentLang] = page.global.c8oGDRPmenu.text;
+              			setTimeout(async () => {
+              				const supportedLocales = ["fr", "en", "es", "it", "zh-CN"];
+              				const isObject = (value) => value != null && typeof value === "object" && !Array.isArray(value);
+              				const ensureObject = (parent, key) => {
+              					if (!isObject(parent[key])) {
+              						parent[key] = {};
               					}
-              				} catch(e) {
-              //					console.log(page.global.c8oGDRPmenu, page.global);		
-              					page.local.menu = page.global.c8oGDRPmenu.text;
-              		//			console.error(e);
-              					throw e;
-              				}
-              			
-              				try {
-              		//			console.log(page.global.c8oGDRPtoast);
-              					if (page.isValidJSON(page.global.c8oGDRPtoast.text)) {
-              						page.local.toast = JSON.parse(page.global.c8oGDRPtoast.text);						
-              					} else {
-              						page.local.toast = {
-              							"fr": "",
-              							"en": "",
-              							"es": "",
-              							"it": ""
+              					return parent[key];
+              				};
+              				const getNodeText = (node) => {
+              					if (node == null) {
+              						return "";
+              					}
+              					if (typeof node.text === "string") {
+              						return node.text;
+              					}
+              					if (typeof node._text === "string") {
+              						return node._text;
+              					}
+              					if (typeof node === "string") {
+              						return node;
+              					}
+              					return "";
+              				};
+              				const parseLocalizedMap = (node) => {
+              					const text = getNodeText(node);
+              					if (page.isValidJSON(text)) {
+              						return JSON.parse(text);
+              					}
+              					const localizedMap = {"fr": "", "en": "", "es": "", "it": "", "zh-CN": ""};
+              					const currentLang = page.translate?.currentLang || page.lang || "fr";
+              					if (text !== "" && localizedMap[currentLang] != null) {
+              						localizedMap[currentLang] = text;
+              					}
+              					return localizedMap;
+              				};
+              				const blankSectionFrom = (source) => ({
+              					title: "",
+              					description: "",
+              					icon: {
+              						color: source?.icon?.color || "var(--ion-color-primary)",
+              						backgroundColor: source?.icon?.backgroundColor || "transparent",
+              						name: source?.icon?.name || "database"
+              					}
+              				});
+              				const ensureStableGdprMenu = (menu) => {
+              					if (!isObject(menu)) {
+              						menu = {};
+              					}
+              					const toastViewers = ensureObject(menu, "toast_viewers_description");
+              					const toastBuilders = ensureObject(menu, "toast_builders_description");
+              					const symbols = ensureObject(menu, "symbols");
+              					const symbolsMenu = ensureObject(symbols, "menu");
+              					const symbolsToast = ensureObject(symbols, "toast");
+              					const dpoSection = ensureObject(menu, "dpo_section");
+              					const sections = ensureObject(menu, "sections");
+              					const sourceSections = Array.isArray(sections.fr)
+              						? sections.fr
+              						: supportedLocales.map((locale) => sections[locale]).find((value) => Array.isArray(value)) || [];
+              					supportedLocales.forEach((locale) => {
+              						if (toastViewers[locale] == null) toastViewers[locale] = "";
+              						if (toastBuilders[locale] == null) toastBuilders[locale] = "";
+              						if (symbolsMenu[locale] == null) symbolsMenu[locale] = "";
+              						if (symbolsToast[locale] == null) symbolsToast[locale] = "";
+              						if (!isObject(dpoSection[locale])) dpoSection[locale] = {title: "", description: "", email: ""};
+              						if (!Array.isArray(sections[locale])) {
+              							sections[locale] = sourceSections.length > 0
+              								? sourceSections.map(blankSectionFrom)
+              								: [blankSectionFrom(null)];
               						}
-              						page.local.toast[page.translate.currentLang] = page.global.c8oGDRPtoast.text;					
-              					}  
-              		//			console.log(page.local.data);
-              				} catch(e) {
-              					page.local.toast = page.global.c8oGDRPtoast.text;
-              					throw e;
-              				}
+              					});
+              					return menu;
+              				};
+              				const ensureStableToastMap = (toast) => {
+              					if (!isObject(toast)) {
+              						toast = {};
+              					}
+              					supportedLocales.forEach((locale) => {
+              						if (toast[locale] == null) {
+              							toast[locale] = "";
+              						}
+              					});
+              					return toast;
+              				};
+              
+              				page.local.menu = parseLocalizedMap(page.global?.c8oGDRPmenu);
+              				page.local.toast = parseLocalizedMap(page.global?.c8oGDRPtoast);
               				page.local.loading = false;
-              				
-              				if (page.local.menu[page.translate.currentLang]) {
-              					var data = await page.c8o.callJsonObject(''C8Oforms.admin_gdrp_get'', {});
-              					page.local.menu = data[''data'']?.symbols?.menu;
-              					page.local.toast = data[''data'']?.symbols?.toast;
-              //					console.log(data);
+              
+              				try {
+              					const gdprResponse = await page.c8o.callJsonObject("C8Oforms.admin_gdrp_get", {});
+              					const gdprResponseRecord = isObject(gdprResponse)
+              						? gdprResponse as unknown as Record<string, unknown>
+              						: {};
+              					const gdprDataCandidate = gdprResponseRecord["data"];
+              					const gdprData = isObject(gdprDataCandidate)
+              						? gdprDataCandidate as Record<string, unknown>
+              						: {};
+              					const symbolsCandidate = gdprData["symbols"];
+              					const symbols = isObject(symbolsCandidate)
+              						? symbolsCandidate as Record<string, unknown>
+              						: {};
+              					const menuData = symbols["menu"];
+              					const toastData = symbols["toast"];
+              					page.local.menu = ensureStableGdprMenu(isObject(menuData) ? menuData : page.local.menu);
+              					page.local.toast = ensureStableToastMap(isObject(toastData) ? toastData : page.local.toast);
               				}
+              				catch (e) {
+              					page.local.menu = ensureStableGdprMenu(page.local.menu);
+              					page.local.toast = ensureStableToastMap(page.local.toast);
+              				}
+              
               				page.ref.detectChanges();
               				return true;
-              			}, 500)
-              //			return;
-              		} catch(e) {
+              			}, 500);
+              		}
+              		catch (e) {
               			console.error(e);
-              //			console.dir(e);
               			page.ref.detectChanges();
-              //			return;
-              		} finally {
-              //			console.log(page.local);
+              		}
+              		finally {
               			page.ref.detectChanges();
-              //			return;
-              		}	
+              		}
               '
 ↓Header [ngx.components.UIDynamicElement-1764942516600]: 
   beanData: '{"ionBean":"Header"}'
@@ -1102,16 +1164,28 @@ title: Title for adminGdrp
                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                           →: |
-                            '		try {
+                            '		let success = true;
+                            		try {
                             			page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                             			await page.defineGdrp(page.translate);
                             		} catch (e) {
                             			console.error(e);
-                            			return false;
+                            			success = false;
                             		} finally {
-                            			page.local.menu = JSON.parse(page.global.c8oGDRPmenu._text);
-                            			page.local.toast = JSON.parse(page.global.c8oGDRPtoast._text);
-                            			return true;
+                            			const parseGdprNode = (node, fallback) => {
+                            				const raw = node != null && typeof node._text === "string"
+                            					? node._text
+                            					: node != null && typeof node.text === "string"
+                            						? node.text
+                            						: "";
+                            				if (raw !== "" && page.isValidJSON(raw)) {
+                            					return JSON.parse(raw);
+                            				}
+                            				return fallback;
+                            			};
+                            			page.local.menu = parseGdprNode(page.global?.c8oGDRPmenu, page.local?.menu || {});
+                            			page.local.toast = parseGdprNode(page.global?.c8oGDRPtoast, page.local?.toast || {});
+                            			return success;
                             		}
                             '
             ↓Style [ngx.components.UIStyle-1764950292126]: 
@@ -1287,6 +1361,51 @@ title: Title for adminGdrp
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
                       '		try {
+                      			const selectedLang = event?.detail?.value ?? event;
+                      			const ensureBlankLocalizedGdprData = (targetLang) => {
+                      				if (targetLang !== "zh-CN" || page?.local?.menu == null || typeof page.local.menu !== "object") {
+                      					return;
+                      				}
+                      				const menu = page.local.menu;
+                      				const blankSectionFrom = (source) => ({
+                      					title: "",
+                      					description: "",
+                      					icon: {
+                      						color: source?.icon?.color || "var(--ion-color-primary)",
+                      						backgroundColor: source?.icon?.backgroundColor || "transparent",
+                      						name: source?.icon?.name || "database"
+                      					}
+                      				});
+                      				menu.toast_viewers_description = menu.toast_viewers_description || {};
+                      				menu.toast_builders_description = menu.toast_builders_description || {};
+                      				menu.symbols = menu.symbols || {};
+                      				menu.symbols.menu = menu.symbols.menu || {};
+                      				menu.symbols.toast = menu.symbols.toast || {};
+                      				menu.dpo_section = menu.dpo_section || {};
+                      				menu.sections = menu.sections || {};
+                      				if (menu.toast_viewers_description["zh-CN"] == null) {
+                      					menu.toast_viewers_description["zh-CN"] = "";
+                      				}
+                      				if (menu.toast_builders_description["zh-CN"] == null) {
+                      					menu.toast_builders_description["zh-CN"] = "";
+                      				}
+                      				if (menu.symbols.menu["zh-CN"] == null) {
+                      					menu.symbols.menu["zh-CN"] = "";
+                      				}
+                      				if (menu.symbols.toast["zh-CN"] == null) {
+                      					menu.symbols.toast["zh-CN"] = "";
+                      				}
+                      				if (menu.dpo_section["zh-CN"] == null) {
+                      					menu.dpo_section["zh-CN"] = { title: "", description: "", email: "" };
+                      				}
+                      				if (!Array.isArray(menu.sections["zh-CN"])) {
+                      					const sourceSections = Array.isArray(menu.sections.fr) ? menu.sections.fr : [];
+                      					menu.sections["zh-CN"] = sourceSections.length > 0
+                      						? sourceSections.map(blankSectionFrom)
+                      						: [blankSectionFrom(null)];
+                      				}
+                      			};
+                      			ensureBlankLocalizedGdprData(selectedLang);
                       			page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta:JSON.stringify({"published_First" : ""+event})}).async();
                       		} catch (e) {
                       		
@@ -1384,6 +1503,14 @@ title: Title for adminGdrp
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:'it' | translate
+          ↓SelectOptionZH [ngx.components.UIDynamicElement-1786013739683]: 
+            beanData: '{"ionBean":"SelectOption","Value":"plain:zh-CN"}'
+            tagName: ion-select-option
+            ↓Text [ngx.components.UIText-1786013739685]: 
+              textValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:'zh-CN' | translate
         ↓Attr2 [ngx.components.UIAttribute-1764950731408]: 
           attrName: '[ngClass]'
           attrValue: 

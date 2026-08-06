@@ -494,23 +494,170 @@ title: Settings
                               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                 →: |
-                                  '		let lang = event.toString();
-                                  		if(lang != undefined && lang != ""){
-                                  		    localStorage.setItem(''lang'', lang);
-                                  	        window["__c8o__translate"]["use"](lang);
-                                  	        page.fr = false;
-                                  	        page.en = false;
-                                  	        page.es = false;
-                                  	        page.selectedItem = lang;
-                                  	        this[lang] = true;
-                                  			this.local.visible = true;
-                                  	        resolve(lang);
+                                  '		const readLanguageValue = (value) => {
+                                  			if (typeof value?.detail?.value === "string") {
+                                  				return value.detail.value;
+                                  			}
+                                  			if (typeof value === "string") {
+                                  				return value;
+                                  			}
+                                  			if (value == null) {
+                                  				return "";
+                                  			}
+                                  			try {
+                                  				return String(value);
+                                  			}
+                                  			catch (e) {
+                                  				return "";
+                                  			}
+                                  		};
+                                  
+                                  		const fallbackCanonicalLocale = (value) => {
+                                  			const normalizedValue = readLanguageValue(value).trim().replace(/_/g, "-");
+                                  			if (normalizedValue === "") {
+                                  				return null;
+                                  			}
+                                  			const normalizedLowerValue = normalizedValue.toLowerCase();
+                                  			const primaryLanguage = normalizedLowerValue.split("-")[0];
+                                  			if (primaryLanguage === "fr") {
+                                  				return "fr";
+                                  			}
+                                  			if (primaryLanguage === "en") {
+                                  				return "en";
+                                  			}
+                                  			if (primaryLanguage === "es") {
+                                  				return "es";
+                                  			}
+                                  			if (primaryLanguage === "it") {
+                                  				return "it";
+                                  			}
+                                  			if (normalizedLowerValue === "zh-cn" || normalizedLowerValue === "zh-sg" || normalizedLowerValue === "zh-hans") {
+                                  				return "zh-CN";
+                                  			}
+                                  			return null;
+                                  		};
+                                  
+                                  		const rawLang = readLanguageValue(event);
+                                  		const localeOwner = page?.pageOwner || page?.owner || page;
+                                  		const canonicalLang =
+                                  			typeof localeOwner?.getCanonicalEnabledLocale === "function"
+                                  				? localeOwner.getCanonicalEnabledLocale(rawLang)
+                                  				: typeof localeOwner?.normalizeLocaleCandidate === "function"
+                                  					? localeOwner.normalizeLocaleCandidate(rawLang)
+                                  					: fallbackCanonicalLocale(rawLang);
+                                  
+                                  		if (canonicalLang == null || ["fr", "en", "es", "it", "zh-CN"].indexOf(canonicalLang) === -1) {
+                                  			resolve(null);
+                                  			return;
                                   		}
-                                  		setTimeout(()=>{
-                                  			this.local.visible = undefined;
-                                  		},0);
-                                  		page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta:JSON.stringify({"language" : lang})}).async();
-                                  		page.global.settings.language = lang;
+                                  
+                                  		let lang = canonicalLang;
+                                  		page["fr"] = lang === "fr";
+                                  		page["en"] = lang === "en";
+                                  		page["es"] = lang === "es";
+                                  		page["it"] = lang === "it";
+                                  		page["zh-CN"] = lang === "zh-CN";
+                                  		page.selectedItem = lang;
+                                  		if (page.local != null) {
+                                  			page.local.visible = true;
+                                  		}
+                                  
+                                  		const translate = window["__c8o__translate"] || page.translate;
+                                  		const applyApplicationLocale =
+                                  			typeof localeOwner?.applyApplicationLocale === "function"
+                                  				? localeOwner.applyApplicationLocale.bind(localeOwner)
+                                  				: null;
+                                  		let languageChange$ = null;
+                                  
+                                  		if (applyApplicationLocale != null) {
+                                  			const appliedLocale = applyApplicationLocale(lang, {
+                                  				setDefault: true,
+                                  				useTranslate: true,
+                                  				persistLocal: true,
+                                  				persistGlobal: true,
+                                  				updateMetadata: true,
+                                  				source: "settings-page"
+                                  			});
+                                  			if (appliedLocale == null) {
+                                  				resolve(null);
+                                  				return;
+                                  			}
+                                  			lang = appliedLocale.locale || lang;
+                                  			languageChange$ = appliedLocale.languageChange;
+                                  		}
+                                  		else {
+                                  			localStorage.setItem("lang", lang);
+                                  			if (page.global.settings == null) {
+                                  				page.global.settings = {};
+                                  			}
+                                  			page.global.settings.language = lang;
+                                  			page.global.language = lang;
+                                  			if (typeof translate?.setDefaultLang === "function") {
+                                  				translate.setDefaultLang(lang);
+                                  			}
+                                  			if (typeof translate?.use === "function") {
+                                  				languageChange$ = translate.use(lang);
+                                  			}
+                                  			try {
+                                  				window.document.getElementsByTagName("html")[0].setAttribute("lang", lang);
+                                  				let metaLanguage = document.querySelector("meta[http-equiv=''Content-Language'']");
+                                  				if (metaLanguage == null) {
+                                  					metaLanguage = document.createElement("meta");
+                                  					metaLanguage.setAttribute("http-equiv", "Content-Language");
+                                  					document.getElementsByTagName("head")[0].appendChild(metaLanguage);
+                                  				}
+                                  				metaLanguage.setAttribute("content", lang);
+                                  			}
+                                  			catch (e) {
+                                  			}
+                                  		}
+                                  
+                                  		const persistUserSettings = () => {
+                                  			try {
+                                  				page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"language": lang})}).async();
+                                  			}
+                                  			catch (e) {
+                                  			}
+                                  		};
+                                  
+                                  		const finishLanguageChange = () => {
+                                  			persistUserSettings();
+                                  			setTimeout(() => {
+                                  				if (page.local != null) {
+                                  					page.local.visible = undefined;
+                                  				}
+                                  				if (page.ref != null && typeof page.ref.detectChanges === "function") {
+                                  					page.ref.detectChanges();
+                                  				}
+                                  			}, 0);
+                                  			resolve(lang);
+                                  		};
+                                  
+                                  		try {
+                                  			if (languageChange$ != null && typeof languageChange$.subscribe === "function") {
+                                  				languageChange$.subscribe({
+                                  					next: () => finishLanguageChange(),
+                                  					error: (error) => {
+                                  						if (page.local != null) {
+                                  							page.local.visible = undefined;
+                                  						}
+                                  						reject(error);
+                                  					}
+                                  				});
+                                  			}
+                                  			else if (languageChange$ != null && typeof languageChange$.then === "function") {
+                                  				languageChange$.then(() => finishLanguageChange()).catch((error) => reject(error));
+                                  			}
+                                  			else {
+                                  				finishLanguageChange();
+                                  			}
+                                  		}
+                                  		catch (error) {
+                                  			if (page.local != null) {
+                                  				page.local.visible = undefined;
+                                  			}
+                                  			reject(error);
+                                  		}
                                   '
                           ↓SetGlobal [ngx.components.UIDynamicAction-1587717673248]: 
                             beanData: |
@@ -533,6 +680,14 @@ title: Settings
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                               - MobileSmartSourceType: script:'it' | translate
+                      ↓SelectOptionZH [ngx.components.UIDynamicElement-1786015919567]: 
+                        beanData: '{"ionBean":"SelectOption","Value":"plain:zh-CN"}'
+                        tagName: ion-select-option
+                        ↓Text [ngx.components.UIText-1786015919569]: 
+                          textValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: script:'zh-CN' | translate
                     ↓Attr2 [ngx.components.UIAttribute-1587717673269]: 
                       attrName: '[ngClass]'
                       attrValue: 
@@ -1411,23 +1566,101 @@ title: Settings
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		let lang = event.toString();
-                                		if(lang != undefined && lang != ""){
-                                		    localStorage.setItem(''lang'', lang);
-                                	        window["__c8o__translate"]["use"](lang);
-                                	        page.fr = false;
-                                	        page.en = false;
-                                	        page.es = false;
-                                	        page.selectedItem = lang;
-                                	        this[lang] = true;
-                                			this.local.visible = true;
-                                	        resolve(lang);
+                                '		const readLanguageValue = (value) => {
+                                			if (typeof value?.detail?.value === "string") {
+                                				return value.detail.value;
+                                			}
+                                			if (typeof value === "string") {
+                                				return value;
+                                			}
+                                			if (value == null) {
+                                				return "";
+                                			}
+                                			try {
+                                				return String(value);
+                                			}
+                                			catch (e) {
+                                				return "";
+                                			}
+                                		};
+                                		const fallbackCanonicalLocale = (value) => {
+                                			const normalizedValue = readLanguageValue(value).trim().replace(/_/g, "-");
+                                			if (normalizedValue === "") {
+                                				return null;
+                                			}
+                                			const normalizedLowerValue = normalizedValue.toLowerCase();
+                                			const primaryLanguage = normalizedLowerValue.split("-")[0];
+                                			if (primaryLanguage === "fr") return "fr";
+                                			if (primaryLanguage === "en") return "en";
+                                			if (primaryLanguage === "es") return "es";
+                                			if (primaryLanguage === "it") return "it";
+                                			if (normalizedLowerValue === "zh-cn" || normalizedLowerValue === "zh-sg" || normalizedLowerValue === "zh-hans") return "zh-CN";
+                                			return null;
+                                		};
+                                		const rawLang = readLanguageValue(event);
+                                		const localeOwner = page?.pageOwner || page?.owner || page;
+                                		let lang = typeof localeOwner?.getCanonicalEnabledLocale === "function"
+                                			? localeOwner.getCanonicalEnabledLocale(rawLang)
+                                			: typeof localeOwner?.normalizeLocaleCandidate === "function"
+                                				? localeOwner.normalizeLocaleCandidate(rawLang)
+                                				: fallbackCanonicalLocale(rawLang);
+                                		if (lang == null || ["fr", "en", "es", "it", "zh-CN"].indexOf(lang) === -1) {
+                                			resolve(null);
+                                			return;
                                 		}
-                                		setTimeout(()=>{
-                                			this.local.visible = undefined;
-                                		},0);
-                                		page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta:JSON.stringify({"language" : lang})}).async();
-                                		page.global.settings.language = lang;
+                                		page["fr"] = lang === "fr";
+                                		page["en"] = lang === "en";
+                                		page["es"] = lang === "es";
+                                		page["it"] = lang === "it";
+                                		page["zh-CN"] = lang === "zh-CN";
+                                		page.selectedItem = lang;
+                                		if (page.local != null) page.local.visible = true;
+                                		const translate = window["__c8o__translate"] || page.translate;
+                                		const applyApplicationLocale = typeof localeOwner?.applyApplicationLocale === "function" ? localeOwner.applyApplicationLocale.bind(localeOwner) : null;
+                                		let languageChange$ = null;
+                                		if (applyApplicationLocale != null) {
+                                			const appliedLocale = applyApplicationLocale(lang, {setDefault: true, useTranslate: true, persistLocal: true, persistGlobal: true, updateMetadata: true, source: "settings-page"});
+                                			if (appliedLocale == null) {
+                                				resolve(null);
+                                				return;
+                                			}
+                                			lang = appliedLocale.locale || lang;
+                                			languageChange$ = appliedLocale.languageChange;
+                                		}
+                                		else {
+                                			localStorage.setItem("lang", lang);
+                                			if (page.global.settings == null) page.global.settings = {};
+                                			page.global.settings.language = lang;
+                                			page.global.language = lang;
+                                			if (typeof translate?.setDefaultLang === "function") translate.setDefaultLang(lang);
+                                			if (typeof translate?.use === "function") languageChange$ = translate.use(lang);
+                                		}
+                                		const finishLanguageChange = () => {
+                                			try {
+                                				page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"language": lang})}).async();
+                                			}
+                                			catch (e) {
+                                			}
+                                			setTimeout(() => {
+                                				if (page.local != null) page.local.visible = undefined;
+                                				if (page.ref != null && typeof page.ref.detectChanges === "function") page.ref.detectChanges();
+                                			}, 0);
+                                			resolve(lang);
+                                		};
+                                		try {
+                                			if (languageChange$ != null && typeof languageChange$.subscribe === "function") {
+                                				languageChange$.subscribe({next: () => finishLanguageChange(), error: (error) => reject(error)});
+                                			}
+                                			else if (languageChange$ != null && typeof languageChange$.then === "function") {
+                                				languageChange$.then(() => finishLanguageChange()).catch((error) => reject(error));
+                                			}
+                                			else {
+                                				finishLanguageChange();
+                                			}
+                                		}
+                                		catch (error) {
+                                			reject(error);
+                                		}
                                 '
                         ↓SetGlobal [ngx.components.UIDynamicAction-1764769220787]: 
                           beanData: |
@@ -1450,6 +1683,14 @@ title: Settings
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: script:'it' | translate
+                    ↓SelectOptionZH [ngx.components.UIDynamicElement-1786015927293]: 
+                      beanData: '{"ionBean":"SelectOption","Value":"plain:zh-CN"}'
+                      tagName: ion-select-option
+                      ↓Text [ngx.components.UIText-1786015927295]: 
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'zh-CN' | translate
                     ↓Attr1 [ngx.components.UIAttribute-1764769220799]: 
                       attrName: class
                       attrValue: 
@@ -1810,23 +2051,110 @@ title: Settings
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		let lang = event.toString();
-                                		if(lang != undefined && lang != ""){
-                                		    localStorage.setItem(''lang'', lang);
-                                	        window["__c8o__translate"]["use"](lang);
-                                	        page.fr = false;
-                                	        page.en = false;
-                                	        page.es = false;
-                                	        page.selectedItem = lang;
-                                	        this[lang] = true;
-                                			this.local.visible = true;
-                                	        resolve(lang);
+                                '		const readLanguageValue = (value) => {
+                                			if (typeof value?.detail?.value === "string") {
+                                				return value.detail.value;
+                                			}
+                                			if (typeof value === "string") {
+                                				return value;
+                                			}
+                                			if (value == null) {
+                                				return "";
+                                			}
+                                			try {
+                                				return String(value);
+                                			}
+                                			catch (e) {
+                                				return "";
+                                			}
+                                		};
+                                		const fallbackCanonicalLocale = (value) => {
+                                			const normalizedValue = readLanguageValue(value).trim().replace(/_/g, "-");
+                                			if (normalizedValue === "") {
+                                				return null;
+                                			}
+                                			const normalizedLowerValue = normalizedValue.toLowerCase();
+                                			const primaryLanguage = normalizedLowerValue.split("-")[0];
+                                			if (primaryLanguage === "fr") return "fr";
+                                			if (primaryLanguage === "en") return "en";
+                                			if (primaryLanguage === "es") return "es";
+                                			if (primaryLanguage === "it") return "it";
+                                			if (normalizedLowerValue === "zh-cn" || normalizedLowerValue === "zh-sg" || normalizedLowerValue === "zh-hans") return "zh-CN";
+                                			return null;
+                                		};
+                                		type SettingsPageLocaleResult = {
+                                			locale?: string;
+                                			languageChange?: any;
+                                		};
+                                		type SettingsPageLocaleOwner = {
+                                			getCanonicalEnabledLocale?: (value: unknown) => string | null;
+                                			normalizeLocaleCandidate?: (value: unknown) => string | null;
+                                			applyApplicationLocale?: (locale: string, options: Record<string, unknown>) => SettingsPageLocaleResult | null;
+                                		};
+                                		const rawLang = readLanguageValue(event);
+                                		const localeOwner = page as unknown as SettingsPageLocaleOwner;
+                                		let lang = typeof localeOwner?.getCanonicalEnabledLocale === "function"
+                                			? localeOwner.getCanonicalEnabledLocale(rawLang)
+                                			: typeof localeOwner?.normalizeLocaleCandidate === "function"
+                                				? localeOwner.normalizeLocaleCandidate(rawLang)
+                                				: fallbackCanonicalLocale(rawLang);
+                                		if (lang == null || ["fr", "en", "es", "it", "zh-CN"].indexOf(lang) === -1) {
+                                			resolve(null);
+                                			return;
                                 		}
-                                		setTimeout(()=>{
-                                			this.local.visible = undefined;
-                                		},0);
-                                		page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta:JSON.stringify({"language" : lang})}).async();
-                                		page.global.settings.language = lang;
+                                		page["fr"] = lang === "fr";
+                                		page["en"] = lang === "en";
+                                		page["es"] = lang === "es";
+                                		page["it"] = lang === "it";
+                                		page["zh-CN"] = lang === "zh-CN";
+                                		page.selectedItem = lang;
+                                		if (page.local != null) page.local.visible = true;
+                                		const translate = window["__c8o__translate"] || page.translate;
+                                		const applyApplicationLocale = typeof localeOwner?.applyApplicationLocale === "function" ? localeOwner.applyApplicationLocale.bind(localeOwner) : null;
+                                		let languageChange$ = null;
+                                		if (applyApplicationLocale != null) {
+                                			const appliedLocale = applyApplicationLocale(lang, {setDefault: true, useTranslate: true, persistLocal: true, persistGlobal: true, updateMetadata: true, source: "settings-page"});
+                                			if (appliedLocale == null) {
+                                				resolve(null);
+                                				return;
+                                			}
+                                			lang = appliedLocale.locale || lang;
+                                			languageChange$ = appliedLocale.languageChange;
+                                		}
+                                		else {
+                                			localStorage.setItem("lang", lang);
+                                			if (page.global.settings == null) page.global.settings = {};
+                                			page.global.settings.language = lang;
+                                			page.global.language = lang;
+                                			if (typeof translate?.setDefaultLang === "function") translate.setDefaultLang(lang);
+                                			if (typeof translate?.use === "function") languageChange$ = translate.use(lang);
+                                		}
+                                		const finishLanguageChange = () => {
+                                			try {
+                                				page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"language": lang})}).async();
+                                			}
+                                			catch (e) {
+                                			}
+                                			setTimeout(() => {
+                                				if (page.local != null) page.local.visible = undefined;
+                                				if (page.ref != null && typeof page.ref.detectChanges === "function") page.ref.detectChanges();
+                                			}, 0);
+                                			resolve(lang);
+                                		};
+                                		try {
+                                			if (languageChange$ != null && typeof languageChange$.subscribe === "function") {
+                                				languageChange$.subscribe({next: () => finishLanguageChange(), error: (error) => reject(error)});
+                                			}
+                                			else if (languageChange$ != null && typeof languageChange$.then === "function") {
+                                				languageChange$.then(() => finishLanguageChange()).catch((error) => reject(error));
+                                			}
+                                			else {
+                                				finishLanguageChange();
+                                			}
+                                		}
+                                		catch (error) {
+                                			reject(error);
+                                		}
                                 '
                         ↓SetGlobal [ngx.components.UIDynamicAction-1764696178148]: 
                           beanData: |
@@ -1867,6 +2195,14 @@ title: Settings
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: script:'it' | translate
+                    ↓SelectOptionZH [ngx.components.UIDynamicElement-1786015905684]: 
+                      beanData: '{"ionBean":"SelectOption","Value":"plain:zh-CN"}'
+                      tagName: ion-select-option
+                      ↓Text [ngx.components.UIText-1786015905686]: 
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'zh-CN' | translate
                     ↓Attr1 [ngx.components.UIAttribute-1764696663224]: 
                       attrName: class
                       attrValue: 
@@ -2777,23 +3113,101 @@ title: Settings
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		let lang = event.toString();
-                                		if(lang != undefined && lang != ""){
-                                		    localStorage.setItem(''lang'', lang);
-                                	        window["__c8o__translate"]["use"](lang);
-                                	        page.fr = false;
-                                	        page.en = false;
-                                	        page.es = false;
-                                	        page.selectedItem = lang;
-                                	        this[lang] = true;
-                                			this.local.visible = true;
-                                	        resolve(lang);
+                                '		const readLanguageValue = (value) => {
+                                			if (typeof value?.detail?.value === "string") {
+                                				return value.detail.value;
+                                			}
+                                			if (typeof value === "string") {
+                                				return value;
+                                			}
+                                			if (value == null) {
+                                				return "";
+                                			}
+                                			try {
+                                				return String(value);
+                                			}
+                                			catch (e) {
+                                				return "";
+                                			}
+                                		};
+                                		const fallbackCanonicalLocale = (value) => {
+                                			const normalizedValue = readLanguageValue(value).trim().replace(/_/g, "-");
+                                			if (normalizedValue === "") {
+                                				return null;
+                                			}
+                                			const normalizedLowerValue = normalizedValue.toLowerCase();
+                                			const primaryLanguage = normalizedLowerValue.split("-")[0];
+                                			if (primaryLanguage === "fr") return "fr";
+                                			if (primaryLanguage === "en") return "en";
+                                			if (primaryLanguage === "es") return "es";
+                                			if (primaryLanguage === "it") return "it";
+                                			if (normalizedLowerValue === "zh-cn" || normalizedLowerValue === "zh-sg" || normalizedLowerValue === "zh-hans") return "zh-CN";
+                                			return null;
+                                		};
+                                		const rawLang = readLanguageValue(event);
+                                		const localeOwner = page?.pageOwner || page?.owner || page;
+                                		let lang = typeof localeOwner?.getCanonicalEnabledLocale === "function"
+                                			? localeOwner.getCanonicalEnabledLocale(rawLang)
+                                			: typeof localeOwner?.normalizeLocaleCandidate === "function"
+                                				? localeOwner.normalizeLocaleCandidate(rawLang)
+                                				: fallbackCanonicalLocale(rawLang);
+                                		if (lang == null || ["fr", "en", "es", "it", "zh-CN"].indexOf(lang) === -1) {
+                                			resolve(null);
+                                			return;
                                 		}
-                                		setTimeout(()=>{
-                                			this.local.visible = undefined;
-                                		},0);
-                                		page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta:JSON.stringify({"language" : lang})}).async();
-                                		page.global.settings.language = lang;
+                                		page["fr"] = lang === "fr";
+                                		page["en"] = lang === "en";
+                                		page["es"] = lang === "es";
+                                		page["it"] = lang === "it";
+                                		page["zh-CN"] = lang === "zh-CN";
+                                		page.selectedItem = lang;
+                                		if (page.local != null) page.local.visible = true;
+                                		const translate = window["__c8o__translate"] || page.translate;
+                                		const applyApplicationLocale = typeof localeOwner?.applyApplicationLocale === "function" ? localeOwner.applyApplicationLocale.bind(localeOwner) : null;
+                                		let languageChange$ = null;
+                                		if (applyApplicationLocale != null) {
+                                			const appliedLocale = applyApplicationLocale(lang, {setDefault: true, useTranslate: true, persistLocal: true, persistGlobal: true, updateMetadata: true, source: "settings-page"});
+                                			if (appliedLocale == null) {
+                                				resolve(null);
+                                				return;
+                                			}
+                                			lang = appliedLocale.locale || lang;
+                                			languageChange$ = appliedLocale.languageChange;
+                                		}
+                                		else {
+                                			localStorage.setItem("lang", lang);
+                                			if (page.global.settings == null) page.global.settings = {};
+                                			page.global.settings.language = lang;
+                                			page.global.language = lang;
+                                			if (typeof translate?.setDefaultLang === "function") translate.setDefaultLang(lang);
+                                			if (typeof translate?.use === "function") languageChange$ = translate.use(lang);
+                                		}
+                                		const finishLanguageChange = () => {
+                                			try {
+                                				page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"language": lang})}).async();
+                                			}
+                                			catch (e) {
+                                			}
+                                			setTimeout(() => {
+                                				if (page.local != null) page.local.visible = undefined;
+                                				if (page.ref != null && typeof page.ref.detectChanges === "function") page.ref.detectChanges();
+                                			}, 0);
+                                			resolve(lang);
+                                		};
+                                		try {
+                                			if (languageChange$ != null && typeof languageChange$.subscribe === "function") {
+                                				languageChange$.subscribe({next: () => finishLanguageChange(), error: (error) => reject(error)});
+                                			}
+                                			else if (languageChange$ != null && typeof languageChange$.then === "function") {
+                                				languageChange$.then(() => finishLanguageChange()).catch((error) => reject(error));
+                                			}
+                                			else {
+                                				finishLanguageChange();
+                                			}
+                                		}
+                                		catch (error) {
+                                			reject(error);
+                                		}
                                 '
                         ↓SetGlobal [ngx.components.UIDynamicAction-1764696261279]: 
                           beanData: |
@@ -2816,6 +3230,14 @@ title: Settings
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: script:'it' | translate
+                    ↓SelectOptionZH [ngx.components.UIDynamicElement-1786015935718]: 
+                      beanData: '{"ionBean":"SelectOption","Value":"plain:zh-CN"}'
+                      tagName: ion-select-option
+                      ↓Text [ngx.components.UIText-1786015935720]: 
+                        textValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:'zh-CN' | translate
                   ↓Attr2 [ngx.components.UIAttribute-1764696261291]: 
                     attrName: '[ngClass]'
                     attrValue: 

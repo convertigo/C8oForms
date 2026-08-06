@@ -8,8 +8,35 @@ comment: |
     '// Imports and helpers functions
     include("js/common.js");
     
-    let loglevel = "warn";
-    let authenticatedUserID = context.getAuthenticatedUser();
+    var loglevel = "warn";
+    var authenticatedUserID = context.getAuthenticatedUser();
+    function normalizeBackendLocaleCandidate(value) {
+        if (typeof value != "string") {
+            return null;
+        }
+        var normalizedValue = value.replace(/_/g, "-").replace(/^\s+|\s+$/g, "");
+        var normalizedLowerValue = normalizedValue.toLowerCase();
+        if (normalizedValue === "" || normalizedLowerValue === "undefined" || normalizedLowerValue === "null") {
+            return null;
+        }
+        var primaryLanguage = normalizedLowerValue.split("-")[0];
+        if (primaryLanguage === "fr") {
+            return "fr";
+        }
+        if (primaryLanguage === "en") {
+            return "en";
+        }
+        if (primaryLanguage === "es") {
+            return "es";
+        }
+        if (primaryLanguage === "it") {
+            return "it";
+        }
+        if (normalizedLowerValue === "zh-cn" || normalizedLowerValue === "zh-sg" || normalizedLowerValue === "zh-hans") {
+            return "zh-CN";
+        }
+        return null;
+    }
     try{
        meta = JSON.parse(meta);
     }
@@ -23,9 +50,13 @@ comment: |
     	if(meta["published_First"]){
     		newVal["published_First"] = meta["published_First"];
     	}
-    	if(meta["language"]){
-    		newVal["language"] = meta["language"];
-    	}
+        var hasLanguageOverride = meta != null && typeof meta == "object" && Object.prototype.hasOwnProperty.call(meta, "language");
+        if(hasLanguageOverride){
+            var normalizedLanguage = normalizeBackendLocaleCandidate(meta["language"]);
+            if(normalizedLanguage != null){
+                newVal["language"] = normalizedLanguage;
+            }
+        }
     	// post doc 
     	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(newVal), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false));
     	
