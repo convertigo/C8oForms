@@ -288,15 +288,22 @@
                       return users.indexOf(entry) === index;
                   });
               };
+              const useActiveSearchRefresh =
+                  vars.activeSearchRefresh === true &&
+                  typeof page["getActiveSearchQuery"] === "function";
               const normalizedQuery =
                   normalizeSearchQuery(
-                      page["query"]
+                      useActiveSearchRefresh
+                          ? page["getActiveSearchQuery"].call(page)
+                          : page["query"]
                   );
-              page["query"] =
-                  normalizedQuery;
-              if (page.local["_query"] !== undefined) {
-                  page.local["_query"] =
+              if (useActiveSearchRefresh !== true) {
+                  page["query"] =
                       normalizedQuery;
+                  if (page.local["_query"] !== undefined) {
+                      page.local["_query"] =
+                          normalizedQuery;
+                  }
               }
               let activeSearchTags =
                   normalizeSearchList(
@@ -419,6 +426,12 @@
                           event
                       )
                       .then(() => {
+                          if (typeof page["clearActiveSearchQuery"] === "function") {
+                              page["clearActiveSearchQuery"].call(page);
+                          }
+                          else {
+                              page.local.activeSearchQuery = "";
+                          }
                           resolve();
                           return null;
                       })
@@ -597,7 +610,7 @@
           			filters,
           
           		query:
-          			page["query"],
+          			normalizedQuery,
           
           		tag:
           			page.local.searchTags,
@@ -680,6 +693,17 @@
           				return null;
           			}
           		
+          			if (typeof page["setActiveSearchQuery"] === "function") {
+          				page["setActiveSearchQuery"].call(
+          					page,
+          					normalizedQuery
+          				);
+          			}
+          			else {
+          				page.local.activeSearchQuery =
+          					normalizedQuery;
+          			}
+          
           			const result =
           				response != null &&
           				response.res != null
@@ -853,11 +877,10 @@
           					: docs.length;
           		
           			const regex =
-          				page["query"] != undefined &&
-          				page["query"] != ""
+          				normalizedQuery != ""
           					? new RegExp(
           						buildAccentInsensitiveRegex(
-          							page["query"]
+          							normalizedQuery
           						),
           						"g"
           					)
