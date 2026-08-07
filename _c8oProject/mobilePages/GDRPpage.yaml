@@ -714,7 +714,7 @@ title: Title for GDRPpage
         directiveSource: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:local?.menu && local.menu?.sections && local.menu?.dpo_section
+            - MobileSmartSourceType: script:local?.legacyMenuStatus === 'inactive' && local?.menu && local.menu?.sections && local.menu?.dpo_section
         ↓DivFlexContainer [ngx.components.UIDynamicElement-1765213913602]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -2414,7 +2414,7 @@ title: Title for GDRPpage
         directiveSource: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:!(local?.menu && local.menu?.sections && local.menu?.dpo_section)
+            - MobileSmartSourceType: script:local?.legacyMenuExists === true
         ↓DivCardMenu [ngx.components.UIDynamicElement-1765213027426]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
@@ -2868,7 +2868,7 @@ title: Title for GDRPpage
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: plain:local?.menu && local.menu?.length && local.menu[translate.currentLang] != undefined
+                - MobileSmartSourceType: plain:local?.legacyMenuExists === true && local?.menu && local.menu[translate.currentLang] !== undefined
         ↓DivCardInfoSymbols [ngx.components.UIDynamicElement-1765213027561]: 
           beanData: '{"ionBean":"DivTag"}'
           isEnabled: false
@@ -3289,79 +3289,184 @@ title: Title for GDRPpage
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
               '		try {
-              			setTimeout(async () => {				
-              //				console.log(page.global, page.global.c8oGDRPmenu, page.global.c8oGDRPmenu._text);
-              				var gdrpMenuText = page.global.c8oGDRPmenu?.text || "";
-              				var gdrpToastText = page.global.c8oGDRPtoast?.text || "";
+              			setTimeout(async () => {
               				try {
-              					if (page.isValidJSON(gdrpMenuText))	{						
-              						page.local.menu = JSON.parse(gdrpMenuText);
-              					} else {
-              						page.local.menu = {
-              							"fr": "",
-              							"en": "",
-              							"es": "",
-              							"it": ""
+              					const lang = page.translate.currentLang;
+              					const supportedLocales = ["fr", "en", "es", "it", "zh-CN"];
+              					const isObject = (value) => value != null && typeof value === "object" && !Array.isArray(value);
+              					type GdprLocalizedTextMap = Record<string, string>;
+              					type GdprConfig = {
+              						symbols?: {
+              							menu?: GdprLocalizedTextMap;
+              							toast?: GdprLocalizedTextMap;
+              						};
+              						toast_viewers_description?: GdprLocalizedTextMap;
+              						toast_builders_description?: GdprLocalizedTextMap;
+              						sections?: Record<string, unknown[]>;
+              						dpo_section?: Record<string, unknown>;
+              					};
+              					const toText = (value) => {
+              						if (value == null) {
+              							return "";
               						}
-              						page.local.menu[page.translate.currentLang] = gdrpMenuText;
-              					}
-              				} catch(e) {				
-              					page.local.menu = gdrpMenuText;
-              					console.error(e);
-              				}
-              			
-              				try {
-              		//			console.log(page.global.c8oGDRPtoast);
-              					if (page.isValidJSON(gdrpToastText)) {
-              						page.local.toast = JSON.parse(gdrpToastText);						
-              					} else {
-              						page.local.toast = {
-              							"fr": "",
-              							"en": "",
-              							"es": "",
-              							"it": ""
+              						if (typeof value === "string") {
+              							return value;
               						}
-              						page.local.toast[page.translate.currentLang] = gdrpToastText;					
-              					}  
-              		//			console.log(page.local.data);
-              				} catch(e) {
+              						if (typeof value === "number" || typeof value === "boolean") {
+              							return "" + value;
+              						}
+              						return "";
+              					};
+              					const mapTextForCurrentLang = (value) => {
+              						const output = {};
+              						supportedLocales.forEach((locale) => output[locale] = "");
+              						output[lang] = toText(value);
+              						return output;
+              					};
+              					const legacyValueToLanguageMap = (value) => {
+              						const text = toText(value);
+              						if (page.isValidJSON(text)) {
+              							try {
+              								const parsed = JSON.parse(text);
+              								if (isObject(parsed)) {
+              									supportedLocales.forEach((locale) => {
+              										if (parsed[locale] == null) {
+              											parsed[locale] = "";
+              										}
+              										else {
+              											parsed[locale] = toText(parsed[locale]);
+              										}
+              									});
+              									if (parsed[lang] == null) {
+              										parsed[lang] = "";
+              									}
+              									return parsed;
+              								}
+              							}
+              							catch (e) {
+              								console.error(e);
+              							}
+              						}
+              						return mapTextForCurrentLang(text);
+              					};
+              					const normalizeLegacyStatus = (source, symbolName) => {
+              						const input = isObject(source) ? source : {};
+              						const exists = input.exists === true;
+              						const status = toText(input.status);
+              						return {
+              							name: toText(input.name) || symbolName,
+              							exists: exists,
+              							value: exists ? toText(input.value) : null,
+              							status: status === "error" ? "error" : exists ? "active" : "inactive",
+              							message: toText(input.message)
+              						};
+              					};
+              					const legacyLookupError = () => ({
+              						name: "C8Oforms.GDRP-MENU",
+              						exists: false,
+              						value: null,
+              						status: "error",
+              						message: "Symbol status unavailable"
+              					});
+              
+              					let config: GdprConfig = {};
+              					let legacyMenu = legacyLookupError();
+              					try {
+              						const data = await page.c8o.callJsonObject(''C8Oforms.admin_gdrp_get'', {});
+              						const response = isObject(data) ? data : {};
+              						config = isObject(response[''data'']) ? response[''data''] as GdprConfig : {};
+              						const legacy = isObject(response[''legacy'']) ? response[''legacy''] : {};
+              						legacyMenu = normalizeLegacyStatus(legacy.menu, "C8Oforms.GDRP-MENU");
+              					}
+              					catch (e) {
+              						console.error(e);
+              						config = {};
+              						legacyMenu = legacyLookupError();
+              					}
+              
+              					page.local.legacyMenuSymbol = legacyMenu;
+              					page.local.legacyMenuExists = legacyMenu.exists === true && legacyMenu.status === "active";
+              					page.local.legacyMenuValue = page.local.legacyMenuExists ? legacyMenu.value : null;
+              					page.local.legacyMenuStatus = legacyMenu.status;
+              					page.local.legacyMenuLookupError = legacyMenu.status === "error";
+              
+              					if (page.local.legacyMenuExists) {
+              						page.local.menu = legacyValueToLanguageMap(legacyMenu.value);
+              					}
+              					else if (legacyMenu.status === "inactive") {
+              						page.local.menu = config;
+              					}
+              					else {
+              						page.local.menu = null;
+              					}
+              
+              					var gdrpToastText = page.global.c8oGDRPtoast?.text || "";
+              					try {
+              						if (page.isValidJSON(gdrpToastText)) {
+              							page.local.toast = JSON.parse(gdrpToastText);
+              						} else {
+              							page.local.toast = {
+              								"fr": "",
+              								"en": "",
+              								"es": "",
+              								"it": "",
+              								"zh-CN": ""
+              							};
+              							page.local.toast[lang] = gdrpToastText;
+              						}
+              					} catch(e) {
+              						console.error(e);
+              						page.local.toast = gdrpToastText;
+              					}
+              					var hasConfiguredToast = false;
+              					try {
+              						hasConfiguredToast = !!(config.symbols?.toast?.[lang] || config.toast_viewers_description?.[lang] || config.toast_builders_description?.[lang]);
+              					} catch(e) {}
+              					if (page.local.toast?.[lang]) {
+              						if (hasConfiguredToast) {
+              							page.local.toast = config.symbols?.toast;
+              						}
+              					}
+              
+              					page.local.loading = false;
+              					page.ref.detectChanges();
+              					return true;
+              				}
+              				catch(e) {
               					console.error(e);
-              					page.local.toast = gdrpToastText;
+              					page.local.legacyMenuSymbol = {
+              						name: "C8Oforms.GDRP-MENU",
+              						exists: false,
+              						value: null,
+              						status: "error",
+              						message: "Symbol status unavailable"
+              					};
+              					page.local.legacyMenuExists = false;
+              					page.local.legacyMenuValue = null;
+              					page.local.legacyMenuStatus = "error";
+              					page.local.legacyMenuLookupError = true;
+              					page.local.menu = null;
+              					page.local.loading = false;
+              					page.ref.detectChanges();
               				}
-              				page.local.loading = false;
-              				
-              				var data = await page.c8o.callJsonObject(''C8Oforms.admin_gdrp_get'', {});
-              				var config = data[''data''] || {};
-              				var lang = page.translate.currentLang;
-              				var hasConfiguredMenu = false;
-              				var hasConfiguredToast = false;
-              				try {
-              					hasConfiguredMenu = !!(config.symbols?.menu?.[lang] || config.sections?.[lang]?.some(function(section) {
-              						return section != null && (section.title || section.description);
-              					}));
-              				} catch(e) {}
-              				try {
-              					hasConfiguredToast = !!(config.symbols?.toast?.[lang] || config.toast_viewers_description?.[lang] || config.toast_builders_description?.[lang]);
-              				} catch(e) {}
-              				if (page.local.menu?.[lang]) {
-              					if (hasConfiguredMenu) {
-              						page.local.menu = config.symbols?.menu;
-              					}
-              				} else if (hasConfiguredMenu) {
-              					page.local.menu = config;
-              				}
-              				if (page.local.toast?.[lang]) {
-              					if (hasConfiguredToast) {
-              						page.local.toast = config.symbols?.toast;
-              					}
-              				}
-              				page.ref.detectChanges();
-              				return true;
               			}, 500)
               //			return;
               		} catch(e) {
               			console.error(e);
               //			console.dir(e);
+              			page.local.legacyMenuSymbol = {
+              				name: "C8Oforms.GDRP-MENU",
+              				exists: false,
+              				value: null,
+              				status: "error",
+              				message: "Symbol status unavailable"
+              			};
+              			page.local.legacyMenuExists = false;
+              			page.local.legacyMenuValue = null;
+              			page.local.legacyMenuStatus = "error";
+              			page.local.legacyMenuLookupError = true;
+              			page.local.menu = null;
+              			page.local.loading = false;
               			page.ref.detectChanges();
               //			return;
               		} finally {
