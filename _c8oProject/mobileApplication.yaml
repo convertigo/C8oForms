@@ -4789,6 +4789,56 @@ useClickForTap: true
                                   value === ":published" ||
                                   value === "undefined";
               
+                              const normalizeRoutePath = value => String(value || "")
+                                  .split("?")[0]
+                                  .split("#")[0]
+                                  .split("/")
+                                  .filter(segment => segment !== "")
+                                  .join("/");
+              
+                              const routePatternMatches = (routePattern, currentPath) => {
+                                  const routeSegments = normalizeRoutePath(routePattern).split("/").filter(segment => segment !== "");
+                                  const currentSegments = normalizeRoutePath(currentPath).split("/").filter(segment => segment !== "");
+              
+                                  if (routeSegments.length === 0 || currentSegments.length < routeSegments.length) {
+                                      return false;
+                                  }
+              
+                                  for (let start = 0; start <= currentSegments.length - routeSegments.length; start++) {
+                                      let matches = true;
+              
+                                      for (let index = 0; index < routeSegments.length; index++) {
+                                          const routeSegment = routeSegments[index];
+              
+                                          if (routeSegment.charAt(0) === ":") {
+                                              continue;
+                                          }
+              
+                                          if (routeSegment !== currentSegments[start + index]) {
+                                              matches = false;
+                                              break;
+                                          }
+                                      }
+              
+                                      if (matches) {
+                                          return true;
+                                      }
+                                  }
+              
+                                  return false;
+                              };
+              
+                              const resolvePageNameFromRoute = url => {
+                                  const appPages = Array.isArray(page.appPages) ? page.appPages : [];
+                                  const currentPath = normalizeRoutePath(url);
+                                  const candidates = appPages
+                                      .filter(appPage => appPage?.name && appPage?.url)
+                                      .sort((left, right) => normalizeRoutePath(right.url).split("/").length - normalizeRoutePath(left.url).split("/").length);
+                                  const match = candidates.find(appPage => routePatternMatches(appPage.url, currentPath));
+              
+                                  return match?.name || null;
+                              };
+              
                               const readSelectorPublishedFromUrl = url => {
                                   const path = String(url || "").split("?")[0];
                                   const match = path.match(/(?:^|\/)selector\/([^\/?#]*)/);
@@ -4816,8 +4866,10 @@ useClickForTap: true
               
                               const syncSidebarFromNavigation = navigationEvent => {
                                   const url = String(navigationEvent?.urlAfterRedirects || navigationEvent?.url || routerForSidebar?.url || window.location.pathname || "");
-                                  const pageName = page.global?.c8opageName;
-                                  const isStandalonePwa = url.indexOf("pwas") != -1 && url.indexOf("mobile") == -1;
+                                  const routePageName = resolvePageNameFromRoute(url);
+                                  const pageName = routePageName || page.global?.c8opageName;
+                                  const routeSegments = normalizeRoutePath(url).split("/");
+                                  const isStandalonePwa = page.global?.pwa === true || (routeSegments.indexOf("pwas") != -1 && routeSegments.indexOf("mobile") == -1);
               
                                   if (url.indexOf("/settings") != -1 || pageName === "settingsPage") {
                                       applySidebarSelection("management", "settings");
@@ -4844,9 +4896,9 @@ useClickForTap: true
                                       return;
                                   }
               
-                                  if (url.indexOf("path-to-gdrppage") != -1 || pageName === "GDRPpage") {
+                                  if (pageName === "GDRPpage") {
                                       applySidebarSelection("support", "rgpd");
-                                      if (isStandalonePwa || page.global?.pwa === true) {
+                                      if (isStandalonePwa) {
                                           page.global.viewerHome = false;
                                       }
                                       return;
@@ -4862,8 +4914,15 @@ useClickForTap: true
                                       return;
                                   }
               
-                                  if (isStandalonePwa && (url.indexOf("/viewer/") != -1 || url.indexOf("/s/") != -1 || pageName === "viewerPage" || pageName === "sharingPage")) {
+                                  if (isStandalonePwa && (pageName === "viewerPage" || pageName === "sharingPage")) {
+                                      applySidebarSelection(null, null);
                                       page.global.viewerHome = true;
+                                      return;
+                                  }
+              
+                                  if (isStandalonePwa && pageName != null) {
+                                      applySidebarSelection(null, null);
+                                      page.global.viewerHome = false;
                                   }
                               };
               
