@@ -3210,6 +3210,13 @@ title: Title for GDRPpage
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             		try {
+            			page.local?.__gdrpLangChangeSubscription?.unsubscribe?.();
+            			if (page.local != null) {
+            				page.local.__gdrpLangChangeSubscription = null;
+            			}
+            		} catch (e) {
+            		}
+            		try {
             			document.removeEventListener('keydown', page.eList);
             		} catch (e) {
             		
@@ -3289,10 +3296,43 @@ title: Title for GDRPpage
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
               '		try {
+              			const supportedLocales = ["fr", "en", "es", "it", "zh-CN"];
+              			const resolveSupportedGdprLocale = (value: any = null): string => {
+              				const candidates = [
+              					value,
+              					page.translate?.currentLang,
+              					page.global?.language,
+              					page.global?.settings?.language,
+              					"fr"
+              				];
+              
+              				for (const candidate of candidates) {
+              					const candidateText = typeof candidate === "string" ? candidate : "";
+              					if (supportedLocales.indexOf(candidateText) !== -1) {
+              						return candidateText;
+              					}
+              				}
+              
+              				return "fr";
+              			};
+              			const applyCurrentGdprLocale = (value: any = null): string => {
+              				const nextLang = resolveSupportedGdprLocale(value);
+              				page.lang = nextLang;
+              				page.ref?.detectChanges?.();
+              				return nextLang;
+              			};
+              
+              			applyCurrentGdprLocale();
+              
+              			if (page.local.__gdrpLangChangeSubscription == null && page.translate?.onLangChange?.subscribe != null) {
+              				page.local.__gdrpLangChangeSubscription = page.translate.onLangChange.subscribe((languageEvent) => {
+              					applyCurrentGdprLocale(languageEvent?.lang);
+              				});
+              			}
+              
               			setTimeout(async () => {
               				try {
-              					const lang = page.translate.currentLang;
-              					const supportedLocales = ["fr", "en", "es", "it", "zh-CN"];
+              					const lang = applyCurrentGdprLocale();
               					const isObject = (value) => value != null && typeof value === "object" && !Array.isArray(value);
               					type GdprLocalizedTextMap = Record<string, string>;
               					type GdprConfig = {
