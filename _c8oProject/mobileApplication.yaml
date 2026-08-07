@@ -4749,73 +4749,200 @@ useClickForTap: true
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
-              '		try {
-              			let resp: any = vars.resp;
-              			if(resp.BrevoConversationsID != null && resp.BrevoConversationsID != "" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) == false){
-              				let router = page.getInstance(Router);
-              				let conditional = ()=>{
-              					return location.pathname?.split("/")?.[5] != "pwas" && router.url.startsWith("viewer") == false;
-              				}
-              				let initBrevo = ()=>{
-              					if(!this.global.__brevonintialized){
-              						((d, w, c) => {
-              						  // Définir l''ID BrevoConversations
-              						  w["BrevoConversationsID"] = resp.BrevoConversationsID;
-              						  
-              						  // Initialiser la fonction de BrevoConversations
-              						  w[c] = w[c] || function() { 
-              						    (w[c].q = w[c].q || []).push(arguments); 
-              						  };
-              						  
-              						  // Créer le script dynamiquement
-              						  var s = d.createElement(''script'');
-              						  s.async = true;
-              						  s.src = ''https://conversations-widget.brevo.com/brevo-conversations.js'';
-              						  
-              						  // Ajouter le script au head
-              						  if (d.head) {
-              						    d.head.appendChild(s);
-              						  }
-              						})(document, window, ''BrevoConversations'');
-              						this.global.__brevonintialized = true;
-              					}
-              				}
-              				let showBrevo = ()=>{
-              					try{
-              						document.getElementById("brevo-conversations").style.display = "block";
-              					}
-              					catch (e) {
+              '        try {
+                          if (page.global == null) {
+                              page.global = {};
+                          }
               
-              					}
-              				}
-              				let hideBrevo = ()=>{
-              					try{
-              						document.getElementById("brevo-conversations").style.display = "none";
-              					}
-              					catch (e) {
-              						
-              					}
-              				}
-              				router.events
-              			    .pipe(filter(event => event instanceof NavigationEnd))
-              			    .subscribe((event: NavigationEnd) => {
-              					if (conditional()) {
-              						initBrevo();
-              						showBrevo();
-              					} else {
-              						hideBrevo();
-              					}
-              			    });
-              			    // init
-              				if (conditional()) {
-              					initBrevo();
-              				}
-              				
-              			}
-              				
-              		} catch (e) {
-              		
-              		}
+                          if (page.global.__sidebarNavigationSyncRegistered !== true) {
+                              page.global.__sidebarNavigationSyncRegistered = true;
+                              const routerForSidebar = page.getInstance(Router);
+              
+                              const buildMenuItems = (section, item) => [
+                                  { label: ''ACCUEIL'', items: {
+                                      edition: { badge: 1, active: section === "application" && item === "edition" },
+                                      publication: { badge: 0, active: section === "application" && item === "publication" },
+                                      nocode: { badge: 0, active: section === "application" && item === "nocode" }
+                                  } },
+                                  { label: ''SUPPORT'', items: {
+                                      rgpd: { badge: 0, active: section === "support" && item === "rgpd" },
+                                      support: { badge: 0, active: section === "support" && item === "support" }
+                                  } },
+                                  { label: ''GESTION'', items: {
+                                      home: { badge: 0, active: section === "management" && item === "home" },
+                                      users: { badge: 0, active: section === "management" && item === "users" },
+                                      groups: { badge: 0, active: section === "management" && item === "groups" },
+                                      rgpd: { badge: 0, active: section === "management" && item === "rgpd" },
+                                      settings: { badge: 0, active: section === "management" && item === "settings" }
+                                  } }
+                              ];
+              
+                              const applySidebarSelection = (section, item) => {
+                                  page.global.menuItems = buildMenuItems(section, item);
+                              };
+              
+                              const isTrueValue = value => value === true || value === "true";
+                              const isFalseValue = value => value === false || value === "false";
+                              const isNeutralValue = value =>
+                                  value == null ||
+                                  value === "" ||
+                                  value === ":published" ||
+                                  value === "undefined";
+              
+                              const readSelectorPublishedFromUrl = url => {
+                                  const path = String(url || "").split("?")[0];
+                                  const match = path.match(/(?:^|\/)selector\/([^\/?#]*)/);
+                                  return match != null ? decodeURIComponent(match[1] || "") : null;
+                              };
+              
+                              const resolveSelectorArea = url => {
+                                  const routePublished = readSelectorPublishedFromUrl(url);
+                                  const publishedValue = isNeutralValue(routePublished) ? page.local?.published : routePublished;
+              
+                                  if (publishedValue === "nocodedatabase" || page.local?.nocodedatabase === true) {
+                                      return "nocode";
+                                  }
+              
+                                  if (isTrueValue(publishedValue)) {
+                                      return "publication";
+                                  }
+              
+                                  if (isFalseValue(publishedValue)) {
+                                      return "edition";
+                                  }
+              
+                                  return isTrueValue(page.global?.settings?.published_First) ? "publication" : "edition";
+                              };
+              
+                              const syncSidebarFromNavigation = navigationEvent => {
+                                  const url = String(navigationEvent?.urlAfterRedirects || navigationEvent?.url || routerForSidebar?.url || window.location.pathname || "");
+                                  const pageName = page.global?.c8opageName;
+                                  const isStandalonePwa = url.indexOf("pwas") != -1 && url.indexOf("mobile") == -1;
+              
+                                  if (url.indexOf("/settings") != -1 || pageName === "settingsPage") {
+                                      applySidebarSelection("management", "settings");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/gdrp") != -1 || pageName === "adminGdrp") {
+                                      applySidebarSelection("management", "rgpd");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/dashboard-user") != -1 || pageName === "adminDashboardUsers") {
+                                      applySidebarSelection("management", "users");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/dashboard-groups") != -1 || pageName === "adminDashboardUsersWithinGroups") {
+                                      applySidebarSelection("management", "groups");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/dashboard-detail") != -1 || url.indexOf("/admin/dashboard") != -1 || pageName === "adminDashboardHome" || pageName === "adminDashboardDetail") {
+                                      applySidebarSelection("management", "home");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("path-to-gdrppage") != -1 || pageName === "GDRPpage") {
+                                      applySidebarSelection("support", "rgpd");
+                                      if (isStandalonePwa || page.global?.pwa === true) {
+                                          page.global.viewerHome = false;
+                                      }
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/selector") != -1 || pageName === "selectorPage") {
+                                      applySidebarSelection("application", resolveSelectorArea(url));
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/editor/") != -1 || url.indexOf("/datapage/") != -1 || pageName === "editorPage" || pageName === "dataPage") {
+                                      applySidebarSelection("application", "edition");
+                                      return;
+                                  }
+              
+                                  if (isStandalonePwa && (url.indexOf("/viewer/") != -1 || url.indexOf("/s/") != -1 || pageName === "viewerPage" || pageName === "sharingPage")) {
+                                      page.global.viewerHome = true;
+                                  }
+                              };
+              
+                              routerForSidebar.events
+                                  .pipe(filter(event => event instanceof NavigationEnd))
+                                  .subscribe((navigationEvent: NavigationEnd) => {
+                                      requestAnimationFrame(() => syncSidebarFromNavigation(navigationEvent));
+                                  });
+              
+                              requestAnimationFrame(() => syncSidebarFromNavigation(null));
+                          }
+                      }
+                      catch (e) {
+                          page.c8o.log?.warn?.(`[MenuSelector] Unable to synchronize sidebar selection: ${String(e)}`);
+                      }
+              
+                      try {
+                          let resp: any = vars.resp;
+                          if(resp.BrevoConversationsID != null && resp.BrevoConversationsID != "" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) == false){
+                              let router = page.getInstance(Router);
+                              let conditional = ()=>{
+                                  return location.pathname?.split("/")?.[5] != "pwas" && router.url.startsWith("viewer") == false;
+                              }
+                              let initBrevo = ()=>{
+                                  if(!this.global.__brevonintialized){
+                                      ((d, w, c) => {
+                                        // Définir l''ID BrevoConversations
+                                        w["BrevoConversationsID"] = resp.BrevoConversationsID;
+                                        
+                                        // Initialiser la fonction de BrevoConversations
+                                        w[c] = w[c] || function() { 
+                                          (w[c].q = w[c].q || []).push(arguments); 
+                                        };
+                                        
+                                        // Créer le script dynamiquement
+                                        var s = d.createElement(''script'');
+                                        s.async = true;
+                                        s.src = ''https://conversations-widget.brevo.com/brevo-conversations.js'';
+                                        
+                                        // Ajouter le script au head
+                                        if (d.head) {
+                                          d.head.appendChild(s);
+                                        }
+                                      })(document, window, ''BrevoConversations'');
+                                      this.global.__brevonintialized = true;
+                                  }
+                              }
+                              let showBrevo = ()=>{
+                                  try{
+                                      document.getElementById("brevo-conversations").style.display = "block";
+                                  }
+                                  catch (e) {
+              
+                                  }
+                              }
+                              let hideBrevo = ()=>{
+                                  try{
+                                      document.getElementById("brevo-conversations").style.display = "none";
+                                  }
+                                  catch (e) {
+                                  }
+                              }
+                              router.events
+                              .pipe(filter(event => event instanceof NavigationEnd))
+                              .subscribe((event: NavigationEnd) => {
+                                  if (conditional()) {
+                                      initBrevo();
+                                      showBrevo();
+                                  } else {
+                                      hideBrevo();
+                                  }
+                              });
+                              // init
+                              if (conditional()) {
+                                  initBrevo();
+                              }
+                          }
+                      } catch (e) {
+                      }
               '
       app_ts_imports: 
         - xmlizable: 
@@ -4948,26 +5075,8 @@ useClickForTap: true
       '{
        "ionBean": "SetGlobalAction",
        "Property": "plain:menuItems",
-       "Value": "script:[\n  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: true}, publication:{badge: 0, active: false}, nocode: {badge: 0, active: false}} },\n  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},\n  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}\n]"
+       "Value": "script:[\n  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: false}, publication:{badge: 0, active: false}, nocode: {badge: 0, active: false}} },\n  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},\n  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}\n]"
       }'
-    ↓setActive [ngx.components.UICustomAction-1765360727798]: 
-      actionValue: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-            →: |
-              '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-              //		console.log(page.global, page.global.settings)
-              		if (page.global.settings.published_First == "true" || page.global.settings.published_First == true) {
-              			page.global.menuItems = [
-              			  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: false}, publication:{badge: 0, active: true}, nocode: {badge: 0, active: false}} },
-              			  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},
-              			  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}
-              			];
-              //			console.log(''innnn'')
-              		}
-              		resolve();
-              '
   ↓SetGlobal [ngx.components.UIDynamicAction-1779966472864]: 
     beanData: |
       '{
