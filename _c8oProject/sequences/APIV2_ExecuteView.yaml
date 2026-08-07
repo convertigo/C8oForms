@@ -381,31 +381,60 @@ comment: |
     }
     
     /**
-     * Filters applications where the user selected in the search field is a
-     * collaborator but not the owner.
+     * Filters applications created by the selected user where the currently
+     * authenticated user is an established collaborator.
      *
-     * This filter is contextual to the selected search user. It must not fall back
-     * to the currently authenticated user when no search user is selected.
-     *
-     * A document matches when:
-     * 1. creator is not the selected user;
-     * 2. the selected user appears in collabs;
-     * 3. the selected user appears in c8oGrp with true.
+     * The selected user and the current user are intentionally distinct inputs:
+     * 1. creator is the selected user from the No-Code user filter;
+     * 2. collaborator identity is the authenticated user;
+     * 3. collaborator groups are included using the existing C8oForms access model.
      */
     function buildCollaborationSelector(
-    	userId
+    	selectedCreatorId,
+    	collaboratorId,
+    	collaboratorGroups
     ) {
-    	var identityValues =
+    	var creatorValues =
     		buildCreatorFilterValues([
-    			userId
+    			selectedCreatorId
     		]);
     
-    	if (identityValues.length === 0) {
-            /*
-             * Deliberately impossible condition: collaboration-only mode
-             * must never return all applications or fall back to currentUser
-             * when the selected search user is missing.
-             */
+    	var collaboratorValues =
+    		buildCreatorFilterValues([
+    			collaboratorId
+    		]);
+    
+    	if (Array.isArray(collaboratorGroups)) {
+    		for (
+    			var groupIndex = 0;
+    			groupIndex < collaboratorGroups.length;
+    			groupIndex++
+    		) {
+    			var groupId =
+    				collaboratorGroups[groupIndex] != null
+    					? "" + collaboratorGroups[groupIndex]
+    					: "";
+    
+    			if (
+    				groupId != "" &&
+    				collaboratorValues.indexOf(groupId) == -1
+    			) {
+    				collaboratorValues.push(
+    					groupId
+    				);
+    			}
+    		}
+    	}
+    
+    	if (
+    		creatorValues.length === 0 ||
+    		collaboratorValues.length === 0
+    	) {
+    		/*
+    		 * Deliberately impossible condition: collaboration-only mode
+    		 * must never return all applications or fall back to a broad query
+    		 * when either side of the product contract is missing.
+    		 */
     		return {
     			"_id": {
     				"$eq":
@@ -420,11 +449,11 @@ comment: |
     	for (
     		var identityIndex = 0;
     		identityIndex <
-    			identityValues.length;
+    			collaboratorValues.length;
     		identityIndex++
     	) {
     		var identity =
-    			identityValues[
+    			collaboratorValues[
     				identityIndex
     			];
     
@@ -444,23 +473,24 @@ comment: |
     		);
     	}
     
-        return {
-            "$and": [
-                {
-                    "creator": {
-                        "$nin": identityValues
-                    }
-                },
-                {
-                    "$or":
-                        collabsConditions
-                },
-                {
-                    "$or":
-                        c8oGrpConditions
-                }
-            ]
-        };
+    	return {
+    		"$and": [
+    			{
+    				"creator": {
+    					"$in":
+    						creatorValues
+    				}
+    			},
+    			{
+    				"$or":
+    					collabsConditions
+    			},
+    			{
+    				"$or":
+    					c8oGrpConditions
+    			}
+    		]
+    	};
     }
     
     var filters = {};
@@ -1499,14 +1529,24 @@ comment: |
     //var creatorOnlyFilter = hasUserFilter || (params.filters.hide_apps_i_created === true && params.filters.show_all_apps !== true);
     
     // get filters attributes
-    var collaborationOnlyFilter =
+    var collaborationOnlyRequested =
     	params.filters.my_collaborations ===
     		true;
     
     var selectedCollaborationUserID =
-        collaborationOnlyFilter === true
-            ? extractSelectedCollaborationUserId()
-            : "";
+    	collaborationOnlyRequested === true
+    		? extractSelectedCollaborationUserId()
+    		: "";
+    
+    var collaborationOnlyFilter =
+    	collaborationOnlyRequested === true &&
+    	selectedCollaborationUserID != "" &&
+    	normalizeUserId(
+    		selectedCollaborationUserID
+    	) != normalizeUserId(
+    		connectedUserID
+    	);
+    
     /*
      * Le filtre de collaboration est une restriction.
      * Il prend donc la priorité sur "show all applications".
@@ -1517,20 +1557,18 @@ comment: |
     	collaborationOnlyFilter !== true;
     
     /*
-     * Le filtre créateur ne doit pas être appliqué en même
-     * temps que le filtre "mes collaborations".
+     * En mode collaboration, le filtre créateur doit rester actif :
+     * selected user = creator, current user = collaborator.
      */
     var creatorOnlyFilter =
-    	collaborationOnlyFilter !== true &&
+    	hasUserFilter ||
     	(
-    		hasUserFilter ||
-    		(
-    			params.filters
-    				.hide_apps_i_created ===
-    					true &&
-    			params.filters
-    				.show_all_apps !== true
-    		)
+    		params.filters
+    			.hide_apps_i_created ===
+    				true &&
+    		params.filters
+    			.show_all_apps !== true &&
+    		collaborationOnlyFilter !== true
     	);
     
     var withACL = true;
@@ -1580,6 +1618,77 @@ comment: |
     }
     else {
     	usedGroups = [];
+    }
+    
+    var collaborationGroups = [];
+    
+    if (collaborationOnlyFilter) {
+    	try {
+    		var collaborationQuery =
+    			new java.util.HashMap();
+    
+    		collaborationQuery.put(
+    			''reduce'',
+    			''false''
+    		);
+    
+    		var collaborationKeys =
+    			toJettison([
+    				connectedUserID
+    			]);
+    
+    		var collaborationRows =
+    			toJSON(
+    				fsclient.postView(
+    					"c8ofullsyncgrp",
+    					''design'',
+    					''get_groups_by_user'',
+    					collaborationQuery,
+    					collaborationKeys
+    				)
+    			).rows;
+    
+    		collaborationQuery =
+    			new java.util.HashMap();
+    
+    		collaborationQuery.put(
+    			''reduce'',
+    			''true''
+    		);
+    		collaborationQuery.put(
+    			''group'',
+    			''true''
+    		);
+    
+    		var collaborationUseKeys =
+    			collaborationRows.map(
+    				(x) => { return x.value }
+    			);
+    
+    		collaborationKeys =
+    			toJettison(
+    				collaborationUseKeys
+    			);
+    
+    		var collaborationGroupsResult =
+    			toJSON(
+    				fsclient.postView(
+    					targetDB,
+    					''authentication'',
+    					''distinctGroups'',
+    					collaborationQuery,
+    					collaborationKeys
+    				)
+    			);
+    
+    		collaborationGroups =
+    			collaborationGroupsResult.rows.map(
+    				(x) => { return x.key }
+    			);
+    	}
+    	catch (e) {
+    		collaborationGroups = [];
+    	}
     }
     //if (target != "formsV2/search" && target != "published_formsV2/search") {
     var isSearchTarget =
@@ -1655,7 +1764,9 @@ comment: |
     					"$and"
     				].push(
     					buildCollaborationSelector(
-                                selectedCollaborationUserID
+    						selectedCollaborationUserID,
+    						connectedUserID,
+    						collaborationGroups
     					)
     				);
     	
@@ -2002,8 +2113,10 @@ comment: |
     			"$and"
     		].push(
     			buildCollaborationSelector(
-                    selectedCollaborationUserID
-    			)
+    						selectedCollaborationUserID,
+    						connectedUserID,
+    						collaborationGroups
+    					)
     		);
     	}
     	else if (
