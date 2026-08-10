@@ -87,7 +87,119 @@ jobs:
             -Pconvertigo.deploy.user=$C8O_USER \
             -Pconvertigo.deploy.password=$C8O_PASSWORD
 
+      - name: Diagnose exported Convertigo dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          print_literal_presence() {
+            local target="$1"
+            echo "USERMANAGER_VERSION_LITERAL:"
+            for literal in 8.0.0.12 8.0.0.17 8.0.0.19; do
+              if LC_ALL=C grep -R -q -- "$literal" "$target" 2>/dev/null; then
+                echo "  ${literal} = yes"
+              else
+                echo "  ${literal} = no"
+              fi
+            done
+          }
+
+          print_yaml_metadata() {
+            local yaml="$1"
+            echo "PROJECT_YAML: ${yaml}"
+            local project
+            project="$(awk '/\[core\.Project\]/ { line=$0; sub(/^.*↓/, "", line); sub(/ \[.*$/, "", line); print line; exit }' "$yaml" || true)"
+            echo "PROJECT: ${project:-unknown}"
+            local version
+            version="$(awk '/^[[:space:]]*version:/ { sub(/^[[:space:]]*version:[[:space:]]*/, ""); print; exit }' "$yaml" || true)"
+            echo "PROJECT_VERSION: ${version:-unknown}"
+            echo "USERMANAGER_REFERENCE:"
+            grep -nE 'lib_UserManager|c8oprj-lib-user-manager|UserManager' "$yaml" || echo "  none"
+          }
+
+          inspect_car() {
+            local car="$1"
+            echo "CAR: ${car}"
+            local tmp
+            tmp="$(mktemp -d)"
+            if unzip -qq "$car" -d "$tmp"; then
+              mapfile -t yamls < <(find "$tmp" -type f \( -name 'c8oProject.yaml' -o -name 'c8oproject.yaml' \) | sort)
+              if [ "${#yamls[@]}" -eq 0 ]; then
+                echo "PROJECT_YAML: none"
+                echo "PROJECT: unknown"
+                echo "PROJECT_VERSION: unknown"
+                echo "USERMANAGER_REFERENCE:"
+                echo "  none"
+              else
+                for yaml in "${yamls[@]}"; do
+                  print_yaml_metadata "$yaml"
+                done
+              fi
+              echo "USERMANAGER_OCCURRENCES:"
+              local matches
+              matches="$(grep -R -nE --include='*.yaml' --include='*.yml' 'lib_UserManager|c8oprj-lib-user-manager|UserManager' "$tmp" 2>/dev/null | sed -n '1,40p' || true)"
+              if [ -n "$matches" ]; then
+                printf '%s\n' "$matches"
+              else
+                echo "  none"
+              fi
+              print_literal_presence "$tmp"
+            else
+              echo "UNZIP_ERROR: yes"
+            fi
+            rm -rf "$tmp"
+          }
+
+          echo "===== CONVERTIGO DEPENDENCY DIAGNOSTIC: POST_EXPORT ====="
+          mapfile -t cars < <(find build -name "*.car" -type f | sort)
+          if [ "${#cars[@]}" -eq 0 ]; then
+            echo "NO_CAR_FOUND_IN_BUILD"
+          else
+            for car in "${cars[@]}"; do
+              echo "CAR_FOUND: ${car}"
+            done
+            for car in "${cars[@]}"; do
+              inspect_car "$car"
+            done
+          fi
+
+          echo "===== CONVERTIGO DEPENDENCY DIAGNOSTIC: PROJECT SOURCES ====="
+          sources_file="$(mktemp)"
+          for car in "${cars[@]:-}"; do
+            unzip -Z1 "$car" 2>/dev/null | awk -F/ 'NF > 1 && $1 != "" { print $1 }' | sort -u | while IFS= read -r project; do
+              printf '%s\t%s\n' "$project" "$car" >> "$sources_file"
+            done || true
+          done
+          if [ -s "$sources_file" ]; then
+            awk -F '\t' '
+              {
+                count[$1]++
+                cars[$1] = cars[$1] "\n  " $2
+              }
+              END {
+                found = 0
+                for (project in count) {
+                  if (project ~ /UserManager/) {
+                    found = 1
+                    print "PROJECT: " project
+                    print "SOURCE_CAR:" cars[project]
+                    if (count[project] > 1) {
+                      print "WARNING: MULTIPLE_USERMANAGER_SOURCES"
+                    }
+                  }
+                }
+                if (!found) {
+                  print "USERMANAGER_SOURCE_PROJECTS: none"
+                }
+              }
+            ' "$sources_file"
+          else
+            echo "PROJECT_SOURCES: none"
+          fi
+          rm -f "$sources_file"
+
       - name: Create "c8oforms_standalone" dockerized version
+        shell: bash
         run: |
           OLD_README=$(cat c8oforms_standalone/README.md)
           curl -sL https://github.com/convertigo/docker/archive/refs/tags/c8oforms-2.1.0.tar.gz | tar xvz --strip-components=1 -C c8oforms_standalone
@@ -95,11 +207,97 @@ jobs:
           echo -e "${OLD_README}\n\n${NEW_README}" > c8oforms_standalone/README.md
           sed -i -e "s,HTTPD_ENABLE=0,HTTPD_ENABLE=1," -e "s,BASEROW_ENABLE=0,BASEROW_ENABLE=1," -e "s,HTTPD_ROOT_URL=/convertigo/,HTTPD_ROOT_URL=/convertigo/projects/C8Oforms/DisplayObjects/mobile/index.html," c8oforms_standalone/.env
           mkdir -p c8oforms_standalone/data/workspace/projects/BaserowIntegration
+
+          print_literal_presence() {
+            local target="$1"
+            echo "USERMANAGER_VERSION_LITERAL:"
+            for literal in 8.0.0.12 8.0.0.17 8.0.0.19; do
+              if LC_ALL=C grep -R -q -- "$literal" "$target" 2>/dev/null; then
+                echo "  ${literal} = yes"
+              else
+                echo "  ${literal} = no"
+              fi
+            done
+          }
+
+          print_yaml_metadata() {
+            local yaml="$1"
+            echo "PROJECT_YAML: ${yaml}"
+            local project
+            project="$(awk '/\[core\.Project\]/ { line=$0; sub(/^.*↓/, "", line); sub(/ \[.*$/, "", line); print line; exit }' "$yaml" || true)"
+            echo "PROJECT: ${project:-unknown}"
+            local version
+            version="$(awk '/^[[:space:]]*version:/ { sub(/^[[:space:]]*version:[[:space:]]*/, ""); print; exit }' "$yaml" || true)"
+            echo "PROJECT_VERSION: ${version:-unknown}"
+            echo "USERMANAGER_REFERENCE:"
+            grep -nE 'lib_UserManager|c8oprj-lib-user-manager|UserManager' "$yaml" || echo "  none"
+          }
+
+          inspect_project_dir() {
+            local dir="$1"
+            echo "PROJECT_DIR: ${dir}"
+            local yaml
+            yaml="$(find "$dir" -maxdepth 4 -type f \( -name 'c8oProject.yaml' -o -name 'c8oproject.yaml' \) | sort | head -1 || true)"
+            if [ -n "$yaml" ]; then
+              print_yaml_metadata "$yaml"
+            else
+              echo "PROJECT_YAML: none"
+              echo "PROJECT: unknown"
+              echo "PROJECT_VERSION: unknown"
+              echo "USERMANAGER_REFERENCE:"
+              echo "  none"
+            fi
+            echo "USERMANAGER_OCCURRENCES:"
+            local matches
+            matches="$(grep -R -nE --include='*.yaml' --include='*.yml' 'lib_UserManager|c8oprj-lib-user-manager|UserManager' "$dir" 2>/dev/null | sed -n '1,40p' || true)"
+            if [ -n "$matches" ]; then
+              printf '%s\n' "$matches"
+            else
+              echo "  none"
+            fi
+            print_literal_presence "$dir"
+          }
+
+          ROOT="c8oforms_standalone/data/workspace/projects"
+          echo "===== CONVERTIGO DEPENDENCY DIAGNOSTIC: STANDALONE_BASE ====="
+          found_usermanager=0
+          while IFS= read -r dir; do
+            found_usermanager=1
+            inspect_project_dir "$dir"
+          done < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d \( -iname '*UserManager*' -o -iname '*user-manager*' \) | sort)
+          if [ "$found_usermanager" -eq 0 ]; then
+            echo "USERMANAGER_ALREADY_PRESENT=no"
+          else
+            echo "USERMANAGER_ALREADY_PRESENT=yes"
+          fi
+
           find build -name "*.car" -exec unzip {} -d c8oforms_standalone/data/workspace/projects \;
+
+          echo "===== CONVERTIGO DEPENDENCY DIAGNOSTIC: POST_UNZIP ====="
+          found_usermanager=0
+          while IFS= read -r dir; do
+            found_usermanager=1
+            inspect_project_dir "$dir"
+          done < <(find "$ROOT" -mindepth 1 -maxdepth 1 -type d \( -iname '*UserManager*' -o -iname '*user-manager*' \) | sort)
+          if [ "$found_usermanager" -eq 0 ]; then
+            echo "USERMANAGER_PRESENT_AFTER_UNZIP=no"
+          else
+            echo "USERMANAGER_PRESENT_AFTER_UNZIP=yes"
+          fi
+
           curl -sL https://github.com/convertigo/c8oprj-baserowintegration/archive/refs/tags/c8oforms-2.1.0.tar.gz | tar xvz --strip-components=1 -C c8oforms_standalone/data/workspace/projects/BaserowIntegration
+
+          echo "===== CONVERTIGO DEPENDENCY DIAGNOSTIC: BASEROW ====="
+          if [ -d "$ROOT/BaserowIntegration" ]; then
+            inspect_project_dir "$ROOT/BaserowIntegration"
+          else
+            echo "BASEROW_PROJECT_DIR: missing"
+          fi
+
           tar -czvf c8oforms_standalone.tar.gz c8oforms_standalone
 
       - name: Create "no_code_studio_and_dependencies.zip" (.car per project; keep folder root)
+        shell: bash
         run: |
           set -euo pipefail
           ROOT="c8oforms_standalone/data/workspace/projects"
@@ -124,6 +322,71 @@ jobs:
             fi
           done
 
+          print_literal_presence() {
+            local target="$1"
+            echo "USERMANAGER_VERSION_LITERAL:"
+            for literal in 8.0.0.12 8.0.0.17 8.0.0.19; do
+              if LC_ALL=C grep -R -q -- "$literal" "$target" 2>/dev/null; then
+                echo "  ${literal} = yes"
+              else
+                echo "  ${literal} = no"
+              fi
+            done
+          }
+
+          print_yaml_metadata() {
+            local yaml="$1"
+            echo "PROJECT_YAML: ${yaml}"
+            local project
+            project="$(awk '/\[core\.Project\]/ { line=$0; sub(/^.*↓/, "", line); sub(/ \[.*$/, "", line); print line; exit }' "$yaml" || true)"
+            echo "PROJECT: ${project:-unknown}"
+            local version
+            version="$(awk '/^[[:space:]]*version:/ { sub(/^[[:space:]]*version:[[:space:]]*/, ""); print; exit }' "$yaml" || true)"
+            echo "PROJECT_VERSION: ${version:-unknown}"
+            echo "USERMANAGER_REFERENCE:"
+            grep -nE 'lib_UserManager|c8oprj-lib-user-manager|UserManager' "$yaml" || echo "  none"
+          }
+
+          inspect_car() {
+            local car="$1"
+            echo "CAR: ${car}"
+            local tmp
+            tmp="$(mktemp -d)"
+            if unzip -qq "$car" -d "$tmp"; then
+              mapfile -t yamls < <(find "$tmp" -type f \( -name 'c8oProject.yaml' -o -name 'c8oproject.yaml' \) | sort)
+              if [ "${#yamls[@]}" -eq 0 ]; then
+                echo "PROJECT_YAML: none"
+                echo "PROJECT: unknown"
+                echo "PROJECT_VERSION: unknown"
+                echo "USERMANAGER_REFERENCE:"
+                echo "  none"
+              else
+                for yaml in "${yamls[@]}"; do
+                  print_yaml_metadata "$yaml"
+                done
+              fi
+              echo "USERMANAGER_OCCURRENCES:"
+              local matches
+              matches="$(grep -R -nE --include='*.yaml' --include='*.yml' 'lib_UserManager|c8oprj-lib-user-manager|UserManager' "$tmp" 2>/dev/null | sed -n '1,40p' || true)"
+              if [ -n "$matches" ]; then
+                printf '%s\n' "$matches"
+              else
+                echo "  none"
+              fi
+              print_literal_presence "$tmp"
+            else
+              echo "UNZIP_ERROR: yes"
+            fi
+            rm -rf "$tmp"
+          }
+
+          echo "===== CONVERTIGO DEPENDENCY DIAGNOSTIC: RECREATED_CAR ====="
+          if [ -f "lib_UserManager.car" ]; then
+            inspect_car "lib_UserManager.car"
+          else
+            echo "RECREATED_USERMANAGER_CAR: missing"
+          fi
+
           # Regroupe tous les .car dans un ZIP à la racine du repo
           dest="$GITHUB_WORKSPACE/no_code_studio_and_dependencies.zip"
           if [ "$made_any" -eq 1 ]; then
@@ -131,6 +394,20 @@ jobs:
           else
             echo "No .car produced, creating empty zip to keep pipeline consistent."
             mkdir -p ._empty && zip -qr "$dest" ._empty && rm -rf ._empty
+          fi
+
+          echo "===== CONVERTIGO DEPENDENCY DIAGNOSTIC: FINAL_ZIP ====="
+          if [ -f "$dest" ]; then
+            unzip -l "$dest" | grep -E '(^|[[:space:]])lib_UserManager\.car$' || echo "FINAL_ZIP_USERMANAGER_CAR: missing"
+            tmp="$(mktemp -d)"
+            if unzip -p "$dest" lib_UserManager.car > "$tmp/lib_UserManager.car" 2>/dev/null && [ -s "$tmp/lib_UserManager.car" ]; then
+              inspect_car "$tmp/lib_UserManager.car"
+            else
+              echo "FINAL_ZIP_USERMANAGER_CAR_INSPECTION: unavailable"
+            fi
+            rm -rf "$tmp"
+          else
+            echo "FINAL_ZIP: missing"
           fi
 
       - name: Save no_code_studio_and_dependencies
