@@ -1687,26 +1687,65 @@ scriptContent:
                     '		try {
                     			// if it''s not ts
                     			if(page.currentObject.conds[vars.l].val2.type != ''ts''){
-                    				let alertController = page.getInstance(AlertController);
-                    				// send an alert to confirm data will be lost
-                    				const alert = await alertController.create({
-                    			      header: page.translate.instant("header_pwamsg"),
-                    			      subHeader: page.translate.instant("compat_js"),
-                    			      buttons: [
-                    					  {
-                    						  text: page.translate.instant("cancel_pwamsg"),
-                    						  role: ''cancel'',
-                    					  },
-                    					  {
-                      						  text: page.translate.instant("continue_pwamsg"),
-                      						  role: ''confirm'',
-                      					  },
-                    					]
-                    			    });
-                    			    await alert.present();
-                    			    let res = await alert.onDidDismiss();
+                                    const compatJsWarningAckVersion = 1;
+                                    let ackValue = page.global != null && page.global.settings != null ? page.global.settings.jsModeSwitchWarningAckVersion : null;
+                                    let ackNumber = NaN;
+                                    if(typeof ackValue == "number"){
+                                        ackNumber = ackValue;
+                                    }
+                                    else if(typeof ackValue == "string" && ackValue.trim() !== ""){
+                                        ackNumber = Number(ackValue);
+                                    }
+                                    let isCompatJsWarningAcknowledged = isFinite(ackNumber) && Math.floor(ackNumber) == ackNumber && ackNumber >= compatJsWarningAckVersion;
+                                    let res: any = { role: ''confirm'', data: { values: [] } };
+                                    if(!isCompatJsWarningAcknowledged){
+                                        let alertController = page.getInstance(AlertController);
+                                        // send an alert to confirm data will be lost
+                                        const alert = await alertController.create({
+                                          header: page.translate.instant("header_pwamsg"),
+                                          subHeader: page.translate.instant("compat_js"),
+                                          inputs: [
+                                              {
+                                                  name: ''dontShowWarningAgain'',
+                                                  type: ''checkbox'',
+                                                  label: page.translate.instant("dont_show_warning_again"),
+                                                  value: ''dontShowWarningAgain'',
+                                                  checked: false
+                                              }
+                                          ],
+                                          buttons: [
+                                              {
+                                                  text: page.translate.instant("cancel_pwamsg"),
+                                                  role: ''cancel'',
+                                              },
+                                              {
+                                                  text: page.translate.instant("continue_pwamsg"),
+                                                  role: ''confirm'',
+                                              },
+                                          ]
+                                        });
+                                        await alert.present();
+                                        res = await alert.onDidDismiss();
+                                    }
                     			    let str = "";
                     			    if(res.role === ''confirm''){
+                                        let dismissedValues = res != null && res.data != null && Array.isArray(res.data.values) ? res.data.values : [];
+                                        if(dismissedValues.indexOf(''dontShowWarningAgain'') != -1){
+                                            if(page.global != null){
+                                                if(page.global.settings == null){
+                                                    page.global.settings = {};
+                                                }
+                                                page.global.settings.jsModeSwitchWarningAckVersion = compatJsWarningAckVersion;
+                                            }
+                                            try{
+                                                let persistAck = page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"jsModeSwitchWarningAckVersion": compatJsWarningAckVersion})}).async();
+                                                if(persistAck != null && typeof persistAck.catch == "function"){
+                                                    persistAck.catch(() => {});
+                                                }
+                                            }
+                                            catch(e){
+                                            }
+                                        }
                     					//val2.type = "ts";
                     					let isMultipleValues = page.operatorUsesMultipleValues(page.currentObject.conds[vars.l].operator);
                     					if(isMultipleValues){
