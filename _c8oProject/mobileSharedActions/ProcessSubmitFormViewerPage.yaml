@@ -832,80 +832,156 @@
                     		
                     		
                     '
-            ↓CallSequence [ngx.components.UIDynamicAction-1742379114378]: 
-              beanData: '{"ionBean":"CallSequenceAction","requestable":"plain:C8Oforms.submitResponseAnonymous"}'
-              ↓login [ngx.components.UIControlVariable-1742379114381]: 
-                comment: new variable
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.user
-              ↓resp [ngx.components.UIControlVariable-1742379114384]: 
-                comment: new variable
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.formsSubmit2
-              ↓grp [ngx.components.UIControlVariable-1742379114387]: 
-                comment: new variable
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.grp2
-              ↓myId [ngx.components.UIControlVariable-1742379114390]: 
-                comment: new variable
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.myId
-              ↓formId [ngx.components.UIControlVariable-1742379114393]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.formId
-              ↓timestamp [ngx.components.UIControlVariable-1742379114396]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.epoch2
-              ↓formRev [ngx.components.UIControlVariable-1742379114399]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local._rev
-              ↓version [ngx.components.UIControlVariable-1742379114402]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: 'script:c8oPage.form?.version != undefined ? c8oPage.form?.version : ''test'''
-              ↓actions [ngx.components.UIControlVariable-1742379114405]: 
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.submitActions2
-              ↓files [ngx.components.UIControlVariable-1742379114408]: 
-                comment: new variable
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.filesToSeq
-              ↓filesInfo [ngx.components.UIControlVariable-1742379114411]: 
-                comment: new variable
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.filesInfoToSeq
-              ↓filesDelete [ngx.components.UIControlVariable-1742401501000]: 
-                comment: new variable
-                varValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:c8oPage.local.filesDeleteToSeq
-              ↓If [ngx.components.UIDynamicAction-1742400422341]: 
-                beanData: '{"ionBean":"IfAction","condition":"script:params.performCheckMandatory"}'
-                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1742379114414]: 
-                  beanData: '{"ionBean":"InvokeAction"}'
-                  stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPageFINISH
+            ↓NormalizeIosImageFilesForUpload [ngx.components.UICustomAsyncAction-1787911059356]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '		if(page["pageOwner"] != undefined){
+                      			page = page["pageOwner"];
+                      		}
+                      
+                      		const iOS = () => {
+                      			return [
+                      				''iPad Simulator'',
+                      				''iPhone Simulator'',
+                      				''iPod Simulator'',
+                      				''iPad'',
+                      				''iPhone'',
+                      				''iPod''
+                      			].indexOf(navigator.platform) != -1
+                      			// iPad on iOS 13 detection
+                      			|| (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+                      		};
+                      
+                      		if (!iOS()) {
+                      			return;
+                      		}
+                      
+                      		const files = Array.isArray(page.local.filesToSeq) ? page.local.filesToSeq : [];
+                      		let filesInfo: any = page.local.filesInfoToSeq;
+                      		if (typeof filesInfo == "string") {
+                      			try {
+                      				filesInfo = JSON.parse(filesInfo);
+                      			}
+                      			catch (e) {
+                      				filesInfo = [];
+                      			}
+                      		}
+                      		if (!Array.isArray(filesInfo) || files.length == 0) {
+                      			return;
+                      		}
+                      
+                      		const BrowserFile: any = typeof window != "undefined" ? (window as any).File : undefined;
+                      		const normalizeFileForIOSUpload = async (file: any, info: any): Promise<any> => {
+                      			// Temporary iOS/WebKit workaround for Bug 319985:
+                      			// OS-backed Files can fail during multipart serialization. Recreate an
+                      			// equivalent memory-backed File and remove this once affected WebKit
+                      			// versions are no longer supported.
+                      			const bytes = await file.arrayBuffer();
+                      			return new BrowserFile(
+                      				[bytes],
+                      				file.name || info?.name || "image.jpg",
+                      				{
+                      					type: file.type || info?.content_type || "image/jpeg",
+                      					lastModified: file.lastModified != undefined ? file.lastModified : new Date().getTime()
+                      				}
+                      			);
+                      		};
+                      
+                      		const normalizedFiles: any[] = [];
+                      		for (let i = 0; i < files.length; i++) {
+                      			const file = files[i];
+                      			const info = filesInfo[i] || {};
+                      			const contentType = (info?.content_type || file?.type || "") + "";
+                      			const isImageAttachment = info?.type == "toB64" && contentType.toLowerCase().indexOf("image/") == 0;
+                      			if (!isImageAttachment) {
+                      				continue;
+                      			}
+                      			if (typeof BrowserFile == "undefined" || !(file instanceof BrowserFile) || typeof file?.arrayBuffer != "function") {
+                      				continue;
+                      			}
+                      			normalizedFiles.push({index: i, file: await normalizeFileForIOSUpload(file, info)});
+                      		}
+                      		for (const normalizedFile of normalizedFiles) {
+                      			files[normalizedFile.index] = normalizedFile.file;
+                      		}'
+              comment: Temporary iOS/WebKit File upload workaround before anonymous submitResponseAnonymous multipart upload.
+              ↓CallSequence [ngx.components.UIDynamicAction-1742379114378]: 
+                beanData: '{"ionBean":"CallSequenceAction","requestable":"plain:C8Oforms.submitResponseAnonymous"}'
+                ↓login [ngx.components.UIControlVariable-1742379114381]: 
+                  comment: new variable
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.user
+                ↓resp [ngx.components.UIControlVariable-1742379114384]: 
+                  comment: new variable
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.formsSubmit2
+                ↓grp [ngx.components.UIControlVariable-1742379114387]: 
+                  comment: new variable
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.grp2
+                ↓myId [ngx.components.UIControlVariable-1742379114390]: 
+                  comment: new variable
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.myId
+                ↓formId [ngx.components.UIControlVariable-1742379114393]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.formId
+                ↓timestamp [ngx.components.UIControlVariable-1742379114396]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.epoch2
+                ↓formRev [ngx.components.UIControlVariable-1742379114399]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local._rev
+                ↓version [ngx.components.UIControlVariable-1742379114402]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: 'script:c8oPage.form?.version != undefined ? c8oPage.form?.version : ''test'''
+                ↓actions [ngx.components.UIControlVariable-1742379114405]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.submitActions2
+                ↓files [ngx.components.UIControlVariable-1742379114408]: 
+                  comment: new variable
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.filesToSeq
+                ↓filesInfo [ngx.components.UIControlVariable-1742379114411]: 
+                  comment: new variable
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.filesInfoToSeq
+                ↓filesDelete [ngx.components.UIControlVariable-1742401501000]: 
+                  comment: new variable
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:c8oPage.local.filesDeleteToSeq
+                ↓If [ngx.components.UIDynamicAction-1742400422341]: 
+                  beanData: '{"ionBean":"IfAction","condition":"script:params.performCheckMandatory"}'
+                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1742379114414]: 
+                    beanData: '{"ionBean":"InvokeAction"}'
+                    stack: C8Oforms.MobileApplication.Application.ProcessSubmitFormViewerPageFINISH
           ↓Else_Handler [ngx.components.UIActionElseEvent-1742379114417]: 
             ↓PostData [ngx.components.UIDynamicAction-1742379114420]: 
               beanData: |
