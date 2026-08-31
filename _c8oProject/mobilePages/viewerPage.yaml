@@ -563,14 +563,33 @@ scriptContent:
             }
         
             /**
+             * Returns true when an exact empty string is a meaningful filter operand.
+             *
+             * Equality and inequality operators can target rows whose value is exactly
+             * empty. Other value-based operators still require a non-empty operand.
+             */
+            private isBaserowFilterOperatorAllowingEmptyString(operator: any): boolean {
+                const op = operator == null ? "" : ("" + operator).trim().toLowerCase();
+                return [
+                    "equal",
+                    "equals",
+                    "not_equal",
+                    "different",
+                    "single_select_equal",
+                    "single_select_not_equal"
+                ].indexOf(op) != -1;
+            }
+        
+            /**
              * Detects empty user values before connector serialization.
              *
              * Multiple Select arrays are normalized through normalizeSelectValues so
              * malformed entries such as empty strings or null values do not create an
-             * effective Baserow filter. Scalar historical values keep their previous
-             * string/null/undefined behavior.
+             * effective Baserow filter. Scalar equality/inequality filters preserve an
+             * exact empty string as a meaningful operand, while null, undefined and
+             * whitespace-only strings keep the previous invalid behavior.
              */
-            private isMissingBaserowFilterValue(value: any): boolean {
+            private isMissingBaserowFilterValue(value: any, operator: any = null): boolean {
                 if (Array.isArray(value)) {
                     return this.normalizeSelectValues(value).length == 0;
                 }
@@ -578,6 +597,9 @@ scriptContent:
                     return true;
                 }
                 if (typeof value == "string") {
+                    if (value === "") {
+                        return !this.isBaserowFilterOperatorAllowingEmptyString(operator);
+                    }
                     return value.trim() == "";
                 }
                 return false;
@@ -1206,7 +1228,7 @@ scriptContent:
                     const resolvedOperator = this.resolveBaserowFilterOperator(fieldType, operator, normalized.value, 0);
                     return this.buildBaserowScalarFilter(normalized, resolvedOperator || operator, normalized.value);
                 }
-                if (this.isMissingBaserowFilterValue(normalized.value)) {
+                if (this.isMissingBaserowFilterValue(normalized.value, operator)) {
                     return null;
                 }
                 if (Array.isArray(normalized.value)) {
@@ -1617,6 +1639,15 @@ scriptContent:
         	}
         
         	public async performSubmitAction(step, submitActions, perform, __id = null, executionToken = null) {
+                let iphonePhotoApiStage = "01";
+                try {
+                    console.log("[IPHONE_PHOTO][01] performSubmitAction entered", {
+                        perform: perform === true,
+                        stepName: step?.name,
+                        stepType: step?.type
+                    });
+                }
+                catch (e) {}
         		if (!this.isFlowExecutionActive(executionToken)) {
         			return;
         		}
@@ -1681,41 +1712,146 @@ scriptContent:
         		for (let item in this.formsSubmit) {
         			if (this.formsSubmit[item]["type"] == "signature" || this.formsSubmit[item]["type"] == "img") {
         				if (this.formsSubmit[item]["value"] != "") {
-        					doc.item.resp[item].att_type = true;
-        					if (this.formsSubmit[item]["value"] instanceof File || this.formsSubmit[item]["value"] instanceof Blob) {
-        						let _file: Blob = new Blob([this.formsSubmit[item]["value"]], { type: this.formsSubmit[item]["value"].type });
-        						let file = new File([_file], this.formsSubmit[item]["name"], {
-        						  type: this.formsSubmit[item]["value"].type,
-        						  lastModified: new Date().getTime()
-        						});
-        						attachments.push(file);
-        						attachments_meta.push({name:this.formsSubmit[item]["name"], contentType: this.formsSubmit[item]["value"].type});
-        					}
-        					else {
-        						const byteCharacters = atob(this.formsSubmit[item]["value"].substring(22));
-        					    const byteArrays = [];
-        
-        					    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-        					        const slice = byteCharacters.slice(offset, offset + 512);
-        
-        					        const byteNumbers = new Array(slice.length);
-        					        for (let i = 0; i < slice.length; i++) {
-        					            byteNumbers[i] = slice.charCodeAt(i);
-        					        }
-        
-        					        const byteArray = new Uint8Array(byteNumbers);
-        					        byteArrays.push(byteArray);
-        					    }
-        						let _file: Blob = new Blob(byteArrays, { type: (this.formsSubmit[item]["type"] == "signature" ? ''image/png'' : ''image/jpg'') });
-        						let file = new File([_file], this.formsSubmit[item]["name"], {
-        						  type: (this.formsSubmit[item]["type"] == "signature" ? ''image/png'' : ''image/jpg''),
-        						  lastModified: new Date().getTime()
-        						});
-        						attachments.push(file);
-        						attachments_meta.push({name: this.formsSubmit[item]["name"], contentType: (this.formsSubmit[item]["type"] == "signature" ? ''image/png'' : ''image/jpg'')});
-        					}
-        
-        				}
+            let iphonePhotoItemStage = "02";
+            try {
+                const photoValue = this.formsSubmit[item]["value"];
+                const attachmentName = this.formsSubmit[item]["name"];
+                const photoIsFile = typeof File !== "undefined" && photoValue instanceof File;
+                const photoIsBlob = typeof Blob !== "undefined" && photoValue instanceof Blob;
+                console.log("[IPHONE_PHOTO][VALUE]", {
+                    item: item,
+                    formType: this.formsSubmit[item]?.type,
+                    attachmentName: attachmentName,
+                    runtimeType: photoValue?.constructor?.name,
+                    objectTag: Object.prototype.toString.call(photoValue),
+                    isFile: photoIsFile,
+                    isBlob: photoIsBlob,
+                    typeofValue: typeof photoValue,
+                    mime: photoValue?.type,
+                    name: photoValue?.name,
+                    size: photoValue?.size,
+                    stringLength: typeof photoValue === "string" ? photoValue.length : null,
+                    stringPrefix: typeof photoValue === "string" ? photoValue.substring(0, 80) : null
+                });
+                console.log("[IPHONE_PHOTO][02] photo detected", {
+                    item: item,
+                    formType: this.formsSubmit[item]?.type,
+                    attachmentName: attachmentName
+                });
+                const fallbackContentType = this.formsSubmit[item]["type"] == "signature" ? ''image/png'' : ''image/jpg'';
+                doc.item.resp[item].att_type = true;
+                doc.item.resp[item].value = attachmentName;
+                if (this.formsSubmit[item]["value"] instanceof File || this.formsSubmit[item]["value"] instanceof Blob) {
+                    iphonePhotoItemStage = "03_FILE";
+                    const sourceFile = this.formsSubmit[item]["value"];
+                    const contentType = sourceFile.type != undefined && sourceFile.type != "" ? sourceFile.type : fallbackContentType;
+                    console.log("[IPHONE_PHOTO][03_FILE] File/Blob branch", {
+                        item: item,
+                        sourceConstructor: sourceFile?.constructor?.name,
+                        sourceName: sourceFile?.name,
+                        sourceType: sourceFile?.type,
+                        sourceSize: sourceFile?.size,
+                        attachmentName: attachmentName,
+                        contentType: contentType
+                    });
+                    let _file: Blob = new Blob([sourceFile], { type: contentType });
+                    let file = new File([_file], attachmentName, {
+                      type: contentType,
+                      lastModified: sourceFile?.lastModified != undefined ? sourceFile.lastModified : new Date().getTime()
+                    });
+                    attachments.push(file);
+                    attachments_meta.push({name: attachmentName, contentType: contentType});
+                    iphonePhotoItemStage = "04";
+                    console.log("[IPHONE_PHOTO][04] attachment ready", {
+                        item: item,
+                        branch: "file",
+                        responseValue: doc.item.resp[item]?.value,
+                        responseAttType: doc.item.resp[item]?.att_type,
+                        sourceSize: sourceFile?.size,
+                        wrappedBlobSize: _file?.size,
+                        finalName: file?.name,
+                        finalType: file?.type,
+                        finalSize: file?.size,
+                        metaName: attachmentName,
+                        metaContentType: contentType
+                    });
+                }
+                else {
+                    iphonePhotoItemStage = "03_STRING";
+                    const sourceValue = this.formsSubmit[item]["value"];
+                    console.log("[IPHONE_PHOTO][03_STRING] string branch", {
+                        item: item,
+                        typeofValue: typeof sourceValue,
+                        stringLength: typeof sourceValue === "string" ? sourceValue.length : null,
+                        stringPrefix: typeof sourceValue === "string" ? sourceValue.substring(0, 80) : null
+                    });
+                    if (typeof sourceValue != "string") {
+                        throw new Error("Unsupported image attachment value");
+                    }
+                    let contentType = fallbackContentType;
+                    let base64Payload = sourceValue;
+                    if (sourceValue.substring(0, 5).toLowerCase() == "data:") {
+                        const commaIndex = sourceValue.indexOf(",");
+                        if (commaIndex == -1) {
+                            throw new Error("Invalid image Data URL");
+                        }
+                        const metadata = sourceValue.substring(0, commaIndex);
+                        base64Payload = sourceValue.substring(commaIndex + 1);
+                        if (metadata.toLowerCase().indexOf(";base64") == -1 || base64Payload == "") {
+                            throw new Error("Invalid image Data URL");
+                        }
+                        const declaredType = metadata.substring(5).split(";")[0].trim();
+                        if (declaredType != "") {
+                            contentType = declaredType;
+                        }
+                    }
+                    if (base64Payload == "" || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Payload) || base64Payload.length % 4 == 1) {
+                        throw new Error("Invalid image base64 payload");
+                    }
+                    const byteCharacters = atob(base64Payload);
+                    const byteArrays = [];
+                    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                        const slice = byteCharacters.slice(offset, offset + 512);
+                        const byteNumbers = new Array(slice.length);
+                        for (let i = 0; i < slice.length; i++) {
+                            byteNumbers[i] = slice.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        byteArrays.push(byteArray);
+                    }
+                    let _file: Blob = new Blob(byteArrays, { type: contentType });
+                    let file = new File([_file], attachmentName, {
+                      type: contentType,
+                      lastModified: new Date().getTime()
+                    });
+                    attachments.push(file);
+                    attachments_meta.push({name: attachmentName, contentType: contentType});
+                    iphonePhotoItemStage = "04";
+                    console.log("[IPHONE_PHOTO][04] attachment ready", {
+                        item: item,
+                        branch: "string",
+                        responseValue: doc.item.resp[item]?.value,
+                        responseAttType: doc.item.resp[item]?.att_type,
+                        payloadLength: base64Payload.length,
+                        finalName: file?.name,
+                        finalType: file?.type,
+                        finalSize: file?.size,
+                        metaName: attachmentName,
+                        metaContentType: contentType
+                    });
+                }
+            }
+            catch (error: any) {
+                console.error("[IPHONE_PHOTO][ERROR]", {
+                    stage: iphonePhotoItemStage,
+                    item: item,
+                    name: error?.name,
+                    message: error?.message,
+                    stack: error?.stack
+                });
+                throw error;
+            }
+        }
         
         			}
         		}
@@ -1799,10 +1935,53 @@ scriptContent:
         			
         			// end handle attachments
         			let args = { doc: [JSON.stringify(doc)], attachments: attachments, attachments_meta: JSON.stringify(attachments_meta), execute_Async: "false", __context: "*", __removeContext: true };
-        			if (!this.isFlowExecutionActive(executionToken)) {
-        				return;
-        			}
-        			let resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
+                    iphonePhotoApiStage = "05";
+                    try {
+                        console.log("[IPHONE_PHOTO][05] args ready", {
+                            attachmentsCount: attachments.length,
+                            attachmentsMetaCount: attachments_meta.length,
+                            responseKeysCount: doc?.item?.resp != null ? Object.keys(doc.item.resp).length : null
+                        });
+                        console.log("[IPHONE_PHOTO][ATTACHMENTS]", {
+                            count: attachments.length,
+                            items: attachments.map((a: any) => ({
+                                constructor: a?.constructor?.name,
+                                name: a?.name,
+                                type: a?.type,
+                                size: a?.size
+                            })),
+                            meta: attachments_meta
+                        });
+                    }
+                    catch (e) {}
+                    if (!this.isFlowExecutionActive(executionToken)) {
+                        return;
+                    }
+                    iphonePhotoApiStage = "06";
+                    console.log("[IPHONE_PHOTO][06] BEFORE APIV2_Execute_Sequences", {
+                        attachmentsCount: attachments.length,
+                        attachmentsMetaCount: attachments_meta.length
+                    });
+                    let resp;
+                    try {
+                        resp = await this.c8o.callJsonObject("C8Oforms.APIV2_Execute_Sequences", args).async();
+                        iphonePhotoApiStage = "07";
+                        console.log("[IPHONE_PHOTO][07] APIV2 success", {
+                            responseType: typeof resp,
+                            responseKeys: resp != null && typeof resp === "object" ? Object.keys(resp).slice(0, 20) : null
+                        });
+                    }
+                    catch (error: any) {
+                        console.error("[IPHONE_PHOTO][ERROR]", {
+                            stage: iphonePhotoApiStage,
+                            name: error?.name,
+                            message: error?.message,
+                            status: error?.status,
+                            response: error?.response,
+                            stack: error?.stack
+                        });
+                        throw error;
+                    }
         			if (!this.isFlowExecutionActive(executionToken)) {
         				return;
         			}
@@ -13222,19 +13401,21 @@ title: Visualisateur
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: plain:this.form.progressIndicator && this.isTopNavigationEnabled()
+        isEnabled: false
+      ↓Attr1 [ngx.components.UIAttribute-1788166525016]: 
+        attrName: '*ngIf'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: plain:this.form.progressIndicator
   ↓ToolBar2 [ngx.components.UIDynamicElement-1664292410958]: 
     beanData: '{"ionBean":"ToolBar"}'
     tagName: ion-toolbar
-    ↓Attr [ngx.components.UIAttribute-1664292411129]: 
-      attrName: '*ngIf'
-      attrValue: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: plain:this.local.canRespond && this.isTopNavigationEnabled()
     ↓UseSharedComponent [ngx.components.UIUseShared-1664293057266]: 
       sharedcomponent: C8Oforms.MobileApplication.Application.SharedTabs
     ↓ProgressBar [ngx.components.UIDynamicElement-1733481293296]: 
       beanData: '{"ionBean":"ProgressBar","Value":"script:this.local.currentIndex \/ (this.local.pages?.length -1)"}'
+      isEnabled: false
       tagName: ion-progress-bar
       ↓Attr [ngx.components.UIAttribute-1733481293299]: 
         attrName: '*ngIf'
@@ -13242,6 +13423,12 @@ title: Visualisateur
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: plain:this.form.progressIndicator
+    ↓Attr [ngx.components.UIAttribute-1664292411129]: 
+      attrName: '*ngIf'
+      attrValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: plain:this.local.canRespond && this.isTopNavigationEnabled()
 ↓Content [ngx.components.UIDynamicElement-1537435548501]: 
   beanData: '{"ionBean":"Content","Padding":"plain:ion-padding-vertical"}'
   comment: Page content
@@ -13317,9 +13504,12 @@ title: Visualisateur
             }
             &.c8o-tabs-vertical-runtime .c8o-tabs-vertical-runtime-nav {
               flex: 0 0 auto;
-              width: clamp(132px, 18vw, 220px);
-              min-width: 132px;
-              max-width: 220px;
+              width: max-content;
+              inline-size: max-content;
+              max-width: min(25vw, 14rem);
+              max-inline-size: min(25vw, 14rem);
+              min-width: 0;
+              min-inline-size: 0;
               min-height: 100%;
               align-self: stretch;
               order: 0;
@@ -13337,10 +13527,14 @@ title: Visualisateur
             }
             &.c8o-tabs-vertical-runtime .c8o-tabs-vertical-runtime-nav c8oforms-sharedtabs {
               display: block;
-              width: 100%;
+              width: max-content;
+              inline-size: max-content;
+              max-width: 100%;
+              max-inline-size: 100%;
+              min-width: 0;
+              min-inline-size: 0;
               height: 100%;
-            }
-            '
+            }'
   ↓Directive [ngx.components.UIControlDirective-1576510500502]: 
     directiveName: If
     directiveSource: 
