@@ -581,6 +581,27 @@ scriptContent:
             }
         
             /**
+             * Maps C8oForms empty equality semantics to native Baserow value-free operators.
+             *
+             * The mapping is intentionally limited to an exact empty string entered through
+             * the No-Code filter UX. Null, undefined and whitespace-only values keep the
+             * existing missing-value pruning behavior.
+             */
+            private getBaserowEmptyComparisonOperator(operator: any, value: any): string {
+                if (value !== "") {
+                    return "";
+                }
+                const op = operator == null ? "" : ("" + operator).trim().toLowerCase();
+                if (op == "equal" || op == "equals") {
+                    return "empty";
+                }
+                if (op == "not_equal" || op == "different") {
+                    return "not_empty";
+                }
+                return "";
+            }
+        
+            /**
              * Detects empty user values before connector serialization.
              *
              * Multiple Select arrays are normalized through normalizeSelectValues so
@@ -1230,6 +1251,10 @@ scriptContent:
                 }
                 if (this.isMissingBaserowFilterValue(normalized.value, operator)) {
                     return null;
+                }
+                const emptyComparisonOperator = this.getBaserowEmptyComparisonOperator(operator, normalized.value);
+                if (emptyComparisonOperator != "") {
+                    return this.buildBaserowScalarFilter(normalized, emptyComparisonOperator, "");
                 }
                 if (Array.isArray(normalized.value)) {
                     const values = this.getNonEmptyBaserowFilterValues(normalized.value);
