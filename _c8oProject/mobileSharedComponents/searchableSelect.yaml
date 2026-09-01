@@ -154,9 +154,30 @@ scriptContent:
                     }
                     return text
                         .replace(/<br\s*\/?>/gi, ", ")
-                        .replace(/<\/?(div|span)\b[^>]*>/gi, "")
+                        .replace(/<\/(div|p|li|tr|h[1-6])>/gi, ", ")
+                        .replace(/<(div|p|li|tr|h[1-6])\b[^>]*>/gi, "")
+                        .replace(/<\/?span\b[^>]*>/gi, "")
+                        .replace(/[\r\n]+/g, ", ")
                         .replace(/\s*,\s*/g, ", ")
+                        .replace(/(?:,\s*)+/g, ", ")
+                        .replace(/^,\s*|\s*,\s*$/g, "")
                         .trim();
+                }
+                private getSelectDisplayCacheEntry(entry: any): any {
+                    if(entry == null || typeof entry !== "object"){
+                        return entry;
+                    }
+                    const rawDisplayValue = entry.displayValue != undefined ? entry.displayValue : entry.label != undefined ? entry.label : entry.name;
+                    if(rawDisplayValue == undefined){
+                        return entry;
+                    }
+                    const displayValue = this.normalizeSelectClosedDisplayText(rawDisplayValue);
+                    if(displayValue === rawDisplayValue){
+                        return entry;
+                    }
+                    const nextEntry = Object.assign({}, entry);
+                    nextEntry.displayValue = displayValue;
+                    return nextEntry;
                 }
                 private getSelectValueKey(value: any): string {
                     if(value == null){
@@ -252,11 +273,23 @@ scriptContent:
                             cache = Object.create(null);
                         }
                         if(checked === true){
-                            cache[optionValue] = option;
+                            cache[optionValue] = this.getSelectDisplayCacheEntry(option);
                         }
                         else {
                             delete cache[optionValue];
                         }
+                        const sourceValues = owner?.local?.sourceValue?.[this.elems];
+                        nextValues.forEach((value: any) => {
+                            if(cache[value] == null && Array.isArray(sourceValues)){
+                                const sourceOption = sourceValues.find((entry: any) => this.getSelectValueKey(entry) == value);
+                                if(sourceOption != null){
+                                    cache[value] = sourceOption;
+                                }
+                            }
+                            if(cache[value] != null){
+                                cache[value] = this.getSelectDisplayCacheEntry(cache[value]);
+                            }
+                        });
                         owner.local.techSelect[itemName] = cache;
                     }
                     if(owner?.redList != null && itemName != null){
