@@ -304,98 +304,105 @@ comment: |
     		currentVersion = +published_form.version;
     	}
     	res["currentVersion"] = currentVersion;
-    	query = new java.util.HashMap();
-    	query.put(''reduce'', ''false'');
-    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId+"_anonymous", "" + currentVersion]]));
-    	query.put("include_docs", "true");
-    	var responses;
-    	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
-    	res.response = { length: responses.length };
-    	
-    	var byName = false;
-    	if("element" in this && element != null){
-    		byName = true;
-    	}
-    	
-    	if (responses.length > 0) {
-    	//	log.warn(JSON.stringify(responses));
-    	//	var lenActions = Object.keys(responses[0].doc.actionsValue).length;
-    		var firstDoc = responses[0].doc || {};
-    		var lenActions = Object.keys(firstDoc.actions || {}).length;
-    		res.lenActions = lenActions;
-    		
-    		var j = 0;
-    		for(var response of responses){
-    			var resp = response.doc.resp;
-    			var k = 0;
-    			for(var key in resp){
-    				
-    				if(!byName || key == element){
-    					//getAttach
-    					switch(resp[key].type){
-    						case "signature":
-    						case "img":
-    //							let fp = attDir+"/"+response.id+"_"+resp[key].name;
-    							var fp = attDir+"/"+resp[key].name+"_"+j+"_"+k;
-    							var file = new File(fp);
-    							var result = fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, resp[key].name, new java.util.HashMap(), file);
-    							var contentType = JSON.parse(result)._c8oMeta.headers["Content-Type"];
-    							var extension = contentType.split("/")[1];
-    							if(extensionsDB[contentType] != undefined && extensionsDB[contentType]["extensions"] != undefined && extensionsDB[contentType]["extensions"][0] != undefined){
-    								extension = extensionsDB[contentType]["extensions"][0];
-    							}
-    							let fpWithExtension = new File(fp + "." + extension);
-    							file.renameTo(fpWithExtension);
-    							k++;
-    						break;
-    						case "file":
-    							if (resp[key].value instanceof Array) {
-    								for (var entryFile of resp[key].value) {
-    									if (typeof (entryFile) === "string") {
-    										let name = entryFile.split("_C80C80_")[1];
-    										try{
-    											let lastDotIndex = name.lastIndexOf(''.'');
-    											name = name.slice(0, lastDotIndex) + "_"+ j+"_"+k + name.slice(lastDotIndex);
-    										}
-    										catch(e){
-    											name = entryFile.split("_C80C80_")[1];
-    										}
-    										fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, entryFile, new java.util.HashMap(), new File(attDir+"/"+name));
-    										k++;
-    									}
-    								}
-    							}
-    						break;
-    					}
-    				}
-    				j++;
-    			}
-    //			for(let key in response.doc.actionsValue){
-    			var actions = response.doc.actions || {};
-    			for(let key in actions){
-    				if(response.doc.actions[key].valueType == "attachment"){
-    					if(!byName || key == element){
-    						let name = response.doc.actions[key].value
-    						try{
-    							let lastDotIndex = name.lastIndexOf(''.'');
-    							name = name.slice(0, lastDotIndex) + "_"+ j+"_"+k + name.slice(lastDotIndex);
-    						}
-    						catch(e){
-    							name = response.doc.actions[key].value
-    						}
-    						fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, response.doc.actions[key].value, new java.util.HashMap(), new File(attDir+"/"+name));
-    				 	}
-    					k++;
-    				}
-    				
-    			}
+        var byName = false;
+        if ("element" in this && element != null) {
+            byName = true;
+        }
+        var responseBatchSize = 10;
+        var currentSkip = 0;
+        var responseCount = 0;
+        var hasMoreResponseBatches = true;
+        var firstResponseSeen = false;
+        var j = 0;
+        while (hasMoreResponseBatches) {
+            var query = new java.util.HashMap();
+            query.put("reduce", "false");
+            query.put("keys", JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]));
+            query.put("include_docs", "true");
+            query.put("skip", "" + currentSkip);
+            query.put("limit", "" + responseBatchSize);
+            var batchResult = fsclient.getView("c8oforms_response_fs", "read_responses", "getResponsesByVersion", query);
+            var responses = toJSON(batchResult).rows;
+            var batchLength = responses != null ? responses.length : 0;
+            if (!firstResponseSeen && batchLength > 0) {
+                var firstDoc = responses[0].doc || {};
+                res.lenActions = Object.keys(firstDoc.actions || {}).length;
+                firstResponseSeen = true;
+            }
+            for (var responseIndex = 0; responseIndex < batchLength; responseIndex++) {
+                var response = responses[responseIndex];
+                var resp = response.doc.resp;
+                var k = 0;
+                for (var key in resp) {
+                    if (!byName || key == element) {
+                        switch (resp[key].type) {
+                            case "signature":
+                            case "img":
+                                var fp = attDir + "/" + resp[key].name + "_" + j + "_" + k;
+                                var file = new File(fp);
+                                var result = fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, resp[key].name, new java.util.HashMap(), file);
+                                var contentType = JSON.parse(result)._c8oMeta.headers["Content-Type"];
+                                var extension = contentType.split("/")[1];
+                                if (extensionsDB[contentType] != undefined && extensionsDB[contentType]["extensions"] != undefined && extensionsDB[contentType]["extensions"][0] != undefined) {
+                                    extension = extensionsDB[contentType]["extensions"][0];
+                                }
+                                var fpWithExtension = new File(fp + "." + extension);
+                                file.renameTo(fpWithExtension);
+                                k++;
+                                break;
+                            case "file":
+                                if (resp[key].value instanceof Array) {
+                                    for (var entryFile of resp[key].value) {
+                                        if (typeof (entryFile) === "string") {
+                                            var name = entryFile.split("_C80C80_")[1];
+                                            try {
+                                                var lastDotIndex = name.lastIndexOf(".");
+                                                name = name.slice(0, lastDotIndex) + "_" + j + "_" + k + name.slice(lastDotIndex);
+                                            }
+                                            catch (e) {
+                                                name = entryFile.split("_C80C80_")[1];
+                                            }
+                                            fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, entryFile, new java.util.HashMap(), new File(attDir + "/" + name));
+                                            k++;
+                                        }
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                    j++;
+                }
     
-    		}
-    		zipFolder(attDir, attDir+".zip");
-    		rmdir(attDir);
-    		context.addFileToDeleteAtEndOfSession(new File(attDir+".zip"));
-    		j++;
-    	}
+                var actions = response.doc.actions || {};
+                for (var actionKey in actions) {
+                    if (actions[actionKey].valueType == "attachment") {
+                        if (!byName || actionKey == element) {
+                            var actionName = actions[actionKey].value;
+                            try {
+                                var actionLastDotIndex = actionName.lastIndexOf(".");
+                                actionName = actionName.slice(0, actionLastDotIndex) + "_" + j + "_" + k + actionName.slice(actionLastDotIndex);
+                            }
+                            catch (e) {
+                                actionName = actions[actionKey].value;
+                            }
+                            fsclient.getDocumentAttachment("c8oforms_response_fs", response.id, actions[actionKey].value, new java.util.HashMap(), new File(attDir + "/" + actionName));
+                        }
+                        k++;
+                    }
+                }
+                responseCount++;
+            }
+            currentSkip += batchLength;
+            hasMoreResponseBatches = batchLength == responseBatchSize;
+            responses = null;
+            batchResult = null;
+        }
+        res.response = { length: responseCount };
+        if (responseCount > 0) {
+            zipFolder(attDir, attDir + ".zip");
+            rmdir(attDir);
+            context.addFileToDeleteAtEndOfSession(new File(attDir + ".zip"));
+        }
     }'
 ↓object2 [steps.JsonToXmlStep-1749141355406]: 
   jsonObject: 

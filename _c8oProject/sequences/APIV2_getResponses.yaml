@@ -26,13 +26,19 @@ responseTimeout: 600
     if (meta != null) {
     	try {
     		if (meta.skip != undefined && meta.skip !== "") {
-    			metaSkip = Math.max(0, +meta.skip);
+                var parsedMetaSkip = +meta.skip;
+                if (!isNaN(parsedMetaSkip) && isFinite(parsedMetaSkip)) {
+                    metaSkip = Math.max(0, parsedMetaSkip);
+                }
     		}
     	}
     	catch (e) { }
     	try {
     		if (meta.limit != undefined && meta.limit !== "") {
-    			metaLimit = Math.max(0, +meta.limit);
+                var parsedMetaLimit = +meta.limit;
+                if (!isNaN(parsedMetaLimit) && isFinite(parsedMetaLimit)) {
+                    metaLimit = Math.max(0, parsedMetaLimit);
+                }
     		}
     	}
     	catch (e) { }
@@ -195,14 +201,16 @@ responseTimeout: 600
     					}
     				}
     				break;
-    			case "checkbox":
-    			case "radio":
-    			case "select":
-    				// Solution finale
-    				response["children"].sort((a, b) => {
-    					// Place les objets avec "other: true" après les autres
-    					return (a.other === true ? 1 : 0) - (b.other === true ? 1 : 0);
-    				});
+                case "checkbox":
+                case "radio":
+                case "select":
+                    // Solution finale
+                    if (response._c8oCompactedChoices !== true) {
+                        response["children"].sort((a, b) => {
+                            // Place les objets avec "other: true" après les autres
+                            return (a.other === true ? 1 : 0) - (b.other === true ? 1 : 0);
+                        });
+                    }
     				for (var k in response["children"]) {
     					if (responseArray[_i].value[k] == undefined) {
     						responseArray[_i].value[k] = 0;
@@ -683,6 +691,59 @@ responseTimeout: 600
     
         return result;
     };
+    // Keep the first response as the category reference. For subsequent
+    // responses, preserve selected entries at their original indexes only.
+    // This keeps the existing positional aggregation stable while bounding
+    // the amount of response data retained between CouchDB batches.
+    var compactResponseChoices = function(fields) {
+        if (fields == null || typeof fields !== "object") {
+            return;
+        }
+        for (var fieldName in fields) {
+            var field = fields[fieldName];
+            if (field == null || typeof field !== "object") {
+                continue;
+            }
+            if (field.type == "ion-card" && field.children != null) {
+                compactResponseChoices(field.children);
+                continue;
+            }
+            if ((field.type == "checkbox" || field.type == "radio" || field.type == "select") && Array.isArray(field.children)) {
+                field.children.sort(function(a, b) {
+                    return (a.other === true ? 1 : 0) - (b.other === true ? 1 : 0);
+                });
+                var selectedChildren = [];
+                for (var childIndex in field.children) {
+                    var child = field.children[childIndex];
+                    if (child != null && child.selected === true) {
+                        selectedChildren[childIndex] = child;
+                    }
+                }
+                field.children = selectedChildren;
+                field._c8oCompactedChoices = true;
+            }
+            else if (field.type == "checkbox_group" && field.children != null) {
+                var selectedLines = {};
+                for (var lineName in field.children) {
+                    var line = field.children[lineName];
+                    if (Array.isArray(line)) {
+                        var selectedLine = [];
+                        for (var lineIndex in line) {
+                            var lineChild = line[lineIndex];
+                            if (lineChild != null && lineChild.selected === true) {
+                                selectedLine[lineIndex] = lineChild;
+                            }
+                        }
+                        selectedLines[lineName] = selectedLine;
+                    }
+                    else {
+                        selectedLines[lineName] = line;
+                    }
+                }
+                field.children = selectedLines;
+            }
+        }
+    };
     //start code
     var published_form;
     try {
@@ -705,19 +766,105 @@ responseTimeout: 600
     		currentVersion = +published_form.version;
     	}
     	res["currentVersion"] = currentVersion;
-    	query = new java.util.HashMap();
-    	query.put(''reduce'', ''false'');
-    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]));
-    	query.put("include_docs", "true");
-    	if (metaSkip > 0) {
-    		query.put(''skip'', "" + metaSkip);
-    	}
-    	if (metaLimit != null && metaLimit > 0) {
-    		query.put(''limit'', "" + metaLimit);
-    	}
-    	var responses;
-    	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
-    	res.response = { length: responses.length };
+        var responses = [];
+        var responseKeys = JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]);
+        var remaining = metaLimit != null && metaLimit > 0 ? metaLimit : null;
+        var keepFullChoiceReference = true;
+        var directLoadThresholdBytes = 20 * 1024 * 1024;
+        var sampleDocumentBytes = 0;
+        var sampledDocumentCount = 0;
+        var totalResponseCount = 0;
+        var countQuery = new java.util.HashMap();
+        countQuery.put("reduce", "true");
+        countQuery.put("group", "true");
+        countQuery.put("keys", responseKeys);
+        var countResult = fsclient.getView("c8oforms_response_fs", "read_responses", "getResponsesByVersion", countQuery);
+        var countRows = toJSON(countResult).rows;
+        for (var countIndex = 0; countRows != null && countIndex < countRows.length; countIndex++) {
+            totalResponseCount += +(countRows[countIndex].value || 0);
+        }
+        var availableResponseCount = Math.max(0, totalResponseCount - metaSkip);
+        var requestedResponseCount = remaining != null ? Math.min(availableResponseCount, remaining) : availableResponseCount;
+        if (requestedResponseCount > 0) {
+            var sampleOffsets = [0, Math.floor((requestedResponseCount - 1) / 2), requestedResponseCount - 1];
+            var sampledOffsets = {};
+            for (var sampleIndex = 0; sampleIndex < sampleOffsets.length; sampleIndex++) {
+                var sampleOffset = sampleOffsets[sampleIndex];
+                if (sampledOffsets[sampleOffset] === true) {
+                    continue;
+                }
+                sampledOffsets[sampleOffset] = true;
+                var sampleQuery = new java.util.HashMap();
+                sampleQuery.put("reduce", "false");
+                sampleQuery.put("keys", responseKeys);
+                sampleQuery.put("include_docs", "true");
+                sampleQuery.put("skip", "" + (metaSkip + sampleOffset));
+                sampleQuery.put("limit", "1");
+                var sampleResult = fsclient.getView("c8oforms_response_fs", "read_responses", "getResponsesByVersion", sampleQuery);
+                var sampleRows = toJSON(sampleResult).rows;
+                if (sampleRows != null && sampleRows.length > 0 && sampleRows[0].doc != null) {
+                    var currentSampleBytes = new java.lang.String(JSON.stringify(sampleRows[0].doc)).getBytes("UTF-8").length;
+                    sampleDocumentBytes = Math.max(sampleDocumentBytes, currentSampleBytes);
+                    sampledDocumentCount++;
+                }
+                sampleRows = null;
+                sampleResult = null;
+            }
+        }
+        var appendResponseRows = function(rows) {
+            var rowsLength = rows != null ? rows.length : 0;
+            for (var rowIndex = 0; rowIndex < rowsLength; rowIndex++) {
+                var responseRow = rows[rowIndex];
+                if (!keepFullChoiceReference && responseRow != null && responseRow.doc != null) {
+                    compactResponseChoices(responseRow.doc.resp);
+                    delete responseRow.doc.sortedsIds;
+                }
+                responses.push(responseRow);
+                keepFullChoiceReference = false;
+            }
+            return rowsLength;
+        };
+        var estimatedResponseBytes = sampleDocumentBytes * requestedResponseCount;
+        var useDirectLoad = requestedResponseCount > 0 && sampleDocumentBytes > 0 && estimatedResponseBytes <= directLoadThresholdBytes;
+        var responseBatchSize = sampleDocumentBytes > 512 * 1024 ? 10 : sampleDocumentBytes > 256 * 1024 ? 25 : sampleDocumentBytes > 64 * 1024 ? 50 : 100;
+        log.debug("[APIV2_getResponses] readMode=" + (useDirectLoad ? "direct" : "batched") + ", count=" + requestedResponseCount + ", samples=" + sampledDocumentCount + ", maxSampleBytes=" + sampleDocumentBytes + ", estimatedBytes=" + estimatedResponseBytes + ", batchSize=" + responseBatchSize);
+        if (useDirectLoad) {
+            var directQuery = new java.util.HashMap();
+            directQuery.put("reduce", "false");
+            directQuery.put("keys", responseKeys);
+            directQuery.put("include_docs", "true");
+            directQuery.put("skip", "" + metaSkip);
+            directQuery.put("limit", "" + requestedResponseCount);
+            var directResult = fsclient.getView("c8oforms_response_fs", "read_responses", "getResponsesByVersion", directQuery);
+            appendResponseRows(toJSON(directResult).rows);
+            directResult = null;
+        }
+        else {
+            var currentSkip = metaSkip;
+            var hasMoreResponseBatches = requestedResponseCount > 0;
+            var remainingToRead = requestedResponseCount;
+            while (hasMoreResponseBatches) {
+                var currentBatchLimit = Math.min(responseBatchSize, remainingToRead);
+                if (currentBatchLimit <= 0) {
+                    break;
+                }
+                var batchQuery = new java.util.HashMap();
+                batchQuery.put("reduce", "false");
+                batchQuery.put("keys", responseKeys);
+                batchQuery.put("include_docs", "true");
+                batchQuery.put("skip", "" + currentSkip);
+                batchQuery.put("limit", "" + currentBatchLimit);
+                var batchResult = fsclient.getView("c8oforms_response_fs", "read_responses", "getResponsesByVersion", batchQuery);
+                var batchResponses = toJSON(batchResult).rows;
+                var batchLength = appendResponseRows(batchResponses);
+                currentSkip += batchLength;
+                remainingToRead -= batchLength;
+                hasMoreResponseBatches = batchLength == currentBatchLimit && remainingToRead > 0;
+                batchResponses = null;
+                batchResult = null;
+            }
+        }
+        res.response = { length: responses.length };
     	//res["raw_responses"] = responses;
     
     	var hasNoResponses = responses.length == 0;
