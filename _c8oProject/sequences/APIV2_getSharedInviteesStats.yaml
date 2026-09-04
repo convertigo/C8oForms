@@ -22,6 +22,10 @@ comment: |
     var usersMap = {};
     var reminderLinks = {};
     var targetVersion = version;
+    var anonymousTracking = false;
+    var fullyAnonymousTracking = false;
+    var anonymizeAuthenticatedResponses = false;
+    var anonymousResponseRows = [];
     var isSharedInvitee = function(entry){
     	if(entry == null){
     		return false;
@@ -91,6 +95,21 @@ comment: |
     }
     if(formDoc != null){
     	shared = isArray(formDoc.shared) ? formDoc.shared : [];
+    	fullyAnonymousTracking = formDoc.sharedAnonymous === true || formDoc.sharedAnonymous === "true";
+    	anonymizeAuthenticatedResponses = formDoc.config != null && (formDoc.config.anonym_resp_auth === true || formDoc.config.anonym_resp_auth === "true");
+    	anonymousTracking = fullyAnonymousTracking || anonymizeAuthenticatedResponses;
+    }
+    if(anonymousTracking && formId != null && formId !== "" && targetVersion != null && targetVersion !== ""){
+        try {
+            query = new java.util.HashMap();
+            query.put(''reduce'', ''false'');
+            query.put(''keys'', JSON.stringify([[formId, "" + targetVersion], [formId + "_anonymous", "" + targetVersion]]));
+            var anonymousResponses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query));
+            anonymousResponseRows = anonymousResponses && anonymousResponses.rows ? anonymousResponses.rows : [];
+        }
+        catch (e) {
+            log.warn("APIV2_getSharedInviteesStats: unable to count anonymous responses", e);
+        }
     }
     noInvitees = shared.length === 0;
     shared.forEach(function(entry){
@@ -158,7 +177,7 @@ comment: |
     		}
     	}
     }
-    if(noInvitees){
+    if(noInvitees && !fullyAnonymousTracking){
     	listIds = respondentIds;
     }
     listIds = listIds.filter(function(value, index, array){ return array.indexOf(value) === index; });
@@ -221,15 +240,39 @@ comment: |
     	var sharedGroups = groupByUser[entry] != null ? groupByUser[entry] : [];
     	list.push({ id: entry, label: label, email: email, provider: provider, meta: meta, responded: responded, sharedGroups: sharedGroups });
     });
-    var respondedCount = list.filter(function(entry){ return entry != null && entry.responded; }).length;
-    var remindableCount = list.filter(function(entry){ return entry != null && !entry.responded && entry.email; }).length;
-    var total = list.length;
+    var inviteesList = list;
+    var anonymousResponsesList = [];
+    if(anonymousTracking){
+    	if(fullyAnonymousTracking){
+    		inviteesList.forEach(function(entry){
+    			entry.responded = null;
+    			entry.reminded = false;
+    		});
+    	}
+    	anonymousResponseRows.forEach(function(row, index){
+    		anonymousResponsesList.push({ id: "anonymous-" + (index + 1), label: null, email: null, provider: null, meta: "", responded: true, sharedGroups: [], anonymous: true, responseIndex: index + 1 });
+    	});
+    	list = inviteesList.concat(anonymousResponsesList);
+    	if(fullyAnonymousTracking){
+    		noInvitees = inviteesList.length === 0;
+    	}
+    }
+    var respondedCount = fullyAnonymousTracking ? anonymousResponsesList.length : inviteesList.filter(function(entry){ return entry != null && entry.responded; }).length;
+    var remindableCount = fullyAnonymousTracking ? 0 : inviteesList.filter(function(entry){ return entry != null && !entry.responded && entry.email; }).length;
+    var total = anonymousTracking ? inviteesList.length : list.length;
     stats = {
     	total: total,
     	respondedCount: respondedCount,
-    	notRespondedCount: total - respondedCount,
+    	notRespondedCount: fullyAnonymousTracking ? 0 : total - respondedCount,
     	remindableCount: remindableCount,
     	noInvitees: noInvitees,
+    	anonymous: anonymousTracking,
+    	fullyAnonymous: fullyAnonymousTracking,
+    	authenticatedResponsesAnonymized: anonymizeAuthenticatedResponses,
+    	invitedCount: inviteesList.length,
+    	anonymousResponseCount: anonymousResponsesList.length,
+    	invitees: inviteesList,
+    	anonymousResponses: anonymousResponsesList,
     	list: list
     };
     try {
