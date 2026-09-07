@@ -686,6 +686,42 @@ responseTimeout: 600
     };
     //start code
     var published_form;
+    var currentVersionAnonymizesAuthenticatedResponses = false;
+    var legacyAnonymizationByRevision = {};
+    var isTrue = function(value){
+    	return value === true || value === "true";
+    };
+    var isResponseAnonymized = function(responseDocument){
+    	if(responseDocument == null){
+    		return false;
+    	}
+    	if(isTrue(responseDocument.c8oAnonymized)){
+    		return true;
+    	}
+        var responseFormId = responseDocument.formId;
+        var responseFormRev = responseDocument.formRev;
+        if(responseFormId != null && responseFormRev != null && responseFormRev !== ""){
+            var revisionKey = responseFormId + "@" + responseFormRev;
+            if(!Object.prototype.hasOwnProperty.call(legacyAnonymizationByRevision, revisionKey)){
+                try {
+                    var responseForm = getDoc(responseFormId, responseFormRev, "c8oforms_fs");
+                    legacyAnonymizationByRevision[revisionKey] = responseForm != null && !responseForm.error && responseForm.config != null ? isTrue(responseForm.config.anonym_resp_auth) : null;
+                }
+                catch (e) {
+                    legacyAnonymizationByRevision[revisionKey] = null;
+                    log.warn("APIV2_getResponses: unable to resolve legacy response configuration", e);
+                }
+            }
+            if(legacyAnonymizationByRevision[revisionKey] != null){
+                return legacyAnonymizationByRevision[revisionKey];
+            }
+        }
+        if(responseDocument.c8oAnonymizationRequested != null){
+            return isTrue(responseDocument.c8oAnonymizationRequested);
+        }
+        // Missing historical configuration must never reveal an author.
+        return true;
+    };
     try {
     	published_form = (callSequence("C8Oforms", "APIV2_getDocument", { id: formId, k: k })).document.res;
     }
@@ -694,6 +730,7 @@ responseTimeout: 600
     }
     // if authorized and exists doc
     if (published_form) {
+        currentVersionAnonymizesAuthenticatedResponses = published_form.config != null && isTrue(published_form.config.anonym_resp_auth);
     	//res["raw_published_form"] = published_form;
     	res["published_form"] = { name: published_form.name };
     	var currentVersion;
@@ -847,9 +884,14 @@ responseTimeout: 600
     			var resolved = resolvePath(baseResponse, segments);
     			var response = resolved.value;
     			var elem = resolved.key;
-    			if(response == null &&  sortedsIds[i].type == "author"){
-    				response = "anonymous";
-    			}
+            var responseDocument = responses[j] != null ? responses[j].doc : null;
+            var responseIsAnonymized = isResponseAnonymized(responseDocument);
+            if(sortedsIds[i].type == "author" && responseIsAnonymized){
+                response = "anonymous";
+            }
+            else if(response == null && sortedsIds[i].type == "author"){
+                response = "anonymous";
+            }
     			if (response) {
     				if (j == 0) {
     					// prefix for csv as timestamp or author
