@@ -2946,6 +2946,9 @@ Stores an anonymous response and handles confirmation flows.
 <td>actions</td><td>List of actions to execute sequentially.</td>
 </tr>
 <tr>
+<td>c8oAnonymizationRequested</td><td>Snapshot of the authenticated-response anonymization setting at submission time.</td>
+</tr>
+<tr>
 <td>files</td><td></td>
 </tr>
 <tr>
@@ -7955,6 +7958,12 @@ The Chart Widget viewer
 <td>j</td><td></td>
 </tr>
 <tr>
+<td>layoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>layoutRenderPath</td><td></td>
+</tr>
+<tr>
 <td>renderSelectedEditor</td><td></td>
 </tr>
 <tr>
@@ -8018,6 +8027,12 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>layoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>layoutRenderPath</td><td></td>
+</tr>
 </table>
 #### itemLayoutViewer
 
@@ -8035,6 +8050,12 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>redList</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderPath</td><td></td>
 </tr>
 </table>
 #### itemLayoutViewer_Elem
@@ -8062,6 +8083,12 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>redList</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderPath</td><td></td>
 </tr>
 </table>
 #### itemLocationEditor
@@ -9489,6 +9516,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>if_else</td><td></td>
 </tr>
 <tr>
+<td>relationTargetParentId</td><td></td>
+</tr>
+<tr>
 <td>targetCardChild</td><td></td>
 </tr>
 </table>
@@ -10030,6 +10060,9 @@ This component represents a toolbar UI similar to the provided image. It include
 </tr>
 <tr>
 <td>isEditorPage</td><td></td>
+</tr>
+<tr>
+<td>isResponseSubmittedPage</td><td></td>
 </tr>
 <tr>
 <td>isViewerPage</td><td></td>
