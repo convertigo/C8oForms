@@ -26,6 +26,40 @@ comment: |
     var fullyAnonymousTracking = false;
     var anonymizeAuthenticatedResponses = false;
     var anonymousResponseRows = [];
+    var responseTrackingRows = [];
+    var legacyAnonymizationByRevision = {};
+    var targetIsCurrentVersion = false;
+    var isTrue = function(value){
+    	return value === true || value === "true";
+    };
+    var isLegacyResponseAnonymized = function(row){
+    	var value = row != null && row.value != null ? row.value : {};
+    	if(isTrue(value.anonymized)){
+    		return true;
+    	}
+        var rowFormId = row != null && row.key != null ? row.key[0] : null;
+        var rowFormRev = value.formRev;
+        if(rowFormId != null && rowFormRev != null && rowFormRev !== ""){
+            var revisionKey = rowFormId + "@" + rowFormRev;
+            if(!Object.prototype.hasOwnProperty.call(legacyAnonymizationByRevision, revisionKey)){
+                try {
+                    var responseForm = getDoc(rowFormId, rowFormRev, "c8oforms_fs");
+                    legacyAnonymizationByRevision[revisionKey] = responseForm != null && !responseForm.error && responseForm.config != null ? isTrue(responseForm.config.anonym_resp_auth) : null;
+                }
+                catch (e) {
+                    legacyAnonymizationByRevision[revisionKey] = null;
+                    log.warn("APIV2_getSharedInviteesStats: unable to resolve legacy response configuration", e);
+                }
+            }
+            if(legacyAnonymizationByRevision[revisionKey] != null){
+                return legacyAnonymizationByRevision[revisionKey];
+            }
+        }
+        if(value.hasAnonymizationSnapshot === true || value.hasAnonymizationSnapshot === "true"){
+            return isTrue(value.anonymizationRequested);
+        }
+        return false;
+    };
     var isSharedInvitee = function(entry){
     	if(entry == null){
     		return false;
@@ -95,21 +129,38 @@ comment: |
     }
     if(formDoc != null){
     	shared = isArray(formDoc.shared) ? formDoc.shared : [];
-    	fullyAnonymousTracking = formDoc.sharedAnonymous === true || formDoc.sharedAnonymous === "true";
-    	anonymizeAuthenticatedResponses = formDoc.config != null && (formDoc.config.anonym_resp_auth === true || formDoc.config.anonym_resp_auth === "true");
-    	anonymousTracking = fullyAnonymousTracking || anonymizeAuthenticatedResponses;
+    	targetIsCurrentVersion = targetVersion == null || targetVersion === "" || ("" + targetVersion) === ("" + formDoc.version);
+    	fullyAnonymousTracking = targetIsCurrentVersion && isTrue(formDoc.sharedAnonymous);
+    	anonymizeAuthenticatedResponses = targetIsCurrentVersion && formDoc.config != null && isTrue(formDoc.config.anonym_resp_auth);
     }
-    if(anonymousTracking && formId != null && formId !== "" && targetVersion != null && targetVersion !== ""){
+    if((fullyAnonymousTracking || anonymizeAuthenticatedResponses || !targetIsCurrentVersion) && formId != null && formId !== "" && targetVersion != null && targetVersion !== ""){
         try {
             query = new java.util.HashMap();
             query.put(''reduce'', ''false'');
             query.put(''keys'', JSON.stringify([[formId, "" + targetVersion], [formId + "_anonymous", "" + targetVersion]]));
-            var anonymousResponses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query));
-            anonymousResponseRows = anonymousResponses && anonymousResponses.rows ? anonymousResponses.rows : [];
+            var trackingResponses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponseTrackingByVersion'', query));
+            responseTrackingRows = trackingResponses && trackingResponses.rows ? trackingResponses.rows : [];
         }
         catch (e) {
-            log.warn("APIV2_getSharedInviteesStats: unable to count anonymous responses", e);
+            log.warn("APIV2_getSharedInviteesStats: unable to load response tracking metadata", e);
         }
+    }
+    responseTrackingRows.forEach(function(row){
+    	var rowFormId = row != null && row.key != null ? row.key[0] : null;
+    	if(rowFormId === formId + "_anonymous"){
+    		fullyAnonymousTracking = true;
+    	}
+    	if(isLegacyResponseAnonymized(row)){
+    		row.authenticatedResponseAnonymized = true;
+    		anonymizeAuthenticatedResponses = true;
+    	}
+    });
+    anonymousTracking = fullyAnonymousTracking || anonymizeAuthenticatedResponses;
+    if(fullyAnonymousTracking){
+    	anonymousResponseRows = responseTrackingRows;
+    }
+    else if(anonymizeAuthenticatedResponses){
+    	anonymousResponseRows = responseTrackingRows.filter(function(row){ return row != null && row.authenticatedResponseAnonymized === true; });
     }
     noInvitees = shared.length === 0;
     shared.forEach(function(entry){
@@ -169,6 +220,19 @@ comment: |
     }
     catch (e) {
     	log.warn("APIV2_getSharedInviteesStats: unable to load response document", e);
+    }
+    // Responses produced before the aggregate marker was fixed can still carry
+    // their ACL. Use it only to rebuild the participation set; never return it
+    // or associate it with an anonymous response entry.
+    if(anonymizeAuthenticatedResponses && !fullyAnonymousTracking && anonymousResponseRows != null){
+        anonymousResponseRows.forEach(function(row){
+            var legacyResponseValue = row != null ? row.value : null;
+            var legacyAcl = legacyResponseValue != null ? legacyResponseValue.acl : null;
+            var legacyRespondentId = normalizeSharedInviteeId(legacyAcl);
+            if(legacyRespondentId != null && legacyRespondentId !== ""){
+                respondent[legacyRespondentId] = true;
+            }
+        });
     }
     if(respondent != null){
     	for (var key in respondent){
@@ -252,14 +316,14 @@ comment: |
     	anonymousResponseRows.forEach(function(row, index){
     		anonymousResponsesList.push({ id: "anonymous-" + (index + 1), label: null, email: null, provider: null, meta: "", responded: true, sharedGroups: [], anonymous: true, responseIndex: index + 1 });
     	});
-    	list = inviteesList.concat(anonymousResponsesList);
+    	list = fullyAnonymousTracking ? inviteesList.concat(anonymousResponsesList) : inviteesList;
     	if(fullyAnonymousTracking){
     		noInvitees = inviteesList.length === 0;
     	}
     }
     var respondedCount = fullyAnonymousTracking ? anonymousResponsesList.length : inviteesList.filter(function(entry){ return entry != null && entry.responded; }).length;
     var remindableCount = fullyAnonymousTracking ? 0 : inviteesList.filter(function(entry){ return entry != null && !entry.responded && entry.email; }).length;
-    var total = anonymousTracking ? inviteesList.length : list.length;
+    var total = fullyAnonymousTracking ? anonymousResponsesList.length : (anonymousTracking ? inviteesList.length : list.length);
     stats = {
     	total: total,
     	respondedCount: respondedCount,

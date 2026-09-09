@@ -59,8 +59,79 @@ comment: |
         			// ensure doc is properly subimtted and execute sequence is not already running for this
         			var cancel = checkNotAlreadyRunning(currentResponse._id, currentResponse._rev);
         		
-        			if(!cancel && (currentResponse.finished == true || currentResponse.finished == "true")){
-        				// we can now walk actions.
+        			var responseAlreadyAnonymized = currentResponse.c8oAnonymized === true || currentResponse.c8oAnonymized === "true";
+        			if(!cancel && !responseAlreadyAnonymized && (currentResponse.finished == true || currentResponse.finished == "true")){
+                    var originalDoc1 = getDoc(currentResponse.formId, currentResponse.formRev, "c8oforms_fs");
+                    var mergeRules = new HashMap();
+                    var responseAcl = currentResponse["~c8oAcl"];
+                    var hasAnonymizationSnapshot = currentResponse.c8oAnonymizationRequested != null;
+                    var hasAuthoritativeFormConfiguration = originalDoc1 != null && !originalDoc1.error && originalDoc1.config != null;
+                    var anonymizeAuthenticatedResponse = hasAuthoritativeFormConfiguration ? (originalDoc1.config.anonym_resp_auth === true || originalDoc1.config.anonym_resp_auth === "true") : (hasAnonymizationSnapshot && (currentResponse.c8oAnonymizationRequested === true || currentResponse.c8oAnonymizationRequested === "true"));
+                    var responseFormDocumentId = hasAuthoritativeFormConfiguration && originalDoc1._id != null ? ("" + originalDoc1._id) : ("" + currentResponse.formId);
+                    var fullyAnonymousResponse = (responseFormDocumentId.length >= "_anonymous".length && responseFormDocumentId.lastIndexOf("_anonymous") === responseFormDocumentId.length - "_anonymous".length) || (originalDoc1 != null && (originalDoc1.sharedAnonymous === true || originalDoc1.sharedAnonymous === "true"));
+                    // Keep the response content anonymous while retaining participation in a
+                    // separate aggregate document that cannot identify the response itself.
+                    if(anonymizeAuthenticatedResponse){
+                        var lastResponseVersion = getDoc(currentResponse._id, {attachments: "true"}, "c8oforms_response_fs");
+                        if(lastResponseVersion != null && !lastResponseVersion.error){
+                            let acl = lastResponseVersion["~c8oAcl"];
+                            let id = java.util.UUID.randomUUID().toString();
+                            let responseIdSuffix = "_" + new Date().getTime();
+                            if(acl != null && acl !== ""){
+                                let aclIndex = currentResponse._id.indexOf(acl);
+                                if(aclIndex != -1){
+                                    responseIdSuffix = currentResponse._id.substring(aclIndex + ("" + acl).length);
+                                }
+                            }
+                            // Carry attachment bodies, never stubs referring to the old document.
+                            if(lastResponseVersion._attachments != null){
+                                currentResponse._attachments = lastResponseVersion._attachments;
+                                for(var attachmentName in currentResponse._attachments){
+                                    if(currentResponse._attachments[attachmentName].data == null){
+                                        throw new Error("Anonymization aborted: attachment body unavailable");
+                                    }
+                                }
+                            }
+                            delete currentResponse._rev;
+                            currentResponse._id = id + responseIdSuffix;
+                            delete currentResponse["~c8oAcl"];
+                            currentResponse.c8oAnonymizationRequested = true;
+                            currentResponse.c8oAnonymized = true;
+                            currentResponse.c8oGrp = {};
+                            let indexPriv = responseFormDocumentId.indexOf("_anonymous");
+                            let idPriv = indexPriv == -1 ? responseFormDocumentId : responseFormDocumentId.substring(0, indexPriv);
+                            currentResponse.c8oGrp["_C8O_HIDDEN_published_" + idPriv] = true;
+                            var response_post = toJSON(fsclient.postDocument(java.lang.String("c8oforms_response_fs"), toJettison(currentResponse), new HashMap(), enums.CouchPostDocumentPolicy.override, mergeRules, false));
+                            if(response_post == null || response_post.error || !response_post.ok){
+                                throw new Error("Anonymization failed; original response preserved");
+                            }
+                            var deletion = deleteDoc(lastResponseVersion._id, lastResponseVersion._rev, "c8oforms_response_fs");
+                            if(deletion == null || deletion.error || !deletion.ok){
+                                throw new Error("Anonymization incomplete: original response could not be deleted");
+                            }
+                        }
+                    }
+                    if(!fullyAnonymousResponse && responseFormDocumentId !== "" && responseFormDocumentId !== "undefined"){
+                        let indexFormId = responseFormDocumentId.indexOf("_anonymous");
+                        let formId = indexFormId != -1 ? responseFormDocumentId.substring(0, indexFormId) : responseFormDocumentId;
+                        let version = originalDoc1 != null && !originalDoc1.error && originalDoc1.version ? originalDoc1.version : (currentResponse.version ? currentResponse.version : "test");
+                        var postRespondent = {
+                            _id: formId + "_" + version,
+                            respondent: {},
+                            c8oGrp: originalDoc1 != null && !originalDoc1.error ? originalDoc1.c8oGrp : currentResponse.c8oGrp,
+                            timestamp: new Date().getTime()
+                        };
+                        var respondentUserId = responseAcl != null && responseAcl !== "" ? ("" + responseAcl) : ("" + _context.getAuthenticatedUser());
+                        if(respondentUserId !== "" && respondentUserId !== "anonymous"){
+                            if(respondentUserId.indexOf("C8Oreserved_") != 0){
+                                respondentUserId = "C8Oreserved_" + respondentUserId;
+                            }
+                            postRespondent.respondent[respondentUserId] = true;
+                            mergeRules.put(java.util.Arrays.asList(new java.lang.String("c8oGrp")), new java.lang.String("override"));
+                            toJSON(fsclient.postDocument(java.lang.String("c8oforms_response_fs"), toJettison(postRespondent), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+                        }
+                    }
+                    // we can now walk actions.
         				if(currentResponse.actions && currentResponse.actions.submit && currentResponse.actions.submit.length){
         					for (var h = 0; h < currentResponse.actions.submit.length; h++) {
         					    var action = currentResponse.actions.submit[h];
@@ -175,7 +246,8 @@ comment: |
         		var cancel = checkNotAlreadyRunning(currentResponse._id, currentResponse._rev);
         		idExec = currentResponse._id + "_temp" + new Date().getTime();
         		
-        		if (!cancel && (currentResponse.finished == true || currentResponse.finished == "true")) {
+        		var responseAlreadyAnonymized = currentResponse.c8oAnonymized === true || currentResponse.c8oAnonymized === "true";
+        		if (!cancel && !responseAlreadyAnonymized && (currentResponse.finished == true || currentResponse.finished == "true")) {
         			try{
         				if(attachments != null && attachments_meta != null){
         					attachments_meta = JSON.parse(attachments_meta);
@@ -192,47 +264,78 @@ comment: |
         				log.warn(e);
         				console.log("!!!!!!! attachments error", e, logLevel);
         			}
-                    var originalDoc1 = getDoc(currentResponse.formId, currentResponse.formRev, "c8oforms_fs");
+        			var originalDoc1 = getDoc(currentResponse.formId, currentResponse.formRev, "c8oforms_fs");
                     var mergeRules = new HashMap();
-                    var anonymizeAuthenticatedResponse = originalDoc1 != null && originalDoc1.config != null && (originalDoc1.config.anonym_resp_auth === true || originalDoc1.config.anonym_resp_auth === "true");
+                    var responseAcl = currentResponse["~c8oAcl"];
+                    var hasAnonymizationSnapshot = currentResponse.c8oAnonymizationRequested != null;
+                    var hasAuthoritativeFormConfiguration = originalDoc1 != null && !originalDoc1.error && originalDoc1.config != null;
+                    var anonymizeAuthenticatedResponse = hasAuthoritativeFormConfiguration ? (originalDoc1.config.anonym_resp_auth === true || originalDoc1.config.anonym_resp_auth === "true") : (hasAnonymizationSnapshot && (currentResponse.c8oAnonymizationRequested === true || currentResponse.c8oAnonymizationRequested === "true"));
+                    var responseFormDocumentId = hasAuthoritativeFormConfiguration && originalDoc1._id != null ? ("" + originalDoc1._id) : ("" + currentResponse.formId);
+                    var fullyAnonymousResponse = (responseFormDocumentId.length >= "_anonymous".length && responseFormDocumentId.lastIndexOf("_anonymous") === responseFormDocumentId.length - "_anonymous".length) || (originalDoc1 != null && (originalDoc1.sharedAnonymous === true || originalDoc1.sharedAnonymous === "true"));
                     // This aggregate marker records participation only. It does not reference
                     // the anonymized response document and therefore preserves response anonymity.
-                    var keepRespondentMarker = true;
+                    var keepRespondentMarker = !fullyAnonymousResponse;
                     // anonymize authenticated response
                     if(anonymizeAuthenticatedResponse){
-                        var lastResponseVersion = getDoc(currentResponse._id, null, "c8oforms_response_fs");
-                        let acl = lastResponseVersion["~c8oAcl"];
-                        let id = java.util.UUID.randomUUID().toString();
-                        let responseIdSuffix = "_" + new Date().getTime();
-                        if(acl != null && acl !== ""){
-                            let aclIndex = currentResponse._id.indexOf(acl);
-                            if(aclIndex != -1){
-                                responseIdSuffix = currentResponse._id.substring(aclIndex + ("" + acl).length);
+                        var lastResponseVersion = getDoc(currentResponse._id, {attachments: "true"}, "c8oforms_response_fs");
+                        if(lastResponseVersion != null && !lastResponseVersion.error){
+                            let acl = lastResponseVersion["~c8oAcl"];
+                            let id = java.util.UUID.randomUUID().toString();
+                            let responseIdSuffix = "_" + new Date().getTime();
+                            if(acl != null && acl !== ""){
+                                let aclIndex = currentResponse._id.indexOf(acl);
+                                if(aclIndex != -1){
+                                    responseIdSuffix = currentResponse._id.substring(aclIndex + ("" + acl).length);
+                                }
+                            }
+                            // Carry attachment bodies, never stubs referring to the old document.
+                            if(lastResponseVersion._attachments != null){
+                                currentResponse._attachments = lastResponseVersion._attachments;
+                                for(var attachmentName in currentResponse._attachments){
+                                    if(currentResponse._attachments[attachmentName].data == null){
+                                        throw new Error("Anonymization aborted: attachment body unavailable");
+                                    }
+                                }
+                            }
+                            delete currentResponse._rev;
+                            currentResponse._id = id + responseIdSuffix;
+                            delete currentResponse["~c8oAcl"];
+                            currentResponse.c8oAnonymizationRequested = true;
+                            currentResponse.c8oAnonymized = true;
+                            currentResponse["c8oGrp"] = {};
+                            let indexPriv = responseFormDocumentId.indexOf("_anonymous")
+                            let idPriv = indexPriv == -1 ? responseFormDocumentId : responseFormDocumentId.substring(0, indexPriv);
+                            currentResponse["c8oGrp"]["_C8O_HIDDEN_published_"+idPriv] = true
+                            var response_post = toJSON(fsclient.postDocument(java.lang.String("c8oforms_response_fs"), toJettison(currentResponse), new HashMap(), enums.CouchPostDocumentPolicy.override, mergeRules, false));
+                            if(response_post == null || response_post.error || !response_post.ok){
+                                throw new Error("Anonymization failed; original response preserved");
+                            }
+                            var deletion = deleteDoc(lastResponseVersion._id, lastResponseVersion._rev, "c8oforms_response_fs");
+                            if(deletion == null || deletion.error || !deletion.ok){
+                                throw new Error("Anonymization incomplete: original response could not be deleted");
                             }
                         }
-                        currentResponse._id = id + responseIdSuffix;
-                        delete currentResponse["~c8oAcl"];
-                        currentResponse["c8oGrp"] = {};
-                        let indexPriv = originalDoc1._id.indexOf("_anonymous")
-                        let idPriv = indexPriv == -1 ? originalDoc1._id : originalDoc1._id.substring(0, indexPriv);
-                        currentResponse["c8oGrp"]["_C8O_HIDDEN_published_"+idPriv] = true
-                        var response_post = toJSON(fsclient.postDocument(java.lang.String("c8oforms_response_fs"), toJettison(currentResponse), new HashMap(), enums.CouchPostDocumentPolicy.override, mergeRules, false));
-                        deleteDoc(lastResponseVersion._id, null, "c8oforms_response_fs");
                     }
                     // Keep participation tracking separate from the anonymized response document.
-                    if(keepRespondentMarker){
-                        let indexFormId = originalDoc1._id.indexOf("_anonymous");
-                        let formId =  indexFormId != -1 ? originalDoc1._id.substring(0,indexFormId) : originalDoc1._id;
-                        let version = originalDoc1.version ? originalDoc1.version : "test";
+                    if(keepRespondentMarker && responseFormDocumentId !== "" && responseFormDocumentId !== "undefined"){
+                        let indexFormId = responseFormDocumentId.indexOf("_anonymous");
+                        let formId =  indexFormId != -1 ? responseFormDocumentId.substring(0,indexFormId) : responseFormDocumentId;
+                        let version = originalDoc1 != null && !originalDoc1.error && originalDoc1.version ? originalDoc1.version : (currentResponse.version ? currentResponse.version : "test");
                         var postRespondent = {
                             _id: formId + "_" + version,
                             respondent : {},
-                            c8oGrp :originalDoc1.c8oGrp,
+                            c8oGrp :originalDoc1 != null && !originalDoc1.error ? originalDoc1.c8oGrp : currentResponse.c8oGrp,
                             timestamp: new Date().getTime()
                         }
-                        postRespondent["respondent"]["C8Oreserved_"+context.getAuthenticatedUser()] = true;
-                        mergeRules.put(java.util.Arrays.asList(new java.lang.String("c8oGrp")), new java.lang.String("override"));
-                        var response_postResponded = toJSON(fsclient.postDocument(java.lang.String("c8oforms_response_fs"), toJettison(postRespondent), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+                        var respondentUserId = responseAcl != null && responseAcl !== "" ? ("" + responseAcl) : ("" + context.getAuthenticatedUser());
+                        if(respondentUserId !== "" && respondentUserId !== "anonymous"){
+                            if(respondentUserId.indexOf("C8Oreserved_") != 0){
+                                respondentUserId = "C8Oreserved_" + respondentUserId;
+                            }
+                            postRespondent.respondent[respondentUserId] = true;
+                            mergeRules.put(java.util.Arrays.asList(new java.lang.String("c8oGrp")), new java.lang.String("override"));
+                            var response_postResponded = toJSON(fsclient.postDocument(java.lang.String("c8oforms_response_fs"), toJettison(postRespondent), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+                        }
                     }
         			var mergeRules = new HashMap();
         			// we can now walk actions.

@@ -744,6 +744,41 @@ responseTimeout: 600
             }
         }
     };
+    var legacyAnonymizationByRevision = {};
+    var isTrue = function(value){
+    	return value === true || value === "true";
+    };
+    var isResponseAnonymized = function(responseDocument){
+    	if(responseDocument == null){
+    		return false;
+    	}
+    	if(isTrue(responseDocument.c8oAnonymized)){
+    		return true;
+    	}
+        var responseFormId = responseDocument.formId;
+        var responseFormRev = responseDocument.formRev;
+        if(responseFormId != null && responseFormRev != null && responseFormRev !== ""){
+            var revisionKey = responseFormId + "@" + responseFormRev;
+            if(!Object.prototype.hasOwnProperty.call(legacyAnonymizationByRevision, revisionKey)){
+                try {
+                    var responseForm = getDoc(responseFormId, responseFormRev, "c8oforms_fs");
+                    legacyAnonymizationByRevision[revisionKey] = responseForm != null && !responseForm.error && responseForm.config != null ? isTrue(responseForm.config.anonym_resp_auth) : null;
+                }
+                catch (e) {
+                    legacyAnonymizationByRevision[revisionKey] = null;
+                    log.warn("APIV2_getResponses: unable to resolve legacy response configuration", e);
+                }
+            }
+            if(legacyAnonymizationByRevision[revisionKey] != null){
+                return legacyAnonymizationByRevision[revisionKey];
+            }
+        }
+        if(responseDocument.c8oAnonymizationRequested != null){
+            return isTrue(responseDocument.c8oAnonymizationRequested);
+        }
+        // Missing historical configuration must never reveal an author.
+        return true;
+    };
     //start code
     var published_form;
     try {
@@ -996,7 +1031,12 @@ responseTimeout: 600
     			var resolved = resolvePath(baseResponse, segments);
     			var response = resolved.value;
     			var elem = resolved.key;
-    			if(response == null &&  sortedsIds[i].type == "author"){
+            var responseDocument = responses[j] != null ? responses[j].doc : null;
+            var responseIsAnonymized = isResponseAnonymized(responseDocument);
+            if(sortedsIds[i].type == "author" && responseIsAnonymized){
+                response = "anonymous";
+            }
+    			else if(response == null && sortedsIds[i].type == "author"){
     				response = "anonymous";
     			}
     			if (response) {
