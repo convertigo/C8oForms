@@ -5758,6 +5758,9 @@ Update the state of a field
 <td>label</td><td></td>
 </tr>
 <tr>
+<td>selectable</td><td>Set to false for action buttons that must accept successive clicks without selecting themselves.</td>
+</tr>
+<tr>
 <td>selected</td><td></td>
 </tr>
 </table>
