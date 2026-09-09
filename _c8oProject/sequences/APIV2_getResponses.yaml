@@ -37,6 +37,30 @@ responseTimeout: 600
     	}
     	catch (e) { }
     }
+    var ZoneId = use("java.time.ZoneId");
+    var Instant = use("java.time.Instant");
+    var DateTimeFormatter = use("java.time.format.DateTimeFormatter");
+    var responseDateFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+    var formatResponseInstant = function(value, opts) {
+    	var epoch = +value;
+    	if (!isFinite(epoch)) {
+    		return value == null ? "" : value;
+    	}
+    	var timezone = opts != null && opts.timezone != null ? ("" + opts.timezone).trim() : "";
+    	if (timezone !== "") {
+    		try {
+    			return "" + responseDateFormatter.withZone(ZoneId.of(timezone)).format(Instant.ofEpochMilli(Math.round(epoch)));
+    		}
+    		catch (e) {
+    			// Invalid zones deliberately continue through the compatibility path.
+    		}
+    	}
+    	var offsetDiff = opts != null && opts.offsetDiff != null ? +opts.offsetDiff : 0;
+    	if (!isFinite(offsetDiff)) {
+    		offsetDiff = 0;
+    	}
+    	return getFormattedDate(new Date(epoch + offsetDiff));
+    };
     // start functions
     var getI18nForCsv = (key, lang) => {
     	if (key == "timestamp") {
@@ -341,8 +365,7 @@ responseTimeout: 600
     				}
     				break;
     			case "timestamp":
-    				var offsetDiff = (opts != null && opts.offsetDiff != null) ? opts.offsetDiff : 0;
-    				responseArray[_i].value.push(getFormattedDate(new Date(+response + offsetDiff)));
+    				responseArray[_i].value.push(formatResponseInstant(response, opts));
     				break;
     			case "author":
     				if (opts && opts.transform) {
@@ -813,6 +836,9 @@ responseTimeout: 600
     	if (csv) {
     		var arrayCsv = [buildPathEntry(["/", "doc", "timestamp"], "timestamp", {})];
     		if (meta) {
+    			if (meta.timezone != null && ("" + meta.timezone).trim() !== "") {
+    				arrayCsv[0].meta.timezone = "" + meta.timezone;
+    			}
     			if (meta.offset) {
     				var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
     				offset = +meta.offset;
@@ -829,10 +855,15 @@ responseTimeout: 600
     	}
     	else {
     		var arraySummary = [buildPathEntry(["/", "doc", "timestamp"], "timestamp", {})];
-    		if (meta && meta.offset) {
-    			var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
-    			offset = +meta.offset;
-    			arraySummary[0].meta.offsetDiff = offset - offSetServer;
+    		if (meta) {
+    			if (meta.timezone != null && ("" + meta.timezone).trim() !== "") {
+    				arraySummary[0].meta.timezone = "" + meta.timezone;
+    			}
+    			if (meta.offset) {
+    				var offSetServer = new Date().getTimezoneOffset() * 60000 * -1;
+    				offset = +meta.offset;
+    				arraySummary[0].meta.offsetDiff = offset - offSetServer;
+    			}
     		}
     		arraySummary.push(buildPathEntry(["/", "doc", "~c8oAcl"], "author", { transform: true }));
     		sortedsIds = arraySummary.concat(sortedsIds);
