@@ -43,10 +43,15 @@ scriptContent:
         	}
         	public async getResponses(version? : string, summary: boolean = true, indexStart: number = 0, indexEnd: number = 2){
         		try {
-        			var meta = JSON.stringify({"lang": this.translate.currentLang});
+        			this.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
+        			var timezone = "";
+        			try {
+        				timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+        			}
+        			catch (e) { }
+        			var meta = JSON.stringify({"lang": this.translate.currentLang, "timezone": timezone, "offset": this.local.offset});
         			this.local.spinner = true;
         			this.local.formId = this.navParams.get(''formId'');
-        		    this.local.offset = new Date().getTimezoneOffset() * 60000 * -1;
         			let responses = (await this.c8o.callJsonObject("C8Oforms.APIV2_getResponses", {meta: meta, csv: "false", formId: this.local.formId, version: version, summary: summary ? "true": "false", indexStart, indexEnd}).async()).res;
         			if(this.local.currentIndex == null){
         				if(version == null){
@@ -140,7 +145,16 @@ scriptContent:
         				stats.list = list;
         			}
         			this.local.sharedStats = stats;
-        			if(this.local.sharedStats?.list){
+        			if(this.local.sharedStats?.fullyAnonymous){
+        				var invitees = list.filter((entry)=> entry != null && !entry.anonymous);
+        				var anonymousResponses = list.filter((entry)=> entry != null && entry.anonymous);
+        				this.local.sharedStats.invitees = this.sortSharedInvitees(invitees);
+        				this.local.sharedStats.anonymousResponses = anonymousResponses;
+        				this.local.sharedStats.invitedCount = invitees.length;
+        				this.local.sharedStats.anonymousResponseCount = anonymousResponses.length;
+        				this.local.sharedStats.list = this.local.sharedStats.invitees.concat(anonymousResponses);
+        			}
+        			else if(this.local.sharedStats?.list){
         				this.local.sharedStats.list = this.sortSharedInvitees(this.local.sharedStats.list);
         			}
         		} catch (e) {
@@ -340,7 +354,11 @@ scriptContent:
         				this.local.sharedSort.key = key;
         				this.local.sharedSort.dir = "asc";
         			}
-        			if(this.local.sharedStats?.list){
+        			if(this.local.sharedStats?.fullyAnonymous){
+        				this.local.sharedStats.invitees = this.sortSharedInvitees(this.local.sharedStats.invitees ?? []);
+        				this.local.sharedStats.list = this.local.sharedStats.invitees.concat(this.local.sharedStats.anonymousResponses ?? []);
+        			}
+        			else if(this.local.sharedStats?.list){
         				this.local.sharedStats.list = this.sortSharedInvitees(this.local.sharedStats.list);
         			}
         		} catch (e) {
@@ -381,7 +399,7 @@ scriptContent:
         	}
         	public async sendReminderEmail(person: any){
         		try {
-        			if(person == null || person.responded === true){
+        			if(this.local?.sharedStats?.fullyAnonymous || person == null || person.responded === true){
         				return;
         			}
         			var email = person.email;
@@ -419,6 +437,9 @@ scriptContent:
         	}
         	public async sendReminderToAll(){
         		try {
+        			if(this.local?.sharedStats?.fullyAnonymous){
+        				return;
+        			}
         			var list = this.local?.sharedStats?.list ?? [];
         			var recipients = list.filter((entry)=> !entry.responded && entry.email).map((entry)=> entry.email);
         			recipients = recipients.filter((value, index, array)=> array.indexOf(value) === index);
@@ -1428,7 +1449,7 @@ title: Title for dataPage
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+                    - MobileSmartSourceType: plain:local.invitees && !local.sharedStats?.fullyAnonymous && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
               ↓Style [ngx.components.UIStyle-1770125000002]: 
                 styleContent: 
                   - xmlizable: 
@@ -1448,7 +1469,7 @@ title: Title for dataPage
                     textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: plain:shared_invitees_title
+                        - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? this.translate.instant(''Responses'') : this.translate.instant(''shared_invitees_title'')'
                 ↓TextProgress [ngx.components.UIDynamicElement-1770125000006]: 
                   beanData: '{"ionBean":"TextItem"}'
                   tagName: ion-text
@@ -1456,7 +1477,7 @@ title: Title for dataPage
                     textValue: 
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+                        - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? (this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.anonymousResponseCount ?? 0}) + '' • '' + this.translate.instant(''shared_invitees_col_name'') + '': '' + (local.sharedStats?.invitedCount ?? 0)) : (local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0}))'
               ↓CardContent [ngx.components.UIDynamicElement-1770125000008]: 
                 beanData: '{"ionBean":"CardContent"}'
                 tagName: ion-card-content
@@ -1647,7 +1668,7 @@ title: Title for dataPage
                       attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:!local.sharedLoading
+                          - MobileSmartSourceType: plain:!local.sharedLoading && !local.sharedStats?.fullyAnonymous
                     ↓Style [ngx.components.UIStyle-1770058200036]: 
                       styleContent: 
                         - xmlizable: 
@@ -1900,7 +1921,7 @@ title: Title for dataPage
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+                    - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.invitedCount > 0 || local.sharedStats?.noInvitees)
               ↓Style [ngx.components.UIStyle-1770058200003]: 
                 styleContent: 
                   - xmlizable: 
@@ -1926,6 +1947,12 @@ title: Title for dataPage
                   ↓CardHeader [ngx.components.UIDynamicElement-1770058200009]: 
                     beanData: '{"ionBean":"CardHeader"}'
                     tagName: ion-card-header
+                    ↓VisibleForAnonymousOnly [ngx.components.UIAttribute-1788780000100]: 
+                      attrName: '*ngIf'
+                      attrValue: 
+                        - xmlizable: 
+                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                          - MobileSmartSourceType: plain:local.sharedStats?.fullyAnonymous
                     ↓CardTitle [ngx.components.UIDynamicElement-1770058200012]: 
                       beanData: '{"ionBean":"CardTitle"}'
                       tagName: ion-card-title
@@ -1934,7 +1961,7 @@ title: Title for dataPage
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:shared_invitees_title
+                            - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? this.translate.instant(''Responses'') : this.translate.instant(''shared_invitees_title'')'
                     ↓TextProgress [ngx.components.UIDynamicElement-1770058200018]: 
                       beanData: '{"ionBean":"TextItem"}'
                       tagName: ion-text
@@ -1942,7 +1969,7 @@ title: Title for dataPage
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+                            - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? (this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.anonymousResponseCount ?? 0}) + '' • '' + this.translate.instant(''shared_invitees_col_name'') + '': '' + (local.sharedStats?.invitedCount ?? 0)) : (local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0}))'
                   ↓Style [ngx.components.UIStyle-1770111961897]: 
                     styleContent: 
                       - xmlizable: 
@@ -1983,7 +2010,7 @@ title: Title for dataPage
                       attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:local.sharedStats?.remindableCount > 0
+                          - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && local.sharedStats?.remindableCount > 0
                     ↓Event [ngx.components.UIControlEvent-1770061600012]: 
                       ↓SendReminderAll [ngx.components.UICustomAsyncAction-1770061600015]: 
                         actionValue: 
@@ -2180,6 +2207,12 @@ title: Title for dataPage
                           ↓ColActionHeader [ngx.components.UIDynamicElement-1770130800018]: 
                             beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
                             tagName: ion-col
+                            ↓Attr [ngx.components.UIAttribute-1788530000004]: 
+                              attrName: '*ngIf'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous
                             ↓ButtonSortAction [ngx.components.UIDynamicElement-1770130800019]: 
                               beanData: |
                                 '{
@@ -2374,7 +2407,7 @@ title: Title for dataPage
                                       textValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:person.label
+                                          - MobileSmartSourceType: 'script:person.anonymous ? (this.translate.instant(''Responses'') + '' - '' + this.translate.instant(''anonymous'') + '' #'' + (person.responseIndex ?? (idx + 1))) : person.label'
                                     ↓Style [ngx.components.UIStyle-1770130600003]: 
                                       styleContent: 
                                         - xmlizable: 
@@ -2423,13 +2456,13 @@ title: Title for dataPage
                                               justify-content: flex-start;
                                             '
                                   ↓Badge [ngx.components.UIDynamicElement-1770061800030]: 
-                                    beanData: '{"ionBean":"Badge","IonColor":"script:person.responded ? ''success'' : ''medium''"}'
+                                    beanData: '{"ionBean":"Badge","IonColor":"script:person.anonymous ? ''success'' : (local.sharedStats?.fullyAnonymous ? ''medium'' : (person.responded ? ''success'' : ''medium''))"}'
                                     tagName: ion-badge
                                     ↓Text [ngx.components.UIText-1770061800033]: 
                                       textValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: 'script:person.responded ? this.translate.instant(''shared_invitees_responded'') : this.translate.instant(''shared_invitees_not_responded'')'
+                                          - MobileSmartSourceType: 'script:person.anonymous ? this.translate.instant(''shared_invitees_responded'') : (local.sharedStats?.fullyAnonymous ? this.translate.instant(''shared_invitees_col_name'') : (person.responded ? this.translate.instant(''shared_invitees_responded'') : this.translate.instant(''shared_invitees_not_responded'')))'
                                   ↓BadgeReminded [ngx.components.UIDynamicElement-1770061800036]: 
                                     beanData: '{"ionBean":"Badge","IonColor":"plain:warning"}'
                                     tagName: ion-badge
@@ -2438,7 +2471,7 @@ title: Title for dataPage
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:!person.responded && person.reminded
+                                          - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && !person.responded && person.reminded
                                     ↓Text [ngx.components.UIText-1770061800042]: 
                                       i18n: true
                                       textValue: 
@@ -2448,6 +2481,12 @@ title: Title for dataPage
                               ↓ColAction [ngx.components.UIDynamicElement-1770061800045]: 
                                 beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
                                 tagName: ion-col
+                                ↓Attr [ngx.components.UIAttribute-1788530000005]: 
+                                  attrName: '*ngIf'
+                                  attrValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous
                                 ↓DivAction [ngx.components.UIDynamicElement-1770061800048]: 
                                   beanData: '{"ionBean":"DivTag"}'
                                   tagName: div
@@ -2478,7 +2517,7 @@ title: Title for dataPage
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:!person.responded && person.email
+                                          - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && !person.responded && person.email
                                     ↓Event [ngx.components.UIControlEvent-1770061800063]: 
                                       ↓SendReminder [ngx.components.UICustomAsyncAction-1770061800066]: 
                                         actionValue: 
@@ -5778,7 +5817,7 @@ title: Title for dataPage
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+                            - MobileSmartSourceType: plain:local.invitees && !local.sharedStats?.fullyAnonymous && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
                       ↓Style [ngx.components.UIStyle-1770649585531]: 
                         styleContent: 
                           - xmlizable: 
@@ -5798,7 +5837,7 @@ title: Title for dataPage
                             textValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:shared_invitees_title
+                                - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? this.translate.instant(''Responses'') : this.translate.instant(''shared_invitees_title'')'
                         ↓TextProgress [ngx.components.UIDynamicElement-1770649585543]: 
                           beanData: '{"ionBean":"TextItem"}'
                           tagName: ion-text
@@ -5806,7 +5845,7 @@ title: Title for dataPage
                             textValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+                                - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? (this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.anonymousResponseCount ?? 0}) + '' • '' + this.translate.instant(''shared_invitees_col_name'') + '': '' + (local.sharedStats?.invitedCount ?? 0)) : (local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0}))'
                       ↓CardContent [ngx.components.UIDynamicElement-1770649585549]: 
                         beanData: '{"ionBean":"CardContent"}'
                         tagName: ion-card-content
@@ -5997,7 +6036,7 @@ title: Title for dataPage
                               attrValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: plain:!local.sharedLoading
+                                  - MobileSmartSourceType: plain:!local.sharedLoading && !local.sharedStats?.fullyAnonymous
                             ↓Style [ngx.components.UIStyle-1770649585627]: 
                               styleContent: 
                                 - xmlizable: 
@@ -6250,7 +6289,7 @@ title: Title for dataPage
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+                            - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.invitedCount > 0 || local.sharedStats?.noInvitees)
                       ↓Style [ngx.components.UIStyle-1770649585762]: 
                         styleContent: 
                           - xmlizable: 
@@ -6276,6 +6315,12 @@ title: Title for dataPage
                           ↓CardHeader [ngx.components.UIDynamicElement-1770649585774]: 
                             beanData: '{"ionBean":"CardHeader"}'
                             tagName: ion-card-header
+                            ↓VisibleForAnonymousOnly [ngx.components.UIAttribute-1788780000101]: 
+                              attrName: '*ngIf'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: plain:local.sharedStats?.fullyAnonymous
                             ↓CardTitle [ngx.components.UIDynamicElement-1770649585777]: 
                               beanData: '{"ionBean":"CardTitle"}'
                               tagName: ion-card-title
@@ -6284,7 +6329,7 @@ title: Title for dataPage
                                 textValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: plain:shared_invitees_title
+                                    - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? this.translate.instant(''Responses'') : this.translate.instant(''shared_invitees_title'')'
                             ↓TextProgress [ngx.components.UIDynamicElement-1770649585783]: 
                               beanData: '{"ionBean":"TextItem"}'
                               tagName: ion-text
@@ -6292,7 +6337,7 @@ title: Title for dataPage
                                 textValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+                                    - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? (this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.anonymousResponseCount ?? 0}) + '' • '' + this.translate.instant(''shared_invitees_col_name'') + '': '' + (local.sharedStats?.invitedCount ?? 0)) : (local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0}))'
                           ↓Style [ngx.components.UIStyle-1770649585789]: 
                             styleContent: 
                               - xmlizable: 
@@ -6333,7 +6378,7 @@ title: Title for dataPage
                               attrValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: plain:local.sharedStats?.remindableCount > 0
+                                  - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && local.sharedStats?.remindableCount > 0
                             ↓Event [ngx.components.UIControlEvent-1770649585807]: 
                               ↓SendReminderAll [ngx.components.UICustomAsyncAction-1770649585810]: 
                                 actionValue: 
@@ -6530,6 +6575,12 @@ title: Title for dataPage
                                   ↓ColActionHeader [ngx.components.UIDynamicElement-1770649585897]: 
                                     beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
                                     tagName: ion-col
+                                    ↓Attr [ngx.components.UIAttribute-1788530000006]: 
+                                      attrName: '*ngIf'
+                                      attrValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous
                                     ↓ButtonSortAction [ngx.components.UIDynamicElement-1770649585900]: 
                                       beanData: |
                                         '{
@@ -6724,7 +6775,7 @@ title: Title for dataPage
                                               textValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: script:person.label
+                                                  - MobileSmartSourceType: 'script:person.anonymous ? (this.translate.instant(''Responses'') + '' - '' + this.translate.instant(''anonymous'') + '' #'' + (person.responseIndex ?? (idx + 1))) : person.label'
                                             ↓Style [ngx.components.UIStyle-1770649586005]: 
                                               styleContent: 
                                                 - xmlizable: 
@@ -6773,13 +6824,13 @@ title: Title for dataPage
                                                       justify-content: flex-start;
                                                     '
                                           ↓Badge [ngx.components.UIDynamicElement-1770649586026]: 
-                                            beanData: '{"ionBean":"Badge","IonColor":"script:person.responded ? ''success'' : ''medium''"}'
+                                            beanData: '{"ionBean":"Badge","IonColor":"script:person.anonymous ? ''success'' : (local.sharedStats?.fullyAnonymous ? ''medium'' : (person.responded ? ''success'' : ''medium''))"}'
                                             tagName: ion-badge
                                             ↓Text [ngx.components.UIText-1770649586029]: 
                                               textValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:person.responded ? this.translate.instant(''shared_invitees_responded'') : this.translate.instant(''shared_invitees_not_responded'')'
+                                                  - MobileSmartSourceType: 'script:person.anonymous ? this.translate.instant(''shared_invitees_responded'') : (local.sharedStats?.fullyAnonymous ? this.translate.instant(''shared_invitees_col_name'') : (person.responded ? this.translate.instant(''shared_invitees_responded'') : this.translate.instant(''shared_invitees_not_responded'')))'
                                           ↓BadgeReminded [ngx.components.UIDynamicElement-1770649586032]: 
                                             beanData: '{"ionBean":"Badge","IonColor":"plain:warning"}'
                                             tagName: ion-badge
@@ -6788,7 +6839,7 @@ title: Title for dataPage
                                               attrValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:!person.responded && person.reminded
+                                                  - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && !person.responded && person.reminded
                                             ↓Text [ngx.components.UIText-1770649586038]: 
                                               i18n: true
                                               textValue: 
@@ -6798,6 +6849,12 @@ title: Title for dataPage
                                       ↓ColAction [ngx.components.UIDynamicElement-1770649586041]: 
                                         beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
                                         tagName: ion-col
+                                        ↓Attr [ngx.components.UIAttribute-1788530000007]: 
+                                          attrName: '*ngIf'
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous
                                         ↓DivAction [ngx.components.UIDynamicElement-1770649586044]: 
                                           beanData: '{"ionBean":"DivTag"}'
                                           tagName: div
@@ -6828,7 +6885,7 @@ title: Title for dataPage
                                               attrValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: plain:!person.responded && person.email
+                                                  - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && !person.responded && person.email
                                             ↓Event [ngx.components.UIControlEvent-1770649586059]: 
                                               ↓SendReminder [ngx.components.UICustomAsyncAction-1770649586062]: 
                                                 actionValue: 
@@ -7881,7 +7938,7 @@ title: Title for dataPage
                       attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+                          - MobileSmartSourceType: plain:local.invitees && !local.sharedStats?.fullyAnonymous && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
                     ↓Style [ngx.components.UIStyle-1770651152829]: 
                       styleContent: 
                         - xmlizable: 
@@ -7901,7 +7958,7 @@ title: Title for dataPage
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:shared_invitees_title
+                              - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? this.translate.instant(''Responses'') : this.translate.instant(''shared_invitees_title'')'
                       ↓TextProgress [ngx.components.UIDynamicElement-1770651152841]: 
                         beanData: '{"ionBean":"TextItem"}'
                         tagName: ion-text
@@ -7909,7 +7966,7 @@ title: Title for dataPage
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+                              - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? (this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.anonymousResponseCount ?? 0}) + '' • '' + this.translate.instant(''shared_invitees_col_name'') + '': '' + (local.sharedStats?.invitedCount ?? 0)) : (local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0}))'
                     ↓CardContent [ngx.components.UIDynamicElement-1770651152847]: 
                       beanData: '{"ionBean":"CardContent"}'
                       tagName: ion-card-content
@@ -8100,7 +8157,7 @@ title: Title for dataPage
                             attrValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:!local.sharedLoading
+                                - MobileSmartSourceType: plain:!local.sharedLoading && !local.sharedStats?.fullyAnonymous
                           ↓Style [ngx.components.UIStyle-1770651152925]: 
                             styleContent: 
                               - xmlizable: 
@@ -8353,7 +8410,7 @@ title: Title for dataPage
                       attrValue: 
                         - xmlizable: 
                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                          - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.noInvitees)
+                          - MobileSmartSourceType: plain:local.invitees && (local.sharedLoading || local.sharedStats?.total > 0 || local.sharedStats?.invitedCount > 0 || local.sharedStats?.noInvitees)
                     ↓Style [ngx.components.UIStyle-1770651153060]: 
                       styleContent: 
                         - xmlizable: 
@@ -8379,6 +8436,12 @@ title: Title for dataPage
                         ↓CardHeader [ngx.components.UIDynamicElement-1770651153072]: 
                           beanData: '{"ionBean":"CardHeader"}'
                           tagName: ion-card-header
+                          ↓VisibleForAnonymousOnly [ngx.components.UIAttribute-1788780000102]: 
+                            attrName: '*ngIf'
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: plain:local.sharedStats?.fullyAnonymous
                           ↓CardTitle [ngx.components.UIDynamicElement-1770651153075]: 
                             beanData: '{"ionBean":"CardTitle"}'
                             tagName: ion-card-title
@@ -8387,7 +8450,7 @@ title: Title for dataPage
                               textValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: plain:shared_invitees_title
+                                  - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? this.translate.instant(''Responses'') : this.translate.instant(''shared_invitees_title'')'
                           ↓TextProgress [ngx.components.UIDynamicElement-1770651153081]: 
                             beanData: '{"ionBean":"TextItem"}'
                             tagName: ion-text
@@ -8395,7 +8458,7 @@ title: Title for dataPage
                               textValue: 
                                 - xmlizable: 
                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                  - MobileSmartSourceType: 'script:local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0})'
+                                  - MobileSmartSourceType: 'script:local.sharedStats?.fullyAnonymous ? (this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.anonymousResponseCount ?? 0}) + '' • '' + this.translate.instant(''shared_invitees_col_name'') + '': '' + (local.sharedStats?.invitedCount ?? 0)) : (local.sharedStats?.noInvitees ? this.translate.instant(''shared_invitees_progress_no_invitees'', {responded: local.sharedStats?.respondedCount ?? 0}) : this.translate.instant(''shared_invitees_progress'', {responded: local.sharedStats?.respondedCount ?? 0, total: local.sharedStats?.total ?? 0}))'
                         ↓Style [ngx.components.UIStyle-1770651153087]: 
                           styleContent: 
                             - xmlizable: 
@@ -8436,7 +8499,7 @@ title: Title for dataPage
                             attrValue: 
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: plain:local.sharedStats?.remindableCount > 0
+                                - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && local.sharedStats?.remindableCount > 0
                           ↓Event [ngx.components.UIControlEvent-1770651153105]: 
                             ↓SendReminderAll [ngx.components.UICustomAsyncAction-1770651153108]: 
                               actionValue: 
@@ -8633,6 +8696,12 @@ title: Title for dataPage
                                 ↓ColActionHeader [ngx.components.UIDynamicElement-1770651153195]: 
                                   beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
                                   tagName: ion-col
+                                  ↓Attr [ngx.components.UIAttribute-1788530000008]: 
+                                    attrName: '*ngIf'
+                                    attrValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous
                                   ↓ButtonSortAction [ngx.components.UIDynamicElement-1770651153198]: 
                                     beanData: |
                                       '{
@@ -8827,7 +8896,7 @@ title: Title for dataPage
                                             textValue: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: 'script:(person.label == ''null'') ? this.translate.instant(''anonymous'') : person.label'
+                                                - MobileSmartSourceType: 'script:person.anonymous ? (this.translate.instant(''Responses'') + '' - '' + this.translate.instant(''anonymous'') + '' #'' + (person.responseIndex ?? (idx + 1))) : person.label'
                                           ↓Style [ngx.components.UIStyle-1770651153303]: 
                                             styleContent: 
                                               - xmlizable: 
@@ -8845,7 +8914,7 @@ title: Title for dataPage
                                             textValue: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: 'script:(person.meta == ''email - null'') ? ''email - '' + this.translate.instant(''anonymous'') : person.meta'
+                                                - MobileSmartSourceType: script:person.meta
                                           ↓Style1 [ngx.components.UIStyle-1770651153312]: 
                                             styleContent: 
                                               - xmlizable: 
@@ -8876,13 +8945,13 @@ title: Title for dataPage
                                                     justify-content: flex-start;
                                                   '
                                         ↓Badge [ngx.components.UIDynamicElement-1770651153324]: 
-                                          beanData: '{"ionBean":"Badge","IonColor":"script:person.responded ? ''success'' : ''medium''"}'
+                                          beanData: '{"ionBean":"Badge","IonColor":"script:person.anonymous ? ''success'' : (local.sharedStats?.fullyAnonymous ? ''medium'' : (person.responded ? ''success'' : ''medium''))"}'
                                           tagName: ion-badge
                                           ↓Text [ngx.components.UIText-1770651153327]: 
                                             textValue: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: 'script:person.responded ? this.translate.instant(''shared_invitees_responded'') : this.translate.instant(''shared_invitees_not_responded'')'
+                                                - MobileSmartSourceType: 'script:person.anonymous ? this.translate.instant(''shared_invitees_responded'') : (local.sharedStats?.fullyAnonymous ? this.translate.instant(''shared_invitees_col_name'') : (person.responded ? this.translate.instant(''shared_invitees_responded'') : this.translate.instant(''shared_invitees_not_responded'')))'
                                         ↓BadgeReminded [ngx.components.UIDynamicElement-1770651153330]: 
                                           beanData: '{"ionBean":"Badge","IonColor":"plain:warning"}'
                                           tagName: ion-badge
@@ -8891,7 +8960,7 @@ title: Title for dataPage
                                             attrValue: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: plain:!person.responded && person.reminded
+                                                - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && !person.responded && person.reminded
                                           ↓Text [ngx.components.UIText-1770651153336]: 
                                             i18n: true
                                             textValue: 
@@ -8901,6 +8970,12 @@ title: Title for dataPage
                                     ↓ColAction [ngx.components.UIDynamicElement-1770651153339]: 
                                       beanData: '{"ionBean":"GridCol","Size":"plain:2"}'
                                       tagName: ion-col
+                                      ↓Attr [ngx.components.UIAttribute-1788530000009]: 
+                                        attrName: '*ngIf'
+                                        attrValue: 
+                                          - xmlizable: 
+                                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                            - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous
                                       ↓DivAction [ngx.components.UIDynamicElement-1770651153342]: 
                                         beanData: '{"ionBean":"DivTag"}'
                                         tagName: div
@@ -8931,7 +9006,7 @@ title: Title for dataPage
                                             attrValue: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: plain:!person.responded && person.email
+                                                - MobileSmartSourceType: plain:!local.sharedStats?.fullyAnonymous && !person.responded && person.email
                                           ↓Event [ngx.components.UIControlEvent-1770651153357]: 
                                             ↓SendReminder [ngx.components.UICustomAsyncAction-1770651153360]: 
                                               actionValue: 

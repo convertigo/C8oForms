@@ -3,12 +3,12 @@ scriptContent:
     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
     - com.twinsoft.convertigo.beans.common.FormatedContent: 
       →: |
-        /*Begin_c8o_CompImport*/
+        '/*Begin_c8o_CompImport*/
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
-        		this.local.capture = (document.createElement('input') as any).capture != undefined;
+        		this.local.capture = (document.createElement(''input'') as any).capture != undefined;
         		this.local.URLO = URL;
         		this.local.typeof = (str)=> {
         			try{
@@ -24,8 +24,332 @@ scriptContent:
         /*Begin_c8o_CompFinalization*/
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompFunction*/
-        	/*End_c8o_CompFunction*/
+        	public async processCameraImage(fileOrBlob: any, config: any, finalMaxSizeBytes?: any, filenameSeed?: any, pathLabel?: string): Promise<any> {
+        		if (!(fileOrBlob instanceof Blob)) {
+        			return fileOrBlob;
+        		}
         
+        		const options = this.normalizeCameraImageProcessingOptions(config);
+        		let output = fileOrBlob;
+        
+        		if (this.shouldRunCameraAdvancedImageProcessing(output, options)) {
+        			try {
+        				output = await this.applyCameraAdvancedImageProcessing(output, options, filenameSeed);
+        			}
+        			catch (e) {
+        				this.logCameraImageProcessingDebug(''(Camera component) : advanced image processing failed'', e, pathLabel);
+        				output = fileOrBlob;
+        			}
+        		}
+        
+        		return await this.applyCameraFinalMaxSize(output, finalMaxSizeBytes, options, filenameSeed, pathLabel);
+        	}
+        
+        	private normalizeCameraImageProcessingOptions(config: any): any {
+        		const safeConfig = config || {};
+        		const outputFormat = this.normalizeCameraOutputFormat(safeConfig.output_format);
+        		const qualityPercent = this.readCameraPositiveInteger(safeConfig.image_quality);
+        		const quality = qualityPercent != null && qualityPercent >= 1 && qualityPercent <= 100 ? qualityPercent / 100 : null;
+        
+        		return {
+        			maxWidth: this.readCameraPositiveInteger(safeConfig.output_max_width),
+        			maxHeight: this.readCameraPositiveInteger(safeConfig.output_max_height),
+        			quality: quality,
+        			outputFormat: outputFormat
+        		};
+        	}
+        
+        	private readCameraPositiveInteger(value: any): number {
+        		if (value === undefined || value === null || value === '''') {
+        			return null;
+        		}
+        		const parsed = Number(value);
+        		if (!Number.isFinite(parsed) || parsed <= 0) {
+        			return null;
+        		}
+        		return Math.floor(parsed);
+        	}
+        
+        	private normalizeCameraOutputFormat(value: any): string {
+        		if (typeof value !== ''string'') {
+        			return ''original'';
+        		}
+        		const normalized = value.toLowerCase().trim();
+        		if (normalized === ''jpeg'' || normalized === ''png'') {
+        			return normalized;
+        		}
+        		return ''original'';
+        	}
+        
+        	private shouldRunCameraAdvancedImageProcessing(fileOrBlob: any, options: any): boolean {
+        		if (!(fileOrBlob instanceof Blob)) {
+        			return false;
+        		}
+        		const sourceMime = this.normalizeCameraMime(fileOrBlob.type);
+        		if (options.maxWidth != null || options.maxHeight != null) {
+        			return true;
+        		}
+        		if (options.outputFormat === ''jpeg'') {
+        			return sourceMime !== ''image/jpeg'' || options.quality != null;
+        		}
+        		if (options.outputFormat === ''png'') {
+        			return sourceMime !== ''image/png'';
+        		}
+        		return false;
+        	}
+        
+        	private async applyCameraAdvancedImageProcessing(fileOrBlob: any, options: any, filenameSeed?: any): Promise<any> {
+        		const decoded = await this.decodeCameraImage(fileOrBlob);
+        		try {
+        			const originalWidth = this.getCameraDecodedImageWidth(decoded.image);
+        			const originalHeight = this.getCameraDecodedImageHeight(decoded.image);
+        			if (!originalWidth || !originalHeight) {
+        				return fileOrBlob;
+        			}
+        
+        			const scale = this.computeCameraImageScale(originalWidth, originalHeight, options.maxWidth, options.maxHeight);
+        			const outputMime = this.getCameraOutputMime(fileOrBlob.type, options.outputFormat);
+        			const sourceMime = this.normalizeCameraMime(fileOrBlob.type);
+        			const formatAlreadyMatches = options.outputFormat === ''original'' || outputMime === sourceMime;
+        			const qualityForOutput = outputMime === ''image/jpeg'' ? options.quality : null;
+        
+        			if (scale >= 1 && formatAlreadyMatches && qualityForOutput == null) {
+        				return fileOrBlob;
+        			}
+        
+        			const targetWidth = Math.max(1, Math.round(originalWidth * scale));
+        			const targetHeight = Math.max(1, Math.round(originalHeight * scale));
+        			const canvas = document.createElement(''canvas'');
+        			canvas.width = targetWidth;
+        			canvas.height = targetHeight;
+        			const context = canvas.getContext(''2d'');
+        			if (!context) {
+        				return fileOrBlob;
+        			}
+        			if (outputMime === ''image/jpeg'') {
+        				context.fillStyle = ''#ffffff'';
+        				context.fillRect(0, 0, targetWidth, targetHeight);
+        			}
+        			context.drawImage(decoded.image, 0, 0, targetWidth, targetHeight);
+        
+        			const blob = await this.cameraCanvasToBlob(canvas, outputMime, qualityForOutput);
+        			canvas.width = 0;
+        			canvas.height = 0;
+        			if (!(blob instanceof Blob)) {
+        				return fileOrBlob;
+        			}
+        			const finalMime = this.normalizeCameraMime(blob.type) || outputMime;
+        			return this.createCameraFileLike(blob, fileOrBlob, filenameSeed, finalMime);
+        		}
+        		finally {
+        			this.releaseCameraDecodedImage(decoded);
+        		}
+        	}
+        
+        	private async applyCameraFinalMaxSize(fileOrBlob: any, finalMaxSizeBytes: any, options: any, filenameSeed?: any, pathLabel?: string): Promise<any> {
+        		const maxBytes = this.normalizeCameraFinalMaxSize(finalMaxSizeBytes);
+        		if (maxBytes == null || !(fileOrBlob instanceof Blob) || fileOrBlob.size <= maxBytes) {
+        			return fileOrBlob;
+        		}
+        
+        		try {
+        			let compressionConfig: any = maxBytes / 1000;
+        			let expectedMime = '''';
+        			if (options.outputFormat === ''jpeg'') {
+        				expectedMime = ''image/jpeg'';
+        				compressionConfig = { size: maxBytes / 1000, type: expectedMime };
+        			}
+        			else if (options.outputFormat === ''png'') {
+        				expectedMime = ''image/png'';
+        				compressionConfig = { size: maxBytes / 1000, type: expectedMime };
+        			}
+        
+        			const compressed = await compressAccurately(fileOrBlob, compressionConfig);
+        			if (!(compressed instanceof Blob)) {
+        				return fileOrBlob;
+        			}
+        
+        			const compressedMime = this.normalizeCameraMime(compressed.type) || this.normalizeCameraMime(fileOrBlob.type) || expectedMime;
+        			if (expectedMime && compressedMime && compressedMime !== expectedMime) {
+        				this.logCameraImageProcessingDebug(''(Camera component) : final max-size compression changed the requested image format, keeping previous output'', null, pathLabel);
+        				return fileOrBlob;
+        			}
+        			if (compressed.size > fileOrBlob.size) {
+        				return fileOrBlob;
+        			}
+        			return this.createCameraFileLike(compressed, fileOrBlob, filenameSeed, compressedMime);
+        		}
+        		catch (e) {
+        			this.logCameraImageProcessingDebug(''(Camera component) : final max-size compression failed'', e, pathLabel);
+        			return fileOrBlob;
+        		}
+        	}
+        
+        	private normalizeCameraFinalMaxSize(value: any): number {
+        		if (value === undefined || value === null || value === '''') {
+        			return null;
+        		}
+        		const parsed = Number(value);
+        		if (!Number.isFinite(parsed) || parsed <= 0) {
+        			return null;
+        		}
+        		return parsed;
+        	}
+        
+        	private computeCameraImageScale(originalWidth: number, originalHeight: number, maxWidth: number, maxHeight: number): number {
+        		let scale = 1;
+        		if (maxWidth != null) {
+        			scale = Math.min(scale, maxWidth / originalWidth);
+        		}
+        		if (maxHeight != null) {
+        			scale = Math.min(scale, maxHeight / originalHeight);
+        		}
+        		return Math.min(1, scale);
+        	}
+        
+        	private getCameraOutputMime(sourceType: string, outputFormat: string): string {
+        		const sourceMime = this.normalizeCameraMime(sourceType);
+        		if (outputFormat === ''jpeg'') {
+        			return ''image/jpeg'';
+        		}
+        		if (outputFormat === ''png'') {
+        			return ''image/png'';
+        		}
+        		if (sourceMime === ''image/jpeg'' || sourceMime === ''image/png'') {
+        			return sourceMime;
+        		}
+        		if (sourceMime === ''image/gif'') {
+        			return ''image/png'';
+        		}
+        		return ''image/jpeg'';
+        	}
+        
+        	private normalizeCameraMime(value: any): string {
+        		if (typeof value !== ''string'') {
+        			return '''';
+        		}
+        		const normalized = value.toLowerCase().trim();
+        		if (normalized === ''image/jpg'') {
+        			return ''image/jpeg'';
+        		}
+        		return normalized;
+        	}
+        
+        	private async decodeCameraImage(fileOrBlob: any): Promise<any> {
+        		if (typeof createImageBitmap === ''function'') {
+        			try {
+        				const imageBitmap = await createImageBitmap(fileOrBlob);
+        				return { image: imageBitmap, close: () => imageBitmap.close() };
+        			}
+        			catch (e) {
+        			}
+        		}
+        
+        		return await new Promise((resolve, reject) => {
+        			const image = new Image();
+        			let objectUrl = '''';
+        			image.onload = () => {
+        				if (objectUrl) {
+        					URL.revokeObjectURL(objectUrl);
+        				}
+        				resolve({ image: image, close: () => {} });
+        			};
+        			image.onerror = () => {
+        				if (objectUrl) {
+        					URL.revokeObjectURL(objectUrl);
+        				}
+        				reject(new Error(''Camera image decode failed''));
+        			};
+        			objectUrl = URL.createObjectURL(fileOrBlob);
+        			image.src = objectUrl;
+        		});
+        	}
+        
+        	private releaseCameraDecodedImage(decoded: any): void {
+        		try {
+        			if (decoded && typeof decoded.close === ''function'') {
+        				decoded.close();
+        			}
+        		}
+        		catch (e) {
+        		}
+        	}
+        
+        	private getCameraDecodedImageWidth(image: any): number {
+        		return image && (image.width || image.naturalWidth) ? Number(image.width || image.naturalWidth) : 0;
+        	}
+        
+        	private getCameraDecodedImageHeight(image: any): number {
+        		return image && (image.height || image.naturalHeight) ? Number(image.height || image.naturalHeight) : 0;
+        	}
+        
+        	private cameraCanvasToBlob(canvas: HTMLCanvasElement, mime: string, quality: number): Promise<Blob> {
+        		return new Promise((resolve, reject) => {
+        			canvas.toBlob((blob) => {
+        				if (blob) {
+        					resolve(blob);
+        				}
+        				else {
+        					reject(new Error(''Camera canvas encoding failed''));
+        				}
+        			}, mime, quality == null ? undefined : quality);
+        		});
+        	}
+        
+        	private createCameraFileLike(blob: Blob, source: any, filenameSeed: any, mime: string): any {
+        		const finalMime = mime || this.normalizeCameraMime(blob.type) || this.normalizeCameraMime(source && source.type) || ''application/octet-stream'';
+        		const fileName = this.buildCameraOutputFileName(source, filenameSeed, finalMime);
+        		const lastModified = source && source.lastModified ? source.lastModified : Date.now();
+        
+        		try {
+        			return new File([blob], fileName, { type: finalMime, lastModified: lastModified });
+        		}
+        		catch (e) {
+        			const output: any = new Blob([blob], { type: finalMime });
+        			output.name = fileName;
+        			output.lastModified = lastModified;
+        			return output;
+        		}
+        	}
+        
+        	private buildCameraOutputFileName(source: any, filenameSeed: any, mime: string): string {
+        		const sourceName = source && source.name ? String(source.name) : '''';
+        		const seed = filenameSeed != null && filenameSeed !== '''' ? String(filenameSeed) : sourceName;
+        		const safeName = (seed || ''camera-image'').replace(/[\\/:*?"<>|]+/g, ''_'');
+        		const extension = this.getCameraFileExtension(mime);
+        		if (!extension) {
+        			return safeName;
+        		}
+        		const withoutExtension = safeName.replace(/\.[^.\\/]+$/, '''');
+        		return withoutExtension + extension;
+        	}
+        
+        	private getCameraFileExtension(mime: string): string {
+        		switch (this.normalizeCameraMime(mime)) {
+        			case ''image/jpeg'':
+        				return ''.jpg'';
+        			case ''image/png'':
+        				return ''.png'';
+        			default:
+        				return '''';
+        		}
+        	}
+        
+        	private logCameraImageProcessingDebug(message: string, error?: any, pathLabel?: string): void {
+        		try {
+        			const prefix = pathLabel ? message + '' ['' + pathLabel + '']'' : message;
+        			if (error != null) {
+        				this.c8o.log.debug(prefix, error);
+        			}
+        			else {
+        				this.c8o.log.debug(prefix);
+        			}
+        		}
+        		catch (e) {
+        		}
+        	}
+        	/*End_c8o_CompFunction*/
+        '
 ↓item [ngx.components.UICompVariable-1571651600968]: 
   value: 
 ↓model [ngx.components.UICompVariable-1571651600971]: 
@@ -640,20 +964,11 @@ scriptContent:
                           					file =  await dataURLtoFile("data:image/jpg;base64,"+vars.src, vars.item.config.name);
                           					let end_time = new Date().getTime();
                           					page.c8o.log.debug(`(Camera component) : base64 to file succesfull, total computing time: ${(end_time - time) / 1000} seconds"`);
-                          					if( file.size > authorized_size){
-                          						page.c8o.log.debug(`(Camera component) : image size (${file.size} Bytes) exeeds default authorized size (${authorized_size} Bytes)`);
-                          						page.c8o.log.debug("(Camera component) : we will compress image");
-                          						try{
-                          							time = new Date().getTime();
-                          							//@ts-ignore
-                          							file = await compressAccurately(file,authorized_size/1000);
-                          							end_time = new Date().getTime();
-                          							page.c8o.log.debug(`(Camera component) : image compression succesfull, new size: ${file.size} Bytes, total computing time: ${(end_time - time) / 1000} seconds"`);
-                          							
-                          						}
-                          						catch(e){
-                          							page.c8o.log.debug("(Camera component) : image compression failed", e);
-                          						}
+                          					try{
+                          						file = await page.processCameraImage(file, vars.item.config, authorized_size, vars.item.config.name, ''CameraAction'');
+                          					}
+                          					catch(e){
+                          						page.c8o.log.debug("(Camera component) : image processing failed", e);
                           					}
                           					vars.model.value  = file;
                           					vars.model.att_type = true;
@@ -815,20 +1130,11 @@ scriptContent:
                       			const authorized_sizeMB = vars.item.config.max_size != undefined ? +vars.item.config.max_size : 5;
                       			const authorized_size = authorized_sizeMB * 1000000;
                       			for(let file of event["srcElement"]["files"]){
-                      				if( file.size > authorized_size){
-                      					let time = new Date().getTime();
-                      					page.c8o.log.debug(`(Camera component) : image size (${file.size} Bytes) exeeds default authorized size (${authorized_size} Bytes)`);
-                      					page.c8o.log.debug("(Camera component) : we will compress image");
-                      					try{						
-                      						//@ts-ignore
-                      						file = await compressAccurately(file,authorized_size/1000);
-                      						let end_time = new Date().getTime();
-                      						page.c8o.log.debug(`(Camera component) : image compression succesfull, new size: ${file.size} Bytes, total computing time: ${(end_time - time) / 1000} seconds"`);
-                      					}
-                      					catch(e){
-                      						page.c8o.log.debug("(Camera component) : image compression failed", e);
-                      					}
-                      					
+                      				try{
+                      					file = await page.processCameraImage(file, vars.item.config, authorized_size, file.name || vars.item.config.name, ''GalleryFileSelection'');
+                      				}
+                      				catch(e){
+                      					page.c8o.log.debug("(Camera component) : image processing failed", e);
                       				}
                       				// use now file without base64 encoding
                       				vars.model.value  = file;
@@ -1036,20 +1342,11 @@ scriptContent:
                       		const authorized_size = authorized_sizeMB * 1000000;
                       		const lower_quality_if_necessary = async()=>{
                       			for(let file of event["srcElement"]["files"]){
-                      				if( file.size > authorized_size){
-                      					let time = new Date().getTime();
-                      					page.c8o.log.debug(`(Camera component) : image size (${file.size} Bytes) exeeds default authorized size (${authorized_size} Bytes)`);
-                      					page.c8o.log.debug("(Camera component) : we will compress image");
-                      					try{						
-                      						//@ts-ignore
-                      						file = await compressAccurately(file,authorized_size/1000);
-                      						let end_time = new Date().getTime();
-                      						page.c8o.log.debug(`(Camera component) : image compression succesfull, new size: ${file.size} Bytes, total computing time: ${(end_time - time) / 1000} seconds"`);
-                      					}
-                      					catch(e){
-                      						page.c8o.log.debug("(Camera component) : image compression failed", e);
-                      					}
-                      					
+                      				try{
+                      					file = await page.processCameraImage(file, vars.item.config, authorized_size, file.name || vars.item.config.name, ''InputCapture'');
+                      				}
+                      				catch(e){
+                      					page.c8o.log.debug("(Camera component) : image processing failed", e);
                       				}
                       				// use now file without base64 encoding
                       				vars.model.value  = file;
