@@ -2110,7 +2110,28 @@ scriptContent:
         	public async performPushPageAction(step) {
         		let target = step.config.targetPage;
         		let targetIndex = null;
-        		if(target == "__c8o_next"){
+        		let suppressPageHistory = false;
+        		if(target == "__c8o_back"){
+        			let pageHistory = Array.isArray(this.local?.pageHistory) ? this.local.pageHistory : [];
+        			if (!Array.isArray(this.local?.pageHistory)) {
+        				this.local.pageHistory = pageHistory;
+        			}
+        			while (pageHistory.length > 0 && targetIndex == null) {
+        				let pageTechName = pageHistory.pop();
+        				let index = Array.isArray(this.local?.pages)
+        					? this.local.pages.findIndex((page) => page?.pageTechName == pageTechName)
+        					: -1;
+        				if (
+        					index >= 0 &&
+        					index != this.local.currentIndex &&
+        					this.isEditorPageAvailable(this.local.pages[index])
+        				) {
+        					targetIndex = index;
+        					suppressPageHistory = true;
+        				}
+        			}
+        		}
+        		else if(target == "__c8o_next"){
         			if(this.isThereANextPage()){
         				//perform push
         				targetIndex = this.getNextPageIndex();
@@ -2128,7 +2149,18 @@ scriptContent:
         			})
         		}
         		if (targetIndex != null) {
-        			this.local["currentIndex"] = targetIndex;
+        			if (suppressPageHistory) {
+        				this.local.suppressPageHistory = true;
+        				try {
+        					this.local["currentIndex"] = targetIndex;
+        				}
+        				finally {
+        					this.local.suppressPageHistory = false;
+        				}
+        			}
+        			else {
+        				this.local["currentIndex"] = targetIndex;
+        			}
         			this.myContent1.scrollToTop();
         			let i = this.navParams.get("i") != undefined ? this.navParams.get("i") : ":i";
         			let edit = this.navParams.get("edit") != undefined ? this.navParams.get("edit") : ":edit";
