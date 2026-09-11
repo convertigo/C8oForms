@@ -1,0 +1,223 @@
+accessibility: Private
+comment: Sanitizes administrator-authored email HTML before it reaches the trusted tableBody XSL boundary. Uses a server-side jsoup allowlist; callers must never create tableBody from unsanitized HTML.
+↓sanitizeHtml [steps.SimpleStep-1789131804964]: 
+  comment: 'Security boundary: emits only allowlisted HTML as sanitizedHtml.'
+  expression: |
+    '// Server-side security boundary for HTML rendered by responseMail2.xsl.
+    var Jsoup = use("org.jsoup.Jsoup");
+    var Whitelist = use("org.jsoup.safety.Whitelist");
+    var OutputSettings = use("org.jsoup.nodes.Document$OutputSettings");
+    var StandardCharsets = use("java.nio.charset.StandardCharsets");
+    
+    var sourceHtml = body == null ? "" : String(body);
+    
+    var allowedStyleProperties = {
+    	"background-color": true,
+    	"border": true,
+    	"border-bottom": true,
+    	"border-bottom-color": true,
+    	"border-bottom-style": true,
+    	"border-bottom-width": true,
+    	"border-collapse": true,
+    	"border-color": true,
+    	"border-left": true,
+    	"border-left-color": true,
+    	"border-left-style": true,
+    	"border-left-width": true,
+    	"border-radius": true,
+    	"border-right": true,
+    	"border-right-color": true,
+    	"border-right-style": true,
+    	"border-right-width": true,
+    	"border-spacing": true,
+    	"border-style": true,
+    	"border-top": true,
+    	"border-top-color": true,
+    	"border-top-style": true,
+    	"border-top-width": true,
+    	"border-width": true,
+    	"color": true,
+    	"direction": true,
+    	"display": true,
+    	"float": true,
+    	"font-family": true,
+    	"font-size": true,
+    	"font-style": true,
+    	"font-weight": true,
+    	"height": true,
+    	"letter-spacing": true,
+    	"line-height": true,
+    	"list-style-position": true,
+    	"list-style-type": true,
+    	"margin": true,
+    	"margin-bottom": true,
+    	"margin-left": true,
+    	"margin-right": true,
+    	"margin-top": true,
+    	"max-height": true,
+    	"max-width": true,
+    	"min-height": true,
+    	"min-width": true,
+    	"padding": true,
+    	"padding-bottom": true,
+    	"padding-left": true,
+    	"padding-right": true,
+    	"padding-top": true,
+    	"text-align": true,
+    	"text-decoration": true,
+    	"text-indent": true,
+    	"text-transform": true,
+    	"vertical-align": true,
+    	"white-space": true,
+    	"width": true,
+    	"word-break": true
+    };
+    
+    var containsControlCharacter = function(value) {
+    	for (var i = 0; i < value.length; i++) {
+    		var code = value.charCodeAt(i);
+    		if (code < 32 || code == 127) {
+    			return true;
+    		}
+    	}
+    	return false;
+    };
+    
+    var compactLowerCase = function(value) {
+    	var lower = value.toLowerCase();
+    	var compact = "";
+    	for (var i = 0; i < lower.length; i++) {
+    		var code = lower.charCodeAt(i);
+    		if (code > 32 && code != 127) {
+    			compact += lower.charAt(i);
+    		}
+    	}
+    	return compact;
+    };
+    
+    var sanitizeCssValue = function(value) {
+    	var trimmed = String(value).trim();
+    	if (trimmed.length == 0 || containsControlCharacter(trimmed) || trimmed.indexOf("\\") != -1) {
+    		return null;
+    	}
+    	var compact = compactLowerCase(trimmed);
+    	var forbiddenTokens = [
+    		"/*",
+    		"*/",
+    		"url(",
+    		"expression(",
+    		"@import",
+    		"javascript:",
+    		"vbscript:",
+    		"data:",
+    		"-moz-binding",
+    		"behavior:"
+    	];
+    	for (var i = 0; i < forbiddenTokens.length; i++) {
+    		if (compact.indexOf(forbiddenTokens[i]) != -1) {
+    			return null;
+    		}
+    	}
+    	return trimmed;
+    };
+    
+    var sanitizeInlineStyle = function(styleValue) {
+    	var declarations = String(styleValue).split(";");
+    	var safeDeclarations = [];
+    	for (var i = 0; i < declarations.length; i++) {
+    		var declaration = declarations[i];
+    		var colon = declaration.indexOf(":");
+    		if (colon <= 0) {
+    			continue;
+    		}
+    		var property = declaration.substring(0, colon).trim().toLowerCase();
+    		if (allowedStyleProperties[property] !== true) {
+    			continue;
+    		}
+    		var safeValue = sanitizeCssValue(declaration.substring(colon + 1));
+    		if (safeValue != null) {
+    			safeDeclarations.push(property + ": " + safeValue);
+    		}
+    	}
+    	return safeDeclarations.join("; ");
+    };
+    
+    var hasAllowedScheme = function(value, schemes, allowFragment) {
+    	var trimmed = String(value).trim();
+    	if (trimmed.length == 0 || containsControlCharacter(trimmed) || trimmed.indexOf("\\") != -1) {
+    		return false;
+    	}
+    	if (allowFragment && trimmed.charAt(0) == "#") {
+    		return true;
+    	}
+    	var colon = trimmed.indexOf(":");
+    	if (colon <= 0) {
+    		return false;
+    	}
+    	var scheme = trimmed.substring(0, colon).trim().toLowerCase();
+    	return schemes.indexOf(scheme) != -1;
+    };
+    
+    var document = Jsoup.parseBodyFragment(sourceHtml, "");
+    document.outputSettings().prettyPrint(false);
+    document.outputSettings().charset(StandardCharsets.UTF_8);
+    var elements = document.body().getAllElements().iterator();
+    while (elements.hasNext()) {
+    	var element = elements.next();
+    
+    	if (element.hasAttr("style")) {
+    		var safeStyle = sanitizeInlineStyle(element.attr("style"));
+    		if (safeStyle.length == 0) {
+    			element.removeAttr("style");
+    		}
+    		else {
+    			element.attr("style", safeStyle);
+    		}
+    	}
+    
+    	if (element.hasAttr("href") && !hasAllowedScheme(element.attr("href"), ["http", "https", "mailto"], true)) {
+    		element.removeAttr("href");
+    	}
+    	if (element.hasAttr("src") && !hasAllowedScheme(element.attr("src"), ["http", "https"], false)) {
+    		element.removeAttr("src");
+    	}
+    	if (element.hasAttr("cite") && !hasAllowedScheme(element.attr("cite"), ["http", "https"], false)) {
+    		element.removeAttr("cite");
+    	}
+    }
+    
+    var whitelist = Whitelist.none();
+    whitelist.addTags(
+    	"a", "abbr", "address", "b", "blockquote", "br", "caption", "cite", "code",
+    	"col", "colgroup", "dd", "del", "div", "dl", "dt", "em", "figcaption",
+    	"figure", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "li",
+    	"mark", "ol", "p", "pre", "q", "s", "small", "span", "strike", "strong",
+    	"sub", "sup", "table", "tbody", "td", "tfoot", "th", "thead", "tr", "u", "ul"
+    );
+    whitelist.addProtocols("a", "href", "http", "https", "mailto", "#");
+    whitelist.addProtocols("img", "src", "http", "https");
+    whitelist.addProtocols("blockquote", "cite", "http", "https");
+    whitelist.addProtocols("q", "cite", "http", "https");
+    whitelist.addAttributes(":all", "class", "dir", "lang", "style");
+    whitelist.addAttributes("a", "href", "name", "rel", "target", "title");
+    whitelist.addAttributes("blockquote", "cite");
+    whitelist.addAttributes("col", "span", "width");
+    whitelist.addAttributes("colgroup", "span", "width");
+    whitelist.addAttributes("img", "alt", "height", "src", "title", "width");
+    whitelist.addAttributes("li", "value");
+    whitelist.addAttributes("ol", "start", "type");
+    whitelist.addAttributes("q", "cite");
+    whitelist.addAttributes("table", "border", "cellpadding", "cellspacing", "summary", "width");
+    whitelist.addAttributes("td", "colspan", "headers", "height", "rowspan", "scope", "width");
+    whitelist.addAttributes("th", "colspan", "headers", "height", "rowspan", "scope", "width");
+    whitelist.addAttributes("ul", "type");
+    whitelist.addEnforcedAttribute("a", "rel", "noopener noreferrer");
+    
+    var outputSettings = new OutputSettings();
+    outputSettings.prettyPrint(false);
+    outputSettings.charset(StandardCharsets.UTF_8);
+    
+    var sanitizedHtml = Jsoup.clean(document.body().html(), "", whitelist, outputSettings);
+    context.addTextNodeUnderRoot("sanitizedHtml", sanitizedHtml);'
+↓body [variables.RequestableVariable-1789131804978]: 
+  comment: Serialized HTML to sanitize before trusted email rendering.

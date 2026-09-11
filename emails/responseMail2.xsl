@@ -9,7 +9,15 @@
 				<meta name="viewport" content="width=device-width" />
 				<meta http-equiv="Content-Type"
 					content="text/html; charset=UTF-8" />
-				<title>Simple Transactional Email</title>
+				<title>
+					<xsl:choose>
+						<xsl:when test="//mailLocale = 'fr'">Notification C8oForms</xsl:when>
+						<xsl:when test="//mailLocale = 'es'">Notificación de C8oForms</xsl:when>
+						<xsl:when test="//mailLocale = 'it'">Notifica C8oForms</xsl:when>
+						<xsl:when test="//mailLocale = 'zh-CN'">C8oForms 通知</xsl:when>
+						<xsl:otherwise>C8oForms notification</xsl:otherwise>
+					</xsl:choose>
+				</title>
 				<style>
 					/* -------------------------------------
 					INLINED WITH
@@ -138,6 +146,11 @@
 														<tbody>
 															<tr>
 																<td style="font-family: sans-serif; font-size: 14px; vertical-align: top;">
+																	<!--
+																		tableBody is trusted HTML at this boundary. All callers must pass content
+																		sanitized server-side by C8Oforms.SanitizeEmailHtml. Output escaping remains
+																		disabled intentionally to preserve backward-compatible HTML email rendering.
+																	-->
 																	<xsl:value-of select="//tableBody" disable-output-escaping="yes" />
 																</td>
 															</tr>
@@ -166,19 +179,40 @@
 													</td>
 													<td class="content-block"
 														style="font-family: sans-serif; vertical-align: top; padding-bottom: 10px; padding-top: 10px; font-size: 12px; color: #999999; text-align: center; width: 556px;">
-														<span class="apple-link"
-															style="color: #ffffff; font-size: 12px; text-align: center;">Convertigo No Code Studio is brought to you by Convertigo.SA</span>
+												<span class="apple-link"
+													style="color: #ffffff; font-size: 12px; text-align: center;">
+													<xsl:choose>
+														<xsl:when test="//mailLocale = 'fr'">Convertigo No Code Studio vous est proposé par Convertigo SA</xsl:when>
+														<xsl:when test="//mailLocale = 'es'">Convertigo No Code Studio es ofrecido por Convertigo SA</xsl:when>
+														<xsl:when test="//mailLocale = 'it'">Convertigo No Code Studio è offerto da Convertigo SA</xsl:when>
+														<xsl:when test="//mailLocale = 'zh-CN'">Convertigo No Code Studio 由 Convertigo SA 提供</xsl:when>
+														<xsl:otherwise>Convertigo No Code Studio is brought to you by Convertigo SA</xsl:otherwise>
+													</xsl:choose>
+												</span>
 													</td>
 												</tr>
 												<tr>
 													<td colspan="2" class="content-block powered-by"
 														style="font-family: sans-serif; vertical-align: top; padding-bottom: 10px; padding-top: 10px; font-size: 12px; color: #999999; text-align: center; width: 556px;">
 														<span style="color: #ffffff;">
-															Please visit
-															<a style="color: #ffffff;"
-																href="http://www.convertigo.com">www.convertigo.com</a>
-															&#160;for
-															details
+													<xsl:choose>
+														<xsl:when test="//mailLocale = 'fr'">Consultez</xsl:when>
+														<xsl:when test="//mailLocale = 'es'">Visite</xsl:when>
+														<xsl:when test="//mailLocale = 'it'">Visita</xsl:when>
+														<xsl:when test="//mailLocale = 'zh-CN'">请访问</xsl:when>
+														<xsl:otherwise>Visit</xsl:otherwise>
+													</xsl:choose>
+													<xsl:text> </xsl:text>
+													<a style="color: #ffffff;"
+														href="http://www.convertigo.com">www.convertigo.com</a>
+													<xsl:text> </xsl:text>
+													<xsl:choose>
+														<xsl:when test="//mailLocale = 'fr'">pour plus d’informations.</xsl:when>
+														<xsl:when test="//mailLocale = 'es'">para obtener más información.</xsl:when>
+														<xsl:when test="//mailLocale = 'it'">per maggiori informazioni.</xsl:when>
+														<xsl:when test="//mailLocale = 'zh-CN'">了解更多信息。</xsl:when>
+														<xsl:otherwise>for details.</xsl:otherwise>
+													</xsl:choose>
 														</span>
 													</td>
 												</tr>

@@ -119,7 +119,7 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/78fb392c8cfa
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/28ca472c57c674c2920cc23ff0e7570c8e8ac6f7#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
@@ -7432,6 +7432,14 @@ Email subject template.
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;lang
+</td>
+<td>
+Canonical email locale: en, fr, es, it or zh-CN; other values fall back to en.
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;newPassword
 </td>
 <td>
@@ -8869,6 +8877,36 @@ comment
 </td>
 <td>
 User identifier concerned by the request.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>SanitizeEmailHtml</b> : Sanitizes administrator-authored email HTML before it reaches the trusted tableBody XSL boundary</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") SanitizeEmailHtml
+
+Sanitizes administrator-authored email HTML before it reaches the trusted tableBody XSL boundary. Uses a server-side jsoup allowlist; callers must never create tableBody from unsanitized HTML.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;body
+</td>
+<td>
+Serialized HTML to sanitize before trusted email rendering.
 </td>
 </tr>
 </table>

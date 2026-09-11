@@ -127,7 +127,7 @@ var defineContentType = (sContentType, fileXSL)=>{
 /** sendMail function
  * @param attachments: array of attachments (path, name)
  */
-var sendMail = (sRecipients, sSubject, xslFilepath, sContentType, body, currentProjectName, attachments)=>{
+var sendMail = (sRecipients, sSubject, xslFilepath, sContentType, body, currentProjectName, attachments, mailLocale)=>{
 	var fileXSL = findFileXsl(xslFilepath, currentProjectName);
 	sContentType = defineContentType(sContentType, fileXSL);
 	var transformer = fileXSL != null ? com.twinsoft.convertigo.engine.util.XMLUtils.getNewTransformer(new javax.xml.transform.stream.StreamSource(fileXSL)) : com.twinsoft.convertigo.engine.util.XMLUtils.getNewTransformer();
@@ -136,6 +136,7 @@ var sendMail = (sRecipients, sSubject, xslFilepath, sContentType, body, currentP
 	transformer.setOutputProperty(javax.xml.transform.OutputKeys.OMIT_XML_DECLARATION, "yes");
 	var sw = new java.io.StringWriter();
 	context.addTextNodeUnderRoot("tableBody", body);
+	context.addTextNodeUnderRoot("mailLocale", mailLocale == null || String(mailLocale).length == 0 ? "en" : String(mailLocale));
 	
 	transformer.transform(new javax.xml.transform.dom.DOMSource(context.outputDocument), new javax.xml.transform.stream.StreamResult(sw));
 	sMessageText = sw.toString();
@@ -293,7 +294,6 @@ var sendMail = (sRecipients, sSubject, xslFilepath, sContentType, body, currentP
 		java.lang.Thread.sleep(50);
 	}
 }
-
 
 
 
