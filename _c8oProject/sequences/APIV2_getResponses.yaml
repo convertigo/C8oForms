@@ -37,6 +37,10 @@ responseTimeout: 600
     	}
     	catch (e) { }
     }
+    var responseSort = "current";
+    if (meta != null && (meta.responseSort == "date_asc" || meta.responseSort == "date_desc")) {
+    	responseSort = meta.responseSort;
+    }
     var ZoneId = use("java.time.ZoneId");
     var Instant = use("java.time.Instant");
     var DateTimeFormatter = use("java.time.format.DateTimeFormatter");
@@ -815,18 +819,43 @@ responseTimeout: 600
     		currentVersion = +published_form.version;
     	}
     	res["currentVersion"] = currentVersion;
-    	query = new java.util.HashMap();
-    	query.put(''reduce'', ''false'');
-    	query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]));
-    	query.put("include_docs", "true");
-    	if (metaSkip > 0) {
-    		query.put(''skip'', "" + metaSkip);
-    	}
-    	if (metaLimit != null && metaLimit > 0) {
-    		query.put(''limit'', "" + metaLimit);
-    	}
     	var responses;
-    	responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
+    	var structureResponses;
+    	if (responseSort == "current") {
+    		query = new java.util.HashMap();
+    		query.put(''reduce'', ''false'');
+    		query.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]));
+    		query.put("include_docs", "true");
+    		if (metaSkip > 0) {
+    			query.put(''skip'', "" + metaSkip);
+    		}
+    		if (metaLimit != null && metaLimit > 0) {
+    			query.put(''limit'', "" + metaLimit);
+    		}
+    		responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', query)).rows;
+    		structureResponses = responses;
+    	}
+    	else {
+    		query = new java.util.HashMap();
+    		query.put(''reduce'', ''false'');
+    		query.put(''startkey'', JSON.stringify([formId, "" + currentVersion, responseSort]));
+    		query.put(''endkey'', JSON.stringify([formId, "" + currentVersion, responseSort, {}]));
+    		query.put("include_docs", "true");
+    		if (metaSkip > 0) {
+    			query.put(''skip'', "" + metaSkip);
+    		}
+    		if (metaLimit != null && metaLimit > 0) {
+    			query.put(''limit'', "" + metaLimit);
+    		}
+    		responses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersionAndDate'', query)).rows;
+    
+    		var structureQuery = new java.util.HashMap();
+    		structureQuery.put(''reduce'', ''false'');
+    		structureQuery.put(''keys'', JSON.stringify([[formId, "" + currentVersion], [formId + "_anonymous", "" + currentVersion]]));
+    		structureQuery.put("include_docs", "true");
+    		structureQuery.put(''limit'', "1");
+    		structureResponses = toJSON(fsclient.getView("c8oforms_response_fs", ''read_responses'', ''getResponsesByVersion'', structureQuery)).rows;
+    	}
     	res.response = { length: responses.length };
     	//res["raw_responses"] = responses;
     
@@ -834,11 +863,11 @@ responseTimeout: 600
     
     	var sortedsIds = [];
     	var lenActions = 0;
-    	if (responses.length > 0) {
+    	if (structureResponses.length > 0) {
     		// if we are in forms 2.0 responses, sortedsIds are stored in response itself
-    		if (responses[0] && responses[0].doc && responses[0].doc.sortedsIds) {
-    			sortedsIds = responses[0].doc.sortedsIds;
-    			lenActions = responses[0].doc.lenActions;
+    		if (structureResponses[0] && structureResponses[0].doc && structureResponses[0].doc.sortedsIds) {
+    			sortedsIds = structureResponses[0].doc.sortedsIds;
+    			lenActions = structureResponses[0].doc.lenActions;
     			res.response.sort = true;
     		}
     		// if form was created before forms 2.0 release, responses doean''t contains sortedsIds. => we can compute it from actual publidhed form
@@ -852,8 +881,8 @@ responseTimeout: 600
     		else {
     			// not sorted responses for old versions
     			var _tempArr = [];
-    			for (var e in responses[0].doc.resp) {
-    				x = responses[0].doc.resp[e];
+    			for (var e in structureResponses[0].doc.resp) {
+    				x = structureResponses[0].doc.resp[e];
     				if (x.type === "ion-card" && x.children != undefined) {
     					var prefix = x.name;
     					for (var f in x.children) {
@@ -869,8 +898,8 @@ responseTimeout: 600
     			sortedsIds = sortedsIds.concat(_tempArr);
     			console.log("sortedIds", sortedsIds, logLevel);
     			res.response.sort = false;
-    			if (responses[0].doc.actionsValue) {
-    				lenActions = Object.keys(responses[0].doc.actionsValue).length;
+    			if (structureResponses[0].doc.actionsValue) {
+    				lenActions = Object.keys(structureResponses[0].doc.actionsValue).length;
     			}
     		}
     	}
@@ -942,9 +971,11 @@ responseTimeout: 600
     		nestedResponses = [];
     	}
     	var flatResponses = [];
-    	responses.sort((a, b) => {
-    		return +a.doc.timestamp - +b.doc.timestamp
-    	})
+    	if (responseSort == "current") {
+    		responses.sort((a, b) => {
+    			return +a.doc.timestamp - +b.doc.timestamp
+    		})
+    	}
     	// go over each fields of the form
     	for (var i = 0; i < len; i++) {
     		// go over each responses

@@ -12,6 +12,131 @@ responseTimeout: 600
     const logLevel = "warn";
     const DEFAULT_BATCH_SIZE = 1000;
     var excludedHeaderIndexes = {};
+    var Collator = use("java.text.Collator");
+    var Locale = use("java.util.Locale");
+    
+    var normalizeQuestionSortLocale = function(locale) {
+    	var normalized = locale == null ? "" : ("" + locale).trim().replace(/_/g, "-");
+    	var normalizedLower = normalized.toLowerCase();
+    	var primaryLanguage = normalizedLower.split("-")[0];
+    	if (primaryLanguage == "en" || primaryLanguage == "fr" || primaryLanguage == "es" || primaryLanguage == "it") {
+    		return primaryLanguage;
+    	}
+    	if (
+    		normalizedLower == "zh-cn" ||
+    		normalizedLower == "zh-sg" ||
+    		normalizedLower == "zh-hans" ||
+    		normalizedLower.indexOf("zh-hans-") == 0
+    	) {
+    		return "zh-CN";
+    	}
+    	return "en";
+    };
+    
+    var getPlainQuestionLabel = function(header) {
+    	if (!header || header.labelHtml == null) {
+    		return "";
+    	}
+    	try {
+    		return "" + Jsoup.parse("" + header.labelHtml).body().text();
+    	}
+    	catch (e) {
+    		return "" + header.labelHtml;
+    	}
+    };
+    
+    var compareTechnicalIds = function(left, right) {
+    	var leftText = left == null ? "" : ("" + left);
+    	var rightText = right == null ? "" : ("" + right);
+    	var leftFolded = leftText.toLowerCase();
+    	var rightFolded = rightText.toLowerCase();
+    	if (leftFolded < rightFolded) return -1;
+    	if (leftFolded > rightFolded) return 1;
+    	if (leftText < rightText) return -1;
+    	if (leftText > rightText) return 1;
+    	return 0;
+    };
+    
+    var buildQuestionPermutation = function(headers, questionSort, lang) {
+    	if (!Array.isArray(headers)) {
+    		return [];
+    	}
+    	var permutation = [];
+    	for (var pi = 0; pi < headers.length; pi++) {
+    		permutation.push(pi);
+    	}
+    	if (questionSort == "current") {
+    		return permutation;
+    	}
+    
+    	var firstQuestion = 0;
+    	while (
+    		firstQuestion < headers.length &&
+    		headers[firstQuestion] &&
+    		(headers[firstQuestion].type == "timestamp" || headers[firstQuestion].type == "author")
+    	) {
+    		firstQuestion++;
+    	}
+    
+    	var firstAction = headers.length;
+    	while (
+    		firstAction > firstQuestion &&
+    		headers[firstAction - 1] &&
+    		headers[firstAction - 1].type == "actionValue"
+    	) {
+    		firstAction--;
+    	}
+    
+    	var questionIndexes = permutation.slice(firstQuestion, firstAction);
+    	var collator = Collator.getInstance(Locale.forLanguageTag(normalizeQuestionSortLocale(lang)));
+    	collator.setStrength(Collator.SECONDARY);
+    	questionIndexes.sort(function(leftIndex, rightIndex) {
+    		var leftHeader = headers[leftIndex];
+    		var rightHeader = headers[rightIndex];
+    		var leftValue = questionSort == "id"
+    			? (leftHeader && leftHeader.id != null ? "" + leftHeader.id : "")
+    			: getPlainQuestionLabel(leftHeader);
+    		var rightValue = questionSort == "id"
+    			? (rightHeader && rightHeader.id != null ? "" + rightHeader.id : "")
+    			: getPlainQuestionLabel(rightHeader);
+    		var leftEmpty = leftValue.trim() === "";
+    		var rightEmpty = rightValue.trim() === "";
+    		if (leftEmpty != rightEmpty) {
+    			return leftEmpty ? 1 : -1;
+    		}
+    
+    		var compared = questionSort == "id"
+    			? compareTechnicalIds(leftValue, rightValue)
+    			: collator.compare(leftValue, rightValue);
+    		if (compared != 0) {
+    			return compared;
+    		}
+    
+    		var leftId = leftHeader && leftHeader.id != null ? "" + leftHeader.id : "";
+    		var rightId = rightHeader && rightHeader.id != null ? "" + rightHeader.id : "";
+    		compared = compareTechnicalIds(leftId, rightId);
+    		if (compared != 0) {
+    			return compared;
+    		}
+    		return leftIndex - rightIndex;
+    	});
+    
+    	return permutation.slice(0, firstQuestion)
+    		.concat(questionIndexes)
+    		.concat(permutation.slice(firstAction));
+    };
+    
+    var applyColumnPermutation = function(columns, permutation) {
+    	if (!Array.isArray(columns) || !Array.isArray(permutation) || permutation.length === 0) {
+    		return columns;
+    	}
+    	var ordered = [];
+    	for (var oi = 0; oi < permutation.length; oi++) {
+    		ordered.push(columns[permutation[oi]]);
+    	}
+    	return ordered;
+    };
+    
     
     var writeCsvRow = function(writer, row, options) {
     	var stringDelimiter = options.stringDelimiter || ''"'';
@@ -182,6 +307,22 @@ responseTimeout: 600
     var reverse_separator = (separator == ";" ? "," : ";");
     var skipParam = decodeURIComponent(sk);
     var limitParam = decodeURIComponent(li);
+    var question_sort = "current";
+    var response_sort = "current";
+    try {
+    	var requestedQuestionSort = qs != null ? decodeURIComponent(qs) : "";
+    	if (requestedQuestionSort == "id" || requestedQuestionSort == "label") {
+    		question_sort = requestedQuestionSort;
+    	}
+    }
+    catch (e) { }
+    try {
+    	var requestedResponseSort = rs != null ? decodeURIComponent(rs) : "";
+    	if (requestedResponseSort == "date_asc" || requestedResponseSort == "date_desc") {
+    		response_sort = requestedResponseSort;
+    	}
+    }
+    catch (e) { }
     var skip = 0;
     var limit = null;
     try {
@@ -220,6 +361,28 @@ responseTimeout: 600
     var writer = null;
     var rowsWritten = 0;
     var headerWritten = false;
+    var structuralHeaders = null;
+    var columnPermutation = null;
+    
+    if (response_sort != "current") {
+    	var structuralMetaPayload = {
+    		skip: 0,
+    		limit: batchSize,
+    		lang: lang,
+    		timezone: timezone,
+    		offset: offset
+    	};
+    	if (privacy === "id")   structuralMetaPayload.authorId   = true;
+    	if (privacy === "name") structuralMetaPayload.authorName = true;
+    	var structuralCall = callSequence("C8Oforms", "APIV2_getResponses", {
+    		k: k, formId: formId, version: version, summary: false, csv: true,
+    		meta: JSON.stringify(structuralMetaPayload)
+    	});
+    	var structuralPayload = (structuralCall && structuralCall.document) ? structuralCall.document.res : null;
+    	if (structuralPayload && structuralPayload.response && Array.isArray(structuralPayload.response.value)) {
+    		structuralHeaders = structuralPayload.response.value;
+    	}
+    }
     
     try {
     	writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(fp, false), encoding));
@@ -244,6 +407,7 @@ responseTimeout: 600
     	  };
     	  if (privacy === "id")   metaPayload.authorId   = true;
     	  if (privacy === "name") metaPayload.authorName = true;
+    	  if (response_sort != "current") metaPayload.responseSort = response_sort;
     
     	  var call = callSequence("C8Oforms", "APIV2_getResponses", {
     	    k: k, formId: formId, version: version, summary: false, csv: true,
@@ -256,7 +420,14 @@ responseTimeout: 600
     	  // entêtes 1x
     	  var headers = payload.response.value || [];
     	  if (!headerWritten) {
-    	    var headerRow = buildHeaderRow(headers, headerKey);
+    	    var headersForExport = structuralHeaders != null ? structuralHeaders : headers;
+    	    columnPermutation = question_sort == "current"
+    	      ? null
+    	      : buildQuestionPermutation(headersForExport, question_sort, lang);
+    	    var orderedHeaders = columnPermutation != null
+    	      ? applyColumnPermutation(headersForExport, columnPermutation)
+    	      : headersForExport;
+    	    var headerRow = buildHeaderRow(orderedHeaders, headerKey);
     	    writeCsvRow(writer, headerRow, options);
     	    headerWritten = true;
     	  }
@@ -270,7 +441,10 @@ responseTimeout: 600
     			if (!Array.isArray(e)) {
     				continue;
     			}
-    			var row = buildDataRow(e, reverse_separator);
+    			var orderedResponse = columnPermutation != null
+    				? applyColumnPermutation(e, columnPermutation)
+    				: e;
+    			var row = buildDataRow(orderedResponse, reverse_separator);
     		    writeCsvRow(writer, row, options);
     		    rowsWritten++;
     	  }
@@ -375,3 +549,11 @@ responseTimeout: 600
 ↓tz [variables.RequestableVariable-1788948502542]: 
   comment: Browser IANA timezone
   description: Browser IANA timezone used for DST-aware response metadata formatting
+↓qs [variables.RequestableVariable-1789142103768]: 
+  comment: 'Question/column sort: current, id, or label'
+  description: Optional CSV question/column ordering
+  value: current
+↓rs [variables.RequestableVariable-1789142103770]: 
+  comment: 'Response/row sort: current, date_asc, or date_desc'
+  description: Optional CSV response ordering
+  value: current
