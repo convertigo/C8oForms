@@ -62,7 +62,42 @@ responseTimeout: 600
     	return getFormattedDate(new Date(epoch + offsetDiff));
     };
     // start functions
+    var normalizeCsvDisplayLocale = (locale) => {
+    	var normalized = locale == null ? "" : ("" + locale).trim().replace(/_/g, "-");
+    	var normalizedLower = normalized.toLowerCase();
+    	var primaryLanguage = normalizedLower.split("-")[0];
+    
+    	if (primaryLanguage == "en" || primaryLanguage == "fr" || primaryLanguage == "es" || primaryLanguage == "it") {
+    		return primaryLanguage;
+    	}
+    	if (
+    		normalizedLower == "zh-cn" ||
+    		normalizedLower == "zh-sg" ||
+    		normalizedLower == "zh-hans" ||
+    		normalizedLower.indexOf("zh-hans-") == 0
+    	) {
+    		return "zh-CN";
+    	}
+    	return "en";
+    };
+    
+    var getCsvLocationVocabulary = (lang) => {
+    	switch (normalizeCsvDisplayLocale(lang)) {
+    		case "fr":
+    			return { latitude: "Latitude", longitude: "Longitude", accuracy: "Précision", meters: "mètres" };
+    		case "es":
+    			return { latitude: "Latitud", longitude: "Longitud", accuracy: "Precisión", meters: "metros" };
+    		case "it":
+    			return { latitude: "Latitudine", longitude: "Longitudine", accuracy: "Precisione", meters: "metri" };
+    		case "zh-CN":
+    			return { latitude: "纬度", longitude: "经度", accuracy: "精度", meters: "米" };
+    		default:
+    			return { latitude: "Latitude", longitude: "Longitude", accuracy: "Accuracy", meters: "meters" };
+    	}
+    };
+    
     var getI18nForCsv = (key, lang) => {
+    	lang = normalizeCsvDisplayLocale(lang);
     	if (key == "timestamp") {
     		switch ("" + lang) {
     			case "en":
@@ -72,6 +107,8 @@ responseTimeout: 600
     				return "Fecha";
     			case "it":
     				return "Data";
+    			case "zh-CN":
+    				return "日期";
     			default:
     				return "Date";
     		}
@@ -86,6 +123,8 @@ responseTimeout: 600
     				return "Autor";
     			case "it":
     				return "Autore";
+    			case "zh-CN":
+    				return "作者";
     			default:
     				return "Author";
     		}
@@ -100,6 +139,8 @@ responseTimeout: 600
     				return "Usuario anónimo";
     			case "it":
     				return "Utente anonimo";
+    			case "zh-CN":
+    				return "匿名用户";
     			default:
     				return "Anonymous user";
     		}
@@ -128,6 +169,8 @@ responseTimeout: 600
     				return "Usuario anonimizado";
     			case "it":
     				return "Utente anonimizzato";
+    			case "zh-CN":
+    				return "匿名化用户";
     			default:
     				return "Anonymized user";
     		}
@@ -182,7 +225,13 @@ responseTimeout: 600
     						}
     					}
     					else {
-    						response.value = { text: "Latitude : " + response["value"]["gps"]["latitude"] + ", Longitude : " + response["value"]["gps"]["longitude"] + ", précision : " + ("" + response["value"]["gps"]["accuracy"]).split(".")[0] + " métres", gps: response["value"]["gps"] };
+    						if (csv) {
+    							var locationVocabulary = getCsvLocationVocabulary((meta && meta.lang) ? meta.lang : "en");
+    							response.value = { text: locationVocabulary.latitude + " : " + response["value"]["gps"]["latitude"] + ", " + locationVocabulary.longitude + " : " + response["value"]["gps"]["longitude"] + ", " + locationVocabulary.accuracy + " : " + ("" + response["value"]["gps"]["accuracy"]).split(".")[0] + " " + locationVocabulary.meters, gps: response["value"]["gps"] };
+    						}
+    						else {
+    							response.value = { text: "Latitude : " + response["value"]["gps"]["latitude"] + ", Longitude : " + response["value"]["gps"]["longitude"] + ", précision : " + ("" + response["value"]["gps"]["accuracy"]).split(".")[0] + " métres", gps: response["value"]["gps"] };
+    						}
     					}
     					responseArray[_i].value.push(response.value);
     				}
@@ -928,7 +977,8 @@ responseTimeout: 600
     					// prefix for csv as timestamp or author
     					if (prefix) {
     						var i18nKey = getI18nForCsv(sortedsIds[i].type, (meta && meta.lang) ? meta.lang : "en");
-    						flatResponses[i] = { "id": i18nKey, att_type: false, "label": i18nKey, "labelHtml": i18nKey, "type": sortedsIds[i].type, "name": i18nKey };
+    						var technicalKey = csv ? sortedsIds[i].type : i18nKey;
+    						flatResponses[i] = { "id": technicalKey, att_type: false, "label": i18nKey, "labelHtml": i18nKey, "type": sortedsIds[i].type, "name": technicalKey };
     					}
     					else {
     						flatResponses[i] = { "id": elem, att_type: false, "label": response.label, "labelHtml": response.labelHtml, "type": response.type, categories: [], "name": response.name };
@@ -961,7 +1011,8 @@ responseTimeout: 600
     			var segmentsTemplate = getPathSegments(sortedsIds[ti]);
     			if (segmentsTemplate.length > 0 && segmentsTemplate[0] == "/") {
     				var i18nTemplateKey = getI18nForCsv(sortedsIds[ti].type, (meta && meta.lang) ? meta.lang : "en");
-    				flatResponses[ti] = { "id": i18nTemplateKey, att_type: false, "label": i18nTemplateKey, "labelHtml": i18nTemplateKey, "type": sortedsIds[ti].type, "name": i18nTemplateKey, "value": [], categories: [] };
+    				var technicalTemplateKey = csv ? sortedsIds[ti].type : i18nTemplateKey;
+    				flatResponses[ti] = { "id": technicalTemplateKey, att_type: false, "label": i18nTemplateKey, "labelHtml": i18nTemplateKey, "type": sortedsIds[ti].type, "name": technicalTemplateKey, "value": [], categories: [] };
     			}
     			else {
     				var resolvedTemplate = resolvePath(templateRoot, segmentsTemplate);
